@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SysPed WEB — Login</title>
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: var(--login-bg, #eef0f4);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transition: background var(--transition, .2s);
+  }
+
+  .card {
+    background: var(--login-card-bg, #fff);
+    border: 1px solid var(--login-card-border, #e0e3ea);
+    border-radius: 16px;
+    padding: 40px 44px 36px;
+    width: 100%;
+    max-width: 420px;
+    box-shadow: 0 4px 32px rgba(0,0,0,0.08);
+    text-align: center;
+    transition: background var(--transition), border-color var(--transition);
+  }
+
+  /* Logo */
+  .logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 28px;
+  }
+  .logo svg { width: 38px; height: 38px; }
+  .logo-name {
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--login-logo-color, #1e2433);
+    letter-spacing: 1px;
+    transition: color var(--transition);
+  }
+
+  /* Campos */
+  .field { text-align: left; margin-bottom: 16px; }
+  .field label {
+    display: block;
+    font-size: 14px;
+    color: var(--login-label, #444);
+    margin-bottom: 6px;
+    font-weight: 500;
+    transition: color var(--transition);
+  }
+  .field input, .field select {
+    width: 100%;
+    border: 1.5px solid var(--login-input-border, #d8dce6);
+    border-radius: 8px;
+    padding: 11px 14px;
+    font-size: 14px;
+    color: var(--login-label, #1e2433);
+    background: var(--login-input-bg, #fff);
+    outline: none;
+    transition: border-color var(--transition), background var(--transition);
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .field input::placeholder { color: #aab0c0; }
+  .field input:focus, .field select:focus { border-color: var(--login-input-focus, #2d3348); }
+  .field input.error { border-color: #e53e3e; background: #fff5f5; }
+  .field select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23666' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px; cursor: pointer; }
+
+  /* Campo senha com botão olho */
+  .pass-wrap { position: relative; }
+  .pass-wrap input { padding-right: 42px; }
+  .toggle-pass {
+    position: absolute;
+    right: 12px; top: 50%;
+    transform: translateY(-50%);
+    background: none; border: none;
+    cursor: pointer; color: #888;
+    padding: 4px; display: flex;
+    align-items: center; transition: color .2s;
+  }
+  .toggle-pass:hover { color: #444; }
+  .toggle-pass svg { width: 18px; height: 18px; }
+
+  /* Alertas */
+  .alert {
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 13px;
+    margin-bottom: 14px;
+    text-align: left;
+    display: none;
+  }
+  .alert-error   { background: #fff3f3; border: 1px solid #fca5a5; color: #dc2626; }
+  .alert-warning { background: #fffbeb; border: 1px solid #fcd34d; color: #92400e; }
+  .alert-blocked { background: #fff0f0; border: 1px solid #fc8181; color: #9b1c1c; }
+  .alert-show { display: block; }
+
+  /* Painel de código de liberação */
+  .panel-liberacao {
+    display: none;
+    background: #fff8f0;
+    border: 1px solid #f59e0b;
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 14px;
+    text-align: left;
+  }
+  .panel-liberacao.show { display: block; }
+  .panel-liberacao h4 { font-size: 14px; font-weight: 600; color: #92400e; margin-bottom: 10px; }
+  .panel-liberacao input {
+    width: 100%; border: 1.5px solid #f59e0b; border-radius: 8px;
+    padding: 10px 14px; font-size: 14px; outline: none; margin-bottom: 8px;
+    background: #fff; font-family: monospace; letter-spacing: 2px;
+  }
+  .panel-liberacao input:focus { border-color: #d97706; }
+
+  /* Botões */
+  .btn-login {
+    width: 100%;
+    background: var(--login-btn-bg, #2d3348);
+    color: var(--login-btn-text, #fff);
+    border: none; border-radius: 8px; padding: 13px;
+    font-size: 15px; font-weight: 600;
+    cursor: pointer; transition: background var(--transition);
+    margin-top: 8px; letter-spacing: 0.3px;
+  }
+  .btn-login:hover { background: var(--login-btn-hover, #3d4460); }
+  .btn-login:disabled { background: #8a90a0; cursor: not-allowed; }
+
+  .btn-liberacao {
+    width: 100%; background: #f59e0b; color: #fff;
+    border: none; border-radius: 6px; padding: 10px;
+    font-size: 13px; font-weight: 600; cursor: pointer; transition: background .2s;
+  }
+  .btn-liberacao:hover { background: #d97706; }
+
+  /* Divisor de empresa */
+  .divider { display: flex; align-items: center; gap: 10px; margin: 4px 0 14px; }
+  .divider span { font-size: 12px; color: #aab0c0; white-space: nowrap; }
+  .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: #e8eaf0; }
+
+  /* Rodapé do card */
+  .card-footer {
+    margin-top: 24px;
+    font-size: 12px; color: var(--login-footer-text, #9aa0b4); line-height: 1.8;
+    transition: color var(--transition);
+  }
+  .card-footer a { color: var(--login-logo-color, #2d3348); text-decoration: none; }
+  .card-footer a:hover { text-decoration: underline; }
+
+  /* Links inferiores */
+  .page-footer { margin-top: 24px; font-size: 13px; color: var(--login-footer-text, #7a82a0); }
+  .page-footer a { color: var(--login-footer-text, #7a82a0); text-decoration: none; margin: 0 8px; }
+  .page-footer a:hover { color: var(--login-logo-color, #2d3348); }
+  .page-footer span { color: #c0c6d8; margin: 0 2px; }
+
+  /* Loading spinner */
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: middle; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Aviso mensalidade */
+  .aviso-mensalidade {
+    display: none;
+    background: #fffbeb; border: 1px solid #fcd34d;
+    border-radius: 8px; padding: 10px 14px;
+    font-size: 13px; color: #92400e;
+    margin-bottom: 14px; text-align: left; cursor: pointer;
+  }
+  .aviso-mensalidade:hover { background: #fef3c7; }
+  .aviso-mensalidade.show { display: block; }
+
+  @media (max-width: 480px) {
+    .card { padding: 32px 24px 28px; margin: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="card">
+
+  <!-- Logo -->
+  <div class="logo">
+    <svg viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M19 2L4 8v10c0 9 6.5 17 15 19 8.5-2 15-10 15-19V8L19 2z"
+        fill="#1e2433" stroke="#1e2433" stroke-width="0.5"/>
+      <circle cx="19" cy="14" r="4" fill="#fff"/>
+      <path d="M11 26c0-4.4 3.6-8 8-8s8 3.6 8 8" stroke="#fff" stroke-width="2.2"
+        stroke-linecap="round" fill="none"/>
+    </svg>
+    <span class="logo-name">SysPed WEB</span>
+  </div>
+
+  <!-- Aviso de mensalidade (VerificaMensalidade do Delphi) -->
+  <div class="aviso-mensalidade" id="aviso_mensalidade" onclick="showLiberacao()">
+    ⚠️ <strong>Mensalidade em aberto.</strong> Clique aqui para inserir o código de liberação.
+  </div>
+
+  <!-- Sistema bloqueado -->
+  <div class="alert alert-blocked" id="alert_bloqueado">
+    🔒 <strong>Sistema bloqueado por inadimplência.</strong><br>
+    <small>Insira o código de liberação abaixo ou entre em contato com o suporte.</small>
+  </div>
+
+  <!-- Painel de código de liberação (panelCodliberacao do Delphi) -->
+  <div class="panel-liberacao" id="panel_liberacao">
+    <h4>Código de Liberação</h4>
+    <input type="text" id="cod_liberacao" placeholder="Digite o código recebido" maxlength="50">
+    <button class="btn-liberacao" onclick="confirmarLiberacao()">Confirmar Código</button>
+  </div>
+
+  <!-- Erro de login -->
+  <div class="alert alert-error" id="error_msg"></div>
+
+  <!-- Formulário de login (visível quando não bloqueado) -->
+  <div id="form_login">
+    <form onsubmit="doLogin(event)">
+
+      <div class="field">
+        <label for="loginusu">Usuário</label>
+        <input id="loginusu" type="text" placeholder="Login" autocomplete="username" required>
+      </div>
+
+      <div class="field">
+        <label for="senhausu">Senha</label>
+        <div class="pass-wrap">
+          <input id="senhausu" type="password" placeholder="" autocomplete="current-password" required>
+          <button type="button" class="toggle-pass" onclick="togglePass()" title="Mostrar/ocultar senha">
+            <svg id="eye_icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7
+                   -1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Seletor de Empresa -->
+      <div class="field" id="field_empresa">
+        <div class="divider"><span>Empresa</span></div>
+        <label for="sel_empresa">Filial / Empresa</label>
+        <select id="sel_empresa">
+          <option value="">— Selecione —</option>
+        </select>
+      </div>
+
+      <button type="submit" class="btn-login" id="btn_login">Entrar</button>
+
+    </form>
+  </div>
+
+  <div class="card-footer">
+    Sistema de Gestão de Pedidos<br>
+    Versão 1.0.0<br>
+    Developed by <a href="#">NC Sistemas</a>
+  </div>
+
+</div>
+
+<div class="page-footer">
+  <a href="#">Termos de Uso</a>
+  <span>|</span>
+  <a href="#">Suporte</a>
+</div>
+
+<script>
+let empresasCache = [];
+let sistemasBloqueado = false;
+
+// ─── Inicialização ─────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', async () => {
+  // Redireciona se já logado
+  const token = sessionStorage.getItem('token') || localStorage.getItem('token');
+  if (token) {
+    try {
+      const r = await fetch('/api/auth/me', { headers: { Authorization: 'Bearer ' + token } });
+      if (r.ok) { window.location.href = '/home.html'; return; }
+    } catch {}
+  }
+
+  // Verifica mensalidade (VerificandoTabelaExite + VerificaMensalidade do Delphi)
+  await verificarMensalidade();
+
+  // Carrega lista de empresas imediatamente
+  await carregarEmpresas();
+
+  document.getElementById('loginusu').focus();
+
+  // Enter no campo usuário → vai para senha
+  document.getElementById('loginusu').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); document.getElementById('senhausu').focus(); }
+  });
+
+  // Enter no campo senha → foca no botão Entrar
+  document.getElementById('senhausu').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); document.getElementById('btn_login').focus(); }
+  });
+});
+
+// ─── Verifica mensalidade ──────────────────────────────────────────────────
+async function verificarMensalidade() {
+  try {
+    const r = await fetch('/api/auth/mensalidade');
+    const data = await r.json();
+
+    if (data.bloqueado) {
+      sistemasBloqueado = true;
+      document.getElementById('alert_bloqueado').classList.add('alert-show');
+      document.getElementById('panel_liberacao').classList.add('show');
+      document.getElementById('form_login').style.display = 'none';
+    } else if (data.aviso) {
+      const msg = data.diasParaBloqueio > 0
+        ? `⚠️ Mensalidade vence em ${data.diasParaBloqueio} dia(s). Clique para inserir código de liberação.`
+        : `⚠️ Mensalidade em aberto (${data.diasAtraso} dias). Clique para liberar.`;
+      const el = document.getElementById('aviso_mensalidade');
+      el.innerHTML = msg;
+      el.classList.add('show');
+    }
+  } catch {}
+}
+
+// ─── Carrega empresas disponíveis ─────────────────────────────────────────
+async function carregarEmpresas() {
+  try {
+    const r = await fetch(`/api/auth/empresas`);
+    const data = await r.json();
+    empresasCache = data.empresas || [];
+
+    const sel = document.getElementById('sel_empresa');
+
+    sel.innerHTML = '<option value="">— Selecione —</option>';
+    empresasCache.forEach(e => {
+      const opt = document.createElement('option');
+      opt.value = e.id_empresa;
+      opt.textContent = e.Razao_empresa;
+      sel.appendChild(opt);
+    });
+
+    // Se só há uma empresa, já deixa selecionada
+    if (empresasCache.length === 1) {
+      sel.value = empresasCache[0].id_empresa;
+    }
+  } catch {}
+}
+
+// ─── Login ─────────────────────────────────────────────────────────────────
+async function doLogin(e) {
+  e.preventDefault();
+  if (sistemasBloqueado) return;
+
+  const btn = document.getElementById('btn_login');
+  const err = document.getElementById('error_msg');
+
+  const loginusu = document.getElementById('loginusu').value.trim();
+  const senhausu = document.getElementById('senhausu').value;
+  const id_empresa = document.getElementById('sel_empresa').value || null;
+
+  // Validação (btnLogar12Click do Delphi)
+  if (!loginusu) {
+    markError('loginusu', 'Informe o usuário'); return;
+  }
+  if (!senhausu) {
+    markError('senhausu', 'Informe a senha'); return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Entrando...';
+  err.classList.remove('alert-show');
+
+  try {
+    const r = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ loginusu, senhausu, id_empresa })
+    });
+
+    const data = await r.json();
+
+    if (data.ok) {
+      sessionStorage.setItem('token', data.token);
+      sessionStorage.setItem('user', JSON.stringify(data.user));
+      if (data.empresa) sessionStorage.setItem('empresa', JSON.stringify(data.empresa));
+      window.location.href = '/home.html';
+    } else if (data.bloqueado) {
+      // Sistema bloqueado por inadimplência
+      sistemasBloqueado = true;
+      document.getElementById('alert_bloqueado').classList.add('alert-show');
+      document.getElementById('panel_liberacao').classList.add('show');
+      document.getElementById('form_login').style.display = 'none';
+    } else {
+      // Usuário ou senha inválidos (Delphi limpa os campos e mostra borda vermelha)
+      showError(data.error || 'Usuário ou senha inválidos');
+      document.getElementById('loginusu').value = '';
+      document.getElementById('senhausu').value = '';
+      markError('loginusu');
+      markError('senhausu');
+      document.getElementById('loginusu').focus();
+    }
+  } catch {
+    showError('Não foi possível conectar ao servidor');
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = 'Entrar';
+}
+
+// ─── Código de liberação (btnConfirmar1Click do Delphi) ────────────────────
+async function confirmarLiberacao() {
+  const codigo = document.getElementById('cod_liberacao').value.trim();
+  if (!codigo) { alert('Informe o código de liberação'); return; }
+
+  try {
+    const r = await fetch('/api/auth/liberar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ codigo_liberacao: codigo })
+    });
+    const data = await r.json();
+    if (data.ok) {
+      alert('Código inserido com sucesso! O sistema será recarregado.');
+      window.location.reload();
+    } else {
+      alert(data.error || 'Código inválido');
+    }
+  } catch {
+    alert('Erro ao confirmar código');
+  }
+}
+
+function showLiberacao() {
+  document.getElementById('panel_liberacao').classList.toggle('show');
+}
+
+// ─── Utilitários ───────────────────────────────────────────────────────────
+function togglePass() {
+  const input = document.getElementById('senhausu');
+  const icon  = document.getElementById('eye_icon');
+  const show  = input.type === 'password';
+  input.type  = show ? 'text' : 'password';
+  icon.innerHTML = show
+    ? `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+         d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7
+            a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243
+            M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29
+            M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7
+            a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>`
+    : `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+         d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+         d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7
+            -1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>`;
+}
+
+function markError(id, msg) {
+  const el = document.getElementById(id);
+  el.classList.add('error');
+  el.addEventListener('focus', () => el.classList.remove('error'), { once: true });
+  if (msg) showError(msg);
+}
+
+function showError(msg) {
+  const el = document.getElementById('error_msg');
+  el.textContent = msg;
+  el.classList.add('alert-show');
+}
+</script>
+</body>
+</html>

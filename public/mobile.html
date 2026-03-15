@@ -1,0 +1,2036 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#4361ee">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>SysPed Mobile</title>
+<style>
+/* ===== RESET & BASE ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --accent: #4361ee;
+  --accent-dark: #3451d1;
+  --bg: #f4f5f7;
+  --card: #fff;
+  --nav-bg: #1e1e2e;
+  --nav-h: 60px;
+  --topbar-h: 48px;
+  --radius: 14px;
+  --radius-btn: 12px;
+  --shadow: 0 2px 12px rgba(0,0,0,0.08);
+  --shadow-md: 0 4px 20px rgba(0,0,0,0.12);
+  --green: #22c55e;
+  --red: #ef4444;
+  --orange: #f97316;
+  --gray: #9ca3af;
+  --text: #1a1a2e;
+  --text-muted: #6b7280;
+  --border: #e5e7eb;
+}
+html, body {
+  height: 100%;
+  overflow: hidden;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ===== TOPBAR ===== */
+#topbar {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: var(--topbar-h);
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  z-index: 100;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+#topbar .logo {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: -0.5px;
+}
+#topbar .topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+#topbar .user-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#badge-offline {
+  display: none;
+  background: var(--orange);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+#badge-offline.show { display: inline-block; }
+
+/* ===== OFFLINE BANNER ===== */
+#offline-banner {
+  display: none;
+  position: fixed;
+  top: var(--topbar-h);
+  left: 0; right: 0;
+  background: #fbbf24;
+  color: #1a1a2e;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  padding: 8px 16px;
+  z-index: 99;
+}
+#offline-banner.show { display: block; }
+
+/* ===== MAIN CONTENT ===== */
+#app {
+  position: fixed;
+  top: var(--topbar-h);
+  bottom: var(--nav-h);
+  left: 0; right: 0;
+  overflow: hidden;
+}
+#app.has-banner {
+  top: calc(var(--topbar-h) + 37px);
+}
+.section {
+  display: none;
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px;
+}
+.section.active { display: block; }
+
+/* ===== BOTTOM NAV ===== */
+#bottom-nav {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  height: var(--nav-h);
+  background: var(--nav-bg);
+  display: flex;
+  align-items: center;
+  z-index: 100;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+.nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  cursor: pointer;
+  padding: 8px 0;
+  position: relative;
+  min-height: 44px;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity .15s;
+}
+.nav-item:active { opacity: .7; }
+.nav-icon {
+  font-size: 22px;
+  line-height: 1;
+  color: rgba(255,255,255,0.45);
+  transition: color .15s;
+}
+.nav-label {
+  font-size: 10px;
+  color: rgba(255,255,255,0.45);
+  transition: color .15s;
+  font-weight: 500;
+}
+.nav-item.active .nav-icon,
+.nav-item.active .nav-label { color: var(--accent); }
+.nav-dot {
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+  position: absolute;
+  bottom: 6px;
+  opacity: 0;
+  transition: opacity .15s;
+}
+.nav-item.active .nav-dot { opacity: 1; }
+.nav-badge {
+  position: absolute;
+  top: 6px;
+  right: calc(50% - 18px);
+  background: var(--red);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+}
+.nav-badge.show { display: flex; }
+
+/* ===== CARDS ===== */
+.card {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px;
+  margin-bottom: 12px;
+}
+.card-sm {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+
+/* ===== KPI GRID ===== */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.kpi-card {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 14px 10px 12px;
+  text-align: center;
+}
+.kpi-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+  margin-bottom: 6px;
+  line-height: 1.3;
+}
+.kpi-value {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+}
+.kpi-card.accent-card { background: var(--accent); }
+.kpi-card.accent-card .kpi-label,
+.kpi-card.accent-card .kpi-value { color: #fff; }
+
+/* ===== SECTION HEADERS ===== */
+.section-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 12px;
+  margin-top: 4px;
+}
+
+/* ===== GREETING ===== */
+.greeting {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.greeting-date {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+/* ===== STATUS BADGES ===== */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 20px;
+  line-height: 1;
+}
+.badge-green { background: #dcfce7; color: #16a34a; }
+.badge-blue { background: #dbeafe; color: #2563eb; }
+.badge-gray { background: #f3f4f6; color: #6b7280; }
+.badge-red { background: #fee2e2; color: #dc2626; }
+.badge-orange { background: #ffedd5; color: #ea580c; }
+
+/* ===== ORDER CARDS ===== */
+.order-card {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: pointer;
+  active-transform: scale(0.98);
+  transition: transform .1s;
+}
+.order-card:active { transform: scale(0.98); }
+.order-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.order-client {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  flex: 1;
+  margin-right: 8px;
+}
+.order-value {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.order-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.order-num-date {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* ===== FAB ===== */
+.fab {
+  position: fixed;
+  bottom: calc(var(--nav-h) + 16px);
+  right: 16px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 28px;
+  height: 52px;
+  padding: 0 20px;
+  font-size: 15px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 16px rgba(67,97,238,0.4);
+  cursor: pointer;
+  z-index: 90;
+  transition: transform .15s, box-shadow .15s;
+}
+.fab:active { transform: scale(0.96); box-shadow: 0 2px 8px rgba(67,97,238,0.3); }
+
+/* ===== SEARCH ===== */
+.search-wrap {
+  position: relative;
+  margin-bottom: 14px;
+}
+.search-input {
+  width: 100%;
+  height: 44px;
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  padding: 0 16px 0 40px;
+  font-size: 14px;
+  background: var(--card);
+  color: var(--text);
+  outline: none;
+  transition: border-color .15s;
+}
+.search-input:focus { border-color: var(--accent); }
+.search-icon {
+  position: absolute;
+  left: 13px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 17px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+/* ===== CLIENTS SECTION ===== */
+.clients-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.clients-header .search-wrap { flex: 1; margin-bottom: 0; }
+.client-card {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  transition: transform .1s;
+}
+.client-card:active { transform: scale(0.98); }
+.client-avatar {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+.client-info { flex: 1; min-width: 0; }
+.client-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.client-city {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.client-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.icon-btn {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  cursor: pointer;
+  transition: background .15s;
+}
+.icon-btn:active { background: var(--border); }
+.arrow-icon { color: var(--text-muted); font-size: 18px; }
+
+/* ===== SLIDE-IN PANEL ===== */
+.slide-panel {
+  position: fixed;
+  top: 0; right: -100%;
+  width: 100%; height: 100%;
+  background: var(--bg);
+  z-index: 200;
+  transition: right .28s cubic-bezier(0.4,0,0.2,1);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.slide-panel.open { right: 0; }
+.panel-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.panel-title {
+  font-size: 16px;
+  font-weight: 700;
+  flex: 1;
+  margin-right: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.close-btn {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: var(--bg);
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.panel-body { padding: 16px; padding-bottom: 100px; }
+.info-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.info-row:last-child { border-bottom: none; }
+.info-label { font-size: 12px; color: var(--text-muted); min-width: 80px; }
+.info-value { font-size: 14px; font-weight: 500; color: var(--text); flex: 1; }
+.info-value a { color: var(--accent); text-decoration: none; }
+.panel-footer {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  padding: 12px 16px;
+  background: var(--card);
+  border-top: 1px solid var(--border);
+}
+
+/* ===== BOTTOM SHEET (MODAL) ===== */
+.bottom-sheet-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 300;
+  align-items: flex-end;
+}
+.bottom-sheet-overlay.open { display: flex; }
+.bottom-sheet {
+  background: var(--card);
+  border-radius: 20px 20px 0 0;
+  padding: 20px 16px 32px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  animation: slideUp .25s cubic-bezier(0.4,0,0.2,1);
+}
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+.sheet-handle {
+  width: 40px; height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  margin: 0 auto 16px;
+}
+.sheet-title {
+  font-size: 17px;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+
+/* ===== FORM ELEMENTS ===== */
+.form-group { margin-bottom: 14px; }
+.form-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.form-input, .form-select, .form-textarea {
+  width: 100%;
+  height: 48px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-btn);
+  padding: 0 14px;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--bg);
+  outline: none;
+  font-family: inherit;
+  transition: border-color .15s;
+  -webkit-appearance: none;
+}
+.form-input:focus, .form-select:focus, .form-textarea:focus {
+  border-color: var(--accent);
+  background: var(--card);
+}
+.form-textarea {
+  height: auto;
+  min-height: 80px;
+  padding: 12px 14px;
+  resize: none;
+}
+.form-select { background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 12px center; background-size: 16px; padding-right: 36px; }
+
+/* ===== BUTTONS ===== */
+.btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 52px;
+  border: none;
+  border-radius: var(--radius-btn);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity .15s, transform .1s;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn:active { transform: scale(0.97); opacity: .88; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-green { background: var(--green); color: #fff; }
+.btn-outline {
+  background: transparent;
+  border: 2px solid var(--accent);
+  color: var(--accent);
+}
+.btn-sm {
+  height: 40px;
+  font-size: 13px;
+  padding: 0 16px;
+  width: auto;
+}
+.btn-add-client {
+  height: 44px;
+  width: 44px;
+  border-radius: 12px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  font-size: 22px;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ===== WIZARD ===== */
+.wizard-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+  padding: 14px 16px 0;
+}
+.wizard-bar-wrap {
+  flex: 1;
+  height: 5px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.wizard-bar {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width .3s;
+}
+.wizard-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.wizard-step { display: none; }
+.wizard-step.active { display: block; }
+
+/* ===== PRODUCT SEARCH RESULT ===== */
+.product-result {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.product-info { flex: 1; min-width: 0; }
+.product-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.product-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.product-price { font-size: 14px; font-weight: 700; color: var(--accent); white-space: nowrap; }
+.btn-add-product {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-size: 22px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* ===== CART ===== */
+#cart-section {
+  border-top: 2px solid var(--border);
+  margin-top: 16px;
+  padding-top: 12px;
+}
+.cart-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin-bottom: 10px;
+}
+.cart-item {
+  background: var(--card);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cart-item-name {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.qty-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.qty-btn {
+  width: 30px; height: 30px;
+  border-radius: 8px;
+  border: 1.5px solid var(--border);
+  background: var(--bg);
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+}
+.qty-value { font-size: 14px; font-weight: 600; min-width: 24px; text-align: center; }
+.cart-item-sub { font-size: 13px; font-weight: 700; color: var(--accent); min-width: 60px; text-align: right; }
+.btn-remove-cart {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: #fee2e2;
+  color: var(--red);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cart-total {
+  background: var(--accent);
+  color: #fff;
+  border-radius: 12px;
+  padding: 12px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+}
+.cart-total-label { font-size: 14px; font-weight: 600; }
+.cart-total-value { font-size: 20px; font-weight: 700; }
+
+/* ===== CONFIRM STEP ===== */
+.confirm-section {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 14px;
+  margin-bottom: 12px;
+}
+.confirm-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin-bottom: 10px;
+}
+.confirm-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.confirm-row:last-child { border-bottom: none; }
+.confirm-row-label { color: var(--text-muted); }
+.confirm-row-value { font-weight: 600; }
+.confirm-total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+/* ===== MY ORDERS SECTION ===== */
+.filter-chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  margin-bottom: 14px;
+  scrollbar-width: none;
+}
+.filter-chips::-webkit-scrollbar { display: none; }
+.chip {
+  flex-shrink: 0;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 20px;
+  border: 1.5px solid var(--border);
+  background: var(--card);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all .15s;
+}
+.chip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* ===== TOAST ===== */
+#toast-container {
+  position: fixed;
+  top: calc(var(--topbar-h) + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+  width: calc(100% - 32px);
+  max-width: 380px;
+}
+.toast {
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+  box-shadow: var(--shadow-md);
+  animation: toastIn .25s ease, toastOut .3s ease 2.7s forwards;
+  text-align: center;
+}
+.toast-success { background: var(--green); }
+.toast-error { background: var(--red); }
+.toast-info { background: var(--accent); }
+.toast-warning { background: var(--orange); }
+@keyframes toastIn { from { opacity:0; transform: translateY(-10px); } to { opacity:1; transform: translateY(0); } }
+@keyframes toastOut { to { opacity:0; transform: translateY(-10px); } }
+
+/* ===== EMPTY STATE ===== */
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-muted);
+}
+.empty-icon { font-size: 40px; margin-bottom: 10px; }
+.empty-title { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+.empty-desc { font-size: 13px; }
+
+/* ===== SPINNER ===== */
+.loading-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+}
+.spinner {
+  width: 32px; height: 32px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ===== DIVIDERS AND MISC ===== */
+.divider { height: 1px; background: var(--border); margin: 12px 0; }
+.row-between { display: flex; justify-content: space-between; align-items: center; }
+.pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+
+/* ===== WIZARD NAVIGATION BUTTONS ===== */
+.wizard-nav {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+  padding-bottom: 20px;
+}
+.wizard-nav .btn { flex: 1; }
+
+/* ===== SELECTED CLIENT CARD ===== */
+.selected-client-card {
+  background: #eff6ff;
+  border: 2px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.selected-client-name { font-size: 15px; font-weight: 700; color: var(--text); }
+.selected-client-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+/* Scrollbar styling for webkit */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<!-- ===== TOPBAR ===== -->
+<div id="topbar">
+  <div class="logo">SysPed</div>
+  <div class="topbar-right">
+    <span id="badge-offline">● Offline</span>
+    <span class="user-name" id="topbar-user">...</span>
+  </div>
+</div>
+
+<!-- ===== OFFLINE BANNER ===== -->
+<div id="offline-banner">📶 Sem conexão — pedidos serão sincronizados ao voltar online</div>
+
+<!-- ===== MAIN APP ===== -->
+<div id="app">
+
+  <!-- ==== SECTION: HOME ==== -->
+  <div class="section active" id="sec-home">
+    <div class="greeting" id="greeting-text">Olá!</div>
+    <div class="greeting-date" id="greeting-date"></div>
+
+    <!-- KPI Cards -->
+    <div class="kpi-grid">
+      <div class="kpi-card accent-card">
+        <div class="kpi-label">Total Dia</div>
+        <div class="kpi-value" id="kpi-total">R$ 0</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Pedidos Hoje</div>
+        <div class="kpi-value" id="kpi-pedidos">0</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Clientes Visit.</div>
+        <div class="kpi-value" id="kpi-clientes">0</div>
+      </div>
+    </div>
+
+    <!-- Last Orders -->
+    <div class="section-title">Últimos Pedidos</div>
+    <div id="home-orders-list">
+      <div class="loading-wrap"><div class="spinner"></div></div>
+    </div>
+  </div>
+
+  <!-- ==== SECTION: CLIENTES ==== -->
+  <div class="section" id="sec-clientes">
+    <div class="clients-header">
+      <div class="search-wrap" style="flex:1;margin-bottom:0">
+        <span class="search-icon">🔍</span>
+        <input class="search-input" id="client-search" type="search" placeholder="Buscar clientes..." autocomplete="off">
+      </div>
+      <button class="btn-add-client" id="btn-new-client" title="Novo Cliente">+</button>
+    </div>
+    <div id="clients-list">
+      <div class="empty-state">
+        <div class="empty-icon">👥</div>
+        <div class="empty-title">Busque um cliente</div>
+        <div class="empty-desc">Digite 2 ou mais caracteres para buscar</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==== SECTION: NOVO PEDIDO ==== -->
+  <div class="section" id="sec-pedido" style="padding:0">
+    <div class="wizard-progress">
+      <div class="wizard-bar-wrap">
+        <div class="wizard-bar" id="wizard-bar" style="width:33%"></div>
+      </div>
+      <div class="wizard-label" id="wizard-label">Passo 1/3</div>
+    </div>
+
+    <div style="padding:0 16px 16px">
+      <!-- Passo 1: Cliente -->
+      <div class="wizard-step active" id="step-1">
+        <div class="section-title">Selecionar Cliente</div>
+        <div class="search-wrap">
+          <span class="search-icon">🔍</span>
+          <input class="search-input" id="pedido-client-search" type="search" placeholder="Buscar cliente..." autocomplete="off">
+        </div>
+        <div id="pedido-client-results"></div>
+        <div id="pedido-selected-client" style="display:none"></div>
+        <div class="wizard-nav">
+          <button class="btn btn-primary" id="btn-step1-next" disabled onclick="wizardNext()">Próximo →</button>
+        </div>
+      </div>
+
+      <!-- Passo 2: Produtos -->
+      <div class="wizard-step" id="step-2">
+        <div class="section-title">Adicionar Produtos</div>
+        <div class="search-wrap">
+          <span class="search-icon">🔍</span>
+          <input class="search-input" id="product-search" type="search" placeholder="Buscar produto ou código..." autocomplete="off">
+        </div>
+        <div id="product-results"></div>
+        <div id="cart-section">
+          <div class="cart-title">🛒 Carrinho</div>
+          <div id="cart-items"></div>
+          <div class="cart-total" id="cart-total-bar">
+            <span class="cart-total-label">Total do Pedido</span>
+            <span class="cart-total-value" id="cart-total-value">R$ 0,00</span>
+          </div>
+        </div>
+        <div class="wizard-nav">
+          <button class="btn btn-outline" onclick="wizardBack()">← Voltar</button>
+          <button class="btn btn-primary" id="btn-step2-next" onclick="wizardNext()">Próximo →</button>
+        </div>
+      </div>
+
+      <!-- Passo 3: Confirmar -->
+      <div class="wizard-step" id="step-3">
+        <div class="section-title">Confirmar Pedido</div>
+        <div id="confirm-summary"></div>
+
+        <div class="form-group">
+          <label class="form-label">Forma de Pagamento *</label>
+          <select class="form-select" id="forma-pagto">
+            <option value="">Carregando...</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Frete (R$)</label>
+          <input class="form-input" id="frete-input" type="number" step="0.01" placeholder="0,00" min="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Observação</label>
+          <textarea class="form-textarea" id="obs-input" placeholder="Observações do pedido..."></textarea>
+        </div>
+
+        <div class="wizard-nav" style="flex-direction:column;gap:10px">
+          <button class="btn btn-green" onclick="enviarPedido()">✓ Enviar Pedido</button>
+          <button class="btn btn-outline" id="btn-salvar-offline" onclick="salvarPedidoOffline()" style="display:none">💾 Salvar para sincronizar depois</button>
+          <button class="btn btn-outline" onclick="wizardBack()">← Voltar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==== SECTION: MEUS PEDIDOS ==== -->
+  <div class="section" id="sec-meus-pedidos">
+    <div class="filter-chips" id="filter-chips">
+      <button class="chip active" onclick="filterPedidos('todos')">Todos</button>
+      <button class="chip" onclick="filterPedidos('aberto')">Abertos</button>
+      <button class="chip" onclick="filterPedidos('aprovado')">Aprovados</button>
+    </div>
+    <div id="meus-pedidos-list">
+      <div class="loading-wrap"><div class="spinner"></div></div>
+    </div>
+  </div>
+
+</div><!-- /#app -->
+
+<!-- ===== BOTTOM NAV ===== -->
+<nav id="bottom-nav">
+  <div class="nav-item active" onclick="navigate('home')" id="nav-home">
+    <span class="nav-icon">🏠</span>
+    <span class="nav-label">Home</span>
+    <div class="nav-dot"></div>
+  </div>
+  <div class="nav-item" onclick="navigate('clientes')" id="nav-clientes">
+    <span class="nav-icon">👥</span>
+    <span class="nav-label">Clientes</span>
+    <div class="nav-dot"></div>
+  </div>
+  <div class="nav-item" onclick="navigate('pedido')" id="nav-pedido">
+    <span class="nav-icon" style="font-size:28px;color:#fff;background:var(--accent);border-radius:50%;width:44px;height:44px;display:flex;align-items:center;justify-content:center;margin-bottom:2px">+</span>
+    <span class="nav-label">Pedido</span>
+    <div class="nav-dot"></div>
+  </div>
+  <div class="nav-item" onclick="navigate('meus-pedidos')" id="nav-meus-pedidos">
+    <span class="nav-icon">📋</span>
+    <span class="nav-label">Meus Pedidos</span>
+    <div class="nav-badge" id="badge-pending"></div>
+    <div class="nav-dot"></div>
+  </div>
+</nav>
+
+<!-- ===== SLIDE-IN PANEL: FICHA CLIENTE ===== -->
+<div class="slide-panel" id="client-panel">
+  <div class="panel-topbar">
+    <span class="panel-title" id="panel-client-name">Cliente</span>
+    <span id="panel-client-badge"></span>
+    <button class="close-btn" onclick="closeClientPanel()" style="margin-left:8px">✕</button>
+  </div>
+  <div class="panel-body" id="panel-client-body">
+    <div class="loading-wrap"><div class="spinner"></div></div>
+  </div>
+  <div class="panel-footer">
+    <button class="btn btn-primary" id="btn-new-order-for-client" onclick="newOrderForClient()">
+      + Novo Pedido para este Cliente
+    </button>
+  </div>
+</div>
+
+<!-- ===== BOTTOM SHEET: NOVO CLIENTE ===== -->
+<div class="bottom-sheet-overlay" id="modal-new-client">
+  <div class="bottom-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Novo Cliente</div>
+    <form id="form-new-client" onsubmit="submitNewClient(event)">
+      <div class="form-group">
+        <label class="form-label">Nome *</label>
+        <input class="form-input" id="nc-nome" type="text" required placeholder="Nome ou razão social">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Telefone *</label>
+        <input class="form-input" id="nc-telefone" type="tel" required placeholder="(00) 00000-0000">
+      </div>
+      <div class="form-group">
+        <label class="form-label">CNPJ / CPF</label>
+        <input class="form-input" id="nc-cnpj" type="text" placeholder="000.000.000-00">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Cidade</label>
+        <input class="form-input" id="nc-cidade" type="text" placeholder="Cidade">
+      </div>
+      <div class="form-group">
+        <label class="form-label">UF</label>
+        <select class="form-select" id="nc-uf">
+          <option value="">Selecione</option>
+          <option>AC</option><option>AL</option><option>AP</option><option>AM</option>
+          <option>BA</option><option>CE</option><option>DF</option><option>ES</option>
+          <option>GO</option><option>MA</option><option>MT</option><option>MS</option>
+          <option>MG</option><option>PA</option><option>PB</option><option>PR</option>
+          <option>PE</option><option>PI</option><option>RJ</option><option>RN</option>
+          <option>RS</option><option>RO</option><option>RR</option><option>SC</option>
+          <option>SP</option><option>SE</option><option>TO</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" type="submit">✓ Salvar Cliente</button>
+    </form>
+    <button class="btn btn-outline" style="margin-top:10px" onclick="closeModal('modal-new-client')">Cancelar</button>
+  </div>
+</div>
+
+<!-- ===== BOTTOM SHEET: DETALHES DO PEDIDO ===== -->
+<div class="bottom-sheet-overlay" id="modal-order-detail">
+  <div class="bottom-sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title" id="modal-order-title">Pedido</div>
+    <div id="modal-order-body"></div>
+    <button class="btn btn-outline" style="margin-top:16px" onclick="closeModal('modal-order-detail')">Fechar</button>
+  </div>
+</div>
+
+<!-- ===== TOAST CONTAINER ===== -->
+<div id="toast-container"></div>
+
+<!-- ===== JAVASCRIPT ===== -->
+<script>
+'use strict';
+
+// ============================================================
+// CONSTANTES E ESTADO GLOBAL
+// ============================================================
+const BASE_URL = '';   // mesma origem
+const AVATAR_COLORS = ['#4361ee','#7209b7','#f72585','#4cc9f0','#06d6a0','#fb8500','#3a0ca3','#e76f51'];
+
+let currentUser = null;
+let currentSection = 'home';
+let allPedidos = [];
+let pedidosFiltro = 'todos';
+let clientePanelData = null;
+
+// Estado do wizard de novo pedido
+let pedidoAtual = { cliente: null, itens: [], formaPagto: null, obs: '' };
+let wizardPasso = 1;
+
+// ============================================================
+// UTILITÁRIOS
+// ============================================================
+function fmtMoeda(v) {
+  const n = parseFloat(v) || 0;
+  return 'R$ ' + n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function fmtData(str) {
+  if (!str) return '';
+  const d = new Date(str);
+  if (isNaN(d)) return str;
+  return d.toLocaleDateString('pt-BR');
+}
+
+function avatarColor(index) {
+  return AVATAR_COLORS[index % AVATAR_COLORS.length];
+}
+
+function inicial(nome) {
+  return (nome || '?').trim().charAt(0).toUpperCase();
+}
+
+function getToken() {
+  return sessionStorage.getItem('token') || localStorage.getItem('token') || localStorage.getItem('mobile_token') || '';
+}
+
+// ============================================================
+// API CENTRALIZADA
+// ============================================================
+async function api(method, path, body) {
+  const token = getToken();
+  const opts = {
+    method,
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token }
+  };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(BASE_URL + path, opts);
+  if (res.status === 401) {
+    sessionStorage.removeItem('token');
+    localStorage.removeItem('token');
+    window.location.href = '/login.html';
+    return null;
+  }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: 'Erro desconhecido' }));
+    throw new Error(err.message || 'Erro ' + res.status);
+  }
+  return res.json();
+}
+
+// ============================================================
+// TOAST
+// ============================================================
+function toast(msg, tipo = 'info') {
+  const container = document.getElementById('toast-container');
+  const el = document.createElement('div');
+  el.className = `toast toast-${tipo}`;
+  el.textContent = msg;
+  container.appendChild(el);
+  setTimeout(() => el.remove(), 3100);
+}
+
+// ============================================================
+// NAVEGAÇÃO
+// ============================================================
+function navigate(section) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('sec-' + section).classList.add('active');
+  document.getElementById('nav-' + section).classList.add('active');
+  currentSection = section;
+
+  if (section === 'meus-pedidos') loadMeusPedidos();
+  if (section === 'clientes') initClientesSection();
+  if (section === 'pedido') initPedidoWizard();
+}
+
+function showSection(name) { navigate(name); }
+
+// ============================================================
+// HOME
+// ============================================================
+async function loadHome() {
+  // Saudação
+  const h = new Date().getHours();
+  const saudacao = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+  const nome = currentUser ? currentUser.nome || currentUser.username || 'Vendedor' : 'Vendedor';
+  document.getElementById('greeting-text').textContent = `${saudacao}, ${nome}!`;
+
+  const now = new Date();
+  const dias = ['domingo','segunda','terça','quarta','quinta','sexta','sábado'];
+  const meses = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  document.getElementById('greeting-date').textContent =
+    `${dias[now.getDay()]}, ${now.getDate()} de ${meses[now.getMonth()]} de ${now.getFullYear()}`;
+
+  // KPIs e últimos pedidos
+  try {
+    const data = await api('GET', '/api/mobile/home');
+    if (data) {
+      document.getElementById('kpi-total').textContent = fmtMoeda(data.total_dia || 0).replace('R$ ','');
+      document.getElementById('kpi-pedidos').textContent = data.qtd_pedidos || 0;
+      document.getElementById('kpi-clientes').textContent = data.clientes_visitados || 0;
+      renderHomeOrders(data.ultimos_pedidos || []);
+    }
+  } catch (e) {
+    document.getElementById('kpi-total').textContent = '0,00';
+    document.getElementById('kpi-pedidos').textContent = '0';
+    document.getElementById('kpi-clientes').textContent = '0';
+    renderHomeOrders([]);
+  }
+}
+
+function renderHomeOrders(pedidos) {
+  const el = document.getElementById('home-orders-list');
+  // Incluir pedidos pendentes offline
+  const pendentes = getPedidosPendentes().map(p => ({
+    numero: '(offline)',
+    cliente_nome: p.cliente ? p.cliente.nome : 'Cliente',
+    total: p.itens ? p.itens.reduce((a, i) => a + (i.preco * i.qtd), 0) : 0,
+    status: 'PENDENTE SYNC',
+    data: new Date().toISOString()
+  }));
+  const lista = [...pedidos, ...pendentes].slice(0, 5);
+
+  if (!lista.length) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">📦</div><div class="empty-title">Nenhum pedido hoje</div><div class="empty-desc">Toque em + Novo Pedido para começar</div></div>`;
+    return;
+  }
+  el.innerHTML = lista.map(p => orderCardHtml(p)).join('');
+}
+
+function orderCardHtml(p) {
+  const badge = statusBadge(p.status);
+  return `
+  <div class="order-card" onclick="openOrderDetail(${JSON.stringify(JSON.stringify(p))})">
+    <div class="order-card-top">
+      <span class="order-client">${escHtml(p.cliente_nome || p.cliente || '-')}</span>
+      <span class="order-value">${fmtMoeda(p.total || p.valor_total || 0)}</span>
+    </div>
+    <div class="order-bottom">
+      <span class="order-num-date">Nº ${p.numero || '-'} · ${fmtData(p.data || p.data_pedido)}</span>
+      ${badge}
+    </div>
+  </div>`;
+}
+
+function statusBadge(status) {
+  const s = (status || '').toUpperCase();
+  if (s === 'APROVADO') return `<span class="badge badge-green">✓ Aprovado</span>`;
+  if (s === 'CANCELADO') return `<span class="badge badge-red">✕ Cancelado</span>`;
+  if (s === 'PENDENTE SYNC') return `<span class="badge badge-orange">⏳ Sync</span>`;
+  return `<span class="badge badge-blue">● Aberto</span>`;
+}
+
+function escHtml(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ============================================================
+// CLIENTES
+// ============================================================
+let clientSearchTimer = null;
+
+function initClientesSection() {
+  // Nada especial, aguarda digitação
+}
+
+document.getElementById('client-search').addEventListener('input', function() {
+  clearTimeout(clientSearchTimer);
+  const q = this.value.trim();
+  if (q.length < 2) {
+    document.getElementById('clients-list').innerHTML = `
+      <div class="empty-state"><div class="empty-icon">👥</div>
+      <div class="empty-title">Busque um cliente</div>
+      <div class="empty-desc">Digite 2 ou mais caracteres para buscar</div></div>`;
+    return;
+  }
+  clientSearchTimer = setTimeout(() => searchClientes(q), 350);
+});
+
+async function searchClientes(q) {
+  const el = document.getElementById('clients-list');
+  el.innerHTML = `<div class="loading-wrap"><div class="spinner"></div></div>`;
+
+  // Tenta cache
+  const cache = getClientCache();
+  if (cache) {
+    renderClientes(cache.filter(c => (c.nome||'').toLowerCase().includes(q.toLowerCase()) || (c.cidade||'').toLowerCase().includes(q.toLowerCase())));
+    return;
+  }
+
+  try {
+    const data = await api('GET', `/api/mobile/clientes?q=${encodeURIComponent(q)}`);
+    if (data && data.clientes) {
+      setClientCache(data.clientes);
+      renderClientes(data.clientes);
+    }
+  } catch (e) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-title">Erro ao buscar</div><div class="empty-desc">${escHtml(e.message)}</div></div>`;
+  }
+}
+
+function renderClientes(clientes) {
+  const el = document.getElementById('clients-list');
+  if (!clientes.length) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">Nenhum cliente encontrado</div></div>`;
+    return;
+  }
+  el.innerHTML = clientes.map((c, i) => `
+    <div class="client-card">
+      <div class="client-avatar" style="background:${avatarColor(i)}">${inicial(c.nome)}</div>
+      <div class="client-info" onclick="openClientPanel(${c.idusuario || c.id})">
+        <div class="client-name">${escHtml(c.nome)}</div>
+        <div class="client-city">${escHtml(c.cidade || '')}${c.uf ? '/' + c.uf : ''}</div>
+      </div>
+      <div class="client-actions">
+        ${c.telefone ? `<a href="tel:${escHtml(c.telefone)}" class="icon-btn" title="Ligar" onclick="event.stopPropagation()">📞</a>` : ''}
+        <button class="icon-btn" onclick="openClientPanel(${c.idusuario || c.id})" title="Ver ficha">
+          <span class="arrow-icon">›</span>
+        </button>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ===== FICHA DO CLIENTE =====
+async function openClientPanel(id) {
+  const panel = document.getElementById('client-panel');
+  document.getElementById('panel-client-body').innerHTML = `<div class="loading-wrap"><div class="spinner"></div></div>`;
+  document.getElementById('btn-new-order-for-client').dataset.clientId = id;
+  panel.classList.add('open');
+
+  try {
+    const data = await api('GET', `/api/mobile/clientes/${id}`);
+    if (!data) return;
+    clientePanelData = data;
+    document.getElementById('panel-client-name').textContent = data.nome || 'Cliente';
+    document.getElementById('panel-client-badge').innerHTML = situacaoBadge(data.situacao);
+
+    const ultimos = (data.ultimos_pedidos || []).slice(0,3);
+    document.getElementById('panel-client-body').innerHTML = `
+      <div class="card" style="margin-bottom:16px">
+        ${infoRow('CNPJ/CPF', data.cnpj || data.cpf || '-')}
+        ${infoRow('Telefone', data.telefone ? `<a href="tel:${escHtml(data.telefone)}">${escHtml(data.telefone)}</a>` : '-')}
+        ${infoRow('E-mail', data.email ? `<a href="mailto:${escHtml(data.email)}">${escHtml(data.email)}</a>` : '-')}
+        ${infoRow('Endereço', [data.endereco, data.cidade, data.uf].filter(Boolean).join(', ') || '-')}
+        ${infoRow('Situação', situacaoBadge(data.situacao))}
+      </div>
+      <div class="section-title">Últimos Pedidos</div>
+      ${ultimos.length ? ultimos.map(p => orderCardHtml(p)).join('') : '<div class="empty-state" style="padding:20px 0"><div class="empty-desc">Nenhum pedido encontrado</div></div>'}
+    `;
+  } catch (e) {
+    document.getElementById('panel-client-body').innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-title">Erro</div><div class="empty-desc">${escHtml(e.message)}</div></div>`;
+  }
+}
+
+function infoRow(label, value) {
+  return `<div class="info-row"><span class="info-label">${label}</span><span class="info-value">${value}</span></div>`;
+}
+
+function situacaoBadge(s) {
+  const v = (s || '').toUpperCase();
+  if (v === 'ATIVO') return `<span class="badge badge-green">Ativo</span>`;
+  if (v === 'BLOQUEADO') return `<span class="badge badge-red">Bloqueado</span>`;
+  return `<span class="badge badge-gray">Inativo</span>`;
+}
+
+function closeClientPanel() {
+  document.getElementById('client-panel').classList.remove('open');
+  clientePanelData = null;
+}
+
+function newOrderForClient() {
+  if (clientePanelData) {
+    closeClientPanel();
+    navigate('pedido');
+    setTimeout(() => selectClientForPedido(clientePanelData), 350);
+  }
+}
+
+// ===== NOVO CLIENTE =====
+document.getElementById('btn-new-client').addEventListener('click', () => {
+  document.getElementById('modal-new-client').classList.add('open');
+});
+
+async function submitNewClient(e) {
+  e.preventDefault();
+  const body = {
+    nome: document.getElementById('nc-nome').value.trim(),
+    telefone: document.getElementById('nc-telefone').value.trim(),
+    cnpj: document.getElementById('nc-cnpj').value.trim(),
+    cidade: document.getElementById('nc-cidade').value.trim(),
+    uf: document.getElementById('nc-uf').value
+  };
+  try {
+    const data = await api('POST', '/api/mobile/clientes', body);
+    toast('Cliente cadastrado com sucesso!', 'success');
+    closeModal('modal-new-client');
+    document.getElementById('form-new-client').reset();
+    // Limpar cache
+    localStorage.removeItem('mobile_clientes_cache');
+    // Buscar novamente se havia busca ativa
+    const q = document.getElementById('client-search').value.trim();
+    if (q.length >= 2) searchClientes(q);
+  } catch (e) {
+    toast('Erro ao salvar: ' + e.message, 'error');
+  }
+}
+
+// ===== CACHE DE CLIENTES =====
+function setClientCache(clientes) {
+  localStorage.setItem('mobile_clientes_cache', JSON.stringify({ ts: Date.now(), data: clientes }));
+}
+function getClientCache() {
+  try {
+    const raw = localStorage.getItem('mobile_clientes_cache');
+    if (!raw) return null;
+    const obj = JSON.parse(raw);
+    if (Date.now() - obj.ts > 5 * 60 * 1000) { localStorage.removeItem('mobile_clientes_cache'); return null; }
+    return obj.data;
+  } catch { return null; }
+}
+
+// ============================================================
+// WIZARD NOVO PEDIDO
+// ============================================================
+function initPedidoWizard() {
+  // Não reseta se já tem cliente selecionado (navegado de ficha)
+  if (!pedidoAtual.cliente) {
+    resetWizard();
+  }
+  updateWizardUI();
+  loadFormasPagto();
+}
+
+function resetWizard() {
+  pedidoAtual = { cliente: null, itens: [], formaPagto: null, obs: '' };
+  wizardPasso = 1;
+  document.getElementById('pedido-client-search').value = '';
+  document.getElementById('pedido-client-results').innerHTML = '';
+  document.getElementById('pedido-selected-client').style.display = 'none';
+  document.getElementById('pedido-selected-client').innerHTML = '';
+  document.getElementById('btn-step1-next').disabled = true;
+  document.getElementById('product-search').value = '';
+  document.getElementById('product-results').innerHTML = '';
+  document.getElementById('frete-input').value = '';
+  document.getElementById('obs-input').value = '';
+  renderCart();
+}
+
+function updateWizardUI() {
+  for (let i = 1; i <= 3; i++) {
+    const el = document.getElementById('step-' + i);
+    el.classList.toggle('active', i === wizardPasso);
+  }
+  const pct = (wizardPasso / 3 * 100).toFixed(0);
+  document.getElementById('wizard-bar').style.width = pct + '%';
+  document.getElementById('wizard-label').textContent = `Passo ${wizardPasso}/3`;
+
+  if (wizardPasso === 3) {
+    buildConfirmSummary();
+    // Mostrar botão offline se sem conexão
+    document.getElementById('btn-salvar-offline').style.display = !navigator.onLine ? '' : 'none';
+  }
+}
+
+function wizardNext() {
+  if (wizardPasso === 1) {
+    if (!pedidoAtual.cliente) { toast('Selecione um cliente', 'error'); return; }
+    wizardPasso = 2;
+  } else if (wizardPasso === 2) {
+    if (!pedidoAtual.itens.length) { toast('Adicione pelo menos 1 produto', 'error'); return; }
+    wizardPasso = 3;
+  }
+  updateWizardUI();
+}
+
+function wizardBack() {
+  if (wizardPasso > 1) {
+    wizardPasso--;
+    updateWizardUI();
+  }
+}
+
+// ===== PASSO 1: BUSCA DE CLIENTE PARA PEDIDO =====
+let pedidoClientTimer = null;
+document.getElementById('pedido-client-search').addEventListener('input', function() {
+  clearTimeout(pedidoClientTimer);
+  const q = this.value.trim();
+  if (q.length < 2) { document.getElementById('pedido-client-results').innerHTML = ''; return; }
+  pedidoClientTimer = setTimeout(() => searchClienteParaPedido(q), 350);
+});
+
+async function searchClienteParaPedido(q) {
+  const el = document.getElementById('pedido-client-results');
+  el.innerHTML = `<div class="loading-wrap" style="padding:12px"><div class="spinner"></div></div>`;
+  try {
+    const data = await api('GET', `/api/mobile/clientes?q=${encodeURIComponent(q)}`);
+    if (!data) return;
+    const clientes = data.clientes || [];
+    if (!clientes.length) { el.innerHTML = `<div class="empty-state" style="padding:12px 0"><div class="empty-desc">Nenhum cliente encontrado</div></div>`; return; }
+    el.innerHTML = clientes.slice(0, 10).map((c, i) => `
+      <div class="client-card" onclick="selectClientForPedido(${JSON.stringify(JSON.stringify(c))})">
+        <div class="client-avatar" style="background:${avatarColor(i)};width:36px;height:36px;font-size:14px">${inicial(c.nome)}</div>
+        <div class="client-info">
+          <div class="client-name">${escHtml(c.nome)}</div>
+          <div class="client-city">${escHtml(c.cidade || '')}${c.uf ? '/' + c.uf : ''}</div>
+        </div>
+      </div>
+    `).join('');
+  } catch (e) {
+    el.innerHTML = `<div class="empty-state" style="padding:12px 0"><div class="empty-desc">Erro: ${escHtml(e.message)}</div></div>`;
+  }
+}
+
+function selectClientForPedido(clienteData) {
+  const c = typeof clienteData === 'string' ? JSON.parse(clienteData) : clienteData;
+  pedidoAtual.cliente = c;
+  document.getElementById('pedido-client-results').innerHTML = '';
+  document.getElementById('pedido-client-search').value = '';
+
+  const sel = document.getElementById('pedido-selected-client');
+  sel.style.display = '';
+  sel.innerHTML = `
+    <div class="selected-client-card">
+      <div>
+        <div class="selected-client-name">${escHtml(c.nome)}</div>
+        <div class="selected-client-sub">${escHtml(c.cidade || '')}${c.uf ? '/' + c.uf : ''}</div>
+      </div>
+      <button class="icon-btn" onclick="clearSelectedClient()" title="Remover">✕</button>
+    </div>`;
+  document.getElementById('btn-step1-next').disabled = false;
+}
+
+function clearSelectedClient() {
+  pedidoAtual.cliente = null;
+  document.getElementById('pedido-selected-client').style.display = 'none';
+  document.getElementById('btn-step1-next').disabled = true;
+}
+
+// ===== PASSO 2: PRODUTOS =====
+let productSearchTimer = null;
+document.getElementById('product-search').addEventListener('input', function() {
+  clearTimeout(productSearchTimer);
+  const q = this.value.trim();
+  if (q.length < 2) { document.getElementById('product-results').innerHTML = ''; return; }
+  productSearchTimer = setTimeout(() => searchProdutos(q), 350);
+});
+
+async function searchProdutos(q) {
+  const el = document.getElementById('product-results');
+  el.innerHTML = `<div class="loading-wrap" style="padding:12px"><div class="spinner"></div></div>`;
+  try {
+    const data = await api('GET', `/api/mobile/produtos?q=${encodeURIComponent(q)}`);
+    if (!data) return;
+    const produtos = data.produtos || [];
+    if (!produtos.length) { el.innerHTML = `<div class="empty-state" style="padding:10px 0"><div class="empty-desc">Nenhum produto encontrado</div></div>`; return; }
+    el.innerHTML = produtos.slice(0, 15).map(p => `
+      <div class="product-result">
+        <div class="product-info">
+          <div class="product-name">${escHtml(p.descricao)}</div>
+          <div class="product-sub">Cód: ${escHtml(p.codigo)} · Est: ${p.estoque || 0}</div>
+        </div>
+        <span class="product-price">${fmtMoeda(p.preco)}</span>
+        <button class="btn-add-product" onclick="addToCart(${JSON.stringify(JSON.stringify(p))})" title="Adicionar">+</button>
+      </div>
+    `).join('');
+  } catch (e) {
+    el.innerHTML = `<div class="empty-state" style="padding:10px 0"><div class="empty-desc">Erro: ${escHtml(e.message)}</div></div>`;
+  }
+}
+
+function addToCart(prodData) {
+  const p = typeof prodData === 'string' ? JSON.parse(prodData) : prodData;
+  const existing = pedidoAtual.itens.find(i => i.id === p.id);
+  if (existing) {
+    existing.qtd++;
+  } else {
+    pedidoAtual.itens.push({ id: p.id, codigo: p.codigo, descricao: p.descricao, preco: parseFloat(p.preco) || 0, qtd: 1 });
+  }
+  renderCart();
+  toast(p.descricao.substring(0,30) + ' adicionado', 'success');
+}
+
+function renderCart() {
+  const el = document.getElementById('cart-items');
+  if (!pedidoAtual.itens.length) {
+    el.innerHTML = `<div class="empty-state" style="padding:12px 0"><div class="empty-desc">Carrinho vazio</div></div>`;
+    document.getElementById('cart-total-value').textContent = 'R$ 0,00';
+    return;
+  }
+  el.innerHTML = pedidoAtual.itens.map((item, idx) => `
+    <div class="cart-item">
+      <span class="cart-item-name" title="${escHtml(item.descricao)}">${escHtml(item.descricao)}</span>
+      <div class="qty-control">
+        <button class="qty-btn" onclick="changeQty(${idx}, -1)">−</button>
+        <span class="qty-value">${item.qtd}</span>
+        <button class="qty-btn" onclick="changeQty(${idx}, 1)">+</button>
+      </div>
+      <span class="cart-item-sub">${fmtMoeda(item.preco * item.qtd)}</span>
+      <button class="btn-remove-cart" onclick="removeFromCart(${idx})" title="Remover">✕</button>
+    </div>
+  `).join('');
+  const total = pedidoAtual.itens.reduce((a, i) => a + i.preco * i.qtd, 0);
+  document.getElementById('cart-total-value').textContent = fmtMoeda(total);
+}
+
+function changeQty(idx, delta) {
+  pedidoAtual.itens[idx].qtd = Math.max(1, pedidoAtual.itens[idx].qtd + delta);
+  renderCart();
+}
+
+function removeFromCart(idx) {
+  pedidoAtual.itens.splice(idx, 1);
+  renderCart();
+}
+
+// ===== PASSO 3: CONFIRMAR =====
+async function loadFormasPagto() {
+  try {
+    const data = await api('GET', '/api/mobile/formas-pagto');
+    if (!data) return;
+    const sel = document.getElementById('forma-pagto');
+    sel.innerHTML = '<option value="">Selecione...</option>' +
+      (data.formas || []).map(f => `<option value="${f.id}">${escHtml(f.descricao)}</option>`).join('');
+  } catch (e) {
+    document.getElementById('forma-pagto').innerHTML = '<option value="">Indisponível</option>';
+  }
+}
+
+function buildConfirmSummary() {
+  const c = pedidoAtual.cliente;
+  const itens = pedidoAtual.itens;
+  const subtotal = itens.reduce((a, i) => a + i.preco * i.qtd, 0);
+  const frete = parseFloat(document.getElementById('frete-input').value) || 0;
+  const total = subtotal + frete;
+
+  document.getElementById('confirm-summary').innerHTML = `
+    <div class="confirm-section">
+      <div class="confirm-section-title">Cliente</div>
+      <div class="confirm-row">
+        <span class="confirm-row-label">${escHtml(c ? c.nome : '-')}</span>
+        <span class="confirm-row-value">${escHtml(c ? (c.cidade || '') + (c.uf ? '/'+c.uf : '') : '')}</span>
+      </div>
+    </div>
+    <div class="confirm-section">
+      <div class="confirm-section-title">Itens (${itens.length})</div>
+      ${itens.map(i => `
+        <div class="confirm-row">
+          <span class="confirm-row-label">${escHtml(i.descricao)} ×${i.qtd}</span>
+          <span class="confirm-row-value">${fmtMoeda(i.preco * i.qtd)}</span>
+        </div>
+      `).join('')}
+      <div class="confirm-row">
+        <span class="confirm-row-label">Subtotal</span>
+        <span class="confirm-row-value">${fmtMoeda(subtotal)}</span>
+      </div>
+      <div class="confirm-total-row">
+        <span>Total</span>
+        <span id="confirm-total-display">${fmtMoeda(total)}</span>
+      </div>
+    </div>
+  `;
+}
+
+// Atualiza total ao mudar frete
+document.getElementById('frete-input').addEventListener('input', () => {
+  if (wizardPasso === 3) buildConfirmSummary();
+});
+
+async function enviarPedido() {
+  if (!navigator.onLine) { salvarPedidoOffline(); return; }
+  const formaPagto = document.getElementById('forma-pagto').value;
+  if (!formaPagto) { toast('Selecione a forma de pagamento', 'error'); return; }
+
+  const frete = parseFloat(document.getElementById('frete-input').value) || 0;
+  const obs = document.getElementById('obs-input').value.trim();
+  const body = {
+    cliente_id: pedidoAtual.cliente.idusuario || pedidoAtual.cliente.id,
+    itens: pedidoAtual.itens.map(i => ({ produto_id: i.id, quantidade: i.qtd, preco: i.preco })),
+    forma_pagto_id: formaPagto,
+    frete,
+    observacao: obs
+  };
+
+  try {
+    const data = await api('POST', '/api/pedidos', body);
+    toast(`Pedido Nº ${data.numero || ''} enviado com sucesso!`, 'success');
+    resetWizard();
+    navigate('meus-pedidos');
+  } catch (e) {
+    toast('Erro ao enviar: ' + e.message, 'error');
+  }
+}
+
+function salvarPedidoOffline() {
+  const frete = parseFloat(document.getElementById('frete-input').value) || 0;
+  const obs = document.getElementById('obs-input').value.trim();
+  const pedido = {
+    cliente: pedidoAtual.cliente,
+    itens: pedidoAtual.itens,
+    formaPagto: document.getElementById('forma-pagto').value,
+    frete, obs,
+    savedAt: new Date().toISOString()
+  };
+  const pending = getPedidosPendentes();
+  pending.push(pedido);
+  localStorage.setItem('pedidos_pendentes', JSON.stringify(pending));
+  updatePendingBadge();
+  toast('Pedido salvo! Será enviado ao voltar online.', 'warning');
+  resetWizard();
+  navigate('meus-pedidos');
+}
+
+// ============================================================
+// MEUS PEDIDOS
+// ============================================================
+async function loadMeusPedidos() {
+  const el = document.getElementById('meus-pedidos-list');
+  el.innerHTML = `<div class="loading-wrap"><div class="spinner"></div></div>`;
+  try {
+    const data = await api('GET', '/api/mobile/meus-pedidos');
+    allPedidos = data ? (data.pedidos || []) : [];
+  } catch (e) {
+    allPedidos = [];
+  }
+  // Incluir pendentes offline
+  const pendentes = getPedidosPendentes().map((p, i) => ({
+    id: 'offline_' + i,
+    numero: '(offline)',
+    cliente_nome: p.cliente ? p.cliente.nome : 'Cliente',
+    total: p.itens ? p.itens.reduce((a, it) => a + it.preco * it.qtd, 0) : 0,
+    status: 'PENDENTE SYNC',
+    data: p.savedAt,
+    _offline: true,
+    _data: p
+  }));
+  allPedidos = [...pendentes, ...allPedidos];
+  renderMeusPedidos();
+}
+
+function renderMeusPedidos() {
+  const el = document.getElementById('meus-pedidos-list');
+  let lista = allPedidos;
+  if (pedidosFiltro === 'aberto') lista = lista.filter(p => (p.status||'').toUpperCase() === 'ABERTO');
+  if (pedidosFiltro === 'aprovado') lista = lista.filter(p => (p.status||'').toUpperCase() === 'APROVADO');
+
+  if (!lista.length) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-title">Nenhum pedido encontrado</div></div>`;
+    return;
+  }
+  el.innerHTML = lista.map(p => `
+    <div class="order-card" onclick="openOrderDetail(${JSON.stringify(JSON.stringify(p))})">
+      <div class="order-card-top">
+        <span class="order-client">${escHtml(p.cliente_nome || p.cliente || '-')}</span>
+        <span class="order-value">${fmtMoeda(p.total || p.valor_total || 0)}</span>
+      </div>
+      <div class="order-bottom">
+        <span class="order-num-date">Nº ${p.numero || '-'} · ${fmtData(p.data || p.data_pedido)}</span>
+        ${statusBadge(p.status)}
+      </div>
+    </div>
+  `).join('');
+}
+
+function filterPedidos(filtro) {
+  pedidosFiltro = filtro;
+  document.querySelectorAll('#filter-chips .chip').forEach(c => c.classList.remove('active'));
+  const map = { 'todos': 0, 'aberto': 1, 'aprovado': 2 };
+  document.querySelectorAll('#filter-chips .chip')[map[filtro]].classList.add('active');
+  renderMeusPedidos();
+}
+
+async function openOrderDetail(pedidoJson) {
+  const p = typeof pedidoJson === 'string' ? JSON.parse(pedidoJson) : pedidoJson;
+  document.getElementById('modal-order-title').textContent = `Pedido Nº ${p.numero || '(offline)'}`;
+
+  let itens = p.itens || [];
+  // Se não tiver itens e não for offline, buscar da API
+  if (!itens.length && !p._offline && p.id) {
+    try {
+      const data = await api('GET', `/api/mobile/pedidos/${p.id}`);
+      if (data) itens = data.itens || [];
+    } catch (e) {}
+  }
+  if (p._offline && p._data) itens = p._data.itens || [];
+
+  const total = p.total || p.valor_total || itens.reduce((a, i) => a + (i.preco * (i.qtd || i.quantidade || 1)), 0);
+
+  document.getElementById('modal-order-body').innerHTML = `
+    <div class="confirm-section">
+      <div class="confirm-row"><span class="confirm-row-label">Cliente</span><span class="confirm-row-value">${escHtml(p.cliente_nome || p.cliente || '-')}</span></div>
+      <div class="confirm-row"><span class="confirm-row-label">Data</span><span class="confirm-row-value">${fmtData(p.data || p.data_pedido)}</span></div>
+      <div class="confirm-row"><span class="confirm-row-label">Status</span><span class="confirm-row-value">${statusBadge(p.status)}</span></div>
+    </div>
+    ${itens.length ? `
+    <div class="confirm-section">
+      <div class="confirm-section-title">Itens</div>
+      ${itens.map(i => `
+        <div class="confirm-row">
+          <span class="confirm-row-label">${escHtml(i.descricao || i.produto || '-')} ×${i.qtd || i.quantidade || 1}</span>
+          <span class="confirm-row-value">${fmtMoeda(i.preco * (i.qtd || i.quantidade || 1))}</span>
+        </div>
+      `).join('')}
+      <div class="confirm-total-row"><span>Total</span><span>${fmtMoeda(total)}</span></div>
+    </div>` : ''}
+  `;
+  document.getElementById('modal-order-detail').classList.add('open');
+}
+
+// ============================================================
+// MODALS
+// ============================================================
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+
+// Fechar modals clicando no overlay
+document.querySelectorAll('.bottom-sheet-overlay').forEach(overlay => {
+  overlay.addEventListener('click', function(e) {
+    if (e.target === this) this.classList.remove('open');
+  });
+});
+
+// ============================================================
+// OFFLINE / SYNC
+// ============================================================
+function getPedidosPendentes() {
+  try { return JSON.parse(localStorage.getItem('pedidos_pendentes') || '[]'); } catch { return []; }
+}
+
+function updatePendingBadge() {
+  const count = getPedidosPendentes().length;
+  const badge = document.getElementById('badge-pending');
+  if (count > 0) {
+    badge.textContent = count;
+    badge.classList.add('show');
+  } else {
+    badge.classList.remove('show');
+  }
+}
+
+async function syncPedidosPendentes() {
+  const pendentes = getPedidosPendentes();
+  if (!pendentes.length) return;
+  toast(`Sincronizando ${pendentes.length} pedido(s)...`, 'info');
+  const restantes = [];
+  for (const p of pendentes) {
+    try {
+      const body = {
+        cliente_id: p.cliente ? (p.cliente.idusuario || p.cliente.id) : null,
+        itens: (p.itens || []).map(i => ({ produto_id: i.id, quantidade: i.qtd, preco: i.preco })),
+        forma_pagto_id: p.formaPagto,
+        frete: p.frete || 0,
+        observacao: p.obs || ''
+      };
+      await api('POST', '/api/pedidos', body);
+    } catch (e) {
+      restantes.push(p);
+    }
+  }
+  localStorage.setItem('pedidos_pendentes', JSON.stringify(restantes));
+  updatePendingBadge();
+  const syncedCount = pendentes.length - restantes.length;
+  if (syncedCount > 0) toast(`${syncedCount} pedido(s) sincronizado(s)!`, 'success');
+  if (restantes.length > 0) toast(`${restantes.length} pedido(s) não puderam ser sincronizados`, 'error');
+  // Recarregar lista se estiver na aba
+  if (currentSection === 'meus-pedidos') loadMeusPedidos();
+  if (currentSection === 'home') loadHome();
+}
+
+function setOnlineStatus(online) {
+  const banner = document.getElementById('offline-banner');
+  const badge = document.getElementById('badge-offline');
+  const app = document.getElementById('app');
+  if (online) {
+    banner.classList.remove('show');
+    badge.classList.remove('show');
+    app.classList.remove('has-banner');
+  } else {
+    banner.classList.add('show');
+    badge.classList.add('show');
+    app.classList.add('has-banner');
+  }
+}
+
+window.addEventListener('online', () => {
+  setOnlineStatus(true);
+  syncPedidosPendentes();
+});
+
+window.addEventListener('offline', () => {
+  setOnlineStatus(false);
+});
+
+// ============================================================
+// SERVICE WORKER
+// ============================================================
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
+}
+
+// ============================================================
+// INICIALIZAÇÃO
+// ============================================================
+async function init() {
+  const token = getToken();
+  if (!token) {
+    window.location.href = '/login.html';
+    return;
+  }
+
+  // Salvar cópia do token no localStorage para offline
+  localStorage.setItem('mobile_token', token);
+
+  // Status de conexão inicial
+  setOnlineStatus(navigator.onLine);
+  updatePendingBadge();
+
+  // Carregar dados do usuário
+  try {
+    const userData = await api('GET', '/api/auth/me');
+    if (userData) {
+      currentUser = userData.usuario || userData.user || userData;
+      const nome = currentUser.nome || currentUser.username || currentUser.email || 'Usuário';
+      document.getElementById('topbar-user').textContent = nome;
+    }
+  } catch (e) {
+    // Tenta extrair nome do token JWT
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      currentUser = { nome: payload.nome || payload.username || payload.name || 'Usuário', ...payload };
+      document.getElementById('topbar-user').textContent = currentUser.nome;
+    } catch {}
+  }
+
+  // Carregar home
+  loadHome();
+}
+
+// Iniciar
+init();
+</script>
+</body>
+</html>

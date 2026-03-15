@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Grupos de Usuários</title>
+<style>
+  * { margin:0;padding:0;box-sizing:border-box; }
+
+  :root {
+    --bg:#f4f5f7;
+    --card:#fff;
+    --border:#e8eaed;
+    --text:#1e2433;
+    --text2:#6b7280;
+    --accent:#7c3aed;
+    --accent-dark:#6d28d9;
+    --danger:#ef4444;
+    --blue:#4361ee;
+    --input-bg:#f9fafb;
+  }
+
+  body {
+    font-family:'Segoe UI',Arial,sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    min-height:100vh;
+    padding:24px;
+  }
+
+  /* ── HEADER ── */
+  .page-header {
+    display:flex;align-items:center;gap:14px;margin-bottom:24px;
+    flex-wrap:wrap;
+  }
+  .page-icon {
+    width:44px;height:44px;border-radius:12px;
+    background:linear-gradient(135deg,#7c3aed,#4c1d95);
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 4px 12px rgba(124,58,237,.35);
+    flex-shrink:0;
+  }
+  .page-icon svg { width:24px;height:24px;color:#fff; }
+  .page-title h1 { font-size:20px;font-weight:700;color:var(--text); }
+  .page-title p  { font-size:13px;color:var(--text2);margin-top:2px; }
+
+  /* ── CARDS ── */
+  .card {
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:22px 24px;
+    margin-bottom:20px;
+    box-shadow:0 1px 4px rgba(0,0,0,.04);
+  }
+  .card-title {
+    font-size:13px;font-weight:700;text-transform:uppercase;
+    letter-spacing:.6px;color:var(--text2);
+    display:flex;align-items:center;gap:8px;
+    margin-bottom:18px;padding-bottom:12px;
+    border-bottom:1px solid var(--border);
+    flex-wrap:wrap;
+  }
+  .card-title svg { width:16px;height:16px;color:var(--accent); }
+
+  /* ── BOTÕES ── */
+  .btn {
+    display:inline-flex;align-items:center;gap:7px;
+    padding:10px 18px;border:none;border-radius:9px;
+    font-size:13px;font-weight:600;cursor:pointer;
+    transition:.2s;font-family:inherit;
+  }
+  .btn svg { width:15px;height:15px; }
+  .btn-purple  { background:var(--accent);color:#fff; }
+  .btn-purple:hover  { background:var(--accent-dark);transform:translateY(-1px); }
+  .btn-ghost  { background:var(--border);color:var(--text2); }
+  .btn-ghost:hover  { background:#dde0e5; }
+  .btn-danger { background:var(--danger);color:#fff; }
+  .btn-danger:hover { opacity:.9;transform:translateY(-1px); }
+  .btn:disabled { opacity:.5;cursor:not-allowed;transform:none !important; }
+
+  /* ── TABELA ── */
+  .table-wrap { overflow-x:auto; }
+  table { width:100%;border-collapse:collapse;font-size:13px; }
+  thead th {
+    background:var(--bg);padding:10px 14px;
+    text-align:left;font-size:11px;font-weight:700;
+    text-transform:uppercase;letter-spacing:.5px;
+    color:var(--text2);border-bottom:1px solid var(--border);
+    white-space:nowrap;
+  }
+  tbody tr { transition:background .12s; }
+  tbody tr:hover { background:#faf8ff; }
+  tbody td { padding:12px 14px;border-bottom:1px solid var(--border); }
+  tbody tr:last-child td { border-bottom:none; }
+
+  .td-actions { white-space:nowrap; }
+  .btn-sm {
+    display:inline-flex;align-items:center;gap:5px;
+    padding:6px 12px;border:none;border-radius:7px;
+    font-size:11px;font-weight:600;cursor:pointer;
+    transition:.15s;font-family:inherit;
+  }
+  .btn-sm svg { width:13px;height:13px; }
+  .btn-sm-purple { background:#f5f3ff;color:#6d28d9; }
+  .btn-sm-purple:hover { background:var(--accent);color:#fff; }
+  .btn-sm-red    { background:#fee2e2;color:#991b1b; }
+  .btn-sm-red:hover    { background:var(--danger);color:#fff; }
+
+  /* ── EMPTY ── */
+  .empty { text-align:center;padding:40px;color:var(--text2); }
+  .empty svg { width:48px;height:48px;opacity:.2;display:block;margin:0 auto 12px; }
+  .empty p   { font-size:13px;opacity:.6; }
+
+  /* ── SPINNER ── */
+  .spinner {
+    width:16px;height:16px;border:2px solid rgba(255,255,255,.3);
+    border-top-color:#fff;border-radius:50%;
+    animation:spin .6s linear infinite;display:inline-block;vertical-align:middle;
+  }
+  .spinner-dark {
+    border-color:rgba(0,0,0,.12);border-top-color:var(--accent);
+  }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  /* ── MODAL ── */
+  .modal-backdrop {
+    position:fixed;inset:0;z-index:9999;
+    display:flex;align-items:center;justify-content:center;
+    background:rgba(0,0,0,.55);backdrop-filter:blur(4px);
+    padding:16px;animation:fadeIn .2s;
+  }
+  @keyframes fadeIn { from{opacity:0}to{opacity:1} }
+
+  .modal {
+    background:#fff;border-radius:18px;
+    width:100%;max-width:440px;
+    box-shadow:0 24px 64px rgba(0,0,0,.25);
+    animation:slideUp .25s ease-out;overflow:hidden;
+  }
+  @keyframes slideUp { from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)} }
+
+  .modal-head {
+    display:flex;align-items:center;justify-content:space-between;
+    padding:18px 22px;border-bottom:1px solid var(--border);
+  }
+  .modal-head-info { display:flex;align-items:center;gap:10px; }
+  .modal-head-icon {
+    width:36px;height:36px;border-radius:10px;
+    background:linear-gradient(135deg,#7c3aed,#4c1d95);
+    display:flex;align-items:center;justify-content:center;
+    flex-shrink:0;
+  }
+  .modal-head-icon svg { width:18px;height:18px;color:#fff; }
+  .modal-head h3   { font-size:14px;font-weight:700;color:var(--text); }
+  .modal-head p    { font-size:11px;color:var(--text2);margin-top:1px; }
+  .modal-close {
+    width:30px;height:30px;border-radius:50%;background:none;
+    border:none;cursor:pointer;color:var(--text2);font-size:16px;
+    display:flex;align-items:center;justify-content:center;transition:.15s;
+    flex-shrink:0;
+  }
+  .modal-close:hover { background:var(--border); }
+
+  .modal-body { padding:24px; }
+
+  .form-group { display:flex;flex-direction:column;gap:6px; }
+  label {
+    font-size:12px;font-weight:600;color:var(--text2);
+    display:flex;align-items:center;gap:5px;
+  }
+  label .req {
+    background:#fee2e2;color:var(--danger);
+    font-size:9px;padding:1px 5px;border-radius:4px;
+  }
+  input[type="text"] {
+    padding:10px 12px;border:1.5px solid var(--border);
+    border-radius:8px;font-size:14px;color:var(--text);
+    background:var(--input-bg);transition:.15s;outline:none;
+    font-family:inherit;width:100%;
+  }
+  input[type="text"]:focus {
+    border-color:var(--accent);background:#fff;
+    box-shadow:0 0 0 3px rgba(124,58,237,.12);
+  }
+  .input-hint { font-size:11px;color:var(--text2);opacity:.7; }
+
+  .modal-footer {
+    display:flex;gap:10px;justify-content:flex-end;
+    padding:16px 22px;border-top:1px solid var(--border);
+    flex-wrap:wrap;
+  }
+
+  /* ── CONTADOR ── */
+  .count-badge {
+    display:inline-flex;align-items:center;justify-content:center;
+    background:#f5f3ff;color:var(--accent);
+    font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;
+    margin-left:4px;
+  }
+
+  /* ── TOAST ── */
+  .toast-container {
+    position:fixed;bottom:24px;right:24px;z-index:99999;
+    display:flex;flex-direction:column;gap:8px;
+    pointer-events:none;
+  }
+  .toast {
+    display:flex;align-items:center;gap:10px;
+    padding:12px 18px;border-radius:10px;
+    font-size:13px;font-weight:600;color:#fff;
+    box-shadow:0 8px 24px rgba(0,0,0,.18);
+    animation:toastIn .3s ease-out;
+    pointer-events:auto;min-width:240px;max-width:360px;
+  }
+  .toast svg { width:17px;height:17px;flex-shrink:0; }
+  .toast-success { background:#16a34a; }
+  .toast-error   { background:#dc2626; }
+  .toast-info    { background:var(--blue); }
+  @keyframes toastIn  { from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)} }
+  @keyframes toastOut { from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(20px)} }
+
+  /* ── RESPONSIVO ── */
+  @media(max-width:640px) {
+    body { padding:14px; }
+    .card { padding:16px; }
+    .modal-body { padding:16px; }
+    .modal-footer { padding:12px 16px; }
+    .card-title { font-size:11px; }
+  }
+</style>
+</head>
+<body>
+<div id="_mobile_block" style="display:none;position:fixed;inset:0;z-index:99999;background:#1e2433;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:32px;text-align:center"><svg width="64" height="64" fill="none" stroke="#4361ee" stroke-width="1.5" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg><h2 style="color:#fff;font-size:20px;font-weight:700;margin:0">Use o computador</h2><p style="color:#aaa;font-size:14px;margin:0">Esta tela de configuração<br>não está disponível no celular.</p></div>
+<script>if(window.innerWidth<600)document.getElementById('_mobile_block').style.display='flex';</script>
+
+<!-- HEADER -->
+<div class="page-header">
+  <div class="page-icon">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857
+           M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002
+           5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+    </svg>
+  </div>
+  <div class="page-title">
+    <h1>Grupos de Usuários</h1>
+    <p>Organize os usuários em grupos para facilitar a gestão de permissões</p>
+  </div>
+</div>
+
+<!-- CARD LISTAGEM -->
+<div class="card">
+  <div class="card-title">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+        d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+    </svg>
+    Grupos Cadastrados
+    <span class="count-badge" id="count_badge" style="display:none">0</span>
+    <button class="btn btn-purple" style="margin-left:auto;padding:8px 14px;font-size:12px"
+            onclick="abrirModalNovo()">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+      </svg>
+      Novo Grupo
+    </button>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:50px">#</th>
+          <th>Descrição</th>
+          <th style="text-align:right">Ações</th>
+        </tr>
+      </thead>
+      <tbody id="tbody_grupos">
+        <tr>
+          <td colspan="3" class="empty">
+            <div>
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283
+                     -.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283
+                     .356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+              </svg>
+              <p>Carregando grupos...</p>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- MODAL FORM -->
+<div id="modal_grupo" style="display:none">
+  <div class="modal-backdrop" id="modal_backdrop" onclick="fecharModal(event)">
+    <div class="modal" onclick="event.stopPropagation()">
+
+      <div class="modal-head">
+        <div class="modal-head-info">
+          <div class="modal-head-icon">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283
+                   -.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283
+                   .356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+          </div>
+          <div>
+            <h3 id="modal_titulo">Novo Grupo</h3>
+            <p>Grupo de usuários</p>
+          </div>
+        </div>
+        <button class="modal-close" onclick="fecharModal()">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <input type="hidden" id="f_id">
+        <div class="form-group">
+          <label>
+            Descrição
+            <span class="req">obrigatório</span>
+          </label>
+          <input type="text" id="f_descricao" placeholder="Ex: Vendedores, Gerentes, Administração..."
+                 onkeydown="if(event.key==='Enter')salvar()">
+          <span class="input-hint">Nome identificador do grupo de usuários</span>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="fecharModal()">Cancelar</button>
+        <button class="btn btn-purple" id="btn_salvar" onclick="salvar()">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+          </svg>
+          Salvar
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- TOAST CONTAINER -->
+<div class="toast-container" id="toast_container"></div>
+
+<script>
+// ── TOKEN ─────────────────────────────────────────────────────────────────────
+function getToken() {
+  return window.parent?.App?.token
+    || sessionStorage.getItem('token')
+    || localStorage.getItem('token')
+    || '';
+}
+
+// ── TOAST ─────────────────────────────────────────────────────────────────────
+function toast(msg, type = 'success') {
+  const icons = {
+    success: '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
+    error:   '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
+    info:    '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
+  };
+  const el = document.createElement('div');
+  el.className = `toast toast-${type}`;
+  el.innerHTML = (icons[type] || icons.info) + `<span>${msg}</span>`;
+  document.getElementById('toast_container').appendChild(el);
+  setTimeout(() => {
+    el.style.animation = 'toastOut .3s ease-in forwards';
+    setTimeout(() => el.remove(), 300);
+  }, 3000);
+}
+
+// ── MODAL ─────────────────────────────────────────────────────────────────────
+function abrirModalNovo() {
+  document.getElementById('f_id').value        = '';
+  document.getElementById('f_descricao').value = '';
+  document.getElementById('modal_titulo').textContent = 'Novo Grupo';
+  document.getElementById('modal_grupo').style.display = 'block';
+  setTimeout(() => document.getElementById('f_descricao').focus(), 50);
+}
+
+function abrirModalEditar(grupo) {
+  document.getElementById('f_id').value        = grupo.id || '';
+  document.getElementById('f_descricao').value = grupo.descricao || '';
+  document.getElementById('modal_titulo').textContent = 'Editar Grupo';
+  document.getElementById('modal_grupo').style.display = 'block';
+  setTimeout(() => document.getElementById('f_descricao').focus(), 50);
+}
+
+function fecharModal(e) {
+  if (e && e.target !== document.getElementById('modal_backdrop')) return;
+  document.getElementById('modal_grupo').style.display = 'none';
+}
+
+// ── CARREGAR GRUPOS ────────────────────────────────────────────────────────────
+async function carregarGrupos() {
+  const tbody = document.getElementById('tbody_grupos');
+  tbody.innerHTML = `<tr><td colspan="3" class="empty">
+    <div><span class="spinner spinner-dark"></span>
+    <p style="margin-top:10px">Carregando...</p></div></td></tr>`;
+
+  try {
+    const r = await fetch('/api/grupos', {
+      headers: { Authorization: 'Bearer ' + getToken() }
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    const lista = d.grupos || [];
+
+    // Atualizar contador
+    const badge = document.getElementById('count_badge');
+    if (lista.length > 0) {
+      badge.textContent = lista.length;
+      badge.style.display = 'inline-flex';
+    } else {
+      badge.style.display = 'none';
+    }
+
+    if (lista.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="3" class="empty">
+        <div>
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283
+                 -.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283
+                 .356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+          </svg>
+          <p>Nenhum grupo cadastrado</p>
+        </div></td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = lista.map((g, i) => `
+      <tr>
+        <td style="color:var(--text2);font-size:12px">${i + 1}</td>
+        <td style="font-weight:600">${escHtml(g.descricao)}</td>
+        <td class="td-actions" style="text-align:right">
+          <button class="btn-sm btn-sm-purple" onclick='editarGrupo(${JSON.stringify(g)})' title="Editar">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5
+                   m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+            </svg>
+            Editar
+          </button>
+          <button class="btn-sm btn-sm-red"
+                  onclick="excluirGrupo(${g.id}, '${escAttr(g.descricao)}')"
+                  title="Excluir" style="margin-left:6px">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0
+                   01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0
+                   00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+            </svg>
+            Excluir
+          </button>
+        </td>
+      </tr>`).join('');
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="3" class="empty"><p>Erro ao carregar: ${escHtml(e.message)}</p></td></tr>`;
+    toast('Erro ao carregar grupos: ' + e.message, 'error');
+  }
+}
+
+// ── EDITAR ─────────────────────────────────────────────────────────────────────
+function editarGrupo(grupo) {
+  abrirModalEditar(grupo);
+}
+
+// ── SALVAR ─────────────────────────────────────────────────────────────────────
+async function salvar() {
+  const descricao = document.getElementById('f_descricao').value.trim();
+  if (!descricao) {
+    toast('Informe a descrição do grupo', 'error');
+    document.getElementById('f_descricao').focus();
+    return;
+  }
+
+  const id  = document.getElementById('f_id').value;
+  const btn = document.getElementById('btn_salvar');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Salvando...';
+
+  try {
+    const method = id ? 'PUT' : 'POST';
+    const url    = id ? `/api/grupos/${id}` : '/api/grupos';
+
+    const r = await fetch(url, {
+      method,
+      headers: { 'Content-Type':'application/json', Authorization:'Bearer ' + getToken() },
+      body: JSON.stringify({ descricao })
+    });
+    const d = await r.json();
+
+    if (!r.ok) throw new Error(d.error || d.message || 'Erro ' + r.status);
+
+    toast(id ? 'Grupo atualizado com sucesso!' : 'Grupo criado com sucesso!', 'success');
+    document.getElementById('modal_grupo').style.display = 'none';
+    carregarGrupos();
+  } catch (e) {
+    toast('Erro ao salvar: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+      </svg> Salvar`;
+  }
+}
+
+// ── EXCLUIR ─────────────────────────────────────────────────────────────────────
+async function excluirGrupo(id, descricao) {
+  if (!confirm(`Excluir o grupo "${descricao}"?\n\nEsta ação não pode ser desfeita.`)) return;
+
+  try {
+    const r = await fetch(`/api/grupos/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: 'Bearer ' + getToken() }
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || d.message || 'Erro ' + r.status);
+    toast('Grupo excluído com sucesso!', 'success');
+    carregarGrupos();
+  } catch (e) {
+    toast('Erro ao excluir: ' + e.message, 'error');
+  }
+}
+
+// ── UTILS ─────────────────────────────────────────────────────────────────────
+function escHtml(str) {
+  if (str == null) return '';
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function escAttr(str) {
+  if (str == null) return '';
+  return String(str).replace(/'/g,"\\'").replace(/"/g,'&quot;');
+}
+
+// ── INIT ─────────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  carregarGrupos();
+});
+
+// Fechar modal com ESC
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') document.getElementById('modal_grupo').style.display = 'none';
+});
+</script>
+</body>
+</html>
