@@ -3,18 +3,25 @@ const jwt = require('jsonwebtoken');
 function authMiddleware(req, res, next) {
   const token = req.cookies?.token || req.headers.authorization?.split(' ')[1];
 
+  // Identifica se é uma chamada de API
+  const isApi = req.path.startsWith('/api/');
+
   if (!token) {
-    if (req.accepts('html')) return res.redirect('/login.html');
-    return res.status(401).json({ error: 'Não autenticado' });
+    if (isApi) {
+      return res.status(401).json({ error: 'Sessão expirada ou não autenticado', redirect: true });
+    }
+    return res.redirect('/login.html');
   }
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = decoded;
     next();
-  } catch {
-    if (req.accepts('html')) return res.redirect('/login.html');
-    return res.status(401).json({ error: 'Token inválido ou expirado' });
+  } catch (err) {
+    if (isApi) {
+      return res.status(401).json({ error: 'Token inválido ou expirado', redirect: true });
+    }
+    return res.redirect('/login.html');
   }
 }
 

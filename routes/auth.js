@@ -22,7 +22,7 @@ router.post('/login', async (req, res) => {
        FROM usuarios s
        INNER JOIN perfil p ON p.id = s.idperfil
        WHERE UPPER(s.loginusu) = UPPER(?)
-         AND s.SITUACAO = 'ATIVO'
+         AND s.situacao = 'ATIVO'
          AND s.excluido = 'N'
        LIMIT 1`,
       [loginusu]
@@ -115,18 +115,63 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// GET /api/auth/empresas
-// Retorna todas as empresas ativas (sempre visível no combobox do login)
-router.get('/empresas', async (req, res) => {
+// POST /api/auth/empresas-usuario
+// Valida credenciais e retorna empresas do usuário (EmpresasUsuarios do Delphi)
+// Chamado ao sair do campo senha — antes do botão Entrar
+router.post('/empresas-usuario', async (req, res) => {
+  const { loginusu, senhausu } = req.body;
+  if (!loginusu || !senhausu) return res.json({ ok: false, empresas: [] });
+
   try {
     const pool = getPool();
-    const [empresas] = await pool.query(
-      `SELECT e.id_empresa, e.Razao_empresa FROM empresa e
-       WHERE e.excluido = 'N' ORDER BY e.Razao_empresa`
+
+    // 1. Valida credenciais básicas
+    const [rows] = await pool.query(
+      `SELECT s.idusuario, s.senhausu, s.empresapadrao, s.idperfil
+       FROM usuarios s
+       WHERE UPPER(s.loginusu) = UPPER(?)
+         AND s.situacao = 'ATIVO'
+         AND s.excluido = 'N'
+       LIMIT 1`,
+      [loginusu]
     );
-    res.json({ empresas });
+
+    const user = rows[0];
+    if (!user || user.senhausu.toUpperCase() !== senhausu.toUpperCase()) {
+      return res.json({ ok: false, empresas: [] });
+    }
+
+    // 2. Busca mudarempresa do perfil
+    const [perfRows] = await pool.query(
+      `SELECT mudarempresa, alterarservidor FROM perfil WHERE id = ? LIMIT 1`,
+      [user.idperfil]
+    ).catch(() => [[]]);
+
+    const perf = perfRows[0] || {};
+
+    // 3. Carrega empresas vinculadas ao usuário (EmpresasUsuarios do Delphi)
+    // id_usuario é varchar(15) na tabela, por isso converte para string
+    const [empresas] = await pool.query(
+      `SELECT e.id_empresa, e.Razao_empresa
+       FROM usuario_empresas t
+       INNER JOIN empresa e ON e.id_empresa = t.cod_empresa
+       WHERE t.excluido = 'N'
+         AND t.status = 'SIM'
+         AND t.id_usuario = ?
+       ORDER BY e.Razao_empresa`,
+      [String(user.idusuario)]
+    );
+
+    res.json({
+      ok: true,
+      empresas,
+      empresapadrao:   user.empresapadrao   || null,
+      mudarempresa:    perf.mudarempresa    || 'S',
+      alterarservidor: perf.alterarservidor || 'N',
+    });
   } catch (err) {
-    res.json({ empresas: [] });
+    console.error('empresas-usuario error:', err.message);
+    res.json({ ok: false, empresas: [], erro: err.message });
   }
 });
 
@@ -190,7 +235,8 @@ router.get('/minhas-permissoes', async (req, res) => {
     const pool = getPool();
     const [rows] = await pool.query(
       `SELECT p.acessar_configuracoes, p.alterar_configuracoes, p.manutencaocadastros,
-              p.acessogerenciais, p.acessoperfil, p.mudarempresa
+              p.acessogerenciais, p.acessoperfil, p.mudarempresa, p.tela_usuarios,
+              p.alterardatapedido, p.trocarvendedorpedido, p.p_vender
        FROM usuarios u
        INNER JOIN perfil p ON p.id = u.idperfil
        WHERE u.idusuario = ? AND u.excluido = 'N' LIMIT 1`,
@@ -200,9 +246,14 @@ router.get('/minhas-permissoes', async (req, res) => {
     // idperfil == 1 é admin, tem tudo
     const isAdmin = decoded.perfil == 1;
     res.json({
-      acessar_configuracoes: isAdmin ? 'S' : (perm.acessar_configuracoes || 'N'),
-      alterar_configuracoes: isAdmin ? 'S' : (perm.alterar_configuracoes || 'N'),
-      manutencaocadastros:   isAdmin ? 'S' : (perm.manutencaocadastros   || 'N'),
+      acessar_configuracoes:  isAdmin ? 'S' : (perm.acessar_configuracoes || 'N'),
+      alterar_configuracoes:  isAdmin ? 'S' : (perm.alterar_configuracoes || 'N'),
+      manutencaocadastros:    isAdmin ? 'S' : (perm.manutencaocadastros   || 'N'),
+      gtela_usuarios:         isAdmin ? 'S' : (perm.tela_usuarios         || 'N'),
+      mudarempresa:           isAdmin ? 'S' : (perm.mudarempresa          || 'N'),
+      alterardatapedido:      isAdmin ? 'S' : (perm.alterardatapedido     || 'N'),
+      trocarvendedorpedido:   isAdmin ? 'S' : (perm.trocarvendedorpedido  || 'N'),
+      p_vender:               isAdmin ? 'S' : (perm.p_vender              || 'N'),
       isAdmin
     });
   } catch {
@@ -309,6 +360,11 @@ function buildPermissoes(user) {
     alterarbase: isAdmin ? 'S' : (user.alterarbase || 'N'),
     acesso_financeiro: isAdmin ? 'S' : (user.acesso_financeiro || 'N'),
     acessoperfil: isAdmin ? 'S' : (user.acessoperfil || 'N'),
+    gtela_usuarios: s('tela_usuarios'),
+    // Pedidos — permissões adicionais
+    alteraprecovenda: isAdmin ? 'S' : (user.alteraprecovenda || 'S'),
+    alertarpainelempresapedvenda: s('alertarpainelempresapedvenda'),
+    habilitapuxada: isAdmin ? 'S' : (user.habilitapuxada || 'N'),
   };
 }
 

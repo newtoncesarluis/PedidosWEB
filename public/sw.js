@@ -43,12 +43,11 @@ self.addEventListener('fetch', e => {
   // Assets: cache first, fallback rede
   e.respondWith(
     caches.match(e.request).then(cached => cached || fetch(e.request).then(resp => {
-      // Cacheia respostas bem sucedidas de assets estáticos
       if (resp.ok && (url.pathname.endsWith('.html') || url.pathname.endsWith('.css') || url.pathname.endsWith('.js'))) {
         const clone = resp.clone();
         caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
       }
       return resp;
-    }))
+    })).catch(() => new Response('', { status: 503 }))
   );
 });

@@ -232,8 +232,39 @@ router.get('/qr/:instanceName', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// GET /api/whatsapp/status
+// Verifica estado de conexão do usuário logado (usado na topbar/home)
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/status', async (req, res) => {
+  try {
+    const pool = getPool();
+    const [rows] = await pool.query(
+      'SELECT instancia FROM usuarios WHERE idusuario=? AND excluido=\'N\'', 
+      [req.user.id]
+    );
+    const instancia = rows[0]?.instancia;
+    
+    if (!instancia) {
+      return res.json({ conectado: false, status: 'SEM INSTÂNCIA' });
+    }
+
+    const cfg = await getConfig();
+    const r   = await apiRequest(cfg.url, `/instance/connectionState/${instancia}`, 'GET', cfg.apikey);
+    const state = r.body?.instance?.state || r.body?.state || 'unknown';
+    
+    res.json({ 
+      conectado: state === 'open', 
+      status: state === 'open' ? 'open' : state,
+      instancia 
+    });
+  } catch (err) {
+    res.json({ conectado: false, error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // GET /api/whatsapp/status/:instanceName
-// Verifica estado de conexão da instância
+// Verifica estado de conexão de uma instância específica
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/status/:instanceName', async (req, res) => {
   try {

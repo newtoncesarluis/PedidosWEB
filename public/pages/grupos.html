@@ -2,6 +2,9 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Grupos de Usuários</title>
 <style>
@@ -21,7 +24,7 @@
   }
 
   body {
-    font-family:'Segoe UI',Arial,sans-serif;
+    font-family:'Inter','Segoe UI',sans-serif;
     background:var(--bg);
     color:var(--text);
     min-height:100vh;
@@ -134,10 +137,11 @@
 
   .modal {
     background:#fff;border-radius:18px;
-    width:100%;max-width:440px;
+    width:100%;max-width:500px;
     box-shadow:0 24px 64px rgba(0,0,0,.25);
     animation:slideUp .25s ease-out;overflow:hidden;
   }
+
   @keyframes slideUp { from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)} }
 
   .modal-head {
@@ -185,6 +189,22 @@
   }
   .input-hint { font-size:11px;color:var(--text2);opacity:.7; }
 
+  /* Grid de Permissões */
+  .perm-grid {
+    display:grid; grid-template-columns:1fr 1fr; gap:12px;
+    margin-top:10px; padding:15px; border:1.5px solid var(--border);
+    border-radius:12px; background:var(--input-bg);
+  }
+  .chk-item {
+    display:flex; align-items:center; gap:10px; font-size:12px;
+    font-weight:600; color:var(--text); cursor:pointer;
+    padding:4px; transition: .2s;
+  }
+  .chk-item:hover { color: var(--accent); }
+  .chk-item input[type="checkbox"] {
+    width:16px; height:16px; accent-color:var(--accent); cursor:pointer;
+  }
+
   .modal-footer {
     display:flex;gap:10px;justify-content:flex-end;
     padding:16px 22px;border-top:1px solid var(--border);
@@ -229,6 +249,7 @@
     .card-title { font-size:11px; }
   }
 </style>
+<script src="/assets/themes.js"></script>
 </head>
 <body>
 <div id="_mobile_block" style="display:none;position:fixed;inset:0;z-index:99999;background:#1e2433;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:32px;text-align:center"><svg width="64" height="64" fill="none" stroke="#4361ee" stroke-width="1.5" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg><h2 style="color:#fff;font-size:20px;font-weight:700;margin:0">Use o computador</h2><p style="color:#aaa;font-size:14px;margin:0">Esta tela de configuração<br>não está disponível no celular.</p></div>
@@ -330,6 +351,37 @@
                  onkeydown="if(event.key==='Enter')salvar()">
           <span class="input-hint">Nome identificador do grupo de usuários</span>
         </div>
+
+        <div class="form-group" style="margin-top:20px">
+          <label>Permissões / Funções do Grupo</label>
+          <div class="perm-grid">
+            <label class="chk-item">
+              <input type="checkbox" id="f_vendedor"> Vendedor
+            </label>
+            <label class="chk-item">
+              <input type="checkbox" id="f_comprador"> Comprador
+            </label>
+            <label class="chk-item">
+              <input type="checkbox" id="f_motorista"> Motorista
+            </label>
+            <label class="chk-item">
+              <input type="checkbox" id="f_iniciar_atendimento"> Iniciar Atendimento
+            </label>
+            <label class="chk-item">
+              <input type="checkbox" id="f_suportetecnico"> Suporte Técnico
+            </label>
+            <label class="chk-item">
+              <input type="checkbox" id="f_suporteinformatica"> Suporte Informática
+            </label>
+            <label class="chk-item">
+              <input type="checkbox" id="f_assistenciatecnica"> Assistência Técnica
+            </label>
+            <label class="chk-item">
+              <input type="checkbox" id="f_gerenciausuarios"> Gerência de Usuários
+            </label>
+          </div>
+        </div>
+
       </div>
 
       <div class="modal-footer">
@@ -379,18 +431,33 @@ function toast(msg, type = 'success') {
 function abrirModalNovo() {
   document.getElementById('f_id').value        = '';
   document.getElementById('f_descricao').value = '';
+  
+  // Resetar checkboxes
+  const checks = ['vendedor', 'comprador', 'motorista', 'iniciar_atendimento', 'suportetecnico', 'suporteinformatica', 'assistenciatecnica', 'gerenciausuarios'];
+  checks.forEach(c => document.getElementById('f_' + c).checked = false);
+
   document.getElementById('modal_titulo').textContent = 'Novo Grupo';
   document.getElementById('modal_grupo').style.display = 'block';
   setTimeout(() => document.getElementById('f_descricao').focus(), 50);
 }
 
+
 function abrirModalEditar(grupo) {
   document.getElementById('f_id').value        = grupo.id || '';
   document.getElementById('f_descricao').value = grupo.descricao || '';
+
+  // Preencher checkboxes
+  const checks = ['vendedor', 'comprador', 'motorista', 'iniciar_atendimento', 'suportetecnico', 'suporteinformatica', 'assistenciatecnica', 'gerenciausuarios'];
+  checks.forEach(c => {
+    const val = grupo[c];
+    document.getElementById('f_' + c).checked = (val === 'S' || val === true);
+  });
+
   document.getElementById('modal_titulo').textContent = 'Editar Grupo';
   document.getElementById('modal_grupo').style.display = 'block';
   setTimeout(() => document.getElementById('f_descricao').focus(), 50);
 }
+
 
 function fecharModal(e) {
   if (e && e.target !== document.getElementById('modal_backdrop')) return;
@@ -490,11 +557,24 @@ async function salvar() {
     const method = id ? 'PUT' : 'POST';
     const url    = id ? `/api/grupos/${id}` : '/api/grupos';
 
+    const payload = { 
+      descricao,
+      vendedor: document.getElementById('f_vendedor').checked,
+      comprador: document.getElementById('f_comprador').checked,
+      motorista: document.getElementById('f_motorista').checked,
+      iniciar_atendimento: document.getElementById('f_iniciar_atendimento').checked,
+      suportetecnico: document.getElementById('f_suportetecnico').checked,
+      suporteinformatica: document.getElementById('f_suporteinformatica').checked,
+      assistenciatecnica: document.getElementById('f_assistenciatecnica').checked,
+      gerenciausuarios: document.getElementById('f_gerenciausuarios').checked
+    };
+
     const r = await fetch(url, {
       method,
       headers: { 'Content-Type':'application/json', Authorization:'Bearer ' + getToken() },
-      body: JSON.stringify({ descricao })
+      body: JSON.stringify(payload)
     });
+
     const d = await r.json();
 
     if (!r.ok) throw new Error(d.error || d.message || 'Erro ' + r.status);

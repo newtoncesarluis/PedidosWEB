@@ -1,0 +1,2563 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<title>Fornecedores</title>
+<style>
+* { margin:0;padding:0;box-sizing:border-box; }
+:root {
+  --bg:#f0f2f5; --card:#fff; --border:#e5e7eb;
+  --text:#111827; --text2:#6b7280;
+  --accent:#0d9488; --accent-hover:#0f766e;
+  --danger:#ef4444; --warn:#f59e0b; --success:#22c55e;
+  --input-bg:#fff;
+}
+body { font-family:var(--font); background:var(--bg); color:var(--text); min-height:100vh; }
+
+/* ── TOOLBAR ── */
+.toolbar-bar { 
+  background:#fff; border-bottom:1px solid var(--border); padding:14px 24px;
+  display:flex; align-items:center; gap:16px; flex-wrap:wrap; 
+  position:sticky; top:0; z-index:100;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+}
+.toolbar-title { font-size:14px; font-weight:800; letter-spacing:.8px; color:var(--text);
+  text-transform:uppercase; white-space:nowrap; margin-right:4px; }
+.badge-total { background:#f0fdfa; color:var(--accent); border:1px solid #99f6e4;
+  border-radius:20px; padding:2px 10px; font-size:11px; font-weight:700; white-space:nowrap; }
+.btn { display:inline-flex; align-items:center; gap:6px; padding:7px 14px;
+  border:none; border-radius:7px; font-size:12px; font-weight:700; cursor:pointer;
+  transition:.15s; font-family:inherit; white-space:nowrap; letter-spacing:.3px; }
+.btn svg { width:14px; height:14px; flex-shrink:0; }
+.btn:disabled { opacity:.5; cursor:not-allowed; }
+.btn-primary { background:var(--accent); color:#fff; border:1.5px solid var(--accent); }
+.btn-primary:hover:not(:disabled) { background:var(--accent-hover); border-color:var(--accent-hover); }
+.btn-outline { background:#fff; color:var(--accent); border:1.5px solid var(--accent); }
+.btn-outline:hover { background:#f0fdfa; }
+.btn-ghost { background:#fff; color:var(--text2); border:1.5px solid var(--border); }
+.btn-ghost:hover { background:#f9fafb; color:var(--text); }
+.btn-danger { background:var(--danger); color:#fff; border:1.5px solid var(--danger); }
+.btn-danger:hover:not(:disabled) { opacity:.9; }
+.search-wrap { display:flex; align-items:center; gap:5px; }
+.search-input { 
+  padding:10px 14px; border:1.5px solid var(--border); border-radius:12px;
+  font-size:13px; font-family:inherit; background:var(--input-bg); color:var(--text);
+  outline:none; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); width:240px; 
+}
+.search-input:focus { 
+  border-color:var(--accent); width:320px; 
+  box-shadow: 0 0 0 4px var(--accent-soft, rgba(13,148,136,0.15)), 0 4px 12px rgba(0,0,0,0.05);
+  transform: translateY(-1px);
+}
+.subbar { background:#f9fafb; border-bottom:1px solid var(--border); padding:5px 16px;
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  position:sticky; z-index:99; }
+.icon-btn { display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border:1.5px solid var(--border);
+  border-radius:7px;background:#fff;color:var(--text2);font-size:11px;font-weight:600;cursor:pointer;
+  font-family:inherit;transition:.12s;white-space:nowrap; }
+.icon-btn svg { width:13px;height:13px;flex-shrink:0; }
+.icon-btn:hover { background:#f0fdfa;color:var(--accent);border-color:var(--accent); }
+.ml-auto { margin-left:auto; }
+.filter-btn { padding:6px 12px; border:1.5px solid var(--border); border-radius:7px;
+  background:#fff; color:var(--text2); font-size:12px; font-weight:600; cursor:pointer; font-family:inherit; transition:.15s; }
+.filter-btn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+
+/* ── INSIGHTS (inline na toolbar) ── */
+.ins-card { display:inline-flex; align-items:center; gap:5px; cursor:pointer; padding:4px 9px;
+  border-radius:7px; border:1.5px solid var(--border); background:#fafafa;
+  transition:.15s; user-select:none; flex-shrink:0; white-space:nowrap; }
+.ins-card:hover { border-color:var(--accent); background:#f0fdfa; }
+.ins-card.active { border-color:var(--accent); background:var(--accent); color:#fff; }
+.ins-card.active .ins-label, .ins-card.active .ins-val { color:#fff; }
+.ins-label { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; color:var(--text2); }
+.ins-val { font-size:14px; font-weight:800; color:var(--text); line-height:1; }
+
+/* ── FILTER PANEL ── */
+#filterPanel { display:none; background:#fff; border-bottom:1px solid var(--border); padding:0 16px; }
+.filter-panel-head { display:flex; align-items:center; justify-content:space-between;
+  padding:8px 0; cursor:pointer; }
+.filter-panel-head-left { display:flex; align-items:center; gap:8px;
+  font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--text2); }
+.filter-panel-body { display:none; padding-bottom:12px; }
+.filter-panel-body.show { display:block; }
+.filter-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
+.fp-group { display:flex; flex-direction:column; gap:4px; }
+.fp-group label { font-size:11px; font-weight:600; color:var(--text2); }
+.fp-group input, .fp-group select { padding:6px 10px; border:1.5px solid var(--border);
+  border-radius:6px; font-size:12px; font-family:inherit; background:var(--input-bg);
+  color:var(--text); outline:none; }
+.fp-group input:focus, .fp-group select:focus { border-color:var(--accent); }
+.fp-badge { background:var(--accent); color:#fff; border-radius:10px; padding:1px 7px;
+  font-size:10px; font-weight:700; display:none; margin-left:4px; }
+
+/* ── CONTENT ── */
+.content { padding:16px; }
+.card { background:#fff; border-radius:10px; border:1px solid var(--border); overflow:hidden; }
+
+/* ── TABLE ── */
+.table-wrap { overflow-x:auto; }
+
+/* ── View toggle ── */
+.view-toggle { display:flex;border:1.5px solid var(--border);border-radius:7px;overflow:hidden; }
+.vt-btn { padding:5px 9px;border:none;background:#fff;color:var(--text2);cursor:pointer;display:flex;align-items:center;transition:.12s; }
+.vt-btn:hover { background:#f0fdfa;color:var(--accent); }
+.vt-btn.active { background:var(--accent);color:#fff; }
+.vt-btn svg { width:14px;height:14px; }
+
+/* ── Cards grid ── */
+.forn-cards-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;padding:14px 12px; }
+.forn-card { background:#fff;border:1px solid var(--border);border-radius:10px;padding:13px 14px;
+  cursor:pointer;display:flex;flex-direction:column;gap:9px;
+  transition:box-shadow .15s,border-color .15s,transform .1s; }
+.forn-card:hover { box-shadow:0 4px 18px rgba(0,0,0,.1);border-color:var(--accent);transform:translateY(-1px); }
+.forn-card-head { display:flex;align-items:center;gap:10px; }
+.forn-avatar { width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:14px;font-weight:700;color:#fff;flex-shrink:0;text-transform:uppercase; }
+.forn-card-title { font-size:12px;font-weight:700;color:var(--text);line-height:1.3; }
+.forn-card-sub   { font-size:11px;color:var(--text2); }
+.forn-card-body  { display:flex;flex-direction:column;gap:3px; }
+.forn-card-row   { display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2); }
+.forn-card-row svg { width:11px;height:11px;flex-shrink:0;opacity:.65; }
+.forn-card-row span { color:var(--text); }
+.forn-card-foot { display:flex;align-items:center;justify-content:space-between;
+  padding-top:7px;border-top:1px solid var(--border);margin-top:auto; }
+/* cores avatar por letra */
+.av-A,.av-B{background:linear-gradient(135deg,#0d9488,#0f766e)}
+.av-C,.av-D{background:linear-gradient(135deg,#3b82f6,#2563eb)}
+.av-E,.av-F{background:linear-gradient(135deg,#8b5cf6,#7c3aed)}
+.av-G,.av-H{background:linear-gradient(135deg,#f59e0b,#d97706)}
+.av-I,.av-J{background:linear-gradient(135deg,#ef4444,#dc2626)}
+.av-K,.av-L{background:linear-gradient(135deg,#10b981,#059669)}
+.av-M,.av-N{background:linear-gradient(135deg,#f97316,#ea580c)}
+.av-O,.av-P{background:linear-gradient(135deg,#06b6d4,#0891b2)}
+.av-Q,.av-R{background:linear-gradient(135deg,#84cc16,#65a30d)}
+.av-S,.av-T{background:linear-gradient(135deg,#ec4899,#db2777)}
+.av-U,.av-V{background:linear-gradient(135deg,#14b8a6,#0d9488)}
+.av-W,.av-X,.av-Y,.av-Z{background:linear-gradient(135deg,#6366f1,#4f46e5)}
+.av-NUM{background:linear-gradient(135deg,#64748b,#475569)}
+table { width:100%; border-collapse:collapse; font-size:15px; }
+thead th { padding:10px 12px; background:#f9fafb; border-bottom:2px solid var(--border);
+  text-align:left; font-size:12px; font-weight:700; text-transform:uppercase;
+  letter-spacing:.5px; color:var(--text2); white-space:nowrap; }
+tbody tr { border-bottom:1px solid #f3f4f6; cursor:pointer; transition: all 0.2s; border-left: 3px solid transparent; }
+tbody tr:hover { 
+  background: var(--accent-soft, rgba(13,148,136,0.1)); 
+  border-left-color: var(--accent);
+  box-shadow: inset 0 1px 0 rgba(0,0,0,0.02);
+}
+tbody tr.row-selected { background: var(--accent-soft, rgba(13,148,136,0.15)); border-left-color: var(--accent); }
+tbody td { padding:10px 12px; vertical-align:middle; }
+.tag-novo { background:#dcfce7; color:#15803d; border-radius:4px;
+  padding:1px 6px; font-size:10px; font-weight:700; margin-left:4px; letter-spacing:.3px; }
+.status-badge { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:600; }
+.status-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+
+/* ── PAGINATION ── */
+.pagination { display:flex; align-items:center; justify-content:space-between;
+  padding:10px 16px; border-top:1px solid var(--border); font-size:12px; color:var(--text2); flex-wrap:wrap; gap:8px; }
+.pag-btns { display:flex; gap:6px; }
+.pag-btn { padding:5px 12px; border:1.5px solid var(--border); border-radius:6px;
+  background:#fff; font-size:12px; font-family:inherit; cursor:pointer; color:var(--text); transition:.12s; }
+.pag-btn:hover:not(:disabled) { border-color:var(--accent); color:var(--accent); }
+.pag-btn:disabled { opacity:.4; cursor:not-allowed; }
+
+/* ── ACTIONS DROPDOWN ── */
+.btn-acoes { background:#fff; border:1.5px solid var(--border); border-radius:6px;
+  color:var(--text2); padding:3px 7px; font-size:16px; cursor:pointer; transition:.12s;
+  font-family:inherit; line-height:1; }
+.btn-acoes:hover { background:#f0fdfa; border-color:var(--accent); color:var(--accent); }
+.dropdown-menu { position:fixed; background:#fff; border:1px solid var(--border); border-radius:9px;
+  box-shadow:0 8px 24px rgba(0,0,0,.13); padding:4px; min-width:160px; z-index:9900; animation:fadeIn .12s; }
+.dropdown-item { display:flex; align-items:center; gap:8px; padding:7px 10px;
+  border-radius:6px; font-size:12px; cursor:pointer; font-family:inherit;
+  background:none; border:none; width:100%; text-align:left; color:var(--text); transition:.1s; }
+.dropdown-item:hover { background:#f0fdfa; color:var(--accent); }
+.dropdown-item.danger { color:var(--danger); }
+.dropdown-item.danger:hover { background:#fef2f2; }
+.dropdown-item svg { width:13px; height:13px; flex-shrink:0; }
+.dropdown-divider { height:1px; background:var(--border); margin:3px 4px; }
+
+/* ── QUICK VIEW ── */
+#quickViewPanel { position:fixed; top:0; right:-420px; width:400px; height:100vh;
+  background:#fff; border-left:1px solid var(--border); z-index:8000;
+  transition:right .28s cubic-bezier(.4,0,.2,1); display:flex; flex-direction:column;
+  box-shadow:-12px 0 40px rgba(0,0,0,.12); }
+#quickViewPanel.open { right:0; }
+.qv-head { padding:16px 18px; display:flex; align-items:flex-start; gap:12px; flex-shrink:0;
+  background:linear-gradient(135deg,#0d9488,#0f766e); color:#fff; }
+.qv-avatar { width:44px; height:44px; border-radius:11px; background:rgba(255,255,255,.2);
+  display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:700;
+  flex-shrink:0; text-transform:uppercase; }
+.qv-title { font-size:14px; font-weight:700; line-height:1.3; margin-bottom:2px; }
+.qv-sub { font-size:11px; opacity:.75; }
+.qv-close { margin-left:auto; background:rgba(255,255,255,.18); border:none; color:#fff;
+  width:28px; height:28px; border-radius:50%; font-size:16px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:.15s; }
+.qv-close:hover { background:rgba(255,255,255,.32); }
+.qv-body { flex:1; overflow-y:auto; padding:14px 18px; display:flex; flex-direction:column; gap:14px; }
+.qv-section-title { font-size:10px; font-weight:700; text-transform:uppercase;
+  letter-spacing:.6px; color:var(--text2); margin-bottom:7px;
+  padding-bottom:4px; border-bottom:1px solid var(--border); }
+.qv-row { display:flex; gap:6px; margin-bottom:5px; font-size:12px; color:var(--text2); align-items:flex-start; }
+.qv-row svg { width:13px; height:13px; flex-shrink:0; margin-top:1px; }
+.qv-row span { color:var(--text); font-weight:500; word-break:break-word; }
+.qv-foot { padding:12px 18px; border-top:1px solid var(--border); display:flex; gap:8px;
+  flex-shrink:0; background:#f9fafb; }
+.qv-foot .btn { flex:1; justify-content:center; font-size:11px; padding:6px 10px; }
+
+/* ── FORM SECTION ── */
+#formSection { display:none; padding:16px; }
+.form-card { background:#fff; border-radius:10px; border:1px solid var(--border); overflow:hidden; }
+.form-header { padding:14px 20px; border-bottom:1px solid var(--border); display:flex;
+  align-items:center; justify-content:space-between; background:#f9fafb; }
+.form-header-title { font-size:13px; font-weight:800; color:var(--text); text-transform:uppercase; letter-spacing:.5px; }
+.form-tabs { display:flex; gap:0; border-bottom:1px solid var(--border); background:#f9fafb; padding:0 20px; }
+.form-tab { padding:10px 16px; font-size:12px; font-weight:600; cursor:pointer;
+  border-bottom:2px solid transparent; color:var(--text2); transition:.15s; }
+.form-tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+.form-body { padding:20px; }
+.tab-pane { display:none; }
+.tab-pane.active { display:block; }
+.form-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; }
+.form-group { display:flex; flex-direction:column; gap:4px; }
+.form-group label { font-size:11px; font-weight:700; color:var(--text2); text-transform:uppercase; letter-spacing:.3px; }
+.form-group input, .form-group select, .form-group textarea {
+  padding:7px 10px; border:1px solid #d1d5db; border-radius:6px;
+  font-size:12px; font-family:inherit; background:var(--input-bg); color:var(--text);
+  outline:none; transition:.15s; width:100%; }
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color:var(--accent); }
+.form-group textarea { resize:vertical; min-height:70px; }
+.upper { text-transform:uppercase; }
+.col-span-2 { grid-column:span 2; }
+.col-span-3 { grid-column:span 3; }
+.form-footer { padding:14px 20px; border-top:1px solid var(--border); display:flex; gap:8px;
+  justify-content:flex-end; background:#f9fafb; }
+
+/* ── NOTIF ── */
+#notifWrap { position:relative; display:inline-flex; }
+.notif-bell { cursor:pointer; padding:6px 8px; border:1.5px solid var(--border); border-radius:7px;
+  background:#fff; display:flex; align-items:center; color:var(--text2); transition:.12s; }
+.notif-bell:hover { background:#f9fafb; color:var(--text); }
+.notif-bell svg { width:15px; height:15px; }
+.notif-count { position:absolute; top:-6px; right:-6px; background:#ef4444; color:#fff;
+  border-radius:20px; min-width:16px; height:16px; padding:0 4px;
+  font-size:9px; font-weight:700; display:none; align-items:center; justify-content:center;
+  border:2px solid #fff; }
+.notif-count.show { display:flex; }
+.notif-panel { display:none; }
+.notif-panel.show { display:block; }
+.notif-panel-head { padding:10px 14px; border-bottom:1px solid var(--border);
+  font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; color:var(--text2); }
+.notif-item { display:flex; align-items:flex-start; gap:10px; padding:10px 14px;
+  border-bottom:1px solid var(--border); cursor:pointer; transition:.12s; }
+.notif-item:last-child { border-bottom:none; }
+.notif-item:hover { background:#f0fdfa; }
+.notif-icon { width:30px; height:30px; border-radius:8px; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; font-size:14px; }
+.notif-icon.warn { background:#fef3c7; }
+.notif-icon.info { background:#dbeafe; }
+.notif-icon.success { background:#dcfce7; }
+.notif-text { flex:1; font-size:12px; line-height:1.4; }
+.notif-text small { display:block; color:var(--text2); font-size:10px; margin-top:2px; }
+.notif-empty { padding:20px; text-align:center; color:var(--text2); font-size:12px; }
+
+/* ── CNPJ MODAL ── */
+.modal-overlay { position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10000;display:flex;align-items:center;justify-content:center; }
+.modal-box { background:#fff;border-radius:14px;padding:24px;width:420px;max-width:94vw;box-shadow:0 20px 60px rgba(0,0,0,.2); }
+.modal-box h3 { font-size:15px;font-weight:700;margin-bottom:8px; }
+.modal-box p  { font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.5; }
+.modal-info { background:#f9fafb;border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:16px;font-size:12px;line-height:1.6; }
+.modal-btns { display:flex;gap:8px;justify-content:flex-end; }
+
+/* ── PREFERÊNCIAS (checkboxes S/N) ── */
+.pref-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:8px; }
+.pref-item { display:flex; align-items:center; gap:10px; padding:9px 14px;
+  border:1px solid var(--border); border-radius:8px; cursor:pointer; transition:.12s; user-select:none; }
+.pref-item:hover { border-color:var(--accent); background:#f0fdfa; }
+.pref-item input[type=checkbox] { width:15px; height:15px; accent-color:var(--accent); cursor:pointer; flex-shrink:0; }
+.pref-item label { font-size:12px; font-weight:600; cursor:pointer; line-height:1.3; }
+
+/* ── VALORES (descontos / preços) ── */
+.val-section-title { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.5px;
+  color:var(--text2); padding-bottom:6px; border-bottom:1px solid var(--border); margin-bottom:12px; margin-top:16px; }
+.val-section-title:first-child { margin-top:0; }
+.desc-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; }
+.prec-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+
+/* ── CHECKLISTS (tabela de preços) ── */
+.chk-list { display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px; }
+.chk-item { display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--border);border-radius:7px;cursor:pointer;transition:.12s; }
+.chk-item:hover { border-color:var(--accent);background:#f0fdfa; }
+.chk-item input[type=checkbox] { width:15px;height:15px;accent-color:var(--accent);cursor:pointer;flex-shrink:0; }
+.chk-item label { font-size:12px;font-weight:600;cursor:pointer;line-height:1.3; }
+
+/* ── IMAGENS ── */
+.img-area { display:grid;grid-template-columns:180px 1fr;gap:16px;margin-bottom:16px; }
+.img-preview { width:180px;height:140px;border:2px dashed var(--border);border-radius:8px;
+  display:flex;align-items:center;justify-content:center;background:#f9fafb;overflow:hidden; }
+.img-preview img { max-width:100%;max-height:100%;object-fit:contain; }
+.img-preview .no-img { font-size:11px;color:var(--text2);text-align:center;padding:16px; }
+.img-fields { display:flex;flex-direction:column;gap:10px; }
+.img-btns { display:flex;gap:8px;flex-wrap:wrap; }
+.img-table { width:100%;border-collapse:collapse;font-size:12px;margin-top:4px; }
+.img-table th { padding:7px 10px;background:#f9fafb;border-bottom:2px solid var(--border);
+  font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);text-align:left; }
+.img-table td { padding:7px 10px;border-bottom:1px solid #f3f4f6;vertical-align:middle; }
+.img-table tr:hover td { background:#f0fdfa; }
+.img-table tr.img-selected td { background:#f0fdfa;border-left:3px solid var(--accent); }
+
+/* ── MISC ── */
+.spinner { width:18px; height:18px; border:2px solid var(--border); border-top-color:var(--accent);
+  border-radius:50%; animation:spin .7s linear infinite; display:inline-block; }
+@keyframes spin { to { transform:rotate(360deg); } }
+@keyframes fadeIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:none} }
+.empty-state { text-align:center; padding:48px 20px; color:var(--text2); }
+.empty-state svg { width:48px; height:48px; margin-bottom:12px; opacity:.3; }
+.empty-state p { font-size:13px; }
+.toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+  background:#1f2937; color:#fff; padding:10px 20px; border-radius:9px;
+  font-size:13px; font-weight:500; z-index:99999; animation:fadeIn .2s;
+  box-shadow:0 4px 16px rgba(0,0,0,.2); display:none; }
+.toast.show { display:block; }
+.toast.success { background:#065f46; }
+.toast.error   { background:#991b1b; }
+/* FAB & BULK BAR DIAMOND FLOW */
+.btn-new-float {
+  position: fixed; bottom: 30px; right: 30px; 
+  width: 60px; height: 60px; border-radius: 30px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-hover)); 
+  color: #fff; border: none;
+  box-shadow: 0 12px 24px rgba(0,0,0,0.15);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; z-index: 900; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  animation: floatPulse 3s infinite;
+}
+.btn-new-float:hover { transform: scale(1.15) rotate(90deg); box-shadow: 0 15px 30px rgba(0,0,0,0.2); }
+.btn-new-float svg { width: 28px; height: 28px; }
+
+@keyframes floatPulse {
+  0% { box-shadow: 0 12px 24px rgba(13,148,136,0.2); }
+  50% { box-shadow: 0 12px 35px rgba(13,148,136,0.4); }
+  100% { box-shadow: 0 12px 24px rgba(13,148,136,0.2); }
+}
+
+.bulk-bar {
+  position: fixed; bottom: -100px; left: 50%; transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  color: #fff; padding: 10px 20px; border-radius: 24px;
+  display: flex; align-items: center; gap: 16px; z-index: 5000;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.1); 
+  transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.bulk-bar.show { bottom: 40px; }
+.bulk-info { padding: 0 16px; border-right: 1px solid rgba(255,255,255,0.1); font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.bulk-actions { display: flex; align-items: center; gap: 8px; }
+.btn-bulk { padding: 8px 16px; border-radius: 16px; border: none; font-size: 12px; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s; text-transform: uppercase; letter-spacing: 0.5px; }
+.btn-bulk-outline { background: rgba(255,255,255,0.1); color: #fff; }
+.btn-bulk-outline:hover { background: rgba(255,255,255,0.2); }
+.btn-bulk-danger { background: #ef4444; color: #fff; }
+.btn-bulk-danger:hover { background: #dc2626; transform: translateY(-2px); }
+.bulk-close { width: 24px; height: 24px; border: none; border-radius: 50%; background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.7); font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.12s; padding: 0; }
+.bulk-close:hover { background: rgba(255,255,255,0.22); color: #fff; }
+</style>
+<script src="/assets/themes.js"></script>
+</head>
+<body>
+
+<!-- ── TOOLBAR ──────────────────────────────────────────────────────────────── -->
+<div class="toolbar-bar" id="toolbar">
+  <div style="display:flex;gap:5px;align-items:center;flex-shrink:0">
+    <div class="ins-card" id="ins-card-total" onclick="toggleInsightFilter('total')" title="Ver todos">
+      <span class="ins-label">Total</span><span class="ins-val" id="ins-total">—</span>
+    </div>
+    <div class="ins-card" id="ins-card-ativos" onclick="toggleInsightFilter('ativos')" title="Filtrar ativos">
+      <span class="ins-label">Ativos</span><span class="ins-val" id="ins-ativos" style="color:#16a34a">—</span>
+    </div>
+    <div class="ins-card" id="ins-card-inativos" onclick="toggleInsightFilter('inativos')" title="Filtrar inativos">
+      <span class="ins-label">Inativos</span><span class="ins-val" id="ins-inativos" style="color:#f59e0b">—</span>
+    </div>
+    <div class="ins-card" id="ins-card-novos" onclick="toggleInsightFilter('novos')" title="Novos nos últimos 7 dias">
+      <span class="ins-label">Novos 7d</span><span class="ins-val" id="ins-novos" style="color:#6366f1">—</span>
+    </div>
+  </div>
+
+  <button class="btn btn-outline" onclick="novoRegistro()">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+    </svg>
+    Novo Fornecedor
+  </button>
+
+  <div class="view-toggle" title="Alternar visualização">
+    <button class="vt-btn active" id="btnViewTable" onclick="toggleView('table')" title="Tabela">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M3 10h18M3 14h18M10 6h.01M10 18h.01M5 6h.01M5 18h.01M19 6h.01M19 18h.01"/>
+      </svg>
+    </button>
+    <button class="vt-btn" id="btnViewCards" onclick="toggleView('cards')" title="Cards">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+      </svg>
+    </button>
+  </div>
+
+  <div class="ml-auto" style="display:flex;gap:8px;align-items:center">
+    <div id="notifWrap">
+      <button class="notif-bell" onclick="toggleNotifPanel()" title="Notificações">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+        </svg>
+      </button>
+      <div class="notif-count" id="notifCount"></div>
+      <div class="notif-panel" id="notifPanel">
+        <div class="notif-panel-head">Notificações</div>
+        <div id="notifList"><div class="notif-empty">Carregando…</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── SUBBAR ──────────────────────────────────────────────────────────────── -->
+<div class="subbar" id="subbar">
+  <div style="display:flex;gap:6px;align-items:center">
+    <button class="icon-btn" onclick="exportarCSV()" title="Exportar CSV">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+      </svg>
+      CSV
+    </button>
+    <button class="icon-btn" id="btnFiltros" onclick="toggleFiltroPanel()" title="Filtros avançados">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"/>
+      </svg>
+      Filtros
+      <span class="fp-badge" id="fphBadge"></span>
+      <svg id="fpToggleIcon" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:10px;height:10px;transition:.2s">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+      </svg>
+    </button>
+  </div>
+  <div class="search-wrap">
+    <input type="text" id="searchInput" class="search-input" placeholder="Buscar nome, CPF/CNPJ, telefone…"
+      autocomplete="off" oninput="debounceSearch()" onkeydown="if(event.key==='Enter')carregar()">
+    <button class="icon-btn" onclick="carregar()" title="Pesquisar">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+      </svg>
+    </button>
+  </div>
+</div>
+
+<!-- ── FILTROS AVANÇADOS ─────────────────────────────────────────────────────── -->
+<div id="filterPanel">
+  <div class="filter-panel-head" onclick="toggleFiltroPanel()">
+    <div class="filter-panel-head-left">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:13px;height:13px">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"/>
+      </svg>
+      Filtros Avançados
+    </div>
+  </div>
+  <div class="filter-panel-body" id="filterPanelBody">
+    <div class="filter-grid">
+      <div class="fp-group">
+        <label>Segmento</label>
+        <input type="text" id="fa_segmento" placeholder="Ex: Indústria, Distribuidor…" autocomplete="off" oninput="aplicarFiltroAvancado()">
+      </div>
+      <div class="fp-group">
+        <label>Cidade</label>
+        <input type="text" id="fa_cidade" placeholder="Cidade…" autocomplete="off" oninput="aplicarFiltroAvancado()">
+      </div>
+      <div class="fp-group" style="grid-column:1/-1;display:flex;gap:8px;align-items:flex-end;justify-content:flex-end">
+        <button class="btn btn-outline" onclick="aplicarFiltroAvancado()">Aplicar</button>
+        <button class="btn btn-ghost" onclick="limparFiltros()">Limpar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── LIST SECTION ──────────────────────────────────────────────────────────── -->
+<div class="content" id="listSection">
+  <div class="card">
+    <div class="table-wrap" id="tableWrap">
+      <table id="tabela">
+        <thead>
+          <tr>
+            <th style="width:36px"><input type="checkbox" id="chkAll" onchange="toggleSelecionarTodos(this.checked)"></th>
+            <th>#</th>
+            <th>Código</th>
+            <th>Nome / Apelido</th>
+            <th>CPF / CNPJ</th>
+            <th>Fone Principal</th>
+            <th>Cidade / UF</th>
+            <th>Segmento</th>
+            <th>Status</th>
+            <th style="width:60px">Ações</th>
+          </tr>
+        </thead>
+        <tbody id="tabelaBody">
+          <tr><td colspan="10" style="text-align:center;padding:40px;color:var(--text2)">Carregando…</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="forn-cards-grid" id="fornCardsGrid" style="display:none"></div>
+    <div class="pagination" id="paginacao"></div>
+  </div>
+
+  <!-- Botão Flutuante (FAB) -->
+  <button class="btn-new-float" onclick="novoRegistro()" title="Novo Fornecedor (Alt+N)">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
+    </svg>
+  </button>
+
+  <!-- Barra de Ações em Massa (Bulk Bar) -->
+  <div id="bulkBar" class="bulk-bar">
+    <div class="bulk-info">
+      <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+      </svg>
+      <span id="bulkCount">0</span> selecionado(s)
+    </div>
+    <div class="bulk-actions">
+      <button class="btn-bulk btn-bulk-outline" onclick="bulkExportar()">
+        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+        Exportar
+      </button>
+      <button class="btn-bulk btn-bulk-danger" onclick="bulkExcluir()">
+        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+        Excluir
+      </button>
+      <button class="bulk-close" onclick="limparSelecao()" title="Fechar">✕</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── FORM SECTION ──────────────────────────────────────────────────────────── -->
+<div id="formSection">
+  <div class="form-card">
+    <div class="form-header">
+      <span class="form-header-title" id="formTitulo">Novo Fornecedor</span>
+      <button class="btn btn-ghost" onclick="fecharFormulario()">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+        Cancelar
+      </button>
+    </div>
+
+    <div class="form-tabs">
+      <div class="form-tab active" onclick="abrirAba('geral',this)">Geral</div>
+      <div class="form-tab" onclick="abrirAba('endereco',this)">Endereço</div>
+      <div class="form-tab" onclick="abrirAba('contato',this)">Contato</div>
+      <div class="form-tab" onclick="abrirAba('preferencias',this)">Preferências</div>
+      <div class="form-tab" onclick="abrirAba('valores',this)">Valores</div>
+      <div class="form-tab" onclick="abrirAba('tabpreco',this)">Tabela de Preços</div>
+      <div class="form-tab" onclick="abrirAba('vendedores',this)">Vendedores</div>
+      <div class="form-tab" onclick="abrirAba('imagens',this)">Imagens</div>
+      <div class="form-tab" onclick="abrirAba('produtos',this)">Produtos</div>
+      <div class="form-tab" onclick="abrirAba('obs',this)">Observações</div>
+    </div>
+
+    <div class="form-body">
+      <!-- ABA GERAL -->
+      <div class="tab-pane active" id="tab-geral">
+        <div class="form-grid">
+          <div class="form-group col-span-2">
+            <label>Nome / Razão Social *</label>
+            <input type="text" id="f_nome" autocomplete="off" placeholder="Nome ou razão social do fornecedor" class="upper">
+          </div>
+          <div class="form-group">
+            <label>Apelido / Nome Fantasia</label>
+            <input type="text" id="f_apelido" autocomplete="off" placeholder="Nome fantasia" class="upper">
+          </div>
+          <div class="form-group">
+            <label>CPF / CNPJ</label>
+            <div style="display:flex;gap:6px">
+              <input type="text" id="f_cpf" autocomplete="off" placeholder="000.000.000-00 ou 00.000.000/0000-00"
+                onblur="onBlurCnpj()" style="flex:1">
+              <button type="button" class="btn btn-ghost" onclick="consultarCNPJ()" title="Buscar dados na Receita Federal (CNPJ)" style="padding:6px 10px;flex-shrink:0">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>RG</label>
+            <input type="text" id="f_rg" autocomplete="off" placeholder="RG" class="upper">
+          </div>
+          <div class="form-group">
+            <label>Tipo Pessoa</label>
+            <select id="f_tipo_pessoa">
+              <option value="">Selecione…</option>
+              <option value="PJ">Pessoa Jurídica</option>
+              <option value="PF">Pessoa Física</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Tipo Cadastro</label>
+            <input type="text" id="f_tipo_cadastro" autocomplete="off" placeholder="Ex: BALCÃO, VAREJO…" class="upper">
+          </div>
+          <div class="form-group">
+            <label>Segmento / Categoria</label>
+            <select id="f_segmento">
+              <option value="">Selecione…</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Grupo</label>
+            <select id="f_cod_grupo" onchange="onGrupoChange(this)">
+              <option value="" data-nome="">Selecione…</option>
+            </select>
+            <input type="hidden" id="f_nome_grupo">
+          </div>
+          <div class="form-group">
+            <label>Cód. Vendedor</label>
+            <input type="text" id="f_cod_vendedor" autocomplete="off" maxlength="2">
+          </div>
+          <div class="form-group">
+            <label>Comissão (%)</label>
+            <input type="number" id="f_comissao" autocomplete="off" step="0.001" min="0" placeholder="0.000">
+          </div>
+          <div class="form-group">
+            <label>Casas Dec. Qtde</label>
+            <select id="f_casasdecimaisqt">
+              <option value="0">0</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Casas Dec. Valor</label>
+            <select id="f_casasdecimaisvalor">
+              <option value="0">0</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Status</label>
+            <select id="f_status">
+              <option value="A">Ativo</option>
+              <option value="I">Inativo</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- ABA ENDEREÇO -->
+      <div class="tab-pane" id="tab-endereco">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>CEP</label>
+            <input type="text" id="f_cep" autocomplete="off" placeholder="00000-000" class="upper">
+          </div>
+          <div class="form-group col-span-2">
+            <label>Endereço</label>
+            <input type="text" id="f_endereco" autocomplete="off" placeholder="Rua / Av." class="upper">
+          </div>
+          <div class="form-group col-span-2">
+            <label>Bairro</label>
+            <input type="text" id="f_bairro" autocomplete="off" class="upper">
+          </div>
+          <div class="form-group">
+            <label>UF</label>
+            <input type="text" id="f_uf" autocomplete="off" maxlength="2" class="upper">
+          </div>
+          <div class="form-group col-span-3">
+            <label>Cidade</label>
+            <input type="text" id="f_cidade" autocomplete="off" class="upper">
+          </div>
+        </div>
+
+        <div style="margin:18px 0 12px;padding-top:14px;border-top:1px solid var(--border);
+          font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text2)">
+          Dados de Faturamento
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>CEP Faturamento</label>
+            <input type="text" id="f_cep_faturamento" autocomplete="off" placeholder="00000-000" class="upper">
+          </div>
+          <div class="form-group col-span-2">
+            <label>Endereço Faturamento</label>
+            <input type="text" id="f_endereco_faturamento" autocomplete="off" class="upper">
+          </div>
+          <div class="form-group col-span-2">
+            <label>Bairro Faturamento</label>
+            <input type="text" id="f_bairro_faturamento" autocomplete="off" class="upper">
+          </div>
+          <div class="form-group">
+            <label>UF</label>
+            <input type="text" id="f_uf_faturamento" autocomplete="off" maxlength="2" class="upper">
+          </div>
+          <div class="form-group col-span-3">
+            <label>Cidade Faturamento</label>
+            <input type="text" id="f_cidade_faturamento" autocomplete="off" class="upper">
+          </div>
+          <div class="form-group">
+            <label>Telefone Principal Fat.</label>
+            <input type="text" id="f_telefone1_faturamento" autocomplete="off" placeholder="(00) 0000-0000">
+          </div>
+          <div class="form-group">
+            <label>Telefone Secundário Fat.</label>
+            <input type="text" id="f_telefone2_faturamento" autocomplete="off" placeholder="(00) 00000-0000">
+          </div>
+          <div class="form-group">
+            <label>Estoque / Recebedor</label>
+            <input type="text" id="f_contato_recebedor" autocomplete="off" class="upper">
+          </div>
+          <div class="form-group col-span-2">
+            <label>Contato Financeiro</label>
+            <input type="text" id="f_contato_financeiro" autocomplete="off" class="upper">
+          </div>
+          <div class="form-group">
+            <label>Vlr. Mín. Faturamento</label>
+            <input type="number" id="f_vlr_minimofaturamento" step="0.001" min="0" placeholder="0,000" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>Dias Avisar Faturamento</label>
+            <input type="number" id="f_avisardiasfaturamento" min="0" placeholder="0" autocomplete="off">
+          </div>
+        </div>
+      </div>
+
+      <!-- ABA CONTATO -->
+      <div class="tab-pane" id="tab-contato">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Fone Principal</label>
+            <input type="text" id="f_foneprincipal" autocomplete="off" placeholder="(00) 0000-0000">
+          </div>
+          <div class="form-group">
+            <label>WhatsApp</label>
+            <input type="text" id="f_fonesecundario" autocomplete="off" placeholder="(00) 00000-0000">
+          </div>
+          <div class="form-group">
+            <label>E-mail</label>
+            <input type="email" id="f_email" autocomplete="off" placeholder="email@empresa.com">
+          </div>
+          <div class="form-group">
+            <label>Contato / Responsável</label>
+            <input type="text" id="f_contato" autocomplete="off" class="upper">
+          </div>
+          <div class="form-group">
+            <label>Site</label>
+            <input type="text" id="f_site" autocomplete="off" placeholder="https://…">
+          </div>
+          <div class="form-group">
+            <label>Skype</label>
+            <input type="text" id="f_skype" autocomplete="off">
+          </div>
+        </div>
+      </div>
+
+      <!-- ABA PREFERÊNCIAS -->
+      <div class="tab-pane" id="tab-preferencias">
+        <div class="pref-grid">
+          <div class="pref-item" onclick="togglePref('f_fornecedorpadraopedido')">
+            <input type="checkbox" id="f_fornecedorpadraopedido">
+            <label for="f_fornecedorpadraopedido">Fornecedor Padrão Pedidos</label>
+          </div>
+          <div class="pref-item" onclick="togglePref('f_exibirdescontopedido')">
+            <input type="checkbox" id="f_exibirdescontopedido">
+            <label for="f_exibirdescontopedido">Exibir Desconto no Pedido</label>
+          </div>
+          <div class="pref-item" onclick="togglePref('f_observacaopedido')">
+            <input type="checkbox" id="f_observacaopedido">
+            <label for="f_observacaopedido">Exibir Obs. na Tela de Pedidos</label>
+          </div>
+          <div class="pref-item" onclick="togglePref('f_obspedido')">
+            <input type="checkbox" id="f_obspedido">
+            <label for="f_obspedido">Observação no Pedido Habilitada</label>
+          </div>
+          <div class="pref-item" onclick="togglePref('f_importarimpostos')">
+            <input type="checkbox" id="f_importarimpostos">
+            <label for="f_importarimpostos">Importar Impostos</label>
+          </div>
+          <div class="pref-item" onclick="togglePref('f_importaremablagens')">
+            <input type="checkbox" id="f_importaremablagens">
+            <label for="f_importaremablagens">Importar Embalagem</label>
+          </div>
+          <div class="pref-item" onclick="togglePref('f_importaprecos')">
+            <input type="checkbox" id="f_importaprecos">
+            <label for="f_importaprecos">Importar Preços</label>
+          </div>
+          <div class="pref-item" onclick="togglePref('f_consignado')">
+            <input type="checkbox" id="f_consignado">
+            <label for="f_consignado">Consignado</label>
+          </div>
+          <div class="pref-item" onclick="togglePref('f_logopedido')">
+            <input type="checkbox" id="f_logopedido">
+            <label for="f_logopedido">Logo Pedido Venda</label>
+          </div>
+          <div class="pref-item" onclick="togglePref('f_vendasduplicaritem')">
+            <input type="checkbox" id="f_vendasduplicaritem">
+            <label for="f_vendasduplicaritem">Permite Duplicar Item Pedido Venda</label>
+          </div>
+          <div class="pref-item" onclick="togglePref('f_descontomultiplos')">
+            <input type="checkbox" id="f_descontomultiplos">
+            <label for="f_descontomultiplos">Descontos Múltiplos</label>
+          </div>
+          <div class="pref-item" onclick="togglePref('f_xml_pedidovenda')">
+            <input type="checkbox" id="f_xml_pedidovenda">
+            <label for="f_xml_pedidovenda">Gerar XML Pedido Venda</label>
+          </div>
+          <div class="pref-item" onclick="togglePref('f_peso_exibritelapedidos')">
+            <input type="checkbox" id="f_peso_exibritelapedidos">
+            <label for="f_peso_exibritelapedidos">Mostrar Peso na Tela de Pedidos</label>
+          </div>
+          <div class="pref-item" onclick="togglePref('f_manterobsped')">
+            <input type="checkbox" id="f_manterobsped">
+            <label for="f_manterobsped">Manter Observação Últ. Pedido</label>
+          </div>
+          <div class="pref-item" onclick="togglePref('f_manterprazoped')">
+            <input type="checkbox" id="f_manterprazoped">
+            <label for="f_manterprazoped">Manter Prazo Últ. Pedido</label>
+          </div>
+          <div class="pref-item" style="flex-direction:column;align-items:flex-start;gap:4px;cursor:default">
+            <label style="font-size:12px;font-weight:600;color:var(--text2)">Base de Cálculo das Parcelas</label>
+            <select id="f_parcela_pedvendas" class="input-field" style="margin:0;height:32px;font-size:13px" onclick="event.stopPropagation()">
+              <option value="Data Abertura">Data Abertura</option>
+              <option value="Data Entrega">Data Entrega</option>
+            </select>
+          </div>
+          <div class="pref-item" onclick="togglePref('f_tabelasunificadas')">
+            <input type="checkbox" id="f_tabelasunificadas">
+            <label for="f_tabelasunificadas">Tabelas Preços Unificadas</label>
+          </div>
+          <div class="pref-item" onclick="togglePref('f_cod_fabrelgraficos')">
+            <input type="checkbox" id="f_cod_fabrelgraficos">
+            <label for="f_cod_fabrelgraficos">Cod. Fabricantes Rel. Gráficos</label>
+          </div>
+          <div class="pref-item" onclick="togglePref('f_pedido_grades')">
+            <input type="checkbox" id="f_pedido_grades">
+            <label for="f_pedido_grades">Pedido com Grades</label>
+          </div>
+        </div>
+      </div>
+
+      <!-- ABA VALORES -->
+      <div class="tab-pane" id="tab-valores">
+        <div class="val-section-title">Descontos</div>
+        <div class="desc-grid">
+          <div class="form-group">
+            <label>Desconto 01</label>
+            <input type="number" id="f_desconto1" step="0.001" min="0" placeholder="0,000" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>Desconto 02</label>
+            <input type="number" id="f_desconto2" step="0.001" min="0" placeholder="0,000" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>Desconto 03</label>
+            <input type="number" id="f_desconto3" step="0.001" min="0" placeholder="0,000" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>Desconto 04</label>
+            <input type="number" id="f_desconto4" step="0.001" min="0" placeholder="0,000" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>Desconto 05</label>
+            <input type="number" id="f_desconto5" step="0.001" min="0" placeholder="0,000" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>Desconto 06</label>
+            <input type="number" id="f_desconto6" step="0.001" min="0" placeholder="0,000" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>Desconto 07</label>
+            <input type="number" id="f_desconto7" step="0.001" min="0" placeholder="0,000" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>Desconto 08</label>
+            <input type="number" id="f_desconto8" step="0.001" min="0" placeholder="0,000" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>Desconto 09</label>
+            <input type="number" id="f_desconto9" step="0.001" min="0" placeholder="0,000" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>Desconto 10</label>
+            <input type="number" id="f_desconto10" step="0.001" min="0" placeholder="0,000" autocomplete="off">
+          </div>
+        </div>
+
+        <div class="val-section-title">Tabelas de Preço</div>
+        <div class="prec-grid">
+          <div class="form-group">
+            <label>A %</label>
+            <input type="text" id="f_precoa" autocomplete="off" placeholder="Tabela A">
+          </div>
+          <div class="form-group">
+            <label>B %</label>
+            <input type="text" id="f_precob" autocomplete="off" placeholder="Tabela B">
+          </div>
+          <div class="form-group">
+            <label>C %</label>
+            <input type="text" id="f_precoc" autocomplete="off" placeholder="Tabela C">
+          </div>
+          <div class="form-group">
+            <label>D %</label>
+            <input type="text" id="f_precod" autocomplete="off" placeholder="Tabela D">
+          </div>
+          <div class="form-group">
+            <label>E %</label>
+            <input type="text" id="f_precoe" autocomplete="off" placeholder="Tabela E">
+          </div>
+          <div class="form-group">
+            <label>F %</label>
+            <input type="text" id="f_precof" autocomplete="off" placeholder="Tabela F">
+          </div>
+          <div class="form-group">
+            <label>PROMO</label>
+            <input type="text" id="f_precopromo" autocomplete="off" placeholder="Promoção">
+          </div>
+          <div class="form-group">
+            <label>Letra Principal</label>
+            <input type="text" id="f_precoprincipal" autocomplete="off" maxlength="2" placeholder="Ex: A">
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ABA TABELA DE PREÇOS -->
+      <div class="tab-pane" id="tab-tabpreco">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <p style="font-size:12px;color:var(--text2)">Marque as tabelas de preço vinculadas a este fornecedor.</p>
+          <button type="button" class="btn btn-ghost" onclick="recarregarTabelasPreco()" style="font-size:11px;padding:5px 10px">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:12px;height:12px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            Atualizar
+          </button>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="img-table" id="tabPrecoTable">
+            <thead>
+              <tr>
+                <th style="width:36px"></th>
+                <th>Descrição</th>
+                <th>Tipo Preço</th>
+                <th>Forma Preço</th>
+                <th style="text-align:right">Margem %</th>
+                <th style="text-align:right">Valor Venda</th>
+              </tr>
+            </thead>
+            <tbody id="tabPrecoBody">
+              <tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text2)">Carregando…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ABA IMAGENS -->
+      <div class="tab-pane" id="tab-imagens">
+        <div class="img-area">
+          <div class="img-preview" id="imgPreview">
+            <div class="no-img">Nenhuma imagem<br>selecionada</div>
+          </div>
+          <div class="img-fields">
+            <div class="form-group">
+              <label>Descrição da Imagem</label>
+              <input type="text" id="img_descricao" autocomplete="off" placeholder="Ex.: Logo, Catálogo…">
+            </div>
+            <div class="form-group">
+              <label>Tipo Imagem</label>
+              <select id="img_tipo">
+                <option value="">Selecione…</option>
+                <option value="LOGO">LOGO</option>
+                <option value="IMAGEM COMUM">IMAGEM COMUM</option>
+                <option value="ITENS">ITENS</option>
+              </select>
+            </div>
+            <input type="file" id="img_file" accept="image/*,.pdf" style="display:none" onchange="onImgFileSelect(this)">
+            <div class="img-btns">
+              <button type="button" class="btn btn-ghost" onclick="document.getElementById('img_file').click()">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                Buscar Imagem
+              </button>
+              <button type="button" class="btn btn-primary" onclick="incluirImagem()">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                Incluir Imagem
+              </button>
+              <button type="button" class="btn btn-danger" onclick="excluirImagem()">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                Excluir Imagem
+              </button>
+            </div>
+          </div>
+        </div>
+        <table class="img-table">
+          <thead>
+            <tr><th>#</th><th>Descrição Imagem</th><th>Tipo</th><th>Caminho / Arquivo</th></tr>
+          </thead>
+          <tbody id="imgTableBody">
+            <tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text2)">Nenhuma imagem cadastrada</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ABA VENDEDORES -->
+      <div class="tab-pane" id="tab-vendedores">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <p style="font-size:12px;color:var(--text2)">Vendedores vinculados a este fornecedor. Marque e informe a comissão individual.</p>
+          <button class="btn btn-ghost" style="font-size:11px" onclick="recarregarVendedores()">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:13px;height:13px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582M20 20v-5h-.581M5.635 15A8.001 8.001 0 1019.365 9"/></svg>
+            Atualizar
+          </button>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="img-table" id="vendedoresTable">
+            <thead>
+              <tr>
+                <th style="width:36px"></th>
+                <th>Vendedor</th>
+                <th style="width:140px">Comissão %</th>
+              </tr>
+            </thead>
+            <tbody id="vendedoresBody">
+              <tr><td colspan="3" style="text-align:center;padding:20px;color:var(--text2)">Carregando…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ABA PRODUTOS DO FORNECEDOR -->
+      <div class="tab-pane" id="tab-produtos">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <p style="font-size:12px;color:var(--text2)">Produtos vinculados a este fornecedor.</p>
+          <button class="btn btn-ghost" style="font-size:11px" onclick="carregarProdutosFornecedor(_editandoId)">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:13px;height:13px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582M20 20v-5h-.581M5.635 15A8.001 8.001 0 1019.365 9"/></svg>
+            Atualizar
+          </button>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="img-table">
+            <thead>
+              <tr>
+                <th>Produto</th>
+                <th style="width:80px">Referência</th>
+                <th style="width:80px">Unidade</th>
+                <th style="width:120px">Embalagem</th>
+              </tr>
+            </thead>
+            <tbody id="produtosBody">
+              <tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text2)">Selecione um fornecedor para ver os produtos.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ABA OBSERVAÇÕES -->
+      <div class="tab-pane" id="tab-obs">
+        <div class="form-grid">
+          <div class="form-group col-span-3">
+            <label>Observações</label>
+            <textarea id="f_obsgerais" rows="5" placeholder="Observações gerais sobre o fornecedor…" class="upper"></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-footer">
+      <button class="btn btn-ghost" onclick="fecharFormulario()">Cancelar</button>
+      <button class="btn btn-primary" id="btnSalvar" onclick="salvar()">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M5 13l4 4L19 7"/>
+        </svg>
+        Salvar
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── QUICK VIEW ────────────────────────────────────────────────────────────── -->
+<div id="quickViewPanel">
+  <div class="qv-head">
+    <div class="qv-avatar" id="qvAvatar">?</div>
+    <div style="flex:1;min-width:0">
+      <div class="qv-title" id="qvNome">—</div>
+      <div class="qv-sub" id="qvSub">—</div>
+    </div>
+    <button class="qv-close" onclick="fecharQuickView()">✕</button>
+  </div>
+  <div class="qv-body" id="qvBody">
+    <div style="text-align:center;padding:40px;color:var(--text2)">Carregando…</div>
+  </div>
+  <div class="qv-foot">
+    <button class="btn btn-outline" onclick="const _id=_qvIdAtual;fecharQuickView();abrirEdicao(_id)">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:13px;height:13px">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+      </svg>
+      Editar
+    </button>
+    <button class="btn btn-ghost" onclick="const _id=_qvIdAtual;fecharQuickView();clonarRegistro(_id)">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:13px;height:13px">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+      </svg>
+      Clonar
+    </button>
+  </div>
+</div>
+
+<!-- ── MODAL CNPJ DUPLICADO ─────────────────────────────────────────────────── -->
+<div id="modalCnpjDup" class="modal-overlay" style="display:none">
+  <div class="modal-box">
+    <h3>CNPJ/CPF já cadastrado</h3>
+    <p>Este CNPJ/CPF já existe em outro fornecedor:</p>
+    <div class="modal-info" id="modalCnpjDupInfo"></div>
+    <div class="modal-btns">
+      <button class="btn btn-ghost" onclick="fecharModalCnpjDup(true)">Usar mesmo assim</button>
+      <button class="btn btn-primary" onclick="fecharModalCnpjDup(false)">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── DROPDOWN CONTAINER ────────────────────────────────────────────────────── -->
+<div id="dropdownContainer"></div>
+
+<!-- ── TOAST ─────────────────────────────────────────────────────────────────── -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// CONFIG & UTILS
+// ═══════════════════════════════════════════════════════════
+const API_BASE = '';
+let _token = sessionStorage.getItem('token') || localStorage.getItem('token') || '';
+
+function api(url, opts = {}) {
+  return fetch(API_BASE + url, {
+    ...opts,
+    headers: { 'Content-Type':'application/json', 'Authorization':'Bearer ' + _token, ...(opts.headers||{}) }
+  });
+}
+
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function showToast(msg, tipo = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (tipo ? ' ' + tipo : '');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+function fmtData(d) {
+  if (!d) return '—';
+  const dt = new Date(d);
+  return isNaN(dt) ? '—' : dt.toLocaleDateString('pt-BR');
+}
+
+const _avatarColors = ['#0d9488','#6366f1','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a6','#f97316'];
+function _avatarClass(nome) {
+  const i = (nome||'?').charCodeAt(0) % _avatarColors.length;
+  return '';
+}
+function _avatarColor(nome) {
+  return _avatarColors[(nome||'?').charCodeAt(0) % _avatarColors.length];
+}
+
+let _debounceTimer;
+function debounceSearch() {
+  clearTimeout(_debounceTimer);
+  _debounceTimer = setTimeout(carregar, 400);
+}
+
+// ═══════════════════════════════════════════════════════════
+// ESTADO
+// ═══════════════════════════════════════════════════════════
+let _pagAtual   = 0;
+let _viewMode   = 'table';
+const LIMIT     = 100;
+let _total      = 0;
+let _filtro     = 'todos';
+let _editandoId = null;
+let _cacheRows  = [];
+let _selecionados = new Set();
+let _filtrosAvancados = { segmento:'', cidade:'' };
+let _notifData  = null;
+
+// ═══════════════════════════════════════════════════════════
+// INICIALIZAÇÃO
+// ═══════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  const tb  = document.getElementById('toolbar');
+  const tbH = tb ? tb.offsetHeight : 54;
+  document.documentElement.style.setProperty('--toolbar-h', tbH + 'px');
+  const sb = document.getElementById('subbar');
+  if (sb) sb.style.top = tbH + 'px';
+
+  carregar();
+  carregarNotificacoes();
+  carregarCategorias();
+  carregarGruposFab();
+  verificarPermissoes();
+
+  // Atalhos de teclado
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'n') { e.preventDefault(); novoRegistro(); return; }
+    if (e.key === 'Escape') {
+      if (document.getElementById('formSection').style.display !== 'none') { fecharFormulario(); return; }
+      if (document.getElementById('quickViewPanel').classList.contains('open')) { fecharQuickView(); return; }
+      fecharDropdown();
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'f') { e.preventDefault(); document.getElementById('searchInput').focus(); }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════
+// CARREGAR LISTA
+// ═══════════════════════════════════════════════════════════
+async function carregar() {
+  const q      = document.getElementById('searchInput').value.trim();
+  const status = _filtro;
+  const fa     = _filtrosAvancados;
+  const extra  = [
+    fa.segmento ? `&segmento=${encodeURIComponent(fa.segmento)}` : '',
+    fa.cidade   ? `&cidade=${encodeURIComponent(fa.cidade)}`     : ''
+  ].join('');
+
+  const url = `/api/fornecedores?q=${encodeURIComponent(q)}&status=${status}&limit=${LIMIT}&offset=${_pagAtual * LIMIT}${extra}`;
+
+  try {
+    const r = await api(url);
+    if (!r.ok) throw new Error('Erro ao carregar');
+    const data = await r.json();
+    _total = data.total;
+    _cacheRows = data.fornecedores || [];
+    renderLista(_cacheRows);
+    renderPaginacao();
+    renderInsights();
+  } catch (e) {
+    document.getElementById('tabelaBody').innerHTML =
+      `<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--danger)">${escHtml(e.message)}</td></tr>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDER TABELA
+// ═══════════════════════════════════════════════════════════
+function toggleView(mode) {
+  if (_viewMode === mode) return;
+  _viewMode = mode;
+  document.getElementById('btnViewTable').classList.toggle('active', mode === 'table');
+  document.getElementById('btnViewCards').classList.toggle('active', mode === 'cards');
+  _selecionados.clear();
+  renderLista(_cacheRows);
+}
+
+function renderLista(rows) {
+  if (_viewMode === 'cards') renderCards(rows);
+  else renderTabela(rows);
+}
+
+function _avatarClass(nome) {
+  const c = (nome||'?')[0].toUpperCase();
+  if (c >= 'A' && c <= 'Z') return 'av-' + c;
+  return 'av-NUM';
+}
+
+function renderCards(rows) {
+  const tw = document.getElementById('tableWrap');
+  const cg = document.getElementById('fornCardsGrid');
+  const hoje7 = new Date(); hoje7.setDate(hoje7.getDate() - 7);
+  tw.style.display = 'none';
+  cg.style.display = '';
+  if (!rows.length) { cg.innerHTML = ''; return; }
+  cg.innerHTML = rows.map(f => {
+    const isNovo = f.dtcadastro && new Date(f.dtcadastro) >= hoje7;
+    const statusColor = {A:'#22c55e',I:'#f59e0b',E:'#ef4444'}[f.status] || '#9ca3af';
+    const statusLabel = {A:'Ativo',I:'Inativo',E:'Excluído'}[f.status] || f.status || '—';
+    const cidUF = [f.cidade, f.uf].filter(Boolean).join(' / ') || null;
+    return `<div class="forn-card" onclick="abrirQuickView(${f.id},event)">
+      <div class="forn-card-head">
+        <div class="forn-avatar ${_avatarClass(f.nome)}">${escHtml((f.nome||'?')[0])}</div>
+        <div style="flex:1;min-width:0">
+          <div class="forn-card-title">${escHtml(f.nome||'—')}${isNovo?'<span class="tag-novo" style="margin-left:5px">NOVO</span>':''}</div>
+          ${f.apelido?`<div class="forn-card-sub">${escHtml(f.apelido)}</div>`:''}
+        </div>
+      </div>
+      <div class="forn-card-body">
+        ${f.foneprincipal?`<div class="forn-card-row">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+          <span>${escHtml(f.foneprincipal)}</span></div>`:''}
+        ${f.cpf?`<div class="forn-card-row">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0"/></svg>
+          <span>${escHtml(f.cpf)}</span></div>`:''}
+        ${cidUF?`<div class="forn-card-row">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          <span>${escHtml(cidUF)}</span></div>`:''}
+        ${f.segmento?`<div class="forn-card-row">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
+          <span>${escHtml(f.segmento)}</span></div>`:''}
+      </div>
+      <div class="forn-card-foot">
+        <span class="status-badge"><span class="status-dot" style="background:${statusColor}"></span>${statusLabel}</span>
+        <button class="btn-acoes" onclick="event.stopPropagation();abrirMenuAcoes(${f.id},'${escHtml(f.nome||'')}','${f.status||'A'}',event)">⋮</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderTabela(rows) {
+  const tw = document.getElementById('tableWrap');
+  const cg = document.getElementById('fornCardsGrid');
+  tw.style.display = '';
+  cg.style.display = 'none';
+  const tbody = document.getElementById('tabelaBody');
+  const hoje7 = new Date(); hoje7.setDate(hoje7.getDate() - 7);
+
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="10">
+      <div class="empty-state">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+            d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+        </svg>
+        <p>Nenhum fornecedor encontrado</p>
+      </div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map((f, i) => {
+    const num   = _pagAtual * LIMIT + i + 1;
+    const sel   = _selecionados.has(f.id);
+    const dtCad = f.dtcadastro ? new Date(f.dtcadastro) : null;
+    const isNovo = dtCad && dtCad >= hoje7;
+    const statusColor = {A:'#22c55e',I:'#f59e0b',E:'#ef4444'}[f.status] || '#9ca3af';
+    const statusLabel = {A:'Ativo',I:'Inativo',E:'Excluído'}[f.status] || f.status || '—';
+
+    return `<tr onclick="abrirQuickView(${f.id},event)" class="${sel?'row-selected':''}">
+      <td onclick="event.stopPropagation()">
+        <input type="checkbox" ${sel?'checked':''} onchange="toggleSelecionado(${f.id},this.checked)">
+      </td>
+      <td style="color:var(--text2);font-size:11px">${num}</td>
+      <td style="color:var(--text2);font-size:11px">${f.id||'—'}</td>
+      <td>
+        ${escHtml(f.nome||'—')}
+        ${isNovo ? '<span class="tag-novo">NOVO</span>' : ''}
+        ${f.apelido ? `<br><small style="color:var(--text2);font-size:11px">${escHtml(f.apelido)}</small>` : ''}
+      </td>
+      <td style="font-size:11px">${escHtml(f.cpf||'—')}</td>
+      <td style="font-size:11px">${escHtml(f.foneprincipal||'—')}</td>
+      <td style="font-size:11px">${f.cidade ? escHtml(f.cidade) + (f.uf ? ' / ' + f.uf : '') : '—'}</td>
+      <td style="font-size:11px">${escHtml(f.segmento||'—')}</td>
+      <td>
+        <span class="status-badge">
+          <span class="status-dot" style="background:${statusColor}"></span>
+          ${statusLabel}
+        </span>
+      </td>
+      <td onclick="event.stopPropagation()">
+        <button class="btn-acoes" onclick="abrirMenuAcoes(${f.id},'${escHtml(f.nome||'')}','${f.status||'A'}',event)">⋮</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+// PAGINAÇÃO
+// ═══════════════════════════════════════════════════════════
+function renderPaginacao() {
+  const totalPag = Math.ceil(_total / LIMIT);
+  const el = document.getElementById('paginacao');
+  if (totalPag <= 1) { el.innerHTML = ''; return; }
+  el.innerHTML = `
+    <span>${_pagAtual * LIMIT + 1}–${Math.min((_pagAtual+1)*LIMIT, _total)} de ${_total}</span>
+    <div class="pag-btns">
+      <button class="pag-btn" onclick="irPag(${_pagAtual-1})" ${_pagAtual===0?'disabled':''}>← Anterior</button>
+      <button class="pag-btn" onclick="irPag(${_pagAtual+1})" ${_pagAtual>=totalPag-1?'disabled':''}>Próxima →</button>
+    </div>`;
+}
+function irPag(p) { _pagAtual = p; carregar(); window.scrollTo(0,0); }
+
+// ═══════════════════════════════════════════════════════════
+// SELEÇÃO
+// ═══════════════════════════════════════════════════════════
+function toggleSelecionado(id, checked) {
+  checked ? _selecionados.add(id) : _selecionados.delete(id);
+  atualizarBulkBar();
+}
+function toggleSelecionarTodos(checked) {
+  _cacheRows.forEach(f => checked ? _selecionados.add(f.id) : _selecionados.delete(f.id));
+  renderLista(_cacheRows);
+  atualizarBulkBar();
+}
+function atualizarBulkBar() {
+  const n = _selecionados.size;
+  const bar = document.getElementById('bulkBar');
+  if (!bar) return;
+  bar.classList.toggle('show', n > 0);
+  const countEl = document.getElementById('bulkCount');
+  if (countEl) countEl.textContent = n;
+}
+function limparSelecao() {
+  _selecionados.clear();
+  const chkAll = document.getElementById('chkAll');
+  if (chkAll) chkAll.checked = false;
+  renderLista(_cacheRows);
+  atualizarBulkBar();
+}
+function bulkExportar() { exportarCSV(); }
+async function bulkExcluir() {
+  const n = _selecionados.size;
+  if (!n) return;
+  if (!confirm(`Excluir ${n} fornecedor(es) selecionado(s)?`)) return;
+  try {
+    for (const id of _selecionados) await api(`/api/fornecedores/${id}`, { method:'DELETE' });
+    showToast(`${n} fornecedor(es) excluído(s)`, 'success');
+    limparSelecao(); carregar();
+  } catch(e) { showToast('Erro ao excluir em massa', 'error'); }
+}
+
+// ═══════════════════════════════════════════════════════════
+// FILTROS
+// ═══════════════════════════════════════════════════════════
+function setStatus(s) {
+  _filtro = s;
+  _pagAtual = 0;
+  carregar();
+}
+
+function toggleFiltroPanel() {
+  const body = document.getElementById('filterPanelBody');
+  const panel = document.getElementById('filterPanel');
+  const isOpen = body.classList.contains('show');
+  if (isOpen) {
+    panel.style.display = 'none';
+    body.classList.remove('show');
+    document.getElementById('fpToggleIcon').style.transform = '';
+  } else {
+    panel.style.display = '';
+    body.classList.add('show');
+    document.getElementById('fpToggleIcon').style.transform = 'rotate(180deg)';
+  }
+}
+
+function aplicarFiltroAvancado() {
+  _filtrosAvancados.segmento = document.getElementById('fa_segmento').value.trim();
+  _filtrosAvancados.cidade   = document.getElementById('fa_cidade').value.trim();
+  const ativos = [_filtrosAvancados.segmento, _filtrosAvancados.cidade].filter(Boolean).length;
+  const badge = document.getElementById('fphBadge');
+  badge.style.display = ativos > 0 ? 'inline' : 'none';
+  badge.textContent = ativos;
+  _pagAtual = 0;
+  carregar();
+}
+
+function limparFiltros() {
+  document.getElementById('fa_segmento').value = '';
+  document.getElementById('fa_cidade').value = '';
+  _filtrosAvancados = { segmento:'', cidade:'' };
+  document.getElementById('fphBadge').style.display = 'none';
+  _pagAtual = 0;
+  carregar();
+}
+
+// ═══════════════════════════════════════════════════════════
+// INSIGHTS
+// ═══════════════════════════════════════════════════════════
+let _insightFiltroAtivo = null;
+
+async function renderInsights() {
+  try {
+    const r = await api('/api/fornecedores/notificacoes');
+    if (!r.ok) return;
+    const d = await r.json();
+    const tot = (d.ativos || 0) + (d.inativos || 0);
+    document.getElementById('ins-total').textContent   = tot;
+    document.getElementById('ins-ativos').textContent  = d.ativos || 0;
+    document.getElementById('ins-inativos').textContent = d.inativos || 0;
+    document.getElementById('ins-novos').textContent   = d.novos7dias || 0;
+  } catch(_) {}
+}
+
+function toggleInsightFilter(tipo) {
+  document.querySelectorAll('.ins-card').forEach(c => c.classList.remove('active'));
+  if (_insightFiltroAtivo === tipo && tipo !== 'total') {
+    _insightFiltroAtivo = null;
+    _filtro = 'todos';
+    _pagAtual = 0; carregar(); return;
+  }
+  _insightFiltroAtivo = tipo;
+  document.getElementById('ins-card-' + tipo)?.classList.add('active');
+  if (tipo === 'total')    { _insightFiltroAtivo = null; _filtro = 'todos'; }
+  else if (tipo === 'ativos')  _filtro = 'A';
+  else if (tipo === 'inativos') _filtro = 'I';
+  else if (tipo === 'novos') { _filtro = 'todos'; }
+  _pagAtual = 0; carregar();
+}
+
+// ═══════════════════════════════════════════════════════════
+// MENU DE AÇÕES (⋮)
+// ═══════════════════════════════════════════════════════════
+let _dropdownIdAtual = null;
+
+function fecharDropdown() {
+  document.getElementById('dropdownMenu')?.remove();
+  _dropdownIdAtual = null;
+}
+
+function abrirMenuAcoes(id, nome, status, event) {
+  event.stopPropagation();
+  fecharDropdown();
+  _dropdownIdAtual = id;
+  const btn  = event.currentTarget;
+  const rect = btn.getBoundingClientRect();
+  const menu = document.createElement('div');
+  menu.id = 'dropdownMenu';
+  menu.className = 'dropdown-menu';
+  menu.style.top  = rect.bottom + 4 + 'px';
+  menu.style.left = Math.max(4, rect.right - 180) + 'px';
+
+  const semAlt = window._semPermAlterarForn;
+  const semExc = window._semPermExcluirForn;
+  menu.innerHTML = `
+    <button class="dropdown-item" onclick="fecharDropdown();clonarRegistro(${id})">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+      </svg> Clonar
+    </button>
+    <button class="dropdown-item" ${semAlt?'disabled style="opacity:.4;cursor:not-allowed"':''} onclick="${semAlt?'':('fecharDropdown();abrirEdicao('+id+')')}">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+      </svg> Editar
+    </button>
+    <button class="dropdown-item" ${semAlt?'disabled style="opacity:.4;cursor:not-allowed"':''} onclick="${semAlt?'':('fecharDropdown();'+(status==='A'?`inativar(${id})`:`ativar(${id})`))}">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+      </svg> ${status==='A'?'Inativar':'Ativar'}
+    </button>
+    <div class="dropdown-divider"></div>
+    <button class="dropdown-item danger" ${semExc?'disabled style="opacity:.4;cursor:not-allowed"':''} onclick="${semExc?'':('fecharDropdown();excluir('+id+',\''+escHtml(nome)+'\''+')')}">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+      </svg> Excluir
+    </button>`;
+
+  document.getElementById('dropdownContainer').appendChild(menu);
+  document.addEventListener('click', fecharDropdown, { once: true });
+}
+
+// ═══════════════════════════════════════════════════════════
+// QUICK VIEW
+// ═══════════════════════════════════════════════════════════
+let _qvIdAtual    = null;
+let _qvDocHandler = null;
+
+function fecharQuickView() {
+  document.getElementById('quickViewPanel')?.classList.remove('open');
+  if (_qvDocHandler) { document.removeEventListener('click', _qvDocHandler); _qvDocHandler = null; }
+  _qvIdAtual = null;
+}
+
+async function abrirQuickView(id, evt) {
+  if (evt?.stopPropagation) evt.stopPropagation();
+  if (_qvDocHandler) document.removeEventListener('click', _qvDocHandler);
+  _qvIdAtual = id;
+  document.getElementById('quickViewPanel').classList.add('open');
+
+  setTimeout(() => {
+    _qvDocHandler = function(e) {
+      if (!document.getElementById('quickViewPanel')?.contains(e.target)) fecharQuickView();
+    };
+    document.addEventListener('click', _qvDocHandler);
+  }, 50);
+
+  document.getElementById('qvBody').innerHTML =
+    '<div style="text-align:center;padding:40px;color:var(--text2)"><div class="spinner"></div><br><br>Carregando…</div>';
+
+  try {
+    const r = await api(`/api/fornecedores/${id}`);
+    if (!r.ok) throw new Error();
+    const f = await r.json();
+    renderQuickView(f);
+  } catch {
+    document.getElementById('qvBody').innerHTML =
+      '<div style="padding:24px;color:var(--danger)">Erro ao carregar dados</div>';
+  }
+}
+
+function renderQuickView(f) {
+  const letra = (f.nome||'?').charAt(0).toUpperCase();
+  const cor   = _avatarColor(f.nome);
+  const av    = document.getElementById('qvAvatar');
+  av.textContent  = letra;
+  av.style.background = cor;
+  av.style.color  = '#fff';
+  document.getElementById('qvNome').textContent = f.nome || '—';
+  document.getElementById('qvSub').textContent  =
+    `Cód. ${String(f.id).padStart(6,'0')} · ${f.segmento || 'Fornecedor'}`;
+
+  const statusColor = {A:'#22c55e',I:'#f59e0b',E:'#ef4444'}[f.status] || '#9ca3af';
+  const statusLabel = {A:'Ativo',I:'Inativo',E:'Excluído'}[f.status] || '—';
+
+  document.getElementById('qvBody').innerHTML = `
+    <div>
+      <div class="qv-section-title">Dados Gerais</div>
+      ${f.apelido ? `<div class="qv-row">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16"/></svg>
+        <span>${escHtml(f.apelido)}</span>
+      </div>` : ''}
+      <div class="qv-row">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        <span>${escHtml(f.cpf || '—')}</span>
+      </div>
+      <div class="qv-row">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3"/></svg>
+        <span style="color:${statusColor};font-weight:700">${statusLabel}</span>
+      </div>
+    </div>
+    <div>
+      <div class="qv-section-title">Contato</div>
+      <div class="qv-row">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+        <span>${escHtml(f.foneprincipal || '—')}</span>
+      </div>
+      <div class="qv-row">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+        <span>${escHtml(f.email || '—')}</span>
+      </div>
+      ${f.contato ? `<div class="qv-row"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg><span>${escHtml(f.contato)}</span></div>` : ''}
+    </div>
+    ${f.cidade ? `<div>
+      <div class="qv-section-title">Localização</div>
+      <div class="qv-row">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        <span>${escHtml(f.cidade)}${f.uf ? ' / ' + f.uf : ''}</span>
+      </div>
+    </div>` : ''}
+    ${f.obsgerais ? `<div>
+      <div class="qv-section-title">Observações</div>
+      <div style="font-size:12px;color:var(--text2);line-height:1.5">${escHtml(f.obsgerais)}</div>
+    </div>` : ''}`;
+}
+
+// ═══════════════════════════════════════════════════════════
+// FORMULÁRIO
+// ═══════════════════════════════════════════════════════════
+let _formAberto = false;
+
+function novoRegistro() {
+  _editandoId = null;
+  _cnpjDuplicadoBloqueado = false;
+  document.getElementById('formTitulo').textContent = 'Novo Fornecedor';
+  limparForm();
+  _imagens = []; _imgSelecionado = -1; renderImagens();
+  carregarTabelasPreco(null);
+  carregarVendedores(null);
+  document.getElementById('produtosBody').innerHTML =
+    '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text2)">Salve o fornecedor primeiro para vincular produtos.</td></tr>';
+  abrirAba('geral', document.querySelector('.form-tab'));
+  document.getElementById('listSection').style.display = 'none';
+  document.getElementById('formSection').style.display = 'block';
+  _formAberto = true;
+  document.getElementById('f_nome').focus();
+}
+
+async function abrirEdicao(id) {
+  try {
+    const r = await api(`/api/fornecedores/${id}`);
+    if (!r.ok) throw new Error();
+    const f = await r.json();
+    _editandoId = id;
+    _cnpjDuplicadoBloqueado = false;
+    document.getElementById('formTitulo').textContent = 'Editar Fornecedor';
+    preencherForm(f);
+    await carregarFotosDoServidor(id);
+    carregarTabelasPreco(id);
+    carregarVendedores(id);
+    carregarProdutosFornecedor(id);
+    abrirAba('geral', document.querySelector('.form-tab'));
+    document.getElementById('listSection').style.display = 'none';
+    document.getElementById('formSection').style.display = 'block';
+    _formAberto = true;
+  } catch { showToast('Erro ao carregar fornecedor', 'error'); }
+}
+
+function fecharFormulario() {
+  document.getElementById('formSection').style.display = 'none';
+  document.getElementById('listSection').style.display = '';
+  _formAberto = false;
+  _editandoId = null;
+}
+
+// ── CLONAR ────────────────────────────────────────────────────────────────────
+const _CLONE_LIMPAR_FORN = ['cpf','rg','email','foneprincipal','fonesecundario','obsgerais'];
+
+async function clonarRegistro(id) {
+  try {
+    const r = await api(`/api/fornecedores/${id}`);
+    if (!r.ok) throw new Error();
+    const f = await r.json();
+
+    _editandoId = null;
+    _cnpjDuplicadoBloqueado = false;
+    document.getElementById('formTitulo').textContent = 'Novo Fornecedor (Clone)';
+    limparForm();
+    preencherForm(f);
+
+    // Limpar campos únicos/críticos
+    _CLONE_LIMPAR_FORN.forEach(campo => {
+      const el = document.getElementById('f_' + campo);
+      if (el) el.value = '';
+    });
+
+    abrirAba('geral', document.querySelector('.form-tab'));
+    document.getElementById('listSection').style.display = 'none';
+    document.getElementById('formSection').style.display = 'block';
+    _formAberto = true;
+    showToast('Registro clonado — preencha os campos obrigatórios e salve', '');
+  } catch { showToast('Erro ao clonar', 'error'); }
+}
+
+function limparForm() {
+  ['f_nome','f_apelido','f_cpf','f_rg','f_tipo_cadastro','f_cod_vendedor','f_comissao',
+   'f_nome_grupo',
+   'f_cep','f_endereco','f_bairro','f_cidade','f_uf',
+   'f_foneprincipal','f_fonesecundario','f_email','f_contato','f_site','f_skype','f_obsgerais',
+   'f_desconto1','f_desconto2','f_desconto3','f_desconto4','f_desconto5',
+   'f_desconto6','f_desconto7','f_desconto8','f_desconto9','f_desconto10',
+   'f_precoa','f_precob','f_precoc','f_precod','f_precoe','f_precof','f_precopromo','f_precoprincipal',
+   'f_vlr_minimofaturamento','f_cep_faturamento','f_endereco_faturamento','f_bairro_faturamento',
+   'f_uf_faturamento','f_cidade_faturamento','f_telefone1_faturamento','f_telefone2_faturamento',
+   'f_contato_recebedor','f_contato_financeiro','f_avisardiasfaturamento']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  const s   = document.getElementById('f_status');           if(s)   s.value = 'A';
+  const tp  = document.getElementById('f_tipo_pessoa');      if(tp)  tp.value = '';
+  const seg = document.getElementById('f_segmento');         if(seg) seg.value = '';
+  const grp = document.getElementById('f_cod_grupo');        if(grp) grp.value = '';
+  const cq  = document.getElementById('f_casasdecimaisqt');  if(cq)  cq.value = '1';
+  const cv  = document.getElementById('f_casasdecimaisvalor');if(cv) cv.value = '1';
+  // Checkboxes — defaults conforme tabela
+  ['f_fornecedorpadraopedido','f_exibirdescontopedido','f_observacaopedido',
+   'f_importarimpostos','f_importaremablagens','f_importaprecos',
+   'f_consignado','f_logopedido','f_descontomultiplos','f_xml_pedidovenda',
+   'f_peso_exibritelapedidos','f_manterobsped','f_manterprazoped',
+   'f_tabelasunificadas','f_pedido_grades'].forEach(id => setCheckSN(id, 'N'));
+  setCheckSN('f_obspedido',           'S'); // default S
+  setCheckSN('f_vendasduplicaritem',  'S'); // default S
+  setCheckSN('f_cod_fabrelgraficos',  'S'); // default S
+  const ePP = document.getElementById('f_parcela_pedvendas'); if (ePP) ePP.value = 'Data Abertura';
+}
+
+function preencherForm(f) {
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val ?? ''; };
+  set('f_nome',         f.nome);          set('f_apelido',      f.apelido);
+  set('f_cpf',          f.cpf);           set('f_rg',           f.rg);
+  set('f_tipo_pessoa',  f.tipo_pessoa);   set('f_tipo_cadastro',f.tipo_cadastro);
+  set('f_segmento',     f.segmento);      set('f_cod_grupo',    f.cod_grupo);
+  set('f_nome_grupo',   f.nome_grupo);    set('f_cod_vendedor', f.cod_vendedor);
+  set('f_comissao',     f.comissao);      set('f_status',       f.status || 'A');
+  set('f_cep',          f.cep);           set('f_endereco',     f.endereco);
+  set('f_bairro',       f.bairro);        set('f_cidade',       f.cidade);
+  set('f_uf',           f.uf);
+  set('f_foneprincipal',  f.foneprincipal);  set('f_fonesecundario', f.fonesecundario);
+  set('f_email',          f.email);           set('f_contato',        f.contato);
+  set('f_site',           f.site);            set('f_skype',          f.skype);
+  set('f_obsgerais',      f.obsgerais);
+  // Casas decimais
+  const cq = document.getElementById('f_casasdecimaisqt');
+  if(cq) cq.value = f.casasdecimaisqt != null ? String(f.casasdecimaisqt) : '1';
+  const cv = document.getElementById('f_casasdecimaisvalor');
+  if(cv) cv.value = f.casasdecimaisvalor != null ? String(f.casasdecimaisvalor) : '1';
+  // Checkboxes Preferências
+  setCheckSN('f_fornecedorpadraopedido',  f.fornecedorpadraopedido  || 'N');
+  setCheckSN('f_exibirdescontopedido',    f.exibirdescontopedido    || 'N');
+  setCheckSN('f_observacaopedido',        f.observacaopedido        || 'N');
+  setCheckSN('f_obspedido',              f.obspedido               || 'S');
+  setCheckSN('f_importarimpostos',        f.importarimpostos        || 'N');
+  setCheckSN('f_importaremablagens',      f.importaremablagens      || 'N');
+  setCheckSN('f_importaprecos',           f.importaprecos           || 'N');
+  setCheckSN('f_consignado',              f.consignado              || 'N');
+  setCheckSN('f_logopedido',              f.logopedido              || 'N');
+  setCheckSN('f_vendasduplicaritem',      f.vendasduplicaritem      || 'S');
+  setCheckSN('f_descontomultiplos',       f.descontomultiplos       || 'N');
+  setCheckSN('f_xml_pedidovenda',         f.xml_pedidovenda         || 'N');
+  setCheckSN('f_peso_exibritelapedidos',  f.peso_exibritelapedidos  || 'N');
+  setCheckSN('f_manterobsped',            f.manterobsped            || 'N');
+  setCheckSN('f_manterprazoped',          f.manterprazoped          || 'N');
+  document.getElementById('f_parcela_pedvendas').value = f.parcela_pedvendas || 'Data Abertura';
+  setCheckSN('f_tabelasunificadas',       f.tabelasunificadas       || 'N');
+  setCheckSN('f_cod_fabrelgraficos',      f.cod_fabrelgraficos      || 'S');
+  setCheckSN('f_pedido_grades',           f.pedido_grades           || 'N');
+  // Valores — Descontos
+  for (let i=1;i<=10;i++) set('f_desconto'+i, f['desconto'+i] != null ? f['desconto'+i] : '');
+  // Valores — Tabelas de preço letras
+  set('f_precoa',      f.precoa);   set('f_precob',       f.precob);
+  set('f_precoc',      f.precoc);   set('f_precod',       f.precod);
+  set('f_precoe',      f.precoe);   set('f_precof',       f.precof);
+  set('f_precopromo',  f.precopromo); set('f_precoprincipal', f.precoprincipal);
+  set('f_vlr_minimofaturamento',    f.vlr_minimofaturamento != null ? f.vlr_minimofaturamento : '');
+  // Dados de Faturamento
+  set('f_cep_faturamento',          f.cep_faturamento);
+  set('f_endereco_faturamento',     f.endereco_faturamento);
+  set('f_bairro_faturamento',       f.bairro_faturamento);
+  set('f_uf_faturamento',           f.uf_faturamento);
+  set('f_cidade_faturamento',       f.cidade_faturamento);
+  set('f_telefone1_faturamento',    f.telefone1_faturamento);
+  set('f_telefone2_faturamento',    f.telefone2_faturamento);
+  set('f_contato_recebedor',        f.contato_recebedor);
+  set('f_contato_financeiro',       f.contato_financeiro);
+  set('f_avisardiasfaturamento',    f.avisardiasfaturamento != null ? f.avisardiasfaturamento : '');
+}
+
+function coletarForm() {
+  const g = id => document.getElementById(id)?.value?.trim() || null;
+  return {
+    nome:          g('f_nome'),           apelido:       g('f_apelido'),
+    cpf:           g('f_cpf'),            rg:            g('f_rg'),
+    tipo_pessoa:   g('f_tipo_pessoa'),    tipo_cadastro: g('f_tipo_cadastro'),
+    segmento:      g('f_segmento'),
+    cod_grupo:     g('f_cod_grupo'),       nome_grupo:    g('f_nome_grupo') || document.getElementById('f_cod_grupo')?.selectedOptions[0]?.dataset?.nome || null,
+    cod_vendedor:  g('f_cod_vendedor'),
+    comissao:      document.getElementById('f_comissao')?.value || null,
+    status:        g('f_status') || 'A',
+    cep:           g('f_cep'),            endereco:      g('f_endereco'),
+    bairro:        g('f_bairro'),         cidade:        g('f_cidade'),
+    uf:            g('f_uf'),
+    foneprincipal:   g('f_foneprincipal'),  fonesecundario: g('f_fonesecundario'),
+    email:           g('f_email'),           contato:        g('f_contato'),
+    site:            g('f_site'),            skype:          g('f_skype'),
+    obsgerais:       g('f_obsgerais'),
+    // Casas decimais
+    casasdecimaisqt:   document.getElementById('f_casasdecimaisqt')?.value  ?? null,
+    casasdecimaisvalor:document.getElementById('f_casasdecimaisvalor')?.value ?? null,
+    // Preferências (checkboxes S/N)
+    fornecedorpadraopedido:  getCheckSN('f_fornecedorpadraopedido'),
+    exibirdescontopedido:    getCheckSN('f_exibirdescontopedido'),
+    observacaopedido:        getCheckSN('f_observacaopedido'),
+    obspedido:               getCheckSN('f_obspedido'),
+    importarimpostos:        getCheckSN('f_importarimpostos'),
+    importaremablagens:      getCheckSN('f_importaremablagens'),
+    importaprecos:           getCheckSN('f_importaprecos'),
+    consignado:              getCheckSN('f_consignado'),
+    logopedido:              getCheckSN('f_logopedido'),
+    vendasduplicaritem:      getCheckSN('f_vendasduplicaritem'),
+    descontomultiplos:       getCheckSN('f_descontomultiplos'),
+    xml_pedidovenda:         getCheckSN('f_xml_pedidovenda'),
+    peso_exibritelapedidos:  getCheckSN('f_peso_exibritelapedidos'),
+    manterobsped:            getCheckSN('f_manterobsped'),
+    manterprazoped:          getCheckSN('f_manterprazoped'),
+    parcela_pedvendas:       document.getElementById('f_parcela_pedvendas')?.value || 'Data Abertura',
+    tabelasunificadas:       getCheckSN('f_tabelasunificadas'),
+    cod_fabrelgraficos:      getCheckSN('f_cod_fabrelgraficos'),
+    pedido_grades:           getCheckSN('f_pedido_grades'),
+    // Valores — Descontos
+    desconto1:  document.getElementById('f_desconto1')?.value  || null,
+    desconto2:  document.getElementById('f_desconto2')?.value  || null,
+    desconto3:  document.getElementById('f_desconto3')?.value  || null,
+    desconto4:  document.getElementById('f_desconto4')?.value  || null,
+    desconto5:  document.getElementById('f_desconto5')?.value  || null,
+    desconto6:  document.getElementById('f_desconto6')?.value  || null,
+    desconto7:  document.getElementById('f_desconto7')?.value  || null,
+    desconto8:  document.getElementById('f_desconto8')?.value  || null,
+    desconto9:  document.getElementById('f_desconto9')?.value  || null,
+    desconto10: document.getElementById('f_desconto10')?.value || null,
+    // Valores — Tabelas de preço letras
+    precoa:     g('f_precoa'),   precob:  g('f_precob'),
+    precoc:     g('f_precoc'),   precod:  g('f_precod'),
+    precoe:     g('f_precoe'),   precof:  g('f_precof'),
+    precopromo: g('f_precopromo'), precoprincipal: g('f_precoprincipal'),
+    vlr_minimofaturamento: document.getElementById('f_vlr_minimofaturamento')?.value || null,
+    // Dados de Faturamento
+    cep_faturamento:       g('f_cep_faturamento'),
+    endereco_faturamento:  g('f_endereco_faturamento'),
+    bairro_faturamento:    g('f_bairro_faturamento'),
+    uf_faturamento:        g('f_uf_faturamento'),
+    cidade_faturamento:    g('f_cidade_faturamento'),
+    telefone1_faturamento: g('f_telefone1_faturamento'),
+    telefone2_faturamento: g('f_telefone2_faturamento'),
+    contato_recebedor:     g('f_contato_recebedor'),
+    contato_financeiro:    g('f_contato_financeiro'),
+    avisardiasfaturamento: document.getElementById('f_avisardiasfaturamento')?.value || null,
+  };
+}
+
+async function salvar() {
+  const body = coletarForm();
+  if (!body.nome) { showToast('Nome obrigatório', 'error'); document.getElementById('f_nome').focus(); return; }
+  if (_editandoId && window._semPermAlterarForn) { showToast('Sem permissão para alterar fornecedores', 'error'); return; }
+  if (_cnpjDuplicadoBloqueado) {
+    const doc = document.getElementById('f_cpf').value.replace(/\D/g,'');
+    await verificarCnpjDuplicado(doc);
+    return;
+  }
+
+  const btn = document.getElementById('btnSalvar');
+  btn.disabled = true;
+  btn.textContent = 'Salvando…';
+
+  try {
+    const url    = _editandoId ? `/api/fornecedores/${_editandoId}` : '/api/fornecedores';
+    const method = _editandoId ? 'PUT' : 'POST';
+    const r = await api(url, { method, body: JSON.stringify(body) });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Erro ao salvar');
+    const novoId = data.id || _editandoId;
+    await salvarTabelasPreco(novoId);
+    await salvarVendedores(novoId);
+    await salvarFotos(novoId);
+    showToast(_editandoId ? 'Fornecedor atualizado!' : 'Fornecedor cadastrado!', 'success');
+    fecharFormulario();
+    carregar();
+  } catch(e) {
+    showToast(e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Salvar`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// ABAS DO FORMULÁRIO
+// ═══════════════════════════════════════════════════════════
+function abrirAba(nome, tabEl) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.form-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + nome)?.classList.add('active');
+  if (tabEl) tabEl.classList.add('active');
+}
+
+// ═══════════════════════════════════════════════════════════
+// AÇÕES CRUD
+// ═══════════════════════════════════════════════════════════
+async function ativar(id) {
+  try {
+    await api(`/api/fornecedores/${id}/ativar`, { method:'PUT' });
+    showToast('Fornecedor ativado', 'success');
+    carregar();
+  } catch { showToast('Erro ao ativar', 'error'); }
+}
+
+async function inativar(id) {
+  try {
+    await api(`/api/fornecedores/${id}/inativar`, { method:'PUT' });
+    showToast('Fornecedor inativado');
+    carregar();
+  } catch { showToast('Erro ao inativar', 'error'); }
+}
+
+async function excluir(id, nome) {
+  if (!confirm(`Excluir "${nome}"?`)) return;
+  try {
+    await api(`/api/fornecedores/${id}`, { method:'DELETE' });
+    showToast('Fornecedor excluído');
+    carregar();
+  } catch { showToast('Erro ao excluir', 'error'); }
+}
+
+// ═══════════════════════════════════════════════════════════
+// NOTIFICAÇÕES
+// ═══════════════════════════════════════════════════════════
+async function carregarNotificacoes() {
+  try {
+    const r = await api('/api/fornecedores/notificacoes');
+    if (!r.ok) return;
+    _notifData = await r.json();
+    const total = (_notifData.inativos > 0 ? 1 : 0) + (_notifData.novos7dias > 0 ? 1 : 0);
+    const countEl = document.getElementById('notifCount');
+    if (total > 0) { countEl.textContent = total; countEl.classList.add('show'); }
+    else countEl.classList.remove('show');
+  } catch(_) {}
+}
+
+function toggleNotifPanel() {
+  const panel = document.getElementById('notifPanel');
+  if (panel.classList.contains('show')) { panel.classList.remove('show'); panel.style.display = 'none'; return; }
+  if (panel.parentElement !== document.body) document.body.appendChild(panel);
+  const wrap = document.getElementById('notifWrap');
+  const rect = wrap.getBoundingClientRect();
+  panel.style.cssText = `position:fixed;top:${rect.bottom+4}px;` +
+    `right:${document.documentElement.clientWidth - rect.right}px;` +
+    `left:auto;z-index:9999;width:300px;display:block;` +
+    `background:#fff;border:1px solid #e5e7eb;border-radius:12px;` +
+    `box-shadow:0 8px 32px rgba(0,0,0,.16);`;
+  renderNotificacoes();
+  panel.classList.add('show');
+  setTimeout(() => {
+    document.addEventListener('click', function closeN(e) {
+      if (!document.getElementById('notifWrap')?.contains(e.target) &&
+          !document.getElementById('notifPanel')?.contains(e.target)) {
+        const np = document.getElementById('notifPanel');
+        if (np) { np.classList.remove('show'); np.style.display = 'none'; }
+        document.removeEventListener('click', closeN);
+      }
+    });
+  }, 50);
+}
+
+function renderNotificacoes() {
+  const list = document.getElementById('notifList');
+  if (!_notifData) { list.innerHTML = '<div class="notif-empty">Nenhuma notificação</div>'; return; }
+  const { inativos, novos7dias } = _notifData;
+  let html = '';
+  if (inativos > 0)   html += `<div class="notif-item" onclick="setStatus('I');document.getElementById('notifPanel').classList.remove('show')">
+    <div class="notif-icon warn">⚠️</div>
+    <div class="notif-text"><strong>${inativos} fornecedor(es)</strong> inativos<small>Clique para filtrar</small></div></div>`;
+  if (novos7dias > 0) html += `<div class="notif-item">
+    <div class="notif-icon success">✨</div>
+    <div class="notif-text"><strong>${novos7dias} novo(s)</strong> nos últimos 7 dias</div></div>`;
+  list.innerHTML = html || '<div class="notif-empty">Tudo em dia!</div>';
+}
+
+// ═══════════════════════════════════════════════════════════
+// CONSULTA CNPJ (BrasilAPI)
+// ═══════════════════════════════════════════════════════════
+let _cnpjDuplicadoBloqueado = false;
+
+async function onBlurCnpj() {
+  const doc = document.getElementById('f_cpf').value.replace(/\D/g, '');
+  if (doc.length === 14) await consultarCNPJ();
+  else if (doc.length > 0) await verificarCnpjDuplicado(doc);
+  else _cnpjDuplicadoBloqueado = false;
+}
+
+async function consultarCNPJ() {
+  const cnpj = document.getElementById('f_cpf').value.replace(/\D/g, '');
+  if (cnpj.length !== 14) { showToast('CNPJ inválido — deve ter 14 dígitos', 'error'); return; }
+
+  const btn = document.querySelector('[onclick="consultarCNPJ()"]');
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+
+  try {
+    let d;
+    const rb = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`).catch(() => null);
+    if (rb && rb.ok) {
+      d = await rb.json();
+    } else {
+      showToast('Não foi possível consultar o CNPJ', 'error');
+      return;
+    }
+
+    const set = (id, val) => {
+      const el = document.getElementById(id);
+      if (el && !el.value) el.value = val || '';
+    };
+    // Aba Geral
+    set('f_nome',   d.razao_social);
+    set('f_apelido', d.nome_fantasia);
+    set('f_email',   d.email);
+    if (!document.getElementById('f_foneprincipal').value && d.ddd_telefone_1)
+      document.getElementById('f_foneprincipal').value =
+        d.ddd_telefone_1.replace(/\D/g,'').replace(/^(\d{2})(\d+)$/,'($1) $2');
+    // Tipo pessoa = PJ quando CNPJ
+    const tpEl = document.getElementById('f_tipo_pessoa');
+    if (tpEl && !tpEl.value) tpEl.value = 'PJ';
+
+    // Aba Endereço
+    if (d.cep)
+      set('f_cep', d.cep.replace(/\D/g,'').replace(/^(\d{5})(\d{3})$/,'$1-$2'));
+    set('f_endereco', [d.descricao_tipo_de_logradouro, d.logradouro].filter(Boolean).join(' '));
+    set('f_bairro',   d.bairro);
+    set('f_cidade',   d.municipio);
+    if (d.uf) {
+      const el = document.getElementById('f_uf');
+      if (el && !el.value) el.value = d.uf;
+    }
+
+    showToast('CNPJ consultado com sucesso!', 'success');
+    await verificarCnpjDuplicado(cnpj);
+
+  } catch(e) {
+    showToast('Erro ao consultar CNPJ: ' + e.message, 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>';
+    }
+  }
+}
+
+async function verificarCnpjDuplicado(doc) {
+  try {
+    const excluirId = _editandoId ? `&excluir_id=${_editandoId}` : '';
+    const r = await api(`/api/fornecedores/check-cnpj?cnpj=${encodeURIComponent(doc)}${excluirId}`);
+    if (!r.ok) return;
+    const d = await r.json();
+    if (d.permiteDuplicado || !d.duplicado) { _cnpjDuplicadoBloqueado = false; return; }
+    const f = d.fornecedor;
+    document.getElementById('modalCnpjDupInfo').innerHTML =
+      `<strong>${escHtml(f.nome||'')}</strong><br>` +
+      `CPF/CNPJ: ${escHtml(f.cpf||'—')} · Status: ${f.status === 'A' ? 'Ativo' : 'Inativo'}<br>` +
+      (f.cidade ? `${escHtml(f.cidade)}${f.uf ? '/' + f.uf : ''}` : '');
+    _cnpjDuplicadoBloqueado = true;
+    document.getElementById('modalCnpjDup').style.display = 'flex';
+  } catch(_) {}
+}
+
+function fecharModalCnpjDup(ignorar) {
+  document.getElementById('modalCnpjDup').style.display = 'none';
+  if (ignorar) _cnpjDuplicadoBloqueado = false;
+}
+
+// ═══════════════════════════════════════════════════════════
+// TABELA DE PREÇOS
+// ═══════════════════════════════════════════════════════════
+let _todasTabelas  = [];
+let _tabelasVinc   = [];  // [{id_tabela, check}]
+
+async function carregarTodasTabelas() {
+  try {
+    const r = await api('/api/tabela-precos/ativas');
+    if (!r.ok) return;
+    _todasTabelas = await r.json();
+  } catch(_) {}
+}
+
+function renderTabelasPreco(vinculadas = []) {
+  const container = document.getElementById('chk-tabelas');
+  if (!container) return;
+  if (!_todasTabelas.length) {
+    container.innerHTML = '<p style="font-size:12px;color:var(--text2)">Nenhuma tabela de preço cadastrada no sistema.</p>';
+    return;
+  }
+  const vincSet = new Set(vinculadas.map(v => v.id_tabela || v.id));
+  _tabelasVinc = _todasTabelas.map(t => ({
+    id_tabela: t.id, descricao: t.descricao, tipo_preco: t.tipo_preco,
+    check: vincSet.has(t.id)
+  }));
+  container.innerHTML = _tabelasVinc.map((t, i) => `
+    <div class="chk-item">
+      <input type="checkbox" id="tab-chk-${i}" ${t.check ? 'checked' : ''}
+             onchange="_tabelasVinc[${i}].check=this.checked">
+      <label for="tab-chk-${i}">
+        ${escHtml(t.descricao || '')}
+        ${t.tipo_preco ? `<span style="font-size:10px;color:var(--text2)"> (${escHtml(t.tipo_preco)})</span>` : ''}
+      </label>
+    </div>`).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+// IMAGENS
+// ═══════════════════════════════════════════════════════════
+let _imagens = [];         // [{descricao, tipo, caminho, _file, _objectUrl}]
+let _imgSelecionado = -1;
+let _imgFileAtual   = null;
+
+function onImgFileSelect(input) {
+  if (!input.files || !input.files[0]) return;
+  _imgFileAtual = input.files[0];
+  const url = URL.createObjectURL(_imgFileAtual);
+  _atualizarPreview(url);
+  document.getElementById('img_descricao').value = _imgFileAtual.name.replace(/\.[^.]+$/, '');
+}
+
+function _atualizarPreview(url) {
+  const el = document.getElementById('imgPreview');
+  if (url && /\.(png|jpg|jpeg|gif|webp|bmp|svg)$/i.test(url.split('?')[0])) {
+    el.innerHTML = `<img src="${escHtml(url)}" alt="preview">`;
+  } else if (url) {
+    el.innerHTML = `<div class="no-img" style="font-size:11px">📄 ${escHtml(_imgFileAtual?.name || 'arquivo')}</div>`;
+  } else {
+    el.innerHTML = '<div class="no-img">Nenhuma imagem<br>selecionada</div>';
+  }
+}
+
+function incluirImagem() {
+  const desc = document.getElementById('img_descricao').value.trim();
+  const tipo = document.getElementById('img_tipo').value;
+  if (!desc) { showToast('Informe a descrição da imagem', 'error'); document.getElementById('img_descricao').focus(); return; }
+  if (!tipo) { showToast('Selecione o tipo da imagem', 'error'); document.getElementById('img_tipo').focus(); return; }
+  if (!_imgFileAtual && _imgSelecionado === -1) { showToast('Selecione um arquivo primeiro', 'error'); return; }
+
+  const entrada = {
+    descricao:   desc,
+    tipo:        tipo,
+    caminho:     _imgFileAtual ? _imgFileAtual.name : (_imagens[_imgSelecionado]?.caminho || ''),
+    _file:       _imgFileAtual || null,
+    _objectUrl:  _imgFileAtual ? URL.createObjectURL(_imgFileAtual) : null
+  };
+
+  if (_imgSelecionado >= 0) {
+    // Atualiza existente
+    if (entrada._objectUrl) URL.revokeObjectURL(_imagens[_imgSelecionado]._objectUrl || '');
+    _imagens[_imgSelecionado] = entrada;
+  } else {
+    _imagens.push(entrada);
+  }
+
+  _imgFileAtual   = null;
+  _imgSelecionado = -1;
+  document.getElementById('img_file').value      = '';
+  document.getElementById('img_descricao').value = '';
+  document.getElementById('img_tipo').value      = '';
+  _atualizarPreview(null);
+  renderImagens();
+  showToast('Imagem adicionada', 'success');
+}
+
+function excluirImagem() {
+  if (_imgSelecionado < 0) { showToast('Selecione uma imagem para excluir', 'error'); return; }
+  const img = _imagens[_imgSelecionado];
+  if (img.id) {
+    // Já salva no servidor — marca para exclusão ao salvar
+    img._excluir = true;
+  } else {
+    // Ainda não salva — remove da memória
+    URL.revokeObjectURL(img._objectUrl || '');
+    _imagens.splice(_imgSelecionado, 1);
+  }
+  _imgSelecionado = -1;
+  _atualizarPreview(null);
+  document.getElementById('img_descricao').value = '';
+  document.getElementById('img_tipo').value = '';
+  renderImagens();
+}
+
+function selecionarImagem(idx) {
+  _imgSelecionado = idx;
+  const img = _imagens[idx];
+  document.getElementById('img_descricao').value = img.descricao || '';
+  document.getElementById('img_tipo').value      = img.tipo || '';
+  _atualizarPreview(img._objectUrl || img.caminho || null);
+  renderImagens();
+}
+
+function renderImagens() {
+  const tbody = document.getElementById('imgTableBody');
+  const visiveis = _imagens.filter(img => !img._excluir);
+  if (!visiveis.length) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text2)">Nenhuma imagem cadastrada</td></tr>';
+    return;
+  }
+  // Mapeia índice visível → índice real no array
+  const idxMap = [];
+  _imagens.forEach((img, i) => { if (!img._excluir) idxMap.push(i); });
+  tbody.innerHTML = visiveis.map((img, vi) => {
+    const i = idxMap[vi];
+    const novaBadge = img.id ? '' : ' <span style="font-size:9px;background:#f0fdfa;color:var(--accent);border:1px solid #99f6e4;border-radius:4px;padding:1px 5px;margin-left:4px">NOVO</span>';
+    return `<tr class="${i === _imgSelecionado ? 'img-selected' : ''}" onclick="selecionarImagem(${i})" style="cursor:pointer">
+      <td style="color:var(--text2);font-size:11px">${vi + 1}</td>
+      <td>${escHtml(img.descricao || '—')}${novaBadge}</td>
+      <td style="font-size:11px">${escHtml(img.tipo || '—')}</td>
+      <td style="font-size:11px;color:var(--text2);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(img.caminho || '—')}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+// FOTOS — UPLOAD REAL NO SERVIDOR
+// ═══════════════════════════════════════════════════════════
+async function carregarFotosDoServidor(id) {
+  _imagens = []; _imgSelecionado = -1;
+  try {
+    const r = await api(`/api/fornecedores/${id}/fotos`);
+    if (!r.ok) throw new Error();
+    const fotos = await r.json();
+    _imagens = fotos.map(f => ({
+      id:         f.id,
+      descricao:  f.descricao,
+      tipo:       f.tipo,
+      principal:  f.principal,
+      caminho:    f.caminho,
+      _file:      null,
+      _objectUrl: null,
+      _excluir:   false
+    }));
+  } catch(_) {}
+  renderImagens();
+}
+
+async function salvarFotos(id) {
+  // 1. Exclui os marcados
+  for (const img of _imagens) {
+    if (img._excluir && img.id) {
+      await api(`/api/fornecedores/${id}/fotos/${img.id}`, { method: 'DELETE' }).catch(() => {});
+    }
+  }
+  // 2. Faz upload dos novos
+  for (const img of _imagens) {
+    if (img._excluir || img.id || !img._file) continue;
+    const fd = new FormData();
+    fd.append('arquivo',    img._file);
+    fd.append('descricao',  img.descricao || '');
+    fd.append('tipo_imagem',img.tipo || '');
+    fd.append('principal',  img.principal || 'N');
+    await fetch(`/api/fornecedores/${id}/fotos`, {
+      method: 'POST',
+      credentials: 'include',
+      body: fd
+    }).catch(() => {});
+  }
+  // 3. Recarrega da base
+  await carregarFotosDoServidor(id);
+}
+
+// ═══════════════════════════════════════════════════════════
+// VENDEDORES
+// ═══════════════════════════════════════════════════════════
+let _vendedores = []; // [{id, nome, check, comissao, id_lancamento}]
+
+async function carregarVendedores(id) {
+  const tbody = document.getElementById('vendedoresBody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px;color:var(--text2)">Carregando…</td></tr>';
+  try {
+    const url = id ? `/api/fornecedores/${id}/vendedores` : '/api/vendedores';
+    const r = await api(url);
+    if (!r.ok) throw new Error();
+    if (id) {
+      _vendedores = await r.json();
+    } else {
+      // Novo fornecedor: carrega todos sem vínculo
+      const data = await r.json();
+      _vendedores = (data.vendedores || data).map(v => ({
+        id: v.id, nome: v.nome, check: false, comissao: '', id_lancamento: null
+      }));
+    }
+    renderVendedores();
+  } catch(_) {
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px;color:var(--text2)">Nenhum vendedor cadastrado.</td></tr>';
+    _vendedores = [];
+  }
+}
+
+function renderVendedores() {
+  const tbody = document.getElementById('vendedoresBody');
+  if (!tbody) return;
+  if (!_vendedores.length) {
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px;color:var(--text2)">Nenhum vendedor cadastrado.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = _vendedores.map((v, i) => `
+    <tr style="cursor:pointer" onclick="toggleVendedor(${i})">
+      <td style="text-align:center">
+        <input type="checkbox" ${v.check ? 'checked' : ''}
+          onchange="_vendedores[${i}].check=this.checked;renderVendedores()"
+          onclick="event.stopPropagation()"
+          style="accent-color:var(--accent);width:14px;height:14px">
+      </td>
+      <td>${escHtml(v.nome)}</td>
+      <td>
+        <input type="number" step="0.01" min="0" max="100"
+          value="${escHtml(String(v.comissao ?? ''))}"
+          placeholder="0,00"
+          onclick="event.stopPropagation()"
+          onchange="_vendedores[${i}].comissao=this.value"
+          style="width:110px;padding:4px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;background:var(--input-bg);color:var(--text)">
+      </td>
+    </tr>`).join('');
+}
+
+function toggleVendedor(i) {
+  _vendedores[i].check = !_vendedores[i].check;
+  renderVendedores();
+}
+
+async function salvarVendedores(id) {
+  if (!_vendedores.length) return;
+  await api(`/api/fornecedores/${id}/vendedores`, {
+    method: 'POST',
+    body: JSON.stringify({ vendedores: _vendedores })
+  }).catch(() => {});
+}
+
+function recarregarVendedores() {
+  carregarVendedores(_editandoId);
+}
+
+// ═══════════════════════════════════════════════════════════
+// PRODUTOS DO FORNECEDOR
+// ═══════════════════════════════════════════════════════════
+async function carregarProdutosFornecedor(id) {
+  const tbody = document.getElementById('produtosBody');
+  if (!tbody || !id) return;
+  tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text2)">Carregando…</td></tr>';
+  try {
+    const r = await api(`/api/fornecedores/${id}/produtos`);
+    if (!r.ok) throw new Error();
+    const rows = await r.json();
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text2)">Nenhum produto vinculado a este fornecedor.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map(p => `
+      <tr>
+        <td>${escHtml(p.nome_produto || '—')}</td>
+        <td style="font-size:11px;color:var(--text2)">${escHtml(p.referencia || '—')}</td>
+        <td style="font-size:11px">${escHtml(p.unidade || '—')}</td>
+        <td style="font-size:11px;color:var(--text2)">${escHtml(p.embalagem || '—')}</td>
+      </tr>`).join('');
+  } catch(_) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text2)">Erro ao carregar produtos.</td></tr>';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// HELPERS CHECKBOX S/N
+// ═══════════════════════════════════════════════════════════
+function setCheckSN(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.checked = (val === 'S');
+}
+function getCheckSN(id) {
+  return document.getElementById(id)?.checked ? 'S' : 'N';
+}
+function togglePref(id) {
+  // evita duplo disparo quando clica direto no checkbox
+  const el = document.getElementById(id);
+  if (el && document.activeElement !== el) el.checked = !el.checked;
+}
+
+// ═══════════════════════════════════════════════════════════
+// PERMISSÕES
+// ═══════════════════════════════════════════════════════════
+async function verificarPermissoes() {
+  try {
+    const r = await api('/api/auth/me');
+    if (!r.ok) return;
+    const { user } = await r.json();
+    const p = user?.permissoes || {};
+
+    if (p.incluir_fornecedor === 'N') {
+      document.querySelectorAll('[onclick*="novoRegistro"]').forEach(el => {
+        el.disabled = true; el.title = 'Sem permissão para incluir';
+      });
+    }
+    if (p.alterar_fornecedor === 'N') {
+      // Marca flag global — usado no menu de ações e no salvar
+      window._semPermAlterarForn = true;
+    }
+    if (p.excluir_fornecedor === 'N') {
+      window._semPermExcluirForn = true;
+    }
+  } catch(_) {}
+}
+
+// ═══════════════════════════════════════════════════════════
+// CATEGORIAS (segmento)
+// ═══════════════════════════════════════════════════════════
+async function carregarCategorias() {
+  try {
+    const r = await api('/api/categorias');
+    if (!r.ok) return;
+    const rows = await r.json();
+    const sel = document.getElementById('f_segmento');
+    if (!sel) return;
+    const atual = sel.value;
+    sel.innerHTML = '<option value="">Selecione…</option>' +
+      rows.map(c => `<option value="${escHtml(c.descricao)}">${escHtml(c.descricao)}</option>`).join('');
+    if (atual) sel.value = atual;
+  } catch(_) {}
+}
+
+// ═══════════════════════════════════════════════════════════
+// GRUPOS (cod_grupo / nome_grupo)
+// ═══════════════════════════════════════════════════════════
+async function carregarGruposFab() {
+  try {
+    const r = await api('/api/grupos-fab');
+    if (!r.ok) return;
+    const rows = await r.json();
+    const sel = document.getElementById('f_cod_grupo');
+    if (!sel) return;
+    const atual = sel.value;
+    sel.innerHTML = '<option value="" data-nome="">Selecione…</option>' +
+      rows.map(g => `<option value="${escHtml(String(g.id))}" data-nome="${escHtml(g.descricao)}">${escHtml(g.descricao)}</option>`).join('');
+    if (atual) sel.value = atual;
+  } catch(_) {}
+}
+
+function onGrupoChange(sel) {
+  const opt  = sel.selectedOptions[0];
+  const nome = opt?.dataset?.nome || '';
+  const hid  = document.getElementById('f_nome_grupo');
+  if (hid) hid.value = nome;
+}
+
+// ═══════════════════════════════════════════════════════════
+// TABELA DE PREÇOS
+// ═══════════════════════════════════════════════════════════
+let _tabelasPreco = []; // [{id, descricao, tipo_preco, forma_preco, margem, valor_venda, check, cod_regra}]
+
+async function carregarTabelasPreco(cod_item) {
+  const tbody = document.getElementById('tabPrecoBody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text2)">Carregando…</td></tr>';
+  try {
+    const r = await api(`/api/tabela-precos/vinculos/FORNECEDOR/${cod_item || 0}`);
+    if (!r.ok) throw new Error();
+    _tabelasPreco = await r.json();
+    renderTabelasPrecoForm();
+  } catch(_) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text2)">Nenhuma tabela de preço cadastrada no sistema.</td></tr>';
+    _tabelasPreco = [];
+  }
+}
+
+function renderTabelasPrecoForm() {
+  const tbody = document.getElementById('tabPrecoBody');
+  if (!tbody) return;
+  if (!_tabelasPreco.length) {
+    tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;padding:20px;color:var(--text2)">Nenhuma tabela de preço cadastrada no sistema.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = _tabelasPreco.map((t, i) => `
+    <tr style="cursor:pointer" onclick="toggleTabPreco(${i})">
+      <td style="text-align:center;width:40px">
+        <input type="checkbox" ${t.check ? 'checked' : ''} onchange="_tabelasPreco[${i}].check=this.checked" onclick="event.stopPropagation()" style="accent-color:var(--accent);width:14px;height:14px">
+      </td>
+      <td style="font-weight:${t.check?'700':'400'}">${escHtml(t.descricao||'—')}</td>
+      <td colspan="4"></td>
+    </tr>`).join('');
+}
+
+function toggleTabPreco(i) {
+  _tabelasPreco[i].check = !_tabelasPreco[i].check;
+  renderTabelasPrecoForm();
+}
+
+function recarregarTabelasPreco() {
+  carregarTabelasPreco(_editandoId);
+}
+
+async function salvarTabelasPreco(id) {
+  if (!_tabelasPreco.length) return;
+  try {
+    const tabelas = _tabelasPreco.map(t => ({
+      id: t.id,
+      check: t.check,
+      cod_regra: t.cod_regra
+    }));
+    await api(`/api/tabela-precos/vinculos/FORNECEDOR/${id}`, {
+      method: 'POST',
+      body: JSON.stringify({ tabelas })
+    });
+  } catch(_) {}
+}
+
+// ═══════════════════════════════════════════════════════════
+// EXPORTAR CSV
+// ═══════════════════════════════════════════════════════════
+function exportarCSV() {
+  if (!_cacheRows.length) { showToast('Nenhum dado para exportar', 'error'); return; }
+  const cols = ['id','nome','apelido','cpf','foneprincipal','email','cidade','uf','segmento','status'];
+  const head = cols.join(';');
+  const body = _cacheRows.map(f => cols.map(c => `"${String(f[c]||'').replace(/"/g,'""')}"`).join(';')).join('\n');
+  const blob = new Blob(['\uFEFF' + head + '\n' + body], { type:'text/csv;charset=utf-8;' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'fornecedores.csv'; a.click();
+}
+</script>
+</body>
+</html>

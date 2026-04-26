@@ -5,7 +5,6 @@ const fs = require('fs');
 const path = require('path');
 const mysql = require('mysql2/promise');
 const { testConnection, createPool } = require('../config/database');
-const { createLicense } = require('../config/license');
 
 // POST /api/setup/test-db — testa conexão com o banco
 router.post('/test-db', async (req, res) => {
@@ -33,19 +32,7 @@ router.post('/install', async (req, res) => {
     // 3. Cria pool com nova config
     const pool = createPool(db);
 
-    // 4. Cria tabelas base
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS system_license (
-        id INT PRIMARY KEY AUTO_INCREMENT,
-        client_name VARCHAR(200) NOT NULL,
-        license_key VARCHAR(50) NOT NULL,
-        plan ENUM('trial','monthly','annual','lifetime') DEFAULT 'trial',
-        expires_at DATETIME NOT NULL,
-        max_users INT DEFAULT 5,
-        created_at DATETIME DEFAULT NOW()
-      )
-    `);
-
+    // 4. Cria tabela de usuários base
     await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
         id INT PRIMARY KEY AUTO_INCREMENT,
@@ -67,18 +54,16 @@ router.post('/install', async (req, res) => {
       [admin.name, admin.email, hash]
     );
 
-    // 6. Cria licença
-    const planDays = { trial: 30, monthly: 30, annual: 365, lifetime: 36500 };
-    const licResult = await createLicense({
-      clientName: license.clientName,
-      plan: license.plan,
-      days: planDays[license.plan] || 30
-    });
+    // 6. Ativa modo demo (30 dias) — licença real deve ser ativada em /licencas.html
+    try {
+      const LicenseService = require('../services/license-service');
+      await LicenseService.activateDemo();
+    } catch { /* demo opcional no setup */ }
 
     // 7. Marca setup como concluído
     fs.writeFileSync(path.join(__dirname, '../.installed'), JSON.stringify({ at: new Date(), version: '1.0.0' }));
 
-    res.json({ ok: true, licenseKey: licResult.key, expiresAt: licResult.expiresAt });
+    res.json({ ok: true });
 
   } catch (err) {
     console.error('Setup error:', err);

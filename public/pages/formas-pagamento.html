@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<title>Formas de Pagamento | SysRepWeb</title>
+<style>
+* { margin:0;padding:0;box-sizing:border-box; }
+:root {
+  --bg:#f0f2f5; --card:#fff; --border:#e5e7eb;
+  --text:#111827; --text2:#6b7280;
+  --accent:#0d9488; --accent-hover:#0f766e;
+  --danger:#ef4444; --warn:#f59e0b; --success:#22c55e;
+}
+body { font-family:'Inter','Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh; }
+
+/* ── TOOLBAR ── */
+.toolbar-bar {
+  background:#fff;border-bottom:1px solid var(--border);
+  padding:8px 16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  position:sticky;top:0;z-index:100;
+}
+.btn {
+  display:inline-flex;align-items:center;gap:6px;padding:7px 14px;
+  border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;
+  transition:.15s;font-family:inherit;white-space:nowrap;
+}
+.btn svg { width:14px;height:14px;flex-shrink:0; }
+.btn:disabled { opacity:.5;cursor:not-allowed; }
+.btn-primary { background:var(--accent);color:#fff;border:1.5px solid var(--accent); }
+.btn-primary:hover:not(:disabled) { background:var(--accent-hover); }
+.btn-outline { background:#fff;color:var(--accent);border:1.5px solid var(--accent); }
+.btn-outline:hover { background:#f0fdfa; }
+.btn-ghost   { background:#fff;color:var(--text2);border:1.5px solid var(--border); }
+.btn-ghost:hover { background:#f9fafb;color:var(--text); }
+.btn-danger  { background:var(--danger);color:#fff;border:1.5px solid var(--danger); }
+.btn-danger:hover:not(:disabled) { opacity:.9; }
+.btn-save { background:var(--accent);color:#fff;border:1.5px solid var(--accent);font-size:13px;padding:8px 18px; }
+.btn-save:hover:not(:disabled) { background:var(--accent-hover); }
+
+/* ins-cards */
+.ins-card { display:inline-flex;align-items:center;gap:5px;cursor:pointer;padding:4px 9px;border-radius:7px;border:1.5px solid var(--border);background:#fafafa;transition:.15s;user-select:none;flex-shrink:0;white-space:nowrap; }
+.ins-card:hover { border-color:var(--accent);background:#f0fdfa; }
+.ins-card.active { border-color:var(--accent);background:var(--accent);color:#fff; }
+.ins-card.active .ins-label,.ins-card.active .ins-val { color:#fff; }
+.ins-label { font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2); }
+.ins-val   { font-size:12px;font-weight:800;color:var(--text);line-height:1; }
+
+/* ── SUBBAR ── */
+.subbar { background:#f9fafb;border-bottom:1px solid var(--border);padding:5px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px;position:sticky;z-index:99; }
+.icon-btn { display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border:1.5px solid var(--border);border-radius:7px;background:#fff;color:var(--text2);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;transition:.12s;white-space:nowrap; }
+.icon-btn svg { width:13px;height:13px;flex-shrink:0; }
+.icon-btn:hover { background:#f0fdfa;color:var(--accent);border-color:var(--accent); }
+
+/* ── CONTENT ── */
+.content-area { padding:14px 16px; }
+
+/* ── TABLE ── */
+.table-card { background:#fff;border:1px solid var(--border);border-radius:10px;overflow:hidden; }
+.table-wrap { overflow-x:auto; }
+table { width:100%;border-collapse:collapse; }
+thead th { background:#f9fafb;padding:7px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);border-bottom:1px solid var(--border);white-space:nowrap; }
+tbody tr { transition:background .1s;cursor:pointer; }
+tbody tr:hover { background:#f0fdfa; }
+tbody td { padding:7px 12px;border-bottom:1px solid var(--border);font-size:12px; }
+tbody tr:last-child td { border-bottom:none; }
+
+.badge { display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap; }
+.badge::before { content:'';width:5px;height:5px;border-radius:50%;flex-shrink:0; }
+.badge-A { background:#dcfce7;color:#15803d; }
+.badge-A::before { background:#22c55e; }
+.badge-I { background:#f3f4f6;color:#6b7280; }
+.badge-I::before { background:#9ca3af; }
+
+.btn-acoes { background:#f3f4f6;color:var(--text2);border:1px solid var(--border);padding:4px 7px;border-radius:6px;cursor:pointer; }
+.btn-acoes:hover { background:#e5e7eb;color:var(--text); }
+.btn-acoes svg { width:16px;height:16px; }
+.dropdown-menu { position:fixed;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.14);z-index:6500;min-width:160px;animation:fadeIn .12s ease;padding:4px; }
+.dropdown-item { display:flex;align-items:center;gap:9px;padding:8px 12px;border-radius:7px;font-size:12px;cursor:pointer;color:var(--text);transition:.1s;border:none;background:none;width:100%;font-family:inherit;text-align:left;font-weight:500; }
+.dropdown-item:hover { background:#f0fdfa;color:var(--accent); }
+.dropdown-item.danger { color:var(--danger); }
+.dropdown-item.danger:hover { background:#fef2f2; }
+.dropdown-item svg { width:14px;height:14px;flex-shrink:0; }
+
+.empty { text-align:center;padding:56px 24px;color:var(--text2); }
+.empty svg { width:44px;height:44px;opacity:.18;margin:0 auto 12px;display:block; }
+
+/* ── FORM SECTION ── */
+#formSection { display:none; }
+.form-card { background:#fff;border:1px solid var(--border);border-radius:10px;overflow:hidden; }
+.form-card-head { padding:12px 18px;border-bottom:1px solid var(--border);background:#fff;display:flex;align-items:center;justify-content:space-between; }
+.form-card-head-title { font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.7px; }
+.form-card-head-sub   { font-size:11px;color:var(--text2);margin-top:2px; }
+.form-body { padding:20px 18px; }
+
+/* FORM FIELDS */
+.form-grid { display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px; }
+@media(max-width:700px) { .form-grid { grid-template-columns:1fr; } }
+.form-group { display:flex;flex-direction:column;gap:4px; }
+.form-group.full { grid-column:1/-1; }
+label { font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.3px; }
+.req { color:var(--danger); }
+input[type="text"], input[type="number"], select {
+  padding:8px 10px;border:1.5px solid #d1d5db;border-radius:6px;
+  font-size:13px;color:var(--text);background:#fff;
+  transition:.12s;outline:none;font-family:inherit;width:100%;
+}
+input:focus,select:focus { border-color:var(--accent);box-shadow:0 0 0 3px rgba(13,148,136,.08); }
+
+/* SPINNER */
+.spinner { width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;display:inline-block;flex-shrink:0; }
+@keyframes spin { to{transform:rotate(360deg)} }
+
+/* TOAST */
+#toast-container { position:fixed;bottom:24px;right:24px;z-index:99999;display:flex;flex-direction:column;gap:8px;pointer-events:none; }
+.toast { display:flex;align-items:center;gap:10px;padding:11px 16px;border-radius:9px;font-size:13px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.14);animation:toastIn .22s ease-out;pointer-events:auto; }
+@keyframes toastIn { from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)} }
+.toast-ok   { background:#1a1a2e;color:#fff; }
+.toast-err  { background:#ef4444;color:#fff; }
+.toast-warn { background:#f59e0b;color:#fff; }
+.toast svg  { width:15px;height:15px;flex-shrink:0; }
+
+/* CONFIRM */
+.confirm-backdrop { position:fixed;inset:0;z-index:9500;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);animation:fadeIn .18s; }
+.confirm-box { background:#fff;border-radius:14px;padding:26px;max-width:400px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.18); }
+@keyframes fadeIn { from{opacity:0}to{opacity:1} }
+</style>
+<script src="/assets/themes.js"></script>
+</head>
+<body>
+
+<!-- TOOLBAR -->
+<div class="toolbar-bar">
+  <div style="display:flex;gap:5px;align-items:center;flex-shrink:0">
+    <div class="ins-card active" id="ins-total" onclick="toggleFiltroStatus('T')">
+      <span class="ins-label">Total</span><span class="ins-val" id="val-total">—</span>
+    </div>
+    <div class="ins-card" id="ins-ativos" onclick="toggleFiltroStatus('A')">
+      <span class="ins-label">Ativos</span><span class="ins-val" id="val-ativos">—</span>
+    </div>
+    <div class="ins-card" id="ins-inativos" onclick="toggleFiltroStatus('I')">
+      <span class="ins-label">Inativos</span><span class="ins-val" id="val-inativos">—</span>
+    </div>
+  </div>
+
+  <button class="btn btn-outline" onclick="abrirNovo()">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+    Nova Forma
+  </button>
+</div>
+
+<!-- SUBBAR -->
+<div class="subbar">
+  <div style="display:flex;gap:6px;align-items:center">
+    <button class="icon-btn" onclick="buscar()">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+      Atualizar
+    </button>
+  </div>
+  <div style="display:flex;align-items:center;gap:5px">
+    <input type="text" id="inputBusca" placeholder="Buscar forma de pagamento…"
+           oninput="buscar()"
+           style="padding:5px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px;font-family:inherit;width:260px;outline:none;">
+    <button class="icon-btn" onclick="buscar()">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+    </button>
+  </div>
+</div>
+
+<!-- CONTENT -->
+<div class="content-area">
+  <div id="listSection">
+    <div class="table-card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:50px">ID</th>
+              <th>Descrição</th>
+              <th>Tipo</th>
+              <th>Prazos</th>
+              <th>Ajuste (%)</th>
+              <th>Status</th>
+              <th style="width:60px"></th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <tr><td colspan="7" class="empty">Carregando…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="formSection">
+    <div class="form-card">
+      <div class="form-card-head">
+        <div>
+          <div class="form-card-head-title">Forma de Pagamento</div>
+          <div class="form-card-head-sub" id="formTitle">Nova Forma</div>
+        </div>
+      </div>
+      <div class="form-body">
+        <form id="mainForm">
+          <input type="hidden" id="f_id">
+          <div class="form-grid">
+            <div class="form-group full">
+              <label>Descrição <span class="req">*</span></label>
+              <input type="text" id="f_descricao" placeholder="Ex: CARTÃO 30 DIAS" required>
+            </div>
+            <div class="form-group">
+              <label>Tipo de Pagamento</label>
+              <select id="f_tipo_pagto">
+                <option value="DINHEIRO">DINHEIRO</option>
+                <option value="CARTAO">CARTÃO</option>
+                <option value="PIX">PIX</option>
+                <option value="BOLETO">BOLETO</option>
+                <option value="CONVENIO">CONVÊNIO</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Prazo Padrão (Dias)</label>
+              <input type="text" id="f_prazo_padrao" placeholder="Ex: 30/60/90">
+            </div>
+            <div class="form-group">
+              <label>Ajuste na Venda (%)</label>
+              <div style="display:flex;gap:5px">
+                <select id="f_tipo_percentual" style="flex:1">
+                  <option value="">Nenhum</option>
+                  <option value="DESCONTO">DESCONTO</option>
+                  <option value="ACRESCIMO">ACRÉSCIMO</option>
+                </select>
+                <input type="number" id="f_percentual" step="0.01" style="flex:1" placeholder="0.00">
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Status</label>
+              <select id="f_status">
+                <option value="A">Ativo</option>
+                <option value="I">Inativo</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Rec. Automático?</label>
+              <select id="f_recebimento_auto">
+                <option value="N">Não</option>
+                <option value="S">Sim</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Permite Troco?</label>
+              <select id="f_permite_troco">
+                <option value="N">Não</option>
+                <option value="S">Sim</option>
+              </select>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="form-footer">
+        <button class="btn btn-ghost" onclick="voltarLista()">Cancelar</button>
+        <button class="btn btn-save" onclick="salvar()">Salvar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+<div class="dropdown-menu" id="dropMenu" style="display:none"></div>
+
+<script>
+let S = { filtroStatus: 'T', registroId: null };
+
+async function buscar() {
+  const q = document.getElementById('inputBusca').value.trim();
+  try {
+    const r = await fetch(`/api/formas-pagamento`);
+    const d = await r.json();
+    let lista = d.formas || [];
+    
+    // Filtro Local
+    if (S.filtroStatus !== 'T') lista = lista.filter(x => x.status === S.filtroStatus);
+    if (q) lista = lista.filter(x => x.descricao.toLowerCase().includes(q.toLowerCase()));
+
+    document.getElementById('val-total').textContent = d.formas?.length || 0;
+    document.getElementById('val-ativos').textContent = d.formas?.filter(x=>x.status==='A').length || 0;
+    document.getElementById('val-inativos').textContent = d.formas?.filter(x=>x.status!=='A').length || 0;
+
+    renderLista(lista);
+  } catch(e) { toast('Erro ao carregar','err'); }
+}
+
+function renderLista(rows) {
+  const tbody = document.getElementById('tbody');
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">Nenhum registro encontrado</td></tr>'; return; }
+  tbody.innerHTML = rows.map(f => `
+    <tr onclick="abrirEditar(${f.id})">
+      <td>${f.id}</td>
+      <td style="font-weight:600">${f.descricao}</td>
+      <td>${f.tipo_pagto || '-'}</td>
+      <td>${f.prazo_padrao || '-'}</td>
+      <td>${f.tipo_percentual ? f.tipo_percentual + ' (' + f.percentual + '%)' : '-'}</td>
+      <td><span class="badge badge-${f.status === 'A' ? 'A' : 'I'}">${f.status === 'A' ? 'Ativo' : 'Inativo'}</span></td>
+      <td onclick="event.stopPropagation()">
+        <button class="btn-acoes" onclick="abrirDrop(event, ${f.id})">⋮</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function toggleFiltroStatus(st) {
+  S.filtroStatus = st;
+  ['total','ativos','inativos'].forEach(k => document.getElementById('ins-'+k).classList.toggle('active', k.substring(0,1).toUpperCase() === st || (st==='T' && k==='total')));
+  buscar();
+}
+
+function abrirNovo() {
+  S.registroId = null;
+  document.getElementById('mainForm').reset();
+  document.getElementById('f_id').value = '';
+  document.getElementById('formTitle').textContent = 'Nova Forma de Pagamento';
+  document.getElementById('listSection').style.display = 'none';
+  document.getElementById('formSection').style.display = 'block';
+}
+
+async function abrirEditar(id) {
+  try {
+    const r = await fetch(`/api/formas-pagamento`);
+    const d = await r.json();
+    const f = d.formas.find(x => x.id === id);
+    if (!f) return;
+    S.registroId = id;
+    document.getElementById('f_id').value = f.id;
+    document.getElementById('f_descricao').value = f.descricao;
+    document.getElementById('f_tipo_pagto').value = f.tipo_pagto || 'DINHEIRO';
+    document.getElementById('f_prazo_padrao').value = f.prazo_padrao || '';
+    document.getElementById('f_tipo_percentual').value = f.tipo_percentual || '';
+    document.getElementById('f_percentual').value = f.percentual || 0;
+    document.getElementById('f_status').value = f.status || 'A';
+    document.getElementById('f_recebimento_auto').value = f.recebimento_auto || 'N';
+    document.getElementById('f_permite_troco').value = f.permite_troco || 'N';
+    
+    document.getElementById('formTitle').textContent = `Editar: ${f.descricao}`;
+    document.getElementById('listSection').style.display = 'none';
+    document.getElementById('formSection').style.display = 'block';
+  } catch(e) { toast('Erro ao carregar dados','err'); }
+}
+
+function voltarLista() {
+  document.getElementById('formSection').style.display = 'none';
+  document.getElementById('listSection').style.display = 'block';
+  buscar();
+}
+
+async function salvar() {
+  const payload = {
+    descricao: document.getElementById('f_descricao').value.trim(),
+    tipo_pagto: document.getElementById('f_tipo_pagto').value,
+    prazo_padrao: document.getElementById('f_prazo_padrao').value,
+    tipo_percentual: document.getElementById('f_tipo_percentual').value,
+    percentual: document.getElementById('f_percentual').value || 0,
+    status: document.getElementById('f_status').value,
+    recebimento_auto: document.getElementById('f_recebimento_auto').value,
+    permite_troco: document.getElementById('f_permite_troco').value
+  };
+  if (!payload.descricao) return toast('Preencha a descrição','warn');
+  
+  try {
+    const id = S.registroId;
+    const r = await fetch(id ? `/api/formas-pagamento/${id}` : '/api/formas-pagamento', {
+      method: id ? 'PUT' : 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    if (r.ok) { toast('Salvo com sucesso!','ok'); voltarLista(); }
+    else { toast('Erro ao salvar','err'); }
+  } catch(e) { toast('Erro na comunicação','err'); }
+}
+
+function abrirDrop(e, id) {
+  e.stopPropagation();
+  const m = document.getElementById('dropMenu');
+  m.innerHTML = `<button class="dropdown-item danger" onclick="excluir(${id})">Excluir</button>`;
+  m.style.display = 'block';
+  const rect = e.currentTarget.getBoundingClientRect();
+  m.style.top = (rect.bottom + 5) + 'px';
+  m.style.left = (rect.left - 120) + 'px';
+  window.onclick = () => fecharDrop();
+}
+function fecharDrop() { document.getElementById('dropMenu').style.display = 'none'; }
+
+async function excluir(id) {
+  if (!confirm('Excluir forma de pagamento?')) return;
+  try {
+    const r = await fetch(`/api/formas-pagamento/${id}`, {method:'DELETE'});
+    if (r.ok) { toast('Excluído!','ok'); buscar(); }
+  } catch(e) { toast('Erro ao excluir','err'); }
+}
+
+function toast(msg, tipo='ok') {
+  const t = document.createElement('div');
+  t.className = `toast toast-${tipo}`;
+  t.textContent = msg;
+  document.getElementById('toast-container').appendChild(t);
+  setTimeout(()=>t.remove(), 3000);
+}
+
+document.addEventListener('DOMContentLoaded', buscar);
+</script>
+</body>
+</html>

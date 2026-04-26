@@ -2,8 +2,14 @@
  * SysRepWeb — Gerenciador de Temas Global
  * Aplica o tema em todas as páginas via localStorage
  */
+if (window._sysThemesLoaded) {
+  // Já carregado (ex: iframe recarregado no mesmo contexto) — só reaplica o tema salvo
+  try { document.documentElement.setAttribute('data-theme', localStorage.getItem('sysrep_theme') || 'dark'); } catch(_) {}
+  throw 'themes.js: skip (already loaded)';
+}
+window._sysThemesLoaded = true;
 
-const THEMES = [
+var THEMES = [
   {
     id: 'dark',
     name: 'Dark Classic',
@@ -51,10 +57,16 @@ const THEMES = [
     name: 'Rose Dark',
     desc: 'Elegante e sofisticado',
     preview: { sidebar: '#1c0a14', accent: '#f43f7a', content: '#fff5f8' }
+  },
+  {
+    id: 'gray',
+    name: 'Gray Soft',
+    desc: 'Cinza claro — neutro profissional',
+    preview: { sidebar: '#4a4e5a', accent: '#4361ee', content: '#f5f6f8' }
   }
 ];
 
-const THEME_KEY = 'sysrep_theme';
+var THEME_KEY ='sysrep_theme';
 
 // ── Aplica o tema no documento ───────────────────────────────────
 function applyTheme(themeId) {
@@ -224,18 +236,239 @@ function renderThemeButton() {
   document.body.appendChild(fab);
 }
 
-// ── Auto-inicializa ──────────────────────────────────────────────
-(function init() {
-  // Aplica tema imediatamente (antes do DOMContentLoaded para evitar flash)
-  loadTheme();
+// ══════════════════════════════════════════════════════════════════
+// SISTEMA DE PREFERÊNCIA DE FONTE
+// ══════════════════════════════════════════════════════════════════
 
-  // Adiciona botão flutuante após carregar o DOM
+var FONT_KEY = 'sysrep_font_pref';
+var VISUAL_KEY = 'sysrep_visual_pref';
+
+var FONT_FAMILIES = [
+  { id:'roboto',   name:'Roboto',        value:"'Roboto', sans-serif",          desc:'Google Sans Clean', spacing: '-0.01em' },
+  { id:'inter',    name:'Inter',         value:"'Inter', sans-serif",           desc:'Moderna · Padrão', spacing: '-0.02em' },
+  { id:'opensans', name:'Open Sans',     value:"'Open Sans', sans-serif",       desc:'Google Sans Soft', spacing: '-0.01em' },
+  { id:'poppins',  name:'Poppins',       value:"'Poppins', sans-serif",         desc:'Geométrica', spacing: '0' },
+  { id:'montserrat',name:'Montserrat',   value:"'Montserrat', sans-serif",      desc:'Elegante', spacing: '0' },
+  { id:'system',   name:'Sistema',       value:"system-ui, sans-serif",         desc:'Nativa do SO', spacing: '0' }
+];
+
+var FONT_SIZES = [
+  { id:'sm', label:'Pequena', px: 11 },
+  { id:'md', label:'Média',   px: 13 },
+  { id:'lg', label:'Grande',  px: 15 },
+  { id:'xl', label:'Extra',   px: 18 }
+];
+
+var ACCENT_COLORS = [
+  { id: 'blue',   name: 'Padrão',   value: '#4361ee' },
+  { id: 'emerald',name: 'Esmeralda',value: '#10b981' },
+  { id: 'indigo', name: 'Índigo',   value: '#6366f1' },
+  { id: 'amber',  name: 'Âmbar',    value: '#f59e0b' },
+  { id: 'rose',   name: 'Rose',     value: '#f43f7a' },
+  { id: 'slate',  name: 'Slate',    value: '#475569' }
+];
+
+function applyFont(familyId, sizeId) {
+  const fam = FONT_FAMILIES.find(f => f.id === familyId) || FONT_FAMILIES[0];
+  const size = FONT_SIZES.find(s => s.id === sizeId) || FONT_SIZES[1];
+  
+  if (['roboto', 'opensans', 'poppins', 'montserrat'].includes(familyId)) {
+    const linkId = 'google-font-' + familyId;
+    if (!document.getElementById(linkId)) {
+      const link = document.createElement('link');
+      link.id = linkId;
+      link.rel = 'stylesheet';
+      const fontName = fam.value.split(',')[0].replace(/'/g, '').replace(/ /g, '+');
+      link.href = `https://fonts.googleapis.com/css2?family=${fontName}:wght@400;500;700&display=swap`;
+      document.head.appendChild(link);
+    }
+  }
+
+  let el = document.getElementById('sysrep-font-style');
+  if (!el) { el = document.createElement('style'); el.id = 'sysrep-font-style'; document.head.appendChild(el); }
+  el.textContent = `
+    :root {
+      --font: ${fam.value};
+      --base-font-size: ${size.px}px;
+      --letter-spacing: ${fam.spacing || '0'};
+    }
+    body, html, table, td, th, .base-table, input, select, textarea, .mc-val, .toolbar-title {
+      font-family: ${fam.value} !important;
+      font-size: ${size.px}px !important;
+      letter-spacing: var(--letter-spacing) !important;
+    }
+  `;
+}
+
+function applyVisualPrefs(accentId, compact) {
+  const color = ACCENT_COLORS.find(c => c.id === accentId) || ACCENT_COLORS[0];
+  document.documentElement.style.setProperty('--accent', color.value);
+  document.documentElement.style.setProperty('--accent-soft', color.value + '26');
+  document.body.classList.toggle('sys-compact', !!compact);
+  
+  // Salva no storage para persistir
+  localStorage.setItem(VISUAL_KEY, JSON.stringify({ accentId, compact }));
+}
+
+function loadFont() {
+  try {
+    const p = JSON.parse(localStorage.getItem(FONT_KEY) || '{}');
+    applyFont(p.familyId || 'roboto', p.sizeId || 'md');
+    
+    const v = JSON.parse(localStorage.getItem(VISUAL_KEY) || '{}');
+    applyVisualPrefs(v.accentId || 'blue', v.compact || false);
+  } catch(e) { applyFont('inter','md'); }
+}
+
+function savePrefs(familyId, sizeId, accentId, compact) {
+  localStorage.setItem(FONT_KEY, JSON.stringify({ familyId, sizeId }));
+  localStorage.setItem(VISUAL_KEY, JSON.stringify({ accentId, compact }));
+  applyFont(familyId, sizeId);
+  applyVisualPrefs(accentId, compact);
+  try { window.parent.postMessage({ type: 'font-pref-changed', familyId, sizeId, accentId, compact }, '*'); } catch(_) {}
+}
+
+function renderFontModal() {
+  if (document.getElementById('font-modal')) return;
+  const pref = JSON.parse(localStorage.getItem(FONT_KEY) || '{}');
+  const vis  = JSON.parse(localStorage.getItem(VISUAL_KEY) || '{}');
+  const curFam  = pref.familyId || 'roboto';
+  const curSize = pref.sizeId   || 'md';
+  const curAccent = vis.accentId || 'blue';
+  const curCompact = vis.compact || false;
+
+  const modal = document.createElement('div');
+  modal.id = 'font-modal';
+  modal.innerHTML = `
+    <div class="fm-overlay" onclick="closeFontModal()"></div>
+    <div class="fm-panel">
+      <div class="fm-header">
+        <span class="fm-title">Personalização Visual</span>
+        <button class="fm-close" onclick="closeFontModal()">✕</button>
+      </div>
+      <div class="fm-body">
+        <p class="fm-section-label">Fonte do Sistema</p>
+        <div class="fm-fam-grid">
+          ${FONT_FAMILIES.map(f => `
+            <div class="fm-fam-card ${f.id === curFam ? 'fm-active' : ''}" onclick="fmSelectFam('${f.id}')" data-fam="${f.id}">
+              <span class="fm-fam-name" style="font-family:${f.value}">${f.name}</span>
+              <span class="fm-fam-desc">${f.desc}</span>
+            </div>`).join('')}
+        </div>
+        
+        <p class="fm-section-label" style="margin-top:18px">Tamanho & Densidade</p>
+        <div class="fm-size-row">
+          ${FONT_SIZES.map(s => `
+            <button class="fm-size-btn ${s.id === curSize ? 'fm-sz-active' : ''}" onclick="fmSelectSize('${s.id}')" data-sz="${s.id}">
+              ${s.label}
+            </button>`).join('')}
+        </div>
+        
+        <div style="margin-top:12px; display:flex; align-items:center; gap:10px; padding:10px; background:#f8fafc; border-radius:10px; border:1px dashed #cbd5e1">
+          <input type="checkbox" id="chk-compact" ${curCompact ? 'checked' : ''} style="width:18px;height:18px;accent-color:#4361ee">
+          <label for="chk-compact" style="font-size:12px; font-weight:700; color:#334155; cursor:pointer">Modo Compacto (Reduzir espaçamentos)</label>
+        </div>
+
+        <p class="fm-section-label" style="margin-top:18px">Cor de Destaque</p>
+        <div class="fm-color-row" style="display:flex; gap:8px; flex-wrap:wrap">
+          ${ACCENT_COLORS.map(c => `
+            <div class="fm-color-dot ${c.id === curAccent ? 'active' : ''}" 
+                 onclick="fmSelectAccent('${c.id}')" 
+                 data-accent="${c.id}"
+                 style="background:${c.value}; width:32px; height:32px; border-radius:50%; cursor:pointer; border:3px solid #fff; box-shadow:0 0 0 1px #eee"
+                 title="${c.name}"></div>
+          `).join('')}
+        </div>
+      </div>
+      <div class="fm-footer">
+        <button class="fm-btn-cancel" onclick="closeFontModal()">Cancelar</button>
+        <button class="fm-btn-save" onclick="fmSave()">Aplicar Agora</button>
+      </div>
+    </div>`;
+
+  const style = document.createElement('style');
+  style.setAttribute('data-fm', 'true');
+  style.textContent = `
+    #font-modal{position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px}
+    .fm-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(3px)}
+    .fm-panel{position:relative;background:#fff;border-radius:16px;width:100%;max-width:480px;box-shadow:0 20px 60px rgba(0,0,0,.28);display:flex;flex-direction:column;animation:fmIn .22s ease-out}
+    @keyframes fmIn{from{opacity:0;transform:scale(.93)}to{opacity:1;transform:scale(1)}}
+    .fm-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #eee}
+    .fm-title{font-size:14px;font-weight:700;color:#1e2433}
+    .fm-close{background:none;border:none;font-size:16px;color:#888;cursor:pointer;width:28px;height:28px;border-radius:50%;transition:.2s;display:flex;align-items:center;justify-content:center}
+    .fm-close:hover{background:#f0f0f0;color:#333}
+    .fm-body{padding:18px 20px; max-height:70vh; overflow-y:auto}
+    .fm-section-label{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:#888;margin-bottom:10px}
+    .fm-fam-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+    .fm-fam-card{border:2px solid #eee;border-radius:10px;padding:10px 12px;cursor:pointer;transition:.15s}
+    .fm-fam-card:hover{border-color:#aaa}
+    .fm-fam-card.fm-active{border-color:#4361ee;background:#f0f4ff}
+    .fm-fam-name{display:block;font-size:14px;font-weight:700;color:#1e2433;margin-bottom:1px}
+    .fm-fam-desc{display:block;font-size:9px;color:#888}
+    .fm-size-row{display:flex;gap:8px}
+    .fm-size-btn{flex:1;border:2px solid #eee;border-radius:8px;padding:8px 4px;cursor:pointer;background:#fff;font-size:12px;font-weight:700;color:#333;transition:.15s}
+    .fm-size-btn.fm-sz-active{border-color:#4361ee;background:#f0f4ff;color:#4361ee}
+    .fm-color-dot.active{box-shadow:0 0 0 2px #4361ee !important}
+    .fm-footer{display:flex;justify-content:flex-end;gap:8px;padding:14px 20px;border-top:1px solid #eee}
+    .fm-btn-cancel{background:#f3f4f6;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer;color:#555}
+    .fm-btn-save{background:#4361ee;border:none;border-radius:8px;padding:9px 20px;font-size:13px;font-weight:700;cursor:pointer;color:#fff}
+  `;
+  document.head.appendChild(style);
+  document.body.appendChild(modal);
+}
+
+var _fmFam  = null;
+var _fmSize = null;
+var _fmAccent = null;
+
+function fmSelectFam(id) {
+  _fmFam = id;
+  document.querySelectorAll('.fm-fam-card').forEach(c => c.classList.toggle('fm-active', c.dataset.fam === id));
+}
+function fmSelectSize(id) {
+  _fmSize = id;
+  document.querySelectorAll('.fm-size-btn').forEach(b => b.classList.toggle('fm-sz-active', b.dataset.sz === id));
+}
+function fmSelectAccent(id) {
+  _fmAccent = id;
+  document.querySelectorAll('.fm-color-dot').forEach(d => d.classList.toggle('active', d.dataset.accent === id));
+}
+function fmSave() {
+  const p = JSON.parse(localStorage.getItem(FONT_KEY) || '{}');
+  const v = JSON.parse(localStorage.getItem(VISUAL_KEY) || '{}');
+  const fam = _fmFam || p.familyId || 'roboto';
+  const size = _fmSize || p.sizeId || 'md';
+  const accent = _fmAccent || v.accentId || 'blue';
+  const compact = document.getElementById('chk-compact').checked;
+  savePrefs(fam, size, accent, compact);
+  closeFontModal();
+}
+function openFontModal() {
+  _fmFam = null; _fmSize = null; _fmAccent = null;
+  renderFontModal();
+}
+function closeFontModal() {
+  const m = document.getElementById('font-modal');
+  if (m) m.remove();
+  const s = document.querySelector('style[data-fm]');
+  if (s) s.remove();
+}
+
+(function init() {
+  loadTheme();
+  loadFont();
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', renderThemeButton);
-  } else {
-    renderThemeButton();
-  }
+  } else { renderThemeButton(); }
 })();
 
-// Exporta para uso externo
+window.addEventListener('message', (ev) => {
+  if (ev.data && ev.data.type === 'font-pref-changed') {
+    applyFont(ev.data.familyId, ev.data.sizeId);
+    applyVisualPrefs(ev.data.accentId, ev.data.compact);
+  }
+});
+
 window.SysTheme = { apply: applyTheme, open: openThemeModal, list: THEMES };
+window.SysFont  = { apply: applyFont, save: savePrefs, open: openFontModal, families: FONT_FAMILIES, sizes: FONT_SIZES };
+window.SysVisual = { apply: applyVisualPrefs };

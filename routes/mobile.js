@@ -44,34 +44,48 @@ router.get('/home', async (req, res) => {
 // ─── GET /api/mobile/clientes?q=termo ───────────────────────────────────────
 router.get('/clientes', async (req, res) => {
   try {
-    const pool = getPool();
-    const q = req.query.q || '';
+    const pool   = getPool();
+    const q      = req.query.q || '';
+    const limit  = Math.min(parseInt(req.query.limit)  || 20, 100);
+    const offset = Math.max(parseInt(req.query.offset) || 0,   0);
+    const excWhere = `(c.excluido = 'N' OR c.excluido IS NULL OR c.excluido = '')`;
 
-    let rows;
+    let rows, totalRows;
+
     if (!q.trim()) {
+      [[{ total: totalRows }]] = await pool.query(
+        `SELECT COUNT(*) AS total FROM clientes c WHERE ${excWhere}`
+      ).catch(() => [[{ total: 0 }]]);
+
       [rows] = await pool.query(
-        `SELECT c.idcliente as id, c.nome, c.cidade, c.uf, c.telefone,
-                c.cnpj, c.situacao
-         FROM clientes c
-         WHERE c.excluido = 'N'
-         ORDER BY c.idcliente DESC LIMIT 20`
+        `SELECT c.id, c.nome, c.apelido, c.cidade, c.uf,
+                c.foneprincipal AS telefone, c.cpf, c.status
+         FROM clientes c WHERE ${excWhere}
+         ORDER BY c.nome ASC LIMIT ? OFFSET ?`,
+        [limit, offset]
       ).catch(() => [[]]);
     } else {
       const like = `%${q}%`;
+      const qWhere = `AND (c.nome LIKE ? OR c.cpf LIKE ? OR c.foneprincipal LIKE ? OR c.apelido LIKE ?)`;
+
+      [[{ total: totalRows }]] = await pool.query(
+        `SELECT COUNT(*) AS total FROM clientes c WHERE ${excWhere} ${qWhere}`,
+        [like, like, like, like]
+      ).catch(() => [[{ total: 0 }]]);
+
       [rows] = await pool.query(
-        `SELECT c.idcliente as id, c.nome, c.cidade, c.uf, c.telefone,
-                c.cnpj, c.situacao
-         FROM clientes c
-         WHERE c.excluido = 'N'
-           AND (c.nome LIKE ? OR c.cnpj LIKE ?)
-         ORDER BY c.nome LIMIT 30`,
-        [like, like]
+        `SELECT c.id, c.nome, c.apelido, c.cidade, c.uf,
+                c.foneprincipal AS telefone, c.cpf, c.status
+         FROM clientes c WHERE ${excWhere} ${qWhere}
+         ORDER BY c.nome LIMIT ? OFFSET ?`,
+        [like, like, like, like, limit, offset]
       ).catch(() => [[]]);
     }
 
-    res.json({ clientes: rows || [] });
-  } catch {
-    res.json({ clientes: [] });
+    res.json({ clientes: rows || [], total: totalRows || 0, limit, offset });
+  } catch (err) {
+    console.error('[mobile/clientes]', err.message);
+    res.status(500).json({ clientes: [], total: 0, error: err.message });
   }
 });
 
@@ -82,7 +96,11 @@ router.get('/clientes/:id', async (req, res) => {
     const id = req.params.id;
 
     const [clienteRows] = await pool.query(
-      `SELECT * FROM clientes WHERE idcliente = ? AND excluido = 'N'`,
+      `SELECT id, nome, apelido, tipo_pessoa, cpf, foneprincipal, fonesecundario,
+              email, cep, endereco, numero_end, bairro, cidade, uf, status, dtcadastro
+       FROM clientes
+       WHERE id = ? AND (excluido = 'N' OR excluido IS NULL OR excluido = '')
+       LIMIT 1`,
       [id]
     ).catch(() => [[]]);
 
@@ -90,40 +108,44 @@ router.get('/clientes/:id', async (req, res) => {
       return res.status(404).json({ error: 'Cliente não encontrado' });
     }
 
-    const [pedidoRows] = await pool.query(
-      `SELECT p.id, p.vlrtotalpedido, p.data_abertura, p.situacao, p.tipo_pedido
-       FROM pedidos p
-       WHERE p.idcliente = ? AND p.excluido = 'N'
-       ORDER BY p.id DESC LIMIT 3`,
-      [id]
-    ).catch(() => [[]]);
-
+    const c = clienteRows[0];
     res.json({
-      cliente: clienteRows[0],
-      ultimos_pedidos: pedidoRows || []
+      id:       c.id,
+      nome:     c.nome,
+      apelido:  c.apelido,
+      cnpj:     c.cpf,
+      telefone: c.foneprincipal,
+      telefone2: c.fonesecundario,
+      email:    c.email,
+      endereco: [c.endereco, c.numero_end].filter(Boolean).join(', '),
+      cidade:   c.cidade,
+      uf:       c.uf,
+      situacao: c.status === 'A' ? 'ATIVO' : c.status === 'I' ? 'INATIVO' : (c.status || ''),
+      dtcadastro: c.dtcadastro,
+      ultimos_pedidos: []
     });
   } catch {
     res.json({ cliente: null, ultimos_pedidos: [] });
   }
 });
 
-// ─── POST /api/mobile/clientes ───────────────────────────────────────────────
+// ─── POST /api/mobile/clientes (alias para /api/clientes) ────────────────────
+// O mobile.html usa /api/clientes diretamente para o cadastro completo.
+// Esta rota permanece para compatibilidade com cadastro rápido legado.
 router.post('/clientes', async (req, res) => {
   try {
     const pool = getPool();
-    const { nome, telefone, cnpj = null, cidade = null, uf = null } = req.body;
+    const { nome, telefone, cnpj, cidade, uf } = req.body;
 
-    if (!nome || !telefone) {
-      return res.status(400).json({ error: 'nome e telefone são obrigatórios' });
-    }
+    if (!nome?.trim()) return res.status(400).json({ error: 'nome é obrigatório' });
 
     const [result] = await pool.query(
-      `INSERT INTO clientes (nome, telefone, cnpj, cidade, uf, situacao, excluido, dt_cadastro)
-       VALUES (?, ?, ?, ?, ?, 'ATIVO', 'N', NOW())`,
-      [nome, telefone, cnpj, cidade, uf]
+      `INSERT INTO clientes (nome, foneprincipal, cpf, cidade, uf, status, excluido, dtcadastro)
+       VALUES (?, ?, ?, ?, ?, 'A', 'N', CURDATE())`,
+      [nome.trim(), telefone || null, cnpj || null, cidade || null, uf || null]
     );
 
-    res.json({ id: result.insertId });
+    res.status(201).json({ ok: true, id: result.insertId });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

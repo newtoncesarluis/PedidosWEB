@@ -1,0 +1,1291 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<title>Transportadoras</title>
+<style>
+* { margin:0;padding:0;box-sizing:border-box; }
+:root {
+  --bg:#f0f2f5; --card:#fff; --border:#e5e7eb;
+  --text:#111827; --text2:#6b7280;
+  --accent:#0d9488; --accent-hover:#0f766e;
+  --danger:#ef4444; --warn:#f59e0b; --success:#22c55e;
+}
+body { font-family:'Inter','Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh; }
+
+/* ── TOOLBAR ── */
+.toolbar-bar {
+  background:#fff;border-bottom:1px solid var(--border);
+  padding:8px 16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  position:sticky;top:0;z-index:100;
+}
+.btn {
+  display:inline-flex;align-items:center;gap:6px;
+  padding:7px 14px;border:none;border-radius:7px;
+  font-size:12px;font-weight:700;cursor:pointer;
+  transition:.15s;font-family:inherit;white-space:nowrap;
+}
+.btn svg { width:14px;height:14px;flex-shrink:0; }
+.btn:disabled { opacity:.5;cursor:not-allowed; }
+.btn-primary       { background:var(--accent);color:#fff;border:1.5px solid var(--accent); }
+.btn-primary:hover:not(:disabled) { background:var(--accent-hover); }
+.btn-outline       { background:#fff;color:var(--accent);border:1.5px solid var(--accent); }
+.btn-outline:hover { background:#f0fdfa; }
+.btn-ghost         { background:#fff;color:var(--text2);border:1.5px solid var(--border); }
+.btn-ghost:hover   { background:#f9fafb;color:var(--text); }
+.btn-danger        { background:var(--danger);color:#fff;border:1.5px solid var(--danger); }
+.btn-danger:hover:not(:disabled) { opacity:.9; }
+.btn-save { background:var(--accent);color:#fff;border:1.5px solid var(--accent);font-size:13px;padding:8px 18px; }
+.btn-save:hover:not(:disabled) { background:var(--accent-hover); }
+
+/* ins-cards */
+.ins-card {
+  display:inline-flex;align-items:center;gap:5px;cursor:pointer;padding:4px 9px;
+  border-radius:7px;border:1.5px solid var(--border);background:#fafafa;
+  transition:.15s;user-select:none;flex-shrink:0;white-space:nowrap;
+}
+.ins-card:hover { border-color:var(--accent);background:#f0fdfa; }
+.ins-card.active { border-color:var(--accent);background:var(--accent);color:#fff; }
+.ins-card.active .ins-label,.ins-card.active .ins-val { color:#fff; }
+.ins-label { font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2); }
+.ins-val   { font-size:12px;font-weight:800;color:var(--text);line-height:1; }
+
+/* notification bell */
+#notifWrap { position:relative;display:inline-flex;margin-left:auto; }
+.notif-bell {
+  cursor:pointer;padding:6px 8px;border:1.5px solid var(--border);border-radius:7px;
+  background:#fff;display:flex;align-items:center;color:var(--text2);transition:.12s;
+}
+.notif-bell:hover { background:#f9fafb;color:var(--text); }
+.notif-bell svg { width:15px;height:15px; }
+.notif-count {
+  position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;
+  border-radius:20px;min-width:16px;height:16px;padding:0 4px;
+  font-size:9px;font-weight:700;display:none;align-items:center;justify-content:center;
+  border:2px solid #fff;
+}
+.notif-count.show { display:flex; }
+.notif-panel {
+  position:absolute;top:calc(100% + 8px);right:0;z-index:5500;
+  background:#fff;border:1px solid var(--border);border-radius:12px;
+  box-shadow:0 8px 32px rgba(0,0,0,.14);width:280px;animation:fadeIn .15s;display:none;
+}
+.notif-panel.show { display:block; }
+.notif-panel-head { padding:10px 14px;border-bottom:1px solid var(--border);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2); }
+.notif-item { display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:.12s; }
+.notif-item:last-child { border-bottom:none; }
+.notif-item:hover { background:#f0fdfa; }
+.notif-icon { width:30px;height:30px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px; }
+.notif-icon.success { background:#dcfce7; }
+.notif-icon.warn    { background:#fef3c7; }
+.notif-icon.info    { background:#dbeafe; }
+.notif-text { font-size:12px;color:var(--text);line-height:1.4;flex:1; }
+.notif-text small { display:block;font-size:11px;color:var(--text2);margin-top:1px; }
+.notif-empty { padding:20px;text-align:center;color:var(--text2);font-size:12px; }
+
+/* ── SUBBAR ── */
+.subbar {
+  background:#f9fafb;border-bottom:1px solid var(--border);padding:5px 16px;
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  position:sticky;z-index:99;
+}
+.icon-btn {
+  display:inline-flex;align-items:center;gap:5px;padding:4px 10px;
+  border:1.5px solid var(--border);border-radius:7px;background:#fff;
+  color:var(--text2);font-size:11px;font-weight:600;cursor:pointer;
+  font-family:inherit;transition:.12s;white-space:nowrap;
+}
+.icon-btn svg { width:13px;height:13px;flex-shrink:0; }
+.icon-btn:hover { background:#f0fdfa;color:var(--accent);border-color:var(--accent); }
+
+/* ── CONTENT ── */
+.content-area { padding:14px 16px; }
+
+/* ── TABLE CARD ── */
+.table-card { background:#fff;border:1px solid var(--border);border-radius:10px;overflow:hidden; }
+.table-wrap { overflow-x:auto; }
+table { width:100%;border-collapse:collapse;font-size:11px; }
+thead th {
+  background:#f9fafb;padding:7px 12px;text-align:left;
+  font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+  color:var(--text2);border-bottom:1px solid var(--border);white-space:nowrap;
+}
+tbody tr { transition:background .1s;cursor:pointer; }
+tbody tr:hover { background:#f0fdfa; }
+tbody tr.row-selected { background:#f0fdfa !important; }
+tbody td { padding:6px 12px;border-bottom:1px solid var(--border); }
+tbody tr:last-child td { border-bottom:none; }
+.td-chk { width:32px;text-align:center;padding:0 4px !important; }
+.td-num { color:var(--text2);font-size:11px; }
+.td-name { font-weight:400; }
+.td-sub  { font-size:10px;color:var(--text2);margin-top:1px; }
+.td-actions { white-space:nowrap; }
+
+.badge {
+  display:inline-flex;align-items:center;gap:4px;padding:2px 8px;
+  border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap;
+}
+.badge::before { content:'';width:5px;height:5px;border-radius:50%;flex-shrink:0; }
+.badge-A { background:#dcfce7;color:#15803d; }
+.badge-A::before { background:#22c55e; }
+.badge-I { background:#f3f4f6;color:#6b7280; }
+.badge-I::before { background:#9ca3af; }
+
+.btn-sm { display:inline-flex;align-items:center;gap:4px;padding:4px 9px;border:none;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;transition:.12s;font-family:inherit;white-space:nowrap; }
+.btn-sm svg { width:12px;height:12px; }
+.btn-sm-edit   { background:#f0fdfa;color:#0f766e; }
+.btn-sm-edit:hover   { background:var(--accent);color:#fff; }
+.btn-sm-delete { background:#fef2f2;color:#dc2626; }
+.btn-sm-delete:hover { background:#dc2626;color:#fff; }
+
+/* action dropdown */
+.btn-acoes { background:#f3f4f6;color:var(--text2);border:1px solid var(--border);padding:4px 7px;border-radius:6px;cursor:pointer; }
+.btn-acoes:hover { background:#e5e7eb;color:var(--text); }
+.btn-acoes svg { width:16px;height:16px; }
+.dropdown-menu {
+  position:fixed;background:#fff;border:1px solid var(--border);border-radius:10px;
+  box-shadow:0 8px 24px rgba(0,0,0,.14);z-index:6500;min-width:162px;
+  animation:fadeIn .12s ease;padding:4px;
+}
+.dropdown-item {
+  display:flex;align-items:center;gap:9px;padding:8px 12px;border-radius:7px;
+  font-size:12px;cursor:pointer;color:var(--text);transition:.1s;
+  border:none;background:none;width:100%;font-family:inherit;text-align:left;font-weight:500;
+}
+.dropdown-item:hover { background:#f0fdfa;color:var(--accent); }
+.dropdown-item.danger { color:var(--danger); }
+.dropdown-item.danger:hover { background:#fef2f2; }
+.dropdown-item svg { width:14px;height:14px;flex-shrink:0; }
+.dropdown-item hr { border:none;border-top:1px solid var(--border);margin:4px 0; }
+
+.empty { text-align:center;padding:56px 24px;color:var(--text2); }
+.empty svg { width:44px;height:44px;opacity:.18;margin:0 auto 12px;display:block; }
+.empty p { font-size:13px; }
+
+/* PAGINATION */
+.pagination { display:flex;align-items:center;justify-content:space-between;padding:8px 14px;border-top:1px solid var(--border);font-size:12px;color:var(--text2);gap:10px;flex-wrap:wrap; }
+.pag-info { font-size:12px;color:var(--text2); }
+.pag-btns { display:flex;align-items:center;gap:4px; }
+.pag-select { padding:4px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;color:var(--text2);background:#fff;font-family:inherit;cursor:pointer;outline:none; }
+.pag-select:focus { border-color:var(--accent); }
+.pag-btn { min-width:30px;height:30px;padding:0 6px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;background:#fff;color:var(--text2);transition:.12s;font-family:inherit;display:flex;align-items:center;justify-content:center; }
+.pag-btn:hover:not(:disabled) { border-color:var(--accent);color:var(--accent);background:#f0fdfa; }
+.pag-btn:disabled { opacity:.35;cursor:not-allowed; }
+.pag-btn.active { background:var(--accent);border-color:var(--accent);color:#fff; }
+
+/* WhatsApp */
+.btn-wa { display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:4px;background:#dcfce7;color:#16a34a;border:none;cursor:pointer;transition:.12s;text-decoration:none;vertical-align:middle;margin-left:4px;flex-shrink:0; }
+.btn-wa:hover { background:#16a34a;color:#fff; }
+.btn-wa svg { width:12px;height:12px; }
+
+/* ── FORM SECTION ── */
+#formSection { display:none; }
+.form-card { background:#fff;border:1px solid var(--border);border-radius:10px;overflow:hidden; }
+.form-card-head { padding:12px 18px;border-bottom:1px solid var(--border);background:#fff;display:flex;align-items:center;justify-content:space-between; }
+.form-card-head-title { font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.7px; }
+.form-card-head-sub   { font-size:11px;color:var(--text2);margin-top:2px; }
+
+/* TABS */
+.tabs-bar-wrap { position:relative;background:#fff;border-bottom:2px solid var(--border); }
+.tabs-bar { display:flex;overflow-x:auto;scroll-behavior:smooth;background:#fff;padding:0 34px;scrollbar-width:none; }
+.tabs-bar::-webkit-scrollbar { display:none; }
+.tab-btn { padding:9px 15px;border:none;background:none;cursor:pointer;font-size:12px;font-weight:600;color:var(--text2);border-bottom:2px solid transparent;transition:.12s;font-family:inherit;white-space:nowrap;margin-bottom:-2px;flex-shrink:0; }
+.tab-btn:hover { color:var(--text); }
+.tab-btn.active { color:var(--accent);border-bottom-color:var(--accent); }
+.tab-scroll { position:absolute;top:0;bottom:2px;width:34px;display:flex;align-items:center;justify-content:center;background:#fff;border:none;cursor:pointer;z-index:5;font-size:16px;color:var(--text2);transition:.12s; }
+.tab-scroll:hover { color:var(--accent);background:#f0fdfa; }
+.tab-scroll.left  { left:0; box-shadow:4px 0 8px -2px rgba(0,0,0,.08); }
+.tab-scroll.right { right:0;box-shadow:-4px 0 8px -2px rgba(0,0,0,.08); }
+.tab-scroll[hidden] { display:none; }
+.tab-panel { display:none;padding:16px 18px; }
+.tab-panel.active { display:block; }
+
+/* FORM GRID */
+.form-grid   { display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px; }
+@media(max-width:800px) { .form-grid { grid-template-columns:1fr 1fr; } }
+@media(max-width:560px) { .form-grid { grid-template-columns:1fr; } }
+.form-group { display:flex;flex-direction:column;gap:3px; }
+.form-group.full { grid-column:1/-1; }
+.form-group.col2 { grid-column:span 2; }
+label { font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.3px; }
+.req { color:var(--danger); }
+input[type="text"],input[type="email"],input[type="number"],input[type="date"],select,textarea {
+  padding:7px 10px;border:1.5px solid #d1d5db;border-radius:6px;font-size:13px;color:var(--text);background:#fff;transition:.12s;outline:none;font-family:inherit;width:100%;
+}
+#formSection input[type="text"],#formSection input[type="email"],#formSection textarea { text-transform:uppercase; }
+input:focus,select:focus,textarea:focus { border-color:var(--accent);box-shadow:0 0 0 3px rgba(13,148,136,.08); }
+input.err { border-color:var(--danger); }
+textarea { resize:vertical;min-height:64px; }
+.section-title { font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text2);margin:12px 0 8px;padding-bottom:5px;border-bottom:1px solid var(--border);grid-column:1/-1; }
+.cep-btn { position:absolute;right:6px;top:50%;transform:translateY(-50%);padding:3px 8px;border:none;border-radius:5px;background:var(--accent);color:#fff;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit; }
+.input-rel { position:relative; }
+.radio-group { display:flex;gap:14px;align-items:center;padding:4px 0; }
+.radio-group label { text-transform:none;font-size:13px;font-weight:500;color:var(--text);letter-spacing:0; }
+.radio-group input[type=radio] { width:15px;height:15px;accent-color:var(--accent); }
+
+/* FORM FOOTER */
+.form-footer { display:flex;align-items:center;justify-content:space-between;padding:10px 18px;border-top:1px solid var(--border);background:#fff;gap:10px;flex-wrap:wrap; }
+.form-footer-left  { display:flex;gap:8px; }
+.form-footer-right { display:flex;gap:8px; }
+
+/* SUB-RECORDS */
+.subrec-toolbar { display:flex;justify-content:space-between;align-items:center;margin-bottom:10px; }
+.subrec-form { margin-top:12px;padding:14px;background:#f9fafb;border-radius:8px;border:1px solid var(--border); }
+.subrec-form-btns { display:flex;gap:8px;margin-top:10px; }
+
+/* MENU ⋮ no form */
+.menu-more-wrap { position:relative; }
+.menu-more-btn { padding:7px 9px;border:1.5px solid var(--border);border-radius:7px;background:#fff;color:var(--text2);cursor:pointer;font-size:15px;line-height:1;display:inline-flex;align-items:center;transition:.12s;font-family:inherit; }
+.menu-more-btn:hover { border-color:var(--accent);color:var(--accent);background:#f0fdfa; }
+.menu-more-drop { position:absolute;top:calc(100% + 5px);right:0;background:#fff;border:1.5px solid var(--border);border-radius:9px;padding:5px 0;min-width:170px;z-index:300;box-shadow:0 8px 24px rgba(0,0,0,.12);animation:dropIn .15s ease-out; }
+@keyframes dropIn { from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)} }
+.menu-more-drop button { display:flex;align-items:center;gap:8px;width:100%;padding:8px 14px;border:none;background:none;font-size:13px;color:var(--text);cursor:pointer;font-family:inherit;transition:.1s;text-align:left; }
+.menu-more-drop button:hover { background:#f0fdfa;color:var(--accent); }
+.menu-more-drop button.danger { color:var(--danger); }
+.menu-more-drop button.danger:hover { background:#fef2f2; }
+.menu-more-drop hr { border:none;border-top:1px solid var(--border);margin:4px 0; }
+
+/* UF select */
+.uf-opts { /* usado via JS */ }
+
+/* SPINNER */
+.spinner { width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;display:inline-block;flex-shrink:0; }
+@keyframes spin { to{transform:rotate(360deg)} }
+
+/* TOAST */
+#toast-container { position:fixed;bottom:24px;right:24px;z-index:99999;display:flex;flex-direction:column;gap:8px;pointer-events:none; }
+.toast { display:flex;align-items:center;gap:10px;padding:11px 16px;border-radius:9px;font-size:13px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.14);animation:toastIn .22s ease-out;pointer-events:auto; }
+@keyframes toastIn { from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)} }
+.toast-ok   { background:#1a1a2e;color:#fff; }
+.toast-err  { background:#ef4444;color:#fff; }
+.toast-warn { background:#f59e0b;color:#fff; }
+.toast svg  { width:15px;height:15px;flex-shrink:0; }
+
+/* CONFIRM */
+.confirm-backdrop { position:fixed;inset:0;z-index:9500;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);animation:fadeIn .18s; }
+@keyframes fadeIn { from{opacity:0}to{opacity:1} }
+.confirm-box { background:#fff;border-radius:14px;padding:26px;max-width:400px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.18);animation:slideUp .18s ease-out; }
+@keyframes slideUp { from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)} }
+.confirm-box h3 { font-size:16px;font-weight:700;margin-bottom:9px; }
+.confirm-box p  { font-size:13px;color:var(--text2);line-height:1.5; }
+.confirm-btns   { display:flex;gap:10px;justify-content:center;margin-top:18px; }
+</style>
+<script src="/assets/themes.js"></script>
+</head>
+<body>
+
+<!-- ── TOOLBAR ─────────────────────────────────────────────────────────────── -->
+<div class="toolbar-bar" id="toolbar">
+  <div style="display:flex;gap:5px;align-items:center;flex-shrink:0">
+    <div class="ins-card" id="ins-total" onclick="toggleFiltroStatus('T')" title="Todos">
+      <span class="ins-label">Total</span><span class="ins-val" id="val-total">—</span>
+    </div>
+    <div class="ins-card" id="ins-ativos" onclick="toggleFiltroStatus('A')" title="Ativos">
+      <span class="ins-label">Ativos</span><span class="ins-val" id="val-ativos" style="color:#16a34a">—</span>
+    </div>
+    <div class="ins-card" id="ins-inativos" onclick="toggleFiltroStatus('I')" title="Inativos">
+      <span class="ins-label">Inativos</span><span class="ins-val" id="val-inativos" style="color:#f59e0b">—</span>
+    </div>
+    <div class="ins-card" id="ins-novos" title="Novos últimos 7 dias">
+      <span class="ins-label">Novos 7d</span><span class="ins-val" id="val-novos" style="color:#3b82f6">—</span>
+    </div>
+  </div>
+
+  <button class="btn btn-outline" onclick="abrirNovo()">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+    Nova Transportadora
+  </button>
+
+  <div id="notifWrap">
+    <button class="notif-bell" onclick="toggleNotifPanel()" title="Notificações">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+    </button>
+    <div class="notif-count" id="notifCount"></div>
+    <div class="notif-panel" id="notifPanel">
+      <div class="notif-panel-head">Notificações</div>
+      <div id="notifList"><div class="notif-empty">Carregando…</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── SUBBAR ──────────────────────────────────────────────────────────────── -->
+<div class="subbar">
+  <div style="display:flex;gap:6px;align-items:center">
+    <button class="icon-btn" onclick="exportCSV()" title="Exportar CSV">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+      CSV
+    </button>
+  </div>
+  <div style="display:flex;align-items:center;gap:5px">
+    <select id="campoBusca" style="padding:5px 8px;border:1.5px solid var(--border);border-radius:7px;font-size:12px;background:#fff;color:var(--text2);outline:none;font-family:inherit;cursor:pointer;transition:.15s" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
+      <option value="nome">Nome</option>
+      <option value="cpf">CPF/CNPJ</option>
+      <option value="telefone1">Tel. Principal</option>
+      <option value="telefone2">Tel. Secundário</option>
+      <option value="cep">CEP</option>
+      <option value="endereco">Endereço</option>
+      <option value="bairro">Bairro</option>
+      <option value="cidade">Cidade</option>
+      <option value="rg">RG/I.E.</option>
+    </select>
+    <input type="text" id="inputBusca" placeholder="Buscar transportadora…"
+           oninput="debounceSearch()" onkeydown="if(event.key==='Enter')buscar()"
+           style="padding:5px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px;font-family:inherit;background:#fff;color:var(--text);outline:none;width:230px;transition:.15s"
+           onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'" autocomplete="off">
+    <button class="icon-btn" onclick="buscar()">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+    </button>
+    <button class="icon-btn" id="btnLimpar" onclick="limparBusca()" style="display:none">✕</button>
+  </div>
+</div>
+
+<!-- ── CONTENT ─────────────────────────────────────────────────────────────── -->
+<div class="content-area">
+
+  <!-- LIST -->
+  <div id="listSection">
+    <div class="table-card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th class="td-chk">
+                <input type="checkbox" id="chkAll" onchange="selecionarTodos(this.checked)"
+                       style="width:14px;height:14px;accent-color:var(--accent);cursor:pointer">
+              </th>
+              <th class="td-num">#</th>
+              <th class="td-num">Código</th>
+              <th>Nome / Fantasia</th>
+              <th>CPF / CNPJ</th>
+              <th>Tel. Principal</th>
+              <th>Tel. Secundário</th>
+              <th>Cidade / UF</th>
+              <th>Status</th>
+              <th class="td-actions">Ações</th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <tr><td colspan="10" class="empty"><p>Carregando…</p></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="empty" id="emptyMsg" style="display:none">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h1.125c.621 0 1.129-.504 1.09-1.124a17.902 17.902 0 00-3.213-9.193 2.056 2.056 0 00-1.58-.86H14.25M16.5 18.75h-2.25m0-11.177v-.958c0-.568-.422-1.048-.987-1.106a48.554 48.554 0 00-10.026 0 1.106 1.106 0 00-.987 1.106v7.635m12-6.677v6.677m0 4.5v-4.5m0 0h-12"/></svg>
+        <p>Nenhuma transportadora encontrada</p>
+      </div>
+
+      <div class="pagination" id="pagination"></div>
+    </div>
+  </div><!-- /listSection -->
+
+  <!-- FORM SECTION -->
+  <div id="formSection">
+    <div class="form-card">
+
+      <div class="form-card-head">
+        <div>
+          <div class="form-card-head-title">Cadastro de Transportadoras</div>
+          <div class="form-card-head-sub"><span id="formTitle">Nova Transportadora</span> — <span id="formSub">Preencha os dados</span></div>
+        </div>
+        <div class="menu-more-wrap" id="menuMoreWrap" style="display:none">
+          <button class="menu-more-btn" onclick="toggleMenuMore()">⋮</button>
+          <div class="menu-more-drop" id="menuMoreDrop" style="display:none">
+            <button onclick="clonarRegistro()">
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path d="M7 9a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2 2H9a2 2 0 01-2-2V9z"/><path d="M5 3a2 2 0 00-2 2v6a2 2 0 002 2V5h8a2 2 0 00-2-2H5z"/></svg>
+              Clonar
+            </button>
+            <hr>
+            <button id="btnAtivarMenu"   onclick="ativarInativar('A')" style="display:none">
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+              Ativar
+            </button>
+            <button id="btnInativarMenu" onclick="ativarInativar('I')" style="display:none">
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.524L13.477 14.89zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z" clip-rule="evenodd"/></svg>
+              Inativar
+            </button>
+            <hr>
+            <button class="danger" onclick="excluirAtual()">
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+              Excluir
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ABAS -->
+      <div class="tabs-bar-wrap">
+        <button class="tab-scroll left" id="tabLeft" onclick="scrollTabs(-120)" hidden>‹</button>
+        <div class="tabs-bar" id="tabsBar">
+          <button class="tab-btn active" onclick="abaClick(this,'tab-geral')">Geral</button>
+          <button class="tab-btn" onclick="abaClick(this,'tab-endereco')">Endereço / Contato</button>
+          <button class="tab-btn" onclick="abaClick(this,'tab-faturamento')">Faturamento</button>
+          <button class="tab-btn" onclick="abaClick(this,'tab-contatos')">Contatos</button>
+          <button class="tab-btn" onclick="abaClick(this,'tab-historico')">Histórico</button>
+        </div>
+        <button class="tab-scroll right" id="tabRight" onclick="scrollTabs(120)" hidden>›</button>
+      </div>
+
+      <!-- ABA GERAL -->
+      <div class="tab-panel active" id="tab-geral">
+        <div class="form-grid">
+          <div class="form-group full">
+            <label>Tipo de Pessoa</label>
+            <div class="radio-group">
+              <label><input type="radio" name="tipo_pessoa" id="tpFisica"   value="FISICA"   onchange="trocarTipoPessoa()"> Física</label>
+              <label><input type="radio" name="tipo_pessoa" id="tpJuridica" value="JURIDICA" onchange="trocarTipoPessoa()" checked> Jurídica</label>
+            </div>
+          </div>
+          <div class="form-group col2">
+            <label id="lblNome">Razão Social <span class="req">*</span></label>
+            <input type="text" id="f_nome" autocomplete="off" oninput="this.classList.remove('err')">
+          </div>
+          <div class="form-group">
+            <label id="lblApelido">Fantasia</label>
+            <input type="text" id="f_apelido" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label id="lblCpf">CNPJ</label>
+            <input type="text" id="f_cpf" autocomplete="off" oninput="mascaraDoc(this)" onblur="checkDupCpf()">
+          </div>
+          <div class="form-group">
+            <label id="lblRg">Insc. Estadual</label>
+            <input type="text" id="f_rg" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>Segmento</label>
+            <select id="f_segmento"></select>
+          </div>
+          <div class="form-group">
+            <label>Vendedor Padrão</label>
+            <select id="f_cod_vendedor"></select>
+          </div>
+          <div class="form-group">
+            <label>Status</label>
+            <select id="f_status">
+              <option value="A">Ativo</option>
+              <option value="I">Inativo</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- ABA ENDEREÇO / CONTATO -->
+      <div class="tab-panel" id="tab-endereco">
+        <div class="form-grid">
+          <div class="section-title">Endereço</div>
+          <div class="form-group">
+            <label>CEP</label>
+            <div class="input-rel">
+              <input type="text" id="f_cep" autocomplete="off" oninput="mascaraCep(this)" onblur="buscarCep('','')">
+              <button class="cep-btn" type="button" onclick="buscarCep('','')">Buscar</button>
+            </div>
+          </div>
+          <div class="form-group col2">
+            <label>Endereço</label>
+            <input type="text" id="f_endereco" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>Bairro</label>
+            <input type="text" id="f_bairro" autocomplete="off">
+          </div>
+          <div class="form-group col2">
+            <label>Cidade</label>
+            <input type="text" id="f_cidade" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>UF</label>
+            <select id="f_uf"><option value="">—</option>
+              <option>AC</option><option>AL</option><option>AM</option><option>AP</option>
+              <option>BA</option><option>CE</option><option>DF</option><option>ES</option>
+              <option>GO</option><option>MA</option><option>MG</option><option>MS</option>
+              <option>MT</option><option>PA</option><option>PB</option><option>PE</option>
+              <option>PI</option><option>PR</option><option>RJ</option><option>RN</option>
+              <option>RO</option><option>RR</option><option>RS</option><option>SC</option>
+              <option>SE</option><option>SP</option><option>TO</option>
+            </select>
+          </div>
+
+          <div class="section-title">Telefones &amp; Contato</div>
+          <div class="form-group">
+            <label>Tel. Principal</label>
+            <input type="text" id="f_foneprincipal" autocomplete="off" oninput="mascaraFone(this)">
+          </div>
+          <div class="form-group">
+            <label>Tel. Secundário (WhatsApp)</label>
+            <div style="display:flex;gap:5px;align-items:center">
+              <input type="text" id="f_fonesecundario" autocomplete="off" oninput="mascaraFone(this);atualizarWaLink()" style="flex:1">
+              <a id="waLink" href="#" target="_blank" class="btn-wa" title="WhatsApp" style="display:none">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+              </a>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Tel. Terciário</label>
+            <input type="text" id="f_foneterceiro" autocomplete="off" oninput="mascaraFone(this)">
+          </div>
+          <div class="form-group">
+            <label>Contato</label>
+            <input type="text" id="f_contato" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>E-mail</label>
+            <input type="email" id="f_email" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>Skype</label>
+            <input type="text" id="f_skype" autocomplete="off">
+          </div>
+
+          <div class="section-title">Observações Gerais</div>
+          <div class="form-group full">
+            <textarea id="f_obsgerais" rows="4" autocomplete="off"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- ABA FATURAMENTO -->
+      <div class="tab-panel" id="tab-faturamento">
+        <div class="form-grid">
+          <div class="section-title">Endereço de Faturamento</div>
+          <div class="form-group">
+            <label>CEP Faturamento</label>
+            <div class="input-rel">
+              <input type="text" id="f_cep_faturamento" autocomplete="off" oninput="mascaraCep(this)" onblur="buscarCep('_faturamento','_faturamento')">
+              <button class="cep-btn" type="button" onclick="buscarCep('_faturamento','_faturamento')">Buscar</button>
+            </div>
+          </div>
+          <div class="form-group col2">
+            <label>Endereço Faturamento</label>
+            <input type="text" id="f_endereco_faturamento" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>Bairro Faturamento</label>
+            <input type="text" id="f_bairro_faturamento" autocomplete="off">
+          </div>
+          <div class="form-group col2">
+            <label>Cidade Faturamento</label>
+            <input type="text" id="f_cidade_faturamento" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>UF Faturamento</label>
+            <select id="f_uf_faturamento"><option value="">—</option>
+              <option>AC</option><option>AL</option><option>AM</option><option>AP</option>
+              <option>BA</option><option>CE</option><option>DF</option><option>ES</option>
+              <option>GO</option><option>MA</option><option>MG</option><option>MS</option>
+              <option>MT</option><option>PA</option><option>PB</option><option>PE</option>
+              <option>PI</option><option>PR</option><option>RJ</option><option>RN</option>
+              <option>RO</option><option>RR</option><option>RS</option><option>SC</option>
+              <option>SE</option><option>SP</option><option>TO</option>
+            </select>
+          </div>
+          <div class="section-title">Contatos de Faturamento</div>
+          <div class="form-group">
+            <label>Tel. 1 Faturamento</label>
+            <input type="text" id="f_telefone1_faturamento" autocomplete="off" oninput="mascaraFone(this)">
+          </div>
+          <div class="form-group">
+            <label>Tel. 2 Faturamento</label>
+            <input type="text" id="f_telefone2_faturamento" autocomplete="off" oninput="mascaraFone(this)">
+          </div>
+          <div class="form-group">
+            <label>Contato Recebedor</label>
+            <input type="text" id="f_contato_recebedor" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>Contato Financeiro</label>
+            <input type="text" id="f_contato_financeiro" autocomplete="off">
+          </div>
+        </div>
+      </div>
+
+      <!-- ABA CONTATOS -->
+      <div class="tab-panel" id="tab-contatos">
+        <div class="subrec-toolbar">
+          <span style="font-size:13px;font-weight:700;color:var(--text2)">Contatos da transportadora</span>
+          <button class="btn btn-outline" onclick="abrirFormContato()">
+            <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/></svg>
+            Novo Contato
+          </button>
+        </div>
+        <div class="subrec-form" id="contatoForm" style="display:none">
+          <div class="form-grid">
+            <div class="form-group"><label>Nome / Comprador</label><input type="text" id="ct_comprador" autocomplete="off"></div>
+            <div class="form-group"><label>Telefone</label><input type="text" id="ct_telefone" autocomplete="off" oninput="mascaraFone(this)"></div>
+            <div class="form-group"><label>Ramal</label><input type="text" id="ct_ramal" autocomplete="off"></div>
+            <div class="form-group"><label>Setor</label><input type="text" id="ct_setor" autocomplete="off"></div>
+            <div class="form-group"><label>E-mail</label><input type="email" id="ct_email" autocomplete="off"></div>
+          </div>
+          <div class="subrec-form-btns">
+            <button class="btn btn-primary" onclick="salvarContato()">Salvar</button>
+            <button class="btn btn-ghost"   onclick="fecharFormContato()">Cancelar</button>
+          </div>
+          <input type="hidden" id="ct_id">
+        </div>
+        <div class="table-wrap" style="margin-top:10px">
+          <table>
+            <thead><tr><th>Nome/Comprador</th><th>Telefone</th><th>Ramal</th><th>Setor</th><th>E-mail</th><th></th></tr></thead>
+            <tbody id="contatosBody"><tr><td colspan="6" class="empty"><p>Nenhum contato</p></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ABA HISTÓRICO -->
+      <div class="tab-panel" id="tab-historico">
+        <div class="empty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="display:block;margin:0 auto 12px;opacity:.18;width:44px;height:44px"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25z"/></svg>
+          <p>Salve a transportadora para visualizar pedidos vinculados</p>
+        </div>
+      </div>
+
+      <!-- FOOTER -->
+      <div class="form-footer">
+        <div class="form-footer-left">
+          <button class="btn btn-ghost" onclick="voltarLista()">
+            <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14"><path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd"/></svg>
+            Voltar
+          </button>
+        </div>
+        <div class="form-footer-right">
+          <button class="btn btn-save" id="btnSalvar" onclick="salvarTransportadora()">
+            <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14"><path d="M7.707 10.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V6h5a2 2 0 012 2v7a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2h5v5.586l-1.293-1.293z"/></svg>
+            Salvar
+          </button>
+        </div>
+      </div>
+
+    </div><!-- /form-card -->
+  </div><!-- /formSection -->
+
+</div><!-- /content-area -->
+
+<!-- TOAST -->
+<div id="toast-container"></div>
+
+<!-- ACTION DROPDOWN (shared) -->
+<div class="dropdown-menu" id="dropMenu" style="display:none"></div>
+
+<script>
+/* ══════════════════════════════════════════════════════════
+   STATE
+══════════════════════════════════════════════════════════ */
+let S = {
+  filtroStatus: 'A',
+  page: 1, perPage: 50, total: 0,
+  registroId: null, dados: null,
+  selecionados: new Set(),
+};
+
+const _campos = [
+  'nome','apelido','cpf','rg','segmento','cod_vendedor','status',
+  'cep','endereco','bairro','cidade','uf','foneprincipal','fonesecundario','foneterceiro',
+  'contato','email','skype','obsgerais',
+  'cep_faturamento','endereco_faturamento','bairro_faturamento','cidade_faturamento',
+  'uf_faturamento','telefone1_faturamento','telefone2_faturamento',
+  'contato_recebedor','contato_financeiro'
+];
+
+/* ══════════════════════════════════════════════════════════
+   INIT
+══════════════════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', () => {
+  carregarCombos();
+  carregarNotificacoes();
+  buscar();
+  initTabsScroll();
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#notifWrap'))      document.getElementById('notifPanel').classList.remove('show');
+    if (!e.target.closest('#menuMoreWrap'))   fecharMenuMore();
+    if (!e.target.closest('#dropMenu') && !e.target.closest('.btn-acoes')) fecharDrop();
+  });
+});
+
+function initTabsScroll() {
+  const bar = document.getElementById('tabsBar');
+  const upd = () => {
+    document.getElementById('tabLeft').hidden  = bar.scrollLeft <= 2;
+    document.getElementById('tabRight').hidden = bar.scrollLeft + bar.clientWidth >= bar.scrollWidth - 2;
+  };
+  bar.addEventListener('scroll', upd); upd();
+}
+function scrollTabs(d) { document.getElementById('tabsBar').scrollLeft += d; }
+
+async function carregarCombos() {
+  try {
+    const [r1, r2] = await Promise.all([fetch('/api/categorias'), fetch('/api/vendedores')]);
+    const seg  = await r1.json().catch(() => []);
+    const vend = await r2.json().catch(() => ({}));
+    const sSel = document.getElementById('f_segmento');
+    sSel.innerHTML = '<option value="">— Segmento —</option>';
+    (Array.isArray(seg) ? seg : []).forEach(s => sSel.innerHTML += `<option value="${esc(s.descricao)}">${esc(s.descricao)}</option>`);
+    const vSel = document.getElementById('f_cod_vendedor');
+    vSel.innerHTML = '<option value="">— Vendedor —</option>';
+    (vend.vendedores || []).forEach(v => vSel.innerHTML += `<option value="${v.id}">${esc(v.nome)}</option>`);
+  } catch(e) {}
+}
+
+async function carregarNotificacoes() {
+  try {
+    const r = await fetch('/api/transportadoras/notificacoes');
+    const d = await r.json();
+    document.getElementById('val-total').textContent   = (d.ativos || 0) + (d.inativos || 0);
+    document.getElementById('val-ativos').textContent  = d.ativos   || 0;
+    document.getElementById('val-inativos').textContent = d.inativos || 0;
+    document.getElementById('val-novos').textContent   = d.novos7dias || 0;
+
+    const total = (d.inativos || 0) + (d.novos7dias || 0);
+    const cnt = document.getElementById('notifCount');
+    if (total > 0) { cnt.textContent = total; cnt.classList.add('show'); }
+
+    const lista = document.getElementById('notifList');
+    const itens = [];
+    if (d.novos7dias > 0) itens.push(`<div class="notif-item"><div class="notif-icon info">🚚</div><div class="notif-text">${d.novos7dias} nova(s) transportadora(s) nos últimos 7 dias<small>Recém-cadastradas</small></div></div>`);
+    if (d.inativos   > 0) itens.push(`<div class="notif-item"><div class="notif-icon warn">⚠️</div><div class="notif-text">${d.inativos} transportadora(s) inativa(s)<small>Clique em Inativos para ver</small></div></div>`);
+    lista.innerHTML = itens.length ? itens.join('') : '<div class="notif-empty">Sem notificações</div>';
+  } catch(e) {}
+}
+
+/* ══════════════════════════════════════════════════════════
+   BUSCA / LISTA
+══════════════════════════════════════════════════════════ */
+let _deb = null;
+function debounceSearch() {
+  clearTimeout(_deb);
+  _deb = setTimeout(buscar, 320);
+  document.getElementById('btnLimpar').style.display = document.getElementById('inputBusca').value ? '' : 'none';
+}
+function limparBusca() {
+  document.getElementById('inputBusca').value = '';
+  document.getElementById('btnLimpar').style.display = 'none';
+  buscar();
+}
+
+function toggleFiltroStatus(st) {
+  S.filtroStatus = st; S.page = 1;
+  ['T','A','I'].forEach(k => {
+    const id = k === 'T' ? 'ins-total' : k === 'A' ? 'ins-ativos' : 'ins-inativos';
+    document.getElementById(id).classList.toggle('active', k === st);
+  });
+  buscar();
+}
+
+async function buscar() {
+  const q      = document.getElementById('inputBusca').value.trim();
+  const campo  = document.getElementById('campoBusca').value;
+  const status = S.filtroStatus === 'T' ? '' : S.filtroStatus;
+  const offset = (S.page - 1) * S.perPage;
+  try {
+    const r = await fetch(`/api/transportadoras?q=${encodeURIComponent(q)}&campo=${campo}&status=${status}&limit=${S.perPage}&offset=${offset}`);
+    const d = await r.json();
+    S.total = d.total;
+    renderLista(d.transportadoras || []);
+    renderPaginacao();
+  } catch(e) {
+    document.getElementById('tbody').innerHTML = `<tr><td colspan="10" class="empty"><p>Erro ao carregar</p></td></tr>`;
+  }
+}
+
+function renderLista(rows) {
+  const tbody   = document.getElementById('tbody');
+  const emptyEl = document.getElementById('emptyMsg');
+  if (!rows.length) {
+    tbody.innerHTML = '';
+    emptyEl.style.display = 'block';
+    return;
+  }
+  emptyEl.style.display = 'none';
+  tbody.innerHTML = rows.map((t, i) => {
+    const seq    = (S.page - 1) * S.perPage + i + 1;
+    const st     = t.status === 'I' ? 'I' : 'A';
+    const cidade = [t.cidade, t.uf].filter(Boolean).join('/');
+    const apelido = t.apelido ? `<div class="td-sub">${t.apelido}</div>` : '';
+    const waNum  = (t.fonesecundario || '').replace(/\D/g,'');
+    const waBt   = waNum.length >= 10 ? `<a href="https://wa.me/55${waNum}" target="_blank" class="btn-wa" title="WhatsApp" onclick="event.stopPropagation()"><svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg></a>` : '';
+    return `<tr id="tr-${t.id}" onclick="abrirEditar(${t.id})">
+      <td class="td-chk" onclick="event.stopPropagation()">
+        <input type="checkbox" class="row-chk" data-id="${t.id}"
+               style="width:14px;height:14px;accent-color:var(--accent);cursor:pointer"
+               onchange="toggleSelecionado(${t.id},this.checked)">
+      </td>
+      <td class="td-num">${seq}</td>
+      <td class="td-num">${t.id}</td>
+      <td class="td-name"><div>${t.nome}</div>${apelido}</td>
+      <td>${t.cpf || ''}</td>
+      <td>${t.foneprincipal || ''}</td>
+      <td>${t.fonesecundario || ''}${waBt}</td>
+      <td>${cidade}</td>
+      <td><span class="badge badge-${st}">${st === 'A' ? 'Ativo' : 'Inativo'}</span></td>
+      <td class="td-actions" onclick="event.stopPropagation()">
+        <button class="btn-acoes" onclick="abrirDrop(event,${t.id},'${st}')">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"/></svg>
+        </button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+/* ── Dropdown de ações na linha ── */
+let _dropId = null;
+function abrirDrop(e, id, status) {
+  e.stopPropagation();
+  _dropId = id;
+  const ativar   = status === 'I';
+  const inativar = status === 'A';
+  const m = document.getElementById('dropMenu');
+  m.innerHTML = `
+    <button class="dropdown-item" onclick="abrirEditar(${id});fecharDrop()">
+      <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+      Editar
+    </button>
+    ${ativar ? `<button class="dropdown-item" onclick="ativarInativarLinha(${id},'A')"><svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>Ativar</button>` : ''}
+    ${inativar ? `<button class="dropdown-item" onclick="ativarInativarLinha(${id},'I')"><svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.524L13.477 14.89zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z" clip-rule="evenodd"/></svg>Inativar</button>` : ''}
+    <button class="dropdown-item danger" onclick="excluirLinha(${id})">
+      <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+      Excluir
+    </button>`;
+  m.style.display = 'block';
+  const rect = e.currentTarget.getBoundingClientRect();
+  m.style.top  = (rect.bottom + 4) + 'px';
+  m.style.left = Math.min(rect.left, window.innerWidth - 175) + 'px';
+}
+function fecharDrop() { document.getElementById('dropMenu').style.display = 'none'; _dropId = null; }
+
+async function ativarInativarLinha(id, acao) {
+  fecharDrop();
+  const verbo = acao === 'A' ? 'ativar' : 'inativar';
+  const r = await fetch(`/api/transportadoras/${id}/${verbo}`, { method:'PUT' });
+  if (!r.ok) { toast('Erro', 'err'); return; }
+  toast(acao === 'A' ? 'Ativada!' : 'Inativada!', 'ok');
+  buscar(); carregarNotificacoes();
+}
+async function excluirLinha(id) {
+  fecharDrop();
+  confirmar('Excluir transportadora?', 'Esta ação não pode ser desfeita.', async () => {
+    const r = await fetch(`/api/transportadoras/${id}`, { method:'DELETE' });
+    const d = await r.json();
+    if (!r.ok) { toast(d.error || 'Erro', 'err'); return; }
+    toast('Excluída!', 'ok'); buscar(); carregarNotificacoes();
+  });
+}
+
+/* ── Seleção múltipla ── */
+function toggleSelecionado(id, checked) {
+  if (checked) S.selecionados.add(id);
+  else         S.selecionados.delete(id);
+  document.getElementById('tr-' + id).classList.toggle('row-selected', checked);
+}
+function selecionarTodos(checked) {
+  document.querySelectorAll('.row-chk').forEach(c => {
+    c.checked = checked;
+    const id = +c.dataset.id;
+    if (checked) S.selecionados.add(id);
+    else         S.selecionados.delete(id);
+    document.getElementById('tr-' + id)?.classList.toggle('row-selected', checked);
+  });
+}
+
+/* ── Paginação ── */
+function renderPaginacao() {
+  const pages = Math.ceil(S.total / S.perPage);
+  const cur   = S.page;
+  const el    = document.getElementById('pagination');
+  if (!S.total) { el.innerHTML = ''; return; }
+  const ini = (S.page - 1) * S.perPage + 1;
+  const fim = Math.min(S.page * S.perPage, S.total);
+  let btns = '';
+  for (let p = 1; p <= pages; p++) {
+    if (p === 1 || p === pages || Math.abs(p - cur) <= 1)
+      btns += `<button class="pag-btn${p===cur?' active':''}" onclick="irPagina(${p})">${p}</button>`;
+    else if (Math.abs(p - cur) === 2)
+      btns += `<span style="padding:0 4px;color:var(--text2);font-size:13px">…</span>`;
+  }
+  el.innerHTML = `
+    <span class="pag-info">Exibindo ${ini}–${fim} de ${S.total}</span>
+    <div style="display:flex;align-items:center;gap:10px">
+      <label style="font-size:12px;color:var(--text2)">Linhas:
+        <select class="pag-select" onchange="setPerPage(+this.value)">
+          ${[25,50,100,200].map(n=>`<option value="${n}"${n===S.perPage?' selected':''}>${n}</option>`).join('')}
+        </select>
+      </label>
+      <div class="pag-btns">
+        <button class="pag-btn" ${cur===1?'disabled':''} onclick="irPagina(${cur-1})">‹</button>
+        ${btns}
+        <button class="pag-btn" ${cur>=pages?'disabled':''} onclick="irPagina(${cur+1})">›</button>
+      </div>
+    </div>`;
+}
+function irPagina(p) { const pages=Math.ceil(S.total/S.perPage);if(p<1||p>pages)return;S.page=p;buscar(); }
+function setPerPage(n) { S.perPage=n;S.page=1;buscar(); }
+
+/* ── Exportar CSV ── */
+function exportCSV() {
+  const rows = [...document.querySelectorAll('#tbody tr')];
+  if (!rows.length || rows[0].querySelector('td[colspan]')) { toast('Nenhum dado para exportar', 'warn'); return; }
+  const head = 'ID;Nome;CPF/CNPJ;Tel.Principal;Tel.Secundário;Cidade;UF;Status\n';
+  const body = rows.map(r => {
+    const cols = r.querySelectorAll('td');
+    return [cols[2],cols[3],cols[4],cols[5],cols[6],cols[7],cols[8]].map(c=>'"'+(c?.textContent.trim().replace(/"/g,'""')||'')+'"').join(';');
+  }).join('\n');
+  const blob = new Blob(['\uFEFF'+head+body], {type:'text/csv;charset=utf-8'});
+  const a = Object.assign(document.createElement('a'),{href:URL.createObjectURL(blob),download:'transportadoras.csv'});
+  a.click();
+}
+
+/* ══════════════════════════════════════════════════════════
+   FORM OPEN / CLOSE
+══════════════════════════════════════════════════════════ */
+function abrirNovo() {
+  S.registroId = null; S.dados = null;
+  limparForm();
+  document.getElementById('formTitle').textContent = 'Nova Transportadora';
+  document.getElementById('formSub').textContent   = 'Preencha os dados';
+  document.getElementById('menuMoreWrap').style.display = 'none';
+  showForm();
+}
+
+async function abrirEditar(id) {
+  try {
+    const r = await fetch(`/api/transportadoras/${id}`);
+    if (!r.ok) { toast('Erro ao carregar', 'err'); return; }
+    const d = await r.json();
+    S.registroId = id; S.dados = d;
+    preencherForm(d);
+    document.getElementById('formTitle').textContent = d.nome;
+    document.getElementById('formSub').textContent   = `Código: ${d.id}`;
+    document.getElementById('menuMoreWrap').style.display = '';
+    document.getElementById('btnAtivarMenu').style.display   = d.status === 'I' ? '' : 'none';
+    document.getElementById('btnInativarMenu').style.display = d.status === 'A' ? '' : 'none';
+    showForm();
+    carregarContatos();
+  } catch(e) { toast('Erro: '+e.message,'err'); }
+}
+
+function showForm() {
+  document.getElementById('listSection').style.display = 'none';
+  document.getElementById('formSection').style.display = 'block';
+  abaClick(document.querySelector('.tab-btn'), 'tab-geral');
+}
+
+function voltarLista() {
+  document.getElementById('formSection').style.display = 'none';
+  document.getElementById('listSection').style.display = '';
+  buscar();
+}
+
+/* ══════════════════════════════════════════════════════════
+   PREENCHER / LIMPAR
+══════════════════════════════════════════════════════════ */
+function preencherForm(d) {
+  const tp = (d.tipo_pessoa || '').toUpperCase();
+  document.getElementById(tp === 'FISICA' ? 'tpFisica' : 'tpJuridica').checked = true;
+  trocarTipoPessoa();
+  _campos.forEach(k => {
+    const el = document.getElementById('f_' + k);
+    if (!el) return;
+    el.value = d[k] != null ? d[k] : '';
+  });
+  atualizarWaLink();
+}
+
+function limparForm() {
+  document.getElementById('tpJuridica').checked = true;
+  trocarTipoPessoa();
+  _campos.forEach(k => {
+    const el = document.getElementById('f_' + k);
+    if (!el) return;
+    if (el.tagName === 'SELECT') el.selectedIndex = 0;
+    else el.value = '';
+  });
+  document.getElementById('f_status').value = 'A';
+  document.getElementById('contatosBody').innerHTML = '<tr><td colspan="6" class="empty"><p>Nenhum contato</p></td></tr>';
+}
+
+function trocarTipoPessoa() {
+  const f = document.getElementById('tpFisica').checked;
+  const set = (id, txt) => { const el=document.getElementById(id); if(el) el.innerHTML = txt; };
+  set('lblNome',    (f?'Nome':'Razão Social') + ' <span class="req">*</span>');
+  set('lblApelido', f ? 'Apelido' : 'Fantasia');
+  set('lblCpf',     f ? 'CPF' : 'CNPJ');
+  set('lblRg',      f ? 'RG' : 'Insc. Estadual');
+}
+
+/* ══════════════════════════════════════════════════════════
+   SALVAR
+══════════════════════════════════════════════════════════ */
+async function salvarTransportadora() {
+  const nome = document.getElementById('f_nome').value.trim();
+  if (!nome) {
+    document.getElementById('f_nome').classList.add('err');
+    toast('O campo Nome é obrigatório', 'warn');
+    abaClick(document.querySelector('.tab-btn'), 'tab-geral');
+    return;
+  }
+  const body = { tipo_pessoa: document.getElementById('tpFisica').checked ? 'FISICA' : 'JURIDICA' };
+  _campos.forEach(k => { const el=document.getElementById('f_'+k); if(el) body[k]=el.value||null; });
+
+  const btn = document.getElementById('btnSalvar');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Salvando…';
+  try {
+    let r;
+    if (S.registroId) {
+      r = await fetch(`/api/transportadoras/${S.registroId}`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    } else {
+      r = await fetch('/api/transportadoras', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    }
+    const d = await r.json();
+    if (!r.ok) { toast(d.error||'Erro ao salvar','err'); return; }
+    if (!S.registroId) {
+      S.registroId = d.id;
+      document.getElementById('formTitle').textContent = nome.toUpperCase();
+      document.getElementById('formSub').textContent   = `Código: ${d.id}`;
+      document.getElementById('menuMoreWrap').style.display = '';
+      document.getElementById('btnAtivarMenu').style.display   = 'none';
+      document.getElementById('btnInativarMenu').style.display = '';
+    }
+    toast('Salvo com sucesso!', 'ok');
+    carregarNotificacoes();
+  } catch(e) { toast(e.message,'err'); }
+  finally {
+    btn.disabled = false;
+    btn.innerHTML = `<svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14"><path d="M7.707 10.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V6h5a2 2 0 012 2v7a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2h5v5.586l-1.293-1.293z"/></svg> Salvar`;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════
+   ATIVAR / INATIVAR / EXCLUIR (do form)
+══════════════════════════════════════════════════════════ */
+async function ativarInativar(acao) {
+  fecharMenuMore();
+  const id = S.registroId; if (!id) return;
+  const verbo = acao === 'A' ? 'ativar' : 'inativar';
+  const r = await fetch(`/api/transportadoras/${id}/${verbo}`, {method:'PUT'});
+  const d = await r.json();
+  if (!r.ok) { toast(d.error||'Erro','err'); return; }
+  toast(acao==='A'?'Ativada!':'Inativada!','ok');
+  document.getElementById('f_status').value = acao;
+  document.getElementById('btnAtivarMenu').style.display   = acao==='I'?'':'none';
+  document.getElementById('btnInativarMenu').style.display = acao==='A'?'':'none';
+  carregarNotificacoes();
+}
+
+async function excluirAtual() {
+  fecharMenuMore();
+  const id = S.registroId; if (!id) return;
+  confirmar('Excluir transportadora?', 'Esta ação não pode ser desfeita.', async () => {
+    const r = await fetch(`/api/transportadoras/${id}`,{method:'DELETE'});
+    const d = await r.json();
+    if (!r.ok) { toast(d.error||'Erro','err'); return; }
+    toast('Excluída!','ok'); voltarLista(); carregarNotificacoes();
+  });
+}
+
+/* ══════════════════════════════════════════════════════════
+   CLONE
+══════════════════════════════════════════════════════════ */
+function clonarRegistro() {
+  fecharMenuMore();
+  if (!S.dados) return;
+  const d = {...S.dados};
+  ['id','cpf','rg','dtcadastro'].forEach(k => delete d[k]);
+  d.nome = ''; d.status = 'A';
+  S.registroId = null; S.dados = null;
+  preencherForm(d);
+  document.getElementById('f_nome').value = '';
+  document.getElementById('f_cpf').value  = '';
+  document.getElementById('f_rg').value   = '';
+  document.getElementById('formTitle').textContent = 'Nova Transportadora (Clone)';
+  document.getElementById('formSub').textContent   = 'Preencha os campos obrigatórios';
+  document.getElementById('menuMoreWrap').style.display = 'none';
+  toast('Dados copiados. Preencha o nome e salve.','warn');
+}
+
+/* ══════════════════════════════════════════════════════════
+   CONTATOS
+══════════════════════════════════════════════════════════ */
+async function carregarContatos() {
+  if (!S.registroId) return;
+  try {
+    const r = await fetch(`/api/transportadoras/${S.registroId}/contatos`);
+    const d = await r.json();
+    renderContatos(d.contatos || []);
+  } catch(e) {}
+}
+function renderContatos(rows) {
+  const tb = document.getElementById('contatosBody');
+  if (!rows.length) { tb.innerHTML='<tr><td colspan="6" class="empty"><p>Nenhum contato</p></td></tr>'; return; }
+  tb.innerHTML = rows.map(c=>`<tr>
+    <td>${c.comprador||''}</td><td>${c.telefone||''}</td><td>${c.ramal||''}</td>
+    <td>${c.setor||''}</td><td>${c.email||''}</td>
+    <td class="td-actions">
+      <button class="btn-sm btn-sm-edit" onclick="editarContato(${c.id},'${esc(c.comprador||'')}','${esc(c.telefone||'')}','${esc(c.ramal||'')}','${esc(c.setor||'')}','${esc(c.email||'')}')">Editar</button>
+      <button class="btn-sm btn-sm-delete" onclick="excluirContato(${c.id})">Excluir</button>
+    </td>
+  </tr>`).join('');
+}
+function abrirFormContato() {
+  if (!S.registroId) { toast('Salve antes de adicionar contatos','warn'); return; }
+  ['ct_id','ct_comprador','ct_telefone','ct_ramal','ct_setor','ct_email'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('contatoForm').style.display = 'block';
+}
+function fecharFormContato() { document.getElementById('contatoForm').style.display='none'; }
+function editarContato(id,comprador,telefone,ramal,setor,email) {
+  document.getElementById('ct_id').value = id;
+  document.getElementById('ct_comprador').value = comprador;
+  document.getElementById('ct_telefone').value  = telefone;
+  document.getElementById('ct_ramal').value     = ramal;
+  document.getElementById('ct_setor').value     = setor;
+  document.getElementById('ct_email').value     = email;
+  document.getElementById('contatoForm').style.display = 'block';
+}
+async function salvarContato() {
+  const id   = S.registroId;
+  const ctId = document.getElementById('ct_id').value;
+  const body = {
+    comprador: document.getElementById('ct_comprador').value,
+    telefone:  document.getElementById('ct_telefone').value,
+    ramal:     document.getElementById('ct_ramal').value,
+    setor:     document.getElementById('ct_setor').value,
+    email:     document.getElementById('ct_email').value,
+  };
+  const url    = ctId ? `/api/transportadoras/${id}/contatos/${ctId}` : `/api/transportadoras/${id}/contatos`;
+  const method = ctId ? 'PUT' : 'POST';
+  const r = await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if (!r.ok) { const d=await r.json(); toast(d.error||'Erro','err'); return; }
+  toast('Contato salvo!','ok'); fecharFormContato(); carregarContatos();
+}
+async function excluirContato(ctId) {
+  confirmar('Excluir contato?','O contato será removido.',async()=>{
+    const r=await fetch(`/api/transportadoras/${S.registroId}/contatos/${ctId}`,{method:'DELETE'});
+    if(!r.ok){toast('Erro','err');return;} toast('Excluído!','ok'); carregarContatos();
+  });
+}
+
+/* ══════════════════════════════════════════════════════════
+   ABAS
+══════════════════════════════════════════════════════════ */
+function abaClick(btn, panelId) {
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById(panelId)?.classList.add('active');
+  if (panelId === 'tab-contatos' && S.registroId) carregarContatos();
+}
+
+/* ══════════════════════════════════════════════════════════
+   MÁSCARAS / CEP
+══════════════════════════════════════════════════════════ */
+function mascaraDoc(el) {
+  const f = document.getElementById('tpFisica').checked;
+  let v = el.value.replace(/\D/g,'');
+  if (f) {
+    v = v.slice(0,11).replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})\.(\d{3})(\d)/,'$1.$2.$3').replace(/\.(\d{3})(\d)/,'.$1-$2');
+  } else {
+    v = v.slice(0,14).replace(/(\d{2})(\d)/,'$1.$2').replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})(\d)/,'$1/$2').replace(/(\d{4})(\d)/,'$1-$2');
+  }
+  el.value = v;
+}
+function mascaraCep(el) {
+  let v = el.value.replace(/\D/g,'').slice(0,8);
+  if (v.length > 5) v = v.slice(0,5)+'-'+v.slice(5);
+  el.value = v;
+}
+function mascaraFone(el) {
+  let v = el.value.replace(/\D/g,'').slice(0,11);
+  if (v.length > 10) v='('+v.slice(0,2)+') '+v.slice(2,7)+'-'+v.slice(7);
+  else if (v.length > 6) v='('+v.slice(0,2)+') '+v.slice(2,6)+'-'+v.slice(6);
+  else if (v.length > 2) v='('+v.slice(0,2)+') '+v.slice(2);
+  el.value = v;
+}
+
+async function buscarCep(sufCep, sufCampos) {
+  const cepId = 'f_cep' + (sufCep || '');
+  const cep   = document.getElementById(cepId)?.value.replace(/\D/g,'');
+  if (!cep || cep.length !== 8) return;
+  const sf = sufCampos || '';
+  try {
+    const r = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+    const d = await r.json();
+    if (d.erro) return;
+    const set = (k, v) => { const el=document.getElementById('f_'+k+sf); if(el && v) el.value=v.toUpperCase(); };
+    set('endereco', d.logradouro);
+    set('bairro',   d.bairro);
+    set('cidade',   d.localidade);
+    if (d.uf) { const el=document.getElementById('f_uf'+sf); if(el) el.value=d.uf; }
+  } catch(e) {}
+}
+
+async function checkDupCpf() {
+  const cpf = document.getElementById('f_cpf').value.replace(/\D/g,'');
+  if (cpf.length < 11) return;
+  const excluir = S.registroId ? `&excluir_id=${S.registroId}` : '';
+  try {
+    const r = await fetch(`/api/transportadoras/check-cpf?cpf=${cpf}${excluir}`);
+    const d = await r.json();
+    if (d.duplicado) {
+      toast(`CPF/CNPJ já cadastrado: ${d.transportadora?.nome||''}`, 'warn');
+      document.getElementById('f_cpf').classList.add('err');
+    }
+  } catch(e) {}
+}
+
+function atualizarWaLink() {
+  const num = (document.getElementById('f_fonesecundario')?.value||'').replace(/\D/g,'');
+  const lnk = document.getElementById('waLink');
+  if (!lnk) return;
+  if (num.length >= 10) { lnk.href=`https://wa.me/55${num}`; lnk.style.display=''; }
+  else                  { lnk.style.display='none'; }
+}
+
+/* ══════════════════════════════════════════════════════════
+   MENU ⋮ e NOTIF
+══════════════════════════════════════════════════════════ */
+function toggleMenuMore() {
+  const d = document.getElementById('menuMoreDrop');
+  d.style.display = d.style.display === 'none' ? 'block' : 'none';
+}
+function fecharMenuMore() { document.getElementById('menuMoreDrop').style.display='none'; }
+
+function toggleNotifPanel() {
+  document.getElementById('notifPanel').classList.toggle('show');
+}
+
+/* ══════════════════════════════════════════════════════════
+   HELPERS
+══════════════════════════════════════════════════════════ */
+function esc(s) { return String(s).replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
+
+function toast(msg, tipo='ok', dur=3500) {
+  const icons = {
+    ok:  `<svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>`,
+    err: `<svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>`,
+    warn:`<svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>`,
+  };
+  const t = document.createElement('div');
+  t.className = `toast toast-${tipo}`;
+  t.innerHTML = (icons[tipo]||'') + msg;
+  document.getElementById('toast-container').appendChild(t);
+  setTimeout(() => t.remove(), dur);
+}
+
+function confirmar(titulo, msg, onOk) {
+  const bd = document.createElement('div');
+  bd.className = 'confirm-backdrop';
+  bd.innerHTML = `<div class="confirm-box"><h3>${titulo}</h3><p>${msg}</p>
+    <div class="confirm-btns">
+      <button class="btn btn-ghost" id="_no">Cancelar</button>
+      <button class="btn btn-danger" id="_ok">Confirmar</button>
+    </div></div>`;
+  document.body.appendChild(bd);
+  bd.querySelector('#_no').onclick = () => bd.remove();
+  bd.querySelector('#_ok').onclick = () => { bd.remove(); onOk(); };
+  bd.onclick = e => { if(e.target===bd) bd.remove(); };
+}
+</script>
+</body>
+</html>

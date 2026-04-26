@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Gestão de Hotéis | SysRepWeb</title>
+<style>
+* { margin:0;padding:0;box-sizing:border-box; }
+:root {
+  --bg:#f0f2f5; --card:#fff; --border:#e5e7eb;
+  --text:#111827; --text2:#6b7280;
+  --accent:#0891b2; --accent-hover:#0e7490;
+  --danger:#ef4444; --warn:#f59e0b; --success:#22c55e;
+}
+body { font-family:'Inter','Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh; }
+
+/* ── TOOLBAR ── */
+.toolbar-bar {
+  background:#fff;border-bottom:1px solid var(--border);
+  padding:8px 16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  position:sticky;top:0;z-index:100;
+}
+.btn {
+  display:inline-flex;align-items:center;gap:6px;padding:7px 14px;
+  border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;
+  transition:.15s;font-family:inherit;white-space:nowrap;
+}
+.btn svg { width:14px;height:14px;flex-shrink:0; }
+.btn-primary { background:var(--accent);color:#fff;border:1.5px solid var(--accent); }
+.btn-primary:hover { background:var(--accent-hover); }
+.btn-outline { background:#fff;color:var(--accent);border:1.5px solid var(--accent); }
+.btn-outline:hover { background:#ecfeff; }
+.btn-ghost   { background:#fff;color:var(--text2);border:1.5px solid var(--border); }
+.btn-ghost:hover { background:#f9fafb;color:var(--text); }
+.btn-save { background:var(--accent);color:#fff;border:1.5px solid var(--accent);font-size:13px;padding:8px 18px; }
+
+/* ins-cards */
+.ins-card { display:inline-flex;align-items:center;gap:5px;cursor:pointer;padding:4px 9px;border-radius:7px;border:1.5px solid var(--border);background:#fafafa;transition:.15s;user-select:none;flex-shrink:0;white-space:nowrap; }
+.ins-card:hover { border-color:var(--accent);background:#ecfeff; }
+.ins-card.active { border-color:var(--accent);background:var(--accent);color:#fff; }
+.ins-card.active .ins-label,.ins-card.active .ins-val { color:#fff; }
+.ins-label { font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2); }
+.ins-val   { font-size:12px;font-weight:800;color:var(--text);line-height:1; }
+
+/* ── SUBBAR ── */
+.subbar { background:#f9fafb;border-bottom:1px solid var(--border);padding:5px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px;position:sticky;z-index:99; }
+.icon-btn { display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border:1.5px solid var(--border);border-radius:7px;background:#fff;color:var(--text2);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;transition:.12s;white-space:nowrap; }
+.icon-btn svg { width:13px;height:13px;flex-shrink:0; }
+.icon-btn:hover { background:#ecfeff;color:var(--accent);border-color:var(--accent); }
+
+/* ── CONTENT ── */
+.content-area { padding:14px 16px; }
+
+/* ── TABLE ── */
+.table-card { background:#fff;border:1px solid var(--border);border-radius:10px;overflow:hidden; }
+.table-wrap { overflow-x:auto; }
+table { width:100%;border-collapse:collapse; }
+thead th { background:#f9fafb;padding:7px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);border-bottom:1px solid var(--border);white-space:nowrap; }
+tbody tr { transition:background .1s;cursor:pointer; }
+tbody tr:hover { background:#ecfeff; }
+tbody td { padding:7px 12px;border-bottom:1px solid var(--border);font-size:12px; }
+
+.badge { display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap; }
+.badge-A { background:#dcfce7;color:#15803d; }
+.badge-I { background:#f3f4f6;color:#6b7280; }
+
+.btn-acoes { background:#f3f4f6;color:var(--text2);border:1px solid var(--border);padding:4px 7px;border-radius:6px;cursor:pointer; }
+.dropdown-menu { position:fixed;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.14);z-index:6500;min-width:160px;animation:fadeIn .12s ease;padding:4px;display:none; }
+.dropdown-item { display:flex;align-items:center;gap:9px;padding:8px 12px;border-radius:7px;font-size:12px;cursor:pointer;border:none;background:none;width:100%;text-align:left; }
+
+/* ── FORM SECTION ── */
+#formSection { display:none; }
+.form-card { background:#fff;border:1px solid var(--border);border-radius:10px;overflow:hidden; }
+.form-card-head { padding:12px 18px;border-bottom:1px solid var(--border);background:#fff;display:flex;align-items:center;justify-content:space-between; }
+.form-body { padding:20px 18px; }
+
+.form-grid { display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px; }
+@media(max-width:700px) { .form-grid { grid-template-columns:1fr; } }
+.form-group { display:flex;flex-direction:column;gap:4px; }
+.form-group.full { grid-column:1/-1; }
+.section-title { grid-column:1/-1; font-size:10px; font-weight:800; color:var(--accent); text-transform:uppercase; border-bottom:1.5px solid #ecfeff; padding-bottom:4px; margin-top:8px; display:flex; align-items:center; gap:8px; }
+
+label { font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.3px; }
+input[type="text"], input[type="email"], select, textarea {
+  padding:8px 10px;border:1.5px solid #d1d5db;border-radius:6px;
+  font-size:13px;outline:none;width:100%;
+}
+input:focus,select:focus,textarea:focus { border-color:var(--accent);box-shadow:0 0 0 3px rgba(8,145,178,.08); }
+
+/* TOAST */
+#toast-container { position:fixed;bottom:24px;right:24px;z-index:99999;display:flex;flex-direction:column;gap:8px;pointer-events:none; }
+.toast { display:flex;align-items:center;gap:10px;padding:11px 16px;border-radius:9px;font-size:13px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.14);animation:toastIn .22s ease-out;pointer-events:auto; }
+@keyframes toastIn { from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)} }
+.toast-ok   { background:#1a1a2e;color:#fff; }
+.toast-err  { background:#ef4444;color:#fff; }
+</style>
+<script src="/assets/themes.js"></script>
+</head>
+<body>
+
+<div class="toolbar-bar">
+  <div style="display:flex;gap:5px;align-items:center">
+    <div class="ins-card active" id="ins-total" onclick="toggleFiltroStatus('T')">
+      <span class="ins-label">Total</span><span class="ins-val" id="val-total">—</span>
+    </div>
+    <div class="ins-card" id="ins-ativos" onclick="toggleFiltroStatus('A')">
+      <span class="ins-label">Ativos</span><span class="ins-val" id="val-ativos">—</span>
+    </div>
+    <div class="ins-card" id="ins-inativos" onclick="toggleFiltroStatus('I')">
+      <span class="ins-label">Inativos</span><span class="ins-val" id="val-inativos">—</span>
+    </div>
+  </div>
+  <button class="btn btn-outline" onclick="abrirNovo()">Novo Hotel</button>
+</div>
+
+<div class="subbar">
+  <button class="icon-btn" onclick="buscar()">Atualizar</button>
+  <div style="display:flex;align-items:center;gap:5px">
+    <input type="text" id="inputBusca" placeholder="Buscar hotel…" oninput="buscar()" style="padding:5px 10px;border:1.5px solid var(--border);border-radius:7px;width:260px;">
+  </div>
+</div>
+
+<div class="content-area">
+  <div id="listSection">
+    <div class="table-card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:50px">ID</th>
+              <th>Razão Social / Fantasia</th>
+              <th>CNPJ</th>
+              <th>Cidade/UF</th>
+              <th>Telefone</th>
+              <th>Status</th>
+              <th style="width:60px"></th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text2)">Carregando…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="formSection">
+    <div class="form-card">
+      <div class="form-card-head"><h3 id="formSub">Novo Cadastro de Hotel</h3></div>
+      <div class="form-body">
+        <form id="mainForm">
+          <input type="hidden" id="f_id">
+          <div class="form-grid">
+            <div class="section-title">Dados Cadastrais</div>
+            <div class="form-group">
+              <label>CNPJ</label>
+              <div style="display:flex;gap:5px">
+                <input type="text" id="f_cnpj" placeholder="00.000.000/0000-00">
+                <button type="button" class="btn btn-primary" onclick="consultarCNPJ()" style="padding:5px 10px">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="14"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                </button>
+              </div>
+            </div>
+            <div class="form-group full">
+              <label>Razão Social <span style="color:var(--danger)">*</span></label>
+              <input type="text" id="f_razao_social" required>
+            </div>
+            <div class="form-group full">
+              <label>Nome Fantasia</label>
+              <input type="text" id="f_nome_fantasia">
+            </div>
+            <div class="form-group">
+              <label>Inscrição Estadual</label>
+              <input type="text" id="f_insc_estadual">
+            </div>
+            <div class="form-group">
+               <label>Status</label>
+               <select id="f_status"><option value="A">Ativo</option><option value="I">Inativo</option></select>
+            </div>
+
+            <div class="section-title">Localização</div>
+            <div class="form-group">
+              <label>CEP</label>
+              <input type="text" id="f_cep" placeholder="00000-000">
+            </div>
+            <div class="form-group full">
+              <label>Endereço</label>
+              <input type="text" id="f_endereco">
+            </div>
+            <div class="form-group">
+              <label>Número</label>
+              <input type="text" id="f_numero">
+            </div>
+            <div class="form-group">
+              <label>Bairro</label>
+              <input type="text" id="f_bairro">
+            </div>
+            <div class="form-group">
+              <label>Cidade</label>
+              <input type="text" id="f_cidade">
+            </div>
+            <div class="form-group">
+              <label>UF</label>
+              <input type="text" id="f_uf" maxlength="2">
+            </div>
+
+            <div class="section-title">Contato e Outros</div>
+            <div class="form-group">
+              <label>Fone Principal</label>
+              <input type="text" id="f_fone_principal">
+            </div>
+            <div class="form-group">
+              <label>E-mail</label>
+              <input type="email" id="f_email">
+            </div>
+            <div class="form-group">
+              <label>Nome p/ Contato</label>
+              <input type="text" id="f_contato">
+            </div>
+            <div class="form-group full">
+              <label>Observações</label>
+              <textarea id="f_obs_gerais" rows="3"></textarea>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="form-footer" style="padding:15px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:10px;">
+        <button class="btn btn-ghost" onclick="voltarLista()">Cancelar</button>
+        <button class="btn btn-primary" onclick="salvar()">Salvar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+<div id="dropMenu" class="dropdown-menu"></div>
+
+<script>
+let S = { filtroStatus: 'T', registroId: null };
+async function buscar() {
+  try {
+    const r = await fetch('/api/hoteis');
+    const d = await r.json();
+    let lista = d.hoteis || [];
+    const q = document.getElementById('inputBusca').value.toLowerCase();
+    if (S.filtroStatus !== 'T') lista = lista.filter(x => x.status === S.filtroStatus);
+    if (q) lista = lista.filter(x => x.razao_social.toLowerCase().includes(q) || (x.nome_fantasia||'').toLowerCase().includes(q));
+    
+    document.getElementById('val-total').textContent = d.hoteis?.length || 0;
+    document.getElementById('val-ativos').textContent = d.hoteis?.filter(x=>x.status==='A').length || 0;
+    document.getElementById('val-inativos').textContent = d.hoteis?.filter(x=>x.status!=='A').length || 0;
+    
+    renderLista(lista);
+  } catch(e) { toast('Erro ao carregar','err'); }
+}
+function renderLista(rows) {
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = rows.length ? rows.map(f => `
+    <tr onclick="abrirEditar(${f.id})">
+      <td>${f.id}</td>
+      <td>
+        <div style="font-weight:700">${f.razao_social}</div>
+        <div style="font-size:11px; color:var(--text2)">${f.nome_fantasia || ''}</div>
+      </td>
+      <td>${f.cnpj || '-'}</td>
+      <td>${f.cidade || ''} / ${f.uf || ''}</td>
+      <td>${f.fone_principal || '-'}</td>
+      <td><span class="badge badge-${f.status === 'A' ? 'A' : 'I'}">${f.status === 'A' ? 'Ativo' : 'Inativo'}</span></td>
+      <td onclick="event.stopPropagation()"><button class="btn-acoes" onclick="abrirDrop(event, ${f.id})">⋮</button></td>
+    </tr>
+  `).join('') : '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text2)">Nenhum registro encontrado</td></tr>';
+}
+function toggleFiltroStatus(st) {
+  S.filtroStatus = st;
+  ['total','ativos','inativos'].forEach(k => document.getElementById('ins-'+k).classList.toggle('active', k.substring(0,1).toUpperCase() === st || (st==='T' && k==='total')));
+  buscar();
+}
+function abrirNovo() {
+  S.registroId = null; document.getElementById('mainForm').reset();
+  document.getElementById('formSub').textContent = 'Novo Registro';
+  document.getElementById('listSection').style.display = 'none'; document.getElementById('formSection').style.display = 'block';
+}
+async function abrirEditar(id) {
+  try {
+    const r = await fetch('/api/hoteis');
+    const d = await r.json(); const f = d.hoteis.find(x => x.id === id);
+    if (!f) return; S.registroId = id;
+    document.getElementById('f_id').value = f.id;
+    document.getElementById('f_razao_social').value = f.razao_social;
+    document.getElementById('f_nome_fantasia').value = f.nome_fantasia || '';
+    document.getElementById('f_cnpj').value = f.cnpj || '';
+    document.getElementById('f_insc_estadual').value = f.insc_estadual || '';
+    document.getElementById('f_cep').value = f.cep || '';
+    document.getElementById('f_endereco').value = f.endereco || '';
+    document.getElementById('f_numero').value = f.numero || '';
+    document.getElementById('f_bairro').value = f.bairro || '';
+    document.getElementById('f_cidade').value = f.cidade || '';
+    document.getElementById('f_uf').value = f.uf || '';
+    document.getElementById('f_fone_principal').value = f.fone_principal || '';
+    document.getElementById('f_email').value = f.email || '';
+    document.getElementById('f_contato').value = f.contato || '';
+    document.getElementById('f_obs_gerais').value = f.obs_gerais || '';
+    document.getElementById('f_status').value = f.status || 'A';
+    document.getElementById('formSub').textContent = `Editando ID: ${f.id}`;
+    document.getElementById('listSection').style.display = 'none'; document.getElementById('formSection').style.display = 'block';
+  } catch(e) { toast('Erro ao carregar dados','err'); }
+}
+function voltarLista() { document.getElementById('formSection').style.display = 'none'; document.getElementById('listSection').style.display = 'block'; buscar(); }
+async function salvar() {
+  const payload = {
+    razao_social: document.getElementById('f_razao_social').value.trim(),
+    nome_fantasia: document.getElementById('f_nome_fantasia').value.trim(),
+    cnpj: document.getElementById('f_cnpj').value.trim(),
+    insc_estadual: document.getElementById('f_insc_estadual').value.trim(),
+    cep: document.getElementById('f_cep').value.trim(),
+    endereco: document.getElementById('f_endereco').value.trim(),
+    numero: document.getElementById('f_numero').value.trim(),
+    bairro: document.getElementById('f_bairro').value.trim(),
+    cidade: document.getElementById('f_cidade').value.trim(),
+    uf: document.getElementById('f_uf').value.trim().toUpperCase(),
+    fone_principal: document.getElementById('f_fone_principal').value.trim(),
+    email: document.getElementById('f_email').value.trim(),
+    contato: document.getElementById('f_contato').value.trim(),
+    obs_gerais: document.getElementById('f_obs_gerais').value.trim(),
+    status: document.getElementById('f_status').value
+  };
+  if (!payload.razao_social) return toast('Preencha a Razão Social','err');
+  try {
+    const r = await fetch(S.registroId ? `/api/hoteis/${S.registroId}` : '/api/hoteis', {
+      method: S.registroId ? 'PUT' : 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
+    });
+    if (r.ok) { toast('Salvo!','ok'); voltarLista(); } else toast('Erro ao salvar','err');
+  } catch(e) { toast('Erro de comunicação','err'); }
+}
+async function consultarCNPJ() {
+  const cnpj = document.getElementById('f_cnpj').value.replace(/\D/g,'');
+  if (cnpj.length !== 14) return toast('CNPJ Inválido','err');
+  toast('Consultando...','ok');
+  try {
+    const r = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`);
+    const d = await r.json();
+    if (d.message) throw new Error();
+    document.getElementById('f_razao_social').value = d.razao_social || '';
+    document.getElementById('f_nome_fantasia').value = d.nome_fantasia || d.razao_social || '';
+    document.getElementById('f_cep').value = d.cep || '';
+    document.getElementById('f_endereco').value = d.logradouro || '';
+    document.getElementById('f_numero').value = d.numero || '';
+    document.getElementById('f_bairro').value = d.bairro || '';
+    document.getElementById('f_cidade').value = d.municipio || '';
+    document.getElementById('f_uf').value = d.uf || '';
+    document.getElementById('f_fone_principal').value = (d.ddd_telefone_1 || '');
+    document.getElementById('f_email').value = d.email || '';
+    toast('Dados carregados!','ok');
+  } catch(e) { toast('Erro ao consultar CNPJ','err'); }
+}
+function abrirDrop(e, id) {
+  e.stopPropagation(); const m = document.getElementById('dropMenu');
+  m.innerHTML = `<button class="dropdown-item" style="color:var(--danger)" onclick="excluir(${id})">Excluir</button>`;
+  m.style.display = 'block'; const rect = e.currentTarget.getBoundingClientRect();
+  m.style.top = (rect.bottom + 5) + 'px'; m.style.left = (rect.left - 130) + 'px';
+  window.onclick = () => { m.style.display = 'none'; };
+}
+async function excluir(id) {
+  if (!confirm('Excluir?')) return;
+  try {
+    const r = await fetch(`/api/hoteis/${id}`, { method: 'DELETE' });
+    if (r.ok) { toast('Excluído!','ok'); buscar(); }
+  } catch(e) { toast('Erro ao excluir','err'); }
+}
+function toast(msg, tipo='ok') {
+  const t = document.createElement('div'); t.className = `toast toast-${tipo}`; t.textContent = msg;
+  document.getElementById('toast-container').appendChild(t); setTimeout(()=>t.remove(), 3000);
+}
+document.addEventListener('DOMContentLoaded', buscar);
+</script>
+</body>
+</html>

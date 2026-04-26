@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<title>Tabela de Preços - TOTVS Style</title>
+<style>
+* { margin:0;padding:0;box-sizing:border-box; }
+:root {
+  --bg:#f0f2f5; --card:#fff; --border:#e5e7eb;
+  --text:#111827; --text2:#6b7280;
+  --accent:#0d9488; --accent-hover:#0f766e;
+  --danger:#ef4444; --warn:#f59e0b; --success:#22c55e;
+  --input-bg:#fff;
+}
+body { font-family:'Inter','Segoe UI',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; overflow-x:hidden; }
+
+/* ── TOOLBAR ── */
+.toolbar { background:#fff; border-bottom:1px solid var(--border); padding:10px 16px;
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  position:sticky; top:0; z-index:100; }
+
+.btn { display:inline-flex; align-items:center; gap:6px; padding:6px 12px;
+  border:none; border-radius:7px; font-size:12px; font-weight:700; cursor:pointer;
+  transition:.15s; font-family:inherit; white-space:nowrap; }
+.btn svg { width:13px; height:13px; flex-shrink:0; }
+.btn:disabled { opacity:.5; cursor:not-allowed; }
+.btn-primary { background:var(--accent); color:#fff; border:1.5px solid var(--accent); }
+.btn-primary:hover:not(:disabled) { background:var(--accent-hover); border-color:var(--accent-hover); }
+.btn-outline { background:#fff; color:var(--accent); border:1.5px solid var(--accent); }
+.btn-outline:hover { background:#f0fdfa; }
+.btn-ghost { background:#fff; color:var(--text2); border:1.5px solid var(--border); }
+.btn-ghost:hover { background:#f9fafb; color:var(--text); }
+.btn-danger { background:var(--danger); color:#fff; border:1.5px solid var(--danger); }
+.btn-mini { padding: 4px 8px; font-size: 10px; border-radius: 5px; }
+
+/* ── SUBBAR ── */
+.subbar { background:#f9fafb; border-bottom:1px solid var(--border); padding:5px 16px;
+  display:flex; align-items:center; justify-content:space-between;
+  position:sticky; z-index:99; }
+.search-group { display:flex; align-items:center; gap:6px; }
+.search-input { padding:5px 10px; border:1.5px solid var(--border); border-radius:7px;
+  font-size:12px; font-family:inherit; background:#fff; color:var(--text); outline:none;
+  width:230px; transition:.15s; }
+.search-input:focus { border-color:var(--accent); }
+
+/* ── CONTENT ── */
+.content { padding:16px; }
+.card { background:#fff; border-radius:10px; border:1px solid var(--border); overflow:hidden; }
+
+/* ── TABLE / BROWSE ── */
+.table-wrap { overflow-x:auto; }
+table { width:100%; border-collapse:collapse; font-size:11px; }
+thead th { padding:8px 12px; background:#f9fafb; border-bottom:2px solid var(--border);
+  text-align:left; font-size:10px; font-weight:700; text-transform:uppercase;
+  letter-spacing:.5px; color:var(--text2); white-space:nowrap; }
+tbody tr { border-bottom:1px solid #f3f4f6; cursor:pointer; transition:.1s; }
+tbody tr:hover { background:#f0fdfa; }
+tbody td { padding:10px 12px; vertical-align:middle; }
+
+/* ── FORM SECTION (PROTHEUS STYLE) ── */
+#formSection { display:none; padding:16px; }
+.form-card { background:#fff; border-radius:10px; border:1px solid var(--border); overflow:visible; display:flex; flex-direction:column; max-height:calc(100vh - 50px); }
+.form-header { padding:12px 20px; border-bottom:1px solid var(--border); display:flex;
+  align-items:center; justify-content:space-between; background:#f9fafb; flex-shrink:0; }
+.form-header-title { font-size:13px; font-weight:800; color:var(--text); text-transform:uppercase; letter-spacing:.5px; }
+
+.form-body { padding:18px 20px; overflow-y:auto; flex:1; }
+
+.header-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:15px; margin-bottom:20px; border-bottom:1px dashed var(--border); padding-bottom:20px; }
+.form-group { display:flex; flex-direction:column; gap:4px; }
+.form-group label { font-size:11px; font-weight:700; color:var(--text2); text-transform:uppercase; }
+.form-group label span { color:var(--danger); }
+.form-group input, .form-group select {
+  padding:8px 9px; border:1px solid #d1d5db; border-radius:6px;
+  font-size:12px; font-family:inherit; background:#fff; outline:none; transition:.15s; }
+.form-group input:focus, .form-group select:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(13,148,136,0.1); }
+.form-group input[readonly] { background:#f3f4f6; cursor:not-allowed; }
+
+/* GRID ITENS */
+.regras-container { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background:#fff; margin-top:10px; }
+.regras-header { background: #f9fafb; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
+.regras-title { font-size: 11px; font-weight: 700; color: var(--text2); text-transform: uppercase; }
+.regras-table-wrap { max-height: 400px; overflow-y: auto; overflow-x: auto; }
+.regras-table { width: 100%; border-collapse: collapse; font-size: 11px; min-width:1200px; }
+.regras-table thead th { position: sticky; top: 0; z-index: 10; background: #f9fafb; padding: 10px 12px; border-bottom: 2px solid var(--border); text-align:left; color:var(--text2); }
+.regras-table td { padding: 6px 10px; border-bottom: 1px solid #f3f4f6; }
+.regras-table input, .regras-table select { width: 100%; border: 1px solid transparent; padding: 6px; border-radius: 4px; font-size: 11px; background:transparent; transition:.1s; }
+.regras-table input:focus { border-color: var(--accent); background: #fff; outline:none; }
+.regras-table tr:hover { background: #f0fdfa; }
+.regras-table .readonly-cell { background:#f9fafb; font-weight:600; color:var(--text2); }
+
+.btn-remove { color: var(--danger); border: none; background: none; cursor: pointer; padding: 4px; border-radius: 4px; transition:.1s; }
+.btn-remove:hover { background: #fee2e2; }
+
+/* MODAL BUSCA PRODUTO */
+.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.5); display:none; align-items:center; justify-content:center; z-index:10000; padding:20px; }
+.modal-overlay.show { display:flex; }
+.modal-content { background:#fff; border-radius:12px; width:100%; max-width:900px; max-height:90vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 20px 50px rgba(0,0,0,0.2); }
+.modal-head { padding:15px 20px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; background:#f9fafb; }
+.modal-title { font-size:14px; font-weight:800; text-transform:uppercase; color:var(--text); }
+.modal-body { padding:15px; flex:1; overflow-y:auto; }
+
+.modal-search-bar { display:flex; gap:10px; margin-bottom:15px; }
+.modal-table-wrap { border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+
+.pagination { display:flex; align-items:center; justify-content:center; gap:10px; margin-top:15px; }
+.page-btn { padding:5px 12px; border:1px solid var(--border); border-radius:6px; background:#fff; cursor:pointer; font-size:12px; transition:.15s; }
+.page-btn:hover:not(:disabled) { border-color:var(--accent); color:var(--accent); }
+.page-btn:disabled { opacity:.5; cursor:not-allowed; }
+.page-info { font-size:12px; color:var(--text2); font-weight:600; }
+
+/* TOAST / CONFIRM */
+.toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+  background:#1f2937; color:#fff; padding:10px 20px; border-radius:9px;
+  font-size:13px; font-weight:500; z-index:99999; display:none; }
+.toast.show { display:block; }
+.toast.success { background:var(--success); }
+.toast.error   { background:var(--danger); }
+
+#modalConfirm { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:10000;
+  align-items:center; justify-content:center; }
+#modalConfirm.show { display:flex; }
+.modal-box { background:#fff; border-radius:12px; padding:24px; max-width:380px; width:90%; }
+.modal-msg { font-size:13px; color:var(--text2); margin-bottom:20px; }
+.modal-btns { display:flex; gap:8px; justify-content:flex-end; }
+
+</style>
+<script src="/assets/themes.js"></script>
+</head>
+<body>
+
+<!-- TELA DE LISTAGEM (BROWSE) -->
+<div id="listSection">
+  <div class="toolbar">
+    <button class="btn btn-primary" onclick="novoRegistro()">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+      Nova Tabela
+    </button>
+  </div>
+
+  <div class="subbar">
+    <div class="search-group">
+      <input type="text" id="searchInput" class="search-input" placeholder="Pesquisar por descrição..." oninput="carregar()">
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="card">
+      <div class="table-wrap">
+        <table id="tabelaBrowse">
+          <thead>
+            <tr>
+              <th style="width:60px">ID</th>
+              <th>Descrição</th>
+              <th style="width:100px">Dta. Inicial</th>
+              <th style="width:100px">Dta. Final</th>
+              <th>Cond. Pagamento</th>
+              <th style="width:80px">Ativa</th>
+              <th style="width:110px">Ações</th>
+            </tr>
+          </thead>
+          <tbody id="tabelaBody">
+            <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text2)">Carregando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TELA DE CADASTRO / EDIÇÃO -->
+<div id="formSection">
+  <div class="form-card">
+    <div class="form-header">
+      <span class="form-header-title" id="formTitulo">Nova Tabela de Preços</span>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" onclick="fecharFormulario()">Cancelar</button>
+        <button class="btn btn-primary" id="btnSalvar" onclick="salvarTabela()">Confirmar (Salvar)</button>
+      </div>
+    </div>
+
+    <div class="form-body">
+      <!-- CABEÇALHO -->
+      <div class="header-grid">
+        <div class="form-group" style="max-width:80px">
+          <label>ID</label>
+          <input type="text" id="f_id" readonly placeholder="Auto">
+        </div>
+        <div class="form-group" style="grid-column: span 2">
+          <label>Descrição <span>*</span></label>
+          <input type="text" id="f_descricao" placeholder="Ex: TABELA VAREJO SUL">
+        </div>
+        <div class="form-group">
+          <label>Data Inicial <span>*</span></label>
+          <input type="date" id="f_data_inicial">
+        </div>
+        <div class="form-group">
+          <label>Hora Inicial <span>*</span></label>
+          <input type="time" id="f_hora_inicial" value="00:00">
+        </div>
+        <div class="form-group">
+          <label>Data Final <span>*</span></label>
+          <input type="date" id="f_data_final">
+        </div>
+        <div class="form-group">
+          <label>Hora Final <span>*</span></label>
+          <input type="time" id="f_hora_final" value="23:59">
+        </div>
+        <div class="form-group" style="grid-column: span 2">
+          <label>Condição Pagamento <span>*</span></label>
+          <select id="f_cond_pagamento">
+            <option value="">Carregando...</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Tabela Ativa?</label>
+          <select id="f_ativa">
+            <option value="S">S - Sim</option>
+            <option value="N">N - Não</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- GRID DE ITENS -->
+      <div class="regras-container">
+        <div class="regras-header">
+          <span class="regras-title">Itens da Tabela (Produtos)</span>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-ghost btn-mini" onclick="abrirManutencaoLote()">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+              Manutenção Lote
+            </button>
+            <button class="btn btn-outline btn-mini" onclick="abrirBuscaProduto()">+ Adicionar Produto</button>
+          </div>
+        </div>
+        <div class="regras-table-wrap">
+          <table class="regras-table">
+            <thead>
+              <tr>
+                <th style="width:60px">Seq.</th>
+                <th style="width:100px">Cód. Produto</th>
+                <th>Descrição do Produto</th>
+                <th style="width:120px">Ref. Fabr.</th>
+                <th style="width:50px">Un.</th>
+                <th style="width:110px">Preço Base</th>
+                <th style="width:110px">Preço Venda</th>
+                <th style="width:90px">Tipo Desc.</th>
+                <th style="width:100px">Vlr Desc.</th>
+                <th style="width:110px">Vlr. Tabela</th>
+                <th style="width:60px">Ativo?</th>
+                <th style="width:130px">Vigência</th>
+                <th style="width:50px"></th>
+              </tr>
+            </thead>
+            <tbody id="itensBody">
+              <!-- Itens injetados via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL BUSCA PRODUTO -->
+<div id="modalBuscaProduto" class="modal-overlay">
+  <div class="modal-content">
+    <div class="modal-head">
+      <span class="modal-title">Buscar Produto</span>
+      <div style="display:flex;gap:8px">
+          <button class="btn btn-outline btn-mini" id="btnNovoProd" onclick="window.open('/pages/produtos.html','_blank')">Novo Produto</button>
+          <button class="btn btn-ghost btn-mini" onclick="fecharBuscaProduto()">Fechar</button>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div class="modal-search-bar">
+        <input type="text" id="modalSearchInput" class="search-input" style="flex:1" placeholder="Buscar por ID, descrição ou fabricante..." onkeypress="if(event.key==='Enter') buscarProdutosModal(1)">
+        <button class="btn btn-primary" onclick="buscarProdutosModal(1)">Buscar</button>
+      </div>
+      <div class="modal-table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:80px">ID</th>
+              <th>Descrição</th>
+              <th style="width:120px">Ref. Fabricante</th>
+              <th style="width:60px">Un.</th>
+              <th style="width:100px">Preço Base</th>
+            </tr>
+          </thead>
+          <tbody id="modalTableBody">
+            <!-- Resultados -->
+          </tbody>
+        </table>
+      </div>
+      <div class="pagination" id="modalPagination">
+        <!-- Botoes paginacao -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL MANUTENÇÃO EM LOTE -->
+<div id="modalManutencao" class="modal-overlay">
+  <div class="modal-content" style="max-width:450px">
+    <div class="modal-head">
+      <span class="modal-title">Manutenção em Lote</span>
+      <button class="btn-remove" onclick="fecharManutencao()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex;flex-direction:column;gap:15px">
+        <p style="font-size:12px;color:var(--text2)">Os ajustes serão aplicados a <b>todos os itens</b> da tabela atual.</p>
+        
+        <div class="form-group">
+          <label>Ajuste Percentual no Preço (%)</label>
+          <input type="number" id="m_ajuste_preco" placeholder="Ex: 5 (acréscimo) ou -5 (desconto)">
+        </div>
+        
+        <div class="form-group">
+          <label>Nova Data de Vigência</label>
+          <input type="date" id="m_nova_vigencia">
+        </div>
+
+        <div style="background:#f0faf9;padding:12px;border-radius:8px;border:1px solid #cff1ef">
+           <p style="font-size:11px;color:var(--accent-hover);line-height:1.4"><b>Dica:</b> O cálculo será aplicado sobre o valor atual de venda já salvo no banco de dados.</p>
+        </div>
+      </div>
+      
+      <div style="margin-top:20px;display:flex;justify-content:flex-end;gap:10px">
+        <button class="btn btn-ghost" onclick="fecharManutencao()">Cancelar</button>
+        <button class="btn btn-primary" onclick="executarManutencao()">Aplicar Ajustes</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CONFIRM -->
+<div id="modalConfirm">
+  <div class="modal-box">
+    <div class="modal-title" id="modalConfirmTitle" style="font-weight:800;margin-bottom:10px">Excluir Tabela?</div>
+    <div class="modal-msg" id="modalConfirmMsg">Deseja realmente excluir esta tabela permanentemente?</div>
+    <div class="modal-btns">
+      <button class="btn btn-ghost" onclick="fecharConfirm()">Não</button>
+      <button class="btn btn-danger" id="btnConfirmarExclusao">Sim, Excluir</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let _token = sessionStorage.getItem('token') || localStorage.getItem('token') || '';
+let _user = JSON.parse(localStorage.getItem('user') || sessionStorage.getItem('user') || '{}');
+let _editandoId = null;
+let _itensTabela = []; // Array de objetos { cod_produto, descricao, ... }
+let _modalCurrentPage = 1;
+
+/** 
+ * API WRAPPER
+ */
+function api(url, opts = {}) {
+  return fetch(url, {
+    ...opts,
+    headers: { 
+      'Content-Type':'application/json', 
+      'Authorization': 'Bearer ' + _token,
+      ...(opts.headers||{}) 
+    }
+  });
+}
+
+function showToast(msg, tipo = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + tipo;
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ─── NAVEGAÇÃO ───
+function mostrarForm() {
+  document.getElementById('listSection').style.display = 'none';
+  document.getElementById('formSection').style.display = 'block';
+}
+
+function fecharFormulario() {
+  document.getElementById('listSection').style.display = 'block';
+  document.getElementById('formSection').style.display = 'none';
+  _editandoId = null;
+  _itensTabela = [];
+}
+
+// ─── CARREGAMENTO INICIAL ───
+async function carregarLookups() {
+  try {
+    const r = await api('/api/tabela-precos/condicoes-pagamento');
+    const data = await r.json();
+    const sel = document.getElementById('f_cond_pagamento');
+    sel.innerHTML = '<option value="">Selecione...</option>' + 
+      data.map(c => `<option value="${c.id}">${c.descricao}</option>`).join('');
+  } catch (err) { console.error('Erro lookups', err); }
+}
+
+async function carregar() {
+  const q = document.getElementById('searchInput').value;
+  try {
+    const r = await api(`/api/tabela-precos?q=${encodeURIComponent(q)}`);
+    const { tabelas } = await r.json();
+    const tbody = document.getElementById('tabelaBody');
+
+    if (!tabelas.length) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text2)">Nenhuma tabela encontrada.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = tabelas.map(t => `
+      <tr onclick="editarTabela(${t.id})">
+        <td style="font-weight:800;color:var(--accent)">${String(t.id).padStart(3, '0')}</td>
+        <td style="font-weight:600">${t.Descricao}</td>
+        <td>${new Date(t.Data_Inicial).toLocaleDateString('pt-BR')}</td>
+        <td>${new Date(t.Data_Final).toLocaleDateString('pt-BR')}</td>
+        <td>${t.condicao_pagto_desc || '—'}</td>
+        <td><span style="color:${t.Tabela_Ativa==='S'? 'var(--success)':'var(--danger)'};font-weight:800">${t.Tabela_Ativa==='S'?'SIM':'NÃO'}</span></td>
+        <td onclick="event.stopPropagation()">
+          <div style="display:flex;gap:4px">
+            ${t.Tabela_Ativa === 'N' ? `
+              <button type="button" class="btn-remove" style="color:var(--success)" onclick="event.stopPropagation(); liberarTabela(${t.id})" title="Liberar/Ativar Tabela">
+                <svg style="width:16px;height:16px" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              </button>
+            ` : ''}
+            <button type="button" class="btn-remove" style="color:var(--accent)" onclick="event.stopPropagation(); clonarTabela(${t.id})" title="Clonar Tabela">
+              <svg style="width:16px;height:16px" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"/></svg>
+            </button>
+            <button type="button" class="btn-remove" onclick="event.stopPropagation(); confirmarExclusao(${t.id})" title="Excluir">
+              <svg style="width:16px;height:16px" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+            </button>
+          </div>
+        </td>
+      </tr>
+    `).join('');
+  } catch (err) { showToast('Erro ao carregar lista', 'error'); }
+}
+
+// ─── CRUD ───
+function novoRegistro() {
+  _editandoId = null;
+  _itensTabela = [];
+  document.getElementById('formTitulo').textContent = 'Nova Tabela de Preços';
+  document.getElementById('f_id').value = '';
+  document.getElementById('f_descricao').value = '';
+  document.getElementById('f_data_inicial').valueAsDate = new Date();
+  document.getElementById('f_data_final').value = '2099-12-31';
+  document.getElementById('f_cond_pagamento').value = '';
+  document.getElementById('f_ativa').value = 'S';
+  renderItens();
+  mostrarForm();
+}
+
+async function editarTabela(id) {
+  try {
+    const r = await api(`/api/tabela-precos/${id}`);
+    if (!r.ok) throw new Error();
+    const data = await r.json();
+
+    _editandoId = id;
+    document.getElementById('formTitulo').textContent = 'Visualizar/Editar Tabela';
+    document.getElementById('f_id').value = String(id).padStart(3, '0');
+    document.getElementById('f_descricao').value = data.Descricao;
+    document.getElementById('f_data_inicial').value = data.Data_Inicial.split('T')[0];
+    document.getElementById('f_hora_inicial').value = data.Hora_Inicial.substring(0,5);
+    document.getElementById('f_data_final').value = data.Data_Final.split('T')[0];
+    document.getElementById('f_hora_final').value = data.Hora_Final.substring(0,5);
+    document.getElementById('f_cond_pagamento').value = data.Cond_Pagamento;
+    document.getElementById('f_ativa').value = data.Tabela_Ativa;
+
+    _itensTabela = data.itens || [];
+    renderItens();
+    mostrarForm();
+  } catch (err) { showToast('Erro ao buscar dados', 'error'); }
+}
+
+async function salvarTabela() {
+  const body = {
+    Descricao: document.getElementById('f_descricao').value.trim(),
+    Data_Inicial: document.getElementById('f_data_inicial').value,
+    Hora_Inicial: document.getElementById('f_hora_inicial').value,
+    Data_Final: document.getElementById('f_data_final').value,
+    Hora_Final: document.getElementById('f_hora_final').value,
+    Cond_Pagamento: parseInt(document.getElementById('f_cond_pagamento').value),
+    Tabela_Ativa: document.getElementById('f_ativa').value,
+    itens: _itensTabela
+  };
+
+  if (!body.Descricao) return showToast('Descrição é obrigatória', 'error');
+  if (!body.Cond_Pagamento) return showToast('Condição de Pagamento é obrigatória', 'error');
+  if (!_itensTabela.length) return showToast('Adicione ao menos um item', 'error');
+
+  const btn = document.getElementById('btnSalvar');
+  btn.disabled = true;
+
+  try {
+    const r = await api(`/api/tabela-precos${_editandoId ? '/' + _editandoId : ''}`, {
+      method: _editandoId ? 'PUT' : 'POST',
+      body: JSON.stringify(body)
+    });
+    if (r.ok) {
+      showToast('Tabela de preços salva com sucesso!', 'success');
+      fecharFormulario();
+      carregar();
+    } else {
+      const err = await r.json();
+      throw new Error(err.error || 'Erro ao salvar');
+    }
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally { btn.disabled = false; }
+}
+
+// ─── GESTÃO DE ITENS ───
+function renderItens() {
+  const tbody = document.getElementById('itensBody');
+  if (!_itensTabela.length) {
+    tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:30px;color:var(--text2)">Nenhum item adicionado. Use o botão acima para adicionar produtos.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = _itensTabela.map((it, idx) => `
+    <tr data-idx="${idx}">
+      <td class="readonly-cell">${String(idx + 1).padStart(4, '0')}</td>
+      <td class="readonly-cell">${it.cod_produto}</td>
+      <td style="font-weight:600">${it.descricao}</td>
+      <td class="readonly-cell">${it.cod_fabricante || '-'}</td>
+      <td class="readonly-cell">${it.unidade || 'UN'}</td>
+      <td class="readonly-cell">R$ ${parseFloat(it.preco_base||0).toLocaleString('pt-BR', {minimumFractionDigits:2})}</td>
+      <td><input type="number" step="0.01" value="${it.preco_venda}" onchange="updateItemFieldValue(${idx}, 'preco_venda', this.value)"></td>
+      <td>
+        <select onchange="updateItemFieldValue(${idx}, 'tipo_desconto', this.value)">
+          <option value="R" ${it.tipo_desconto==='R'?'selected':''}>R$</option>
+          <option value="P" ${it.tipo_desconto==='P'?'selected':''}>%</option>
+        </select>
+      </td>
+      <td><input type="number" step="0.01" value="${it.vlr_desconto}" onchange="updateItemFieldValue(${idx}, 'vlr_desconto', this.value)"></td>
+      <td class="readonly-cell" style="color:var(--accent)">R$ <span class="vlr-tabela-span">${parseFloat(it.valor_tabela).toLocaleString('pt-BR', {minimumFractionDigits:2})}</span></td>
+      <td><input type="checkbox" ${it.ativo==='S'?'checked':''} onchange="updateItemFieldValue(${idx}, 'ativo', this.checked?'S':'N')"></td>
+      <td><input type="date" value="${it.vigencia ? it.vigencia.split('T')[0] : ''}" onchange="updateItemFieldValue(${idx}, 'vigencia', this.value)"></td>
+      <td style="text-align:center"><button class="btn-remove" onclick="removerItem(${idx})">✕</button></td>
+    </tr>
+  `).join('');
+}
+
+function updateItemFieldValue(idx, field, val) {
+  const it = _itensTabela[idx];
+  it[field] = val;
+
+  // Recalcular Valor Tabela
+  if (['preco_venda', 'tipo_desconto', 'vlr_desconto'].includes(field)) {
+    const pv = parseFloat(it.preco_venda) || 0;
+    const desc = parseFloat(it.vlr_desconto) || 0;
+    
+    if (it.tipo_desconto === 'R') {
+      it.valor_tabela = pv - desc;
+    } else {
+      it.valor_tabela = pv - (pv * desc / 100);
+    }
+
+    if (it.valor_tabela < 0) it.valor_tabela = 0;
+    
+    // Update no DOM local para performance
+    const row = document.querySelector(`tr[data-idx="${idx}"]`);
+    row.querySelector('.vlr-tabela-span').textContent = parseFloat(it.valor_tabela).toLocaleString('pt-BR', {minimumFractionDigits:2});
+  }
+}
+
+function removerItem(idx) {
+  _itensTabela.splice(idx, 1);
+  renderItens();
+}
+
+// ─── MODAL BUSCA PRODUTO ───
+function abrirBuscaProduto() {
+  document.getElementById('modalSearchInput').value = '';
+  document.getElementById('modalTableBody').innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px">Digite algo para buscar...</td></tr>';
+  document.getElementById('modalBuscaProduto').classList.add('show');
+  
+  // Atalhos de permissão
+  const btNovo = document.getElementById('btnNovoProd');
+  const canNew = _user.permissoes?.incluir_produtos === 'S' || _user.role === 'admin';
+  btNovo.style.display = canNew ? 'inline-flex' : 'none';
+}
+
+function fecharBuscaProduto() {
+  document.getElementById('modalBuscaProduto').classList.remove('show');
+}
+
+async function buscarProdutosModal(page = 1) {
+  _modalCurrentPage = page;
+  const q = document.getElementById('modalSearchInput').value;
+  const tbody = document.getElementById('modalTableBody');
+  tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px">Buscando...</td></tr>';
+
+  try {
+    const r = await api(`/api/tabela-precos/produtos/busca?q=${encodeURIComponent(q)}&page=${page}&limit=10`);
+    const { data, last_page } = await r.json();
+
+    if (!data.length) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px">Nenhum produto encontrado.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = data.map(p => `
+      <tr onclick="selecionarProdutoModal(${JSON.stringify(p).replace(/"/g, '&quot;')})">
+        <td style="font-weight:800">${p.id}</td>
+        <td>${p.descricao}</td>
+        <td>${p.cod_fabricante || '-'}</td>
+        <td>${p.unidade || 'UN'}</td>
+        <td style="font-weight:600">R$ ${parseFloat(p.vlr_venda||0).toLocaleString('pt-BR', {minimumFractionDigits:2})}</td>
+      </tr>
+    `).join('');
+
+    renderPaginacaoModal(page, last_page);
+  } catch (err) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--danger)">Erro na busca</td></tr>'; }
+}
+
+function renderPaginacaoModal(current, last) {
+  const wrap = document.getElementById('modalPagination');
+  if (last <= 1) { wrap.innerHTML = ''; return; }
+
+  wrap.innerHTML = `
+    <button class="page-btn" ${current === 1 ? 'disabled':''} onclick="buscarProdutosModal(${current - 1})">Anterior</button>
+    <span class="page-info">Página ${current} de ${last}</span>
+    <button class="page-btn" ${current === last ? 'disabled':''} onclick="buscarProdutosModal(${current + 1})">Próxima</button>
+  `;
+}
+
+function selecionarProdutoModal(p) {
+  // Verifica se já existe
+  if (_itensTabela.find(it => it.cod_produto === p.id)) {
+    showToast('Produto já adicionado na tabela', 'warn');
+    return;
+  }
+
+  _itensTabela.push({
+    cod_produto: p.id,
+    descricao: p.descricao,
+    cod_fabricante: p.cod_fabricante,
+    unidade: p.unidade,
+    preco_base: p.vlr_venda,
+    preco_venda: p.vlr_venda,
+    tipo_desconto: 'R',
+    vlr_desconto: 0,
+    valor_tabela: p.vlr_venda,
+    ativo: 'S',
+    vigencia: null
+  });
+
+  renderItens();
+  showToast('Produto adicionado', 'success');
+  fecharBuscaProduto();
+}
+
+// ─── EXCLUSÃO ───
+let _excluindoId = null;
+function confirmarExclusao(id) {
+  _excluindoId = id;
+  document.getElementById('modalConfirm').classList.add('show');
+}
+function fecharConfirm() { document.getElementById('modalConfirm').classList.remove('show'); }
+
+document.getElementById('btnConfirmarExclusao').onclick = async () => {
+    try {
+      const r = await api(`/api/tabela-precos/${_excluindoId}`, { method: 'DELETE' });
+      if (r.ok) {
+        showToast('Tabela excluída com sucesso');
+        carregar();
+      }
+    } catch(err) {} 
+    fecharConfirm();
+};
+
+// ─── NOVAS FUNÇÕES MANUTENÇÃO ───
+
+async function clonarTabela(id) {
+  if (!confirm('Deseja clonar esta tabela? Ela será criada como INATIVA.')) return;
+  try {
+    const r = await api(`/api/tabela-precos/${id}/clonar`, { method: 'POST' });
+    if (r.ok) {
+      showToast('Tabela clonada com sucesso!', 'success');
+      carregar();
+    } else {
+      const err = await r.json();
+      console.error('Erro backend clonar:', err);
+      showToast(err.error || 'Erro ao clonar via servidor', 'error');
+    }
+  } catch (err) { 
+    console.error('Erro fetch clonar:', err);
+    showToast('Erro de rede ou conexão ao clonar', 'error'); 
+  }
+}
+
+async function liberarTabela(id) {
+  if (!confirm('Deseja LIBERAR (Ativar) esta tabela para uso comercial?')) return;
+  try {
+    const r = await api(`/api/tabela-precos/${id}/liberar`, { method: 'PATCH' });
+    if (r.ok) {
+      showToast('Tabela liberada com sucesso!', 'success');
+      carregar();
+    }
+  } catch (err) { showToast('Erro ao liberar', 'error'); }
+}
+
+function abrirManutencaoLote() {
+  if (!_editandoId) { showToast('Salve a tabela antes de realizar manutenção em lote', 'warn'); return; }
+  document.getElementById('m_ajuste_preco').value = '';
+  document.getElementById('m_nova_vigencia').value = '';
+  document.getElementById('modalManutencao').classList.add('show');
+}
+
+function fecharManutencao() {
+  document.getElementById('modalManutencao').classList.remove('show');
+}
+
+async function executarManutencao() {
+  const vlr = document.getElementById('m_ajuste_preco').value;
+  const vig = document.getElementById('m_nova_vigencia').value;
+
+  if (!vlr && !vig) return showToast('Preencha ao menos um campo de ajuste', 'warn');
+
+  if (!confirm('Aplicar ajustes em TODOS os itens desta tabela?')) return;
+
+  try {
+    const r = await api(`/api/tabela-precos/${_editandoId}/manutencao`, {
+      method: 'POST',
+      body: JSON.stringify({
+        tipo_ajuste: vlr ? 'percentual' : null,
+        valor_ajuste: vlr,
+        nova_vigencia: vig
+      })
+    });
+
+    if (r.ok) {
+      showToast('Manutenção realizada com sucesso!', 'success');
+      fecharManutencao();
+      editarTabela(_editandoId); // Recarrega a tela
+    } else {
+      const err = await r.json();
+      showToast(err.error || 'Erro na manutenção', 'error');
+    }
+  } catch (err) { showToast('Erro interno', 'error'); }
+}
+
+// Start
+document.addEventListener('DOMContentLoaded', () => {
+  carregarLookups();
+  carregar();
+});
+
+</script>
+</body>
+</html>

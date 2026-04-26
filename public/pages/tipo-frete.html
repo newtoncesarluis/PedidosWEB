@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tipos de Frete | Administrativo</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap5.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+  <link rel="stylesheet" href="../css/index.css">
+  <style>
+    :root {
+      --primary-color: #4361ee;
+      --success-color: #2ec4b6;
+      --bg-light: #f8f9fa;
+    }
+    body { background-color: var(--bg-light); font-family: 'Inter', sans-serif; }
+    .card { border: none; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
+    .btn-primary { background-color: var(--primary-color); border: none; padding: 10px 20px; border-radius: 8px; }
+    .btn-success { background-color: var(--success-color); border: none; }
+    .badge-active { background-color: rgba(46, 196, 182, 0.1); color: var(--success-color); border: 1px solid var(--success-color); }
+    .badge-inactive { background-color: rgba(231, 76, 60, 0.1); color: #e74c3c; border: 1px solid #e74c3c; }
+    .action-btn { cursor: pointer; transition: transform 0.2s; }
+    .action-btn:hover { transform: scale(1.1); }
+  </style>
+<script src="/assets/themes.js"></script>
+</head>
+<body>
+  <div class="container-fluid py-4">
+    <div class="row mb-4 align-items-center">
+      <div class="col-6">
+        <h1 class="h3 mb-0 text-gray-800 fw-bold">Tipos de Frete</h1>
+        <p class="text-muted mb-0">Gerencie as modalidades e custos de frete aplicáveis.</p>
+      </div>
+      <div class="col-6 text-end">
+        <button id="btnNovo" class="btn btn-primary shadow-sm" style="display:none;">
+          <i class="bi bi-plus-lg me-2"></i> Novo Tipo de Frete
+        </button>
+      </div>
+    </div>
+
+    <div class="card shadow-sm">
+      <div class="card-body p-4">
+        <div class="table-responsive">
+          <table id="tabelaFrete" class="table table-hover align-middle" style="width:100%">
+            <thead class="table-light">
+              <tr>
+                <th>Cód.</th>
+                <th>Descrição</th>
+                <th class="text-end">Valor Padrão</th>
+                <th>Status</th>
+                <th class="text-center">Ações</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Cadastro -->
+  <div class="modal fade" id="modalFrete" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content border-0 shadow-lg">
+        <div class="modal-header bg-light p-4">
+          <h5 class="modal-title fw-bold" id="modalTitulo">Novo Tipo de Frete</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="formFrete">
+          <div class="modal-body p-4">
+            <input type="hidden" id="idFrete">
+            
+            <div class="row g-3">
+              <div class="col-12">
+                <label class="form-label fw-semibold">Descrição do Frete <span class="text-danger">*</span></label>
+                <input type="text" id="descricao" class="form-control" required placeholder="Ex: CIF, FOB, Entrega Própria">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">Valor Sugerido (R$)</label>
+                <input type="number" id="valor" class="form-control" step="0.01" value="0.00">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label fw-semibold">Status</label>
+                <select id="status" class="form-select">
+                  <option value="A">ATIVO</option>
+                  <option value="I">INATIVO</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer bg-light p-3">
+            <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-primary px-4 shadow-sm">Salvar Alterações</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+  <script>
+    let tabela;
+    let permissoes = {};
+
+    $(document).ready(async function() {
+      await carregarPermissoes();
+      inicializarTabela();
+      
+      $('#btnNovo').click(() => {
+        $('#formFrete')[0].reset();
+        $('#idFrete').val('');
+        $('#modalTitulo').text('Novo Tipo de Frete');
+        new bootstrap.Modal('#modalFrete').show();
+      });
+
+      $('#formFrete').submit(salvarFrete);
+    });
+
+    async function carregarPermissoes() {
+      try {
+        const res = await fetch('/api/check-permissions?modulo=tipo_frete');
+        permissoes = await res.json();
+        if (permissoes.incluir === 'S') $('#btnNovo').show();
+      } catch (err) { console.error('Erro ao carregar permissões', err); }
+    }
+
+    function inicializarTabela() {
+      tabela = $('#tabelaFrete').DataTable({
+        ajax: { url: '/api/tipo-frete', dataSrc: 'tipo_frete' },
+        columns: [
+          { data: 'id' },
+          { data: 'descricao' },
+          { 
+            data: 'valor', 
+            className: 'text-end',
+            render: v => v ? parseFloat(v).toLocaleString('pt-BR', { style:'currency', currency:'BRL' }) : 'R$ 0,00' 
+          },
+          { data: 'status', render: v => `<span class="badge ${v === 'A' ? 'badge-active' : 'badge-inactive'}">${v === 'A' ? 'ATIVO' : 'INATIVO'}</span>` },
+          { 
+            data: null, 
+            className: 'text-center',
+            render: row => {
+              let btns = '';
+              if (permissoes.alterar === 'S') {
+                btns += `<i class="bi bi-pencil-square text-primary action-btn me-3" onclick="editarFrete(${row.id})" title="Editar"></i>`;
+              }
+              if (permissoes.excluir === 'S') {
+                btns += `<i class="bi bi-trash text-danger action-btn" onclick="excluirFrete(${row.id})" title="Excluir"></i>`;
+              }
+              return btns || '<span class="text-muted">-</span>';
+            }
+          }
+        ],
+        language: { url: 'https://cdn.datatables.net/plug-ins/1.13.4/i18n/pt-BR.json' },
+        order: [[1, 'asc']]
+      });
+    }
+
+    async function salvarFrete(e) {
+      e.preventDefault();
+      const id = $('#idFrete').val();
+      const dados = {
+        descricao: $('#descricao').val(),
+        valor: $('#valor').val(),
+        status: $('#status').val()
+      };
+
+      try {
+        const method = id ? 'PUT' : 'POST';
+        const url = id ? `/api/tipo-frete/${id}` : '/api/tipo-frete';
+        
+        const res = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(dados)
+        });
+
+        if (res.ok) {
+          bootstrap.Modal.getInstance('#modalFrete').hide();
+          tabela.ajax.reload();
+          Swal.fire('Sucesso!', `Tipo de frete ${id ? 'atualizado' : 'cadastrado'} com sucesso.`, 'success');
+        }
+      } catch (err) { Swal.fire('Erro', 'Não foi possível salvar os dados.', 'error'); }
+    }
+
+    function editarFrete(id) {
+      const row = tabela.rows().data().toArray().find(r => r.id === id);
+      if (row) {
+        $('#idFrete').val(row.id);
+        $('#descricao').val(row.descricao);
+        $('#valor').val(row.valor);
+        $('#status').val(row.status);
+        $('#modalTitulo').text('Editar Tipo de Frete');
+        new bootstrap.Modal('#modalFrete').show();
+      }
+    }
+
+    function excluirFrete(id) {
+      Swal.fire({
+        title: 'Tem certeza?',
+        text: "O tipo de frete será marcado como excluído!",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'Sim, excluir!',
+        cancelButtonText: 'Cancelar'
+      }).then(async (result) => {
+        if (result.isConfirmed) {
+          const res = await fetch(`/api/tipo-frete/${id}`, { method: 'DELETE' });
+          if (res.ok) {
+            tabela.ajax.reload();
+            Swal.fire('Excluído!', 'O registro foi removido.', 'success');
+          }
+        }
+      });
+    }
+  </script>
+</body>
+</html>

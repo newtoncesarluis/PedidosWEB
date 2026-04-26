@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Eventos / Cidades | SysRepWeb</title>
+<style>
+* { margin:0;padding:0;box-sizing:border-box; }
+:root {
+  --bg:#f0f2f5; --card:#fff; --border:#e5e7eb;
+  --text:#111827; --text2:#6b7280;
+  --accent:#f59e0b; --accent-hover:#d97706;
+  --danger:#ef4444; --warn:#f59e0b; --success:#22c55e;
+}
+body { font-family:'Inter','Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh; }
+
+/* ── TOOLBAR ── */
+.toolbar-bar {
+  background:#fff;border-bottom:1px solid var(--border);
+  padding:8px 16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  position:sticky;top:0;z-index:100;
+}
+.btn {
+  display:inline-flex;align-items:center;gap:6px;padding:7px 14px;
+  border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;
+  transition:.15s;font-family:inherit;white-space:nowrap;
+}
+.btn-primary { background:var(--accent);color:#fff;border:1.5px solid var(--accent); }
+.btn-primary:hover { background:var(--accent-hover); }
+.btn-outline { background:#fff;color:var(--accent);border:1.5px solid var(--accent); }
+.btn-outline:hover { background:#fffbeb; }
+.btn-ghost   { background:#fff;color:var(--text2);border:1.5px solid var(--border); }
+.btn-ghost:hover { background:#f9fafb;color:var(--text); }
+
+/* ins-cards */
+.ins-card { display:inline-flex;align-items:center;gap:5px;cursor:pointer;padding:4px 9px;border-radius:7px;border:1.5px solid var(--border);background:#fafafa;transition:.15s;user-select:none;flex-shrink:0;white-space:nowrap; }
+.ins-card:hover { border-color:var(--accent);background:#fffbeb; }
+.ins-card.active { border-color:var(--accent);background:var(--accent);color:#fff; }
+.ins-card.active .ins-label,.ins-card.active .ins-val { color:#fff; }
+.ins-label { font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2); }
+.ins-val   { font-size:12px;font-weight:800;color:var(--text);line-height:1; }
+
+/* ── SUBBAR ── */
+.subbar { background:#f9fafb;border-bottom:1px solid var(--border);padding:5px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px;position:sticky;z-index:99; }
+.icon-btn { display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border:1.5px solid var(--border);border-radius:7px;background:#fff;color:var(--text2);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;transition:.12s;white-space:nowrap; }
+.icon-btn svg { width:13px;height:13px;flex-shrink:0; }
+.icon-btn:hover { background:#fffbeb;color:var(--accent);border-color:var(--accent); }
+
+/* ── CONTENT ── */
+.content-area { padding:14px 16px; }
+
+/* ── TABLE ── */
+.table-card { background:#fff;border:1px solid var(--border);border-radius:10px;overflow:hidden; }
+.table-wrap { overflow-x:auto; }
+table { width:100%;border-collapse:collapse; }
+thead th { background:#f9fafb;padding:7px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);border-bottom:1px solid var(--border);white-space:nowrap; }
+tbody tr { transition:background .1s;cursor:pointer; }
+tbody tr:hover { background:#fffbeb; }
+tbody tr.alert-row { background:#fffbeb; }
+tbody td { padding:7px 12px;border-bottom:1px solid var(--border);font-size:12px; }
+
+.badge { display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap; }
+.badge-active { background:#dcfce7;color:#15803d; } /* S no banco */
+.badge-inactive { background:#f3f4f6;color:#6b7280; } /* N no banco */
+.badge-warning { background:#fef3c7;color:#92400e; border:1px solid #fde68a; }
+
+.btn-acoes { background:#f3f4f6;color:var(--text2);border:1px solid var(--border);padding:4px 7px;border-radius:6px;cursor:pointer; }
+.dropdown-menu { position:fixed;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.14);z-index:6500;min-width:160px;animation:fadeIn .12s ease;padding:4px;display:none; }
+.dropdown-item { display:flex;align-items:center;gap:9px;padding:8px 12px;border-radius:7px;font-size:12px;cursor:pointer;border:none;background:none;width:100%;text-align:left; font-family:inherit; }
+
+/* ── FORM SECTION ── */
+#formSection { display:none; }
+.form-card { background:#fff;border:1px solid var(--border);border-radius:10px;overflow:hidden; }
+.form-card-head { padding:12px 18px;border-bottom:1px solid var(--border);background:#fff;display:flex;align-items:center;justify-content:space-between; }
+.form-body { padding:20px 18px; }
+
+.form-grid { display:grid;grid-template-columns:1fr 1fr;gap:12px; }
+.form-group { display:flex;flex-direction:column;gap:4px; }
+.form-group.full { grid-column:1/-1; }
+label { font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.3px; }
+input[type="text"], input[type="number"], select, textarea {
+  padding:8px 10px;border:1.5px solid #d1d5db;border-radius:6px;
+  font-size:13px;outline:none;width:100%;font-family:inherit;
+}
+input:focus,select:focus,textarea:focus { border-color:var(--accent);box-shadow:0 0 0 3px rgba(245,158,11,.08); }
+
+/* TOAST */
+#toast-container { position:fixed;bottom:24px;right:24px;z-index:99999;display:flex;flex-direction:column;gap:8px;pointer-events:none; }
+.toast { display:flex;align-items:center;gap:10px;padding:11px 16px;border-radius:9px;font-size:13px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.14);animation:toastIn .22s ease-out;pointer-events:auto; }
+@keyframes toastIn { from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)} }
+.toast-ok   { background:#1a1a2e;color:#fff; }
+.toast-err  { background:#ef4444;color:#fff; }
+</style>
+<script src="/assets/themes.js"></script>
+</head>
+<body>
+
+<div class="toolbar-bar">
+  <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap">
+    <div class="ins-card active" id="ins-total" onclick="toggleFiltroStatus('T')">
+      <span class="ins-label">Total</span><span class="ins-val" id="val-total">—</span>
+    </div>
+    <div class="ins-card" id="ins-ativos" onclick="toggleFiltroStatus('S')">
+      <span class="ins-label">Ativos</span><span class="ins-val" id="val-ativos">—</span>
+    </div>
+    <div class="ins-card" id="ins-inativos" onclick="toggleFiltroStatus('N')">
+      <span class="ins-label">Inativos</span><span class="ins-val" id="val-inativos">—</span>
+    </div>
+    <div class="ins-card" id="ins-mes" style="border-color:var(--accent);background:#fffbeb">
+      <span class="ins-label" style="color:var(--accent)">Eventos do Mês</span>
+      <span class="ins-val" id="val-mes" style="color:var(--accent)">0</span>
+    </div>
+  </div>
+  <button class="btn btn-outline" style="margin-left:auto" onclick="abrirNovo()">Nova Cidade/Evento</button>
+</div>
+
+<div class="subbar">
+  <button class="icon-btn" onclick="buscar()">Atualizar</button>
+  <div style="display:flex;align-items:center;gap:5px">
+    <input type="text" id="inputBusca" placeholder="Buscar cidade ou descrição…" oninput="buscar()" style="padding:5px 10px;border:1.5px solid var(--border);border-radius:7px;width:260px;">
+  </div>
+</div>
+
+<div class="content-area">
+  <div id="listSection">
+    <div class="table-card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:50px">ID</th>
+              <th>Descrição</th>
+              <th>Cidade</th>
+              <th style="width:50px">UF</th>
+              <th style="width:120px">Mês Festa</th>
+              <th style="width:80px">Status</th>
+              <th style="width:60px"></th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text2)">Carregando…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="formSection">
+    <div class="form-card">
+      <div class="form-card-head"><h3 id="formSub">Novo Registro</h3></div>
+      <div class="form-body">
+        <form id="mainForm">
+          <input type="hidden" id="f_id">
+          <div class="form-grid">
+            <div class="form-group full">
+              <label>Descrição do Evento <span style="color:var(--danger)">*</span></label>
+              <input type="text" id="f_descricao" placeholder="Ex: Festa de Padroeiro, Expo, etc." required>
+            </div>
+            <div class="form-group">
+              <label>Cidade <span style="color:var(--danger)">*</span></label>
+              <input type="text" id="f_cidade" placeholder="Nome da Cidade" required>
+            </div>
+            <div class="form-group">
+              <label>UF</label>
+              <select id="f_uf">
+                <option value="">Selecione...</option>
+                <option value="AC">AC</option><option value="AL">AL</option><option value="AP">AP</option>
+                <option value="AM">AM</option><option value="BA">BA</option><option value="CE">CE</option>
+                <option value="DF">DF</option><option value="ES">ES</option><option value="GO">GO</option>
+                <option value="MA">MA</option><option value="MT">MT</option><option value="MS">MS</option>
+                <option value="MG">MG</option><option value="PA">PA</option><option value="PB">PB</option>
+                <option value="PR">PR</option><option value="PE">PE</option><option value="PI">PI</option>
+                <option value="RJ">RJ</option><option value="RN">RN</option><option value="RS">RS</option>
+                <option value="RO">RO</option><option value="RR">RR</option><option value="SC">SC</option>
+                <option value="SP">SP</option><option value="SE">SE</option><option value="TO">TO</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Mês da Festa</label>
+              <select id="f_mes">
+                <option value="">Nenhum / Selecione</option>
+                <option value="01">Janeiro</option><option value="02">Fevereiro</option><option value="03">Março</option>
+                <option value="04">Abril</option><option value="05">Maio</option><option value="06">Junho</option>
+                <option value="07">Julho</option><option value="08">Agosto</option><option value="09">Setembro</option>
+                <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Ano (opcional)</label>
+              <input type="number" id="f_ano" placeholder="Ex: 2024" min="2000" max="2100">
+            </div>
+            <div class="form-group">
+              <label>Status</label>
+              <select id="f_status">
+                <option value="S">Ativo</option>
+                <option value="N">Inativo</option>
+              </select>
+            </div>
+            <div class="form-group full">
+              <label>Observações</label>
+              <textarea id="f_obs" rows="3" placeholder="Detalhes adicionais do evento..."></textarea>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="form-footer" style="padding:15px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:10px;">
+        <button class="btn btn-ghost" onclick="voltarLista()">Cancelar</button>
+        <button class="btn btn-primary" onclick="salvar()">Salvar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+<div id="dropMenu" class="dropdown-menu"></div>
+
+<script>
+let S = { filtroStatus: 'T', registroId: null };
+const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+
+async function buscar() {
+  try {
+    const r = await fetch('/api/eventos-cidades');
+    const d = await r.json();
+    let lista = d.eventos_cidades || [];
+    const q = document.getElementById('inputBusca').value.toLowerCase();
+    const mesAtualStr = (new Date().getMonth() + 1).toString().padStart(2, '0');
+
+    // Filtros
+    if (S.filtroStatus !== 'T') lista = lista.filter(x => x.status === S.filtroStatus);
+    if (q) lista = lista.filter(x => x.cidade.toLowerCase().includes(q) || (x.descricao && x.descricao.toLowerCase().includes(q)));
+    
+    // Contadores
+    document.getElementById('val-total').textContent = d.eventos_cidades?.length || 0;
+    document.getElementById('val-ativos').textContent = d.eventos_cidades?.filter(x=>x.status==='S').length || 0;
+    document.getElementById('val-inativos').textContent = d.eventos_cidades?.filter(x=>x.status==='N').length || 0;
+    
+    // Alertas do Mês
+    const eventosMes = d.eventos_cidades?.filter(x => x.dtfesta && x.dtfesta.substring(0,2) === mesAtualStr).length || 0;
+    document.getElementById('val-mes').textContent = eventosMes;
+
+    renderLista(lista, mesAtualStr);
+  } catch(e) { toast('Erro ao carregar','err'); }
+}
+
+function renderLista(rows, mesAtualStr) {
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = rows.length ? rows.map(f => {
+    const isMesAtual = f.dtfesta && f.dtfesta.substring(0,2) === mesAtualStr;
+    const mesIdx = f.dtfesta ? parseInt(f.dtfesta.substring(0,2)) - 1 : -1;
+    const mesNome = mesIdx >= 0 ? MESES[mesIdx] : '-';
+    
+    return `
+      <tr onclick="abrirEditar(${f.id})" class="${isMesAtual ? 'alert-row' : ''}">
+        <td>${f.id}</td>
+        <td style="font-weight:600">${f.descricao || '-'}</td>
+        <td>${f.cidade}</td>
+        <td>${f.uf || '-'}</td>
+        <td>
+          ${isMesAtual ? '<span class="badge badge-warning" style="margin-right:5px">🔔</span>' : ''}
+          ${mesNome}
+        </td>
+        <td><span class="badge badge-${f.status === 'S' ? 'active' : 'inactive'}">${f.status === 'S' ? 'Ativo' : 'Inativo'}</span></td>
+        <td onclick="event.stopPropagation()"><button class="btn-acoes" onclick="abrirDrop(event, ${f.id})">⋮</button></td>
+      </tr>
+    `;
+  }).join('') : '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text2)">Nenhum registro</td></tr>';
+}
+
+function toggleFiltroStatus(st) {
+  S.filtroStatus = st;
+  ['total','ativos','inativos'].forEach(k => {
+    const el = document.getElementById('ins-'+k);
+    const code = k === 'total' ? 'T' : (k === 'ativos' ? 'S' : 'N');
+    el.classList.toggle('active', code === st);
+  });
+  buscar();
+}
+
+function abrirNovo() {
+  S.registroId = null; document.getElementById('mainForm').reset();
+  document.getElementById('formSub').textContent = 'Novo Registro';
+  document.getElementById('listSection').style.display = 'none'; document.getElementById('formSection').style.display = 'block';
+}
+
+async function abrirEditar(id) {
+  try {
+    const r = await fetch('/api/eventos-cidades');
+    const d = await r.json(); const f = d.eventos_cidades.find(x => x.id === id);
+    if (!f) return; S.registroId = id;
+    
+    document.getElementById('f_id').value = f.id;
+    document.getElementById('f_descricao').value = f.descricao || '';
+    document.getElementById('f_cidade').value = f.cidade;
+    document.getElementById('f_uf').value = f.uf || '';
+    document.getElementById('f_obs').value = f.obs || '';
+    document.getElementById('f_status').value = f.status || 'N';
+    
+    if (f.dtfesta) {
+        document.getElementById('f_mes').value = f.dtfesta.substring(0,2);
+        document.getElementById('f_ano').value = f.dtfesta.substring(2) || '';
+    } else {
+        document.getElementById('f_mes').value = '';
+        document.getElementById('f_ano').value = '';
+    }
+
+    document.getElementById('formSub').textContent = `Editando ID: ${f.id}`;
+    document.getElementById('listSection').style.display = 'none'; document.getElementById('formSection').style.display = 'block';
+  } catch(e) { toast('Erro ao carregar','err'); }
+}
+
+function voltarLista() { document.getElementById('formSection').style.display = 'none'; document.getElementById('listSection').style.display = 'block'; buscar(); }
+
+async function salvar() {
+  const m = document.getElementById('f_mes').value;
+  const a = document.getElementById('f_ano').value || '0000';
+  const dtfesta = m ? (m + a).substring(0,6).padEnd(6, '0') : '';
+
+  const payload = { 
+    descricao: document.getElementById('f_descricao').value.trim(),
+    cidade: document.getElementById('f_cidade').value.trim(), 
+    uf: document.getElementById('f_uf').value, 
+    dtfesta: dtfesta,
+    obs: document.getElementById('f_obs').value,
+    status: document.getElementById('f_status').value 
+  };
+  
+  if (!payload.cidade) return toast('Preencha a cidade','err');
+  if (!payload.descricao) return toast('Preencha a descrição','err');
+
+  try {
+    const r = await fetch(S.registroId ? `/api/eventos-cidades/${S.registroId}` : '/api/eventos-cidades', {
+      method: S.registroId ? 'PUT' : 'POST', 
+      headers: {'Content-Type':'application/json'}, 
+      body: JSON.stringify(payload)
+    });
+    if (r.ok) { toast('Salvo!','ok'); voltarLista(); } else toast('Erro ao salvar','err');
+  } catch(e) { toast('Erro na comunicação','err'); }
+}
+
+function abrirDrop(e, id) {
+  e.stopPropagation(); const m = document.getElementById('dropMenu');
+  m.innerHTML = `<button class="dropdown-item" style="color:var(--danger)" onclick="excluir(${id})">Excluir</button>`;
+  m.style.display = 'block'; const rect = e.currentTarget.getBoundingClientRect();
+  m.style.top = (rect.bottom + 5) + 'px'; m.style.left = (rect.left - 130) + 'px';
+  window.onclick = () => { m.style.display = 'none'; };
+}
+
+async function excluir(id) {
+  if (!confirm('Deseja excluir este registro?')) return;
+  try {
+    const r = await fetch(`/api/eventos-cidades/${id}`, { method: 'DELETE' });
+    if (r.ok) { toast('Excluído!','ok'); buscar(); }
+  } catch(e) { toast('Erro ao excluir','err'); }
+}
+
+function toast(msg, tipo='ok') {
+  const t = document.createElement('div'); t.className = `toast toast-${tipo}`; t.textContent = msg;
+  document.getElementById('toast-container').appendChild(t); setTimeout(()=>t.remove(), 3000);
+}
+document.addEventListener('DOMContentLoaded', buscar);
+</script>
+</body>
+</html>
