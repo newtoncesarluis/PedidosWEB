@@ -4,15 +4,55 @@ const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const path = require('path');
 const fs = require('fs');
+const { logError, logInfo } = require('./config/logger');
+
+// Captura erros não tratados globalmente
+process.on('uncaughtException',  err => logError('uncaughtException',  err));
+process.on('unhandledRejection', err => logError('unhandledRejection', err));
 
 const app = express();
 const PORT = process.env.PORT || 30100;
 
 // Middlewares
 app.use(cors({ origin: true, credentials: true }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '20mb' }));
+app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 app.use(cookieParser());
+
+/**
+ * Favicon: PNG válido (muitos browsers ignoram SVG em GET /favicon.ico e retornavam 404).
+ * 1×1 px — só para silenciar o pedido automático; use /favicon.svg no <link> para ícone nítido.
+ */
+const FAVICON_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+  'base64'
+);
+app.get('/favicon.ico', (req, res) => {
+  res.type('image/png');
+  res.set('Cache-Control', 'public, max-age=86400');
+  res.send(FAVICON_PNG);
+});
+
+app.get('/home.html', (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  res.sendFile(path.join(__dirname, 'public', 'home.html'), { etag: false, lastModified: false });
+});
+
+app.get('/mobile-shell.html', (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  res.sendFile(path.join(__dirname, 'public', 'mobile-shell.html'), { etag: false, lastModified: false });
+});
+
+/** Legado: favoritos / links antigos apontavam para mobile.html */
+app.get('/mobile.html', (req, res) => {
+  const i = req.originalUrl.indexOf('?');
+  const q = i >= 0 ? req.originalUrl.slice(i) : '';
+  res.redirect(302, '/mobile-shell.html' + q);
+});
 
 // login.html — sem cache para garantir verificação de licença sempre atualizada
 app.get('/login.html', (req, res) => {
@@ -92,6 +132,9 @@ app.get('/api/license/ping', async (req, res) => {
 });
 
 app.use('/api', licenseMiddleware);
+
+/** Logs do browser (mobile-shell / iframe) → console do Node + logs/errors.log */
+app.use('/api/client-log', require('./routes/client-log'));
 
 // GET /api/license/status — info da licença (protegida só por auth)
 app.get('/api/license/status', authMiddleware, async (req, res) => {
@@ -175,6 +218,9 @@ app.use('/api/cores',             authMiddleware, require('./routes/cores'));
 app.use('/api/produtos',     authMiddleware, require('./routes/produtos'));
 app.use('/api/lookups',      authMiddleware, require('./routes/lookups'));
 app.use('/api/tabela-precos', authMiddleware, require('./routes/tabela-precos'));
+app.use('/api/importacao-precos',       authMiddleware, require('./routes/importacao-precos'));
+app.use('/api/importacao-clientes',    authMiddleware, require('./routes/importacao-clientes'));
+app.use('/api/importacao-fornecedores',authMiddleware, require('./routes/importacao-fornecedores'));
 app.use('/api/visitas',      authMiddleware, require('./routes/visitas'));
 app.use('/api/geocoding',    authMiddleware, require('./routes/geocoding'));
 app.use('/api/geolocalizacao', authMiddleware, require('./routes/geolocalizacao'));
@@ -222,14 +268,21 @@ app.get('/api/vendedores', authMiddleware, async (req, res) => {
   }
 });
 app.use('/api/pedidos',   authMiddleware, require('./routes/pedidos'));
+app.use('/api/xml',       authMiddleware, require('./routes/xml'));
+app.use('/api/excel',     authMiddleware, require('./routes/excel'));
+app.use('/api/analytics', authMiddleware, require('./routes/analytics'));
+app.use('/api/comissoes', authMiddleware, require('./routes/comissoes'));
+app.use('/api/pagar',     authMiddleware, require('./routes/pagar'));
+app.use('/api/receber',   authMiddleware, require('./routes/receber'));
+app.use('/api/financeiro', authMiddleware, require('./routes/financeiro'));
+
 
 // ─── Cadastros (perfis, grupos, usuários, empresas) ──────────────────────────
 app.use('/api', authMiddleware, require('./routes/cadastros'));
-app.use('/api/visitas',   authMiddleware, require('./routes/visitas'));
 
 // ─── Configurações do sistema e da API ───────────────────────────────────────
 app.use('/api/config',    authMiddleware, require('./routes/config-sistema'));
-app.use('/api/mobile',    authMiddleware, require('./routes/mobile'));
+app.use('/api/parametro-locais', authMiddleware, require('./routes/parametro-locais'));
 app.use('/api/whatsapp',  authMiddleware, require('./routes/whatsapp'));
 
 // ─── Dashboard home (Visão Executiva Diamond Flow) ───────────────────────────
@@ -371,6 +424,12 @@ app.get('/api/whatsapp/config', authMiddleware, async (req, res) => {
 });
 
 // Nota: todas as rotas /api/whatsapp/* estão em routes/whatsapp.js
+
+// Middleware de log de erros Express (captura next(err))
+app.use((err, req, res, next) => {
+  logError(`${req.method} ${req.path}`, err);
+  res.status(500).json({ error: err.message });
+});
 
 // 404 para API
 app.use('/api', (req, res) => {

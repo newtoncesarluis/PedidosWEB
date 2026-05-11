@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Importação de Fornecedores — SysRepWeb</title>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <link rel="stylesheet" href="/assets/themes.css">
+  <script src="/assets/themes.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font) !important;
+      font-size: var(--base-font-size, 14px) !important;
+      background: var(--content-bg, var(--bg, #f8fafc)) !important;
+      color: var(--content-text, #1e293b) !important;
+      min-height: 100vh; padding: 16px; line-height: 1.45;
+      -webkit-font-smoothing: antialiased;
+    }
+    body::before { display: none !important; }
+    .wrapper {
+      position: relative; z-index: 1; width: 100%; max-width: 1900px; margin: 0 auto;
+      --font-body: var(--font, Inter, system-ui, sans-serif);
+      --muted: var(--text2, #64748b);
+      --border: var(--input-border, #e5e7eb);
+      --text: var(--content-text, #1e293b);
+      --surface: var(--glass-bg, #fff);
+      --accent2: var(--accent-hover, var(--accent, #0d9488));
+      --green: var(--success, #22c55e);
+      --red: var(--danger, #ef4444);
+      --yellow: var(--warn, #eab308);
+      --row-even: color-mix(in srgb, var(--content-text) 3%, transparent);
+      --row-hover: color-mix(in srgb, var(--accent) 10%, transparent);
+      --shadow-sm: var(--shadow-sm, 0 1px 4px rgba(0,0,0,.08));
+      --shadow-md: var(--shadow-md, 0 4px 16px rgba(0,0,0,.1));
+    }
+    .imp-header { margin-bottom: 14px; }
+    .imp-h1 { font-size: 15px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--content-text); }
+    .imp-crumb { font-size: 11px; font-weight: 600; color: var(--text2, #64748b); margin-top: 4px; }
+    .imp-toolbar {
+      display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 16px;
+      padding: 12px 16px; background: var(--glass-bg, #fff);
+      border: 1px solid var(--input-border, #e5e7eb); border-radius: var(--radius-md, 10px);
+      margin-bottom: 8px; box-shadow: var(--shadow-sm, 0 1px 4px rgba(0,0,0,.06));
+    }
+    .imp-field { display: flex; flex-direction: column; gap: 6px; min-width: 200px; flex: 1; }
+    .imp-field--file { flex: 1 1 320px; min-width: 200px; max-width: none; }
+    .imp-file-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+    .imp-file-inline { margin: 0; font-family: var(--font-body); font-size: 12px; line-height: 1.35; color: var(--muted); flex: 1 1 220px; min-width: 180px; }
+    .imp-file-inline strong { color: var(--text); font-weight: 700; }
+    .imp-menu-actions { flex-shrink: 0; align-self: flex-end; margin-left: auto; display: flex; align-items: center; gap: 8px; }
+    .imp-btn-menu {
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 8px 14px; font-size: 12px; font-weight: 700; font-family: var(--font-body);
+      text-decoration: none; border-radius: 7px;
+      background: color-mix(in srgb, var(--accent-hover, var(--accent)) 10%, transparent);
+      border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+      color: var(--accent2, var(--accent)); transition: .15s; white-space: nowrap;
+    }
+    .imp-btn-menu:hover { filter: brightness(1.06); border-color: var(--accent); }
+    .imp-label { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text2, #64748b); letter-spacing: 0.04em; }
+    .btn-file {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 8px 14px; font-size: 12px; font-weight: 700; font-family: var(--font-body);
+      background: var(--accent); color: var(--btn-text, #fff);
+      border: 1.5px solid var(--accent); border-radius: 7px; cursor: pointer; transition: .15s; white-space: nowrap;
+    }
+    .btn-file:hover { filter: brightness(1.06); }
+    .drop-zone {
+      border: 2px dashed color-mix(in srgb, var(--accent) 28%, var(--input-border));
+      border-radius: var(--radius-md); padding: 0;
+      display: flex; flex-direction: column; align-items: stretch;
+      background: var(--surface); position: relative; overflow: hidden;
+      margin-bottom: 8px; cursor: default; box-shadow: var(--shadow-sm);
+      min-height: 48px; transition: border-color .2s, background .2s;
+    }
+    .drop-zone .drop-inner { display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 10px; padding: 10px 14px; }
+    .drop-zone .drop-icon-wrap { width: auto; height: auto; background: none; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; line-height: 1; }
+    .drop-zone .drop-title { font-family: var(--font-body); font-size: 12px; font-weight: 700; color: var(--text); }
+    .drop-zone.dragover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, transparent); }
+    .drop-zone input[type="file"] { display:none; }
+    .drop-zone .read-overlay { display:none; position:absolute; inset:0; z-index:3; align-items:center; justify-content:center; flex-direction:column; gap:.9rem; border-radius:10px; }
+    .drop-zone.lendo .read-overlay { display:flex; }
+    .drop-zone.lendo { pointer-events:none; }
+    .drop-zone.lendo::before { content:''; position:absolute; inset:0; z-index:2; background:rgba(255,255,255,.88); border-radius:10px; }
+    .read-spinner { width:44px; height:44px; border:3px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spinAnim .7s linear infinite; }
+    .read-label { font-family:'Space Mono',monospace; font-size:.72rem; color:var(--accent); letter-spacing:.04em; }
+    @keyframes spinAnim { to { transform:rotate(360deg); } }
+    .quick-guide { margin: 0 0 10px; padding: 10px 14px; font-size: 13px; font-weight: 600; line-height: 1.45; font-family: var(--font-body); color: var(--muted); border: 1px solid color-mix(in srgb, var(--content-text) 8%, transparent); border-radius: var(--radius-md); background: color-mix(in srgb, var(--content-text) 3%, transparent); }
+    .quick-guide strong { color: var(--text); font-size: 14px; }
+    .sheet-bar { display:flex; gap:.5rem; flex-wrap:wrap; margin-bottom:.7rem; align-items:center; }
+    .sheet-bar label { color:var(--muted); font-family:var(--font-body); font-size:.88rem; font-weight:600; }
+    .sheet-btn { padding:.52rem 1rem; border-radius:999px; border:1px solid var(--border); background:var(--surface); color:var(--muted); font-family:var(--font-body); font-size:.9rem; font-weight:600; cursor:pointer; transition:all .15s; }
+    .sheet-btn.active { background:var(--accent); border-color:var(--accent); color:#ffffff; font-weight:700; }
+    .map-counter { font-family: var(--font-body); font-size: 13px; color: var(--muted); white-space: nowrap; }
+    .map-counter span { color: var(--accent); font-weight: 800; }
+    .map-critical { font-size: 13px; font-weight: 700; color: var(--red); }
+    .btn-limpar-map { padding: 6px 10px; background: transparent; border: 1px solid var(--border); border-radius: 7px; color: var(--muted); font-family: var(--font-body); font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s; white-space: nowrap; }
+    .btn-limpar-map:hover { border-color: var(--red); color: var(--red); }
+    .btn-map-ess { padding: 8px 12px; background: rgba(15,117,184,.08); border: 1px solid rgba(15,117,184,.3); border-radius: 8px; color: var(--accent2); font-size: 13px; font-weight: 800; cursor: pointer; white-space: nowrap; font-family: var(--font-body); }
+    .btn-map-ess:hover { background: rgba(15,117,184,.16); }
+    .map-sep { width:1px; height:18px; background:var(--border); flex-shrink:0; }
+    .progress-wrap { display:none; flex-direction:column; gap:.4rem; margin-bottom:.7rem; padding:.7rem 1rem; background:var(--surface); border:1px solid var(--border); border-radius:8px; }
+    .progress-wrap.visible { display:flex; }
+    .progress-label { font-family: var(--font-body); font-size: 12px; font-weight: 600; color: var(--muted); display: flex; justify-content: space-between; }
+    .progress-label span { color:var(--accent); }
+    .progress-track { height:4px; background:var(--border); border-radius:4px; overflow:hidden; }
+    .progress-fill { height:100%; background:var(--accent); border-radius:4px; transition:width .3s; width:0%; }
+    #output .toolbar { display:flex; gap:.75rem; margin-bottom:.95rem; align-items:center; flex-wrap:wrap; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-md); padding:.9rem .95rem; box-shadow:var(--shadow-sm); }
+    .form-health { padding: 8px 14px; border: 1px solid var(--border); border-radius: 999px; font-size: 13px; font-weight: 800; color: var(--muted); background: var(--surface); white-space: nowrap; font-family: var(--font-body); }
+    .form-health.ok { border-color:rgba(31,159,103,.35); background:rgba(31,159,103,.08); color:var(--green); }
+    .form-health.warn { border-color:rgba(214,79,79,.3); background:rgba(214,79,79,.08); color:var(--red); }
+    .search-wrap { position:relative; flex:1; min-width:160px; }
+    .search-wrap svg { position:absolute; left:.85rem; top:50%; transform:translateY(-50%); color:var(--muted); width:16px; height:16px; }
+    .search-input { width:100%; padding:.8rem .9rem .8rem 2.5rem; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-md); color:var(--text); font-family:var(--font-body); font-size:1rem; outline:none; transition:border-color .15s; }
+    .search-input:focus { border-color:var(--accent2); box-shadow:0 0 0 3px rgba(31,143,208,.14); }
+    .search-input::placeholder { color:var(--muted); }
+    .btn-export { padding: 10px 14px; background: transparent; border: 1px solid var(--border); border-radius: var(--radius-md); color: var(--muted); font-family: var(--font-body); font-size: 14px; font-weight: 800; cursor: pointer; transition: all .15s; white-space: nowrap; }
+    .btn-export:hover { border-color:var(--accent2); color:var(--accent2); }
+    .btn-verificar { padding: 10px 16px; background: rgba(31,143,208,.11); border: 1px solid rgba(31,143,208,.35); border-radius: var(--radius-md); color: var(--accent2); font-family: var(--font-body); font-size: 14px; font-weight: 800; cursor: pointer; transition: all .15s; white-space: nowrap; }
+    .btn-verificar:hover { background: rgba(31,143,208,.2); }
+    .btn-importar { padding: 10px 16px; background: rgba(31,143,57,.12); border: 1px solid rgba(31,143,57,.35); border-radius: var(--radius-md); color: var(--accent); font-family: var(--font-body); font-size: 14px; font-weight: 800; cursor: pointer; transition: all .15s; white-space: nowrap; display: none; }
+    .btn-importar:hover { background:rgba(103,184,31,.2); }
+    .btn-importar.visible { display:block; }
+    .import-options { display:none; align-items:center; gap:.45rem; padding:.62rem .75rem; border:1px solid var(--border); border-radius:var(--radius-md); background:var(--row-even); }
+    .import-options.visible { display:flex; }
+    .skip-new-label { display:inline-flex; align-items:center; gap:.45rem; font-family:var(--font-body); font-size:.9rem; color:var(--muted); cursor:pointer; user-select:none; white-space:nowrap; font-weight:600; }
+    .skip-new-label input { width:18px; height:18px; accent-color:var(--accent2); cursor:pointer; }
+    .table-container { border:1px solid var(--border); border-radius:var(--radius-lg); overflow:auto; max-height:calc(100vh - 155px); background:var(--surface); box-shadow:var(--shadow-md); }
+    table { width:100%; border-collapse:collapse; }
+    thead { position:sticky; top:0; z-index:10; background: color-mix(in srgb, var(--content-text) 4%, var(--glass-bg)); }
+    th { padding:0; border-bottom:1px solid var(--border); white-space:nowrap; vertical-align:top; border-right: 1px solid color-mix(in srgb, var(--content-text) 10%, transparent); }
+    th:last-child { border-right:none; }
+    .th-inner { display:flex; flex-direction:column; min-width:220px; }
+    .th-original { padding:.7rem .9rem .5rem; font-family:var(--font-body); font-size:.9rem; color:var(--muted); border-bottom:1px solid rgba(148,163,184,.35); cursor:pointer; user-select:none; display:flex; align-items:center; gap:.3rem; font-weight:700; }
+    .th-original.sorted-asc::after  { content:' ↑'; color:var(--accent); }
+    .th-original.sorted-desc::after { content:' ↓'; color:var(--accent); }
+    .th-hide-btn { background:none; border:none; color:var(--muted); cursor:pointer; font-size:.7rem; padding:0 2px; opacity:0; transition:opacity .15s; line-height:1; margin-left:auto; flex-shrink:0; }
+    .th-original:hover .th-hide-btn { opacity:1; }
+    .th-hide-btn:hover { color:var(--red); }
+    .btn-show-hidden { padding: 6px 10px; background: transparent; border: 1px solid rgba(255,125,125,.3); border-radius: 7px; color: var(--red); font-family: var(--font-body); font-size: 13px; font-weight: 700; cursor: pointer; transition: all .15s; white-space: nowrap; display: none; }
+    .btn-show-hidden.visible { display:inline-flex; align-items:center; gap:.3rem; }
+    .map-select-wrap { position:relative; background:rgba(31,143,208,.06); }
+    .map-select-wrap::after { content:'▾'; position:absolute; right:.4rem; top:50%; transform:translateY(-50%); color:var(--muted); pointer-events:none; font-size:.6rem; }
+    .map-select { width:100%; padding:.58rem 1.3rem .58rem .7rem; background:transparent; border:none; color:var(--text); font-family:var(--font-body); font-size:.88rem; outline:none; cursor:pointer; appearance:none; }
+    .map-select option { background:#ffffff; color:var(--text); }
+    .map-select-wrap.mapped   { background:rgba(181,255,71,.06); border-top:1px solid rgba(181,255,71,.15); }
+    .map-select-wrap.mapped .map-select { color:var(--accent); }
+    .map-select-wrap.unmapped .map-select { color:var(--muted); }
+    th.th-status { min-width:110px; }
+    th.th-num { width:44px; vertical-align:middle; }
+    th.th-num .th-inner-num { padding:.55rem; font-family:'Space Mono',monospace; font-size:.6rem; color:var(--muted); text-align:center; }
+    .badge { display:inline-flex; align-items:center; gap:.35rem; padding:.3rem .72rem; border-radius:999px; font-family:var(--font-body); font-size:.84rem; font-weight:700; border:1px solid; white-space:nowrap; }
+    .badge-cad-s { color:var(--green);  border-color:rgba(125,255,179,.35); background:rgba(125,255,179,.08); }
+    .badge-cad-n { color:var(--red);    border-color:rgba(255,125,125,.35); background:rgba(255,125,125,.08); }
+    .badge-a  { color:var(--accent2); border-color:rgba(71,200,255,.35); background:rgba(71,200,255,.08); }
+    .badge-sc { color:var(--yellow);  border-color:rgba(255,212,71,.35);  background:rgba(255,212,71,.08); }
+    .badge-aguard  { color:var(--muted);   border-color:rgba(100,100,118,.3);  background:transparent; }
+    .badge-ok      { color:var(--green);   border-color:rgba(125,255,179,.35); background:rgba(125,255,179,.08); }
+    .badge-erro    { color:var(--red);     border-color:rgba(255,125,125,.35); background:rgba(255,125,125,.08); }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+    .pulsing { animation:pulse 1.2s ease-in-out infinite; }
+    .dot { width:7px; height:7px; border-radius:50%; display:inline-block; flex-shrink:0; }
+    .dot-green  { background:var(--green); }
+    .dot-yellow { background:var(--yellow); }
+    .dot-blue   { background:var(--accent2); }
+    .dot-muted  { background:var(--muted); }
+    .status-cards { display:none; gap:.65rem; flex-wrap:wrap; margin-bottom:.9rem; }
+    .status-cards.visible { display:flex; }
+    .sc-card { display:flex; flex-direction:column; gap:.28rem; padding:.65rem 1rem .6rem; border-radius:10px; border:1px solid var(--border); background:var(--surface); cursor:pointer; transition:all .15s; min-width:110px; user-select:none; }
+    .sc-card:hover { border-color:var(--accent2); transform:translateY(-2px); }
+    .sc-card.active { box-shadow:0 0 0 2px currentColor; }
+    .sc-card .sc-val { font-size:1.5rem; font-weight:800; line-height:1; }
+    .sc-card .sc-lbl { font-family:'Space Mono',monospace; font-size:.58rem; color:var(--muted); letter-spacing:.06em; text-transform:uppercase; }
+    .sc-card .sc-bar { height:2px; border-radius:2px; margin-top:.3rem; background:currentColor; opacity:.3; }
+    .sc-card.active .sc-bar { opacity:1; }
+    .sc-todos  { color:var(--text); }
+    .sc-cads   { color:var(--green); border-color:rgba(125,255,179,.2); }
+    .sc-ncads  { color:var(--red); border-color:rgba(255,125,125,.2); }
+    .sc-atu    { color:var(--accent2); border-color:rgba(71,200,255,.2); }
+    .sc-novo   { color:var(--yellow); border-color:rgba(255,212,71,.2); }
+    td { padding:.78rem .9rem; border-bottom:1px solid rgba(148,163,184,.35); border-right:1px solid rgba(148,163,184,.2); font-family:var(--font-body); font-size:.95rem; color:var(--text); white-space:normal; line-height:1.4; max-width:540px; overflow-wrap:anywhere; vertical-align:middle; }
+    td:last-child { border-right:none; }
+    tr:nth-child(even) td { background:var(--row-even); }
+    tr:hover td { background:var(--row-hover); }
+    .row-num { color:var(--muted); font-size:.85rem; text-align:center; user-select:none; font-weight:600; }
+    .data-footer { font-family:'Space Mono',monospace; font-size:.58rem; color:var(--muted); padding:.3rem .1rem; display:flex; gap:1.2rem; flex-wrap:wrap; }
+    .toast { position:fixed; bottom:1.5rem; right:1.5rem; padding:.6rem 1.1rem; border-radius:8px; font-family:'Space Mono',monospace; font-size:.7rem; z-index:200; opacity:0; transform:translateY(8px); transition:all .2s; pointer-events:none; }
+    .toast.show { opacity:1; transform:translateY(0); }
+    .toast.ok   { background:rgba(125,255,179,.12); border:1px solid rgba(125,255,179,.3); color:var(--green); }
+    .toast.warn { background:rgba(255,212,71,.12);  border:1px solid rgba(255,212,71,.3);  color:var(--yellow); }
+    .toast.erro { background:rgba(255,125,125,.12); border:1px solid rgba(255,125,125,.3); color:var(--red); }
+    .import-overlay { display:none; position:fixed; inset:0; background:rgba(15,23,42,.55); z-index:9999; align-items:center; justify-content:center; }
+    .import-overlay.visible { display:flex; }
+    .import-card { background:var(--surface); border:1px solid rgba(181,255,71,.25); border-radius:18px; padding:2.4rem 2.8rem; text-align:center; min-width:320px; max-width:440px; width:90%; }
+    .import-spinner { width:54px; height:54px; border:3px solid var(--border); border-top-color:var(--accent); border-radius:50%; margin:0 auto 1.3rem; animation:spinAnim .7s linear infinite; }
+    .import-card h3 { font-size:1.15rem; font-weight:800; margin-bottom:.5rem; }
+    .import-card h3 span { color:var(--accent); }
+    .import-aguarde { font-family:'Space Mono',monospace; font-size:.75rem; color:var(--muted); margin-bottom:1.3rem; }
+    .import-aguarde .dots { display:inline-block; overflow:hidden; vertical-align:bottom; animation:dotsAnim 1.8s steps(6,end) infinite; width:0; }
+    @keyframes dotsAnim { 0%{width:0} 20%{width:.5em} 40%{width:1em} 60%{width:1.5em} 80%{width:2em} 100%{width:2.5em} }
+    .import-prog-track { height:6px; background:var(--border); border-radius:4px; overflow:hidden; margin-bottom:.6rem; }
+    .import-prog-fill { height:100%; background:linear-gradient(90deg,var(--accent),var(--accent2)); border-radius:4px; transition:width .3s ease; width:0%; }
+    .import-prog-lbl { font-family:'Space Mono',monospace; font-size:.63rem; color:var(--muted); display:flex; justify-content:space-between; margin-bottom:.2rem; }
+    .import-prog-lbl .pct { color:var(--accent); font-weight:700; }
+    .import-stats { display:flex; gap:1.2rem; justify-content:center; margin-top:1.2rem; padding-top:1.1rem; border-top:1px solid var(--border); flex-wrap:wrap; }
+    .import-stat .val { font-size:1.6rem; font-weight:800; line-height:1; }
+    .import-stat .lbl { font-family:'Space Mono',monospace; font-size:.58rem; color:var(--muted); margin-top:.18rem; letter-spacing:.06em; }
+    .import-card.concluido .import-spinner { border-top-color:var(--green); animation:none; }
+    .import-card.concluido h3 span { color:var(--green); }
+    .btn-nova-overlay { margin-top:1rem; padding:.55rem 1.4rem; background:rgba(71,200,255,.1); border:1px solid rgba(71,200,255,.35); border-radius:8px; color:var(--accent2); font-family:'Space Mono',monospace; font-size:.75rem; font-weight:700; cursor:pointer; transition:all .15s; }
+    .btn-nova-overlay:hover { background:rgba(71,200,255,.2); }
+    .confirm-overlay { display:none; position:fixed; inset:0; background:rgba(15,23,42,.5); z-index:10002; align-items:center; justify-content:center; }
+    .confirm-overlay.visible { display:flex; }
+    .confirm-box { width:min(560px,92vw); background:var(--surface); border:1px solid var(--border); border-radius:14px; box-shadow:0 20px 50px rgba(0,0,0,.25); padding:1rem; }
+    .confirm-box h4 { margin-bottom:.65rem; font-size:1rem; }
+    .confirm-grid { display:grid; grid-template-columns:1fr 1fr; gap:.5rem .9rem; margin:.6rem 0 .9rem; }
+    .confirm-item { font-size:.86rem; color:var(--muted); }
+    .confirm-item strong { color:var(--text); }
+    .confirm-actions { display:flex; justify-content:flex-end; gap:.6rem; }
+    .btn-confirm, .btn-cancel { padding:.55rem .9rem; border-radius:8px; font-weight:700; cursor:pointer; border:1px solid var(--border); }
+    .btn-cancel { background:transparent; color:var(--muted); }
+    .btn-confirm { background:rgba(31,143,57,.12); color:var(--accent); border-color:rgba(31,143,57,.35); }
+    .pagination { display:none; align-items:center; gap:.7rem; margin-top:.85rem; flex-wrap:wrap; font-family:var(--font-body); position:sticky; bottom:0; z-index:8; background:rgba(255,255,255,.96); border:1px solid var(--border); border-radius:var(--radius-lg); padding:.7rem .85rem; }
+    .pagination.visible { display:flex; }
+    .pg-info { font-size:.92rem; color:var(--muted); white-space:nowrap; font-weight:600; }
+    .pg-info strong { color:var(--text); }
+    .pg-buttons { display:flex; gap:.3rem; flex-wrap:wrap; }
+    .pg-btn { min-width:36px; height:34px; padding:0 .65rem; background:var(--surface); border:1px solid var(--border); border-radius:10px; color:var(--muted); font-family:var(--font-body); font-size:.95rem; cursor:pointer; transition:all .12s; font-weight:700; display:inline-flex; align-items:center; justify-content:center; }
+    .pg-btn:hover:not(:disabled) { border-color:var(--accent2); color:var(--accent2); }
+    .pg-btn.active { background:var(--accent); border-color:var(--accent); color:#ffffff; cursor:default; }
+    .pg-btn:disabled { opacity:.3; cursor:not-allowed; }
+    .pg-size { margin-left:auto; background:var(--surface); border:1px solid var(--border); border-radius:10px; color:var(--muted); font-family:var(--font-body); font-size:.92rem; padding:.48rem .66rem; cursor:pointer; outline:none; }
+    @media (max-width: 768px) {
+      body { padding:.65rem; }
+      .imp-toolbar { flex-direction: column; align-items: stretch; }
+      .imp-field { max-width: none; width: 100%; }
+      .btn-file { width:100%; justify-content:center; }
+    }
+  </style>
+</head>
+<body>
+<div class="wrapper">
+
+  <header class="imp-header">
+    <h1 class="imp-h1">Importação de Fornecedores</h1>
+    <p class="imp-crumb">Cadastros › Ferramentas · importação em lote via planilha Excel</p>
+  </header>
+
+  <div class="imp-toolbar">
+    <div class="imp-field imp-field--file">
+      <label class="imp-label" for="fileInput">Arquivo da planilha</label>
+      <div class="imp-file-row">
+        <label for="fileInput" class="btn-file" id="fileBtnLabel">Selecionar arquivo</label>
+        <p class="imp-file-inline">
+          <strong>Arraste o arquivo Excel aqui.</strong>
+          Formatos aceitos: .xlsx, .xls ou .csv.
+          <br>Chave de identificação: <strong>CPF / CNPJ</strong> (campo <code>cpf</code>).
+        </p>
+      </div>
+    </div>
+    <div class="imp-menu-actions">
+      <a href="/pages/campos-importacao.html?tabela=fornecedor" class="imp-btn-menu">⚙ Configurar Campos</a>
+      <a href="/home.html" class="imp-btn-menu">← Início</a>
+    </div>
+  </div>
+
+  <div class="drop-zone" id="dropZone">
+    <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" autocomplete="off"/>
+    <div class="drop-inner">
+      <div class="drop-icon-wrap" aria-hidden="true">🏭</div>
+      <div class="drop-title">Solte o Excel <strong>aqui</strong></div>
+    </div>
+    <div class="read-overlay">
+      <div class="read-spinner"></div>
+      <span class="read-label">Lendo arquivo...</span>
+    </div>
+  </div>
+
+  <div class="quick-guide">
+    <strong>Passos:</strong> 1) Importe o arquivo · 2) Mapeie as colunas · 3) Valide os dados · 4) Salve no banco
+    &nbsp;|&nbsp; <strong>Chave:</strong> campo <code>CPF / CNPJ</code> — usado para detectar se o fornecedor já existe (atualiza) ou é novo (insere).
+  </div>
+
+  <div id="output" style="display:none; margin-top:.4rem;">
+    <div class="sheet-bar" id="sheetBar"></div>
+    <div class="status-cards" id="statusCards"></div>
+
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-label">
+        <span id="progressLabel">Verificando...</span>
+        <span id="progressPct">0%</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+    </div>
+
+    <div class="toolbar">
+      <div class="search-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="searchInput" class="search-input" placeholder="Filtrar dados..." autocomplete="off"/>
+      </div>
+      <div id="mapBar" style="display:none; align-items:center; gap:.5rem; flex-shrink:0;">
+        <div class="map-sep"></div>
+        <span class="map-counter" id="mapCounter"></span>
+        <span class="map-critical" id="mapCritical"></span>
+        <button class="btn-map-ess" onclick="mapearEssenciais()">⚡ Essenciais</button>
+        <button class="btn-limpar-map" onclick="limparMapeamento()">✕ Limpar</button>
+        <button class="btn-show-hidden" id="btnShowHidden" onclick="restaurarColunas()">↩ Restaurar ocultas</button>
+        <div class="map-sep"></div>
+      </div>
+      <button class="btn-export" onclick="exportCSV()">⬇ CSV</button>
+      <button class="btn-verificar" id="btnVerificar" onclick="verificarLote()">🔍 Validar Dados</button>
+      <div class="import-options" id="importOptions">
+        <label class="skip-new-label">
+          <input type="checkbox" id="skipSemCadastro" autocomplete="off"/>
+          Não gravar fornecedores novos
+        </label>
+      </div>
+      <button class="btn-importar" id="btnImportar" onclick="importarLote()">💾 Salvar Fornecedores</button>
+      <span class="form-health warn" id="formHealth">⚠ Ajustes pendentes</span>
+    </div>
+
+    <div class="table-container">
+      <table id="dataTable">
+        <thead id="tableHead"></thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+    <div class="pagination" id="pagination"></div>
+    <div class="data-footer" id="dataFooter"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="import-overlay" id="importOverlay">
+  <div class="import-card" id="importCard">
+    <div class="import-spinner"></div>
+    <h3>Importando<span id="overlayTituloSpan">...</span></h3>
+    <div class="import-aguarde">Aguarde o fim da importação<span class="dots">.....</span></div>
+    <div class="import-prog-track"><div class="import-prog-fill" id="overlayFill"></div></div>
+    <div class="import-prog-lbl">
+      <span id="overlayLinhas">0 de 0</span>
+      <span class="pct" id="overlayPct">0%</span>
+    </div>
+    <div class="import-stats">
+      <div class="import-stat"><div class="val" id="statOk"  style="color:var(--green)">0</div><div class="lbl">INSERIDOS</div></div>
+      <div class="import-stat"><div class="val" id="statUpd" style="color:var(--accent2)">0</div><div class="lbl">ATUALIZADOS</div></div>
+      <div class="import-stat"><div class="val" id="statErr" style="color:var(--red)">0</div><div class="lbl">ERROS</div></div>
+    </div>
+    <div style="display:flex;gap:.6rem;margin-top:1rem;justify-content:center;">
+      <button class="btn-nova-overlay" id="btnNovaImportacao" onclick="novaImportacao()" style="display:none;">📂 Nova Importação</button>
+    </div>
+  </div>
+</div>
+
+<div class="confirm-overlay" id="confirmOverlay">
+  <div class="confirm-box">
+    <h4>Confirmar salvamento</h4>
+    <div class="confirm-grid" id="confirmGrid"></div>
+    <div class="confirm-actions">
+      <button class="btn-cancel" onclick="resolverConfirmacao(false)">Cancelar</button>
+      <button class="btn-confirm" onclick="resolverConfirmacao(true)">Confirmar e salvar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const _token = sessionStorage.getItem('token') || localStorage.getItem('token') || '';
+  if (!_token) {
+    try { window.top.location.href = '/login.html?_=' + Date.now(); } catch (_) { window.location.href = '/login.html?_=' + Date.now(); }
+  }
+
+  const API_BASE   = '/api/importacao-fornecedores';
+  const CHAVE_CAMPO = 'cpf';
+
+  function apiGet(url) { return fetch(url, { headers: { 'Authorization': 'Bearer ' + _token } }); }
+  function apiPost(url, body) {
+    return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _token }, body: JSON.stringify(body) });
+  }
+  async function apiHandle401(r) {
+    if (r.status === 401) { try { window.top.location.href = '/login.html?_=' + Date.now(); } catch (_) { window.location.href = '/login.html?_=' + Date.now(); } return true; }
+    return false;
+  }
+
+  let allRows      = [];
+  let headers      = [];
+  let sortCol      = -1;
+  let sortAsc      = true;
+  let workbook     = null;
+  let colMapping   = {};
+  let camposImportacao = [];
+  let statusRows   = {};
+  let verificado   = false;
+  let filtroCardAtivo = null;
+  let currentPage  = 1;
+  let pageSize     = 50;
+  let hiddenCols   = new Set();
+  let isImportando = false;
+  let confirmResolver = null;
+
+  const dropZone    = document.getElementById('dropZone');
+  const fileInput   = document.getElementById('fileInput');
+  const output      = document.getElementById('output');
+  const sheetBar    = document.getElementById('sheetBar');
+  const tableHead   = document.getElementById('tableHead');
+  const tableBody   = document.getElementById('tableBody');
+  const searchInput = document.getElementById('searchInput');
+
+  function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  let _toastTimer;
+  function showToast(msg, type = 'ok', dur = 3000) {
+    const t = document.getElementById('toast');
+    clearTimeout(_toastTimer);
+    t.textContent = msg; t.className = 'toast show ' + type;
+    _toastTimer = setTimeout(() => t.classList.remove('show'), dur);
+  }
+
+  async function carregarCampos() {
+    try {
+      const r = await apiGet(API_BASE + '/campos-importacao');
+      if (await apiHandle401(r)) return;
+      const d = await r.json();
+      camposImportacao = d.ok && Array.isArray(d.campos) ? d.campos : [];
+    } catch(e) {
+      camposImportacao = [];
+      showToast('Erro ao carregar campos: ' + e.message, 'erro');
+    }
+  }
+
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+  dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); const f = e.dataTransfer.files[0]; if (f) processFile(f); });
+  fileInput.addEventListener('change', () => { if (fileInput.files[0]) processFile(fileInput.files[0]); fileInput.value = ''; });
+  dropZone.addEventListener('click', e => { if (!e.target.closest('label') && !e.target.closest('input')) fileInput.click(); });
+
+  function processFile(file) {
+    dropZone.classList.add('lendo');
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        workbook = XLSX.read(e.target.result, { type: 'binary', cellDates: true });
+        renderSheetBar();
+        loadSheet(workbook.SheetNames[0]);
+      } catch(err) {
+        showToast('Erro ao ler arquivo: ' + err.message, 'erro');
+      }
+      dropZone.classList.remove('lendo');
+    };
+    reader.onerror = () => { showToast('Erro ao ler arquivo.', 'erro'); dropZone.classList.remove('lendo'); };
+    reader.readAsBinaryString(file);
+  }
+
+  function renderSheetBar() {
+    sheetBar.innerHTML = '';
+    if (!workbook || workbook.SheetNames.length <= 1) return;
+    const lbl = document.createElement('label'); lbl.textContent = 'Aba:'; sheetBar.appendChild(lbl);
+    workbook.SheetNames.forEach(name => {
+      const btn = document.createElement('button');
+      btn.className = 'sheet-btn'; btn.textContent = name;
+      btn.onclick = () => { sheetBar.querySelectorAll('.sheet-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); loadSheet(name); };
+      sheetBar.appendChild(btn);
+    });
+    sheetBar.querySelector('.sheet-btn')?.classList.add('active');
+  }
+
+  function loadSheet(name) {
+    if (!workbook) return;
+    const ws = workbook.Sheets[name];
+    if (!ws) return;
+    const raw = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
+    if (!raw.length) { showToast('Aba vazia.', 'warn'); return; }
+    headers = raw[0].map(h => String(h ?? '').trim());
+    allRows = raw.slice(1).filter(r => r.some(c => c !== '' && c != null));
+    colMapping = {};
+    verificado = false;
+    statusRows = {};
+    filtroCardAtivo = null;
+    currentPage = 1;
+    autoMapear();
+    output.style.display = 'block';
+    document.getElementById('statusCards').classList.remove('visible');
+    document.getElementById('progressWrap').classList.remove('visible');
+    document.getElementById('btnImportar').classList.remove('visible');
+    document.getElementById('importOptions').classList.remove('visible');
+    renderTable();
+    atualizarEstadoFormulario();
+  }
+
+  function normStr(s) { return String(s).toLowerCase().trim().replace(/[\s_\-\/]/g, '').normalize('NFD').replace(/[̀-ͯ]/g,''); }
+
+  function autoMapear() {
+    if (!camposImportacao.length) return;
+    colMapping = {};
+    headers.forEach((h, i) => {
+      const hNorm = normStr(h);
+      const match = camposImportacao.find(c => normStr(c.nome_campo) === hNorm || normStr(c.apelido) === hNorm);
+      if (match) colMapping[i] = { nome_campo: match.nome_campo, apelido: match.apelido };
+    });
+  }
+
+  function mapearEssenciais() {
+    camposImportacao.filter(c => c.obrigatorio === 'S').forEach(campo => {
+      const alreadyMapped = Object.values(colMapping).some(v => v.nome_campo === campo.nome_campo);
+      if (alreadyMapped) return;
+      const idx = headers.findIndex(h => normStr(h) === normStr(campo.nome_campo) || normStr(h) === normStr(campo.apelido));
+      if (idx >= 0) colMapping[idx] = { nome_campo: campo.nome_campo, apelido: campo.apelido };
+    });
+    renderTable();
+    atualizarEstadoFormulario();
+  }
+
+  function limparMapeamento() { colMapping = {}; renderTable(); atualizarEstadoFormulario(); }
+  function restaurarColunas() { hiddenCols.clear(); document.getElementById('btnShowHidden').classList.remove('visible'); renderTable(); }
+
+  function onMapSelect(colIdx, value) {
+    if (!value) { delete colMapping[colIdx]; }
+    else {
+      const campo = camposImportacao.find(c => c.nome_campo === value);
+      if (campo) colMapping[colIdx] = { nome_campo: campo.nome_campo, apelido: campo.apelido };
+    }
+    verificado = false; statusRows = {};
+    document.getElementById('statusCards').classList.remove('visible');
+    document.getElementById('btnImportar').classList.remove('visible');
+    document.getElementById('importOptions').classList.remove('visible');
+    atualizarEstadoFormulario();
+  }
+
+  function ocultarColuna(colIdx) { hiddenCols.add(colIdx); document.getElementById('btnShowHidden').classList.add('visible'); renderTable(); }
+
+  function getRowsFiltrados() {
+    const q = searchInput.value.toLowerCase().trim();
+    let rows = allRows.map((r, i) => ({ row: r, origIdx: i }));
+    if (filtroCardAtivo !== null) {
+      rows = rows.filter(({ origIdx }) => {
+        const s = statusRows[origIdx];
+        if (filtroCardAtivo === 'cad-s') return s?.status_cadastro === 'S';
+        if (filtroCardAtivo === 'cad-n') return s?.status_cadastro === 'N';
+        if (filtroCardAtivo === 'atu')   return s?.status === 'A';
+        if (filtroCardAtivo === 'novo')  return s?.status === 'SC';
+        return true;
+      });
+    }
+    if (q) rows = rows.filter(({ row }) => row.some(c => String(c).toLowerCase().includes(q)));
+    if (sortCol >= 0) {
+      rows.sort((a, b) => {
+        const av = String(a.row[sortCol] ?? '').toLowerCase();
+        const bv = String(b.row[sortCol] ?? '').toLowerCase();
+        const n = parseFloat(av), m = parseFloat(bv);
+        const cmp = (!isNaN(n) && !isNaN(m)) ? n - m : av.localeCompare(bv, 'pt-BR');
+        return sortAsc ? cmp : -cmp;
+      });
+    }
+    return rows;
+  }
+
+  function renderTable() {
+    const visibleCols = headers.map((_, i) => i).filter(i => !hiddenCols.has(i));
+    let thHtml = '<tr>';
+    thHtml += '<th class="th-num"><div class="th-inner-num">#</div></th>';
+    thHtml += '<th class="th-status"><div class="th-inner" style="min-width:90px;"><div class="th-original" style="cursor:default;">Status</div><div class="map-select-wrap unmapped" style="background:transparent;"><div style="padding:.58rem .7rem;font-size:.82rem;color:var(--muted);font-style:italic;">—</div></div></div></th>';
+    visibleCols.forEach(i => {
+      const mapped = colMapping[i];
+      const wrapCls = mapped ? 'mapped' : 'unmapped';
+      const selOpts = '<option value="">— não importar —</option>' +
+        camposImportacao.map(c => `<option value="${escHtml(c.nome_campo)}"${mapped?.nome_campo === c.nome_campo ? ' selected' : ''}>${escHtml(c.apelido)}${c.obrigatorio==='S'?' *':''}</option>`).join('');
+      const sortCls = sortCol === i ? (sortAsc ? 'sorted-asc' : 'sorted-desc') : '';
+      thHtml += `<th>
+        <div class="th-inner">
+          <div class="th-original ${sortCls}" onclick="toggleSort(${i})">
+            ${escHtml(headers[i])}
+            <button class="th-hide-btn" onclick="event.stopPropagation();ocultarColuna(${i})" title="Ocultar coluna">✕</button>
+          </div>
+          <div class="map-select-wrap ${wrapCls}">
+            <select class="map-select" onchange="onMapSelect(${i}, this.value)">${selOpts}</select>
+          </div>
+        </div>
+      </th>`;
+    });
+    thHtml += '</tr>';
+    tableHead.innerHTML = thHtml;
+
+    const filtrados = getRowsFiltrados();
+    const total = filtrados.length;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    if (currentPage > totalPages) currentPage = totalPages;
+    const start = (currentPage - 1) * pageSize;
+    const pagina = filtrados.slice(start, start + pageSize);
+
+    let tbHtml = '';
+    if (!pagina.length) {
+      tbHtml = `<tr><td colspan="${visibleCols.length + 2}" style="text-align:center;padding:2rem;color:var(--muted);font-style:italic;">Nenhum dado para exibir.</td></tr>`;
+    } else {
+      pagina.forEach(({ row, origIdx }) => {
+        const s = statusRows[origIdx];
+        const statusBadge = s ? renderStatusBadge(s) : '<span class="badge badge-aguard"><span class="dot dot-muted"></span> Aguardando</span>';
+        tbHtml += `<tr><td class="row-num">${origIdx + 1}</td><td>${statusBadge}</td>`;
+        visibleCols.forEach(i => { tbHtml += `<td>${escHtml(String(row[i] ?? ''))}</td>`; });
+        tbHtml += `</tr>`;
+      });
+    }
+    tableBody.innerHTML = tbHtml;
+    renderPaginacao(total, totalPages);
+    atualizarMapBar();
+    document.getElementById('dataFooter').innerHTML =
+      `<span><strong>Total:</strong> ${allRows.length} linhas</span>` +
+      (filtrados.length !== allRows.length ? `<span><strong>Filtradas:</strong> ${filtrados.length}</span>` : '') +
+      `<span><strong>Mapeadas:</strong> ${Object.keys(colMapping).length} col.</span>`;
+  }
+
+  function renderStatusBadge(s) {
+    if (s.status_importacao === 'ok')   return '<span class="badge badge-ok"><span class="dot dot-green"></span> Salvo</span>';
+    if (s.status_importacao === 'erro') return `<span class="badge badge-erro" title="${escHtml(s.msg||'')}"><span class="dot" style="background:var(--red)"></span> Erro</span>`;
+    if (s.status === 'A')  return '<span class="badge badge-a"><span class="dot dot-blue"></span> Atualizar</span>';
+    if (s.status === 'SC') return '<span class="badge badge-sc"><span class="dot dot-yellow"></span> Novo</span>';
+    return '<span class="badge badge-aguard"><span class="dot dot-muted"></span> Aguardando</span>';
+  }
+
+  function toggleSort(col) { if (sortCol === col) sortAsc = !sortAsc; else { sortCol = col; sortAsc = true; } renderTable(); }
+
+  function atualizarMapBar() {
+    const mapBar = document.getElementById('mapBar');
+    if (!headers.length) { mapBar.style.display = 'none'; return; }
+    mapBar.style.display = 'flex';
+    const mapeadas = Object.keys(colMapping).length;
+    const total = headers.length - hiddenCols.size;
+    const obrigFaltando = camposImportacao.filter(c => c.obrigatorio === 'S').filter(c => !Object.values(colMapping).some(v => v.nome_campo === c.nome_campo));
+    document.getElementById('mapCounter').innerHTML = `<span>${mapeadas}</span>/${total} col. mapeadas`;
+    document.getElementById('mapCritical').textContent = obrigFaltando.length ? `⚠ Faltam obrigatórios: ${obrigFaltando.map(c => c.apelido).join(', ')}` : '';
+  }
+
+  function atualizarEstadoFormulario() {
+    const obrigFaltando = camposImportacao.filter(c => c.obrigatorio === 'S').filter(c => !Object.values(colMapping).some(v => v.nome_campo === c.nome_campo));
+    const health = document.getElementById('formHealth');
+    if (!headers.length) {
+      health.className = 'form-health warn'; health.textContent = '⚠ Importe um arquivo';
+    } else if (obrigFaltando.length) {
+      health.className = 'form-health warn'; health.textContent = `⚠ Faltam: ${obrigFaltando.map(c => c.apelido).join(', ')}`;
+    } else {
+      health.className = 'form-health ok'; health.textContent = '✓ Pronto para validar';
+    }
+  }
+
+  function renderPaginacao(total, totalPages) {
+    const pag = document.getElementById('pagination');
+    if (total <= pageSize) { pag.classList.remove('visible'); return; }
+    pag.classList.add('visible');
+    const pgBtns = [];
+    for (let p = 1; p <= totalPages; p++) {
+      if (p === 1 || p === totalPages || (p >= currentPage - 2 && p <= currentPage + 2)) pgBtns.push(p);
+      else if (pgBtns[pgBtns.length - 1] !== '...') pgBtns.push('...');
+    }
+    pag.innerHTML =
+      `<span class="pg-info">Pág <strong>${currentPage}</strong> de <strong>${totalPages}</strong> · ${total} itens</span>` +
+      `<div class="pg-buttons">` +
+        `<button class="pg-btn" onclick="irPagina(${currentPage-1})" ${currentPage===1?'disabled':''}>‹</button>` +
+        pgBtns.map(p => p === '...' ? `<span class="pg-ellipsis">…</span>` : `<button class="pg-btn${p===currentPage?' active':''}" onclick="irPagina(${p})">${p}</button>`).join('') +
+        `<button class="pg-btn" onclick="irPagina(${currentPage+1})" ${currentPage===totalPages?'disabled':''}>›</button>` +
+      `</div>` +
+      `<select class="pg-size" onchange="mudarTamanhoPagina(+this.value)">` +
+        [25,50,100,250].map(n => `<option value="${n}"${n===pageSize?' selected':''}>${n} / pág</option>`).join('') +
+      `</select>`;
+  }
+
+  function irPagina(p) { const max = Math.ceil(getRowsFiltrados().length / pageSize); currentPage = Math.max(1, Math.min(p, max)); renderTable(); }
+  function mudarTamanhoPagina(n) { pageSize = n; currentPage = 1; renderTable(); }
+
+  function exportCSV() {
+    const visibles = headers.map((_, i) => i).filter(i => !hiddenCols.has(i));
+    const head = ['#', 'Status', ...visibles.map(i => headers[i])].join(';');
+    const body = allRows.map((row, i) => {
+      const s = statusRows[i];
+      return [i+1, s ? (s.status_importacao || s.status || '') : '', ...visibles.map(j => `"${String(row[j]??'').replace(/"/g,'""')}"`)] .join(';');
+    }).join('\n');
+    const blob = new Blob(['﻿' + head + '\n' + body], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = 'importacao-fornecedores.csv'; a.click();
+  }
+
+  async function verificarLote() {
+    if (!allRows.length) { showToast('Importe um arquivo primeiro.', 'warn'); return; }
+    const chaveColIdx = parseInt(Object.keys(colMapping).find(k => colMapping[k].nome_campo === CHAVE_CAMPO) ?? '-1');
+
+    const rowsPayload = allRows.map((row, idx) => ({
+      idx,
+      cpf: chaveColIdx >= 0 ? String(row[chaveColIdx] ?? '').trim() : ''
+    }));
+
+    const wrap = document.getElementById('progressWrap');
+    const fill = document.getElementById('progressFill');
+    const lbl  = document.getElementById('progressLabel');
+    const pct  = document.getElementById('progressPct');
+    wrap.classList.add('visible');
+    fill.style.width = '10%'; lbl.textContent = 'Verificando no banco...'; pct.textContent = '10%';
+
+    try {
+      const r = await apiPost(API_BASE + '/verificar-lote', { rows: rowsPayload });
+      if (await apiHandle401(r)) return;
+      const d = await r.json();
+      if (!d.ok) { showToast('Erro na verificação: ' + (d.msg || ''), 'erro'); return; }
+
+      for (const res of d.resultado) {
+        statusRows[res.idx] = { status_cadastro: res.status_cadastro, status: res.status, cod_registro: res.cod_registro, msg: res.msg };
+      }
+      verificado = true;
+      fill.style.width = '100%'; pct.textContent = '100%'; lbl.textContent = 'Verificação concluída';
+      setTimeout(() => wrap.classList.remove('visible'), 1200);
+      renderCards();
+      renderTable();
+      document.getElementById('btnImportar').classList.add('visible');
+      document.getElementById('importOptions').classList.add('visible');
+      atualizarEstadoFormulario();
+    } catch(e) {
+      showToast('Erro: ' + e.message, 'erro');
+      wrap.classList.remove('visible');
+    }
+  }
+
+  function renderCards() {
+    const vals = Object.values(statusRows);
+    const total = vals.length;
+    const cads  = vals.filter(s => s.status_cadastro === 'S').length;
+    const novos = vals.filter(s => s.status === 'SC').length;
+    const atu   = vals.filter(s => s.status === 'A').length;
+    const sc    = document.getElementById('statusCards');
+    sc.innerHTML =
+      cardHtml('sc-todos', total, 'TOTAL', null) +
+      cardHtml('sc-cads', cads, 'CADASTRADO', 'cad-s') +
+      cardHtml('sc-novo', novos, 'NOVO', 'novo') +
+      cardHtml('sc-atu',  atu,  'ATUALIZAR', 'atu');
+    sc.classList.add('visible');
+  }
+
+  function cardHtml(cls, val, lbl, filtro) {
+    return `<div class="sc-card ${cls}${filtroCardAtivo===filtro?' active':''}" onclick="filtrarCard('${filtro}')">
+      <div class="sc-val">${val}</div><div class="sc-lbl">${lbl}</div><div class="sc-bar"></div>
+    </div>`;
+  }
+
+  function filtrarCard(filtro) { filtroCardAtivo = filtroCardAtivo === filtro ? null : filtro; currentPage = 1; renderTable(); renderCards(); }
+
+  function confirmar(dados) {
+    return new Promise(resolve => {
+      confirmResolver = resolve;
+      document.getElementById('confirmGrid').innerHTML = Object.entries(dados).map(([k,v]) =>
+        `<div class="confirm-item">${escHtml(k)}: <strong>${escHtml(String(v))}</strong></div>`).join('');
+      document.getElementById('confirmOverlay').classList.add('visible');
+    });
+  }
+
+  function resolverConfirmacao(val) {
+    document.getElementById('confirmOverlay').classList.remove('visible');
+    if (confirmResolver) { confirmResolver(val); confirmResolver = null; }
+  }
+
+  async function importarLote() {
+    if (isImportando) return;
+    if (!verificado) { showToast('Execute a validação antes de salvar.', 'warn'); return; }
+    const skipNovos = document.getElementById('skipSemCadastro').checked;
+    let paraGravar = allRows.map((_, i) => i).filter(i => {
+      const s = statusRows[i];
+      if (!s) return false;
+      if (skipNovos && s.status === 'SC') return false;
+      if (s.status_importacao === 'ok') return false;
+      return true;
+    });
+    if (!paraGravar.length) { showToast('Nenhum registro para salvar.', 'warn'); return; }
+
+    const confirmou = await confirmar({
+      'Total para salvar': paraGravar.length,
+      'Novos': paraGravar.filter(i => statusRows[i]?.status === 'SC').length,
+      'Atualizações': paraGravar.filter(i => statusRows[i]?.status === 'A').length,
+    });
+    if (!confirmou) return;
+
+    isImportando = true;
+    const overlay = document.getElementById('importOverlay');
+    const card    = document.getElementById('importCard');
+    const fill    = document.getElementById('overlayFill');
+    overlay.classList.add('visible');
+    card.classList.remove('concluido');
+    document.getElementById('statOk').textContent  = '0';
+    document.getElementById('statUpd').textContent = '0';
+    document.getElementById('statErr').textContent = '0';
+    document.getElementById('btnNovaImportacao').style.display = 'none';
+
+    let ok = 0, upd = 0, err = 0;
+    const total = paraGravar.length;
+
+    for (let idx = 0; idx < total; idx++) {
+      const rowIdx = paraGravar[idx];
+      const row = allRows[rowIdx];
+      const s = statusRows[rowIdx];
+      const pct = Math.round(((idx + 1) / total) * 100);
+      fill.style.width = pct + '%';
+      document.getElementById('overlayPct').textContent = pct + '%';
+      document.getElementById('overlayLinhas').textContent = `${idx + 1} de ${total}`;
+      document.getElementById('overlayTituloSpan').textContent = ` ${idx + 1}/${total}`;
+
+      const campos = {};
+      Object.entries(colMapping).forEach(([colIdx, map]) => {
+        campos[map.nome_campo] = String(row[colIdx] ?? '').trim();
+      });
+
+      try {
+        const r = await apiPost(API_BASE + '/importar-linha', {
+          status_cadastro: s?.status_cadastro ?? 'N',
+          cod_registro:    s?.cod_registro ?? '',
+          campos
+        });
+        if (await apiHandle401(r)) { isImportando = false; return; }
+        const d = await r.json();
+        if (d.ok) {
+          if (d.operacao === 'INSERT') ok++; else upd++;
+          statusRows[rowIdx] = { ...s, status_importacao: 'ok' };
+        } else {
+          err++;
+          statusRows[rowIdx] = { ...s, status_importacao: 'erro', msg: d.msg || 'Erro desconhecido' };
+        }
+      } catch(e) {
+        err++;
+        statusRows[rowIdx] = { ...s, status_importacao: 'erro', msg: e.message };
+      }
+
+      document.getElementById('statOk').textContent  = ok;
+      document.getElementById('statUpd').textContent = upd;
+      document.getElementById('statErr').textContent = err;
+    }
+
+    card.classList.add('concluido');
+    document.getElementById('btnNovaImportacao').style.display = 'inline-block';
+    renderTable();
+    isImportando = false;
+    showToast(`Concluído: ${ok} inseridos, ${upd} atualizados, ${err} erros.`, err ? 'warn' : 'ok', 5000);
+  }
+
+  function novaImportacao() {
+    document.getElementById('importOverlay').classList.remove('visible');
+    allRows = []; headers = []; colMapping = {}; statusRows = {}; verificado = false;
+    filtroCardAtivo = null; workbook = null; currentPage = 1; hiddenCols.clear();
+    output.style.display = 'none';
+    sheetBar.innerHTML = '';
+    document.getElementById('statusCards').classList.remove('visible');
+    document.getElementById('progressWrap').classList.remove('visible');
+    document.getElementById('btnImportar').classList.remove('visible');
+    document.getElementById('importOptions').classList.remove('visible');
+    document.getElementById('formHealth').className = 'form-health warn';
+    document.getElementById('formHealth').textContent = '⚠ Importe um arquivo';
+    fileInput.value = '';
+  }
+
+  searchInput.addEventListener('input', () => { currentPage = 1; renderTable(); });
+
+  (async function init() {
+    await carregarCampos();
+    atualizarEstadoFormulario();
+  })();
+</script>
+</body>
+</html>
