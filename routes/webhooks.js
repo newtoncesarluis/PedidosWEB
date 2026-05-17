@@ -130,4 +130,104 @@ router.post('/facebook-leads', async (req, res) => {
   }
 });
 
+// POST /api/webhooks/evolution — recebe eventos da Evolution API (Instagram DM, etc.)
+router.post('/evolution', async (req, res) => {
+  res.sendStatus(200); // sempre 200 imediato — Evolution API não aguarda
+
+  const body = req.body;
+  if (!body) return;
+
+  // Só processa mensagens recebidas (não enviadas por nós)
+  if (body.event !== 'messages.upsert') return;
+  const data = body.data;
+  if (!data || data.key?.fromMe) return;
+
+  const remoteJid = data.key?.remoteJid || '';
+  // Identifica Instagram pelo remoteJid ou pelo nome da instância
+  const isInstagram = remoteJid.includes('@instagram') ||
+                      String(body.instance || '').toLowerCase().includes('instagram') ||
+                      String(body.instance || '').toLowerCase().startsWith('ig-') ||
+                      String(body.instance || '').toLowerCase().startsWith('ig_');
+  if (!isInstagram) return;
+
+  try {
+    const pool = getPool();
+    const [[cfg]] = await pool.query(
+      `SELECT ig_instancia, fb_default_id_empresa, fb_default_id_vendedor,
+              ig_autoreply, ig_reply_msg, w_urlplataforma, w_apiglobal
+       FROM configuracao WHERE excluido='N' ORDER BY id DESC LIMIT 1`
+    ).catch(() => [[null]]);
+    if (!cfg) return;
+
+    // Valida instância se configurada
+    if (cfg.ig_instancia && body.instance !== cfg.ig_instancia) return;
+
+    const idEmpresa  = parseInt(cfg.fb_default_id_empresa || 1, 10);
+    const idVendedor = cfg.fb_default_id_vendedor ? parseInt(cfg.fb_default_id_vendedor, 10) : null;
+
+    // Handle Instagram: @usuario ou ID numérico
+    const igId = remoteJid.split('@')[0];
+    const pushName = String(data.pushName || igId).slice(0, 150);
+    const igField  = `@${igId}`;
+
+    // Extrai texto da mensagem
+    const msgText = (
+      data.message?.conversation ||
+      data.message?.extendedTextMessage?.text ||
+      data.message?.imageMessage?.caption ||
+      data.message?.videoMessage?.caption ||
+      '[mídia]'
+    ).slice(0, 500);
+
+    // Verifica se já existe um lead com este Instagram
+    const [[existing]] = await pool.query(
+      `SELECT id FROM leads WHERE (instagram=? OR instagram=?) AND excluido='N' AND id_empresa=? LIMIT 1`,
+      [igField, igId, idEmpresa]
+    );
+
+    if (existing) {
+      // Atualiza data_ultimo_contato e adiciona histórico
+      await pool.query(`UPDATE leads SET data_ultimo_contato=NOW() WHERE id=?`, [existing.id]);
+      await pool.query(
+        `INSERT INTO lead_historico (lead_id, id_usuario, tipo, descricao) VALUES (?, 0, 'NOTA', ?)`,
+        [existing.id, `Instagram DM: "${msgText}"`]
+      );
+      console.log(`[webhook/ig] Histórico adicionado ao lead #${existing.id}`);
+    } else {
+      // Cria novo lead
+      const [result] = await pool.query(
+        `INSERT INTO leads (
+           id_empresa, id_usuario, id_vendedor,
+           nome, instagram, origem, status_funil, temperatura_lead,
+           prioridade, canal_atendimento, motivo_perda, valor_estimado, tags, observacoes
+         ) VALUES (?, 0, ?, ?, ?, 'Instagram DM', 'NOVO', 'MORNO', 'MEDIA', 'COMERCIAL', '', 0, '', ?)`,
+        [idEmpresa, idVendedor, pushName, igField,
+         `Primeiro contato via Instagram DM:\n"${msgText}"`]
+      );
+      await pool.query(
+        `INSERT INTO lead_historico (lead_id, id_usuario, tipo, descricao) VALUES (?, 0, 'CRIACAO', ?)`,
+        [result.insertId, `Lead criado via Instagram DM — ${igField}. Mensagem: "${msgText}"`]
+      );
+      console.log(`[webhook/ig] Lead #${result.insertId} criado: ${pushName} (${igField})`);
+    }
+
+    // Auto-resposta configurável
+    if (cfg.ig_autoreply === 'S' && cfg.ig_reply_msg && cfg.w_urlplataforma && body.instance) {
+      try {
+        const axios = require('axios');
+        const base  = cfg.w_urlplataforma.replace(/\/$/, '');
+        await axios.post(
+          `${base}/message/sendText/${body.instance}`,
+          { number: remoteJid, text: cfg.ig_reply_msg },
+          { headers: { 'Content-Type': 'application/json', apikey: cfg.w_apiglobal }, timeout: 10000 }
+        );
+      } catch (e) {
+        console.error('[webhook/ig] Auto-reply error:', e.message);
+      }
+    }
+  } catch (err) {
+    console.error('[webhook/ig] Error:', err.message);
+  }
+});
+
 module.exports = router;

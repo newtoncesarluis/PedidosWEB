@@ -219,6 +219,9 @@ const FB_EXTRA_COLS = {
   fb_page_access_token:   "ALTER TABLE configuracao ADD COLUMN fb_page_access_token VARCHAR(500) NULL DEFAULT NULL",
   fb_default_id_empresa:  "ALTER TABLE configuracao ADD COLUMN fb_default_id_empresa INT NULL DEFAULT 1",
   fb_default_id_vendedor: "ALTER TABLE configuracao ADD COLUMN fb_default_id_vendedor INT NULL DEFAULT NULL",
+  ig_instancia:           "ALTER TABLE configuracao ADD COLUMN ig_instancia VARCHAR(100) NULL DEFAULT NULL",
+  ig_autoreply:           "ALTER TABLE configuracao ADD COLUMN ig_autoreply CHAR(1) NOT NULL DEFAULT 'N'",
+  ig_reply_msg:           "ALTER TABLE configuracao ADD COLUMN ig_reply_msg TEXT NULL",
 };
 
 async function ensureConfigCols(pool) {
@@ -254,8 +257,9 @@ router.get('/api', async (req, res) => {
     try { await ensureConfigCols(pool); } catch { return res.json({}); }
 
     const [rows] = await pool.query(
-      `SELECT w_apiglobal, w_urlplataforma, empresa_liberada, senha_acesso,
-              fb_verify_token, fb_page_access_token, fb_default_id_empresa, fb_default_id_vendedor
+      `SELECT id, w_apiglobal, w_urlplataforma, empresa_liberada, senha_acesso,
+              fb_verify_token, fb_page_access_token, fb_default_id_empresa, fb_default_id_vendedor,
+              ig_instancia, ig_autoreply, ig_reply_msg
        FROM configuracao WHERE excluido = 'N' ORDER BY id DESC LIMIT 1`
     );
     const row = rows[0] || {};
@@ -271,7 +275,7 @@ router.get('/api', async (req, res) => {
       row.fb_verify_token = newToken;
     }
 
-    // Nunca retorna o token completo — apenas flag de configurado
+    // Nunca retorna o PAT completo — apenas flag de configurado
     const out = { ...row };
     out.fb_pat_configurado = !!out.fb_page_access_token;
     delete out.fb_page_access_token;
@@ -288,8 +292,8 @@ router.post('/api', async (req, res) => {
     const pool = getPool();
     const {
       senha_admin, w_apiglobal, w_urlplataforma, empresa_liberada, senha_acesso,
-      fb_page_access_token, fb_default_id_empresa, fb_default_id_vendedor,
-      regenerar_fb_token
+      fb_page_access_token, fb_default_id_empresa, fb_default_id_vendedor, regenerar_fb_token,
+      ig_instancia, ig_autoreply, ig_reply_msg
     } = req.body;
 
     if (senha_admin !== 'kzf010557f') {
@@ -318,12 +322,16 @@ router.post('/api', async (req, res) => {
     if (existing[0]) {
       const sets = [
         'w_apiglobal=?', 'w_urlplataforma=?', 'empresa_liberada=?', 'senha_acesso=?',
-        'fb_default_id_empresa=?', 'fb_default_id_vendedor=?'
+        'fb_default_id_empresa=?', 'fb_default_id_vendedor=?',
+        'ig_instancia=?', 'ig_autoreply=?', 'ig_reply_msg=?'
       ];
       const vals = [
         w_apiglobal || null, url, empresa_liberada || null, senha_acesso || null,
         fb_default_id_empresa ? parseInt(fb_default_id_empresa, 10) : 1,
         fb_default_id_vendedor ? parseInt(fb_default_id_vendedor, 10) : null,
+        ig_instancia || null,
+        ig_autoreply === 'S' ? 'S' : 'N',
+        ig_reply_msg || null,
       ];
       if (fb_page_access_token) { sets.push('fb_page_access_token=?'); vals.push(fb_page_access_token); }
       if (newFbToken)            { sets.push('fb_verify_token=?');      vals.push(newFbToken); }
@@ -333,14 +341,18 @@ router.post('/api', async (req, res) => {
     } else {
       const [result] = await pool.query(
         `INSERT INTO configuracao (w_apiglobal, w_urlplataforma, empresa_liberada, senha_acesso,
-           fb_page_access_token, fb_default_id_empresa, fb_default_id_vendedor, fb_verify_token, excluido)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'N')`,
+           fb_page_access_token, fb_default_id_empresa, fb_default_id_vendedor, fb_verify_token,
+           ig_instancia, ig_autoreply, ig_reply_msg, excluido)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'N')`,
         [
           w_apiglobal || null, url, empresa_liberada || null, senha_acesso || null,
           fb_page_access_token || null,
           fb_default_id_empresa ? parseInt(fb_default_id_empresa, 10) : 1,
           fb_default_id_vendedor ? parseInt(fb_default_id_vendedor, 10) : null,
-          newFbToken || genToken()
+          newFbToken || genToken(),
+          ig_instancia || null,
+          ig_autoreply === 'S' ? 'S' : 'N',
+          ig_reply_msg || null,
         ]
       );
       res.status(201).json({ ok: true, acao: 'insert', id: result.insertId, ...(newFbToken ? { fb_verify_token: newFbToken } : {}) });
