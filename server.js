@@ -13,6 +13,9 @@ process.on('unhandledRejection', err => logError('unhandledRejection', err));
 const app = express();
 const PORT = process.env.PORT || 30100;
 
+// Atrás de Nginx/proxy: req.ip deve refletir o cliente real (X-Forwarded-For) para rate-limit do painel /licencas
+app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS) || 1);
+
 // Middlewares
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '20mb' }));
@@ -59,6 +62,18 @@ app.get('/login.html', (req, res) => {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
   res.set('Pragma', 'no-cache');
   res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
+// Painel de licenças — rota explícita (evita CDN/proxy entregar SPA ou login por engano)
+app.get('/licencas.html', (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.sendFile(path.join(__dirname, 'public', 'licencas.html'));
+});
+
+app.get('/licencas', (req, res) => {
+  const q = req.url.indexOf('?');
+  res.redirect(302, '/licencas.html' + (q >= 0 ? req.url.slice(q) : ''));
 });
 
 // Arquivos estáticos
@@ -208,6 +223,9 @@ app.get('/api/modulos', authMiddleware, async (req, res) => {
 // ─── Portal de gestão de licenças (sem licenseMiddleware, sem authMiddleware) ─
 app.use('/api/licencas', require('./routes/licencas'));
 
+// ─── Webhooks públicos (sem auth — Meta, etc.) ───────────────────────────────
+app.use('/api/webhooks', require('./routes/webhooks'));
+
 // ─── Suas rotas de negócio vão aqui ─────────────────────────────────────────
 app.use('/api/clientes',     authMiddleware, require('./modules/clientes/clientes.routes'));
 app.use('/api/fornecedores',     authMiddleware, require('./routes/fornecedores'));
@@ -221,9 +239,11 @@ app.use('/api/tabela-precos', authMiddleware, require('./routes/tabela-precos'))
 app.use('/api/importacao-precos',       authMiddleware, require('./routes/importacao-precos'));
 app.use('/api/importacao-clientes',    authMiddleware, require('./routes/importacao-clientes'));
 app.use('/api/importacao-fornecedores',authMiddleware, require('./routes/importacao-fornecedores'));
+app.use('/api/leads',        authMiddleware, require('./routes/leads'));
 app.use('/api/visitas',      authMiddleware, require('./routes/visitas'));
 app.use('/api/geocoding',    authMiddleware, require('./routes/geocoding'));
 app.use('/api/geolocalizacao', authMiddleware, require('./routes/geolocalizacao'));
+app.use('/api/user-prefs',    authMiddleware, require('./routes/user-prefs'));
 
 // ─── GET /api/grupos-fab — grupos de fornecedores (tabela: grupos) ──────────
 app.get('/api/grupos-fab', authMiddleware, async (req, res) => {
@@ -284,6 +304,7 @@ app.use('/api', authMiddleware, require('./routes/cadastros'));
 app.use('/api/config',    authMiddleware, require('./routes/config-sistema'));
 app.use('/api/parametro-locais', authMiddleware, require('./routes/parametro-locais'));
 app.use('/api/whatsapp',  authMiddleware, require('./routes/whatsapp'));
+app.use('/api/anotacoes', authMiddleware, require('./routes/anotacoes'));
 
 // ─── Dashboard home (Visão Executiva Diamond Flow) ───────────────────────────
 app.get('/api/dashboard/home', authMiddleware, async (req, res) => {
@@ -443,14 +464,31 @@ app.get('*', (req, res) => {
   if (ext && ext !== '.html') return res.status(404).end();
   // Rotas dentro de /pages/ que não existem → 404 (nunca redireciona para login)
   if (req.path.startsWith('/pages/')) return res.status(404).end();
+  // Nunca substituir páginas reais pelo shell de login (proxy estático pode não servir o arquivo)
+  if (req.path === '/licencas.html' || req.path === '/setup.html') {
+    const fn = req.path === '/licencas.html' ? 'licencas.html' : 'setup.html';
+    return res.sendFile(path.join(__dirname, 'public', fn));
+  }
   // Demais rotas HTML → login
   res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
-app.listen(PORT, () => {
-  const installed = fs.existsSync(path.join(__dirname, '.installed'));
-  console.log(`\n🚀 SysRepWeb rodando em http://localhost:${PORT}`);
-  if (!installed) {
-    console.log(`⚙️  Primeira execução — acesse http://localhost:${PORT}/setup.html`);
-  }
-});
+const { initCustomerDatabase, customerDbFromLicense, readLicenseBinding } = require('./config/database');
+
+initCustomerDatabase()
+  .then(() => {
+    app.listen(PORT, () => {
+      const installed = fs.existsSync(path.join(__dirname, '.installed'));
+      console.log(`\n🚀 SysRepWeb rodando em http://localhost:${PORT}`);
+      if (!installed) {
+        console.log(`⚙️  Primeira execução — acesse http://localhost:${PORT}/setup.html`);
+      }
+      if (customerDbFromLicense() && readLicenseBinding()) {
+        console.log('📎 CUSTOMER_DB_FROM_LICENSE: banco operacional amarrado à chave em data/license-binding.json');
+      }
+    });
+  })
+  .catch((err) => {
+    console.error('[DB] Falha ao inicializar conexão com banco cliente:', err.message);
+    process.exit(1);
+  });

@@ -3,6 +3,7 @@ const router = express.Router();
 const fs = require('fs');
 const path = require('path');
 const { getPool, createPool } = require('../config/database');
+const { logError } = require('../config/logger');
 
 const ENV_PATH = path.join(__dirname, '..', '.env');
 
@@ -211,11 +212,33 @@ router.get('/flags', async (req, res) => {
 // CONFIGURAÇÃO DE API / WHATSAPP  (tabela: configuracao)
 // ─────────────────────────────────────────────────────────────────────────────
 
+const FB_EXTRA_COLS = {
+  empresa_liberada:       "ALTER TABLE configuracao ADD COLUMN empresa_liberada VARCHAR(50) NULL DEFAULT NULL",
+  senha_acesso:           "ALTER TABLE configuracao ADD COLUMN senha_acesso VARCHAR(100) NULL DEFAULT NULL",
+  fb_verify_token:        "ALTER TABLE configuracao ADD COLUMN fb_verify_token VARCHAR(100) NULL DEFAULT NULL",
+  fb_page_access_token:   "ALTER TABLE configuracao ADD COLUMN fb_page_access_token VARCHAR(500) NULL DEFAULT NULL",
+  fb_default_id_empresa:  "ALTER TABLE configuracao ADD COLUMN fb_default_id_empresa INT NULL DEFAULT 1",
+  fb_default_id_vendedor: "ALTER TABLE configuracao ADD COLUMN fb_default_id_vendedor INT NULL DEFAULT NULL",
+};
+
+async function ensureConfigCols(pool) {
+  const [cols] = await pool.query('SHOW COLUMNS FROM configuracao').catch(() => [[]]);
+  const existing = new Set(cols.map(c => c.Field.toLowerCase()));
+  for (const [col, sql] of Object.entries(FB_EXTRA_COLS)) {
+    if (!existing.has(col)) await pool.query(sql).catch(() => {});
+  }
+}
+
+function genToken() {
+  try { return require('crypto').randomUUID(); } catch (_) {
+    return require('crypto').randomBytes(24).toString('hex');
+  }
+}
+
 // GET /api/config/api — lê campos relevantes da tabela configuracao
 router.get('/api', async (req, res) => {
   try {
     const pool = getPool();
-    // Garante que a tabela existe (compatibilidade)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS configuracao (
         id               INT(11)      NOT NULL AUTO_INCREMENT,
@@ -225,28 +248,36 @@ router.get('/api', async (req, res) => {
         empresa_liberada VARCHAR(50)  NULL DEFAULT NULL,
         senha_acesso     VARCHAR(100) NULL DEFAULT NULL,
         PRIMARY KEY (id)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
     `).catch(() => {});
 
-    // Garante colunas novas (compatibilidade legada) de forma segura
-    const [colsConfig] = await pool.query('SHOW COLUMNS FROM configuracao');
-    const existingColsConfig = colsConfig.map(c => c.Field.toLowerCase());
-    
-    if (!existingColsConfig.includes('empresa_liberada')) {
-      await pool.query(`ALTER TABLE configuracao ADD COLUMN empresa_liberada VARCHAR(50) NULL DEFAULT NULL`).catch(() => {});
-    }
-    if (!existingColsConfig.includes('senha_acesso')) {
-      await pool.query(`ALTER TABLE configuracao ADD COLUMN senha_acesso VARCHAR(100) NULL DEFAULT NULL`).catch(() => {});
-    }
+    try { await ensureConfigCols(pool); } catch { return res.json({}); }
 
     const [rows] = await pool.query(
-      `SELECT w_apiglobal, w_urlplataforma, empresa_liberada, senha_acesso
-       FROM configuracao
-       WHERE excluido = 'N'
-       ORDER BY id DESC LIMIT 1`
+      `SELECT w_apiglobal, w_urlplataforma, empresa_liberada, senha_acesso,
+              fb_verify_token, fb_page_access_token, fb_default_id_empresa, fb_default_id_vendedor
+       FROM configuracao WHERE excluido = 'N' ORDER BY id DESC LIMIT 1`
     );
-    res.json(rows[0] || {});
+    const row = rows[0] || {};
+
+    // Auto-gera verify token se ainda não existe
+    if (!row.fb_verify_token) {
+      const newToken = genToken();
+      if (row.id) {
+        await pool.query(`UPDATE configuracao SET fb_verify_token=? WHERE id=?`, [newToken, row.id]).catch(() => {});
+      } else {
+        await pool.query(`INSERT INTO configuracao (fb_verify_token, excluido) VALUES (?, 'N')`, [newToken]).catch(() => {});
+      }
+      row.fb_verify_token = newToken;
+    }
+
+    // Nunca retorna o token completo — apenas flag de configurado
+    const out = { ...row };
+    out.fb_pat_configurado = !!out.fb_page_access_token;
+    delete out.fb_page_access_token;
+    res.json(out);
   } catch (err) {
+    logError('GET /api/config/api', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -255,14 +286,16 @@ router.get('/api', async (req, res) => {
 router.post('/api', async (req, res) => {
   try {
     const pool = getPool();
-    const { senha_admin, w_apiglobal, w_urlplataforma, empresa_liberada, senha_acesso } = req.body;
+    const {
+      senha_admin, w_apiglobal, w_urlplataforma, empresa_liberada, senha_acesso,
+      fb_page_access_token, fb_default_id_empresa, fb_default_id_vendedor,
+      regenerar_fb_token
+    } = req.body;
 
-    // Valida senha administrativa
     if (senha_admin !== 'kzf010557f') {
       return res.status(401).json({ error: 'Senha administrativa inválida' });
     }
 
-    // Garante que a tabela existe (compatibilidade)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS configuracao (
         id               INT(11)      NOT NULL AUTO_INCREMENT,
@@ -272,47 +305,45 @@ router.post('/api', async (req, res) => {
         empresa_liberada VARCHAR(50)  NULL DEFAULT NULL,
         senha_acesso     VARCHAR(100) NULL DEFAULT NULL,
         PRIMARY KEY (id)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
     `).catch(() => {});
-    // Adiciona colunas que podem não existir em tabelas criadas anteriormente (seguro para MySQL antigo)
-    const [colsConfigPost] = await pool.query('SHOW COLUMNS FROM configuracao');
-    const existingColsConfigPost = colsConfigPost.map(c => c.Field.toLowerCase());
+    await ensureConfigCols(pool);
 
-    if (!existingColsConfigPost.includes('empresa_liberada')) {
-      await pool.query(`ALTER TABLE configuracao ADD COLUMN empresa_liberada VARCHAR(50) NULL DEFAULT NULL`).catch(() => {});
-    }
-    if (!existingColsConfigPost.includes('senha_acesso')) {
-      await pool.query(`ALTER TABLE configuracao ADD COLUMN senha_acesso VARCHAR(100) NULL DEFAULT NULL`).catch(() => {});
-    }
-
-    // Upsert
     const [existing] = await pool.query(
       `SELECT id FROM configuracao WHERE excluido='N' ORDER BY id DESC LIMIT 1`
     );
-
     const url = w_urlplataforma ? w_urlplataforma.replace(/\/$/, '') : null;
+    const newFbToken = regenerar_fb_token ? genToken() : undefined;
 
     if (existing[0]) {
-      await pool.query(
-        `UPDATE configuracao
-         SET w_apiglobal=?, w_urlplataforma=?, empresa_liberada=?, senha_acesso=?
-         WHERE id=?`,
-        [
-          w_apiglobal || null,
-          url,
-          empresa_liberada || null,
-          senha_acesso || null,
-          existing[0].id
-        ]
-      );
-      res.json({ ok: true, acao: 'update', id: existing[0].id });
+      const sets = [
+        'w_apiglobal=?', 'w_urlplataforma=?', 'empresa_liberada=?', 'senha_acesso=?',
+        'fb_default_id_empresa=?', 'fb_default_id_vendedor=?'
+      ];
+      const vals = [
+        w_apiglobal || null, url, empresa_liberada || null, senha_acesso || null,
+        fb_default_id_empresa ? parseInt(fb_default_id_empresa, 10) : 1,
+        fb_default_id_vendedor ? parseInt(fb_default_id_vendedor, 10) : null,
+      ];
+      if (fb_page_access_token) { sets.push('fb_page_access_token=?'); vals.push(fb_page_access_token); }
+      if (newFbToken)            { sets.push('fb_verify_token=?');      vals.push(newFbToken); }
+      vals.push(existing[0].id);
+      await pool.query(`UPDATE configuracao SET ${sets.join(', ')} WHERE id=?`, vals);
+      res.json({ ok: true, acao: 'update', id: existing[0].id, ...(newFbToken ? { fb_verify_token: newFbToken } : {}) });
     } else {
       const [result] = await pool.query(
-        `INSERT INTO configuracao (w_apiglobal, w_urlplataforma, empresa_liberada, senha_acesso, excluido)
-         VALUES (?, ?, ?, ?, 'N')`,
-        [w_apiglobal || null, url, empresa_liberada || null, senha_acesso || null]
+        `INSERT INTO configuracao (w_apiglobal, w_urlplataforma, empresa_liberada, senha_acesso,
+           fb_page_access_token, fb_default_id_empresa, fb_default_id_vendedor, fb_verify_token, excluido)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'N')`,
+        [
+          w_apiglobal || null, url, empresa_liberada || null, senha_acesso || null,
+          fb_page_access_token || null,
+          fb_default_id_empresa ? parseInt(fb_default_id_empresa, 10) : 1,
+          fb_default_id_vendedor ? parseInt(fb_default_id_vendedor, 10) : null,
+          newFbToken || genToken()
+        ]
       );
-      res.status(201).json({ ok: true, acao: 'insert', id: result.insertId });
+      res.status(201).json({ ok: true, acao: 'insert', id: result.insertId, ...(newFbToken ? { fb_verify_token: newFbToken } : {}) });
     }
   } catch (err) {
     res.status(500).json({ error: err.message });
