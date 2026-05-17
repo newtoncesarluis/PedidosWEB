@@ -1,0 +1,1471 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Leads | SysRepWeb</title>
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<script src="/assets/mobile-app.js"></script>
+<link rel="stylesheet" href="/assets/mobile-app.css">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: var(--content-bg);
+  --card: var(--card-bg);
+  --border: var(--card-border);
+  --text: var(--content-text);
+  --text2: var(--text2);
+  --accent: var(--accent);
+  --accent-soft: var(--accent-soft, rgba(13,148,136,.12));
+  --accent-hover: var(--accent-hover);
+  --danger: #ef4444;
+  --warn: #f59e0b;
+  --success: #10b981;
+}
+body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; }
+.toolbar {
+  position: sticky; top: 0; z-index: 30; background: var(--card);
+  border-bottom: 1px solid var(--border); padding: 12px 18px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.tb-top { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.tb-actions { margin-left: auto; display: flex; gap: 8px; }
+.tb-filters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.tb-filters .input { flex: 1 1 180px; min-width: 160px; width: auto; }
+.tb-filters .select { flex: 0 1 150px; min-width: 120px; width: auto; }
+.title { font-size: 14px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.stats { display: flex; gap: 8px; flex-wrap: wrap; }
+.stat {
+  border: 1px solid var(--border); background: var(--bg); border-radius: 12px;
+  padding: 6px 11px; min-width: 90px;
+}
+.stat small { display: block; color: var(--text2); font-size: 10px; text-transform: uppercase; letter-spacing: .05em; }
+.stat strong { display: block; font-size: 17px; margin-top: 1px; }
+.input, .select, .textarea {
+  width: 100%; padding: 9px 12px; border: 1.5px solid var(--border);
+  border-radius: 12px; background: var(--card); color: var(--text);
+  font: inherit; outline: none;
+}
+.input:focus, .select:focus, .textarea:focus {
+  border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft);
+}
+.btn {
+  border: 1.5px solid var(--border); background: var(--card); color: var(--text);
+  border-radius: 12px; padding: 10px 14px; font: inherit; font-size: 12px;
+  font-weight: 700; cursor: pointer;
+}
+.btn:hover { filter: brightness(.99); }
+.btn-primary { background: var(--accent); color: var(--btn-text, #fff); border-color: var(--accent); }
+.btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+.btn-success { background: var(--success); color: #fff; border-color: var(--success); }
+.btn-danger { background: var(--danger); color: #fff; border-color: var(--danger); }
+.btn-toggle.active { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+.content { padding: 16px; }
+.summary-grid {
+  display: grid; grid-template-columns: repeat(4, minmax(200px, 1fr));
+  gap: 12px; margin-bottom: 14px;
+}
+.summary-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 18px; padding: 14px;
+}
+.summary-card h3 { font-size: 13px; font-weight: 800; margin-bottom: 10px; }
+.alert-list, .origin-list { display: flex; flex-direction: column; gap: 8px; }
+.alert-item, .origin-item, .seller-item {
+  border: 1px solid var(--border); border-radius: 14px; background: var(--bg); padding: 10px 12px;
+}
+.alert-item, .origin-item, .seller-item {
+  display: flex; justify-content: space-between; gap: 10px; align-items: center;
+}
+.alert-main strong, .seller-main strong { display: block; font-size: 12px; }
+.alert-main small, .origin-item small, .seller-main small { color: var(--text2); font-size: 11px; }
+.alert-badge {
+  display: inline-flex; align-items: center; justify-content: center; padding: 4px 8px;
+  border-radius: 999px; background: rgba(239,68,68,.12); color: var(--danger); font-size: 11px; font-weight: 800;
+}
+.origin-name { font-size: 12px; font-weight: 700; }
+.origin-metrics, .seller-metrics { text-align: right; font-size: 11px; }
+.summary-empty { color: var(--text2); font-size: 12px; padding: 8px 0; }
+.board {
+  display: grid; grid-template-columns: repeat(6, minmax(220px, 1fr)); gap: 12px;
+  overflow-x: auto; padding-bottom: 4px;
+}
+.col {
+  background: var(--card); border: 1px solid var(--border); border-radius: 18px;
+  min-height: 420px; display: flex; flex-direction: column;
+}
+.col-head {
+  padding: 14px 14px 10px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+}
+.col-head h3 { font-size: 13px; font-weight: 800; }
+.pill {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 26px;
+  padding: 2px 8px; border-radius: 999px; background: var(--accent-soft);
+  color: var(--accent); font-size: 11px; font-weight: 800;
+}
+.col-body { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.lead-card {
+  border: 1px solid var(--border); border-left-width: 4px; border-radius: 16px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--card) 92%, var(--accent-soft)), var(--card));
+  padding: 12px; box-shadow: 0 10px 24px rgba(0,0,0,.04);
+}
+.priority-high { border-left-color: var(--danger); }
+.priority-medium { border-left-color: var(--warn); }
+.priority-low { border-left-color: var(--accent); }
+.priority-done { border-left-color: var(--success); }
+.lead-title { font-weight: 800; font-size: 14px; }
+.lead-company { margin-top: 3px; font-size: 12px; color: var(--text2); }
+.lead-topline, .lead-footer { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
+.lead-meta { margin-top: 9px; display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--text2); }
+.lead-chip {
+  display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px;
+  border-radius: 999px; background: var(--bg); color: var(--text2); font-size: 11px; font-weight: 700;
+}
+.lead-actions { margin-top: 12px; display: flex; gap: 6px; flex-wrap: wrap; }
+.lead-actions .btn { padding: 8px 10px; font-size: 11px; border-radius: 10px; }
+.empty { padding: 18px 8px; text-align: center; color: var(--text2); font-size: 12px; }
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(15,23,42,.48); display: none;
+  align-items: center; justify-content: center; z-index: 90; padding: 20px;
+}
+.modal {
+  width: min(1080px, 100%); max-height: calc(100vh - 40px); overflow: auto;
+  background: var(--card); border: 1px solid var(--border); border-radius: 22px;
+}
+.modal-head {
+  padding: 16px 18px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+.modal-head h2 { font-size: 18px; }
+.modal-body { padding: 18px; }
+.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field.full { grid-column: 1 / -1; }
+.field label {
+  font-size: 11px; font-weight: 800; color: var(--text2); text-transform: uppercase; letter-spacing: .05em;
+}
+.textarea { min-height: 120px; resize: vertical; }
+.cond-hidden { display: none; }
+.modal-foot {
+  padding: 16px 18px 18px; border-top: 1px solid var(--border);
+  display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap;
+}
+.history-box { margin-top: 18px; border-top: 1px solid var(--border); padding-top: 18px; }
+.history-box h3 { font-size: 13px; font-weight: 800; margin-bottom: 10px; }
+.history-list { display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow: auto; padding-right: 2px; }
+.history-item { border: 1px solid var(--border); border-radius: 14px; background: var(--bg); padding: 10px 12px; }
+.history-item strong { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+.history-item p { margin-top: 5px; font-size: 12px; line-height: 1.45; }
+.history-item small { display: block; margin-top: 6px; color: var(--text2); font-size: 11px; }
+.history-compose { display: flex; gap: 8px; margin-top: 10px; align-items: flex-start; }
+.history-compose .textarea { min-height: 76px; }
+.history-empty { color: var(--text2); font-size: 12px; padding: 12px 0; }
+.toast-wrap { position: fixed; bottom: 22px; right: 22px; z-index: 120; display: flex; flex-direction: column; gap: 8px; }
+.task-box { margin-top: 18px; border-top: 1px solid var(--border); padding-top: 18px; }
+.task-box h3 { font-size: 13px; font-weight: 800; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.task-list { display: flex; flex-direction: column; gap: 8px; max-height: 260px; overflow: auto; }
+.task-item {
+  border: 1px solid var(--border); border-left-width: 3px; border-radius: 14px;
+  background: var(--bg); padding: 10px 12px; display: flex; gap: 10px; align-items: flex-start;
+}
+.task-item.done { opacity: .55; }
+.task-item.overdue { border-left-color: var(--danger); }
+.task-item.pending { border-left-color: var(--warn); }
+.task-item.done-border { border-left-color: var(--success); }
+.task-check { width: 18px; height: 18px; border: 2px solid var(--border); border-radius: 50%; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; margin-top: 1px; }
+.task-check:hover { border-color: var(--accent); }
+.task-check.checked { background: var(--success); border-color: var(--success); color: #fff; font-size: 10px; }
+.task-body { flex: 1; min-width: 0; }
+.task-title { font-size: 13px; font-weight: 700; }
+.task-meta { font-size: 11px; color: var(--text2); margin-top: 3px; }
+.task-del { background: none; border: none; color: var(--text2); font-size: 16px; cursor: pointer; padding: 0 2px; line-height: 1; flex-shrink: 0; }
+.task-del:hover { color: var(--danger); }
+.task-new { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 10px; align-items: start; }
+.task-new-fields { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 8px; }
+.task-badge {
+  display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px;
+  border-radius: 999px; font-size: 10px; font-weight: 800;
+  background: rgba(239,68,68,.12); color: var(--danger);
+}
+.task-badge.ok { background: rgba(245,158,11,.12); color: var(--warn); }
+.import-drop {
+  border: 2px dashed var(--border); border-radius: 16px; padding: 32px 20px;
+  text-align: center; color: var(--text2); font-size: 13px; cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.import-drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.import-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 12px; }
+.import-table th { text-align: left; padding: 6px 8px; border-bottom: 2px solid var(--border); font-weight: 800; font-size: 11px; color: var(--text2); text-transform: uppercase; }
+.import-table td { padding: 5px 8px; border-bottom: 1px solid var(--border); max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.import-result { margin-top: 12px; padding: 10px 14px; border-radius: 12px; font-size: 13px; }
+.import-result.ok { background: rgba(16,185,129,.12); color: #065f46; }
+.import-result.err { background: rgba(239,68,68,.10); color: #b91c1c; }
+.lead-card[draggable] { cursor: grab; }
+.lead-card[draggable]:active { cursor: grabbing; }
+.lead-card.dragging { opacity: .45; }
+.col-body.drag-over {
+  background: var(--accent-soft); outline: 2px dashed var(--accent);
+  outline-offset: -4px; border-radius: 14px;
+}
+.toast {
+  background: #111827; color: #fff; padding: 12px 14px; border-radius: 12px;
+  font-size: 13px; box-shadow: 0 16px 30px rgba(0,0,0,.18);
+}
+.toast.err { background: #b91c1c; }
+.toast.ok { background: #065f46; }
+@media (max-width: 900px) {
+  .summary-grid { grid-template-columns: 1fr; }
+  .tb-top { flex-wrap: wrap; }
+  .tb-actions { margin-left: 0; }
+  .tb-filters .input { flex: 1 1 100%; }
+  .tb-filters .select { flex: 1 1 calc(50% - 4px); }
+  .grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+  <div class="toolbar">
+    <div class="tb-top">
+      <div class="title">Leads</div>
+      <div class="stats">
+        <div class="stat"><small>Total</small><strong id="st-total">0</strong></div>
+        <div class="stat"><small>Abertos</small><strong id="st-open">0</strong></div>
+        <div class="stat"><small>Ganhos</small><strong id="st-won">0</strong></div>
+        <div class="stat"><small>Perdidos</small><strong id="st-lost">0</strong></div>
+      </div>
+      <div class="tb-actions">
+        <button class="btn" id="btnRefresh" type="button">Atualizar</button>
+        <button class="btn" id="btnImport" type="button">Importar Excel</button>
+        <button class="btn btn-primary" id="btnNovo" type="button">+ Novo Lead</button>
+      </div>
+    </div>
+    <div class="tb-filters">
+      <input id="q" class="input" type="search" placeholder="Buscar nome, empresa, telefone, campanha...">
+      <select id="statusFilter" class="select">
+        <option value="">Todos os estágios</option>
+        <option value="NOVO">Novo</option>
+        <option value="CONTATO">Em contato</option>
+        <option value="QUALIFICADO">Qualificado</option>
+        <option value="PROPOSTA">Proposta</option>
+        <option value="GANHO">Ganho</option>
+        <option value="PERDIDO">Perdido</option>
+      </select>
+      <select id="vendFilter" class="select"><option value="">Todos os vendedores</option></select>
+      <select id="originFilter" class="select">
+        <option value="">Todas as origens</option>
+        <option value="Facebook Ads">Facebook Ads</option>
+        <option value="Instagram Ads">Instagram Ads</option>
+        <option value="Google Ads">Google Ads</option>
+        <option value="WhatsApp">WhatsApp</option>
+        <option value="Site">Site</option>
+        <option value="Landing Page">Landing Page</option>
+        <option value="Indicação">Indicação</option>
+        <option value="Importação Excel">Importação Excel</option>
+        <option value="Manual">Manual</option>
+      </select>
+      <select id="priorityFilter" class="select">
+        <option value="">Todas prioridades</option>
+        <option value="ALTA">Alta</option>
+        <option value="MEDIA">Média</option>
+        <option value="BAIXA">Baixa</option>
+      </select>
+      <select id="tempFilter" class="select">
+        <option value="">Todas temperaturas</option>
+        <option value="QUENTE">Quente</option>
+        <option value="MORNO">Morno</option>
+        <option value="FRIO">Frio</option>
+      </select>
+      <select id="periodFilter" class="select">
+        <option value="0">Todo período</option>
+        <option value="7">Últimos 7 dias</option>
+        <option value="30" selected>Últimos 30 dias</option>
+        <option value="90">Últimos 90 dias</option>
+      </select>
+      <button class="btn btn-toggle" id="btnOverdue" type="button">Só atrasados</button>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="summary-grid">
+      <section class="summary-card">
+        <h3>Retornos pendentes</h3>
+        <div id="alertList" class="alert-list"><div class="summary-empty">Sem retornos pendentes no momento.</div></div>
+      </section>
+      <section class="summary-card">
+        <h3>Conversão por origem</h3>
+        <div id="originList" class="origin-list"><div class="summary-empty">Ainda não há dados suficientes.</div></div>
+      </section>
+      <section class="summary-card">
+        <h3>Dashboard por vendedor</h3>
+        <div id="sellerList" class="origin-list"><div class="summary-empty">Ainda não há dados suficientes.</div></div>
+      </section>
+      <section class="summary-card">
+        <h3>Tarefas do dia</h3>
+        <div id="todayTaskList" class="task-list" style="max-height:200px"><div class="summary-empty">Sem tarefas pendentes.</div></div>
+      </section>
+    </div>
+    <div class="board" id="board"></div>
+  </div>
+
+  <div class="modal-backdrop" id="modalBack">
+    <div class="modal">
+      <div class="modal-head">
+        <h2 id="modalTitle">Novo Lead</h2>
+        <button class="btn" type="button" id="btnCloseTop">Fechar</button>
+      </div>
+      <div class="modal-body">
+        <div class="grid">
+          <div class="field"><label for="f_nome">Nome</label><input id="f_nome" class="input" type="text" maxlength="150"></div>
+          <div class="field"><label for="f_empresa">Empresa</label><input id="f_empresa" class="input" type="text" maxlength="150"></div>
+          <div class="field"><label for="f_cargo">Cargo</label><input id="f_cargo" class="input" type="text" maxlength="100"></div>
+          <div class="field"><label for="f_telefone">Telefone</label><input id="f_telefone" class="input" type="text" maxlength="30"></div>
+          <div class="field"><label for="f_whatsapp">WhatsApp</label><input id="f_whatsapp" class="input" type="text" maxlength="30"></div>
+          <div class="field"><label for="f_email">E-mail</label><input id="f_email" class="input" type="email" maxlength="150"></div>
+          <div class="field"><label for="f_instagram">Instagram</label><input id="f_instagram" class="input" type="text" maxlength="120"></div>
+          <div class="field"><label for="f_facebook">Facebook</label><input id="f_facebook" class="input" type="text" maxlength="120"></div>
+          <div class="field"><label for="f_segmento">Segmento</label><input id="f_segmento" class="input" type="text" maxlength="120"></div>
+          <div class="field"><label for="f_cidade">Cidade</label><input id="f_cidade" class="input" type="text" maxlength="100"></div>
+          <div class="field"><label for="f_uf">UF</label><input id="f_uf" class="input" type="text" maxlength="2"></div>
+          <div class="field">
+            <label for="f_origem">Origem</label>
+            <select id="f_origem" class="select">
+              <option value="Manual">Manual</option>
+              <option value="Facebook Ads">Facebook Ads</option>
+              <option value="Instagram Ads">Instagram Ads</option>
+              <option value="Google Ads">Google Ads</option>
+              <option value="WhatsApp">WhatsApp</option>
+              <option value="Site">Site</option>
+              <option value="Landing Page">Landing Page</option>
+              <option value="Indicação">Indicação</option>
+              <option value="Importação Excel">Importação Excel</option>
+            </select>
+          </div>
+          <div class="field"><label for="f_campanha">Campanha</label><input id="f_campanha" class="input" type="text" maxlength="120"></div>
+          <div class="field"><label for="f_anuncio">Anúncio</label><input id="f_anuncio" class="input" type="text" maxlength="120"></div>
+          <div class="field"><label for="f_interesse">Interesse</label><input id="f_interesse" class="input" type="text" maxlength="150"></div>
+          <div class="field"><label for="f_produto_interesse">Produto de interesse</label><input id="f_produto_interesse" class="input" type="text" maxlength="150"></div>
+          <div class="field"><label for="f_status">Estágio</label>
+            <select id="f_status" class="select">
+              <option value="NOVO">Novo</option>
+              <option value="CONTATO">Em contato</option>
+              <option value="QUALIFICADO">Qualificado</option>
+              <option value="PROPOSTA">Proposta</option>
+              <option value="GANHO">Ganho</option>
+              <option value="PERDIDO">Perdido</option>
+            </select>
+          </div>
+          <div class="field"><label for="f_vendedor">Vendedor</label><select id="f_vendedor" class="select"><option value="">Selecione</option></select></div>
+          <div class="field"><label for="f_prioridade">Prioridade</label>
+            <select id="f_prioridade" class="select">
+              <option value="ALTA">Alta</option>
+              <option value="MEDIA" selected>Média</option>
+              <option value="BAIXA">Baixa</option>
+            </select>
+          </div>
+          <div class="field"><label for="f_temperatura">Temperatura</label>
+            <select id="f_temperatura" class="select">
+              <option value="">Automática</option>
+              <option value="QUENTE">Quente</option>
+              <option value="MORNO">Morno</option>
+              <option value="FRIO">Frio</option>
+            </select>
+          </div>
+          <div class="field"><label for="f_score">Score</label><input id="f_score" class="input" type="number" min="0" max="100" value="0"></div>
+          <div class="field"><label for="f_valor_estimado">Valor estimado</label><input id="f_valor_estimado" class="input" type="number" min="0" step="0.01" value="0"></div>
+          <div class="field"><label for="f_canal">Canal de atendimento</label>
+            <select id="f_canal" class="select">
+              <option value="COMERCIAL">Comercial</option>
+              <option value="WHATSAPP">WhatsApp</option>
+              <option value="EMAIL">E-mail</option>
+              <option value="TELEFONE">Telefone</option>
+              <option value="VISITA">Visita</option>
+            </select>
+          </div>
+          <div class="field"><label for="f_data">Próximo contato</label><input id="f_data" class="input" type="date"></div>
+          <div class="field"><label for="f_ultimo_contato">Último contato</label><input id="f_ultimo_contato" class="input" type="datetime-local"></div>
+          <div class="field full"><label for="f_tags">Tags</label><input id="f_tags" class="input" type="text" maxlength="255" placeholder="Ex: atacado, urgente, proposta, revenda"></div>
+          <div class="field full cond-hidden" id="grp_motivo_perda"><label for="f_motivo_perda">Motivo da perda</label><input id="f_motivo_perda" class="input" type="text" maxlength="255"></div>
+          <div class="field full"><label for="f_obs">Observações</label><textarea id="f_obs" class="textarea" placeholder="Anotações do contato, necessidades, objeções, próximos passos..."></textarea></div>
+        </div>
+        <div class="task-box" id="taskBox" style="display:none">
+          <h3>Tarefas / Follow-up <span id="taskBadgeModal"></span></h3>
+          <div id="taskList" class="task-list"><div class="history-empty">Nenhuma tarefa.</div></div>
+          <div class="task-new">
+            <input id="t_titulo" class="input" type="text" placeholder="Nova tarefa..." maxlength="200">
+            <button class="btn btn-primary" type="button" id="btnAddTask" style="white-space:nowrap">+ Adicionar</button>
+          </div>
+          <div class="task-new-fields">
+            <div class="field"><label for="t_data">Vencimento</label><input id="t_data" class="input" type="date"></div>
+            <div class="field"><label for="t_hora">Hora</label><input id="t_hora" class="input" type="time"></div>
+            <div class="field"><label for="t_prio">Prioridade</label>
+              <select id="t_prio" class="select">
+                <option value="MEDIA">Média</option>
+                <option value="ALTA">Alta</option>
+                <option value="BAIXA">Baixa</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="history-box" id="visitasBox" style="display:none">
+          <h3>Visitas agendadas</h3>
+          <div id="visitasList" class="history-list"><div class="history-empty">Nenhuma visita registrada.</div></div>
+          <div style="margin-top:10px">
+            <button class="btn btn-primary" type="button" id="btnNovaVisitaModal" style="font-size:11px;padding:7px 12px">+ Agendar nova visita</button>
+          </div>
+        </div>
+        <div class="history-box">
+          <h3>Histórico do lead</h3>
+          <div id="historyList" class="history-list"><div class="history-empty">Salve o lead para começar o histórico.</div></div>
+          <div class="history-compose">
+            <textarea id="f_nota" class="textarea" placeholder="Registrar contato, retorno, objeção, proposta enviada..."></textarea>
+            <button class="btn" type="button" id="btnAddNote">Adicionar nota</button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" type="button" id="btnCancel">Cancelar</button>
+        <button class="btn btn-primary" type="button" id="btnSave">Salvar Lead</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal WhatsApp Compose -->
+  <div class="modal-backdrop" id="wppBack">
+    <div class="modal" style="width:min(520px,100%)">
+      <div class="modal-head">
+        <h2>Enviar WhatsApp</h2>
+        <button class="btn" type="button" id="btnWppClose">Fechar</button>
+      </div>
+      <div class="modal-body">
+        <div class="field" style="margin-bottom:12px">
+          <label>Para</label>
+          <div id="wppDest" style="font-size:13px;padding:8px 0;color:var(--text2)"></div>
+        </div>
+        <div class="field">
+          <label for="wppMsg">Mensagem</label>
+          <textarea id="wppMsg" class="textarea" placeholder="Digite a mensagem..." style="min-height:140px"></textarea>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" type="button" id="btnWppCancel">Cancelar</button>
+        <button class="btn btn-primary" type="button" id="btnWppSend">Enviar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Email Compose -->
+  <div class="modal-backdrop" id="emailBack">
+    <div class="modal" style="width:min(600px,100%)">
+      <div class="modal-head">
+        <h2>Enviar E-mail</h2>
+        <button class="btn" type="button" id="btnEmailClose">Fechar</button>
+      </div>
+      <div class="modal-body">
+        <div class="field" style="margin-bottom:12px">
+          <label>Para</label>
+          <div id="emailDest" style="font-size:13px;padding:8px 0;color:var(--text2)"></div>
+        </div>
+        <div class="field" style="margin-bottom:12px">
+          <label for="emailSubj">Assunto</label>
+          <input id="emailSubj" class="input" type="text" maxlength="200">
+        </div>
+        <div class="field">
+          <label for="emailBody">Mensagem</label>
+          <textarea id="emailBody" class="textarea" style="min-height:160px"></textarea>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" type="button" id="btnEmailCancel">Cancelar</button>
+        <button class="btn btn-primary" type="button" id="btnEmailSend">Enviar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Importação Excel -->
+  <div class="modal-backdrop" id="importBack">
+    <div class="modal" style="width:min(780px,100%)">
+      <div class="modal-head">
+        <h2>Importar Leads via Excel</h2>
+        <button class="btn" type="button" id="btnImportClose">Fechar</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:13px;color:var(--text2);margin-bottom:14px">
+          Arraste ou selecione uma planilha <strong>.xlsx / .xls</strong>.<br>
+          Colunas reconhecidas: <em>nome, empresa, telefone, whatsapp, email, cidade, uf, origem, campanha, produto_interesse, segmento, observacoes</em>.<br>
+          A primeira linha deve ser o cabeçalho.
+        </p>
+        <div id="importDrop" class="import-drop">
+          Arraste o arquivo aqui ou <strong>clique para selecionar</strong>
+          <input type="file" id="importFile" accept=".xlsx,.xls" style="display:none">
+        </div>
+        <div id="importPreview" style="overflow-x:auto;max-height:260px;overflow-y:auto;display:none">
+          <table class="import-table" id="importTable"><thead></thead><tbody></tbody></table>
+        </div>
+        <div id="importResult" style="display:none" class="import-result ok"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" type="button" id="btnImportCancel">Cancelar</button>
+        <button class="btn btn-primary" type="button" id="btnImportSend" disabled>Importar leads</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-wrap" id="toasts"></div>
+
+<script>
+const STAGES = [
+  { key: 'NOVO', label: 'Novo' },
+  { key: 'CONTATO', label: 'Em contato' },
+  { key: 'QUALIFICADO', label: 'Qualificado' },
+  { key: 'PROPOSTA', label: 'Proposta' },
+  { key: 'GANHO', label: 'Ganho' },
+  { key: 'PERDIDO', label: 'Perdido' }
+];
+
+const state = {
+  allLeads: [],
+  leads: [],
+  vendedores: [],
+  editingId: null,
+  editingLead: null,
+  periodDays: 30,
+  onlyOverdue: false,
+  wppConnected: false,
+  emailConfigured: false,
+};
+
+function esc(text) {
+  return String(text || '').replace(/[&<>"']/g, (m) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[m]));
+}
+
+async function api(url, options = {}) {
+  const res = await fetch(url, {
+    ...options,
+    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Erro na requisição');
+  return data;
+}
+
+function toast(msg, type = '') {
+  const wrap = document.getElementById('toasts');
+  const el = document.createElement('div');
+  el.className = 'toast' + (type ? ' ' + type : '');
+  el.textContent = msg;
+  wrap.appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+}
+
+function fillVendedorSelects() {
+  const filterOpts = ['<option value="">Todos os vendedores</option>']
+    .concat(state.vendedores.map(v => `<option value="${v.id}">${esc(v.nome)}</option>`)).join('');
+  document.getElementById('vendFilter').innerHTML = filterOpts;
+  const formOpts = ['<option value="">Selecione</option>']
+    .concat(state.vendedores.map(v => `<option value="${v.id}">${esc(v.nome)}</option>`)).join('');
+  document.getElementById('f_vendedor').innerHTML = formOpts;
+}
+
+async function loadVendedores() {
+  try {
+    const data = await api('/api/leads/lookup/vendedores', { headers: {} });
+    state.vendedores = data.vendedores || [];
+  } catch (_) {
+    state.vendedores = [];
+  }
+  fillVendedorSelects();
+}
+
+function syncLossField() {
+  const show = document.getElementById('f_status').value === 'PERDIDO';
+  document.getElementById('grp_motivo_perda').style.display = show ? '' : 'none';
+  if (!show) document.getElementById('f_motivo_perda').value = '';
+}
+
+function toDatetimeLocal(value) {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function formatMoney(value) {
+  const num = Number(value || 0);
+  return num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function normalizeTemp(value) {
+  const t = String(value || '').trim().toUpperCase();
+  return ['QUENTE', 'MORNO', 'FRIO'].includes(t) ? t : '';
+}
+
+function getLeadPriority(lead) {
+  if (lead.status_funil === 'GANHO') return { key: 'done', label: 'Convertido' };
+  if (lead.status_funil === 'PERDIDO') return { key: 'done', label: 'Encerrado' };
+  if (lead.prioridade === 'ALTA') return { key: 'high', label: 'Prioridade alta' };
+  if (lead.data_proximo_contato) {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const next = new Date(lead.data_proximo_contato + 'T12:00:00'); next.setHours(0, 0, 0, 0);
+    const diff = Math.floor((next - today) / 86400000);
+    if (diff < 0) return { key: 'high', label: `${Math.abs(diff)}d atraso` };
+    if (diff === 0) return { key: 'high', label: 'Vence hoje' };
+    if (diff <= 2) return { key: 'medium', label: 'Próximo' };
+  }
+  if (lead.prioridade === 'MEDIA') return { key: 'medium', label: 'Prioridade média' };
+  return { key: 'low', label: 'Em dia' };
+}
+
+function renderStats() {
+  document.getElementById('st-total').textContent = String(state.leads.length);
+  document.getElementById('st-open').textContent = String(state.leads.filter(l => !['GANHO', 'PERDIDO'].includes(l.status_funil)).length);
+  document.getElementById('st-won').textContent = String(state.leads.filter(l => l.status_funil === 'GANHO').length);
+  document.getElementById('st-lost').textContent = String(state.leads.filter(l => l.status_funil === 'PERDIDO').length);
+}
+
+function renderSummary() {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const pending = state.leads
+    .filter(l => l.data_proximo_contato && !['GANHO', 'PERDIDO'].includes(l.status_funil))
+    .map(l => {
+      const d = new Date(l.data_proximo_contato + 'T12:00:00'); d.setHours(0, 0, 0, 0);
+      return { ...l, atraso: Math.floor((today - d) / 86400000) };
+    })
+    .filter(l => l.atraso >= 0).sort((a, b) => b.atraso - a.atraso).slice(0, 6);
+  const alertList = document.getElementById('alertList');
+  alertList.innerHTML = pending.length ? pending.map(l => `
+    <div class="alert-item">
+      <div class="alert-main">
+        <strong>${esc(l.nome)}</strong>
+        <small>${esc(l.empresa || l.origem || 'Lead')} · ${esc(l.nome_vendedor || 'Sem responsável')}</small>
+      </div>
+      <span class="alert-badge">${l.atraso === 0 ? 'Hoje' : l.atraso + 'd atraso'}</span>
+    </div>`).join('') : '<div class="summary-empty">Sem retornos pendentes no momento.</div>';
+
+  const byOrigin = new Map();
+  state.leads.forEach(l => {
+    const key = (l.origem || 'Sem origem').trim() || 'Sem origem';
+    if (!byOrigin.has(key)) byOrigin.set(key, { total: 0, ganhos: 0 });
+    const row = byOrigin.get(key); row.total += 1; if (l.status_funil === 'GANHO') row.ganhos += 1;
+  });
+  const originRows = [...byOrigin.entries()].map(([origem, v]) => ({
+    origem, total: v.total, ganhos: v.ganhos, taxa: v.total ? Math.round((v.ganhos / v.total) * 100) : 0,
+  })).sort((a, b) => b.total - a.total).slice(0, 6);
+  document.getElementById('originList').innerHTML = originRows.length ? originRows.map(r => `
+    <div class="origin-item">
+      <div><div class="origin-name">${esc(r.origem)}</div><small>${r.ganhos} ganhos de ${r.total} leads</small></div>
+      <div class="origin-metrics"><strong>${r.taxa}%</strong><br><small>conversão</small></div>
+    </div>`).join('') : '<div class="summary-empty">Ainda não há dados suficientes.</div>';
+
+  const bySeller = new Map();
+  state.leads.forEach(l => {
+    const key = (l.nome_vendedor || 'Sem responsável').trim() || 'Sem responsável';
+    if (!bySeller.has(key)) bySeller.set(key, { total: 0, ganhos: 0, proposta: 0 });
+    const row = bySeller.get(key); row.total += 1; if (l.status_funil === 'GANHO') row.ganhos += 1; if (l.status_funil === 'PROPOSTA') row.proposta += 1;
+  });
+  const sellerRows = [...bySeller.entries()].map(([seller, v]) => ({
+    seller, total: v.total, ganhos: v.ganhos, proposta: v.proposta, taxa: v.total ? Math.round((v.ganhos / v.total) * 100) : 0,
+  })).sort((a, b) => b.total - a.total).slice(0, 6);
+  document.getElementById('sellerList').innerHTML = sellerRows.length ? sellerRows.map(r => `
+    <div class="seller-item">
+      <div class="seller-main"><strong>${esc(r.seller)}</strong><small>${r.total} leads · ${r.proposta} em proposta</small></div>
+      <div class="seller-metrics"><strong>${r.ganhos}</strong><br><small>${r.taxa}% ganho</small></div>
+    </div>`).join('') : '<div class="summary-empty">Ainda não há dados suficientes.</div>';
+}
+
+function renderBoard() {
+  document.getElementById('board').innerHTML = STAGES.map(stage => {
+    const rows = state.leads.filter(l => l.status_funil === stage.key);
+    return `
+      <section class="col">
+        <div class="col-head"><h3>${stage.label}</h3><span class="pill">${rows.length}</span></div>
+        <div class="col-body"
+          ondragover="dragOver(event)"
+          ondragenter="dragEnter(event)"
+          ondragleave="dragLeave(event)"
+          ondrop="drop(event,'${stage.key}')"
+        >${rows.length ? rows.map(renderCard).join('') : '<div class="empty">Nenhum lead neste estágio.</div>'}</div>
+      </section>
+    `;
+  }).join('');
+}
+
+function renderCard(lead) {
+  const priority = getLeadPriority(lead);
+  const next = lead.data_proximo_contato ? new Date(lead.data_proximo_contato + 'T12:00:00').toLocaleDateString('pt-BR') : 'Sem data';
+  const canConvert = !lead.convertido_cliente_id && lead.status_funil !== 'PERDIDO';
+  const canVisit = !!lead.convertido_cliente_id;
+  const temp = normalizeTemp(lead.temperatura_lead) || 'FRIO';
+  return `
+    <article class="lead-card priority-${priority.key}" draggable="true" ondragstart="dragStart(event,${lead.id})" ondragend="dragEnd(event)">
+      <div class="lead-title" style="display:flex;align-items:center;gap:7px">
+        ${esc(lead.nome)}
+        ${lead.tarefas_vencidas > 0 ? `<span class="task-badge">${lead.tarefas_vencidas} tarefa${lead.tarefas_vencidas > 1 ? 's' : ''} vencida${lead.tarefas_vencidas > 1 ? 's' : ''}</span>` : ''}
+        ${lead.tarefas_pendentes > 0 && !lead.tarefas_vencidas ? `<span class="task-badge ok">${lead.tarefas_pendentes} tarefa${lead.tarefas_pendentes > 1 ? 's' : ''}</span>` : ''}
+      </div>
+      <div class="lead-company">${esc(lead.empresa || 'Sem empresa informada')}</div>
+      <div class="lead-topline">
+        <span class="lead-chip">${esc(priority.label)}</span>
+        <span class="lead-chip">${esc(lead.prioridade || 'MEDIA')}</span>
+        <span class="lead-chip">${esc(temp)}</span>
+        ${Number(lead.score || 0) ? `<span class="lead-chip">Score ${esc(lead.score)}</span>` : ''}
+      </div>
+      <div class="lead-meta">
+        <div>${esc(lead.whatsapp || lead.telefone || 'Sem contato')}</div>
+        <div>${esc(lead.email || 'Sem e-mail')}</div>
+        <div>${esc([lead.cidade, lead.uf].filter(Boolean).join(' / ') || 'Local não informado')}</div>
+        <div>Origem: ${esc(lead.origem || 'Manual')}</div>
+        ${lead.campanha ? `<div>Campanha: ${esc(lead.campanha)}</div>` : ''}
+        ${lead.produto_interesse ? `<div>Produto: ${esc(lead.produto_interesse)}</div>` : ''}
+        <div>Próximo contato: ${esc(next)}</div>
+        ${lead.nome_vendedor ? `<div>Responsável: ${esc(lead.nome_vendedor)}</div>` : ''}
+      </div>
+      <div class="lead-footer">
+        ${lead.segmento ? `<span class="lead-chip">${esc(lead.segmento)}</span>` : ''}
+        ${lead.tags ? `<span class="lead-chip">${esc(lead.tags)}</span>` : ''}
+        ${Number(lead.valor_estimado || 0) ? `<span class="lead-chip">${esc(formatMoney(lead.valor_estimado))}</span>` : ''}
+        ${lead.nome_cliente_convertido ? `<span class="lead-chip">Cliente: ${esc(lead.nome_cliente_convertido)}</span>` : ''}
+      </div>
+      ${(lead.whatsapp || lead.telefone || lead.email) ? `
+      <div class="lead-topline" style="margin-top:10px">
+        ${(lead.whatsapp || lead.telefone) ? (
+          state.wppConnected
+            ? `<button class="btn" type="button" onclick="openWppCompose(${lead.id})">WhatsApp</button>`
+            : `<a class="btn" href="https://wa.me/55${(lead.whatsapp||lead.telefone).replace(/\D/g,'')}" target="_blank" rel="noopener">WhatsApp</a>`
+        ) : ''}
+        ${lead.email ? (
+          state.emailConfigured
+            ? `<button class="btn" type="button" onclick="openEmailCompose(${lead.id})">E-mail</button>`
+            : `<a class="btn" href="mailto:${esc(lead.email)}" target="_blank" rel="noopener">E-mail</a>`
+        ) : ''}
+      </div>` : ''}
+      <div class="lead-actions">
+        <button class="btn" type="button" onclick="openEdit(${lead.id})">Editar</button>
+        ${canConvert ? `<button class="btn btn-success" type="button" onclick="convertLead(${lead.id})">Converter</button>` : ''}
+        ${canVisit ? `<button class="btn btn-primary" type="button" onclick="newOrder(${lead.id})">Fazer pedido</button>` : ''}
+        ${canVisit ? `<button class="btn" type="button" onclick="scheduleVisit(${lead.id})">Agendar visita</button>` : ''}
+        ${canVisit ? `<button class="btn" type="button" onclick="openClient(${lead.convertido_cliente_id})">Abrir cliente</button>` : ''}
+        <button class="btn btn-danger" type="button" onclick="removeLead(${lead.id})">Excluir</button>
+      </div>
+    </article>
+  `;
+}
+
+function applyClientFilters() {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  state.leads = (state.allLeads || []).filter(lead => {
+    if (state.periodDays > 0 && lead.dtcadastro) {
+      const base = new Date(lead.dtcadastro);
+      const normalized = new Date(base.getFullYear(), base.getMonth(), base.getDate());
+      const diff = Math.floor((today - normalized) / 86400000);
+      if (diff > state.periodDays) return false;
+    }
+    if (state.onlyOverdue && getLeadPriority(lead).key !== 'high') return false;
+    return true;
+  });
+}
+
+async function loadLeads() {
+  const params = new URLSearchParams();
+  params.set('limit', '500');
+  const q = document.getElementById('q').value.trim();
+  const status = document.getElementById('statusFilter').value;
+  const vendedor = document.getElementById('vendFilter').value;
+  const origem = document.getElementById('originFilter').value;
+  const prioridade = document.getElementById('priorityFilter').value;
+  const temperatura = document.getElementById('tempFilter').value;
+  if (q) params.set('q', q);
+  if (status) params.set('status', status);
+  if (vendedor) params.set('id_vendedor', vendedor);
+  if (origem) params.set('origem', origem);
+  if (prioridade) params.set('prioridade', prioridade);
+  if (temperatura) params.set('temperatura_lead', temperatura);
+  const data = await api('/api/leads?' + params.toString(), { headers: {} });
+  state.allLeads = data.leads || [];
+  applyClientFilters();
+  renderStats();
+  renderSummary();
+  renderBoard();
+}
+
+function openModal() { document.getElementById('modalBack').style.display = 'flex'; }
+function closeModal() { document.getElementById('modalBack').style.display = 'none'; state.editingId = null; }
+
+function renderHistory(items) {
+  const box = document.getElementById('historyList');
+  box.innerHTML = items && items.length ? items.map(item => `
+    <div class="history-item">
+      <strong>${esc(item.tipo || 'NOTA')}</strong>
+      <p>${esc(item.descricao || '')}</p>
+      <small>${esc(item.nome_usuario || 'Sistema')} · ${esc(item.dtcadastro ? new Date(item.dtcadastro).toLocaleString('pt-BR') : '')}</small>
+    </div>
+  `).join('') : '<div class="history-empty">Nenhuma anotação ainda.</div>';
+}
+
+function clearForm() {
+  state.editingId = null;
+  document.getElementById('modalTitle').textContent = 'Novo Lead';
+  ['f_nome','f_empresa','f_cargo','f_telefone','f_whatsapp','f_email','f_instagram','f_facebook','f_segmento','f_cidade','f_uf',
+   'f_campanha','f_anuncio','f_interesse','f_produto_interesse','f_tags','f_motivo_perda','f_obs','f_nota'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('f_origem').value = 'Manual';
+  document.getElementById('f_status').value = 'NOVO';
+  document.getElementById('f_vendedor').value = '';
+  document.getElementById('f_prioridade').value = 'MEDIA';
+  document.getElementById('f_temperatura').value = '';
+  document.getElementById('f_score').value = '0';
+  document.getElementById('f_valor_estimado').value = '0';
+  document.getElementById('f_canal').value = 'COMERCIAL';
+  document.getElementById('f_data').value = '';
+  document.getElementById('f_ultimo_contato').value = '';
+  state.editingLead = null;
+  document.getElementById('taskBox').style.display = 'none';
+  document.getElementById('taskList').innerHTML = '<div class="history-empty">Nenhuma tarefa.</div>';
+  document.getElementById('taskBadgeModal').textContent = '';
+  document.getElementById('visitasBox').style.display = 'none';
+  document.getElementById('visitasList').innerHTML = '<div class="history-empty">Nenhuma visita registrada.</div>';
+  syncLossField();
+  renderHistory([]);
+}
+
+function collectForm() {
+  return {
+    nome: document.getElementById('f_nome').value.trim(),
+    empresa: document.getElementById('f_empresa').value.trim(),
+    cargo: document.getElementById('f_cargo').value.trim(),
+    telefone: document.getElementById('f_telefone').value.trim(),
+    whatsapp: document.getElementById('f_whatsapp').value.trim(),
+    email: document.getElementById('f_email').value.trim(),
+    instagram: document.getElementById('f_instagram').value.trim(),
+    facebook: document.getElementById('f_facebook').value.trim(),
+    segmento: document.getElementById('f_segmento').value.trim(),
+    cidade: document.getElementById('f_cidade').value.trim(),
+    uf: document.getElementById('f_uf').value.trim().toUpperCase(),
+    origem: document.getElementById('f_origem').value.trim(),
+    campanha: document.getElementById('f_campanha').value.trim(),
+    anuncio: document.getElementById('f_anuncio').value.trim(),
+    interesse: document.getElementById('f_interesse').value.trim(),
+    produto_interesse: document.getElementById('f_produto_interesse').value.trim(),
+    status_funil: document.getElementById('f_status').value,
+    id_vendedor: document.getElementById('f_vendedor').value || null,
+    prioridade: document.getElementById('f_prioridade').value,
+    temperatura_lead: document.getElementById('f_temperatura').value,
+    score: document.getElementById('f_score').value || 0,
+    valor_estimado: document.getElementById('f_valor_estimado').value || 0,
+    canal_atendimento: document.getElementById('f_canal').value,
+    data_proximo_contato: document.getElementById('f_data').value || null,
+    data_ultimo_contato: document.getElementById('f_ultimo_contato').value || null,
+    tags: document.getElementById('f_tags').value.trim(),
+    motivo_perda: document.getElementById('f_motivo_perda').value.trim(),
+    observacoes: document.getElementById('f_obs').value.trim(),
+  };
+}
+
+async function saveLead() {
+  const body = collectForm();
+  if (!body.nome) return toast('Informe o nome do lead.', 'err');
+  try {
+    if (state.editingId) {
+      await api('/api/leads/' + state.editingId, { method: 'PUT', body: JSON.stringify(body) });
+      toast('Lead atualizado.', 'ok');
+    } else {
+      await api('/api/leads', { method: 'POST', body: JSON.stringify(body) });
+      toast('Lead cadastrado.', 'ok');
+    }
+    closeModal();
+    clearForm();
+    await loadLeads();
+  } catch (err) {
+    toast(err.message || 'Erro ao salvar lead', 'err');
+  }
+}
+
+async function loadLeadVisitas(clienteId, leadId) {
+  const box = document.getElementById('visitasBox');
+  const list = document.getElementById('visitasList');
+  box.style.display = '';
+  list.innerHTML = '<div class="history-empty">Carregando…</div>';
+
+  const btn = document.getElementById('btnNovaVisitaModal');
+  btn.onclick = () => scheduleVisit(leadId);
+
+  try {
+    const data = await api(`/api/visitas/cliente/${clienteId}`, { headers: {} });
+    const visitas = data.atividades || data.visitas || [];
+    if (!visitas.length) {
+      list.innerHTML = '<div class="history-empty">Nenhuma visita registrada. Use o botão abaixo para agendar.</div>';
+      return;
+    }
+    const COR = { ABERTA: '#f59e0b', FINALIZADA: '#10b981' };
+    list.innerHTML = visitas.map(v => {
+      const dt = v.data_visita ? new Date(v.data_visita + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
+      const cor = COR[v.status] || '#94a3b8';
+      return `
+        <div class="history-item" style="border-left:3px solid ${cor}">
+          <strong style="color:${cor}">${esc(v.status || 'VISITA')}</strong>
+          <p>${esc(v.motivo_desc || 'Sem motivo')}${v.obs ? ' — ' + esc(v.obs.slice(0, 80)) : ''}</p>
+          <small>${dt}${v.hora_visita ? ' · ' + v.hora_visita.slice(0,5) : ''}${v.nome_vendedor ? ' · ' + esc(v.nome_vendedor) : ''}</small>
+        </div>`;
+    }).join('');
+  } catch (_) {
+    list.innerHTML = '<div class="history-empty">Erro ao carregar visitas.</div>';
+  }
+}
+
+async function loadHistory(id) {
+  if (!id) return renderHistory([]);
+  try {
+    const data = await api('/api/leads/' + id + '/historico', { headers: {} });
+    renderHistory(data.historico || []);
+  } catch (_) {
+    renderHistory([]);
+  }
+}
+
+async function openEdit(id) {
+  try {
+    const lead = await api('/api/leads/' + id, { headers: {} });
+    state.editingId = id;
+    document.getElementById('modalTitle').textContent = 'Editar Lead';
+    document.getElementById('f_nome').value = lead.nome || '';
+    document.getElementById('f_empresa').value = lead.empresa || '';
+    document.getElementById('f_cargo').value = lead.cargo || '';
+    document.getElementById('f_telefone').value = lead.telefone || '';
+    document.getElementById('f_whatsapp').value = lead.whatsapp || '';
+    document.getElementById('f_email').value = lead.email || '';
+    document.getElementById('f_instagram').value = lead.instagram || '';
+    document.getElementById('f_facebook').value = lead.facebook || '';
+    document.getElementById('f_segmento').value = lead.segmento || '';
+    document.getElementById('f_cidade').value = lead.cidade || '';
+    document.getElementById('f_uf').value = lead.uf || '';
+    document.getElementById('f_origem').value = lead.origem || 'Manual';
+    document.getElementById('f_campanha').value = lead.campanha || '';
+    document.getElementById('f_anuncio').value = lead.anuncio || '';
+    document.getElementById('f_interesse').value = lead.interesse || '';
+    document.getElementById('f_produto_interesse').value = lead.produto_interesse || '';
+    document.getElementById('f_status').value = lead.status_funil || 'NOVO';
+    document.getElementById('f_vendedor').value = lead.id_vendedor || '';
+    document.getElementById('f_prioridade').value = lead.prioridade || 'MEDIA';
+    document.getElementById('f_temperatura').value = lead.temperatura_lead || '';
+    document.getElementById('f_score').value = lead.score || 0;
+    document.getElementById('f_valor_estimado').value = lead.valor_estimado || 0;
+    document.getElementById('f_canal').value = lead.canal_atendimento || 'COMERCIAL';
+    document.getElementById('f_data').value = lead.data_proximo_contato ? String(lead.data_proximo_contato).slice(0, 10) : '';
+    document.getElementById('f_ultimo_contato').value = toDatetimeLocal(lead.data_ultimo_contato);
+    document.getElementById('f_tags').value = lead.tags || '';
+    document.getElementById('f_motivo_perda').value = lead.motivo_perda || '';
+    document.getElementById('f_obs').value = lead.observacoes || '';
+    document.getElementById('f_nota').value = '';
+    syncLossField();
+    state.editingLead = lead;
+    // Tarefas (sempre exibe no modal de edição)
+    await loadLeadTarefas(id);
+    // Visitas: só exibe se lead já foi convertido em cliente
+    if (lead.convertido_cliente_id) {
+      await Promise.all([loadHistory(id), loadLeadVisitas(lead.convertido_cliente_id, id)]);
+    } else {
+      document.getElementById('visitasBox').style.display = 'none';
+      await loadHistory(id);
+    }
+    openModal();
+  } catch (err) {
+    toast(err.message || 'Erro ao carregar lead', 'err');
+  }
+}
+
+async function addNote() {
+  if (!state.editingId) return toast('Salve o lead antes de adicionar notas.', 'err');
+  const descricao = document.getElementById('f_nota').value.trim();
+  if (!descricao) return toast('Digite a anotação antes de salvar.', 'err');
+  try {
+    await api('/api/leads/' + state.editingId + '/historico', { method: 'POST', body: JSON.stringify({ descricao }) });
+    document.getElementById('f_nota').value = '';
+    await loadHistory(state.editingId);
+    toast('Nota adicionada ao histórico.', 'ok');
+  } catch (err) {
+    toast(err.message || 'Erro ao adicionar nota', 'err');
+  }
+}
+
+async function convertLead(id) {
+  if (!confirm('Converter este lead em cliente?')) return;
+  try {
+    const data = await api('/api/leads/' + id + '/converter', { method: 'POST', body: JSON.stringify({}) });
+    toast('Lead convertido para cliente #' + data.cliente_id + '.', 'ok');
+    await loadLeads();
+  } catch (err) {
+    toast(err.message || 'Erro ao converter lead', 'err');
+  }
+}
+
+function scheduleVisit(id) {
+  const lead = state.leads.find(item => item.id === id);
+  if (!lead || !lead.convertido_cliente_id) return toast('Converta o lead antes de agendar visita.', 'err');
+  const nome = encodeURIComponent(lead.nome_cliente_convertido || lead.empresa || lead.nome || '');
+  const url = `/pages/visitas.html?novo=1&cliente_id=${lead.convertido_cliente_id}&cliente_nome=${nome}`;
+  if (window.parent && window.parent !== window && window.parent.postMessage) {
+    window.parent.postMessage({ type: 'navigate', url, label: 'Visitas' }, '*');
+    return;
+  }
+  window.location.href = url;
+}
+
+function openClient(id) {
+  if (!id) return;
+  const url = `/pages/clientes.html?id=${id}`;
+  if (window.parent && window.parent !== window && window.parent.postMessage) {
+    window.parent.postMessage({ type: 'navigate', url, label: 'Clientes' }, '*');
+    return;
+  }
+  window.location.href = url;
+}
+
+async function removeLead(id) {
+  if (!confirm('Excluir este lead?')) return;
+  try {
+    await api('/api/leads/' + id, { method: 'DELETE', body: JSON.stringify({}) });
+    toast('Lead excluído.', 'ok');
+    await loadLeads();
+  } catch (err) {
+    toast(err.message || 'Erro ao excluir lead', 'err');
+  }
+}
+
+document.getElementById('btnNovo').addEventListener('click', () => { clearForm(); openModal(); });
+
+// Tarefas
+document.getElementById('btnAddTask').addEventListener('click', addTask);
+document.getElementById('t_titulo').addEventListener('keydown', ev => { if (ev.key === 'Enter') addTask(); });
+
+// WhatsApp modal
+['btnWppClose','btnWppCancel'].forEach(id => document.getElementById(id).addEventListener('click', () => { document.getElementById('wppBack').style.display = 'none'; }));
+document.getElementById('wppBack').addEventListener('click', ev => { if (ev.target.id === 'wppBack') document.getElementById('wppBack').style.display = 'none'; });
+document.getElementById('btnWppSend').addEventListener('click', sendWpp);
+
+// Email modal
+['btnEmailClose','btnEmailCancel'].forEach(id => document.getElementById(id).addEventListener('click', () => { document.getElementById('emailBack').style.display = 'none'; }));
+document.getElementById('emailBack').addEventListener('click', ev => { if (ev.target.id === 'emailBack') document.getElementById('emailBack').style.display = 'none'; });
+document.getElementById('btnEmailSend').addEventListener('click', sendEmail);
+
+// Importação Excel
+document.getElementById('btnImport').addEventListener('click', () => {
+  _importRows = [];
+  document.getElementById('importPreview').style.display = 'none';
+  document.getElementById('importResult').style.display = 'none';
+  document.getElementById('btnImportSend').disabled = true;
+  document.getElementById('btnImportSend').textContent = 'Importar leads';
+  document.getElementById('importFile').value = '';
+  document.getElementById('importBack').style.display = 'flex';
+});
+['btnImportClose','btnImportCancel'].forEach(id =>
+  document.getElementById(id).addEventListener('click', () => { document.getElementById('importBack').style.display = 'none'; })
+);
+document.getElementById('importBack').addEventListener('click', ev => {
+  if (ev.target.id === 'importBack') document.getElementById('importBack').style.display = 'none';
+});
+document.getElementById('btnImportSend').addEventListener('click', sendImport);
+const dropZone = document.getElementById('importDrop');
+dropZone.addEventListener('click', () => document.getElementById('importFile').click());
+dropZone.addEventListener('dragover', ev => { ev.preventDefault(); dropZone.classList.add('over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('over'));
+dropZone.addEventListener('drop', ev => {
+  ev.preventDefault(); dropZone.classList.remove('over');
+  handleImportFile(ev.dataTransfer.files[0]);
+});
+document.getElementById('importFile').addEventListener('change', ev => handleImportFile(ev.target.files[0]));
+document.getElementById('btnSave').addEventListener('click', saveLead);
+document.getElementById('btnRefresh').addEventListener('click', () => loadLeads().catch(err => toast(err.message, 'err')));
+document.getElementById('btnCancel').addEventListener('click', () => { closeModal(); clearForm(); });
+document.getElementById('btnCloseTop').addEventListener('click', () => { closeModal(); clearForm(); });
+document.getElementById('btnAddNote').addEventListener('click', addNote);
+document.getElementById('btnOverdue').addEventListener('click', () => {
+  state.onlyOverdue = !state.onlyOverdue;
+  document.getElementById('btnOverdue').classList.toggle('active', state.onlyOverdue);
+  applyClientFilters(); renderStats(); renderSummary(); renderBoard();
+});
+document.getElementById('f_status').addEventListener('change', syncLossField);
+['statusFilter','vendFilter','originFilter','priorityFilter','tempFilter'].forEach(id => {
+  document.getElementById(id).addEventListener('change', () => loadLeads().catch(err => toast(err.message, 'err')));
+});
+document.getElementById('periodFilter').addEventListener('change', (ev) => {
+  state.periodDays = Number(ev.target.value || 0);
+  applyClientFilters(); renderStats(); renderSummary(); renderBoard();
+});
+document.getElementById('q').addEventListener('keydown', (ev) => {
+  if (ev.key === 'Enter') loadLeads().catch(err => toast(err.message, 'err'));
+});
+document.getElementById('modalBack').addEventListener('click', (ev) => {
+  if (ev.target.id === 'modalBack') { closeModal(); clearForm(); }
+});
+
+// ── Tarefas ───────────────────────────────────────────────────────
+async function loadLeadTarefas(leadId) {
+  const box = document.getElementById('taskBox');
+  const list = document.getElementById('taskList');
+  box.style.display = '';
+  list.innerHTML = '<div class="history-empty">Carregando…</div>';
+  try {
+    const data = await api(`/api/leads/${leadId}/tarefas`, { headers: {} });
+    renderTaskList(list, data.tarefas || [], leadId);
+    updateTaskBadgeModal(data.tarefas || []);
+  } catch (_) { list.innerHTML = '<div class="history-empty">Erro ao carregar tarefas.</div>'; }
+}
+
+function renderTaskList(container, tarefas, leadId) {
+  if (!tarefas.length) { container.innerHTML = '<div class="history-empty">Nenhuma tarefa. Crie uma acima.</div>'; return; }
+  const today = new Date(); today.setHours(0,0,0,0);
+  container.innerHTML = tarefas.map(t => {
+    const done = t.status === 'CONCLUIDA';
+    const venc = t.data_vencimento ? new Date(t.data_vencimento + 'T12:00:00') : null;
+    venc && venc.setHours(0,0,0,0);
+    const overdue = venc && !done && venc < today;
+    const cls = done ? 'done-border' : overdue ? 'overdue' : 'pending';
+    const prioColor = { ALTA: 'var(--danger)', MEDIA: 'var(--warn)', BAIXA: 'var(--accent)' }[t.prioridade] || 'var(--text2)';
+    const dtStr = venc ? venc.toLocaleDateString('pt-BR') : '';
+    return `
+      <div class="task-item ${done ? 'done' : ''} ${cls}">
+        <div class="task-check ${done ? 'checked' : ''}" onclick="toggleTask(${t.id}, ${leadId}, '${done ? 'PENDENTE' : 'CONCLUIDA'}')">${done ? '✓' : ''}</div>
+        <div class="task-body">
+          <div class="task-title" style="${done ? 'text-decoration:line-through' : ''}">${esc(t.titulo)}</div>
+          <div class="task-meta">
+            <span style="color:${prioColor};font-weight:700">${t.prioridade}</span>
+            ${dtStr ? ` · ${overdue ? '<span style="color:var(--danger);font-weight:700">Venceu ' + dtStr + '</span>' : dtStr}` : ''}
+            ${t.hora_vencimento ? ' · ' + t.hora_vencimento.slice(0,5) : ''}
+            ${t.nome_responsavel ? ' · ' + esc(t.nome_responsavel) : ''}
+            ${t.descricao ? '<br><span style="font-style:italic">' + esc(t.descricao.slice(0,80)) + '</span>' : ''}
+          </div>
+        </div>
+        <button class="task-del" onclick="deleteTask(${t.id}, ${leadId})" title="Remover">×</button>
+      </div>`;
+  }).join('');
+}
+
+function updateTaskBadgeModal(tarefas) {
+  const badge = document.getElementById('taskBadgeModal');
+  const today = new Date(); today.setHours(0,0,0,0);
+  const pending = tarefas.filter(t => t.status === 'PENDENTE');
+  const overdue = pending.filter(t => t.data_vencimento && new Date(t.data_vencimento + 'T12:00:00') < today);
+  if (!pending.length) { badge.textContent = ''; return; }
+  badge.innerHTML = overdue.length
+    ? `<span class="task-badge">${overdue.length} vencida${overdue.length > 1 ? 's' : ''}</span>`
+    : `<span class="task-badge ok">${pending.length} pendente${pending.length > 1 ? 's' : ''}</span>`;
+}
+
+async function addTask() {
+  const titulo = document.getElementById('t_titulo').value.trim();
+  if (!titulo) return toast('Informe o título da tarefa.', 'err');
+  if (!state.editingId) return toast('Salve o lead antes de criar tarefas.', 'err');
+  try {
+    await api(`/api/leads/${state.editingId}/tarefas`, { method: 'POST', body: JSON.stringify({
+      titulo,
+      data_vencimento: document.getElementById('t_data').value || null,
+      hora_vencimento: document.getElementById('t_hora').value || null,
+      prioridade: document.getElementById('t_prio').value,
+    })});
+    document.getElementById('t_titulo').value = '';
+    document.getElementById('t_data').value = '';
+    document.getElementById('t_hora').value = '';
+    await loadLeadTarefas(state.editingId);
+    await loadTodayTasks();
+    toast('Tarefa criada.', 'ok');
+  } catch (err) { toast(err.message || 'Erro ao criar tarefa', 'err'); }
+}
+
+async function toggleTask(taskId, leadId, newStatus) {
+  try {
+    await api(`/api/leads/tarefas/${taskId}`, { method: 'PUT', body: JSON.stringify({ status: newStatus }) });
+    await loadLeadTarefas(leadId);
+    await loadTodayTasks();
+  } catch (err) { toast(err.message || 'Erro', 'err'); }
+}
+
+async function deleteTask(taskId, leadId) {
+  if (!confirm('Remover esta tarefa?')) return;
+  try {
+    await api(`/api/leads/tarefas/${taskId}`, { method: 'DELETE', body: JSON.stringify({}) });
+    await loadLeadTarefas(leadId);
+    await loadTodayTasks();
+  } catch (err) { toast(err.message || 'Erro', 'err'); }
+}
+
+async function loadTodayTasks() {
+  try {
+    const data = await api('/api/leads/tarefas/hoje', { headers: {} });
+    const container = document.getElementById('todayTaskList');
+    const tarefas = data.tarefas || [];
+    if (!tarefas.length) {
+      container.innerHTML = '<div class="summary-empty">Sem tarefas pendentes para hoje.</div>';
+      return;
+    }
+    const today = new Date(); today.setHours(0,0,0,0);
+    container.innerHTML = tarefas.map(t => {
+      const venc = t.data_vencimento ? new Date(t.data_vencimento + 'T12:00:00') : null;
+      venc && venc.setHours(0,0,0,0);
+      const overdue = venc && venc < today;
+      const dtStr = venc ? (overdue ? `<span style="color:var(--danger);font-weight:700">Venceu ${venc.toLocaleDateString('pt-BR')}</span>` : venc.toLocaleDateString('pt-BR')) : 'Sem data';
+      return `
+        <div class="task-item ${overdue ? 'overdue' : 'pending'}" style="cursor:pointer" onclick="openEdit(${t.lead_id})">
+          <div class="task-body">
+            <div class="task-title">${esc(t.titulo)}</div>
+            <div class="task-meta">${esc(t.lead_nome)}${t.lead_empresa ? ' · ' + esc(t.lead_empresa) : ''}</div>
+            <div class="task-meta">${dtStr}${t.nome_responsavel ? ' · ' + esc(t.nome_responsavel) : ''}</div>
+          </div>
+          <div class="task-check" onclick="event.stopPropagation();toggleTaskDirect(${t.id})" title="Concluir">✓</div>
+        </div>`;
+    }).join('');
+  } catch (_) {}
+}
+
+async function toggleTaskDirect(taskId) {
+  try {
+    await api(`/api/leads/tarefas/${taskId}`, { method: 'PUT', body: JSON.stringify({ status: 'CONCLUIDA' }) });
+    await loadTodayTasks();
+    toast('Tarefa concluída.', 'ok');
+  } catch (err) { toast(err.message || 'Erro', 'err'); }
+}
+
+// ── WhatsApp compose ─────────────────────────────────────────────
+let _wppLeadId = null;
+function openWppCompose(id) {
+  const lead = state.leads.find(l => l.id === id);
+  if (!lead) return;
+  _wppLeadId = id;
+  const num = lead.whatsapp || lead.telefone || '';
+  document.getElementById('wppDest').textContent = `${lead.nome}  ·  ${num}`;
+  document.getElementById('wppMsg').value = '';
+  document.getElementById('wppBack').style.display = 'flex';
+  setTimeout(() => document.getElementById('wppMsg').focus(), 80);
+}
+async function sendWpp() {
+  const mensagem = document.getElementById('wppMsg').value.trim();
+  if (!mensagem) return toast('Digite a mensagem.', 'err');
+  const btn = document.getElementById('btnWppSend');
+  btn.disabled = true; btn.textContent = 'Enviando…';
+  try {
+    await api(`/api/leads/${_wppLeadId}/whatsapp`, { method: 'POST', body: JSON.stringify({ mensagem }) });
+    toast('WhatsApp enviado.', 'ok');
+    document.getElementById('wppBack').style.display = 'none';
+    if (state.editingId === _wppLeadId) await loadHistory(_wppLeadId);
+  } catch (err) {
+    toast(err.message || 'Erro ao enviar', 'err');
+  } finally { btn.disabled = false; btn.textContent = 'Enviar'; }
+}
+
+// ── Email compose ─────────────────────────────────────────────────
+let _emailLeadId = null;
+function openEmailCompose(id) {
+  const lead = state.leads.find(l => l.id === id);
+  if (!lead) return;
+  _emailLeadId = id;
+  document.getElementById('emailDest').textContent = `${lead.nome}  ·  ${lead.email || ''}`;
+  document.getElementById('emailSubj').value = '';
+  document.getElementById('emailBody').value = '';
+  document.getElementById('emailBack').style.display = 'flex';
+  setTimeout(() => document.getElementById('emailSubj').focus(), 80);
+}
+async function sendEmail() {
+  const assunto = document.getElementById('emailSubj').value.trim();
+  const corpo   = document.getElementById('emailBody').value.trim();
+  if (!assunto) return toast('Informe o assunto.', 'err');
+  if (!corpo)   return toast('Informe a mensagem.', 'err');
+  const btn = document.getElementById('btnEmailSend');
+  btn.disabled = true; btn.textContent = 'Enviando…';
+  try {
+    await api(`/api/leads/${_emailLeadId}/email`, { method: 'POST', body: JSON.stringify({ assunto, corpo }) });
+    toast('E-mail enviado.', 'ok');
+    document.getElementById('emailBack').style.display = 'none';
+    if (state.editingId === _emailLeadId) await loadHistory(_emailLeadId);
+  } catch (err) {
+    toast(err.message || 'Erro ao enviar', 'err');
+  } finally { btn.disabled = false; btn.textContent = 'Enviar'; }
+}
+
+function newOrder(id) {
+  const lead = state.leads.find(l => l.id === id);
+  if (!lead || !lead.convertido_cliente_id) return toast('Converta o lead antes de criar o pedido.', 'err');
+  const nome = encodeURIComponent(lead.nome_cliente_convertido || lead.empresa || lead.nome || '');
+  const url = `/pages/pedidos.html?novo=1&cliente_id=${lead.convertido_cliente_id}&cliente_nome=${nome}`;
+  if (window.parent && window.parent !== window) {
+    window.parent.postMessage({ type: 'navigate', url, label: 'Pedidos' }, '*');
+    return;
+  }
+  window.location.href = url;
+}
+
+// ── Importação Excel ──────────────────────────────────────────────
+const COL_MAP = {
+  nome: ['nome','name','lead','contato'],
+  empresa: ['empresa','company','razao','razão social'],
+  telefone: ['telefone','fone','tel','phone'],
+  whatsapp: ['whatsapp','wpp','zap'],
+  email: ['email','e-mail','mail'],
+  cidade: ['cidade','city'],
+  uf: ['uf','estado','state'],
+  origem: ['origem','source','canal'],
+  campanha: ['campanha','campaign'],
+  produto_interesse: ['produto','produto_interesse','product','interesse'],
+  segmento: ['segmento','segment','setor'],
+  observacoes: ['observacoes','observações','obs','notes'],
+};
+
+let _importRows = [];
+
+function mapHeaders(headers) {
+  const norm = h => String(h || '').toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+  return headers.map(h => {
+    const hn = norm(h);
+    return Object.entries(COL_MAP).find(([, aliases]) => aliases.some(a => norm(a) === hn))?.[0] || null;
+  });
+}
+
+function parseSheet(wb) {
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const raw = window.XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+  if (raw.length < 2) return [];
+  const headers = raw[0].map(String);
+  const mapping = mapHeaders(headers);
+  return raw.slice(1).map(row => {
+    const obj = {};
+    mapping.forEach((field, i) => { if (field) obj[field] = String(row[i] || '').trim(); });
+    return obj;
+  }).filter(r => r.nome);
+}
+
+function renderImportPreview(rows) {
+  const COLS = ['nome','empresa','telefone','email','cidade','uf','origem'];
+  const thead = document.querySelector('#importTable thead');
+  const tbody = document.querySelector('#importTable tbody');
+  thead.innerHTML = '<tr>' + COLS.map(c => `<th>${c}</th>`).join('') + '</tr>';
+  tbody.innerHTML = rows.slice(0, 8).map(r =>
+    '<tr>' + COLS.map(c => `<td title="${esc(r[c]||'')}">${esc(r[c]||'-')}</td>`).join('') + '</tr>'
+  ).join('');
+  if (rows.length > 8) {
+    tbody.innerHTML += `<tr><td colspan="${COLS.length}" style="text-align:center;color:var(--text2)">… e mais ${rows.length - 8} registros</td></tr>`;
+  }
+  document.getElementById('importPreview').style.display = '';
+  document.getElementById('importResult').style.display = 'none';
+  document.getElementById('btnImportSend').disabled = rows.length === 0;
+  document.getElementById('btnImportSend').textContent = `Importar ${rows.length} lead${rows.length !== 1 ? 's' : ''}`;
+}
+
+function loadSheetJS(cb) {
+  if (window.XLSX) return cb();
+  const s = document.createElement('script');
+  s.src = 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';
+  s.onload = cb;
+  s.onerror = () => toast('Falha ao carregar leitor de Excel.', 'err');
+  document.head.appendChild(s);
+}
+
+function handleImportFile(file) {
+  if (!file) return;
+  loadSheetJS(() => {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const wb = window.XLSX.read(ev.target.result, { type: 'array' });
+        _importRows = parseSheet(wb);
+        if (!_importRows.length) return toast('Nenhum lead com nome encontrado na planilha.', 'err');
+        renderImportPreview(_importRows);
+      } catch (e) { toast('Erro ao ler planilha: ' + e.message, 'err'); }
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+async function sendImport() {
+  if (!_importRows.length) return;
+  document.getElementById('btnImportSend').disabled = true;
+  document.getElementById('btnImportSend').textContent = 'Importando...';
+  try {
+    const data = await api('/api/leads/importar', { method: 'POST', body: JSON.stringify({ rows: _importRows }) });
+    const res = document.getElementById('importResult');
+    res.style.display = '';
+    if (data.erros && data.erros.length) {
+      res.className = 'import-result err';
+      res.innerHTML = `<strong>${data.ok} importados</strong> com ${data.erros.length} erro(s):<br>` +
+        data.erros.slice(0, 5).map(e => `${esc(e.nome)}: ${esc(e.erro)}`).join('<br>');
+    } else {
+      res.className = 'import-result ok';
+      res.textContent = `${data.ok} lead${data.ok !== 1 ? 's' : ''} importado${data.ok !== 1 ? 's' : ''} com sucesso.`;
+    }
+    _importRows = [];
+    document.getElementById('importPreview').style.display = 'none';
+    document.getElementById('btnImportSend').textContent = 'Importar leads';
+    await loadLeads();
+  } catch (err) {
+    toast(err.message || 'Erro na importação', 'err');
+    document.getElementById('btnImportSend').disabled = false;
+    document.getElementById('btnImportSend').textContent = 'Importar leads';
+  }
+}
+
+// ── Drag & Drop ──────────────────────────────────────────────────
+let _draggingId = null;
+
+function dragStart(ev, id) {
+  _draggingId = id;
+  ev.dataTransfer.effectAllowed = 'move';
+  setTimeout(() => ev.target.classList.add('dragging'), 0);
+}
+
+function dragEnd(ev) {
+  ev.target.classList.remove('dragging');
+  _draggingId = null;
+}
+
+function dragOver(ev) {
+  ev.preventDefault();
+  ev.dataTransfer.dropEffect = 'move';
+}
+
+function dragEnter(ev) {
+  ev.currentTarget.classList.add('drag-over');
+}
+
+function dragLeave(ev) {
+  if (!ev.currentTarget.contains(ev.relatedTarget)) {
+    ev.currentTarget.classList.remove('drag-over');
+  }
+}
+
+async function drop(ev, stage) {
+  ev.preventDefault();
+  ev.currentTarget.classList.remove('drag-over');
+  const id = _draggingId;
+  _draggingId = null;
+  if (!id) return;
+  const lead = state.leads.find(l => l.id === id);
+  if (!lead || lead.status_funil === stage) return;
+  const prevStage = lead.status_funil;
+  lead.status_funil = stage;
+  renderStats(); renderSummary(); renderBoard();
+  try {
+    await api('/api/leads/' + id + '/stage', { method: 'PATCH', body: JSON.stringify({ status_funil: stage }) });
+    toast('Movido para ' + (STAGES.find(s => s.key === stage)?.label || stage) + '.', 'ok');
+  } catch (err) {
+    lead.status_funil = prevStage;
+    renderStats(); renderSummary(); renderBoard();
+    toast(err.message || 'Erro ao mover lead', 'err');
+  }
+}
+
+(async function init() {
+  clearForm();
+  // Verifica WhatsApp e email em paralelo (silencia erros — sem config = fallback wa.me/mailto)
+  const [, ,] = await Promise.allSettled([
+    api('/api/whatsapp/status', { headers: {} }).then(d => { state.wppConnected = d.status === 'CONECTADO'; }),
+    api('/api/cadastros/usuarios/smtp', { headers: {} }).then(d => { state.emailConfigured = !!(d.emailpedemail); }),
+    loadVendedores(),
+  ]);
+  // Verifica ?edit=X para abrir lead diretamente (vindo de visitas.html)
+  const editId = new URLSearchParams(window.location.search).get('edit');
+  await Promise.all([loadLeads(), loadTodayTasks()]);
+  if (editId) openEdit(parseInt(editId, 10));
+})();
+</script>
+</body>
+</html>

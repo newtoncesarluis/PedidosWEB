@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Agenda de Visitas | SysRepWeb</title>
+<style>
+* { margin:0;padding:0;box-sizing:border-box; }
+:root {
+  --bg:#f0f2f5; --card:#fff; --border:#e5e7eb;
+  --text:#111827; --text2:#6b7280;
+  --accent:#6366f1; --accent-hover:#4f46e5;
+  --accent-soft:#eef2ff;
+  --danger:#ef4444; --warn:#f59e0b; --success:#22c55e;
+}
+body { font-family:'Inter','Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh; }
+
+/* ── TOOLBAR ── */
+.toolbar-bar {
+  background:#fff;border-bottom:1px solid var(--border);
+  padding:8px 16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  position:sticky;top:0;z-index:100;
+}
+.btn {
+  display:inline-flex;align-items:center;gap:6px;padding:7px 14px;
+  border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;
+  transition:.15s;font-family:inherit;white-space:nowrap;
+}
+.btn svg { width:13px;height:13px;flex-shrink:0; }
+.btn-primary { background:var(--accent);color:#fff;border:1.5px solid var(--accent); }
+.btn-primary:hover { background:var(--accent-hover); }
+.btn-outline { background:#fff;color:var(--accent);border:1.5px solid var(--accent); }
+.btn-outline:hover { background:var(--accent-soft); }
+.btn-ghost   { background:#fff;color:var(--text2);border:1.5px solid var(--border); }
+.btn-ghost:hover { background:#f9fafb;color:var(--text); }
+.btn-danger  { background:var(--danger);color:#fff;border:1.5px solid var(--danger); }
+.btn:disabled { opacity:.5;cursor:not-allowed; }
+.toolbar-actions {
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-shrink:0;
+}
+.btn-refresh-compact {
+  padding:7px 11px;
+  font-size:11px;
+  min-height:34px;
+  border-radius:10px;
+}
+
+/* ins-cards */
+.ins-card { display:inline-flex;align-items:center;gap:5px;cursor:pointer;padding:4px 9px;border-radius:7px;border:1.5px solid var(--border);background:#fafafa;transition:.15s;user-select:none;flex-shrink:0;white-space:nowrap; }
+.ins-card:hover { border-color:var(--accent);background:var(--accent-soft); }
+.ins-card.active { border-color:var(--accent);background:var(--accent);color:#fff; }
+.ins-card.active .ins-label,.ins-card.active .ins-val { color:#fff; }
+.ins-label { font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2); }
+.ins-val   { font-size:12px;font-weight:800;color:var(--text);line-height:1; }
+
+/* filtros de data */
+.date-filter { display:flex;align-items:center;gap:5px;margin-left:auto; }
+.date-filter input[type="date"] {
+  padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;
+  font-size:12px;font-family:inherit;color:var(--text);outline:none;
+}
+.date-filter input[type="date"]:focus { border-color:var(--accent); }
+.shortcut-btn { padding:4px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;background:#fff;color:var(--text2);transition:.12s; }
+.shortcut-btn:hover,.shortcut-btn.active { background:var(--accent);color:#fff;border-color:var(--accent); }
+
+/* ── SUBBAR ── */
+.subbar { background:#f9fafb;border-bottom:1px solid var(--border);padding:5px 16px;display:flex;align-items:center;gap:8px;position:sticky;z-index:99; }
+.icon-btn { display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border:1.5px solid var(--border);border-radius:7px;background:#fff;color:var(--text2);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;transition:.12s;white-space:nowrap; }
+.icon-btn:hover { background:var(--accent-soft);color:var(--accent);border-color:var(--accent); }
+.search-input { padding:5px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px;font-family:inherit;width:220px;outline:none; }
+.search-input:focus { border-color:var(--accent); }
+.vendedor-sel { padding:5px 8px;border:1.5px solid var(--border);border-radius:7px;font-size:12px;font-family:inherit;outline:none;color:var(--text);background:#fff; }
+.vendedor-sel:focus { border-color:var(--accent); }
+
+/* ── CONTENT ── */
+.content-area { padding:14px 16px; }
+
+/* ── TABLE ── */
+.table-card { background:#fff;border:1px solid var(--border);border-radius:10px;overflow:hidden; }
+.table-wrap { overflow-x:auto; }
+table { width:100%;border-collapse:collapse; }
+thead th { background:#f9fafb;padding:8px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);border-bottom:1px solid var(--border);white-space:nowrap; }
+tbody tr { transition:background .1s;cursor:pointer; }
+tbody tr:hover { background:var(--accent-soft); }
+tbody td { padding:8px 12px;border-bottom:1px solid var(--border);font-size:12px;vertical-align:middle; }
+tbody tr:last-child td { border-bottom:none; }
+
+.badge { display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap;text-transform:uppercase; }
+.badge-ABERTA    { background:#fef9c3;color:#854d0e; }
+.badge-FINALIZADA{ background:#dcfce7;color:#15803d; }
+
+.btn-acoes { background:#f3f4f6;color:var(--text2);border:1px solid var(--border);padding:4px 7px;border-radius:6px;cursor:pointer;font-size:14px; }
+.dropdown-menu { position:fixed;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.14);z-index:6500;min-width:165px;animation:fadeIn .12s;padding:4px;display:none; }
+.dropdown-item { display:flex;align-items:center;gap:9px;padding:8px 12px;border-radius:7px;font-size:12px;cursor:pointer;border:none;background:none;width:100%;text-align:left;font-family:inherit; }
+.dropdown-item:hover { background:var(--accent-soft);color:var(--accent); }
+.dropdown-item.red { color:var(--danger); }
+.dropdown-item.red:hover { background:#fee2e2;color:var(--danger); }
+@keyframes fadeIn { from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)} }
+
+.paginacao { display:flex;align-items:center;justify-content:space-between;padding:8px 14px;border-top:1px solid var(--border);font-size:12px;color:var(--text2); }
+
+/* ── FORM ── */
+#formSection { display:none; }
+.form-card { background:#fff;border:1px solid var(--border);border-radius:10px;overflow:hidden; }
+.form-card-head { padding:12px 18px;border-bottom:1px solid var(--border);background:#fff;display:flex;align-items:center;justify-content:space-between; }
+.form-card-head h3 { font-size:14px;font-weight:700; }
+.form-body { padding:20px 18px; }
+.form-grid { display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px; }
+@media(max-width:900px) { .form-grid { grid-template-columns:1fr 1fr; } }
+@media(max-width:600px) { .form-grid { grid-template-columns:1fr; } }
+.form-group { display:flex;flex-direction:column;gap:4px; }
+.form-group.full { grid-column:1/-1; }
+.form-group.col2 { grid-column:span 2; }
+label.lbl { font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.3px; }
+label.lbl span { color:var(--danger); }
+.finput {
+  padding:8px 10px;border:1.5px solid #d1d5db;border-radius:6px;
+  font-size:13px;outline:none;width:100%;font-family:inherit;
+  background:#fff;color:var(--text);
+}
+.finput:focus { border-color:var(--accent);box-shadow:0 0 0 3px rgba(99,102,241,.08); }
+.finput[readonly] { background:#f9fafb;color:var(--text2);cursor:default; }
+textarea.finput { resize:vertical;min-height:80px; }
+
+/* Autocomplete cliente */
+.ac-wrap { position:relative; }
+.ac-results {
+  position:absolute;top:100%;left:0;right:0;z-index:5000;
+  background:#fff;border:1.5px solid var(--accent);border-top:none;border-radius:0 0 8px 8px;
+  max-height:240px;overflow-y:auto;display:none;box-shadow:0 6px 20px rgba(0,0,0,.1);
+}
+.ac-results.show { display:block; }
+.ac-item { padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--border);font-size:12px; }
+.ac-item:hover { background:var(--accent-soft); }
+.ac-item-nome { font-weight:700;color:var(--text); }
+.ac-item-sub  { font-size:10px;color:var(--text2);margin-top:1px; }
+
+/* Seção próxima visita */
+.prox-visita-wrap { margin-top:14px;padding:12px 14px;border:1.5px dashed var(--border);border-radius:8px; }
+.prox-visita-wrap.show { border-color:var(--accent);background:var(--accent-soft); }
+
+.form-sep { height:1px;background:var(--border);margin:14px 0; }
+
+/* TOAST */
+#toast-container { position:fixed;bottom:24px;right:24px;z-index:99999;display:flex;flex-direction:column;gap:8px;pointer-events:none; }
+.toast { display:flex;align-items:center;gap:10px;padding:11px 16px;border-radius:9px;font-size:13px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.14);animation:toastIn .22s ease-out;pointer-events:auto; }
+@keyframes toastIn { from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)} }
+.toast-ok  { background:#1a1a2e;color:#fff; }
+.toast-err { background:#ef4444;color:#fff; }
+
+/* ── MOBILE (dentro do iframe sysrep-ms-embed) ── */
+html.sysrep-ms-embed .date-filter { gap:4px;margin-left:0; }
+html.sysrep-ms-embed .date-filter input[type="date"] { width:105px; }
+html.sysrep-ms-embed #sc-semana,
+html.sysrep-ms-embed #sc-mes { display:none; }
+html.sysrep-ms-embed .search-input { flex:1;width:100%; }
+html.sysrep-ms-embed .vendedor-sel { max-width:130px; }
+html.sysrep-ms-embed .content-area { padding-bottom:80px !important; }
+html.sysrep-ms-embed #visitas-cards-mobile { padding:0; }
+@media (max-width: 900px) {
+  html.sysrep-ms-embed .toolbar-bar {
+    gap:10px;
+    padding:10px 14px;
+  }
+  html.sysrep-ms-embed .toolbar-actions {
+    width:100%;
+    order:3;
+  }
+  html.sysrep-ms-embed .toolbar-actions .btn-primary {
+    flex:1 1 auto;
+    justify-content:center;
+    min-height:38px;
+    border-radius:10px;
+  }
+  html.sysrep-ms-embed .toolbar-actions .btn-refresh-compact {
+    flex:0 0 auto;
+  }
+  html.sysrep-ms-embed .subbar > .icon-btn:first-child {
+    display:none !important;
+  }
+}
+</style>
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<script src="/assets/mobile-app.js"></script>
+<link rel="stylesheet" href="/assets/mobile-app.css">
+</head>
+<body>
+
+<!-- TOOLBAR -->
+<div class="toolbar-bar">
+  <div style="display:flex;gap:5px;align-items:center">
+    <div class="ins-card active" id="ins-T" onclick="setFiltroStatus('T')">
+      <span class="ins-label">Total</span><span class="ins-val" id="val-T">—</span>
+    </div>
+    <div class="ins-card" id="ins-A" onclick="setFiltroStatus('ABERTA')">
+      <span class="ins-label">Abertas</span><span class="ins-val" id="val-A">—</span>
+    </div>
+    <div class="ins-card" id="ins-F" onclick="setFiltroStatus('FINALIZADA')">
+      <span class="ins-label">Finalizadas</span><span class="ins-val" id="val-F">—</span>
+    </div>
+  </div>
+
+  <div class="date-filter">
+    <button class="shortcut-btn active" id="sc-hoje" onclick="atalhoData('hoje')">Hoje</button>
+    <button class="shortcut-btn" id="sc-semana" onclick="atalhoData('semana')">Semana</button>
+    <button class="shortcut-btn" id="sc-mes" onclick="atalhoData('mes')">Mês</button>
+    <input type="date" id="f_data_de" onchange="limparAtalho();buscar()">
+    <span style="font-size:11px;color:var(--text2)">até</span>
+    <input type="date" id="f_data_ate" onchange="limparAtalho();buscar()">
+  </div>
+
+  <div class="toolbar-actions">
+    <button class="btn btn-primary" onclick="abrirNovo()">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+      Nova Visita
+    </button>
+    <button class="icon-btn btn-refresh-compact" onclick="buscar()" title="Atualizar">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:12px;height:12px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+      Atualizar
+    </button>
+  </div>
+</div>
+
+<!-- SUBBAR -->
+<div class="subbar">
+  <button class="icon-btn" onclick="buscar()">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:12px;height:12px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+    Atualizar
+  </button>
+  <input class="search-input" id="inputBusca" placeholder="Buscar por cliente…" oninput="buscar()" autocomplete="off">
+  <select class="vendedor-sel" id="f_vendedor_filtro" onchange="buscar()">
+    <option value="">Todos os vendedores</option>
+  </select>
+</div>
+
+<!-- CONTEÚDO -->
+<div class="content-area">
+  <!-- LISTA -->
+  <div id="listSection">
+    <div class="table-card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:90px">Data</th>
+              <th style="width:60px">Hora</th>
+              <th>Cliente</th>
+              <th>Cidade</th>
+              <th>Motivo</th>
+              <th>Observação</th>
+              <th style="width:100px;text-align:center">Status</th>
+              <th style="width:40px"></th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text2)">Carregando…</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="paginacao">
+        <span id="pag-info">—</span>
+        <div style="display:flex;gap:6px">
+          <button class="icon-btn" id="btn-prev" onclick="mudarPag(-1)" disabled>‹ Anterior</button>
+          <button class="icon-btn" id="btn-next" onclick="mudarPag(1)">Próxima ›</button>
+        </div>
+      </div>
+    </div>
+    <!-- MOBILE: cards view (renderLista popula quando innerWidth < 900) -->
+    <div id="visitas-cards-mobile" style="display:none;padding:12px 14px"></div>
+  </div>
+
+  <!-- FAB mobile: Nova Visita -->
+  <button class="ms-fab" id="fab-visita" onclick="abrirNovo()" title="Nova Visita" aria-label="Nova Visita">+</button>
+
+  <!-- FORMULÁRIO -->
+  <div id="formSection">
+    <div class="form-card">
+      <div class="form-card-head">
+        <h3 id="formTitulo">Nova Visita</h3>
+        <button class="btn btn-ghost" onclick="voltarLista()">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:13px;height:13px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+          Voltar
+        </button>
+      </div>
+      <div class="form-body">
+        <input type="hidden" id="f_id">
+        <input type="hidden" id="f_id_cliente">
+
+        <div class="form-grid">
+          <!-- Data e Hora -->
+          <div class="form-group">
+            <label class="lbl">Data da Visita <span>*</span></label>
+            <input type="date" class="finput" id="f_data_visita">
+          </div>
+          <div class="form-group">
+            <label class="lbl">Hora</label>
+            <input type="time" class="finput" id="f_hora_visita" value="08:00">
+          </div>
+          <div class="form-group">
+            <label class="lbl">Status</label>
+            <select class="finput" id="f_status">
+              <option value="ABERTA">Aberta</option>
+              <option value="FINALIZADA">Finalizada</option>
+            </select>
+          </div>
+
+          <!-- Cliente -->
+          <div class="form-group col2">
+            <label class="lbl">Cliente <span>*</span></label>
+            <div class="ac-wrap">
+              <input type="text" class="finput" id="f_cliente_nome" placeholder="Buscar cliente por nome…" autocomplete="off"
+                     oninput="buscarCliente(this.value)" onfocus="buscarCliente(this.value)">
+              <div class="ac-results" id="ac_cliente"></div>
+            </div>
+          </div>
+
+          <!-- Vendedor -->
+          <div class="form-group">
+            <label class="lbl">Vendedor</label>
+            <select class="finput" id="f_id_vendedor"></select>
+          </div>
+
+          <!-- Motivo -->
+          <div class="form-group">
+            <label class="lbl">Motivo</label>
+            <select class="finput" id="f_id_motivo">
+              <option value="">— Selecione —</option>
+            </select>
+          </div>
+
+          <!-- Observações -->
+          <div class="form-group full">
+            <label class="lbl" style="display:flex;align-items:center;justify-content:space-between">
+              Observações
+              <button type="button" id="btn-geo" onclick="registrarLocalizacao()"
+                style="display:none;font-size:10px;font-weight:700;padding:3px 8px;border:1.5px solid var(--accent);border-radius:6px;background:var(--accent-soft);color:var(--accent);cursor:pointer;font-family:inherit">
+                📍 Minha localização
+              </button>
+            </label>
+            <textarea class="finput" id="f_obs" rows="3" placeholder="Anotações sobre a visita…"></textarea>
+          </div>
+        </div>
+
+        <!-- Próxima visita -->
+        <div class="form-sep"></div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;cursor:pointer" onclick="toggleProxVisita()">
+          <input type="checkbox" id="chk_prox" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer">
+          <label style="font-size:12px;font-weight:700;cursor:pointer;color:var(--text)">Agendar próxima visita</label>
+        </div>
+        <div class="prox-visita-wrap" id="proxWrap" style="display:none">
+          <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr">
+            <div class="form-group">
+              <label class="lbl">Data</label>
+              <input type="date" class="finput" id="f_nova_data">
+            </div>
+            <div class="form-group">
+              <label class="lbl">Hora</label>
+              <input type="time" class="finput" id="f_nova_hora" value="08:00">
+            </div>
+            <div class="form-group">
+              <label class="lbl">Obs. agendamento</label>
+              <input type="text" class="finput" id="f_obs_nova" placeholder="Motivo…">
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="padding:12px 18px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px">
+        <button class="btn btn-ghost" onclick="voltarLista()">Cancelar</button>
+        <button class="btn btn-primary" onclick="salvar()">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+          Salvar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+<div id="dropMenu" class="dropdown-menu"></div>
+
+<script>
+// ─── Estado ───────────────────────────────────────────────────────────────────
+let S = {
+  filtroStatus: '',
+  pagina: 1,
+  total: 0,
+  limite: 50,
+  registroId: null,
+  motivos: [],
+  vendedores: [],
+  acTimer: null,
+};
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', async () => {
+  atalhoData('hoje');
+  await Promise.all([carregarMotivos(), carregarVendedores()]);
+  buscar();
+  aplicarPrefillUrl();
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.ac-wrap')) fecharAc();
+    if (!e.target.closest('#dropMenu') && !e.target.closest('.btn-acoes')) {
+      document.getElementById('dropMenu').style.display = 'none';
+    }
+  });
+
+  // Mobile: mostra botão geo no formulário e inicia swipe nos cards
+  const isMobile = document.documentElement.classList.contains('sysrep-ms-embed');
+  if (isMobile) {
+    const btnGeo = document.getElementById('btn-geo');
+    if (btnGeo && 'geolocation' in navigator) btnGeo.style.display = 'inline-flex';
+
+    // FAB some quando formulário está aberto
+    const fab = document.getElementById('fab-visita');
+    const observer = new MutationObserver(() => {
+      const formVisible = document.getElementById('formSection').style.display !== 'none';
+      if (fab) fab.style.display = formVisible ? 'none' : 'flex';
+    });
+    observer.observe(document.getElementById('formSection'), { attributes: true, attributeFilter: ['style'] });
+
+    // Inicia swipe nos cards de visita
+    const cardsContainer = document.getElementById('visitas-cards-mobile');
+    if (window.sysrep && window.sysrep.initSwipeReveal) {
+      window.sysrep.initSwipeReveal(cardsContainer);
+    }
+  }
+});
+
+// Geolocalização: registra coordenadas no campo obs
+function aplicarPrefillUrl() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('novo') !== '1') return;
+  abrirNovo();
+  const clienteId = params.get('cliente_id');
+  const clienteNome = params.get('cliente_nome');
+  if (clienteId) document.getElementById('f_id_cliente').value = clienteId;
+  if (clienteNome) document.getElementById('f_cliente_nome').value = clienteNome;
+}
+
+function registrarLocalizacao() {
+  const btn = document.getElementById('btn-geo');
+  if (!btn) return;
+  btn.textContent = '⏳ Localizando…';
+  btn.disabled = true;
+  navigator.geolocation.getCurrentPosition(
+    function (pos) {
+      const lat = pos.coords.latitude.toFixed(5);
+      const lng = pos.coords.longitude.toFixed(5);
+      const obs = document.getElementById('f_obs');
+      const loc = '📍 ' + lat + ', ' + lng;
+      obs.value = obs.value ? obs.value + '\n' + loc : loc;
+      btn.textContent = '📍 Minha localização';
+      btn.disabled = false;
+      toast('Localização registrada!', 'ok');
+    },
+    function () {
+      btn.textContent = '📍 Minha localização';
+      btn.disabled = false;
+      toast('Não foi possível obter localização', 'err');
+    },
+    { timeout: 8000, enableHighAccuracy: true }
+  );
+}
+
+// Swipe rápido: finalizar visita sem confirmação de modal
+async function finalizarDireto(id) {
+  try {
+    const r = await fetch('/api/visitas/' + id + '/finalizar', { method: 'PUT', headers: { 'Content-Type': 'application/json' } });
+    if (r.ok) { toast('Visita finalizada!', 'ok'); buscar(); }
+    else toast('Erro ao finalizar', 'err');
+  } catch (e) { toast('Erro de comunicação', 'err'); }
+}
+
+// ─── Auxiliares ───────────────────────────────────────────────────────────────
+async function carregarMotivos() {
+  try {
+    const r = await fetch('/api/visitas/motivos');
+    S.motivos = await r.json();
+    const sel = document.getElementById('f_id_motivo');
+    sel.innerHTML = '<option value="">— Selecione —</option>' +
+      S.motivos.map(m => `<option value="${m.id}">${escHtml(m.descricao)}</option>`).join('');
+  } catch(e) {}
+}
+
+async function carregarVendedores() {
+  try {
+    const r = await fetch('/api/vendedores');
+    S.vendedores = (await r.json()).vendedores || [];
+    const opts = '<option value="">— Selecione —</option>' +
+      S.vendedores.map(v => `<option value="${v.id}">${escHtml(v.nome)}</option>`).join('');
+    document.getElementById('f_id_vendedor').innerHTML = opts;
+    // filtro
+    const fSel = document.getElementById('f_vendedor_filtro');
+    fSel.innerHTML = '<option value="">Todos os vendedores</option>' +
+      S.vendedores.map(v => `<option value="${v.id}">${escHtml(v.nome)}</option>`).join('');
+  } catch(e) {}
+}
+
+// ─── Filtros de data ──────────────────────────────────────────────────────────
+function atalhoData(chave) {
+  const hoje = new Date();
+  let de = new Date(hoje), ate = new Date(hoje);
+
+  if (chave === 'semana') {
+    const dia = hoje.getDay();
+    de.setDate(hoje.getDate() - dia);
+    ate.setDate(hoje.getDate() + (6 - dia));
+  } else if (chave === 'mes') {
+    de = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+    ate = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
+  }
+
+  document.getElementById('f_data_de').value  = fmtDate(de);
+  document.getElementById('f_data_ate').value = fmtDate(ate);
+
+  ['hoje','semana','mes'].forEach(k => document.getElementById('sc-'+k).classList.toggle('active', k === chave));
+  buscar();
+}
+function limparAtalho() {
+  ['hoje','semana','mes'].forEach(k => document.getElementById('sc-'+k).classList.remove('active'));
+}
+function fmtDate(d) {
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+// ─── Buscar / Listar ──────────────────────────────────────────────────────────
+function setFiltroStatus(st) {
+  S.filtroStatus = st === 'T' ? '' : st;
+  S.pagina = 1;
+  ['T','A','F'].forEach(k => document.getElementById('ins-'+k).classList.toggle('active', k === st));
+  buscar();
+}
+
+async function buscar() {
+  const params = new URLSearchParams({
+    page: S.pagina,
+    limit: S.limite,
+    q: document.getElementById('inputBusca').value,
+    id_vendedor: document.getElementById('f_vendedor_filtro').value,
+    status: S.filtroStatus,
+    data_de: document.getElementById('f_data_de').value,
+    data_ate: document.getElementById('f_data_ate').value,
+  });
+
+  try {
+    const r = await fetch('/api/visitas?' + params);
+    const d = await r.json();
+    S.total = d.total || 0;
+    renderLista(d.visitas || []);
+    atualizarCounters(d.visitas || []);
+    atualizarPaginacao();
+  } catch(e) {
+    toast('Erro ao carregar','err');
+  }
+}
+
+function renderLista(rows) {
+  const tbody = document.getElementById('tbody');
+  const isMobile = window.innerWidth < 900;
+
+  if (isMobile) {
+    // Cards view no mobile
+    const container = document.getElementById('visitas-cards-mobile');
+    const tableCard  = document.querySelector('#listSection .table-card');
+    if (tableCard)  tableCard.style.display = 'none';
+    if (container) {
+      if (!rows.length) {
+        container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text2)">Nenhuma visita encontrada</div>';
+        container.style.display = 'block';
+        return;
+      }
+      const COR = { ABERTA:'#f59e0b', FINALIZADA:'#10b981', CANCELADA:'#94a3b8' };
+      container.innerHTML = rows.map(v => {
+        const dt  = v.data_visita ? new Date(v.data_visita + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
+        const hr  = v.hora_visita ? v.hora_visita.substring(0,5) : '';
+        const cor = COR[v.status] || '#94a3b8';
+        const obs = v.obs ? (v.obs.length > 60 ? v.obs.substring(0,60) + '…' : v.obs) : '';
+        const swipeAction = v.status === 'ABERTA'
+          ? `<button class="swipe-action" onclick="event.stopPropagation();finalizarDireto(${v.id})"
+               style="background:#10b981">✓ Finalizar</button>`
+          : '';
+        return `
+          <div class="swipe-wrap">
+            ${swipeAction}
+            <div class="swipe-inner" onclick="abrirEditar(${v.id})" style="background:var(--card,#fff);border:1px solid var(--border,#e2e8f0);border-left:4px solid ${cor};border-radius:12px;padding:12px 14px;display:flex;gap:12px;align-items:flex-start;cursor:pointer">
+              <div style="text-align:center;min-width:44px">
+                <div style="font-size:16px;font-weight:900;color:${cor};line-height:1">${hr || '—'}</div>
+                <div style="font-size:9px;color:var(--text2);margin-top:3px">${dt}</div>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-weight:700;font-size:13px;color:var(--text,#0f172a);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(v.nome_cliente || '—')}</div>
+                <div style="font-size:11px;color:var(--text2);margin-top:2px">${escHtml(v.motivo_desc || '')}${v.cidade ? ' · ' + escHtml(v.cidade + (v.uf ? '/'+v.uf : '')) : ''}</div>
+                ${obs ? `<div style="font-size:10px;color:var(--text2);margin-top:3px;font-style:italic">${escHtml(obs)}</div>` : ''}
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0">
+                <span style="background:${cor}18;color:${cor};font-size:9px;font-weight:800;padding:3px 8px;border-radius:20px;white-space:nowrap">${v.status}</span>
+                ${v.id_cliente ? `<button onclick="event.stopPropagation();verLeadDoCliente(${v.id_cliente})" style="background:none;border:1px solid var(--border,#e2e8f0);border-radius:8px;color:var(--text2);font-size:9px;font-weight:700;cursor:pointer;padding:2px 6px">Ver lead</button>` : ''}
+                <button onclick="event.stopPropagation();abrirDrop(event,${v.id},'${v.status}')" style="background:none;border:none;color:var(--text2);font-size:18px;cursor:pointer;padding:0 2px;line-height:1">⋮</button>
+              </div>
+            </div>
+          </div>`;
+      }).join('');
+      container.style.display = 'flex';
+      container.style.flexDirection = 'column';
+      container.style.gap = '8px';
+      // Re-inicia swipe após renderizar
+      if (window.sysrep && window.sysrep.initSwipeReveal) window.sysrep.initSwipeReveal(container);
+    }
+    return;
+  }
+
+  // Desktop: tabela normal
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text2)">Nenhuma visita encontrada</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(v => {
+    const dt = v.data_visita ? new Date(v.data_visita + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
+    const hr = v.hora_visita ? v.hora_visita.substring(0,5) : '—';
+    const obs = v.obs ? (v.obs.length > 40 ? v.obs.substring(0,40) + '…' : v.obs) : '';
+    return `
+    <tr onclick="abrirEditar(${v.id})">
+      <td style="font-weight:700;color:var(--text)">${dt}</td>
+      <td style="color:var(--text2)">${hr}</td>
+      <td>
+        <div style="font-weight:700">${escHtml(v.nome_cliente || '—')}</div>
+        ${v.nome_vendedor ? `<div style="font-size:10px;color:var(--text2)">${escHtml(v.nome_vendedor)}</div>` : ''}
+      </td>
+      <td style="color:var(--text2);font-size:11px">${v.cidade ? escHtml(v.cidade + (v.uf ? ' - '+v.uf : '')) : '—'}</td>
+      <td style="color:var(--text2)">${escHtml(v.motivo_desc || '—')}</td>
+      <td style="color:var(--text2);font-size:11px">${escHtml(obs)}</td>
+      <td style="text-align:center"><span class="badge badge-${v.status}">${v.status}</span></td>
+      <td onclick="event.stopPropagation()" style="display:flex;gap:4px;align-items:center;padding:8px 12px">
+        ${v.id_cliente ? `<button class="btn-acoes" title="Ver lead vinculado" onclick="verLeadDoCliente(${v.id_cliente})" style="font-size:10px;padding:3px 7px">Lead</button>` : ''}
+        <button class="btn-acoes" onclick="abrirDrop(event, ${v.id}, '${v.status}')">⋮</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function verLeadDoCliente(clienteId) {
+  try {
+    const r = await fetch(`/api/leads/por-cliente/${clienteId}`);
+    const d = await r.json();
+    if (!d.lead) { toast('Nenhum lead vinculado a este cliente.', 'err'); return; }
+    const url = `/pages/leads.html?edit=${d.lead.id}`;
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: 'navigate', url, label: 'Leads' }, '*');
+    } else {
+      window.location.href = url;
+    }
+  } catch (_) { toast('Erro ao buscar lead.', 'err'); }
+}
+
+function atualizarCounters(rows) {
+  const abertas = rows.filter(v => v.status === 'ABERTA').length;
+  const finalizadas = rows.filter(v => v.status === 'FINALIZADA').length;
+  document.getElementById('val-T').textContent = S.total;
+  document.getElementById('val-A').textContent = abertas;
+  document.getElementById('val-F').textContent = finalizadas;
+}
+
+function atualizarPaginacao() {
+  const inicio = (S.pagina - 1) * S.limite + 1;
+  const fim = Math.min(S.pagina * S.limite, S.total);
+  document.getElementById('pag-info').textContent = S.total ? `${inicio}–${fim} de ${S.total}` : 'Nenhum resultado';
+  document.getElementById('btn-prev').disabled = S.pagina <= 1;
+  document.getElementById('btn-next').disabled = S.pagina * S.limite >= S.total;
+}
+
+function mudarPag(delta) {
+  S.pagina += delta;
+  buscar();
+}
+
+// ─── Dropdown de ações ────────────────────────────────────────────────────────
+function abrirDrop(e, id, status) {
+  e.stopPropagation();
+  const m = document.getElementById('dropMenu');
+  const finItem = status === 'ABERTA'
+    ? `<button class="dropdown-item" onclick="finalizar(${id})">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:13px;height:13px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+        Finalizar
+       </button>` : '';
+
+  m.innerHTML = `
+    <button class="dropdown-item" onclick="abrirEditar(${id})">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:13px;height:13px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536M9 11l6.536-6.536a2 2 0 112.829 2.829L11.828 13.828A2 2 0 019 14H8v-1a2 2 0 01.586-1.414z"/></svg>
+      Editar
+    </button>
+    ${finItem}
+    <button class="dropdown-item red" onclick="excluir(${id})">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:13px;height:13px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+      Excluir
+    </button>
+  `;
+
+  m.style.display = 'block';
+  const rect = e.currentTarget.getBoundingClientRect();
+  const mH = 120;
+  const top = (rect.bottom + mH > window.innerHeight) ? rect.top - mH : rect.bottom + 4;
+  m.style.top = top + 'px';
+  m.style.left = Math.max(4, rect.left - 145) + 'px';
+}
+
+// ─── Autocomplete Cliente ─────────────────────────────────────────────────────
+let _acAbortCtrl = null;
+
+async function buscarCliente(q) {
+  const div = document.getElementById('ac_cliente');
+  if (!q || q.length < 2) { fecharAc(); return; }
+
+  if (_acAbortCtrl) _acAbortCtrl.abort();
+  _acAbortCtrl = new AbortController();
+
+  try {
+    const r = await fetch(`/api/clientes?q=${encodeURIComponent(q)}&limit=10`, { signal: _acAbortCtrl.signal });
+    const d = await r.json();
+    const lista = d.clientes || d || [];
+    if (!lista.length) { div.innerHTML = '<div class="ac-item" style="color:var(--text2)">Nenhum resultado</div>'; div.classList.add('show'); return; }
+    div.innerHTML = lista.map(c => `
+      <div class="ac-item" onclick="selecionarCliente(${c.id}, ${JSON.stringify(escHtml(c.nome || c.razao_social || '')).replace(/"/g,'&quot;')})">
+        <div class="ac-item-nome">${escHtml(c.nome || c.razao_social || '')}</div>
+        <div class="ac-item-sub">${c.cidade || ''} ${c.uf ? '- '+c.uf : ''}</div>
+      </div>
+    `).join('');
+    div.classList.add('show');
+  } catch(e) {
+    if (e.name !== 'AbortError') { fecharAc(); }
+  }
+}
+
+function selecionarCliente(id, nome) {
+  document.getElementById('f_id_cliente').value = id;
+  document.getElementById('f_cliente_nome').value = nome;
+  fecharAc();
+}
+
+function fecharAc() {
+  document.getElementById('ac_cliente').classList.remove('show');
+}
+
+// ─── Próxima visita ───────────────────────────────────────────────────────────
+function toggleProxVisita() {
+  const chk = document.getElementById('chk_prox');
+  chk.checked = !chk.checked;
+  const wrap = document.getElementById('proxWrap');
+  wrap.style.display = chk.checked ? 'block' : 'none';
+  wrap.classList.toggle('show', chk.checked);
+}
+
+// ─── Formulário ──────────────────────────────────────────────────────────────
+function abrirNovo() {
+  S.registroId = null;
+  document.getElementById('f_id').value = '';
+  document.getElementById('f_id_cliente').value = '';
+  document.getElementById('f_cliente_nome').value = '';
+  document.getElementById('f_data_visita').value = fmtDate(new Date());
+  document.getElementById('f_hora_visita').value = '08:00';
+  document.getElementById('f_status').value = 'ABERTA';
+  document.getElementById('f_id_vendedor').selectedIndex = 0;
+  document.getElementById('f_id_motivo').selectedIndex = 0;
+  document.getElementById('f_obs').value = '';
+  document.getElementById('chk_prox').checked = false;
+  document.getElementById('proxWrap').style.display = 'none';
+  document.getElementById('proxWrap').classList.remove('show');
+  document.getElementById('f_nova_data').value = '';
+  document.getElementById('f_nova_hora').value = '08:00';
+  document.getElementById('f_obs_nova').value = '';
+  document.getElementById('formTitulo').textContent = 'Nova Visita';
+
+  document.getElementById('listSection').style.display = 'none';
+  document.getElementById('formSection').style.display = 'block';
+  document.getElementById('f_cliente_nome').focus();
+}
+
+async function abrirEditar(id) {
+  try {
+    const r = await fetch(`/api/visitas/${id}`);
+    if (!r.ok) { toast('Visita não encontrada','err'); return; }
+    const v = await r.json();
+
+    S.registroId = id;
+    document.getElementById('f_id').value = id;
+    document.getElementById('f_id_cliente').value = v.id_cliente || '';
+    document.getElementById('f_cliente_nome').value = v.nome_cliente || '';
+    document.getElementById('f_data_visita').value = v.data_visita ? v.data_visita.substring(0,10) : '';
+    document.getElementById('f_hora_visita').value = v.hora_visita ? v.hora_visita.substring(0,5) : '08:00';
+    document.getElementById('f_status').value = v.status || 'ABERTA';
+    document.getElementById('f_id_vendedor').value = v.id_vendedor || '';
+    document.getElementById('f_id_motivo').value = v.id_motivo || '';
+    document.getElementById('f_obs').value = v.obs || '';
+    document.getElementById('chk_prox').checked = false;
+    document.getElementById('proxWrap').style.display = 'none';
+    document.getElementById('proxWrap').classList.remove('show');
+    document.getElementById('f_nova_data').value = '';
+    document.getElementById('f_nova_hora').value = '08:00';
+    document.getElementById('f_obs_nova').value = '';
+    document.getElementById('formTitulo').textContent = `Editando Visita #${id}`;
+
+    document.getElementById('listSection').style.display = 'none';
+    document.getElementById('formSection').style.display = 'block';
+  } catch(e) { toast('Erro ao carregar dados','err'); }
+}
+
+function voltarLista() {
+  document.getElementById('formSection').style.display = 'none';
+  document.getElementById('listSection').style.display = 'block';
+  buscar();
+}
+
+async function salvar() {
+  const idCliente = document.getElementById('f_id_cliente').value;
+  const dataVisita = document.getElementById('f_data_visita').value;
+  if (!idCliente) return toast('Selecione um cliente','err');
+  if (!dataVisita) return toast('Informe a data da visita','err');
+
+  const payload = {
+    id_cliente: idCliente,
+    id_vendedor: document.getElementById('f_id_vendedor').value || null,
+    id_motivo: document.getElementById('f_id_motivo').value || null,
+    data_visita: dataVisita,
+    hora_visita: document.getElementById('f_hora_visita').value || '08:00:00',
+    status: document.getElementById('f_status').value,
+    obs: document.getElementById('f_obs').value.trim(),
+    origem: 'WEB',
+  };
+
+  if (document.getElementById('chk_prox').checked) {
+    payload.nova_data_visita = document.getElementById('f_nova_data').value;
+    payload.nova_hora_visita = document.getElementById('f_nova_hora').value || '08:00:00';
+    payload.obs_nova = document.getElementById('f_obs_nova').value.trim();
+  }
+
+  try {
+    const url = S.registroId ? `/api/visitas/${S.registroId}` : '/api/visitas';
+    const method = S.registroId ? 'PUT' : 'POST';
+    const r = await fetch(url, {
+      method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
+    });
+    const d = await r.json();
+    if (r.ok && d.ok !== false) {
+      toast(S.registroId ? 'Visita atualizada!' : 'Visita registrada!', 'ok');
+      voltarLista();
+    } else {
+      toast(d.error || 'Erro ao salvar', 'err');
+    }
+  } catch(e) { toast('Erro de comunicação', 'err'); }
+}
+
+async function finalizar(id) {
+  document.getElementById('dropMenu').style.display = 'none';
+  if (!confirm('Finalizar esta visita?')) return;
+  try {
+    const r = await fetch(`/api/visitas/${id}/finalizar`, { method:'PUT', headers:{'Content-Type':'application/json'} });
+    if (r.ok) { toast('Visita finalizada!','ok'); buscar(); }
+    else toast('Erro ao finalizar','err');
+  } catch(e) { toast('Erro de comunicação','err'); }
+}
+
+async function excluir(id) {
+  document.getElementById('dropMenu').style.display = 'none';
+  if (!confirm('Excluir esta visita?')) return;
+  try {
+    const r = await fetch(`/api/visitas/${id}`, { method:'DELETE' });
+    if (r.ok) { toast('Excluído!','ok'); buscar(); }
+    else toast('Erro ao excluir','err');
+  } catch(e) { toast('Erro de comunicação','err'); }
+}
+
+// ─── Utilitários ─────────────────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function toast(msg, tipo='ok') {
+  const t = document.createElement('div');
+  t.className = `toast toast-${tipo}`;
+  t.textContent = msg;
+  document.getElementById('toast-container').appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+</script>
+</body>
+</html>
