@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard CRM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300..700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/themes.css">
+  <script src="/assets/themes.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family: var(--font, 'Inter', sans-serif);
+      background: var(--content-bg, #f8fafc);
+      color: var(--content-text, #1e293b);
+      min-height: 100vh;
+    }
+
+    /* ── TOOLBAR ──────────────────────────────────────────────────── */
+    .toolbar {
+      background: var(--card-bg, #fff);
+      border-bottom: 1px solid var(--border, #e2e8f0);
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .toolbar-title {
+      font-size: .95rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+      min-width: 130px;
+    }
+    .toolbar-title svg { opacity: .7; }
+    .tb-label { font-size: .72rem; color: var(--muted, #94a3b8); white-space: nowrap; }
+    .toolbar select {
+      height: 32px;
+      border-radius: 6px;
+      border: 1px solid var(--border, #e2e8f0);
+      background: var(--input-bg, #fff);
+      color: var(--content-text, #1e293b);
+      padding: 0 8px;
+      font-size: .8rem;
+      font-family: inherit;
+    }
+    .btn-ref {
+      height: 32px;
+      padding: 0 14px;
+      border-radius: 6px;
+      border: none;
+      background: var(--primary, #0ea5e9);
+      color: #fff;
+      font-size: .8rem;
+      font-family: inherit;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-ref:hover { filter: brightness(1.1); }
+    .btn-leads {
+      height: 32px;
+      padding: 0 14px;
+      border-radius: 6px;
+      border: 1px solid var(--border, #e2e8f0);
+      background: transparent;
+      color: var(--content-text);
+      font-size: .8rem;
+      font-family: inherit;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-leads:hover { background: var(--border, #e2e8f0); }
+    .last-upd { font-size: .72rem; color: var(--muted, #94a3b8); margin-left: auto; }
+
+    /* ── CONTENT ──────────────────────────────────────────────────── */
+    .dash { padding: 16px 20px; display: flex; flex-direction: column; gap: 16px; }
+
+    /* ── KPI CARDS ────────────────────────────────────────────────── */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+    }
+    .kpi-card {
+      background: var(--card-bg, #fff);
+      border-radius: 10px;
+      border: 1px solid var(--border, #e2e8f0);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .kpi-icon {
+      width: 34px; height: 34px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 6px;
+    }
+    .kpi-val {
+      font-size: 1.6rem;
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: -0.02em;
+    }
+    .kpi-lbl { font-size: .73rem; color: var(--muted, #94a3b8); font-weight: 500; margin-top: 2px; }
+    .kpi-sub { font-size: .68rem; color: var(--muted, #94a3b8); }
+    .c-blue  .kpi-icon { background: rgba(14,165,233,.12); color: #0ea5e9; }
+    .c-blue  .kpi-val  { color: #0ea5e9; }
+    .c-green .kpi-icon { background: rgba(16,185,129,.12); color: #10b981; }
+    .c-green .kpi-val  { color: #10b981; }
+    .c-red   .kpi-icon { background: rgba(239,68,68,.1);  color: #ef4444; }
+    .c-red   .kpi-val  { color: #ef4444; }
+    .c-prp   .kpi-icon { background: rgba(139,92,246,.1); color: #8b5cf6; }
+    .c-prp   .kpi-val  { color: #8b5cf6; }
+    .c-amb   .kpi-icon { background: rgba(245,158,11,.1); color: #f59e0b; }
+    .c-amb   .kpi-val  { color: #f59e0b; }
+
+    /* ── SECTION CARD ─────────────────────────────────────────────── */
+    .sc {
+      background: var(--card-bg, #fff);
+      border-radius: 10px;
+      border: 1px solid var(--border, #e2e8f0);
+      overflow: hidden;
+    }
+    .sc-head {
+      padding: 11px 16px;
+      border-bottom: 1px solid var(--border, #e2e8f0);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: .84rem;
+      font-weight: 600;
+    }
+    .sc-head svg { opacity: .6; flex-shrink: 0; }
+    .sc-body { padding: 14px 16px; }
+    .sc-body-np { padding: 0; }
+
+    /* ── TWO-COL ROWS ─────────────────────────────────────────────── */
+    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 860px) { .row2 { grid-template-columns: 1fr; } }
+
+    /* ── FUNNEL BARS ──────────────────────────────────────────────── */
+    .fn-stages { display: flex; flex-direction: column; gap: 9px; }
+    .fn-row { display: flex; align-items: center; gap: 10px; font-size: .8rem; }
+    .fn-lbl { min-width: 95px; font-weight: 500; }
+    .fn-track {
+      flex: 1; height: 22px;
+      background: var(--border, #e2e8f0);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .fn-bar {
+      height: 100%; border-radius: 4px;
+      display: flex; align-items: center;
+      padding-left: 7px;
+      font-size: .68rem; color: #fff; font-weight: 700;
+      transition: width .5s ease;
+      white-space: nowrap;
+    }
+    .fn-cnt { min-width: 32px; text-align: right; font-weight: 700; }
+    .fn-val { min-width: 80px; text-align: right; font-size: .7rem; color: var(--muted, #94a3b8); }
+
+    /* ── BAR LIST (origens / perdas) ──────────────────────────────── */
+    .bar-list { display: flex; flex-direction: column; gap: 10px; }
+    .bar-item { display: flex; flex-direction: column; gap: 4px; }
+    .bar-meta { display: flex; justify-content: space-between; font-size: .78rem; }
+    .bar-meta-name { font-weight: 500; }
+    .bar-meta-cnt { color: var(--muted, #94a3b8); }
+    .bar-track { height: 7px; background: var(--border, #e2e8f0); border-radius: 4px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 4px; transition: width .5s ease; }
+
+    /* ── RANKING TABLE ────────────────────────────────────────────── */
+    .rtab { width: 100%; border-collapse: collapse; font-size: .79rem; }
+    .rtab th {
+      text-align: left; padding: 7px 10px;
+      font-size: .68rem; color: var(--muted, #94a3b8);
+      font-weight: 500;
+      border-bottom: 1px solid var(--border, #e2e8f0);
+    }
+    .rtab td { padding: 8px 10px; border-bottom: 1px solid var(--border, #e2e8f0); vertical-align: middle; }
+    .rtab tr:last-child td { border-bottom: none; }
+    .rtab .num { text-align: right; font-variant-numeric: tabular-nums; }
+    .bg { display: inline-block; border-radius: 4px; padding: 1px 6px; font-size: .7rem; font-weight: 600; }
+    .bg-g { background: rgba(16,185,129,.12); color: #10b981; }
+    .bg-r { background: rgba(239,68,68,.1);  color: #ef4444; }
+    .bg-b { background: rgba(14,165,233,.12); color: #0ea5e9; }
+    .rank-pos { width: 24px; text-align: center; font-weight: 700; color: var(--muted, #94a3b8); font-size: .8rem; }
+
+    /* ── PARADOS ──────────────────────────────────────────────────── */
+    .par-list { display: flex; flex-direction: column; max-height: 290px; overflow-y: auto; }
+    .par-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 16px;
+      border-bottom: 1px solid var(--border, #e2e8f0);
+      font-size: .8rem;
+    }
+    .par-row:last-child { border-bottom: none; }
+    .par-dias {
+      min-width: 46px; text-align: center;
+      font-weight: 700; font-size: .82rem;
+      padding: 3px 6px; border-radius: 6px;
+    }
+    .par-dias.crit { background: rgba(239,68,68,.12); color: #ef4444; }
+    .par-dias.alert { background: rgba(245,158,11,.12); color: #f59e0b; }
+    .par-dias.ok   { background: rgba(14,165,233,.12); color: #0ea5e9; }
+    .par-info { flex: 1; min-width: 0; }
+    .par-nome { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .par-sub { font-size: .7rem; color: var(--muted, #94a3b8); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .par-stage {
+      font-size: .68rem; padding: 2px 7px;
+      border-radius: 4px;
+      background: var(--border, #e2e8f0);
+      white-space: nowrap;
+    }
+    .par-lk {
+      background: none; border: none; cursor: pointer;
+      color: var(--primary, #0ea5e9);
+      padding: 3px; border-radius: 4px;
+      display: flex; align-items: center;
+    }
+    .par-lk:hover { background: rgba(14,165,233,.1); }
+
+    /* ── CHART ────────────────────────────────────────────────────── */
+    .chart-wrap { height: 210px; position: relative; }
+
+    /* ── EMPTY ────────────────────────────────────────────────────── */
+    .empty { text-align: center; color: var(--muted, #94a3b8); font-size: .8rem; padding: 24px 16px; }
+
+    /* ── BADGE ALERT ─────────────────────────────────────────────── */
+    .badge-alert { margin-left: auto; font-size: .7rem; color: #ef4444; font-weight: 400; }
+  </style>
+</head>
+<body>
+
+<div class="toolbar">
+  <div class="toolbar-title">
+    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+    Dashboard CRM
+  </div>
+  <span class="tb-label">Vendedor</span>
+  <select id="sel-vend" onchange="loadDash()">
+    <option value="">Todos</option>
+  </select>
+  <span class="tb-label">Parado há</span>
+  <select id="sel-stale" onchange="loadDash()">
+    <option value="7">7+ dias</option>
+    <option value="15" selected>15+ dias</option>
+    <option value="30">30+ dias</option>
+    <option value="45">45+ dias</option>
+  </select>
+  <button class="btn-ref" onclick="loadDash()">
+    <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+    Atualizar
+  </button>
+  <button class="btn-leads" onclick="navLeads()">
+    <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+    Leads
+  </button>
+  <span class="last-upd" id="last-upd"></span>
+</div>
+
+<div class="dash" id="dash">
+  <div class="empty">Carregando dashboard...</div>
+</div>
+
+<script>
+const STAGE_COLORS = { NOVO:'#64748b', CONTATO:'#3b82f6', QUALIFICADO:'#8b5cf6', PROPOSTA:'#f59e0b', GANHO:'#10b981', PERDIDO:'#ef4444' };
+const STAGE_LABELS = { NOVO:'Novo', CONTATO:'Contato', QUALIFICADO:'Qualificado', PROPOSTA:'Proposta', GANHO:'Ganho', PERDIDO:'Perdido' };
+const STAGE_ORDER  = ['NOVO','CONTATO','QUALIFICADO','PROPOSTA','GANHO','PERDIDO'];
+
+let evolChart = null;
+
+function money(v) {
+  const n = Number(v || 0);
+  if (n >= 1e6) return 'R$ ' + (n/1e6).toLocaleString('pt-BR',{maximumFractionDigits:1}) + 'M';
+  if (n >= 1e3) return 'R$ ' + (n/1e3).toLocaleString('pt-BR',{maximumFractionDigits:1}) + 'k';
+  return 'R$ ' + n.toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0});
+}
+function pct(a, b) { return b > 0 ? Math.round(a / b * 100) : 0; }
+
+function navLeads() {
+  const msg = { type: 'navigate', url: '/pages/leads.html', label: 'Leads' };
+  if (window.parent && window.parent !== window) window.parent.postMessage(msg, '*');
+  else window.location.href = '/pages/leads.html';
+}
+
+function navLead(id) {
+  const msg = { type: 'navigate', url: `/pages/leads.html?edit=${id}`, label: 'Leads' };
+  if (window.parent && window.parent !== window) window.parent.postMessage(msg, '*');
+  else window.location.href = `/pages/leads.html?edit=${id}`;
+}
+
+async function loadVendedores() {
+  try {
+    const r = await fetch('/api/leads/lookup/vendedores');
+    const d = await r.json();
+    const sel = document.getElementById('sel-vend');
+    (d.vendedores || []).forEach(v => {
+      const o = document.createElement('option');
+      o.value = v.id; o.textContent = v.nome;
+      sel.appendChild(o);
+    });
+  } catch (_) {}
+}
+
+async function loadDash() {
+  const vend  = document.getElementById('sel-vend').value;
+  const stale = document.getElementById('sel-stale').value;
+  const p = new URLSearchParams({ stale_dias: stale });
+  if (vend) p.set('id_vendedor', vend);
+  try {
+    const r = await fetch(`/api/leads/dashboard?${p}`);
+    if (!r.ok) throw new Error(await r.text());
+    const d = await r.json();
+    renderDash(d);
+    document.getElementById('last-upd').textContent = 'Atualizado ' + new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  } catch (e) {
+    document.getElementById('dash').innerHTML = `<div class="empty">Erro ao carregar: ${e.message}</div>`;
+  }
+}
+
+function renderDash(d) {
+  const kpi  = d.kpi || {};
+  const tot  = Number(kpi.total || 0);
+  const gan  = Number(kpi.ganhos || 0);
+  const per  = Number(kpi.perdidos || 0);
+  const neg  = Number(kpi.em_negociacao || 0);
+
+  const funilMap = {};
+  (d.funil || []).forEach(f => { funilMap[f.status_funil] = f; });
+  const maxFunil = Math.max(...STAGE_ORDER.map(s => Number(funilMap[s]?.total || 0)), 1);
+
+  document.getElementById('dash').innerHTML = `
+    <div class="kpi-grid">
+      ${kpiCard('c-blue','<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5V4H2v16h5m10 0v-4a3 3 0 00-3-3H9a3 3 0 00-3 3v4m10 0H7m8-11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>',
+        'Total de Leads', tot, '')}
+      ${kpiCard('c-blue','<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
+        'Em Negociação', neg, `${pct(neg,tot)}% do total`)}
+      ${kpiCard('c-green','<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
+        'Ganhos', gan, money(kpi.valor_ganho))}
+      ${kpiCard('c-red','<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
+        'Perdidos', per, `Taxa: ${pct(per,tot)}%`)}
+      ${kpiCard('c-prp','<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
+        'Pipeline', money(kpi.valor_pipeline), `Conversão: ${kpi.taxa_conversao}%`)}
+    </div>
+
+    <div class="row2">
+      <div class="sc">
+        <div class="sc-head">
+          <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
+          Funil de Vendas
+        </div>
+        <div class="sc-body">
+          <div class="fn-stages">
+            ${STAGE_ORDER.map(s => {
+              const f = funilMap[s];
+              const cnt = Number(f?.total || 0);
+              const val = Number(f?.valor_total || 0);
+              const barPct = Math.round(cnt / maxFunil * 100);
+              const ofTotal = pct(cnt, tot);
+              return `<div class="fn-row">
+                <span class="fn-lbl">${STAGE_LABELS[s]}</span>
+                <div class="fn-track">
+                  <div class="fn-bar" style="width:${barPct}%;background:${STAGE_COLORS[s]}">
+                    ${cnt > 0 && barPct > 15 ? ofTotal + '%' : ''}
+                  </div>
+                </div>
+                <span class="fn-cnt">${cnt}</span>
+                <span class="fn-val">${val > 0 ? money(val) : ''}</span>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>
+      </div>
+
+      <div class="sc">
+        <div class="sc-head">
+          <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+          Por Origem
+        </div>
+        <div class="sc-body">
+          ${renderOrigens(d.origens || [], tot)}
+        </div>
+      </div>
+    </div>
+
+    <div class="row2">
+      <div class="sc">
+        <div class="sc-head">
+          <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+          Ranking Vendedores
+        </div>
+        <div class="sc-body-np">
+          ${renderVendedores(d.vendedores || [])}
+        </div>
+      </div>
+
+      <div class="sc">
+        <div class="sc-head">
+          <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          Leads Parados
+          ${d.parados?.length ? `<span class="badge-alert">${d.parados.length} lead(s)</span>` : ''}
+        </div>
+        <div class="par-list">
+          ${renderParados(d.parados || [])}
+        </div>
+      </div>
+    </div>
+
+    <div class="row2">
+      <div class="sc">
+        <div class="sc-head">
+          <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+          Motivos de Perda
+        </div>
+        <div class="sc-body">
+          ${renderPerdas(d.perdas || [])}
+        </div>
+      </div>
+
+      <div class="sc">
+        <div class="sc-head">
+          <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/></svg>
+          Evolução Mensal (6 meses)
+        </div>
+        <div class="sc-body">
+          <div class="chart-wrap"><canvas id="chart-evolucao"></canvas></div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  window._lastEvolucao = d.evolucao || [];
+  renderEvolChart(window._lastEvolucao);
+}
+
+function kpiCard(cls, icon, label, value, sub) {
+  return `<div class="kpi-card ${cls}">
+    <div class="kpi-icon">${icon}</div>
+    <div class="kpi-val">${value}</div>
+    <div class="kpi-lbl">${label}</div>
+    ${sub ? `<div class="kpi-sub">${sub}</div>` : ''}
+  </div>`;
+}
+
+function renderOrigens(origens, totalLeads) {
+  if (!origens.length) return '<div class="empty">Sem dados</div>';
+  const maxO = Math.max(...origens.map(o => Number(o.total)), 1);
+  return `<div class="bar-list">${origens.map(o => {
+    const p = Math.round(Number(o.total) / maxO * 100);
+    return `<div class="bar-item">
+      <div class="bar-meta">
+        <span class="bar-meta-name">${o.origem || 'Manual'}</span>
+        <span class="bar-meta-cnt">${o.total} &middot; ${pct(Number(o.total), totalLeads)}%</span>
+      </div>
+      <div class="bar-track"><div class="bar-fill" style="width:${p}%;background:#0ea5e9"></div></div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function renderVendedores(vends) {
+  if (!vends.length) return '<div class="empty">Sem dados</div>';
+  return `<table class="rtab">
+    <thead><tr>
+      <th></th><th>Vendedor</th>
+      <th class="num">Total</th><th class="num">Aberto</th>
+      <th class="num">Ganhos</th><th class="num">Perdidos</th>
+      <th class="num">R$ Ganho</th>
+    </tr></thead>
+    <tbody>${vends.map((v, i) => `<tr>
+      <td class="rank-pos">${i+1}</td>
+      <td>${v.vendedor}</td>
+      <td class="num">${v.total}</td>
+      <td class="num"><span class="bg bg-b">${v.em_aberto}</span></td>
+      <td class="num"><span class="bg bg-g">${v.ganhos}</span></td>
+      <td class="num"><span class="bg bg-r">${v.perdidos}</span></td>
+      <td class="num" style="font-size:.72rem">${money(v.valor_ganho)}</td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+function renderParados(parados) {
+  if (!parados.length) return '<div class="empty">Nenhum lead parado no período</div>';
+  return parados.map(p => {
+    const dias = Number(p.dias_parado || 0);
+    const dc = dias >= 30 ? 'crit' : dias >= 15 ? 'alert' : 'ok';
+    const sub = [p.empresa, p.vendedor ? 'Vend: ' + p.vendedor : ''].filter(Boolean).join(' · ');
+    return `<div class="par-row">
+      <span class="par-dias ${dc}">${dias}d</span>
+      <div class="par-info">
+        <div class="par-nome">${p.nome}</div>
+        <div class="par-sub">${sub || '—'}</div>
+      </div>
+      <span class="par-stage">${STAGE_LABELS[p.status_funil] || p.status_funil}</span>
+      <button class="par-lk" onclick="navLead(${p.id})" title="Abrir lead">
+        <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+      </button>
+    </div>`;
+  }).join('');
+}
+
+function renderPerdas(perdas) {
+  if (!perdas.length) return '<div class="empty">Sem perdas registradas</div>';
+  const maxP = Math.max(...perdas.map(p => Number(p.total)), 1);
+  return `<div class="bar-list">${perdas.map(p => {
+    const pr = Math.round(Number(p.total) / maxP * 100);
+    return `<div class="bar-item">
+      <div class="bar-meta">
+        <span class="bar-meta-name">${p.motivo}</span>
+        <span class="bar-meta-cnt">${p.total}</span>
+      </div>
+      <div class="bar-track"><div class="bar-fill" style="width:${pr}%;background:#ef4444"></div></div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function renderEvolChart(evolucao) {
+  const canvas = document.getElementById('chart-evolucao');
+  if (!canvas) return;
+  if (evolChart) { evolChart.destroy(); evolChart = null; }
+  if (!evolucao.length) {
+    canvas.parentElement.innerHTML = '<div class="empty">Sem dados de evolução</div>';
+    return;
+  }
+  const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const labels = evolucao.map(e => {
+    const [y, m] = e.mes.split('-');
+    return meses[parseInt(m, 10) - 1] + '/' + y.slice(2);
+  });
+  const cs = getComputedStyle(document.documentElement);
+  const bg = cs.getPropertyValue('--content-bg').trim();
+  const isDark = bg.startsWith('#0') || bg.startsWith('#1') || bg.startsWith('rgb(1') || bg.startsWith('rgb(2');
+  const tc = isDark ? '#94a3b8' : '#64748b';
+  const gc = isDark ? 'rgba(255,255,255,.06)' : 'rgba(0,0,0,.06)';
+
+  evolChart = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Total', data: evolucao.map(e => e.total), backgroundColor: 'rgba(14,165,233,.35)', borderColor: '#0ea5e9', borderWidth: 1.5, borderRadius: 4 },
+        { label: 'Ganhos', data: evolucao.map(e => e.ganhos), backgroundColor: 'rgba(16,185,129,.55)', borderColor: '#10b981', borderWidth: 1.5, borderRadius: 4 },
+        { label: 'Perdidos', data: evolucao.map(e => e.perdidos), backgroundColor: 'rgba(239,68,68,.35)', borderColor: '#ef4444', borderWidth: 1.5, borderRadius: 4 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: tc, font: { size: 11, family: 'Inter, sans-serif' }, boxWidth: 12, padding: 10 } } },
+      scales: {
+        x: { ticks: { color: tc, font: { size: 10 } }, grid: { color: gc } },
+        y: { ticks: { color: tc, font: { size: 10 }, stepSize: 1 }, grid: { color: gc }, beginAtZero: true }
+      }
+    }
+  });
+}
+
+// propagate theme changes to chart
+window.addEventListener('message', ev => {
+  if (ev.data?.type === 'theme-changed') {
+    window.SysTheme?.apply(ev.data.theme);
+    setTimeout(() => {
+      const dash = document.getElementById('dash');
+      if (dash && evolChart) {
+        const lastData = evolChart.data;
+        evolChart.destroy(); evolChart = null;
+        renderEvolChart(window._lastEvolucao || []);
+      }
+    }, 200);
+  }
+});
+
+loadVendedores().then(() => loadDash());
+</script>
+</body>
+</html>

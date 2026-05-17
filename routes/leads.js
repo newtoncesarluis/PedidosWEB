@@ -336,6 +336,113 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /api/leads/dashboard — KPIs e métricas do CRM
+router.get('/dashboard', async (req, res) => {
+  await ensureTable();
+  try {
+    const pool = getPool();
+    const user = req.user || {};
+    const idEmpresa = parseInt(user.id_empresa || req.query.id_empresa || 1, 10);
+    const staleThreshold = Math.max(parseInt(req.query.stale_dias || 15, 10), 1);
+
+    let vcond = '', vpar = [];
+    if (user.perfil !== '1' && user.role !== 'admin') {
+      const uid = parseInt(user.idusuario || user.id || 0, 10);
+      if (uid) { vcond = ' AND (l.id_vendedor=? OR l.id_usuario=?)'; vpar = [uid, uid]; }
+    } else if (req.query.id_vendedor) {
+      vcond = ' AND l.id_vendedor=?';
+      vpar = [parseInt(req.query.id_vendedor, 10)];
+    }
+
+    const bw = `l.excluido='N' AND l.id_empresa=?${vcond}`;
+    const bp = [idEmpresa, ...vpar];
+
+    const [
+      [[kpi]],
+      [funil],
+      [origens],
+      [vendedores],
+      [parados],
+      [perdas],
+      [evolucao]
+    ] = await Promise.all([
+      pool.query(
+        `SELECT COUNT(*) total,
+           SUM(status_funil NOT IN ('GANHO','PERDIDO')) em_negociacao,
+           SUM(status_funil='GANHO') ganhos,
+           SUM(status_funil='PERDIDO') perdidos,
+           COALESCE(SUM(CASE WHEN status_funil NOT IN ('GANHO','PERDIDO') THEN valor_estimado ELSE 0 END),0) valor_pipeline,
+           COALESCE(SUM(CASE WHEN status_funil='GANHO' THEN valor_estimado ELSE 0 END),0) valor_ganho
+         FROM leads l WHERE ${bw}`,
+        bp
+      ),
+      pool.query(
+        `SELECT status_funil, COUNT(*) total,
+           COALESCE(SUM(valor_estimado),0) valor_total
+         FROM leads l WHERE ${bw}
+         GROUP BY status_funil`,
+        bp
+      ),
+      pool.query(
+        `SELECT origem, COUNT(*) total,
+           COALESCE(SUM(valor_estimado),0) valor_total
+         FROM leads l WHERE ${bw}
+         GROUP BY origem ORDER BY total DESC LIMIT 10`,
+        bp
+      ),
+      pool.query(
+        `SELECT COALESCE(u.nomeusu,'Sem vendedor') vendedor,
+           COUNT(*) total,
+           SUM(l.status_funil NOT IN ('GANHO','PERDIDO')) em_aberto,
+           SUM(l.status_funil='GANHO') ganhos,
+           SUM(l.status_funil='PERDIDO') perdidos,
+           COALESCE(SUM(CASE WHEN l.status_funil='GANHO' THEN l.valor_estimado ELSE 0 END),0) valor_ganho
+         FROM leads l
+         LEFT JOIN usuarios u ON u.idusuario=l.id_vendedor
+         WHERE ${bw}
+         GROUP BY l.id_vendedor, u.nomeusu
+         ORDER BY ganhos DESC, total DESC LIMIT 10`,
+        bp
+      ),
+      pool.query(
+        `SELECT l.id, l.nome, l.empresa, l.status_funil,
+           COALESCE(u.nomeusu,'') vendedor,
+           DATEDIFF(NOW(), COALESCE(l.data_ultimo_contato, l.dtcadastro)) dias_parado
+         FROM leads l
+         LEFT JOIN usuarios u ON u.idusuario=l.id_vendedor
+         WHERE ${bw} AND l.status_funil NOT IN ('GANHO','PERDIDO')
+           AND DATEDIFF(NOW(), COALESCE(l.data_ultimo_contato, l.dtcadastro)) >= ?
+         ORDER BY dias_parado DESC LIMIT 15`,
+        [...bp, staleThreshold]
+      ),
+      pool.query(
+        `SELECT CASE WHEN motivo_perda='' THEN 'Não informado' ELSE motivo_perda END motivo,
+           COUNT(*) total
+         FROM leads l WHERE ${bw} AND l.status_funil='PERDIDO'
+         GROUP BY motivo ORDER BY total DESC LIMIT 8`,
+        bp
+      ),
+      pool.query(
+        `SELECT DATE_FORMAT(l.dtcadastro,'%Y-%m') mes,
+           COUNT(*) total,
+           SUM(l.status_funil='GANHO') ganhos,
+           SUM(l.status_funil='PERDIDO') perdidos
+         FROM leads l WHERE ${bw} AND l.dtcadastro >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+         GROUP BY DATE_FORMAT(l.dtcadastro,'%Y-%m')
+         ORDER BY mes`,
+        bp
+      )
+    ]);
+
+    const tot = Number(kpi.total || 0);
+    const gan = Number(kpi.ganhos || 0);
+    res.json({
+      kpi: { ...kpi, taxa_conversao: tot > 0 ? Math.round((gan / tot) * 100) : 0 },
+      funil, origens, vendedores, parados, perdas, evolucao
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 router.get('/:id', async (req, res) => {
   await ensureTable();
   try {
