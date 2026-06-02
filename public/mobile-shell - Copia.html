@@ -1,0 +1,3078 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<script src="/assets/sw-kill.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#19324d">
+<title>PedidosWeb</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/icon-192.png">
+<link rel="manifest" href="/manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="PedidosWeb">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="format-detection" content="telephone=no, address=no, email=no">
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<script src="/assets/mobile-client-log.js"></script>
+<script src="/assets/pedidos-offline-pack.js"></script>
+<script src="/assets/offline-db.js"></script>
+<script src="/assets/offline-sync.js"></script>
+<style>
+  :root {
+    --ms-nav-h: 74px;
+    --ms-top-h: 64px;
+    --ms-shell-max: 820px;
+    --ms-shell-pad: clamp(12px, 3vw, 22px);
+    --ms-bg: #f3f5f8;
+    --ms-surface: oklch(100% 0 0);
+    --ms-fg: #19324d;
+    --ms-muted: #6f7f90;
+    --ms-border: #dfe5ec;
+    --ms-accent: #2563eb;
+    --ms-accent-strong: #1d4ed8;
+    --ms-accent-soft: #eff6ff;
+    --ms-surface-soft: #f7f8fa;
+    --ms-surface-strong: #ecf0f4;
+    --ms-text-strong: color-mix(in oklab, var(--ms-fg) 92%, black 8%);
+    --ms-focus: color-mix(in oklab, var(--ms-accent) 28%, white 72%);
+    --ms-shadow: 0 10px 24px rgba(25, 50, 77, .08);
+  }
+  html[data-theme="dark"] {
+    --ms-bg: #0f1722;
+    --ms-surface: #172230;
+    --ms-fg: #f4f7fb;
+    --ms-muted: #aeb9c7;
+    --ms-border: #263547;
+    --ms-accent: #3b82f6;
+    --ms-accent-strong: #60a5fa;
+    --ms-accent-soft: #1e3a5f;
+    --ms-surface-soft: #1e2a39;
+    --ms-surface-strong: #223041;
+    --ms-text-strong: #f8fafc;
+    --ms-focus: color-mix(in oklab, var(--ms-accent) 34%, white 66%);
+    --ms-shadow: 0 16px 36px rgba(3, 8, 15, .32);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+    font-family: var(--font-body, 'Open Sans', system-ui, sans-serif);
+    background: var(--ms-bg);
+    color: var(--ms-fg);
+    -webkit-font-smoothing: antialiased;
+  }
+  body { color-scheme: light; }
+  html[data-theme="dark"] body { color-scheme: dark; }
+
+  /* Top Bar — neutro (Opção 2) */
+  #ms-top {
+    height: var(--ms-top-h);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 0 var(--ms-shell-pad);
+    background: var(--ms-surface);
+    color: var(--ms-fg);
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--ms-border);
+    box-shadow: 0 1px 3px rgba(25, 50, 77, .05);
+    position: relative;
+    z-index: 51;
+    transition: transform .22s ease, opacity .22s ease;
+  }
+  .ms-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    flex: 1;
+  }
+  .ms-brand-mark {
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+    background: rgba(255,255,255,.16);
+    border: 1px solid rgba(255,255,255,.2);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.16);
+  }
+  .ms-brand-mark::before {
+    content: '';
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    background: #fff;
+    box-shadow: 8px 0 0 rgba(255,255,255,.46), 0 8px 0 rgba(255,255,255,.46);
+  }
+  #ms-top strong {
+    font-family: var(--font-display, 'Montserrat', system-ui, sans-serif);
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #ms-top .ms-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-inline-start: auto;
+    flex-shrink: 0;
+  }
+  .ms-btn {
+    min-height: 42px;
+    border: 1px solid var(--ms-border);
+    background: var(--ms-surface-soft);
+    color: var(--ms-fg);
+    font-size: 12px;
+    font-weight: 700;
+    padding: 0 15px;
+    border-radius: 11px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background .15s, border-color .15s, transform .1s, box-shadow .15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .ms-btn:hover {
+    background: var(--ms-surface-strong);
+    border-color: color-mix(in oklab, var(--ms-border) 70%, var(--ms-accent) 30%);
+  }
+  .ms-btn:active { transform: scale(.97); }
+  .ms-btn:focus-visible,
+  .ms-nav-item:focus-visible,
+  .ms-sheet-link:focus-visible {
+    outline: 2px solid var(--ms-focus);
+    outline-offset: 2px;
+  }
+  .ms-btn-ghost {
+    background: transparent;
+    color: var(--ms-muted);
+    border: 1px solid var(--ms-border);
+  }
+  .ms-btn-primary {
+    min-height: 38px;
+    padding-inline: 13px;
+    background: var(--ms-accent);
+    color: #fff;
+    border-color: transparent;
+    border-radius: 9px;
+    box-shadow: 0 2px 8px rgba(37, 99, 235, .22);
+    font-family: var(--font-display, 'Montserrat', system-ui, sans-serif);
+    font-weight: 700;
+    font-size: 11.5px;
+  }
+  html[data-theme="dark"] .ms-btn-primary {
+    box-shadow: 0 4px 14px rgba(0, 0, 0, .28);
+  }
+  html[data-theme="dark"] #ms-top {
+    background: var(--ms-surface);
+    border-bottom-color: var(--ms-border);
+    box-shadow: 0 1px 0 rgba(255,255,255,.04);
+  }
+  html[data-theme="dark"] #ms-nav {
+    background: var(--ms-surface);
+  }
+  html[data-theme="dark"] #ms-frame {
+    background: var(--ms-surface);
+  }
+  .ms-btn-primary:active { filter: brightness(0.92); }
+  .ms-btn-icon {
+    width: 40px;
+    min-width: 40px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  /* FAB — Novo Pedido */
+  #ms-btn-novo-pedido {
+    position: fixed;
+    right: 18px;
+    bottom: calc(var(--ms-nav-h) + 14px);
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    border: none;
+    background: var(--ms-accent);
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(37, 99, 235, .32);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 49;
+    transition: transform .15s, background .2s, box-shadow .2s, bottom .22s ease, opacity .18s;
+    -webkit-tap-highlight-color: transparent;
+    font-family: inherit;
+  }
+  #ms-btn-novo-pedido.ms-fab-hidden { display: none !important; }
+  body.ms-chrome-hidden #ms-btn-novo-pedido:not(.ms-fab-hidden) {
+    bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  }
+  #ms-btn-novo-pedido:active { transform: scale(.91); }
+  #ms-btn-novo-pedido.fab-back {
+    background: var(--ms-surface);
+    color: var(--ms-fg);
+    border: 1.5px solid var(--ms-border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .10);
+  }
+  html[data-theme="dark"] #ms-btn-novo-pedido {
+    box-shadow: 0 4px 18px rgba(0, 0, 0, .42);
+  }
+
+  /* Banner */
+  #ms-banner {
+    display: none;
+    padding: 9px var(--ms-shell-pad);
+    font-size: 12px;
+    font-weight: 600;
+    background: color-mix(in oklab, var(--ms-accent) 12%, white 88%);
+    color: var(--ms-fg);
+    border-bottom: 1px solid color-mix(in oklab, var(--ms-accent) 18%, white 82%);
+    text-align: center;
+  }
+  #ms-banner.show { display: block; }
+
+  /* Barra de resumo do dia — KPI cards (card branco) */
+  #ms-summary {
+    height: 0;
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    background: var(--ms-surface);
+    border-bottom: 1px solid var(--ms-border);
+    padding: 0 var(--ms-shell-pad);
+    transition: height .25s, padding .25s, opacity .22s ease;
+    flex-shrink: 0;
+  }
+  #ms-summary.show {
+    height: 78px;
+    padding: 10px var(--ms-shell-pad);
+  }
+  body.has-summary { --summary-h: 78px; }
+  .sum-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    color: var(--ms-muted);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+  .sum-card + .sum-card {
+    border-left: 1px solid var(--ms-border);
+  }
+  .sum-card-ico {
+    font-size: 14px;
+    line-height: 1;
+    margin-bottom: 1px;
+    opacity: .85;
+  }
+  .sum-card-val {
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--ms-fg);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+  }
+  #ms-sum-pedidos .sum-card-val { color: var(--ms-accent); }
+  #ms-sum-valor .sum-card-val   { color: #059669; }
+  #ms-sum-visitas .sum-card-val { color: #7c3aed; }
+  @keyframes ms-shimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+  #ms-summary:not(.loaded) .sum-card-val {
+    color: transparent;
+    background: linear-gradient(90deg, rgba(148,163,184,.12) 25%, rgba(148,163,184,.28) 50%, rgba(148,163,184,.12) 75%);
+    background-size: 200% 100%;
+    animation: ms-shimmer 1.4s ease-in-out infinite;
+    border-radius: 4px;
+    min-width: 32px;
+  }
+  #ms-summary:not(.loaded) .sum-card-ico { opacity: .35; }
+  #ms-summary .sum-loading {
+    display: inline-block;
+    width: 10px; height: 10px;
+    border: 1.5px solid rgba(148,163,184,.35);
+    border-top-color: var(--ms-accent);
+    border-radius: 50%;
+    animation: ms-spin .7s linear infinite;
+    vertical-align: middle;
+  }
+
+  /* Banner offline */
+  #ms-offline-banner {
+    display: none;
+    padding: 8px var(--ms-shell-pad);
+    font-size: 11px;
+    font-weight: 700;
+    background: #24384d;
+    color: var(--ms-surface);
+    border-bottom: 1px solid rgba(255,255,255,.08);
+    text-align: center;
+    letter-spacing: 0.02em;
+  }
+  #ms-offline-banner.show { display: block; }
+  body.has-offline-banner { --offline-h: 30px; }
+
+  /* Pull-to-refresh spinner */
+  #ms-ptr {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 0;
+    overflow: hidden;
+    background: var(--ms-bg);
+    transition: height .2s;
+    z-index: 60;
+  }
+  #ms-ptr.active { height: 52px; }
+  #ms-ptr-spinner {
+    width: 24px; height: 24px;
+    border: 3px solid color-mix(in oklab, var(--ms-accent) 16%, transparent);
+    border-top-color: var(--ms-accent);
+    border-radius: 50%;
+    animation: ms-spin .7s linear infinite;
+  }
+  @keyframes ms-spin { to { transform: rotate(360deg); } }
+
+  /* Frame */
+  #ms-frame-wrap {
+    position: absolute;
+    top: calc(var(--ms-top-h) + var(--summary-h, 0px) + var(--banner-h, 0px) + var(--offline-h, 0px));
+    left: 0; right: 0;
+    bottom: var(--ms-nav-h);
+    padding: 0;
+    transition: top .22s ease, bottom .22s ease;
+  }
+  body.ms-chrome-hidden {
+    --ms-top-h: 0px;
+    --ms-nav-h: 0px;
+    --summary-h: 0px;
+  }
+  body.ms-chrome-hidden.has-summary { --summary-h: 0px; }
+  body.ms-chrome-hidden #ms-top,
+  body.ms-chrome-hidden #ms-summary {
+    opacity: 0;
+    pointer-events: none;
+    overflow: hidden;
+    height: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+  }
+  body.ms-chrome-hidden #ms-nav {
+    transform: translateX(-50%) translateY(110%);
+    opacity: 0;
+    pointer-events: none;
+  }
+  body.has-banner { --banner-h: 34px; }
+  #ms-frame {
+    width: 100%; height: 100%;
+    border: none;
+    background: var(--ms-surface);
+    display: block;
+  }
+
+  /* Bottom Nav */
+  #ms-nav {
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 0;
+    width: min(100%, var(--ms-shell-max));
+    height: var(--ms-nav-h);
+    display: flex;
+    align-items: stretch;
+    background: var(--ms-surface);
+    border: 1px solid var(--ms-border);
+    border-bottom: 0;
+    border-radius: 18px 18px 0 0;
+    z-index: 50;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+    box-shadow: 0 -8px 20px rgba(25, 50, 77, .08);
+    transition: transform .24s cubic-bezier(.22,1,.36,1), opacity .22s ease;
+  }
+  .ms-nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    cursor: pointer;
+    color: var(--ms-muted);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0;
+    border: none;
+    background: none;
+    font-family: inherit;
+    -webkit-tap-highlight-color: transparent;
+    transition: color .18s;
+    position: relative;
+  }
+  .ms-nav-item.active { color: var(--ms-accent); font-weight: 800; }
+  .ms-nav-item.active .ms-nav-ico { transform: scale(1.08); }
+  .ms-nav-ico {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 28px;
+    border-radius: 14px;
+    transition: transform .15s, background .18s, color .18s;
+  }
+  .ms-nav-ico svg {
+    width: 22px;
+    height: 22px;
+  }
+  .ms-nav-item.active .ms-nav-ico {
+    background: color-mix(in oklab, var(--ms-accent) 16%, transparent);
+    color: var(--ms-accent);
+    box-shadow: none;
+  }
+  .ms-nav-item:active .ms-nav-ico { transform: scale(.9); }
+
+  /* Bottom Sheet */
+  #ms-sheet-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(17, 29, 43, .34);
+    z-index: 200;
+    align-items: flex-end;
+    justify-content: center;
+  }
+  #ms-sheet-overlay.open { display: flex; }
+  #ms-sheet {
+    width: 100%;
+    max-width: 480px;
+    background: var(--ms-surface);
+    border: 1px solid var(--ms-border);
+    border-radius: 20px 20px 0 0;
+    padding: 10px 14px calc(18px + env(safe-area-inset-bottom));
+    animation: msUp .25s cubic-bezier(.22,1,.36,1);
+    box-shadow: var(--ms-shadow);
+  }
+  #ms-sheet::before {
+    content: '';
+    display: block;
+    width: 42px;
+    height: 4px;
+    border-radius: 4px;
+    background: color-mix(in oklab, var(--ms-border) 60%, var(--ms-muted) 40%);
+    margin: 4px auto 12px;
+  }
+  @keyframes msUp { from { transform: translateY(100%); } to { transform: none; } }
+  .ms-sheet-title {
+    font-family: var(--font-display, 'Montserrat', system-ui, sans-serif);
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--ms-muted);
+    margin-bottom: 12px;
+    padding: 4px 4px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .ms-sheet-link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 56px;
+    padding: 12px 14px;
+    border: 1px solid var(--ms-border);
+    border-radius: 10px;
+    background: var(--ms-surface);
+    color: var(--ms-fg);
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    cursor: pointer;
+    font-family: inherit;
+    text-align: left;
+    transition: background .12s, transform .1s, border-color .12s, color .12s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #ms-sheet-close {
+    justify-content: center;
+    color: var(--ms-text-strong);
+    background: var(--ms-surface-soft);
+    border-color: var(--ms-border);
+    font-size: 14px;
+    margin-top: 4px;
+  }
+  #ms-sheet-close:hover,
+  #ms-sheet-close:active {
+    background: var(--ms-surface);
+    border-color: color-mix(in oklab, var(--ms-border) 70%, var(--ms-accent) 30%);
+  }
+  html[data-theme="dark"] #ms-sheet-close {
+    background: var(--ms-surface);
+    color: var(--ms-fg);
+    border-color: var(--ms-border);
+  }
+  html[data-theme="dark"] #ms-sheet-close:hover,
+  html[data-theme="dark"] #ms-sheet-close:active {
+    background: color-mix(in oklab, var(--ms-surface) 82%, var(--ms-bg) 18%);
+  }
+  .ms-sheet-link:active { transform: scale(.98); background: var(--ms-accent-soft); }
+  .ms-sheet-link:hover { border-color: color-mix(in oklab, var(--ms-border) 70%, var(--ms-accent) 30%); }
+  .ms-danger { color: #dc2626 !important; }
+  .ms-sheet-group-label {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ms-muted);
+    padding: 4px 4px 6px;
+    margin-top: 4px;
+  }
+  .ms-sheet-sep {
+    height: 1px;
+    background: var(--ms-border);
+    margin: 8px 0 10px;
+  }
+
+  /* Seletor de tema mobile */
+  #ms-theme-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 210;
+    background: rgba(17, 29, 43, .34);
+    align-items: flex-end;
+    justify-content: center;
+  }
+  #ms-theme-overlay.open { display: flex; }
+  #ms-theme-panel {
+    width: 100%;
+    max-width: 480px;
+    background: var(--ms-surface);
+    border: 1px solid var(--ms-border);
+    border-radius: 20px 20px 0 0;
+    padding: 10px 14px calc(18px + env(safe-area-inset-bottom));
+    animation: msUp .25s cubic-bezier(.22,1,.36,1);
+    box-shadow: var(--ms-shadow);
+  }
+  #ms-theme-panel::before {
+    content: '';
+    display: block;
+    width: 42px;
+    height: 4px;
+    border-radius: 4px;
+    background: color-mix(in oklab, var(--ms-border) 60%, var(--ms-muted) 40%);
+    margin: 4px auto 12px;
+  }
+  .ms-theme-title {
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--ms-fg);
+    margin: 0 4px 4px;
+    letter-spacing: -0.02em;
+  }
+  .ms-theme-sub {
+    font-size: 12px;
+    color: var(--ms-muted);
+    margin: 0 4px 14px;
+    line-height: 1.4;
+  }
+  .ms-theme-option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 52px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    border: 1.5px solid var(--ms-border);
+    border-radius: 12px;
+    background: var(--ms-surface);
+    color: var(--ms-fg);
+    font-size: 14px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    text-align: left;
+    -webkit-tap-highlight-color: transparent;
+    transition: background .12s, border-color .12s, transform .1s;
+  }
+  .ms-theme-option:active { transform: scale(.98); }
+  .ms-theme-option.active {
+    border-color: var(--ms-accent);
+    background: var(--ms-accent-soft);
+    color: var(--ms-accent-strong);
+  }
+  .ms-theme-option-ico {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+    background: var(--ms-surface-soft);
+  }
+  .ms-theme-option.active .ms-theme-option-ico {
+    background: color-mix(in oklab, var(--ms-accent) 18%, white 82%);
+  }
+  .ms-theme-more {
+    width: 100%;
+    min-height: 44px;
+    margin-top: 4px;
+    border: none;
+    background: transparent;
+    color: var(--ms-accent);
+    font-size: 13px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    padding: 8px;
+  }
+  .ms-theme-close {
+    width: 100%;
+    min-height: 44px;
+    margin-top: 2px;
+    border-radius: 10px;
+    border: 1px solid var(--ms-border);
+    background: var(--ms-surface);
+    color: var(--ms-muted);
+    font-size: 13px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+  }
+
+  .ms-sheet-ico {
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .ms-sheet-ico svg { width: 18px; height: 18px; }
+
+  /* Perfil no topo do sheet */
+  #ms-sheet-profile {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 4px 4px 14px;
+    border-bottom: 1px solid var(--ms-border);
+    margin-bottom: 10px;
+  }
+  .ms-sheet-profile-avatar {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    background: var(--ms-accent);
+    color: #fff;
+    font-size: 14px; font-weight: 800;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    letter-spacing: .02em;
+    box-shadow: 0 2px 8px rgba(14,165,233,.30);
+  }
+  .ms-sheet-profile-name {
+    font-size: 14px; font-weight: 700;
+    color: var(--ms-fg); line-height: 1.3;
+  }
+  .ms-sheet-profile-company {
+    font-size: 11px; font-weight: 500;
+    color: var(--ms-muted); margin-top: 1px;
+  }
+
+  @media (max-width: 420px) {
+    :root {
+      --ms-nav-h: 70px;
+      --ms-top-h: 60px;
+    }
+    #ms-top {
+      gap: 8px;
+      padding-inline: 12px;
+    }
+    .ms-brand { gap: 8px; }
+    .ms-brand-mark {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+    }
+    #ms-top strong { font-size: 14px; }
+    #ms-top .ms-actions {
+      gap: 6px;
+      max-width: 58%;
+    }
+    .ms-btn {
+      min-height: 37px;
+      padding: 0 12px;
+      font-size: 11px;
+    }
+    .ms-btn-primary {
+      min-height: 34px;
+      max-width: 112px;
+      padding-inline: 10px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 10.5px;
+    }
+    .ms-nav-item { font-size: 9px; }
+    .ms-nav-ico {
+      width: 42px;
+      height: 30px;
+    }
+  }
+
+  @media (max-width: 767px) {
+    .ms-hide-on-phone { display: none !important; }
+  }
+
+  @media (min-width: 421px) and (max-width: 767px) {
+    #ms-top .ms-actions {
+      max-width: 62%;
+    }
+  }
+
+  @media (min-width: 768px) {
+    :root {
+      --ms-top-h: 70px;
+      --ms-nav-h: 82px;
+      --ms-shell-max: 1180px;
+      --ms-shell-pad: clamp(20px, 4vw, 34px);
+    }
+    #ms-top {
+      padding-inline: var(--ms-shell-pad);
+      gap: 16px;
+    }
+    #ms-top strong { font-size: 17px; }
+    #ms-top .ms-actions { gap: 10px; }
+    .ms-btn {
+      min-height: 42px;
+      font-size: 12.5px;
+      padding-inline: 16px;
+    }
+    #ms-nav {
+      width: min(calc(100% - 18px), var(--ms-shell-max));
+      bottom: 0;
+      border-radius: 18px 18px 0 0;
+    }
+    #ms-sheet-overlay {
+      align-items: center;
+      padding: 24px;
+    }
+    #ms-sheet {
+      max-width: 560px;
+      border-radius: 22px;
+      padding-bottom: 20px;
+    }
+  }
+
+  @media (min-width: 768px) and (max-width: 1024px) {
+    #ms-top .ms-actions {
+      max-width: 44%;
+    }
+    .ms-btn-primary {
+      min-width: 118px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: .01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: .01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* ── Item 4: Avatar + empresa ── */
+  .ms-avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--ms-accent-soft);
+    border: 1.5px solid color-mix(in oklab, var(--ms-accent) 28%, transparent);
+    color: var(--ms-accent-strong);
+    font-size: 11px; font-weight: 800; letter-spacing: .02em;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; cursor: pointer; font-family: inherit; padding: 0;
+    -webkit-tap-highlight-color: transparent; transition: background .15s, transform .1s;
+  }
+  .ms-avatar:active { background: color-mix(in oklab, var(--ms-accent-soft) 70%, var(--ms-accent) 30%); transform: scale(.93); }
+  .ms-brand-text { display: flex; flex-direction: column; min-width: 0; gap: 0; }
+  .ms-subtitle {
+    font-size: 11px; font-weight: 500; color: var(--ms-muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2;
+  }
+
+  /* Barra flutuante Voltar / Início (quando chrome oculto) */
+  #ms-float-bar {
+    display: none;
+    position: fixed;
+    left: 14px;
+    bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+    z-index: 49;
+    align-items: center;
+    gap: 8px;
+  }
+  body.ms-chrome-hidden #ms-float-bar { display: flex; }
+  .ms-float-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 44px;
+    padding: 0 14px;
+    border-radius: 22px;
+    border: 1px solid var(--ms-border);
+    background: var(--ms-surface);
+    color: var(--ms-fg);
+    font-size: 12px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(25, 50, 77, .12);
+    -webkit-tap-highlight-color: transparent;
+    transition: transform .12s, background .15s, box-shadow .15s;
+  }
+  .ms-float-btn svg { width: 18px; height: 18px; flex-shrink: 0; }
+  .ms-float-btn:active { transform: scale(.96); }
+  .ms-float-btn-home {
+    background: var(--ms-accent);
+    color: #fff;
+    border-color: transparent;
+    box-shadow: 0 4px 14px rgba(37, 99, 235, .28);
+  }
+  .ms-float-btn-icon {
+    width: 44px;
+    min-width: 44px;
+    padding: 0;
+  }
+  @media (max-width: 420px) {
+    .ms-avatar { width: 30px; height: 30px; font-size: 10px; }
+    .ms-subtitle { font-size: 10px; }
+  }
+</style>
+</head>
+<body>
+  <header id="ms-top">
+    <div class="ms-brand">
+      <button type="button" class="ms-avatar" id="ms-avatar" aria-label="Menu do usuário">SR</button>
+      <div class="ms-brand-text">
+        <strong id="ms-title">SysRep Mobile</strong>
+        <span id="ms-subtitle" class="ms-subtitle"></span>
+      </div>
+    </div>
+    <div class="ms-actions">
+      <button type="button" class="ms-btn ms-btn-ghost ms-btn-icon" id="ms-btn-sync" title="Sincronizar dados offline" onclick="msSyncManual()" style="display:inline-flex;align-items:center;justify-content:center;position:relative">
+        <svg id="ms-sync-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:17px;height:17px;transition:transform .6s"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        <span id="ms-sync-badge" style="position:absolute;top:-4px;right:-4px;background:#f59e0b;color:#fff;font-size:9px;min-width:16px;height:16px;padding:0 3px;border-radius:999px;display:none;align-items:center;justify-content:center;font-weight:800;border:2px solid var(--ms-surface)">0</span>
+      </button>
+      <button type="button" class="ms-btn ms-btn-ghost ms-btn-icon" id="ms-btn-reenquadrar" title="Reenquadrar mapa" onclick="msReenquadrarOperacoes()" style="position:relative; display:none; align-items:center; justify-content:center;">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:18px;height:18px">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7V4h3M20 7V4h-3M4 17v3h3M20 17v3h-3M8 12h8M12 8v8"/>
+        </svg>
+      </button>
+      <button type="button" class="ms-btn ms-btn-ghost ms-btn-icon" id="ms-btn-filtros" title="Filtros avançados" style="position:relative; display:none; align-items:center; justify-content:center;">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:18px;height:18px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
+        <span id="ms-badge-filtros" style="position:absolute; top:-5px; right:-3px; background:var(--ms-accent); color:#fff; font-size:10px; min-width:18px; height:18px; padding:0 4px; border-radius:999px; display:none; align-items:center; justify-content:center; font-weight:800; border:2px solid var(--ms-surface);">0</span>
+      </button>
+    </div>
+  </header>
+  <div id="ms-banner" role="status"></div>
+  <div id="ms-summary" role="status" aria-live="polite">
+    <div class="sum-card" id="ms-sum-pedidos">
+      <span class="sum-card-ico">📦</span>
+      <span class="sum-card-val" id="ms-sum-pedidos-val">—</span>
+      <span>Pedidos</span>
+    </div>
+    <div class="sum-card" id="ms-sum-valor">
+      <span class="sum-card-ico">💰</span>
+      <span class="sum-card-val" id="ms-sum-valor-val">—</span>
+      <span>Valor</span>
+    </div>
+    <div class="sum-card" id="ms-sum-visitas">
+      <span class="sum-card-ico">📍</span>
+      <span class="sum-card-val" id="ms-sum-visitas-val">—</span>
+      <span>Visitas</span>
+    </div>
+  </div>
+  <div id="ms-offline-banner" role="status">📵 Sem conexão — usando dados locais</div>
+  <div id="ms-frame-wrap">
+    <div id="ms-ptr"><div id="ms-ptr-spinner"></div></div>
+    <iframe id="ms-frame" title="Conteúdo" src="/home.html?_ms=1"></iframe>
+  </div>
+  <nav id="ms-nav" aria-label="Menu principal">
+    <button type="button" class="ms-nav-item active" data-ms-href="/home.html" data-ms-label="Dashboard">
+      <span class="ms-nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span>
+      <span>Dashboard</span>
+    </button>
+    <button type="button" class="ms-nav-item" data-ms-href="/pages/pedidos.html" data-ms-label="Vendas">
+      <span class="ms-nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg></span>
+      <span>Vendas</span>
+    </button>
+    <button type="button" class="ms-nav-item" data-ms-href="/pages/clientes.html" data-ms-label="Clientes">
+      <span class="ms-nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></span>
+      <span>Clientes</span>
+    </button>
+    <button type="button" class="ms-nav-item" data-ms-href="/pages/mapa-clientes.html" data-ms-label="Mapa">
+      <span class="ms-nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></span>
+      <span>Mapa</span>
+    </button>
+    <button type="button" class="ms-nav-item" data-ms-href="/pages/mapa-operacoes.html" data-ms-label="Operações">
+      <span class="ms-nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg></span>
+      <span>Operações</span>
+    </button>
+    <button type="button" class="ms-nav-item" data-ms-href="/pages/minhas-rotas.html" data-ms-label="Rotas">
+      <span class="ms-nav-ico" style="position:relative;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><circle cx="5" cy="6" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="12" cy="18" r="2"/><path d="M7 6h8M19 8v2a4 4 0 01-4 4H9a4 4 0 01-4-4V8"/><line x1="12" y1="14" x2="12" y2="16"/></svg>
+        <span id="ms-badge-rotas" style="display:none; position:absolute; top:-5px; right:-5px; background:#ef4444; color:#fff; font-size:9px; min-width:16px; height:16px; padding:0 3px; border-radius:999px; align-items:center; justify-content:center; font-weight:800; border:2px solid var(--ms-surface);">0</span>
+      </span>
+      <span>Rotas</span>
+    </button>
+    <button type="button" class="ms-nav-item" id="ms-nav-more" data-ms-label="Mais">
+      <span class="ms-nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></span>
+      <span>Mais</span>
+    </button>
+  </nav>
+  <button type="button" id="ms-btn-novo-pedido" title="Novo pedido" aria-label="Novo pedido">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="24" height="24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+  </button>
+  <div id="ms-float-bar" aria-label="Navegação rápida">
+    <button type="button" id="ms-btn-back" class="ms-float-btn ms-float-btn-icon" aria-label="Voltar" title="Voltar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <button type="button" id="ms-btn-home" class="ms-float-btn ms-float-btn-home" aria-label="Início" title="Início">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1V9.5z"/></svg>
+      <span>Início</span>
+    </button>
+  </div>
+
+  <div id="ms-sheet-overlay" aria-hidden="true">
+    <div id="ms-sheet">
+      <div id="ms-sheet-profile">
+        <div class="ms-sheet-profile-avatar" id="ms-sheet-avatar">SR</div>
+        <div>
+          <div class="ms-sheet-profile-name" id="ms-sheet-name">Usuário</div>
+          <div class="ms-sheet-profile-company" id="ms-sheet-company"></div>
+        </div>
+      </div>
+
+      <div class="ms-sheet-group-label">Comercial</div>
+      <button type="button" class="ms-sheet-link" data-ms-href="/pages/visitas.html">
+        <span class="ms-sheet-ico" style="background:rgba(59,130,246,.12);color:#1d4ed8"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg></span>
+        Agendar / Visitas
+      </button>
+      <button type="button" class="ms-sheet-link" data-ms-href="/pages/leads.html">
+        <span class="ms-sheet-ico" style="background:rgba(249,115,22,.12);color:#c2410c"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 20h5V4H2v16h5"/><path d="M17 20v-4a3 3 0 00-3-3h-4a3 3 0 00-3 3v4"/><path d="M15 9a3 3 0 11-6 0 3 3 0 016 0z"/></svg></span>
+        Leads
+      </button>
+      <button type="button" class="ms-sheet-link" data-ms-href="/pages/comercial-clientes-inativos.html">
+        <span class="ms-sheet-ico" style="background:rgba(239,68,68,.12);color:#b91c1c"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" y1="8" x2="22" y2="13"/><line x1="22" y1="8" x2="17" y2="13"/></svg></span>
+        Clientes Inativos
+      </button>
+      <button type="button" class="ms-sheet-link" data-ms-href="/pages/comercial-dashboards.html">
+        <span class="ms-sheet-ico" style="background:rgba(168,85,247,.12);color:#7e22ce"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 17.5h7M17.5 14v7"/></svg></span>
+        Dashboards
+      </button>
+      <button type="button" class="ms-sheet-link" data-ms-href="/pages/comercial-relatorios-padrao.html">
+        <span class="ms-sheet-ico" style="background:rgba(34,197,94,.12);color:#15803d"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg></span>
+        Relatórios padrão
+      </button>
+
+      <div class="ms-sheet-group-label" style="margin-top:8px">Campo</div>
+      <button type="button" class="ms-sheet-link" data-ms-href="/pages/mapa-operacoes.html">
+        <span class="ms-sheet-ico" style="background:rgba(99,102,241,.12);color:#4338ca"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg></span>
+        Mapa de Operações
+      </button>
+      <button type="button" class="ms-sheet-link" id="ms-sheet-reenquadrar">
+        <span class="ms-sheet-ico" style="background:rgba(14,165,233,.12);color:#0369a1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V4h3M20 7V4h-3M4 17v3h3M20 17v3h-3M8 12h8M12 8v8"/></svg></span>
+        Reenquadrar mapa
+      </button>
+
+      <div class="ms-sheet-group-label" style="margin-top:8px">Financeiro</div>
+      <button type="button" class="ms-sheet-link ms-hide-on-phone" data-ms-href="/pages/contas-receber.html">
+        <span class="ms-sheet-ico" style="background:rgba(34,197,94,.12);color:#15803d"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></span>
+        Contas a Receber
+      </button>
+      <button type="button" class="ms-sheet-link" data-ms-href="/pages/contas-pagar.html">
+        <span class="ms-sheet-ico" style="background:rgba(239,68,68,.12);color:#b91c1c"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg></span>
+        Lançamento de Contas Pagas
+      </button>
+      <button type="button" class="ms-sheet-link" data-ms-href="/pages/comissoes_conferencia.html">
+        <span class="ms-sheet-ico" style="background:rgba(245,158,11,.12);color:#b45309"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg></span>
+        Minhas Comissões
+      </button>
+      <button type="button" class="ms-sheet-link ms-admin-only" data-ms-href="/pages/comissoes.html" style="display:none">
+        <span class="ms-sheet-ico" style="background:rgba(245,158,11,.12);color:#b45309"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg></span>
+        Gestão de Comissões
+      </button>
+
+      <div class="ms-sheet-group-label" style="margin-top:8px">Offline</div>
+      <button type="button" class="ms-sheet-link" id="ms-btn-preparar-offline">
+        <span class="ms-sheet-ico" style="background:rgba(5,150,105,.12);color:#047857"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>
+        Preparar offline
+        <span id="ms-offline-pack-status" style="margin-left:auto;font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;display:none"></span>
+      </button>
+      <button type="button" class="ms-sheet-link" data-ms-href="/pages/ajuda-pedidos-offline.html">
+        <span class="ms-sheet-ico" style="background:rgba(5,150,105,.08);color:#059669"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
+        Como usar offline (ajuda)
+      </button>
+
+      <div class="ms-sheet-sep"></div>
+
+      <button type="button" class="ms-sheet-link" id="ms-btn-theme">
+        <span class="ms-sheet-ico" style="background:rgba(99,102,241,.12);color:#4338ca"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/></svg></span>
+        Tema / Aparência
+      </button>
+
+      <div class="ms-sheet-sep"></div>
+
+      <button type="button" class="ms-sheet-link ms-danger" id="ms-btn-sair">
+        <span class="ms-sheet-ico" style="background:rgba(239,68,68,.10);color:#dc2626"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg></span>
+        Sair
+      </button>
+      <button type="button" class="ms-sheet-link" id="ms-sheet-close">
+        Fechar
+      </button>
+    </div>
+  </div>
+
+  <div id="ms-theme-overlay" aria-hidden="true">
+    <div id="ms-theme-panel" role="dialog" aria-labelledby="ms-theme-title">
+      <div class="ms-theme-title" id="ms-theme-title">Tema / Aparência</div>
+      <p class="ms-theme-sub">Escolha como o app aparece no celular. «Sistema» segue o modo claro ou escuro do aparelho.</p>
+      <button type="button" class="ms-theme-option" data-theme-id="sistema">
+        <span class="ms-theme-option-ico" aria-hidden="true">⚙️</span>
+        <span>Sistema (automático)</span>
+      </button>
+      <button type="button" class="ms-theme-option" data-theme-id="light">
+        <span class="ms-theme-option-ico" aria-hidden="true">☀️</span>
+        <span>Claro</span>
+      </button>
+      <button type="button" class="ms-theme-option" data-theme-id="dark">
+        <span class="ms-theme-option-ico" aria-hidden="true">🌙</span>
+        <span>Escuro</span>
+      </button>
+      <button type="button" class="ms-theme-more" id="ms-theme-more">Ver todos os temas…</button>
+      <button type="button" class="ms-theme-close" id="ms-theme-close">Fechar</button>
+    </div>
+  </div>
+
+<script>
+window.msToast = function (msg, type) {
+  var el = document.getElementById('_ms-shell-toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = '_ms-shell-toast';
+    el.style.cssText = 'position:fixed;bottom:calc(82px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:12px;font-size:13px;font-weight:600;z-index:9999999;color:#fff;white-space:nowrap;transition:opacity .3s;pointer-events:none;max-width:90vw;text-align:center;box-shadow:0 4px 16px rgba(0,0,0,.25)';
+    document.body.appendChild(el);
+  }
+  el.style.background = type === 'err' ? '#dc2626' : type === 'warn' ? '#d97706' : type === 'ok' ? '#16a34a' : '#0ea5e9';
+  el.style.opacity = '1';
+  el.textContent = msg;
+  clearTimeout(window.msToast._t);
+  window.msToast._t = setTimeout(function () { el.style.opacity = '0'; }, 3200);
+};
+(function () {
+  var token = sessionStorage.getItem('token') || localStorage.getItem('token');
+  if (!token) {
+    window.location.replace('/login.html');
+    return;
+  }
+
+  if (!navigator.onLine && typeof SysRepPedidosOfflinePack !== 'undefined'
+      && !SysRepPedidosOfflinePack.isTokenUsableOffline(token)) {
+    window.location.replace('/login.html');
+    return;
+  }
+
+  if (!sessionStorage.getItem('token') && localStorage.getItem('token')) {
+    try {
+      sessionStorage.setItem('token', localStorage.getItem('token'));
+      var _u = localStorage.getItem('user'); if (_u) sessionStorage.setItem('user', _u);
+      var _e = localStorage.getItem('empresa'); if (_e) sessionStorage.setItem('empresa', _e);
+      var _p = localStorage.getItem('parametros_locais'); if (_p) sessionStorage.setItem('parametros_locais', _p);
+    } catch(_) {}
+  }
+
+  // Exibe botões admin-only no menu "Mais" apenas para administradores
+  try {
+    var _mUser = JSON.parse(sessionStorage.getItem('user') || '{}');
+    if (_mUser.role === 'admin' || _mUser.perfil == 1) {
+      document.querySelectorAll('.ms-admin-only').forEach(function(el) {
+        el.style.display = '';
+      });
+    }
+  } catch(_) {}
+
+  var frame = document.getElementById('ms-frame');
+  var navBtns = document.querySelectorAll('.ms-nav-item:not(#ms-nav-more)');
+  var overlay = document.getElementById('ms-sheet-overlay');
+  var banner = document.getElementById('ms-banner');
+  var novoPedidoBtn = document.getElementById('ms-btn-novo-pedido');
+  var pedidosFormOpen = false;
+  window._msPedidosFormOpen = false;
+  var _pendingReenquadrar = false;
+
+  function isHomeDashboardRoot() {
+    try {
+      var path = (frame.contentWindow.location.pathname || '').toLowerCase();
+      if (path.indexOf('home.html') < 0) return false;
+      var doc = frame.contentDocument;
+      if (!doc) return true;
+      var ic = doc.getElementById('iframe-container');
+      if (ic && ic.querySelector('iframe')) return false;
+      var ds = doc.getElementById('dash_scroll');
+      if (ds && ds.style.display === 'none') return false;
+      return true;
+    } catch (e) {
+      return (frame.src || '').indexOf('home.html') >= 0 && (frame.src || '').indexOf('/pages/') < 0;
+    }
+  }
+
+  function resolveShellThemeId() {
+    try {
+      var saved = localStorage.getItem('sysrep_theme') || 'sistema';
+      if (saved === 'sistema') {
+        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      var darkIds = ['dark', 'navy', 'sgi', 'diamond', 'rose'];
+      return darkIds.indexOf(saved) >= 0 ? 'dark' : 'light';
+    } catch (_) {
+      return 'light';
+    }
+  }
+
+  function applyShellTheme() {
+    var shellTheme = resolveShellThemeId();
+    document.documentElement.setAttribute('data-theme', shellTheme);
+    try {
+      var saved = localStorage.getItem('sysrep_theme') || 'sistema';
+      frame.contentWindow.postMessage({ type: 'theme-changed', theme: saved }, '*');
+    } catch (_) {}
+  }
+
+  function msGetCurrentThemeId() {
+    try { return localStorage.getItem('sysrep_theme') || 'sistema'; } catch (_) { return 'sistema'; }
+  }
+
+  function msUpdateThemePickerActive() {
+    var current = msGetCurrentThemeId();
+    document.querySelectorAll('.ms-theme-option').forEach(function (btn) {
+      btn.classList.toggle('active', btn.getAttribute('data-theme-id') === current);
+    });
+  }
+
+  function msApplyMobileTheme(id) {
+    if (window.SysTheme && typeof window.SysTheme.apply === 'function') {
+      window.SysTheme.apply(id);
+      return;
+    }
+    try { localStorage.setItem('sysrep_theme', id); } catch (_) {}
+    try { frame.contentWindow.postMessage({ type: 'theme-changed', theme: id }, '*'); } catch (_) {}
+    applyShellTheme();
+    msUpdateThemePickerActive();
+  }
+
+  function msOpenThemePicker() {
+    msUpdateThemePickerActive();
+    var el = document.getElementById('ms-theme-overlay');
+    if (el) {
+      el.classList.add('open');
+      el.setAttribute('aria-hidden', 'false');
+    }
+  }
+
+  function msCloseThemePicker() {
+    var el = document.getElementById('ms-theme-overlay');
+    if (el) {
+      el.classList.remove('open');
+      el.setAttribute('aria-hidden', 'true');
+    }
+  }
+
+  (function hookSysThemeApply() {
+    function run() {
+      if (!window.SysTheme || typeof window.SysTheme.apply !== 'function') {
+        setTimeout(run, 60);
+        return;
+      }
+      if (window._msSysThemeHooked) return;
+      window._msSysThemeHooked = true;
+      var origApply = window.SysTheme.apply;
+      window.SysTheme.apply = function (id) {
+        origApply(id);
+        applyShellTheme();
+        msUpdateThemePickerActive();
+      };
+    }
+    run();
+  })();
+
+  function updateFabVisibility(showChrome) {
+    if (!novoPedidoBtn) return;
+    var isPedidos = false;
+    try {
+      isPedidos = frame.contentWindow.location.pathname.indexOf('pedidos.html') >= 0;
+    } catch (e) {
+      isPedidos = frame.src.indexOf('pedidos.html') >= 0;
+    }
+    var hideFab = pedidosFormOpen || !(showChrome || isPedidos);
+    novoPedidoBtn.classList.toggle('ms-fab-hidden', hideFab);
+  }
+
+  function updateShellChrome() {
+    var showChrome = isHomeDashboardRoot();
+    document.body.classList.toggle('ms-chrome-hidden', !showChrome);
+    updateFabVisibility(showChrome);
+    if (typeof window._reloadSummary === 'function') window._reloadSummary();
+  }
+  window._msIsHomeDashboardRoot = isHomeDashboardRoot;
+
+  function shellGoHome(force) {
+    if (pedidosFormOpen && !force) {
+      try { frame.contentWindow.postMessage({ type: 'mobile-pedidos-go-home' }, '*'); } catch (_) {}
+      return;
+    }
+    resetPedidosShellState();
+    overlay.classList.remove('open');
+    overlay.setAttribute('aria-hidden', 'true');
+    var onHome = false;
+    try {
+      onHome = frame.contentWindow.location.pathname.indexOf('home.html') >= 0;
+    } catch (_) {
+      onHome = (frame.src || '').indexOf('home.html') >= 0;
+    }
+    if (onHome) {
+      try { frame.contentWindow.postMessage({ type: 'ms-shell-go-home' }, '*'); } catch (_) {}
+      setActiveNav('/home.html');
+      document.getElementById('ms-title').textContent = 'Dashboard';
+      setTimeout(updateShellChrome, 80);
+      return;
+    }
+    openUrl('/home.html', 'Dashboard');
+    frame.addEventListener('load', function _msHomeLoad() {
+      frame.removeEventListener('load', _msHomeLoad);
+      try { frame.contentWindow.postMessage({ type: 'ms-shell-go-home' }, '*'); } catch (_) {}
+      updateShellChrome();
+    });
+  }
+
+  function shellGoBack() {
+    if (pedidosFormOpen) {
+      try { frame.contentWindow.postMessage({ type: 'mobile-pedidos-go-list' }, '*'); } catch (_) {}
+      return;
+    }
+    try {
+      var path = (frame.contentWindow.location.pathname || '').toLowerCase();
+      if (path.indexOf('home.html') >= 0) {
+        var doc = frame.contentDocument;
+        var ic = doc && doc.getElementById('iframe-container');
+        if (ic && ic.style.display !== 'none') {
+          frame.contentWindow.postMessage({ type: 'ms-shell-go-back' }, '*');
+          setTimeout(updateShellChrome, 120);
+          return;
+        }
+      }
+    } catch (_) {}
+    shellGoHome();
+  }
+
+  function currentTheme() {
+    return 'light';
+  }
+
+  var _FAB_PLUS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="24" height="24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+
+  function updatePedidosTopAction() {
+    if (!novoPedidoBtn) return;
+    var btnFiltros = document.getElementById('ms-btn-filtros');
+    if (pedidosFormOpen) {
+      novoPedidoBtn.classList.add('ms-fab-hidden');
+      if (btnFiltros) btnFiltros.style.display = 'none';
+      return;
+    }
+    novoPedidoBtn.innerHTML = _FAB_PLUS;
+    novoPedidoBtn.classList.remove('fab-back');
+    novoPedidoBtn.title = 'Novo pedido';
+    novoPedidoBtn.setAttribute('aria-label', 'Novo pedido');
+
+    var isPedidosPage = false;
+    try {
+      var currentPath = frame.contentWindow.location.pathname;
+      isPedidosPage = currentPath.indexOf('pedidos.html') >= 0;
+    } catch(e) {
+      isPedidosPage = frame.src.indexOf('pedidos.html') >= 0;
+    }
+
+    if (isPedidosPage && btnFiltros) {
+      btnFiltros.style.display = 'inline-flex';
+    } else if (btnFiltros) {
+      btnFiltros.style.display = 'none';
+    }
+    updateFabVisibility(isHomeDashboardRoot());
+  }
+
+  function resetPedidosShellState() {
+    pedidosFormOpen = false;
+    updatePedidosTopAction();
+  }
+
+  function applyEmbeddedDensity() {
+    var doc;
+    try {
+      doc = frame.contentDocument || frame.contentWindow.document;
+    } catch (_) {
+      return;
+    }
+    if (!doc || !doc.head || !doc.body) return;
+
+    doc.documentElement.classList.add('ms-embedded-tech');
+    var embeddedPath = '';
+    try {
+      embeddedPath = (doc.location && doc.location.pathname || '').toLowerCase();
+    } catch (_) {}
+    doc.documentElement.classList.toggle('ms-page-clientes', embeddedPath.indexOf('/pages/clientes.html') >= 0);
+    doc.documentElement.classList.toggle('ms-page-clientes-inativos', embeddedPath.indexOf('/pages/comercial-clientes-inativos.html') >= 0);
+    doc.documentElement.classList.toggle('ms-page-relatorios-padrao', embeddedPath.indexOf('/pages/comercial-relatorios-padrao.html') >= 0);
+    doc.documentElement.classList.toggle('ms-page-comissoes-relatorio', embeddedPath.indexOf('/pages/comissoes_relatorio.html') >= 0);
+    doc.documentElement.classList.toggle('ms-page-comissoes-conferencia', embeddedPath.indexOf('/pages/comissoes_conferencia.html') >= 0);
+    doc.documentElement.classList.toggle('ms-page-dashboards', embeddedPath.indexOf('/pages/comercial-dashboards.html') >= 0);
+    doc.documentElement.classList.toggle('ms-page-contas-pagar', embeddedPath.indexOf('/pages/contas-pagar.html') >= 0);
+
+    var style = doc.getElementById('ms-embedded-density');
+    if (!style) {
+      style = doc.createElement('style');
+      style.id = 'ms-embedded-density';
+      doc.head.appendChild(style);
+    }
+
+    style.textContent = [
+      ':root{--ms-embedded-accent:#2563eb;--ms-embedded-bg:oklch(97% 0.004 240);--ms-embedded-surface:oklch(100% 0 0);--ms-embedded-fg:oklch(31% 0.03 245);--ms-embedded-muted:oklch(58% 0.014 245);--ms-embedded-border:oklch(91% 0.008 245);--ms-embedded-toolbar-bg:#2563eb;--ms-embedded-toolbar-bg-strong:#1d4ed8;--ms-embedded-display:Montserrat,-apple-system,BlinkMacSystemFont,Segoe UI,system-ui,sans-serif;--ms-embedded-body:"Open Sans",-apple-system,BlinkMacSystemFont,Segoe UI,system-ui,sans-serif;}',
+      'html.ms-embedded-tech body{background:var(--ms-embedded-bg);font-family:var(--ms-embedded-body) !important;color:var(--ms-embedded-fg);}',
+      'html.ms-embedded-tech h1,html.ms-embedded-tech h2,html.ms-embedded-tech h3,html.ms-embedded-tech h4,html.ms-embedded-tech .title,html.ms-embedded-tech .titulo{font-family:var(--ms-embedded-display) !important;color:var(--ms-embedded-fg);letter-spacing:-0.02em;}',
+      'html.ms-embedded-tech .card,html.ms-embedded-tech .panel,html.ms-embedded-tech .box,html.ms-embedded-tech .widget,html.ms-embedded-tech table,html.ms-embedded-tech .table-responsive{background:var(--ms-embedded-surface) !important;border:1px solid var(--ms-embedded-border) !important;box-shadow:none !important;border-radius:10px !important;}',
+      'html.ms-embedded-tech input,html.ms-embedded-tech select,html.ms-embedded-tech textarea{background:var(--ms-embedded-surface) !important;color:var(--ms-embedded-fg) !important;border:1px solid var(--ms-embedded-border) !important;border-radius:8px !important;box-shadow:none !important;}',
+      'html.ms-embedded-tech .ms-embedded-control{min-height:38px !important;padding:0 14px !important;border-radius:8px !important;font-size:12px !important;font-weight:700 !important;box-shadow:none !important;background:var(--ms-embedded-surface) !important;color:var(--ms-embedded-fg) !important;border:1px solid var(--ms-embedded-border) !important;}',
+      'html.ms-embedded-tech .ms-embedded-save,html.ms-embedded-tech .ms-embedded-primary{display:inline-flex !important;align-items:center !important;justify-content:center !important;width:auto !important;min-width:unset !important;max-width:max-content !important;flex:0 0 auto !important;align-self:flex-start !important;min-height:28px !important;padding:0 10px !important;border-radius:7px !important;font-size:9.5px !important;line-height:1 !important;font-weight:700 !important;background:var(--ms-embedded-accent) !important;color:#fff !important;border:1px solid transparent !important;box-shadow:none !important;}',
+      'html.ms-embedded-tech .ms-embedded-neutral{background:var(--ms-embedded-surface) !important;color:var(--ms-embedded-fg) !important;border:1px solid var(--ms-embedded-border) !important;box-shadow:none !important;}',
+      'html.ms-embedded-tech .ms-embedded-danger{background:color-mix(in oklab, #b42318 10%, white 90%) !important;color:#8f1d1d !important;border:1px solid color-mix(in oklab, #b42318 22%, white 78%) !important;box-shadow:none !important;}',
+      'html.ms-embedded-tech #formSection.acc-mode .form-card{margin:0 0 20px !important;padding:2px !important;overflow:hidden !important;background:var(--ms-embedded-surface) !important;border:1px solid var(--ms-embedded-toolbar-bg-strong) !important;border-radius:14px !important;box-shadow:none !important;}',
+      'html.ms-embedded-tech #formSection.acc-mode .acc-header,html.ms-embedded-tech #formSection.acc-mode .acc-header.acc-open{background:var(--ms-embedded-surface) !important;border:none !important;border-radius:10px 10px 0 0 !important;box-shadow:none !important;color:var(--ms-embedded-fg) !important;position:relative !important;z-index:1 !important;}',
+      'html.ms-embedded-tech #formSection.acc-mode .acc-header:hover{background:color-mix(in oklab, var(--ms-embedded-surface) 92%, var(--ms-embedded-toolbar-bg) 8%) !important;border-color:var(--ms-embedded-toolbar-bg) !important;transform:none !important;}',
+      'html.ms-embedded-tech #formSection.acc-mode .acc-header.acc-open{border-bottom:1px solid var(--ms-embedded-toolbar-bg-strong) !important;border-bottom-left-radius:0 !important;border-bottom-right-radius:0 !important;}',
+      'html.ms-embedded-tech #formSection.acc-mode .acc-header + .tab-panel{margin-top:0 !important;padding:14px 14px 16px !important;background:var(--ms-embedded-surface) !important;border:none !important;border-radius:0 0 10px 10px !important;box-shadow:none !important;}',
+      'html.ms-embedded-tech #formSection.acc-mode .acc-header:not(.acc-open) + .tab-panel{margin-top:0 !important;padding:0 !important;border:none !important;box-shadow:none !important;}',
+      'html.ms-embedded-tech #formSection.acc-mode .acc-label,html.ms-embedded-tech #formSection.acc-mode .acc-chevron{color:var(--ms-embedded-fg) !important;}',
+      'html.ms-embedded-tech #formSection.acc-mode .acc-icon{background:color-mix(in oklab, var(--ms-embedded-toolbar-bg-strong) 10%, white 90%) !important;color:var(--ms-embedded-toolbar-bg-strong) !important;}',
+      'html.ms-embedded-tech #formSection.acc-mode .acc-badge{background:color-mix(in oklab, var(--ms-embedded-toolbar-bg-strong) 12%, white 88%) !important;color:var(--ms-embedded-toolbar-bg-strong) !important;}',
+      'html.ms-embedded-tech .badge,html.ms-embedded-tech .tag,html.ms-embedded-tech .status{border-radius:999px !important;}',
+      'html.ms-embedded-tech .ms-embedded-inline-pair{display:grid !important;grid-template-columns:minmax(0,1fr) minmax(0,1fr) !important;gap:10px !important;align-items:stretch !important;width:100% !important;grid-column:1 / -1 !important;}',
+      'html.ms-embedded-tech .ms-embedded-inline-triple{display:grid !important;grid-template-columns:repeat(3,minmax(0,1fr)) !important;gap:10px !important;align-items:stretch !important;width:100% !important;grid-column:1 / -1 !important;}',
+      'html.ms-embedded-tech .ms-embedded-inline-pair > *,html.ms-embedded-tech .ms-embedded-inline-triple > *{min-width:0 !important;}',
+      'html.ms-embedded-tech .ms-embedded-inline-pair .ms-embedded-inline-btn,html.ms-embedded-tech .ms-embedded-inline-triple .ms-embedded-inline-btn{width:100% !important;max-width:none !important;justify-content:center !important;}',
+      'html.ms-embedded-tech .btn-group, html.ms-embedded-tech [class*="grupo"], html.ms-embedded-tech [class*="action"], html.ms-embedded-tech [class*="acoes"], html.ms-embedded-tech [class*="toolbar"]{gap:8px !important;}',
+      'html.ms-embedded-tech #listSection #toolbar.toolbar-bar{position:relative !important;top:auto !important;z-index:4 !important;padding:6px 12px 10px !important;background:var(--ms-embedded-bg) !important;border-bottom:none !important;box-shadow:none !important;}',
+      'html.ms-embedded-tech #listSection #toolbar .toolbar-pedidos-row{display:grid !important;grid-template-columns:1fr auto !important;grid-template-areas:"period filtros" "search search" !important;align-items:center !important;gap:6px 10px !important;overflow:visible !important;width:100% !important;}',
+      'html.ms-embedded-tech #listSection #toolbar .toolbar-period-wrap{grid-area:period !important;}',
+      'html.ms-embedded-tech #listSection #toolbar .search-box{grid-area:search !important;}',
+      'html.ms-embedded-tech #listSection #toolbar #btnFiltros{grid-area:filtros !important;justify-self:end !important;}',
+      'html.ms-embedded-tech #listSection #toolbar .btn-sysrep-tour{display:none !important;}',
+      'html.ms-embedded-tech #listSection #toolbar .search-box,html.ms-embedded-tech #listSection #toolbar .toolbar-filter-group,html.ms-embedded-tech #listSection #toolbar .view-toggle,html.ms-embedded-tech #listSection #toolbar .chooser-wrap,html.ms-embedded-tech #listSection #toolbar #btnExportCsv,html.ms-embedded-tech #listSection #toolbar #btnNovoPedido{width:100% !important;max-width:none !important;}',
+      'html.ms-embedded-tech #listSection #toolbar .search-box{margin:0 !important;}',
+      'html.ms-embedded-tech #listSection #pedidosTopMeta.pedidos-top-meta,html.ms-embedded-tech #listSection .list-insights,html.ms-embedded-tech #listSection .metrics-wrap{position:relative !important;top:auto !important;z-index:1 !important;margin-top:0 !important;}',
+      'html.ms-embedded-tech #listSection #pedidosTopMeta.pedidos-top-meta{padding:2px 12px 10px !important;background:var(--ms-embedded-bg) !important;border-bottom:none !important;}',
+      'html.ms-embedded-tech #listSection .cards-grid,html.ms-embedded-tech #listSection #tableWrap.table-wrap,html.ms-embedded-tech #listSection .empty-state{position:relative !important;z-index:0 !important;margin-top:0 !important;}',
+      'html.ms-embedded-tech.ms-page-clientes #filterPanelBody{display:grid !important;grid-template-columns:minmax(0,1fr) minmax(0,1fr) !important;gap:10px !important;align-items:end !important;}',
+      'html.ms-embedded-tech.ms-page-clientes #filterPanelBody .form-group{min-width:0 !important;margin:0 !important;}',
+      'html.ms-embedded-tech.ms-page-clientes #filterPanelBody .ms-filter-row-actions{grid-column:1 / -1 !important;display:flex !important;justify-content:flex-end !important;gap:8px !important;}',
+      'html.ms-embedded-tech.ms-page-clientes-inativos .toolbar,html.ms-embedded-tech.ms-page-relatorios-padrao .toolbar{display:grid !important;grid-template-columns:minmax(0,1fr) minmax(0,1fr) !important;gap:10px !important;align-items:end !important;padding:12px !important;background:var(--ms-embedded-toolbar-bg-strong) !important;border:1px solid color-mix(in oklab, var(--ms-embedded-toolbar-bg-strong) 84%, white 16%) !important;border-radius:12px !important;box-shadow:none !important;}',
+      'html.ms-embedded-tech.ms-page-clientes-inativos .toolbar > *{min-width:0 !important;}',
+      'html.ms-embedded-tech.ms-page-clientes-inativos .toolbar > *,html.ms-embedded-tech.ms-page-relatorios-padrao .toolbar > *{min-width:0 !important;}',
+      'html.ms-embedded-tech.ms-page-clientes-inativos .toolbar .title-wrap,html.ms-embedded-tech.ms-page-relatorios-padrao .toolbar .title-wrap{grid-column:1 / -1 !important;display:flex !important;align-items:flex-start !important;justify-content:space-between !important;gap:10px !important;color:#fff !important;}',
+      'html.ms-embedded-tech.ms-page-clientes-inativos .toolbar .title-wrap > :not(button),html.ms-embedded-tech.ms-page-clientes-inativos .toolbar .title-wrap > :not(button) *,html.ms-embedded-tech.ms-page-relatorios-padrao .toolbar .title-wrap > :not(button),html.ms-embedded-tech.ms-page-relatorios-padrao .toolbar .title-wrap > :not(button) *{color:#fff !important;}',
+      'html.ms-embedded-tech.ms-page-clientes-inativos .toolbar .title-wrap .ms-filter-toggle,html.ms-embedded-tech.ms-page-relatorios-padrao .toolbar .title-wrap .ms-filter-toggle{flex:0 0 auto !important;min-height:34px !important;padding:0 12px !important;border-radius:8px !important;border:1px solid var(--ms-embedded-border) !important;background:var(--ms-embedded-surface) !important;color:var(--ms-embedded-fg) !important;font:inherit !important;font-size:11px !important;font-weight:700 !important;cursor:pointer !important;}',
+      'html.ms-embedded-tech.ms-page-clientes-inativos .toolbar .btn{width:100% !important;justify-content:center !important;}',
+      'html.ms-embedded-tech.ms-page-contas-pagar .toolbar{display:grid !important;grid-template-columns:minmax(0,1fr) minmax(0,1fr) !important;gap:8px !important;align-items:stretch !important;padding:10px 12px !important;flex-direction:row !important;}',
+      'html.ms-embedded-tech.ms-page-contas-pagar .toolbar-title{grid-column:1 / -1 !important;font-size:13px !important;}',
+      'html.ms-embedded-tech.ms-page-contas-pagar .toolbar-pagar-actions,html.ms-embedded-tech.ms-page-contas-pagar .toolbar>#msEmbeddedPagarActions{grid-column:1 / -1 !important;display:grid !important;grid-template-columns:minmax(0,1fr) minmax(0,1fr) !important;gap:8px !important;width:100% !important;}',
+      'html.ms-embedded-tech.ms-page-contas-pagar .toolbar-pagar-actions #msEmbeddedPagarActions{display:contents !important;}',
+      'html.ms-embedded-tech.ms-page-contas-pagar .toolbar #btn_lancar_paga,html.ms-embedded-tech.ms-page-contas-pagar .toolbar #rel-dropdown-pagar{width:100% !important;min-width:0 !important;}',
+      'html.ms-embedded-tech.ms-page-contas-pagar .toolbar #btn_lancar_paga,html.ms-embedded-tech.ms-page-contas-pagar .toolbar #rel-dropdown-pagar .btn{width:100% !important;min-height:42px !important;justify-content:center !important;}',
+      'html.ms-embedded-tech.ms-page-relatorios-padrao .toolbar{grid-template-columns:repeat(2,minmax(0,1fr)) !important;}',
+      'html.ms-embedded-tech.ms-page-relatorios-padrao .toolbar .filter,html.ms-embedded-tech.ms-page-relatorios-padrao .toolbar .btn{width:100% !important;min-width:0 !important;}',
+      'html.ms-embedded-tech.ms-page-relatorios-padrao .toolbar .filter.filter-full{grid-column:auto !important;}',
+      'html.ms-embedded-tech.ms-page-relatorios-padrao .toolbar .filter.grow{grid-column:auto !important;}',
+      'html.ms-embedded-tech.ms-page-relatorios-padrao .toolbar #msEmbeddedRelatoriosActions{margin-top:2px !important;}',
+      'html.ms-embedded-tech.ms-page-relatorios-padrao .toolbar #msEmbeddedRelatoriosActions .ms-embedded-control{min-height:36px !important;font-size:10.5px !important;padding:0 8px !important;}',
+      'html.ms-embedded-tech.ms-page-relatorios-padrao .viz-top{gap:12px !important;}',
+      'html.ms-embedded-tech.ms-page-relatorios-padrao .viz-actions{display:grid !important;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr) !important;gap:10px !important;align-items:end !important;width:100% !important;}',
+      'html.ms-embedded-tech.ms-page-relatorios-padrao .viz-actions .chart-type,html.ms-embedded-tech.ms-page-relatorios-padrao .viz-actions .mode,html.ms-embedded-tech.ms-page-relatorios-padrao .viz-actions #btnDetalhes{width:100% !important;min-width:0 !important;}',
+      'html.ms-embedded-tech.ms-page-relatorios-padrao .viz-actions .chart-type{grid-column:1 !important;}',
+      'html.ms-embedded-tech.ms-page-relatorios-padrao .viz-actions .mode{grid-column:2 !important;display:grid !important;grid-template-columns:minmax(0,1fr) minmax(0,1fr) !important;gap:8px !important;}',
+      'html.ms-embedded-tech.ms-page-relatorios-padrao .viz-actions .mode button{width:100% !important;justify-content:center !important;}',
+      'html.ms-embedded-tech.ms-page-relatorios-padrao .viz-actions #btnDetalhes{grid-column:1 / -1 !important;justify-content:center !important;}',
+      'html.ms-embedded-tech.ms-page-comissoes-relatorio .report-controls .row{display:grid !important;grid-template-columns:minmax(0,1fr) minmax(0,1fr) !important;gap:10px !important;align-items:end !important;}',
+      'html.ms-embedded-tech.ms-page-comissoes-relatorio .report-controls [class*="col-"]{min-width:0 !important;width:auto !important;}',
+      'html.ms-embedded-tech.ms-page-comissoes-relatorio .report-controls .container-fluid{padding:0 !important;}',
+      'html.ms-embedded-tech.ms-page-comissoes-relatorio .report-controls .report-actions{grid-column:1 / -1 !important;display:grid !important;grid-template-columns:repeat(3,minmax(0,1fr)) !important;gap:8px !important;}',
+      'html.ms-embedded-tech.ms-page-comissoes-relatorio .report-controls .report-actions .ms-embedded-control{width:100% !important;justify-content:center !important;}',
+      'html.ms-embedded-tech.ms-page-comissoes-relatorio .report-controls .report-actions a.ms-embedded-control{text-decoration:none !important;}',
+      'html.ms-embedded-tech.ms-page-comissoes-relatorio .report-paper{margin:14px auto 18px !important;padding:16px !important;border-radius:14px !important;box-shadow:none !important;border:1px solid var(--ms-embedded-border) !important;min-height:auto !important;}',
+      'html.ms-embedded-tech.ms-page-comissoes-relatorio .report-header{display:block !important;padding-bottom:14px !important;margin-bottom:14px !important;}',
+      'html.ms-embedded-tech.ms-page-comissoes-relatorio .report-header .text-end{text-align:left !important;margin-top:10px !important;}',
+      'html.ms-embedded-tech.ms-page-comissoes-relatorio .table-report{border:none !important;background:transparent !important;box-shadow:none !important;}',
+      'html.ms-embedded-tech.ms-page-comissoes-relatorio .table-report thead{display:none !important;}',
+      'html.ms-embedded-tech.ms-page-comissoes-relatorio .table-report tbody{display:block !important;}',
+      'html.ms-embedded-tech.ms-page-comissoes-relatorio .table-report tbody tr.ms-report-card{display:grid !important;grid-template-columns:minmax(0,1fr) minmax(0,1fr) !important;gap:10px 12px !important;padding:14px !important;margin-bottom:12px !important;background:var(--ms-embedded-surface) !important;border:1px solid var(--ms-embedded-border) !important;border-radius:12px !important;box-shadow:none !important;}',
+      'html.ms-embedded-tech.ms-page-comissoes-relatorio .table-report tbody tr.ms-report-card td{display:flex !important;flex-direction:column !important;align-items:flex-start !important;gap:4px !important;padding:0 !important;border:none !important;min-width:0 !important;}',
+      'html.ms-embedded-tech.ms-page-comissoes-relatorio .table-report tbody tr.ms-report-card td::before{content:attr(data-ms-label) !important;font-size:10px !important;line-height:1.2 !important;font-weight:800 !important;letter-spacing:.06em !important;text-transform:uppercase !important;color:var(--ms-embedded-muted) !important;}',
+      'html.ms-embedded-tech.ms-page-comissoes-relatorio .table-report tbody tr.ms-report-card td:nth-child(2),html.ms-embedded-tech.ms-page-comissoes-relatorio .table-report tbody tr.ms-report-card td:nth-child(4),html.ms-embedded-tech.ms-page-comissoes-relatorio .table-report tbody tr.ms-report-card td:nth-child(6),html.ms-embedded-tech.ms-page-comissoes-relatorio .table-report tbody tr.ms-report-card td:nth-child(8){align-items:flex-end !important;text-align:right !important;}',
+      'html.ms-embedded-tech.ms-page-comissoes-relatorio .table-report tbody tr.ms-report-card td:nth-child(3),html.ms-embedded-tech.ms-page-comissoes-relatorio .table-report tbody tr.ms-report-card td:nth-child(7){grid-column:1 / -1 !important;}',
+      'html.ms-embedded-tech.ms-page-comissoes-relatorio .table-report tbody tr.ms-report-card td.text-end,html.ms-embedded-tech.ms-page-comissoes-relatorio .table-report tbody tr.ms-report-card td.text-center{text-align:right !important;align-items:flex-end !important;}',
+      'html.ms-embedded-tech.ms-page-comissoes-relatorio .table-report tbody tr:last-child{margin-bottom:0 !important;}',
+      'html.ms-embedded-tech.ms-page-comissoes-relatorio .total-container{display:grid !important;grid-template-columns:minmax(0,1fr) minmax(0,1fr) !important;gap:10px !important;padding:14px !important;}',
+      'html.ms-embedded-tech.ms-page-comissoes-relatorio .total-item{text-align:left !important;}',
+      'html.ms-embedded-tech.ms-page-comissoes-relatorio .signature-section{display:grid !important;grid-template-columns:minmax(0,1fr) !important;gap:18px !important;}',
+      'html.ms-embedded-tech.ms-page-clientes-inativos.ms-filters-collapsed .toolbar{grid-template-columns:minmax(0,1fr) !important;align-items:start !important;}',
+      'html.ms-embedded-tech.ms-page-relatorios-padrao.ms-filters-collapsed .toolbar{grid-template-columns:minmax(0,1fr) !important;align-items:start !important;}',
+      'html.ms-embedded-tech.ms-page-clientes-inativos.ms-filters-collapsed .toolbar > .filter,html.ms-embedded-tech.ms-page-clientes-inativos.ms-filters-collapsed .toolbar > .btn{display:none !important;}',
+      'html.ms-embedded-tech.ms-page-relatorios-padrao.ms-filters-collapsed .toolbar > .filter,html.ms-embedded-tech.ms-page-relatorios-padrao.ms-filters-collapsed .toolbar > .btn{display:none !important;}',
+      'html.ms-embedded-tech.ms-page-clientes-inativos.ms-filters-collapsed .toolbar .title-wrap{grid-column:1 !important;align-items:center !important;margin-bottom:0 !important;}',
+      'html.ms-embedded-tech.ms-page-relatorios-padrao.ms-filters-collapsed .toolbar .title-wrap{grid-column:1 !important;align-items:center !important;margin-bottom:0 !important;}',
+      'html.ms-embedded-tech.ms-page-dashboards .toolbar{position:relative !important;top:0 !important;padding:8px 12px !important;gap:8px !important;display:grid !important;grid-template-columns:1fr 1fr !important;align-items:end !important;}',
+      'html.ms-embedded-tech.ms-page-dashboards .title-wrap{display:none !important;}',
+      'html.ms-embedded-tech.ms-page-dashboards .filter{min-width:0 !important;width:100% !important;}',
+      'html.ms-embedded-tech.ms-page-dashboards .toolbar .btn{grid-column:1 / -1 !important;width:100% !important;justify-content:center !important;}',
+      'html.ms-embedded-tech.ms-page-dashboards .content{padding:10px 12px !important;}',
+      'html.ms-embedded-tech.ms-page-dashboards .grid-2{grid-template-columns:1fr !important;}',
+      'html.ms-embedded-tech.ms-page-comissoes-conferencia .toolbar-bar{flex-wrap:wrap !important;gap:6px !important;padding:8px 12px !important;position:relative !important;top:0 !important;z-index:1 !important;}',
+      'html.ms-embedded-tech.ms-page-comissoes-conferencia .toolbar-title,html.ms-embedded-tech.ms-page-comissoes-conferencia .toolbar-sep{display:none !important;}',
+      'html.ms-embedded-tech.ms-page-comissoes-conferencia .toolbar-bar>button:first-child{display:none !important;}',
+      'html.ms-embedded-tech.ms-page-comissoes-conferencia .ins-card{flex:1 1 calc(50% - 4px) !important;min-width:0 !important;justify-content:center !important;}',
+      'html.ms-embedded-tech.ms-page-comissoes-conferencia .subbar{position:relative !important;top:0 !important;display:grid !important;grid-template-columns:1fr 1fr !important;gap:6px !important;padding:8px 12px !important;}',
+      'html.ms-embedded-tech.ms-page-comissoes-conferencia .filter-label{display:none !important;}',
+      'html.ms-embedded-tech.ms-page-comissoes-conferencia .filter-input,html.ms-embedded-tech.ms-page-comissoes-conferencia select.filter-input{width:100% !important;min-width:0 !important;}',
+      'html.ms-embedded-tech.ms-page-comissoes-conferencia .batch-bar{position:relative !important;top:0 !important;}',
+      'html.ms-embedded-tech.ms-page-comissoes-conferencia .content-area{padding:10px 12px !important;}',
+      'html.ms-embedded-tech.ms-page-comissoes-conferencia .tabs{overflow-x:auto !important;-webkit-overflow-scrolling:touch !important;}',
+      'html.ms-embedded-tech.ms-page-comissoes-conferencia .tab-btn{padding:7px 12px !important;font-size:11px !important;white-space:nowrap !important;}',
+      'html.ms-embedded-tech .ms-embedded-hidden{display:none !important;}',
+      '@media (max-width:767px){html.ms-embedded-tech .ms-embedded-control{min-height:36px !important;padding:0 12px !important;font-size:11px !important;} html.ms-embedded-tech .ms-embedded-save{min-height:27px !important;padding:0 8px !important;font-size:9px !important;} html.ms-embedded-tech #formSection .form-pedido-header .form-actions-right{column-gap:8px !important;} html.ms-embedded-tech.ms-page-clientes #filterPanelBody,html.ms-embedded-tech.ms-page-clientes-inativos .toolbar,html.ms-embedded-tech.ms-page-relatorios-padrao .toolbar,html.ms-embedded-tech.ms-page-comissoes-relatorio .report-controls .row,html.ms-embedded-tech .ms-embedded-inline-pair{grid-template-columns:minmax(0,1fr) minmax(0,1fr) !important;gap:8px !important;} html.ms-embedded-tech .ms-embedded-inline-triple,html.ms-embedded-tech.ms-page-comissoes-relatorio .report-controls .report-actions{grid-template-columns:repeat(3,minmax(0,1fr)) !important;gap:8px !important;} html.ms-embedded-tech.ms-page-clientes-inativos .toolbar .title-wrap,html.ms-embedded-tech.ms-page-relatorios-padrao .toolbar .title-wrap{flex-direction:column !important;align-items:stretch !important;} html.ms-embedded-tech.ms-page-clientes-inativos .toolbar .title-wrap .ms-filter-toggle,html.ms-embedded-tech.ms-page-relatorios-padrao .toolbar .title-wrap .ms-filter-toggle{width:100% !important;} html.ms-embedded-tech.ms-page-relatorios-padrao .toolbar #msEmbeddedRelatoriosActions .ms-embedded-control{font-size:10px !important;padding:0 6px !important;} html.ms-embedded-tech.ms-page-relatorios-padrao .viz-actions{grid-template-columns:minmax(0,1fr) !important;gap:8px !important;} html.ms-embedded-tech.ms-page-relatorios-padrao .viz-actions .chart-type,html.ms-embedded-tech.ms-page-relatorios-padrao .viz-actions .mode,html.ms-embedded-tech.ms-page-relatorios-padrao .viz-actions #btnDetalhes{grid-column:1 !important;} html.ms-embedded-tech.ms-page-comissoes-relatorio .table-report tbody tr.ms-report-card{grid-template-columns:minmax(0,1fr) !important;} html.ms-embedded-tech.ms-page-comissoes-relatorio .table-report tbody tr.ms-report-card td:nth-child(3),html.ms-embedded-tech.ms-page-comissoes-relatorio .table-report tbody tr.ms-report-card td:nth-child(7){grid-column:1 !important;} }',
+      '@media (min-width:768px){html.ms-embedded-tech .ms-embedded-control{min-height:40px !important;padding:0 15px !important;} html.ms-embedded-tech .ms-embedded-save{min-height:29px !important;padding:0 10px !important;font-size:9.5px !important;} html.ms-embedded-tech #formSection .form-pedido-header .form-actions-right{column-gap:12px !important;}}'
+    ].join('');
+
+    doc.querySelectorAll('button, input[type="button"], input[type="submit"], a.btn, .btn, [role="button"]').forEach(function (el) {
+      el.classList.add('ms-embedded-control');
+      var label = ((el.textContent || el.value || el.getAttribute('aria-label') || '') + '').trim().toLowerCase();
+      if (label.indexOf('salvar') >= 0 || label.indexOf('confirmar') >= 0) {
+        el.classList.add('ms-embedded-save');
+      }
+      if (label.indexOf('salvar') >= 0 || label.indexOf('confirmar') >= 0 || label.indexOf('agendar visita') >= 0) {
+        el.classList.add('ms-embedded-primary');
+      }
+      if (label === 'cancelar' || label.indexOf('voltar') >= 0) {
+        el.classList.add('ms-embedded-neutral');
+      }
+      if (label.indexOf('excluir') >= 0 || label.indexOf('inativar') >= 0) {
+        el.classList.add('ms-embedded-danger');
+      }
+      if (label.indexOf('abrir cadastro') >= 0) {
+        el.classList.add('ms-embedded-hidden');
+      }
+    });
+
+    enhanceEmbeddedFilters(doc);
+  }
+
+  function getEmbeddedFieldNode(input) {
+    if (!input) return null;
+    return input.closest('.form-group, .filter, [class*="col-"]') || input.parentElement;
+  }
+
+  function markEmbeddedFieldOrder(doc, id, order) {
+    var input = doc.getElementById(id);
+    if (!input) return;
+    var block = getEmbeddedFieldNode(input);
+    if (!block) return;
+    block.style.order = String(order);
+  }
+
+  function setEmbeddedFieldFull(doc, id) {
+    var input = doc.getElementById(id);
+    if (!input) return;
+    var block = getEmbeddedFieldNode(input);
+    if (!block) return;
+    block.classList.add('filter-full');
+    block.style.gridColumn = '1 / -1';
+  }
+
+  function enhanceContasPagar(doc) {
+    if (!doc.documentElement.classList.contains('ms-page-contas-pagar')) return;
+    hideEmbeddedButtonByText(doc, ['incluir conta']);
+    hideEmbeddedButtonByText(doc, ['colunas']);
+    hideEmbeddedButtonByText(doc, ['exportar csv']);
+    renameEmbeddedButtonByText(doc, ['relatórios', 'relatorios'], 'PDF / Imprimir');
+    arrangeEmbeddedButtonPair(doc, ['lancar conta paga', 'lançar conta paga'], ['pdf / imprimir', 'relatórios', 'relatorios'], 'msEmbeddedPagarActions');
+  }
+
+  function enhanceEmbeddedFilters(doc) {
+    enhanceClientesFilters(doc);
+    enhanceClientesInativosFilters(doc);
+    enhanceRelatoriosPadraoFilters(doc);
+    enhanceComissoesRelatorio(doc);
+    enhanceContasPagar(doc);
+    enhanceEmbeddedActionPairs(doc);
+  }
+
+  function normalizeEmbeddedLabel(value) {
+    return (value || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function findEmbeddedButtonByText(doc, labels) {
+    var expected = (labels || []).map(normalizeEmbeddedLabel);
+    var nodes = doc.querySelectorAll('button, input[type="button"], input[type="submit"], a.btn, .btn, [role="button"]');
+    for (var i = 0; i < nodes.length; i += 1) {
+      var el = nodes[i];
+      var raw = el.textContent || el.value || el.getAttribute('aria-label') || '';
+      var label = normalizeEmbeddedLabel(raw);
+      if (!label) continue;
+      for (var j = 0; j < expected.length; j += 1) {
+        if (label === expected[j]) return el;
+      }
+    }
+    return null;
+  }
+
+  function findEmbeddedCommonParent(a, b) {
+    var node = a;
+    while (node && node !== node.ownerDocument.body) {
+      if (node.contains(b)) return node;
+      node = node.parentElement;
+    }
+    return a && a.ownerDocument ? a.ownerDocument.body : null;
+  }
+
+  function getEmbeddedActionNode(el, stopAt) {
+    var node = el;
+    while (node.parentElement && node.parentElement !== stopAt) {
+      if (node.parentElement.children.length > 1) break;
+      node = node.parentElement;
+    }
+    return node;
+  }
+
+  function arrangeEmbeddedButtonPair(doc, leftLabels, rightLabels, pairId) {
+    var leftBtn = findEmbeddedButtonByText(doc, leftLabels);
+    var rightBtn = findEmbeddedButtonByText(doc, rightLabels);
+    if (!leftBtn || !rightBtn || leftBtn === rightBtn) return;
+
+    var common = findEmbeddedCommonParent(leftBtn, rightBtn);
+    if (!common) return;
+
+    var leftNode = getEmbeddedActionNode(leftBtn, common);
+    var rightNode = getEmbeddedActionNode(rightBtn, common);
+    if (!leftNode || !rightNode || leftNode === rightNode) return;
+    if (leftNode.parentElement !== common || rightNode.parentElement !== common) return;
+
+    var wrapper = doc.getElementById(pairId);
+    if (!wrapper) {
+      wrapper = doc.createElement('div');
+      wrapper.id = pairId;
+      wrapper.className = 'ms-embedded-inline-pair';
+      common.insertBefore(wrapper, leftNode);
+    }
+
+    if (!wrapper.contains(leftNode)) wrapper.appendChild(leftNode);
+    if (!wrapper.contains(rightNode)) wrapper.appendChild(rightNode);
+
+    leftBtn.classList.add('ms-embedded-inline-btn');
+    rightBtn.classList.add('ms-embedded-inline-btn');
+  }
+
+  function arrangeEmbeddedButtonTriple(doc, labelsA, labelsB, labelsC, wrapperId) {
+    var btnA = findEmbeddedButtonByText(doc, labelsA);
+    var btnB = findEmbeddedButtonByText(doc, labelsB);
+    var btnC = findEmbeddedButtonByText(doc, labelsC);
+    if (!btnA || !btnB || !btnC) return;
+
+    var common = findEmbeddedCommonParent(btnA, btnB);
+    if (!common || !common.contains(btnC)) return;
+
+    var nodeA = getEmbeddedActionNode(btnA, common);
+    var nodeB = getEmbeddedActionNode(btnB, common);
+    var nodeC = getEmbeddedActionNode(btnC, common);
+    if (!nodeA || !nodeB || !nodeC) return;
+    if (nodeA === nodeB || nodeA === nodeC || nodeB === nodeC) return;
+    if (nodeA.parentElement !== common || nodeB.parentElement !== common || nodeC.parentElement !== common) return;
+
+    var wrapper = doc.getElementById(wrapperId);
+    if (!wrapper) {
+      wrapper = doc.createElement('div');
+      wrapper.id = wrapperId;
+      wrapper.className = 'ms-embedded-inline-triple';
+      common.insertBefore(wrapper, nodeA);
+    }
+
+    [nodeA, nodeB, nodeC].forEach(function (node) {
+      if (!wrapper.contains(node)) wrapper.appendChild(node);
+    });
+
+    [btnA, btnB, btnC].forEach(function (btn) {
+      btn.classList.add('ms-embedded-inline-btn');
+    });
+  }
+
+  function hideEmbeddedButtonByText(doc, labels) {
+    var button = findEmbeddedButtonByText(doc, labels);
+    if (!button) return;
+    var node = getEmbeddedActionNode(button, button.ownerDocument.body);
+    if (node) node.classList.add('ms-embedded-hidden');
+  }
+
+  function renameEmbeddedButtonByText(doc, labels, nextLabel) {
+    var button = findEmbeddedButtonByText(doc, labels);
+    if (!button || !nextLabel) return null;
+    if ('value' in button && button.tagName === 'INPUT') {
+      button.value = nextLabel;
+    } else {
+      button.textContent = nextLabel;
+    }
+    button.setAttribute('aria-label', nextLabel);
+    return button;
+  }
+
+  function arrangeEmbeddedFieldPair(doc, leftId, rightId, wrapperId) {
+    var left = doc.getElementById(leftId);
+    var right = doc.getElementById(rightId);
+    if (!left || !right) return;
+
+    var leftNode = getEmbeddedFieldNode(left);
+    var rightNode = getEmbeddedFieldNode(right);
+    if (!leftNode || !rightNode || leftNode === rightNode) return;
+
+    var common = findEmbeddedCommonParent(leftNode, rightNode);
+    if (!common || leftNode.parentElement !== common || rightNode.parentElement !== common) return;
+
+    leftNode.classList.remove('filter-full');
+    rightNode.classList.remove('filter-full');
+    leftNode.style.gridColumn = 'auto';
+    rightNode.style.gridColumn = 'auto';
+
+    var wrapper = doc.getElementById(wrapperId);
+    if (!wrapper) {
+      wrapper = doc.createElement('div');
+      wrapper.id = wrapperId;
+      wrapper.className = 'ms-embedded-inline-pair';
+      common.insertBefore(wrapper, leftNode);
+    }
+
+    if (!wrapper.contains(leftNode)) wrapper.appendChild(leftNode);
+    if (!wrapper.contains(rightNode)) wrapper.appendChild(rightNode);
+  }
+
+  function enhanceEmbeddedActionPairs(doc) {
+    if (doc.documentElement.classList.contains('ms-page-contas-pagar')) return;
+    arrangeEmbeddedButtonPair(doc, ['lancar conta paga', 'lançar conta paga'], ['incluir conta'], 'msEmbeddedContaPagaPair');
+  }
+
+  function enhanceClientesFilters(doc) {
+    if (!doc.documentElement.classList.contains('ms-page-clientes')) return;
+    var body = doc.getElementById('filterPanelBody');
+    if (!body) return;
+
+    markEmbeddedFieldOrder(doc, 'fa_tipo', 1);
+    markEmbeddedFieldOrder(doc, 'fa_sem_compra', 2);
+    markEmbeddedFieldOrder(doc, 'fa_cidade', 3);
+    markEmbeddedFieldOrder(doc, 'fa_suspensa', 4);
+
+    var actionRow = body.querySelector('div[style*="grid-column:1/-1"]');
+    if (actionRow) {
+      actionRow.classList.add('ms-filter-row-actions');
+      actionRow.style.order = '90';
+    }
+    var favRow = doc.getElementById('favRow');
+    if (favRow) favRow.style.order = '91';
+  }
+
+  function enhanceClientesInativosFilters(doc) {
+    if (!doc.documentElement.classList.contains('ms-page-clientes-inativos')) return;
+    var toolbar = doc.querySelector('.toolbar');
+    if (!toolbar) return;
+
+    markEmbeddedFieldOrder(doc, 'dias', 1);
+    markEmbeddedFieldOrder(doc, 'agrupamento', 2);
+    markEmbeddedFieldOrder(doc, 'cidade', 3);
+    markEmbeddedFieldOrder(doc, 'uf', 4);
+    markEmbeddedFieldOrder(doc, 'idVendedor', 5);
+    markEmbeddedFieldOrder(doc, 'segFaixa', 6);
+    markEmbeddedFieldOrder(doc, 'minValor12m', 7);
+    markEmbeddedFieldOrder(doc, 'minPedidos12m', 8);
+    markEmbeddedFieldOrder(doc, 'ordenar', 9);
+
+    var btnAplicar = doc.getElementById('btnAplicar');
+    var btnGeo = doc.getElementById('btnGeo');
+    if (btnAplicar) btnAplicar.style.order = '10';
+    if (btnGeo) btnGeo.style.order = '11';
+
+    var titleWrap = toolbar.querySelector('.title-wrap');
+    if (!titleWrap) return;
+
+    var toggle = doc.getElementById('msEmbeddedToolbarToggle');
+    if (!toggle) {
+      toggle = doc.createElement('button');
+      toggle.type = 'button';
+      toggle.id = 'msEmbeddedToolbarToggle';
+      toggle.className = 'ms-filter-toggle';
+      titleWrap.appendChild(toggle);
+      toggle.addEventListener('click', function () {
+        var collapsed = !doc.documentElement.classList.contains('ms-filters-collapsed');
+        setEmbeddedClientesInativosCollapsed(doc, collapsed);
+      });
+    }
+
+    if (btnAplicar && !btnAplicar.dataset.msCollapseBound) {
+      btnAplicar.dataset.msCollapseBound = '1';
+      btnAplicar.addEventListener('click', function () {
+        setTimeout(function () {
+          setEmbeddedClientesInativosCollapsed(doc, true);
+        }, 120);
+      });
+    }
+
+    setEmbeddedClientesInativosCollapsed(doc, doc.documentElement.classList.contains('ms-filters-collapsed'));
+  }
+
+  function enhanceRelatoriosPadraoFilters(doc) {
+    if (!doc.documentElement.classList.contains('ms-page-relatorios-padrao')) return;
+    var toolbar = doc.querySelector('.toolbar');
+    if (!toolbar) return;
+
+    markEmbeddedFieldOrder(doc, 'anoIni', 1);
+    markEmbeddedFieldOrder(doc, 'anoFim', 2);
+    markEmbeddedFieldOrder(doc, 'dtInicio', 3);
+    markEmbeddedFieldOrder(doc, 'dtFim', 4);
+    markEmbeddedFieldOrder(doc, 'idCliente', 5);
+    markEmbeddedFieldOrder(doc, 'idVendedor', 6);
+    markEmbeddedFieldOrder(doc, 'idFornecedor', 7);
+
+    arrangeEmbeddedFieldPair(doc, 'anoIni', 'anoFim', 'msEmbeddedRelatoriosAnoPair');
+    arrangeEmbeddedFieldPair(doc, 'dtInicio', 'dtFim', 'msEmbeddedRelatoriosDataPair');
+    arrangeEmbeddedFieldPair(doc, 'idCliente', 'idVendedor', 'msEmbeddedRelatoriosClientePair');
+
+    var btnAtualizar = doc.getElementById('btnAtualizar');
+    if (btnAtualizar) {
+      btnAtualizar.style.order = '8';
+      btnAtualizar.style.gridColumn = 'auto';
+    }
+
+    hideEmbeddedButtonByText(doc, ['ajustar comissoes', 'ajustar comissões']);
+    renameEmbeddedButtonByText(doc, ['imprimir'], 'Exportar PDF');
+    arrangeEmbeddedButtonTriple(doc, ['conferencia', 'conferência'], ['exportar pdf', 'imprimir'], ['atualizar'], 'msEmbeddedRelatoriosActions');
+
+    var titleWrap = toolbar.querySelector('.title-wrap');
+    if (!titleWrap) return;
+
+    var toggle = doc.getElementById('msEmbeddedRelatoriosToggle');
+    if (!toggle) {
+      toggle = doc.createElement('button');
+      toggle.type = 'button';
+      toggle.id = 'msEmbeddedRelatoriosToggle';
+      toggle.className = 'ms-filter-toggle';
+      titleWrap.appendChild(toggle);
+      toggle.addEventListener('click', function () {
+        var collapsed = !doc.documentElement.classList.contains('ms-filters-collapsed');
+        setEmbeddedRelatoriosCollapsed(doc, collapsed);
+      });
+    }
+
+    if (btnAtualizar && !btnAtualizar.dataset.msCollapseBound) {
+      btnAtualizar.dataset.msCollapseBound = '1';
+      btnAtualizar.addEventListener('click', function () {
+        setTimeout(function () {
+          setEmbeddedRelatoriosCollapsed(doc, true);
+        }, 120);
+      });
+    }
+
+    setEmbeddedRelatoriosCollapsed(doc, doc.documentElement.classList.contains('ms-filters-collapsed'));
+  }
+
+  function enhanceComissoesRelatorio(doc) {
+    if (!doc.documentElement.classList.contains('ms-page-comissoes-relatorio')) return;
+
+    markEmbeddedFieldOrder(doc, 'filter_vendedor', 1);
+    markEmbeddedFieldOrder(doc, 'filter_fornecedor', 2);
+    markEmbeddedFieldOrder(doc, 'filter_cliente', 3);
+    markEmbeddedFieldOrder(doc, 'filter_inicio', 4);
+    markEmbeddedFieldOrder(doc, 'filter_fim', 5);
+    markEmbeddedFieldOrder(doc, 'filter_tipo_data', 6);
+
+    setEmbeddedFieldFull(doc, 'filter_vendedor');
+    arrangeEmbeddedFieldPair(doc, 'filter_fornecedor', 'filter_cliente', 'msEmbeddedComissoesFornecedorCliente');
+    arrangeEmbeddedFieldPair(doc, 'filter_inicio', 'filter_fim', 'msEmbeddedComissoesDataPair');
+    setEmbeddedFieldFull(doc, 'filter_tipo_data');
+
+    var actionRow = doc.querySelector('.report-controls .row > .d-flex.gap-2');
+    if (actionRow) {
+      actionRow.classList.add('report-actions');
+      actionRow.style.order = '20';
+    }
+
+    var headers = [];
+    doc.querySelectorAll('.table-report thead th').forEach(function (th) {
+      headers.push((th.textContent || '').trim() || 'Campo');
+    });
+
+    doc.querySelectorAll('.table-report tbody tr').forEach(function (row) {
+      var cells = row.querySelectorAll('td');
+      if (!cells.length) return;
+      row.classList.add('ms-report-card');
+      cells.forEach(function (cell, index) {
+        cell.setAttribute('data-ms-label', headers[index] || 'Campo');
+      });
+    });
+  }
+
+  function setEmbeddedClientesInativosCollapsed(doc, collapsed) {
+    doc.documentElement.classList.toggle('ms-filters-collapsed', !!collapsed);
+    var toggle = doc.getElementById('msEmbeddedToolbarToggle');
+    if (toggle) {
+      toggle.textContent = collapsed ? 'Mostrar filtros' : 'Ocultar filtros';
+    }
+  }
+
+  function setEmbeddedRelatoriosCollapsed(doc, collapsed) {
+    doc.documentElement.classList.toggle('ms-filters-collapsed', !!collapsed);
+    var toggle = doc.getElementById('msEmbeddedRelatoriosToggle');
+    if (toggle) {
+      toggle.textContent = collapsed ? 'Mostrar filtros' : 'Ocultar filtros';
+    }
+  }
+
+  function scheduleEmbeddedDensity() {
+    [0, 180, 600].forEach(function (delay) {
+      setTimeout(applyEmbeddedDensity, delay);
+    });
+  }
+
+  function setActiveNav(href) {
+    navBtns.forEach(function (b) {
+      b.classList.toggle('active', b.getAttribute('data-ms-href') === href);
+    });
+  }
+
+  function openUrl(href, label) {
+    if (!href) return;
+    if (typeof window._fecharModalVitrineShell === 'function') window._fecharModalVitrineShell();
+    resetPedidosShellState();
+    frame.src = href + (href.indexOf('?') >= 0 ? '&' : '?') + '_ms=' + Date.now();
+    setActiveNav(href);
+    document.getElementById('ms-title').textContent = label || 'SysRep Mobile';
+    overlay.classList.remove('open');
+    overlay.setAttribute('aria-hidden', 'true');
+    var btnFiltros = document.getElementById('ms-btn-filtros');
+    if (btnFiltros) {
+        btnFiltros.style.display = (href.indexOf('pedidos.html') >= 0 && !pedidosFormOpen) ? 'inline-flex' : 'none';
+    }
+    _updateBtnReenquadrarTopo();
+    setTimeout(updateShellChrome, 80);
+    frame.addEventListener('load', function _openUrlLoad() {
+      frame.removeEventListener('load', _openUrlLoad);
+      updateShellChrome();
+    });
+  }
+
+  function _fecharSheet() {
+    overlay.classList.remove('open');
+    overlay.setAttribute('aria-hidden', 'true');
+  }
+
+  function _tentarReenquadrarMapa(silent) {
+    try {
+      if (typeof frame.contentWindow.reenquadrarMapa === 'function') {
+        frame.contentWindow.reenquadrarMapa();
+        if (!silent) window.msToast('Mapa reenquadrado', 'ok');
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  window.msReenquadrarOperacoes = function (abrirSeNecessario) {
+    if (overlay.classList.contains('open')) _fecharSheet();
+    try {
+      var p = (frame.contentWindow.location.pathname || '').toLowerCase();
+      if (p.indexOf('mapa-operacoes.html') >= 0) {
+        if (_tentarReenquadrarMapa()) return;
+        window.msToast('Aguarde o mapa carregar…', 'info');
+        setTimeout(function () { _tentarReenquadrarMapa(true); }, 600);
+        return;
+      }
+      if (abrirSeNecessario) {
+        _pendingReenquadrar = true;
+        openUrl('/pages/mapa-operacoes.html', 'Operações');
+        return;
+      }
+      window.msToast('Abra Operações para reenquadrar', 'info');
+    } catch (e) {
+      window.msToast('Não foi possível reenquadrar', 'err');
+    }
+  };
+
+  function _updateBtnReenquadrarTopo() {
+    var btnReenquadrar = document.getElementById('ms-btn-reenquadrar');
+    if (!btnReenquadrar) return;
+    try {
+      var p = (frame.contentWindow.location.pathname || '').toLowerCase();
+      btnReenquadrar.style.display = (p.indexOf('mapa-operacoes.html') >= 0) ? 'inline-flex' : 'none';
+    } catch (_) {
+      btnReenquadrar.style.display = 'none';
+    }
+  }
+
+  frame.addEventListener('load', function () {
+    scheduleEmbeddedDensity();
+    setTimeout(updateShellChrome, 60);
+    setTimeout(updateShellChrome, 350);
+    _updateBtnReenquadrarTopo();
+    if (_pendingReenquadrar) {
+      _pendingReenquadrar = false;
+      setTimeout(function () {
+        if (!_tentarReenquadrarMapa(true)) {
+          setTimeout(function () { _tentarReenquadrarMapa(false); }, 900);
+        }
+      }, 400);
+    }
+  });
+
+  navBtns.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      openUrl(btn.getAttribute('data-ms-href'), btn.getAttribute('data-ms-label'));
+    });
+  });
+
+  document.getElementById('ms-nav-more').addEventListener('click', function () {
+    overlay.classList.add('open');
+    overlay.setAttribute('aria-hidden', 'false');
+  });
+  overlay.addEventListener('click', function (e) {
+    if (e.target === overlay) {
+      overlay.classList.remove('open');
+      overlay.setAttribute('aria-hidden', 'true');
+    }
+  });
+  document.getElementById('ms-sheet-close').addEventListener('click', function () {
+    overlay.classList.remove('open');
+  });
+  document.querySelectorAll('#ms-sheet .ms-sheet-link[data-ms-href]').forEach(function (el) {
+    el.addEventListener('click', function () {
+      openUrl(el.getAttribute('data-ms-href'), el.textContent.replace(/^[^\s]+\s/, ''));
+    });
+  });
+  var sheetReenquadrar = document.getElementById('ms-sheet-reenquadrar');
+  if (sheetReenquadrar) {
+    sheetReenquadrar.addEventListener('click', function () {
+      window.msReenquadrarOperacoes(true);
+    });
+  }
+
+  // ── Preparar offline (event delegation no #ms-sheet) ─────────────────────
+  function _atualizarStatusOfflinePack() {
+    var span = document.getElementById('ms-offline-pack-status');
+    if (!span || !window.SysRepPedidosOfflinePack) return;
+    var tkn = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+    var uid = SysRepPedidosOfflinePack.userIdFromToken(tkn);
+    var until = uid ? SysRepPedidosOfflinePack.getOfflineUntil(uid) : 0;
+    if (until > Date.now()) {
+      var vencDia = new Date(until).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+      span.textContent = 'OK até ' + vencDia;
+      span.style.cssText = 'margin-left:auto;font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;background:#d1fae5;color:#065f46;display:inline-block';
+    } else if (until > 0) {
+      span.textContent = 'Expirado';
+      span.style.cssText = 'margin-left:auto;font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;background:#fee2e2;color:#991b1b;display:inline-block';
+    } else {
+      span.style.display = 'none';
+    }
+  }
+  _atualizarStatusOfflinePack();
+
+  document.getElementById('ms-sheet').addEventListener('click', function (e) {
+    var el = e.target;
+    while (el && el !== this) {
+      if (el.id === 'ms-btn-preparar-offline') {
+        _msPrepararOfflineClick(el);
+        return;
+      }
+      el = el.parentElement;
+    }
+  });
+
+  function _msPrepararOfflineClick(btn) {
+    console.log('[SysRep] preparar-offline: click, online=' + navigator.onLine + ', pack=' + !!window.SysRepPedidosOfflinePack);
+    overlay.classList.remove('open');
+    overlay.setAttribute('aria-hidden', 'true');
+    btn.disabled = true;
+    if (!navigator.onLine) {
+      window.msToast('Sem internet — conecte-se para preparar o offline', 'warn');
+      btn.disabled = false;
+      return;
+    }
+    if (!window.SysRepPedidosOfflinePack) {
+      window.msToast('Módulo offline não carregado — recarregue o app', 'err');
+      btn.disabled = false;
+      return;
+    }
+    window.msToast('Baixando dados para uso offline…', 'info');
+    var tkn = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+    SysRepPedidosOfflinePack.preparePack(function (url) {
+      return fetch(url, { headers: { 'Authorization': 'Bearer ' + tkn } });
+    }).then(function () {
+      window.msToast('App pronto para uso offline por 7 dias ✓', 'ok');
+      _atualizarStatusOfflinePack();
+      SysRepPedidosOfflinePack.updatePackBadge();
+    }).catch(function (e) {
+      console.error('[SysRep] preparePack erro:', e);
+      window.msToast(e.message || 'Erro ao preparar offline', 'err');
+    }).finally(function () {
+      btn.disabled = false;
+    });
+  }
+
+  document.getElementById('ms-btn-back').addEventListener('click', shellGoBack);
+  document.getElementById('ms-btn-home').addEventListener('click', shellGoHome);
+
+  novoPedidoBtn.addEventListener('click', function () {
+    var href = '/pages/pedidos.html?novo=1';
+    frame.src = href + '&_ms=' + Date.now();
+    setActiveNav('/pages/pedidos.html');
+    document.getElementById('ms-title').textContent = 'Pedidos';
+    overlay.classList.remove('open');
+    overlay.setAttribute('aria-hidden', 'true');
+    resetPedidosShellState();
+  });
+
+  window.addEventListener('message', function (event) {
+    var data = event.data || {};
+    // Item 5: subtítulo dinâmico postado pelas páginas
+    if (data.type === 'ms-subtitle' && typeof data.text === 'string') {
+      var subtitleEl = document.getElementById('ms-subtitle');
+      if (subtitleEl) subtitleEl.textContent = data.text;
+      return;
+    }
+    if (data.type === 'mobile-pedidos-home-confirmed') {
+      shellGoHome(true);
+      return;
+    }
+    if (data.type === 'ms-chrome-state') {
+      if (data.root === true) {
+        document.body.classList.remove('ms-chrome-hidden');
+        updateFabVisibility(true);
+        if (typeof window._reloadSummary === 'function') window._reloadSummary();
+      } else if (data.root === false) {
+        document.body.classList.add('ms-chrome-hidden');
+        updateFabVisibility(false);
+      } else {
+        updateShellChrome();
+      }
+      return;
+    }
+    if (data.type === 'foto-carrossel-abrir') {
+      _abrirCarrosselShell(data.url, data.desc);
+      return;
+    }
+    if (data.type === 'foto-carrossel-atualizar') {
+      _atualizarCarrosselShell(data.urls, data.idx);
+      return;
+    }
+    if (data.type === 'sysrep-pedidos-salvar-sair') {
+      openUrl('/home.html', 'Início');
+      return;
+    }
+    if (data.type === 'navigate' && data.url) {
+      var label = 'SysRep';
+      if (data.url.indexOf('pedidos') >= 0) label = 'Pedidos';
+      else if (data.url.indexOf('visitas') >= 0) label = 'Visitas';
+      else if (data.url.indexOf('clientes') >= 0) label = 'Clientes';
+      openUrl(data.url, label);
+      return;
+    }
+    if (data.type === 'ms-open-url' && data.url) {
+      if (typeof window._fecharModalVitrineShell === 'function') window._fecharModalVitrineShell();
+      var url = String(data.url);
+      if (url.indexOf('https://wa.me') === 0 || (url.indexOf('http') === 0 && url.indexOf(location.origin) !== 0)) {
+        window.location.href = url;
+        return;
+      }
+      var path = url;
+      if (url.indexOf('http') === 0) {
+        try {
+          var parsed = new URL(url);
+          if (parsed.origin === location.origin) {
+            path = parsed.pathname + parsed.search + parsed.hash;
+          } else {
+            window.location.href = url;
+            return;
+          }
+        } catch (_) {}
+      }
+      if (path.charAt(0) !== '/') path = '/' + path;
+      openUrl(path, path.indexOf('/vitrine') === 0 ? 'Vitrine' : 'SysRep');
+      return;
+    }
+    if (data.type !== 'mobile-pedidos-form-state') return;
+    pedidosFormOpen = !!data.open;
+    window._msPedidosFormOpen = pedidosFormOpen;
+
+    var badge = document.getElementById('ms-badge-filtros');
+    if (badge && !pedidosFormOpen) {
+      if (data.filtersCount && data.filtersCount > 0) {
+        badge.textContent = data.filtersCount;
+        badge.style.display = 'flex';
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+
+    updatePedidosTopAction();
+    updateShellChrome();
+    if (pedidosFormOpen) {
+      var shellTitle = (typeof data.shellTitle === 'string' && data.shellTitle.trim()) ? data.shellTitle.trim() : (data.mode === 'edit' ? 'Editar pedido' : 'Novo pedido');
+      document.getElementById('ms-title').textContent = shellTitle;
+      try { frame.contentWindow.scrollTo(0, 0); } catch (_) {}
+      if (data.mode !== 'edit') {
+        try { frame.contentWindow.postMessage({ type: 'mobile-pedidos-expand-all-sections' }, '*'); } catch (_) {}
+      }
+      setTimeout(function() {
+        try { frame.contentWindow.postMessage({ type: 'mobile-pedidos-scroll-top' }, '*'); } catch (_) {}
+        try { frame.contentWindow.scrollTo(0, 0); } catch (_) {}
+      }, 220);
+      return;
+    }
+    var activePedidos = document.querySelector('.ms-nav-item.active[data-ms-href="/pages/pedidos.html"]');
+    if (activePedidos) document.getElementById('ms-title').textContent = 'Pedidos';
+  });
+
+  var btnFiltros = document.getElementById('ms-btn-filtros');
+  if (btnFiltros) {
+    btnFiltros.addEventListener('click', function() {
+      try { frame.contentWindow.postMessage({ type: 'mobile-pedidos-open-filtros' }, '*'); } catch (_) {}
+    });
+  }
+
+  (function() {
+    applyShellTheme();
+    try {
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
+        if ((localStorage.getItem('sysrep_theme') || 'sistema') === 'sistema') applyShellTheme();
+      });
+    } catch (_) {}
+    window.addEventListener('storage', function(e) {
+      if (e.key === 'sysrep_theme') applyShellTheme();
+    });
+    scheduleEmbeddedDensity();
+  })();
+
+  document.getElementById('ms-btn-sair').addEventListener('click', function () {
+    try { sessionStorage.removeItem('token'); sessionStorage.removeItem('user'); sessionStorage.removeItem('empresa'); sessionStorage.removeItem('parametros_locais'); } catch (_) {}
+    try { localStorage.removeItem('token'); localStorage.removeItem('user'); localStorage.removeItem('empresa'); localStorage.removeItem('parametros_locais'); } catch (_) {}
+    window.location.href = '/login.html';
+  });
+
+  var btnTheme = document.getElementById('ms-btn-theme');
+  if (btnTheme) {
+    btnTheme.addEventListener('click', function () {
+      overlay.classList.remove('open');
+      overlay.setAttribute('aria-hidden', 'true');
+      msOpenThemePicker();
+    });
+  }
+  document.querySelectorAll('.ms-theme-option').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      msApplyMobileTheme(btn.getAttribute('data-theme-id'));
+      setTimeout(msCloseThemePicker, 180);
+    });
+  });
+  var themeMore = document.getElementById('ms-theme-more');
+  if (themeMore) {
+    themeMore.addEventListener('click', function () {
+      msCloseThemePicker();
+      if (window.SysTheme && typeof window.SysTheme.open === 'function') {
+        window.SysTheme.open();
+      }
+    });
+  }
+  var themeClose = document.getElementById('ms-theme-close');
+  var themeOverlay = document.getElementById('ms-theme-overlay');
+  if (themeClose) themeClose.addEventListener('click', msCloseThemePicker);
+  if (themeOverlay) {
+    themeOverlay.addEventListener('click', function (e) {
+      if (e.target === themeOverlay) msCloseThemePicker();
+    });
+  }
+
+  var qs = new URLSearchParams(window.location.search);
+  if (qs.get('blocked') === '1') {
+    banner.textContent = 'Esta tela não está disponível no modo mobile. Acesse pelo computador ou pelo menu completo no navegador.';
+    banner.classList.add('show');
+    document.body.classList.add('has-banner');
+  }
+
+  var initial = qs.get('src');
+  if (initial && initial.indexOf('..') < 0 && initial.startsWith('/')) {
+    frame.src = initial;
+  }
+  updatePedidosTopAction();
+  scheduleEmbeddedDensity();
+  frame.addEventListener('load', function () {
+    applyShellTheme();
+    setTimeout(updateShellChrome, 120);
+  });
+  setTimeout(updateShellChrome, 200);
+
+  // ── Item 4: Avatar + empresa ─────────────────────────────────────────────
+  (function () {
+    try {
+      var user    = JSON.parse(sessionStorage.getItem('user')    || localStorage.getItem('user')    || '{}');
+      var empresa = JSON.parse(sessionStorage.getItem('empresa') || localStorage.getItem('empresa') || '{}');
+      var nome = user.nomeusu || user.nome || '';
+      var initials = nome.trim().split(/\s+/).slice(0, 2).map(function (w) { return w[0] || ''; }).join('').toUpperCase() || 'SR';
+      var avatarEl = document.getElementById('ms-avatar');
+      if (avatarEl) avatarEl.textContent = initials;
+      var companyName = empresa.nome_fantasia || empresa.nome || empresa.razao || '';
+      var subtitleEl = document.getElementById('ms-subtitle');
+      if (subtitleEl) {
+        var _h = new Date().getHours();
+        var _greet = _h < 12 ? 'Bom dia' : _h < 18 ? 'Boa tarde' : 'Boa noite';
+        var _first = nome.trim().split(/\s+/)[0] || '';
+        var _greetText = _first ? _greet + ', ' + _first : _greet;
+        subtitleEl.textContent = companyName ? _greetText + ' · ' + companyName : _greetText;
+      }
+      var sheetAvatarEl = document.getElementById('ms-sheet-avatar');
+      var sheetNameEl   = document.getElementById('ms-sheet-name');
+      var sheetCompanyEl = document.getElementById('ms-sheet-company');
+      if (sheetAvatarEl) sheetAvatarEl.textContent = initials;
+      if (sheetNameEl)   sheetNameEl.textContent   = nome || 'Usuário';
+      if (sheetCompanyEl && companyName) sheetCompanyEl.textContent = companyName;
+    } catch (_) {}
+
+    var avatarBtn = document.getElementById('ms-avatar');
+    if (avatarBtn) {
+      avatarBtn.addEventListener('click', function () {
+        overlay.classList.add('open');
+        overlay.setAttribute('aria-hidden', 'false');
+      });
+    }
+  })();
+})();
+</script>
+<script>
+(function() {
+  var _sc = { urls: [], idx: 0, desc: '' };
+
+  function _getEl(id) { return document.getElementById(id); }
+
+  function _initOverlay() {
+    if (_getEl('shell-foto-ov')) return _getEl('shell-foto-ov');
+
+    if (!_getEl('sfo-style')) {
+      var s = document.createElement('style');
+      s.id = 'sfo-style';
+      s.textContent = [
+        '@keyframes sfoIn{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:none}}',
+        '#sfo-thumbs{display:flex;gap:7px;padding:10px 12px;overflow-x:auto;flex-shrink:0;scrollbar-width:thin}',
+        '.sfo-thumb{width:64px;height:64px;border-radius:6px;overflow:hidden;flex-shrink:0;',
+          'border:2px solid var(--border,#e2e8f0);cursor:pointer;transition:border-color .15s;background:var(--bg,#f8fafc)}',
+        '.sfo-thumb img{width:100%;height:100%;object-fit:cover;display:block}',
+        '.sfo-thumb.sfo-active{border-color:var(--accent,#0ea5e9);box-shadow:0 0 0 2px rgba(14,165,233,.25)}'
+      ].join('');
+      document.head.appendChild(s);
+    }
+
+    var ov = document.createElement('div');
+    ov.id = 'shell-foto-ov';
+    ov.style.cssText = 'display:none;position:fixed;inset:0;z-index:999;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent';
+
+    ov.innerHTML = [
+      // backdrop
+      '<div id="sfo-bd" style="position:absolute;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)"></div>',
+      // card
+      '<div id="sfo-card" style="position:relative;display:flex;flex-direction:column;background:var(--card,#fff);',
+        'border-radius:12px;overflow:hidden;width:min(96vw,700px);max-height:94vh;',
+        'z-index:1;box-shadow:0 20px 60px rgba(0,0,0,.28);animation:sfoIn .18s ease">',
+        // header
+        '<div style="display:flex;align-items:center;gap:8px;padding:12px 14px 11px;',
+          'border-bottom:1px solid var(--border,#e2e8f0);flex-shrink:0">',
+          '<svg width="17" height="17" fill="none" stroke="var(--text2,#64748b)" viewBox="0 0 24 24" style="flex-shrink:0">',
+            '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"',
+              ' d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>',
+          '</svg>',
+          '<span style="font-size:11px;font-weight:600;color:var(--text2,#64748b);flex-shrink:0">Fotos</span>',
+          '<span id="sfo-title" style="font-size:12px;font-weight:700;color:var(--text,#0f172a);',
+            'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1"></span>',
+          '<button id="sfo-close" aria-label="Fechar" style="margin-left:auto;flex-shrink:0;width:28px;height:28px;',
+            'border-radius:50%;border:1.5px solid var(--border,#e2e8f0);background:var(--bg,#f8fafc);',
+            'color:var(--text2,#64748b);font-size:14px;cursor:pointer;display:flex;align-items:center;',
+            'justify-content:center;touch-action:manipulation">✕</button>',
+        '</div>',
+        // image area
+        '<div id="sfo-wrap" style="position:relative;display:flex;align-items:center;justify-content:center;',
+          'background:var(--bg,#f8fafc);min-height:200px;overflow:hidden;flex:1">',
+          '<img id="sfo-img" src="" alt="" draggable="false" style="max-width:100%;max-height:52vh;',
+            'object-fit:contain;display:block;user-select:none;-webkit-user-drag:none;cursor:zoom-in">',
+          '<button id="sfo-prev" hidden aria-label="Anterior" style="position:absolute;left:8px;top:50%;',
+            'transform:translateY(-50%);width:36px;height:36px;border-radius:50%;',
+            'border:1.5px solid var(--border,#e2e8f0);background:var(--card,#fff);',
+            'color:var(--text2,#64748b);font-size:20px;cursor:pointer;',
+            'display:flex;align-items:center;justify-content:center;touch-action:manipulation;',
+            'box-shadow:0 2px 8px rgba(0,0,0,.12)">‹</button>',
+          '<button id="sfo-next" hidden aria-label="Próxima" style="position:absolute;right:8px;top:50%;',
+            'transform:translateY(-50%);width:36px;height:36px;border-radius:50%;',
+            'border:1.5px solid var(--border,#e2e8f0);background:var(--card,#fff);',
+            'color:var(--text2,#64748b);font-size:20px;cursor:pointer;',
+            'display:flex;align-items:center;justify-content:center;touch-action:manipulation;',
+            'box-shadow:0 2px 8px rgba(0,0,0,.12)">›</button>',
+        '</div>',
+        // bottom bar
+        '<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 12px 6px;',
+          'border-top:1px solid var(--border,#e2e8f0);border-bottom:1px solid var(--border,#e2e8f0);',
+          'font-size:11px;color:var(--text2,#64748b);flex-shrink:0;background:var(--bg,#f8fafc)">',
+          '<span>Toque na imagem para ampliar</span>',
+          '<span id="sfo-ctr"></span>',
+        '</div>',
+        // thumbnail strip
+        '<div id="sfo-thumbs"></div>',
+        // hint
+        '<div style="padding:7px 12px 9px;font-size:10px;color:var(--text2,#64748b);line-height:1.4;flex-shrink:0">',
+          'Dimensões recomendadas: 800 × 800 px · JPG, JPEG, GIF ou PNG · máx. 2 MB',
+        '</div>',
+      '</div>'
+    ].join('');
+
+    var _tx = 0;
+    ov.addEventListener('touchstart', function(e) { _tx = e.changedTouches[0].clientX; }, { passive: true });
+    ov.addEventListener('touchend', function(e) {
+      var dx = e.changedTouches[0].clientX - _tx;
+      if (Math.abs(dx) > 40) _nav(dx < 0 ? 1 : -1);
+    });
+
+    document.body.appendChild(ov);
+
+    _getEl('sfo-bd').addEventListener('click', _fechar);
+    _getEl('sfo-close').addEventListener('click', _fechar);
+    _getEl('sfo-prev').addEventListener('click', function() { _nav(-1); });
+    _getEl('sfo-next').addEventListener('click', function() { _nav(1); });
+    var _sfoImg = _getEl('sfo-img');
+    if (_sfoImg) _sfoImg.onclick = function() {
+      var url = _sc.urls[_sc.idx];
+      if (url) window.open(url, '_blank');
+    };
+
+    document.addEventListener('keydown', function(e) {
+      if (!_getEl('shell-foto-ov') || _getEl('shell-foto-ov').style.display === 'none') return;
+      if (e.key === 'Escape') _fechar();
+      if (e.key === 'ArrowLeft') _nav(-1);
+      if (e.key === 'ArrowRight') _nav(1);
+    });
+
+    return ov;
+  }
+
+  function _render() {
+    var url   = _sc.urls[_sc.idx] || '';
+    var multi = _sc.urls.length > 1;
+    var img   = _getEl('sfo-img');
+    var title = _getEl('sfo-title');
+    var prev  = _getEl('sfo-prev');
+    var next  = _getEl('sfo-next');
+    var ctr   = _getEl('sfo-ctr');
+    var thbs  = _getEl('sfo-thumbs');
+    if (!img) return;
+
+    img.onerror = function() {
+      this.onerror = null;
+      this.src = 'data:image/svg+xml,' + encodeURIComponent(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320">' +
+        '<rect fill="#f1f5f9" width="320" height="320"/>' +
+        '<text x="160" y="168" text-anchor="middle" font-size="48">📦</text></svg>'
+      );
+    };
+    img.src = url;
+    if (title) title.textContent = _sc.desc;
+    if (prev) prev.hidden = !multi;
+    if (next) next.hidden = !multi;
+    if (ctr)  ctr.textContent = multi ? (_sc.idx + 1) + ' / ' + _sc.urls.length : '';
+
+    if (thbs) {
+      thbs.style.display = multi ? '' : 'none';
+      if (multi) {
+        thbs.innerHTML = _sc.urls.map(function(u, i) {
+          var act = i === _sc.idx ? ' sfo-active' : '';
+          return '<div class="sfo-thumb' + act + '" onclick="window._sfoIr(' + i + ')">' +
+                   '<img src="' + u.replace(/"/g, '') + '" alt="" loading="lazy" onerror="this.style.display=\'none\'">' +
+                 '</div>';
+        }).join('');
+        var el = thbs.children[_sc.idx];
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      }
+    }
+  }
+
+  function _nav(dir) {
+    var t = _sc.urls.length;
+    if (t <= 1) return;
+    _sc.idx = (_sc.idx + dir + t) % t;
+    _render();
+  }
+
+  function _fechar() {
+    var ov = _getEl('shell-foto-ov');
+    if (ov) ov.style.display = 'none';
+  }
+
+  window._sfoIr = function(idx) { _sc.idx = idx; _render(); };
+
+  window._abrirCarrosselShell = function(url, desc) {
+    var ov = _initOverlay();
+    _sc = { urls: [url], idx: 0, desc: desc || '' };
+    _render();
+    ov.style.display = 'flex';
+  };
+
+  window._atualizarCarrosselShell = function(urls, idx) {
+    if (!Array.isArray(urls) || !urls.length) return;
+    _sc.urls = urls.filter(Boolean);
+    if (_sc.urls.length <= 1) return;
+    _sc.idx  = idx || 0;
+    _render();
+  };
+})();
+</script>
+<script>
+(function () {
+  var summaryEl = document.getElementById('ms-summary');
+  var _sumTimer = null;
+
+  function fmtBRL(v) {
+    var n = parseFloat(v) || 0;
+    if (n >= 1e6) return 'R$ ' + (n / 1e6).toFixed(1).replace('.', ',') + ' M';
+    if (n >= 1e3) return 'R$ ' + (n / 1e3).toFixed(0) + ' k';
+    return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+
+  var _summaryData    = {};
+  var _summaryRotas   = {};
+
+  function renderSummary(data, rotas) {
+    if (!summaryEl) return;
+    var d = Object.assign({}, _summaryData, data || {});
+    var r = Object.assign({}, _summaryRotas, rotas || {});
+    _summaryData  = d;
+    _summaryRotas = r;
+
+    var badgeRotas = document.getElementById('ms-badge-rotas');
+    if (badgeRotas) {
+      var n = parseInt(r.rotas_pendentes) || 0;
+      if (n > 0) { badgeRotas.textContent = n > 9 ? '9+' : n; badgeRotas.style.display = 'flex'; }
+      else { badgeRotas.style.display = 'none'; }
+    }
+
+    var elPedidos = document.getElementById('ms-sum-pedidos-val');
+    var elValor   = document.getElementById('ms-sum-valor-val');
+    var elVisitas = document.getElementById('ms-sum-visitas-val');
+    if (elPedidos) elPedidos.textContent = d.pedidos || 0;
+    if (elValor)   elValor.textContent   = fmtBRL(d.valor);
+    if (elVisitas) {
+      if (r.total_rotas > 0) {
+        elVisitas.textContent = (r.visitados || 0) + '/' + (r.total_clientes || 0);
+        var cardVisitas = document.getElementById('ms-sum-visitas');
+        if (cardVisitas) {
+          var icoEl = cardVisitas.querySelector('.sum-card-ico');
+          var lblEl = cardVisitas.querySelector('span:last-child');
+          if (icoEl) icoEl.textContent = '🗺️';
+          if (lblEl) lblEl.textContent = 'Rota';
+        }
+      } else {
+        elVisitas.textContent = d.visitas || 0;
+      }
+    }
+    summaryEl.classList.add('show', 'loaded');
+    document.body.classList.add('has-summary');
+  }
+
+  function loadSummary() {
+    if (window._msSummaryAuthFailed) return;
+    var token = sessionStorage.getItem('token') || localStorage.getItem('token');
+    if (!token || !navigator.onLine) return;
+    var onHome = typeof window._msIsHomeDashboardRoot === 'function'
+      ? window._msIsHomeDashboardRoot()
+      : !document.body.classList.contains('ms-chrome-hidden');
+    if (!onHome) {
+      if (summaryEl) summaryEl.classList.remove('show', 'loaded');
+      document.body.classList.remove('has-summary');
+      return;
+    }
+    if (summaryEl) {
+      summaryEl.classList.add('show');
+      document.body.classList.add('has-summary');
+    }
+    fetch('/api/mobile/resumo-dia', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    })
+    .then(function (r) {
+      if (r && (r.status === 401 || r.status === 403)) {
+        window._msSummaryAuthFailed = true;
+        return null;
+      }
+      return r && r.ok ? r.json() : null;
+    })
+    .then(function (d) { if (d) renderSummary(d, null); })
+    .catch(function () {});
+
+    fetch('/api/regiao-rota/rotas-vendedor/resumo-dia', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) { if (d) renderSummary(null, d); })
+    .catch(function () {});
+  }
+
+  // Carrega ao iniciar
+  loadSummary();
+
+  // Atualiza ao navegar para pedidos ou visitas (frame load)
+  var frame = document.getElementById('ms-frame');
+  if (frame) {
+    frame.addEventListener('load', function () {
+      clearTimeout(_sumTimer);
+      _sumTimer = setTimeout(loadSummary, 800);
+    });
+  }
+
+  // Atualiza a cada 3 min enquanto visível
+  setInterval(function () {
+    if (document.visibilityState === 'visible') loadSummary();
+  }, 180000);
+
+  window._reloadSummary = loadSummary;
+})();
+</script>
+<script>
+// ── Item 6: Pull-to-refresh ──────────────────────────────────────────────────
+(function () {
+  var ptr       = document.getElementById('ms-ptr');
+  var frameWrap = document.getElementById('ms-frame-wrap');
+  var msFrame   = document.getElementById('ms-frame');
+  if (!ptr || !frameWrap || !msFrame) return;
+
+  var _startY     = 0;
+  var _tracking   = false;
+  var _refreshing = false;
+  var THRESHOLD   = 72;
+  var MAX_PULL    = 54;
+
+  function _iframeScrollY() {
+    try { return msFrame.contentWindow.scrollY || msFrame.contentWindow.pageYOffset || 0; } catch (_) { return 0; }
+  }
+
+  frameWrap.addEventListener('touchstart', function (e) {
+    if (_refreshing || window._msPedidosFormOpen) return;
+    if (_iframeScrollY() > 4) return;
+    _startY   = e.changedTouches[0].clientY;
+    _tracking = true;
+  }, { passive: true });
+
+  frameWrap.addEventListener('touchmove', function (e) {
+    if (!_tracking || _refreshing) return;
+    var dy = e.changedTouches[0].clientY - _startY;
+    if (dy <= 0) { _tracking = false; return; }
+    var h = Math.min(dy * 0.45, MAX_PULL);
+    ptr.style.height  = h + 'px';
+    ptr.style.opacity = String(Math.min(dy / THRESHOLD, 1));
+  }, { passive: true });
+
+  frameWrap.addEventListener('touchend', function (e) {
+    if (!_tracking || _refreshing) return;
+    _tracking = false;
+    var dy = e.changedTouches[0].clientY - _startY;
+
+    if (dy >= THRESHOLD) {
+      _refreshing = true;
+      ptr.classList.add('active');
+      ptr.style.height  = '';
+      ptr.style.opacity = '';
+      try {
+        msFrame.contentWindow.postMessage({ type: 'mobile-refresh' }, '*');
+      } catch (_) {
+        msFrame.src = msFrame.src;
+      }
+      setTimeout(function () {
+        ptr.classList.remove('active');
+        _refreshing = false;
+      }, 1400);
+    } else {
+      ptr.style.height  = '';
+      ptr.style.opacity = '';
+    }
+  }, { passive: true });
+
+  window.addEventListener('message', function (e) {
+    if (!e.data || e.data.type !== 'ms-pull-refresh-done') return;
+    _refreshing = false;
+    if (ptr) {
+      ptr.classList.remove('active');
+      ptr.style.height = '';
+      ptr.style.opacity = '';
+    }
+  });
+})();
+</script>
+<script src="/assets/sw-register.js"></script>
+<script>
+  function safeReload() {
+    if (window._msPedidosFormOpen) return;
+    window.location.reload();
+  }
+
+  sysrepInitServiceWorker().catch(function () {});
+  sysrepAttachSwReload(safeReload);
+
+  // Polling: detecta novo deploy mesmo com tab aberta há muito tempo
+  (function () {
+    var _ver = null;
+    fetch('/api/version', { cache: 'no-store' }).then(r => r.json()).then(d => { _ver = d.v; }).catch(() => {});
+    setInterval(function () {
+      if (!_ver) return;
+      fetch('/api/version', { cache: 'no-store' })
+        .then(r => r.json())
+        .then(d => { if (d.v !== _ver) safeReload(); })
+        .catch(() => {});
+    }, 5 * 60 * 1000);
+  })();
+
+  var frame = document.getElementById('ms-frame');
+  var ptr = document.getElementById('ms-ptr');
+  var ptrActive = false;
+  function ptrDone() {
+    if (ptr) ptr.classList.remove('active');
+    ptrActive = false;
+  }
+  window.addEventListener('message', function (e) {
+    if (!e.data || e.data.type !== 'ms-pull-refresh' || ptrActive) return;
+    ptrActive = true;
+    if (ptr) ptr.classList.add('active');
+    var safety = setTimeout(ptrDone, 6000);
+    function onLoaded() {
+      frame.removeEventListener('load', onLoaded);
+      clearTimeout(safety);
+      setTimeout(ptrDone, 300);
+    }
+    frame.addEventListener('load', onLoaded);
+    setTimeout(function () {
+      try { frame.contentWindow.location.reload(); } catch(_) { frame.src = frame.src; }
+    }, 250);
+  });
+
+  var offlineBanner = document.getElementById('ms-offline-banner');
+  var _syncSpinning = false;
+
+  async function syncOffline() {
+    var off = !navigator.onLine;
+    if (offlineBanner) offlineBanner.classList.toggle('show', off);
+    document.body.classList.toggle('has-offline-banner', off);
+    // Dot de conexão — criado via JS para não ser removido pelo formatter
+    var dot = document.getElementById('ms-conn-dot');
+    if (!dot) {
+      dot = document.createElement('span');
+      dot.id = 'ms-conn-dot';
+      dot.setAttribute('aria-hidden', 'true');
+      dot.style.cssText = 'display:inline-block;width:9px;height:9px;border-radius:50%;flex-shrink:0;align-self:center;transition:background .4s;margin-right:2px';
+      var actionsEl = document.querySelector('.ms-actions');
+      if (actionsEl) actionsEl.insertBefore(dot, actionsEl.firstChild);
+    }
+    dot.style.background = off ? '#ef4444' : '#22c55e';
+    dot.title = off ? 'Offline' : 'Online';
+    atualizarBotaoSync();
+  }
+
+  async function atualizarBotaoSync() {
+    if (!window.OfflineSync) return;
+    try {
+      var st = await window.OfflineSync.getStatus();
+      var lsCount = window.SysRepPedidosOffline ? window.SysRepPedidosOffline.count() : 0;
+      var totalPend = (st.pendentes || 0) + (lsCount || 0);
+      var badge = document.getElementById('ms-sync-badge');
+      if (badge) {
+        if (totalPend > 0) {
+          badge.style.display = 'inline-flex';
+          badge.textContent   = totalPend > 9 ? '9+' : totalPend;
+        } else {
+          badge.style.display = 'none';
+        }
+      }
+      // Atualiza texto do banner offline com info de dados locais
+      if (offlineBanner && !navigator.onLine && st.clientes > 0) {
+        var pend = totalPend > 0 ? ' · ' + totalPend + ' pedido(s) pendente(s)' : '';
+        offlineBanner.textContent = '📵 Offline · ' + st.clientes + ' clientes · ' + st.produtos + ' produtos' + pend;
+      }
+    } catch (_) {}
+  }
+
+  async function msSyncManual() {
+    if (_syncSpinning) return;
+    var icon = document.getElementById('ms-sync-icon');
+    _syncSpinning = true;
+    if (icon) icon.style.transform = 'rotate(360deg)';
+    setTimeout(function() { if (icon) icon.style.transform = ''; _syncSpinning = false; }, 700);
+
+    if (!navigator.onLine) {
+      window.msToast('Sem conexão para sincronizar', 'warn');
+      return;
+    }
+    try {
+      var msg = [];
+
+      // Fila localStorage (pedidos criados offline)
+      if (window.SysRepPedidosOffline && typeof window.SysRepPedidosOffline.syncAll === 'function') {
+        var token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+        var lsRes = await window.SysRepPedidosOffline.syncAll(function(url, method, body) {
+          return fetch(url, {
+            method: method || 'POST',
+            headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+            body: body ? JSON.stringify(body) : undefined
+          });
+        }).catch(() => ({ synced: 0 }));
+        if (lsRes.synced > 0) msg.push(lsRes.synced + ' pedido(s) enviado(s)');
+        if (lsRes.failed > 0) window.msToast(lsRes.failed + ' pedido(s) offline com erro', 'err');
+      }
+
+      var res = await window.OfflineSync.sincronizarTudo();
+      if (res.dados && res.dados.clientes !== undefined)
+        msg.push(res.dados.clientes + ' clientes · ' + res.dados.produtos + ' produtos');
+      if (res.fila && res.fila.synced > 0)
+        msg.push(res.fila.synced + ' item(ns) de fila enviado(s)');
+      if (msg.length) window.msToast('✓ ' + msg.join(' · '), 'ok');
+      atualizarBotaoSync();
+    } catch (e) {
+      window.msToast('Erro ao sincronizar: ' + e.message, 'err');
+    }
+  }
+
+  // ── Resumo do dia ────────────────────────────────────────────────────────
+  function carregarResumoDia() {
+    var tkn = sessionStorage.getItem('token') || localStorage.getItem('token') || '';
+    if (!tkn) return;
+    var summary = document.getElementById('ms-summary');
+    if (!summary) return;
+    var offCount = window.SysRepPedidosOffline ? window.SysRepPedidosOffline.count() : 0;
+
+    function _renderSummary(pedidos, valor, visitas) {
+      var pedVal = document.getElementById('ms-sum-pedidos-val');
+      var valVal = document.getElementById('ms-sum-valor-val');
+      var visVal = document.getElementById('ms-sum-visitas-val');
+      if (pedVal) pedVal.textContent = pedidos;
+      if (valVal) valVal.textContent = valor > 0
+        ? (valor >= 1000 ? 'R$ ' + (valor / 1000).toFixed(1) + 'k' : 'R$ ' + Math.round(valor))
+        : (pedidos > 0 ? 'R$ 0' : '—');
+      if (visVal) visVal.textContent = visitas >= 0 ? visitas : '—';
+      summary.classList.add('show', 'loaded');
+      document.body.classList.add('has-summary');
+    }
+
+    if (!navigator.onLine) {
+      if (offCount > 0) _renderSummary(offCount, 0, -1);
+      return;
+    }
+    fetch('/api/mobile/resumo-dia', { headers: { 'Authorization': 'Bearer ' + tkn } })
+      .then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(d) {
+        if (!d) return;
+        _renderSummary((d.pedidos || 0) + offCount, parseFloat(d.valor || 0), d.visitas || 0);
+      })
+      .catch(function() { if (offCount > 0) _renderSummary(offCount, 0, -1); });
+  }
+
+  // ── Pack automático (atualiza se > 1 dia sem atualizar) ──────────────────
+  function _autoAtualizarPack() {
+    if (!navigator.onLine || !window.SysRepPedidosOfflinePack) return;
+    var tkn = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+    var uid = SysRepPedidosOfflinePack.userIdFromToken(tkn);
+    if (!uid) return;
+    var until = SysRepPedidosOfflinePack.getOfflineUntil(uid);
+    if (!until) return; // nenhum pack — usuário deve preparar manualmente a primeira vez
+    var umDia = 86400000;
+    // until = savedAt + 7 dias → pack tem > 1 dia se until < now + 6 dias
+    if (until >= Date.now() + 6 * umDia) return;
+    SysRepPedidosOfflinePack.preparePack(function(url) {
+      return fetch(url, { headers: { 'Authorization': 'Bearer ' + tkn } });
+    }).then(function() {
+      window.msToast('Pacote offline atualizado automaticamente', 'ok');
+      if (typeof _atualizarStatusOfflinePack === 'function') _atualizarStatusOfflinePack();
+    }).catch(function() {});
+  }
+
+  window.addEventListener('online',  syncOffline);
+  window.addEventListener('offline', syncOffline);
+  syncOffline();
+  window.addEventListener('online', carregarResumoDia);
+  window.addEventListener('online', function() { setTimeout(_autoAtualizarPack, 3000); });
+
+  // Liga auto-sync: baixa dados ao abrir com internet (se velhos) + envia fila ao voltar online
+  if (window.OfflineSync) {
+    window.OfflineSync.bindAutoSync(function(res) {
+      if (res.tipo === 'fila' && res.synced > 0 && !res.silencioso) {
+        if (typeof toast === 'function') toast('✓ ' + res.synced + ' pedido(s) sincronizado(s)', 'ok');
+      }
+      atualizarBotaoSync();
+    });
+    // Atualiza badge ao carregar e a cada 10s
+    setTimeout(atualizarBotaoSync, 800);
+    setInterval(atualizarBotaoSync, 10000);
+  }
+
+  setTimeout(carregarResumoDia, 1200);
+  setTimeout(_autoAtualizarPack, 5000);
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState !== 'visible') return;
+    if (!sessionStorage.getItem('token') && localStorage.getItem('token')) {
+      try {
+        sessionStorage.setItem('token', localStorage.getItem('token'));
+        var _u = localStorage.getItem('user'); if (_u) sessionStorage.setItem('user', _u);
+        var _e = localStorage.getItem('empresa'); if (_e) sessionStorage.setItem('empresa', _e);
+        var _p = localStorage.getItem('parametros_locais'); if (_p) sessionStorage.setItem('parametros_locais', _p);
+      } catch(_) {}
+    }
+    carregarResumoDia();
+  });
+</script>
+<script src="/assets/pwa-install.js"></script>
+<!-- Modal Vitrine Digital (host no shell — cliques sobrevivem à navegação do iframe) -->
+<div id="modalVitrineShell" aria-hidden="true">
+  <div class="vitrine-panel" role="dialog" aria-labelledby="vitrineShellTitle">
+    <div class="vitrine-panel-head">
+      <div class="vitrine-head-left">
+        <span class="vitrine-ico" aria-hidden="true">
+          <svg fill="none" stroke="#fff" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+        </span>
+        <div>
+          <div class="vitrine-title" id="vitrineShellTitle">Vitrine Digital</div>
+          <div class="vitrine-sub">Link de catálogo para o cliente</div>
+        </div>
+      </div>
+      <button type="button" class="vitrine-close" id="btnVitrineShellClose" title="Fechar" aria-label="Fechar">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div id="mv-shell-body"></div>
+  </div>
+</div>
+<style>
+#modalVitrineShell {
+  display: none; position: fixed; inset: 0; z-index: 999999;
+  background: rgba(15, 23, 42, 0.55); align-items: flex-end; justify-content: center;
+  padding: 0; -webkit-overflow-scrolling: touch;
+}
+#modalVitrineShell.open { display: flex !important; }
+#modalVitrineShell .vitrine-panel {
+  background: #fff; color: #0f172a; border-radius: 20px 20px 0 0;
+  width: 100%; max-width: 520px; max-height: 88vh; overflow-y: auto;
+  box-shadow: 0 -12px 40px rgba(0,0,0,.35); min-height: 200px;
+}
+#modalVitrineShell .vitrine-panel-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px; border-bottom: 1px solid #e2e8f0;
+}
+#modalVitrineShell .vitrine-head-left { display: flex; align-items: center; gap: 10px; }
+#modalVitrineShell .vitrine-ico {
+  width: 34px; height: 34px; border-radius: 10px;
+  background: linear-gradient(135deg,#0ea5e9,#0284c7);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+#modalVitrineShell .vitrine-ico svg { width: 16px; height: 16px; }
+#modalVitrineShell .vitrine-title { font-size: 14px; font-weight: 700; }
+#modalVitrineShell .vitrine-sub { font-size: 11px; color: #64748b; }
+#modalVitrineShell .vitrine-close {
+  background: none; border: none; cursor: pointer; color: #64748b; padding: 4px; border-radius: 6px;
+}
+#modalVitrineShell .vitrine-close svg { width: 18px; height: 18px; }
+#modalVitrineShell .btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px;
+  border-radius: 8px; font-size: 13px; font-weight: 600; border: 1.5px solid transparent;
+  cursor: pointer; font-family: inherit; touch-action: manipulation;
+}
+#modalVitrineShell .btn-primary { background: #0ea5e9; color: #fff; border-color: #0ea5e9; }
+#modalVitrineShell .btn-ghost { background: #f1f5f9; color: #334155; border-color: #e2e8f0; }
+#modalVitrineShell .vitrine-body { padding: 24px; }
+#modalVitrineShell .vitrine-desc { font-size: 13px; color: #64748b; margin-bottom: 12px; line-height: 1.45; }
+#modalVitrineShell .vitrine-link-row { display: flex; gap: 8px; align-items: center; }
+#modalVitrineShell .vitrine-link-input {
+  flex: 1; padding: 10px 12px; border: 1.5px solid #e2e8f0; border-radius: 8px;
+  font-size: 12px; background: #f8fafc; color: #0f172a; font-family: monospace; min-width: 0;
+}
+#modalVitrineShell .vitrine-actions { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+#modalVitrineShell .vitrine-err { padding: 24px; color: #dc2626; font-size: 13px; }
+#modalVitrineShell .vitrine-spin {
+  width: 28px; height: 28px; margin: 32px auto; border: 3px solid #e2e8f0;
+  border-top-color: #0ea5e9; border-radius: 50%; animation: vitrineShellSpin .7s linear infinite;
+}
+@keyframes vitrineShellSpin { to { transform: rotate(360deg); } }
+#ms-vitrine-toast {
+  position: fixed; bottom: calc(88px + env(safe-area-inset-bottom, 0px)); left: 50%;
+  transform: translateX(-50%); background: #16a34a; color: #fff; padding: 10px 18px;
+  border-radius: 10px; font-size: 13px; font-weight: 600; z-index: 1000001;
+  opacity: 0; transition: opacity .25s; pointer-events: none;
+}
+</style>
+<script>
+(function () {
+  var legacy = document.getElementById('modalVitrine');
+  if (legacy) legacy.remove();
+
+  var modal = document.getElementById('modalVitrineShell');
+  var bodyEl = document.getElementById('mv-shell-body');
+  if (!modal || !bodyEl) return;
+
+  var _blockClose = false;
+  var _vitrinePath = '';
+  var _vitrineWa = '';
+
+  function toast(msg) {
+    var el = document.getElementById('ms-vitrine-toast');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'ms-vitrine-toast';
+      document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    el.style.opacity = '1';
+    clearTimeout(toast._t);
+    toast._t = setTimeout(function () { el.style.opacity = '0'; }, 2200);
+  }
+
+  function fechar() {
+    if (_blockClose) return;
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+    bodyEl.innerHTML = '';
+    _vitrinePath = '';
+    _vitrineWa = '';
+  }
+  window._fecharModalVitrineShell = fechar;
+
+  function abrirUrl(path) {
+    fechar();
+    if (!path) return;
+    window.dispatchEvent(new MessageEvent('message', {
+      data: { type: 'ms-open-url', url: path }
+    }));
+  }
+
+  function renderLoading() {
+    bodyEl.innerHTML = '<div class="vitrine-spin" role="status" aria-label="Gerando link"></div>';
+  }
+
+  function renderContent(data) {
+    var link = String(data.link || '');
+    var expira = String(data.expira || '');
+    _vitrinePath = String(data.path || link.replace(location.origin, '') || '');
+    _vitrineWa = String(data.waUrl || '');
+    var esc = function (s) {
+      return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    };
+    bodyEl.innerHTML =
+      '<div class="vitrine-body">' +
+        '<p class="vitrine-desc">Link válido até <strong>' + esc(expira) + '</strong>. Compartilhe com o cliente para que ele consulte produtos e faça pedidos.</p>' +
+        '<div class="vitrine-link-row">' +
+          '<input class="vitrine-link-input" id="mv-shell-link" readonly value="' + esc(link) + '">' +
+          '<button type="button" class="btn btn-primary" id="btnVitrineShellCopy">Copiar</button>' +
+        '</div>' +
+        '<div class="vitrine-actions">' +
+          '<button type="button" class="btn btn-ghost" id="btnVitrineShellOpen">Abrir vitrine</button>' +
+          '<button type="button" class="btn btn-ghost" id="btnVitrineShellWa">Enviar WhatsApp</button>' +
+        '</div>' +
+      '</div>';
+
+    document.getElementById('btnVitrineShellCopy').addEventListener('click', function (e) {
+      e.preventDefault();
+      var inp = document.getElementById('mv-shell-link');
+      if (!inp) return;
+      var txt = inp.value;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(txt).then(function () { toast('Link copiado!'); });
+      } else {
+        inp.select();
+        try { document.execCommand('copy'); toast('Link copiado!'); } catch (_) {}
+      }
+    });
+    document.getElementById('btnVitrineShellOpen').addEventListener('click', function (e) {
+      e.preventDefault();
+      abrirUrl(_vitrinePath);
+    });
+    document.getElementById('btnVitrineShellWa').addEventListener('click', function (e) {
+      e.preventDefault();
+      abrirUrl(_vitrineWa);
+    });
+  }
+
+  function abrir() {
+    _blockClose = true;
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+    setTimeout(function () { _blockClose = false; }, 450);
+  }
+
+  modal.addEventListener('click', function (e) {
+    if (e.target === modal && !_blockClose) fechar();
+  });
+  modal.querySelector('.vitrine-panel').addEventListener('click', function (e) {
+    e.stopPropagation();
+  });
+  document.getElementById('btnVitrineShellClose').addEventListener('click', function (e) {
+    e.preventDefault();
+    fechar();
+  });
+
+  window.addEventListener('message', function (ev) {
+    var data = ev.data || {};
+    if (data.type === 'ms-vitrine-loading') {
+      abrir();
+      renderLoading();
+      return;
+    }
+    if (data.type === 'ms-vitrine-show') {
+      abrir();
+      renderContent(data);
+      return;
+    }
+    if (data.type === 'ms-vitrine-error') {
+      abrir();
+      bodyEl.innerHTML = '<div class="vitrine-err">' + String(data.message || 'Erro ao gerar link') + '</div>';
+    }
+  });
+})();
+</script>
+</body>
+</html>

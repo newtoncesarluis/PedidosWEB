@@ -1,0 +1,2082 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<title>Produtos</title>
+<!-- Sistema de Temas Global -->
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<style>
+* { margin:0;padding:0;box-sizing:border-box; }
+:root {
+  --bg:      var(--content-bg);
+  --card:    var(--card-bg);
+  --border:  var(--card-border);
+  --text:    var(--content-text);
+  --text2:   var(--text2);
+  --accent:  var(--accent);
+  --accent-hover: var(--accent-hover);
+  --danger:  #ef4444;
+  --warn:    #f59e0b;
+  --success: #22c55e;
+  --input-bg: var(--card-bg);
+}
+body { font-family:var(--font); background:var(--bg); color:var(--text); min-height:100vh; }
+
+/* ── TOOLBAR ── */
+.toolbar { 
+  background:var(--card); border-bottom:1px solid var(--border); padding:14px 24px;
+  display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+  position:sticky; top:0; z-index:100;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+}
+
+/* insight chips inline */
+.chip { display:inline-flex; align-items:center; gap:5px; padding:4px 9px;
+  border-radius:7px; border:1.5px solid var(--border); background:#fafafa;
+  cursor:pointer; user-select:none; transition:.15s; white-space:nowrap; }
+.chip:hover { border-color:var(--accent); background:var(--accent-soft); }
+.chip.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+.chip.active .chip-label, .chip.active .chip-val { color:#fff; }
+.chip-label { font-size:11px; font-weight:700; text-transform:uppercase; color:var(--text2); }
+.chip-val   { font-size:14px; font-weight:800; }
+
+/* view toggle */
+.view-toggle { display:flex; border:1.5px solid var(--border); border-radius:7px; overflow:hidden; }
+.vt-btn { padding:4px 8px; background:var(--card); border:none; cursor:pointer; color:var(--text2); font-size:13px;
+  display:flex; align-items:center; transition:.15s; }
+.vt-btn:hover { background:var(--accent-soft); color:var(--accent); }
+.vt-btn.active { background:var(--accent); color:var(--btn-text, #fff); }
+
+/* buttons */
+.btn { display:inline-flex; align-items:center; gap:6px; padding:6px 12px;
+  border:none; border-radius:7px; font-size:12px; font-weight:700; cursor:pointer;
+  transition:.15s; font-family:inherit; white-space:nowrap; }
+.btn svg { width:13px; height:13px; flex-shrink:0; }
+.btn:disabled { opacity:.5; cursor:not-allowed; }
+.btn-primary { background:var(--accent); color:#fff; border:1.5px solid var(--accent); }
+.btn-primary:hover:not(:disabled) { background:var(--accent-hover); border-color:var(--accent-hover); }
+.btn-outline { background:var(--card); color:var(--accent); border:1.5px solid var(--accent); }
+.btn-outline:hover { background:var(--accent-soft); }
+.btn-ghost { background:var(--card); color:var(--text2); border:1.5px solid var(--border); }
+.btn-ghost:hover { background:var(--bg); color:var(--text); }
+.btn-danger { background:var(--danger); color:#fff; border:1.5px solid var(--danger); }
+
+/* notif bell */
+#notifWrap { position:relative; display:inline-flex; }
+.notif-bell { cursor:pointer; padding:5px 7px; border:1.5px solid var(--border); border-radius:7px;
+  background:#fff; display:flex; align-items:center; color:var(--text2); transition:.12s; }
+.notif-bell:hover { background:#f9fafb; color:var(--text); }
+.notif-bell svg { width:15px; height:15px; }
+.notif-count { position:absolute; top:-6px; right:-6px; background:#ef4444; color:#fff;
+  border-radius:20px; min-width:16px; height:16px; padding:0 4px;
+  font-size:9px; font-weight:700; display:none; align-items:center; justify-content:center;
+  border:2px solid #fff; }
+.notif-count.show { display:flex; }
+.notif-panel { display:none; position:fixed; background:#fff; border:1px solid var(--border);
+  border-radius:10px; box-shadow:0 8px 30px rgba(0,0,0,.13); width:300px; z-index:9990; }
+.notif-panel.show { display:block; }
+.notif-panel-head { padding:10px 14px; border-bottom:1px solid var(--border);
+  font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; color:var(--text2); }
+.notif-item { display:flex; align-items:flex-start; gap:10px; padding:10px 14px;
+  border-bottom:1px solid var(--border); cursor:pointer; transition:.12s; }
+.notif-item:last-child { border-bottom:none; }
+.notif-item:hover { background:var(--accent-soft); }
+.notif-icon { width:30px; height:30px; border-radius:8px; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; font-size:14px; }
+.notif-icon.warn { background:#fef3c7; }
+.notif-icon.info { background:#dbeafe; }
+.notif-icon.success { background:#dcfce7; }
+.notif-text { flex:1; font-size:12px; line-height:1.4; }
+.notif-text small { display:block; color:var(--text2); font-size:10px; margin-top:2px; }
+.notif-empty { padding:20px; text-align:center; color:var(--text2); font-size:12px; }
+
+/* ── SUBBAR ── */
+.subbar { background:#f9fafb; border-bottom:1px solid var(--border); padding:5px 16px;
+  display:flex; align-items:center; justify-content:space-between;
+  position:sticky; z-index:99; }
+.icon-btn { padding:4px 10px; border:1.5px solid var(--border); border-radius:7px;
+  background:#fff; font-size:11px; font-weight:600; color:var(--text2);
+  cursor:pointer; font-family:inherit; display:inline-flex; align-items:center; gap:5px; transition:.12s; }
+.icon-btn:hover { color:var(--text); border-color:#d1d5db; }
+.icon-btn svg { width:12px; height:12px; }
+.search-group { display:flex; align-items:center; gap:6px; }
+.search-input { 
+  padding:10px 14px; border:1.5px solid var(--border); border-radius:12px;
+  font-size:13px; font-family:inherit; background:var(--card); color:var(--text); outline:none;
+  width:240px; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); 
+}
+.search-input:focus { 
+  border-color:var(--accent); width:320px; 
+  box-shadow: 0 0 0 4px var(--accent-soft, rgba(13,148,136,0.15)), 0 4px 12px rgba(0,0,0,0.05);
+  transform: translateY(-1px);
+}
+
+/* ── FILTER PANEL ── */
+#filterPanel { display:none; background:#fff; border-bottom:1px solid var(--border);
+  padding:10px 16px 14px; }
+.filter-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
+.fp-group { display:flex; flex-direction:column; gap:4px; }
+.fp-group label { font-size:11px; font-weight:600; color:var(--text2); }
+.fp-group input, .fp-group select { padding:6px 10px; border:1.5px solid var(--border);
+  border-radius:6px; font-size:12px; font-family:inherit; background:var(--card); color:var(--text); outline:none; }
+.fp-group input:focus, .fp-group select:focus { border-color:var(--accent); }
+
+/* FAB & BULK BAR DIAMOND FLOW */
+.btn-new-float {
+  position: fixed; bottom: 30px; right: 30px; 
+  width: 60px; height: 60px; border-radius: 30px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-hover)); 
+  color: #fff; border: none;
+  box-shadow: 0 12px 24px rgba(0,0,0,0.15);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; z-index: 900; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  animation: floatPulse 3s infinite;
+}
+.btn-new-float:hover { transform: scale(1.15) rotate(90deg); box-shadow: 0 15px 30px rgba(0,0,0,0.2); }
+.btn-new-float svg { width: 28px; height: 28px; }
+
+@keyframes floatPulse {
+  0% { box-shadow: 0 12px 24px rgba(13,148,136,0.2); }
+  50% { box-shadow: 0 12px 35px rgba(13,148,136,0.4); }
+  100% { box-shadow: 0 12px 24px rgba(13,148,136,0.2); }
+}
+
+.bulk-bar {
+  position: fixed; bottom: -100px; left: 50%; transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  color: #fff; padding: 10px 20px; border-radius: 24px;
+  display: flex; align-items: center; gap: 16px; z-index: 5000;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.1); 
+  transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.bulk-bar.show { bottom: 40px; }
+.bulk-info { padding: 0 16px; border-right: 1px solid rgba(255,255,255,0.1); font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.bulk-actions { display: flex; align-items: center; gap: 8px; }
+.btn-bulk { padding: 8px 16px; border-radius: 16px; border: none; font-size: 12px; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s; text-transform: uppercase; letter-spacing: 0.5px; }
+.btn-bulk-outline { background: rgba(255,255,255,0.1); color: #fff; }
+.btn-bulk-outline:hover { background: rgba(255,255,255,0.2); }
+.btn-bulk-danger { background: #ef4444; color: #fff; }
+.btn-bulk-danger:hover { background: #dc2626; transform: translateY(-2px); }
+
+/* ── CONTENT ── */
+.content { padding:16px; }
+.card { background:#fff; border-radius:10px; border:1px solid var(--border); overflow:hidden; }
+
+/* ── TABLE ── */
+.table-wrap { overflow-x:auto; }
+table { width:100%; border-collapse:collapse; font-size:15px; }
+thead th { padding:10px 12px; background:#f9fafb; border-bottom:2px solid var(--border);
+  text-align:left; font-size:12px; font-weight:700; text-transform:uppercase;
+  letter-spacing:.5px; color:var(--text2); white-space:nowrap; }
+tbody tr { border-bottom:1px solid #f3f4f6; cursor:pointer; transition: all 0.2s; border-left: 3px solid transparent; }
+tbody tr:hover { 
+  background: var(--accent-soft, rgba(13,148,136,0.1)); 
+  border-left-color: var(--accent);
+  box-shadow: inset 0 1px 0 rgba(0,0,0,0.02);
+}
+tbody tr.row-selected { background: var(--accent-soft, rgba(13,148,136,0.15)); border-left-color: var(--accent); }
+tbody td { padding:10px 12px; vertical-align:middle; }
+.td-nome { font-weight:400; }
+.td-sub { font-size:11px; color:var(--text2); }
+.tag-novo { background:#dcfce7; color:#15803d; border-radius:4px;
+  padding:1px 6px; font-size:9px; font-weight:700; margin-left:4px; }
+.td-est-baixo { color:#dc2626; font-weight:700; }
+.status-badge { display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:600; }
+.status-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+
+/* ── CARDS GRID ── */
+#prodCardsGrid { display:none; padding:16px; gap:14px;
+  grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); }
+#prodCardsGrid.show { display:grid; }
+.prod-card { background:#fff; border-radius:10px; border:1px solid var(--border);
+  padding:14px; cursor:pointer; transition:.15s; position:relative; }
+.prod-card:hover { border-color:var(--accent); box-shadow:0 4px 16px rgba(13,148,136,.12); }
+.pc-head { display:flex; align-items:flex-start; gap:10px; margin-bottom:10px; }
+.pc-avatar { width:40px; height:40px; border-radius:10px; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; font-size:17px; font-weight:700;
+  text-transform:uppercase; color:#fff; }
+.pc-info { flex:1; min-width:0; }
+.pc-nome { font-size:12px; font-weight:600; line-height:1.3; margin-bottom:2px; }
+.pc-cod { font-size:10px; color:var(--text2); }
+.pc-rows { display:flex; flex-direction:column; gap:4px; font-size:11px; color:var(--text2); }
+.pc-row { display:flex; justify-content:space-between; align-items:center; }
+.pc-row span:last-child { color:var(--text); font-weight:500; }
+.pc-foot { margin-top:10px; display:flex; align-items:center; justify-content:space-between; }
+/* avatar colors by first char */
+.av-A,.av-H,.av-O,.av-V { background:var(--accent); }
+.av-B,.av-I,.av-P,.av-W { background:#6366f1; }
+.av-C,.av-J,.av-Q,.av-X { background:#f59e0b; }
+.av-D,.av-K,.av-R,.av-Y { background:#ef4444; }
+.av-E,.av-L,.av-S,.av-Z { background:#8b5cf6; }
+.av-F,.av-M,.av-T,.av-NUM { background:#ec4899; }
+.av-G,.av-N,.av-U       { background:#14b8a6; }
+
+/* ── PAGINATION ── */
+.pagination { display:flex; align-items:center; justify-content:space-between;
+  padding:10px 16px; border-top:1px solid var(--border); font-size:11px; color:var(--text2); flex-wrap:wrap; gap:6px; }
+.pag-btns { display:flex; gap:5px; }
+.pag-btn { padding:4px 10px; border:1.5px solid var(--border); border-radius:6px;
+  background:var(--card); font-size:11px; font-family:inherit; cursor:pointer; color:var(--text); transition:.12s; }
+.pag-btn:hover:not(:disabled) { border-color:var(--accent); color:var(--accent); background:var(--accent-soft); }
+.pag-btn:disabled { opacity:.4; cursor:not-allowed; }
+
+/* ── ACTIONS DROPDOWN ── */
+.btn-acoes { background:#fff; border:1.5px solid var(--border); border-radius:6px;
+  color:var(--text2); padding:3px 7px; font-size:15px; cursor:pointer; transition:.12s;
+  font-family:inherit; line-height:1; }
+.btn-acoes:hover { background:var(--accent-soft); border-color:var(--accent); color:var(--accent); }
+.dropdown-menu { position:fixed; background:var(--card); border:1px solid var(--border); border-radius:9px;
+  box-shadow:0 8px 24px rgba(0,0,0,.3); padding:4px; min-width:160px; z-index:9900; animation:fadeIn .12s; }
+.dropdown-item { display:flex; align-items:center; gap:8px; padding:7px 10px;
+  border-radius:6px; font-size:11px; cursor:pointer; font-family:inherit;
+  background:none; border:none; width:100%; text-align:left; color:var(--text); transition:.1s; }
+.dropdown-item:hover { background:var(--accent-soft); color:var(--accent); }
+.dropdown-item.danger { color:var(--danger); }
+.dropdown-item.danger:hover { background:#fef2f2; }
+.dropdown-item svg { width:12px; height:12px; flex-shrink:0; }
+.dropdown-divider { height:1px; background:var(--border); margin:3px 4px; }
+
+/* ── QUICK VIEW ── */
+#quickViewPanel { position:fixed; top:0; right:-420px; width:400px; height:100vh;
+  background:#fff; border-left:1px solid var(--border); z-index:8000;
+  transition:right .28s cubic-bezier(.4,0,.2,1); display:flex; flex-direction:column;
+  box-shadow:-12px 0 40px rgba(0,0,0,.12); }
+#quickViewPanel.open { right:0; }
+.qv-head { padding:16px 18px; display:flex; align-items:flex-start; gap:12px; flex-shrink:0;
+  background:linear-gradient(135deg,var(--accent),var(--accent-hover)); color:#fff; }
+.qv-avatar { width:44px; height:44px; border-radius:11px; background:rgba(255,255,255,.2);
+  display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:700;
+  flex-shrink:0; text-transform:uppercase; }
+.qv-title { font-size:14px; font-weight:700; line-height:1.3; margin-bottom:2px; }
+.qv-sub { font-size:11px; opacity:.75; }
+.qv-close { margin-left:auto; background:rgba(255,255,255,.18); border:none; color:#fff;
+  width:28px; height:28px; border-radius:50%; font-size:16px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:.15s; }
+.qv-close:hover { background:rgba(255,255,255,.32); }
+.qv-body { flex:1; overflow-y:auto; padding:14px 18px; display:flex; flex-direction:column; gap:12px; }
+.qv-section-title { font-size:10px; font-weight:700; text-transform:uppercase;
+  letter-spacing:.6px; color:var(--text2); margin-bottom:7px;
+  padding-bottom:4px; border-bottom:1px solid var(--border); }
+.qv-row { display:flex; gap:6px; margin-bottom:5px; font-size:12px; color:var(--text2); align-items:flex-start; }
+.qv-row svg { width:13px; height:13px; flex-shrink:0; margin-top:1px; }
+.qv-row span { color:var(--text); font-weight:500; word-break:break-word; }
+.qv-foot { padding:12px 18px; border-top:1px solid var(--border); display:flex; gap:8px;
+  flex-shrink:0; background:var(--bg); }
+.qv-foot .btn { flex:1; justify-content:center; font-size:11px; padding:6px 10px; }
+#qvOverlay { display:none; position:fixed; inset:0; z-index:7999; }
+#qvOverlay.show { display:block; }
+
+/* ── FORM SECTION ── */
+#formSection { display:none; padding:16px; }
+.form-card { background:var(--card); border-radius:10px; border:1px solid var(--border); overflow:hidden; }
+.form-header { padding:12px 20px; border-bottom:1px solid var(--border); display:flex;
+  align-items:center; justify-content:space-between; background:var(--card); }
+.form-header-title { font-size:13px; font-weight:800; color:var(--text); text-transform:uppercase; letter-spacing:.5px; }
+.form-tabs { display:flex; gap:0; border-bottom:1px solid var(--border); background:var(--card); padding:0 20px; overflow-x:auto; }
+.form-tab { padding:9px 14px; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap;
+  border-bottom:2px solid transparent; color:var(--text2); transition:.15s; }
+.form-tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+.form-body { padding:18px 20px; }
+.tab-pane { display:none; }
+.tab-pane.active { display:block; }
+.form-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
+.form-group { display:flex; flex-direction:column; gap:4px; }
+.form-group label { font-size:11px; font-weight:700; color:var(--text2); text-transform:uppercase; letter-spacing:.3px; }
+.form-group input, .form-group select, .form-group textarea {
+  padding:6px 9px; border:1px solid var(--border); border-radius:6px;
+  font-size:12px; font-family:inherit; background:var(--card); color:var(--text);
+  outline:none; transition:.15s; width:100%; }
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color:var(--accent); }
+.form-group textarea { resize:vertical; min-height:70px; }
+.form-group input[readonly] { background:#f9fafb; color:var(--text2); cursor:default; }
+.col-span-2 { grid-column:span 2; }
+.col-span-3 { grid-column:span 3; }
+.form-footer { padding:12px 20px; border-top:1px solid var(--border); display:flex; gap:8px;
+  justify-content:flex-end; background:var(--card); }
+.form-section-sep { grid-column:1/-1; border-top:1px solid var(--border); margin-top:4px; }
+.calc-hint { font-size:10px; color:var(--accent); margin-top:2px; }
+
+/* ── GALERIA DE FOTOS ── */
+.galeria-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(110px,1fr)); gap:10px; }
+.foto-card { position:relative; aspect-ratio:1; border-radius:8px; overflow:hidden;
+  border:2px solid var(--border); background:var(--bg); cursor:pointer; transition:border-color .2s; }
+.foto-card.foto-principal { border-color:var(--accent); }
+.foto-card img { width:100%; height:100%; object-fit:cover; display:block; transition:opacity .15s; }
+.foto-card:hover img { opacity:.85; }
+.foto-del { position:absolute; top:4px; right:4px; width:22px; height:22px; border-radius:50%;
+  border:none; background:rgba(0,0,0,.55); color:#fff; font-size:12px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; line-height:1; padding:0; }
+.foto-del:hover { background:#dc2626; }
+.foto-badge { position:absolute; bottom:0; left:0; right:0; background:var(--accent);
+  color:#fff; font-size:10px; font-weight:700; text-align:center; padding:2px 0; }
+.galeria-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+.galeria-count { font-size:12px; color:var(--text2); }
+.btn-add-foto { padding:6px 14px; font-size:12px; font-weight:600; border-radius:6px;
+  border:1px solid var(--accent); background:transparent; color:var(--accent); cursor:pointer;
+  transition:.15s; }
+.btn-add-foto:hover:not(:disabled) { background:var(--accent); color:#fff; }
+.btn-add-foto:disabled { opacity:.4; cursor:default; }
+.galeria-hint { color:var(--text2); font-size:13px; padding:24px 0; text-align:center; }
+
+/* ── MISC ── */
+@keyframes spin { to { transform:rotate(360deg); } }
+@keyframes fadeIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:none} }
+.empty-state { text-align:center; padding:48px 20px; color:var(--text2); }
+.empty-state svg { width:48px; height:48px; margin-bottom:12px; opacity:.3; }
+.empty-state p { font-size:13px; }
+.toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+  background:#1f2937; color:#fff; padding:10px 20px; border-radius:9px;
+  font-size:13px; font-weight:500; z-index:99999; animation:fadeIn .2s;
+  box-shadow:0 4px 16px rgba(0,0,0,.2); display:none; }
+.toast.show { display:block; }
+.toast.success { background:#065f46; }
+.toast.error   { background:#991b1b; }
+
+/* modal */
+#modalConfirm { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:10000;
+  align-items:center; justify-content:center; }
+#modalConfirm.show { display:flex; }
+.modal-box { background:var(--card); border-radius:12px; padding:24px; max-width:380px; width:90%; border: 1px solid var(--border); box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+.modal-title { font-size:14px; font-weight:800; margin-bottom:8px; }
+.modal-msg { font-size:13px; color:var(--text2); margin-bottom:20px; }
+.modal-btns { display:flex; gap:8px; justify-content:flex-end; }
+</style>
+</head>
+<body>
+
+<!-- ── TOOLBAR ──────────────────────────────────────────────────────────────── -->
+<div class="toolbar" id="toolbar">
+
+  <div class="chip" id="chip-total" onclick="setStatus('todos')" title="Ver todos">
+    <span class="chip-label">Total</span>
+    <span class="chip-val" id="ins-total">—</span>
+  </div>
+  <div class="chip" id="chip-ativos" onclick="setStatus('A')" title="Filtrar ativos">
+    <span class="chip-label">Ativos</span>
+    <span class="chip-val" id="ins-ativos">—</span>
+  </div>
+  <div class="chip" id="chip-inativos" onclick="setStatus('I')" title="Filtrar inativos">
+    <span class="chip-label">Inativos</span>
+    <span class="chip-val" id="ins-inativos">—</span>
+  </div>
+  <div class="chip" id="chip-estoque" onclick="setStatus('estbaixo')" title="Estoque abaixo do mínimo">
+    <span class="chip-label">Est.Baixo</span>
+    <span class="chip-val" id="ins-estbaixo">—</span>
+  </div>
+
+  <button class="btn btn-outline" onclick="novoRegistro()" title="Ctrl+N">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+    </svg>
+    Novo Produto
+  </button>
+
+  <div class="view-toggle">
+    <button class="vt-btn active" id="vt-lista" onclick="toggleView('lista')" title="Lista">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+      </svg>
+    </button>
+    <button class="vt-btn" id="vt-cards" onclick="toggleView('cards')" title="Cards">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/>
+      </svg>
+    </button>
+  </div>
+
+  <div style="margin-left:auto" id="notifWrap">
+    <button class="notif-bell" onclick="toggleNotifPanel()" title="Notificações">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+      </svg>
+    </button>
+    <div class="notif-count" id="notifCount"></div>
+    <div class="notif-panel" id="notifPanel">
+      <div class="notif-panel-head">Notificações</div>
+      <div id="notifList"><div class="notif-empty">Carregando…</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── SUBBAR ─────────────────────────────────────────────────────────────── -->
+<div class="subbar" id="subbar">
+  <div style="display:flex;gap:6px;align-items:center">
+    <button class="icon-btn" onclick="exportarCSV()" title="Exportar CSV">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+      </svg>
+      CSV
+    </button>
+    <button class="icon-btn" id="btnFiltros" onclick="toggleFiltroPanel()">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:11px;height:11px">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"/>
+      </svg>
+      Filtros
+      <svg id="fpArrow" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:10px;height:10px;transition:.2s">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+      </svg>
+    </button>
+  </div>
+  <div class="search-group">
+    <input type="text" id="searchInput" class="search-input" placeholder="Código, descrição, referência…"
+      autocomplete="off" oninput="debounceSearch()" onkeydown="if(event.key==='Enter')carregar()">
+    <button class="icon-btn" onclick="carregar()">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:13px;height:13px">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+      </svg>
+    </button>
+  </div>
+</div>
+
+<!-- ── FILTER PANEL ───────────────────────────────────────────────────────── -->
+<div id="filterPanel">
+  <div class="filter-grid">
+    <div class="fp-group">
+      <label>Grupo</label>
+      <select id="fa_grupo" onchange="carregar()">
+        <option value="">Todos os grupos</option>
+      </select>
+    </div>
+    <div class="fp-group">
+      <label>Disponível</label>
+      <select id="fa_disponivel" onchange="carregar()">
+        <option value="">Todos</option>
+        <option value="S">Sim</option>
+        <option value="N">Não</option>
+      </select>
+    </div>
+    <div class="fp-group" style="display:flex;flex-direction:row;align-items:flex-end;gap:6px">
+      <button class="btn btn-outline" onclick="carregar()" style="flex:1">Aplicar</button>
+      <button class="btn btn-ghost" onclick="limparFiltros()">Limpar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Botão Flutuante (FAB) -->
+<button class="btn-new-float" onclick="novoRegistro()" title="Novo Produto (Alt+N)">
+  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
+  </svg>
+</button>
+
+<!-- Barra de Ações em Massa (Bulk Bar) -->
+<div id="bulkBar" class="bulk-bar">
+  <div class="bulk-info">
+    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+    </svg>
+    <span id="bulkCount">0</span> selecionado(s)
+  </div>
+  <div class="bulk-actions">
+    <button class="btn-bulk btn-bulk-outline" onclick="bulkAtivar()">Ativar</button>
+    <button class="btn-bulk btn-bulk-outline" onclick="bulkInativar()">Inativar</button>
+    <button class="btn-bulk btn-bulk-danger" onclick="bulkExcluir()">Excluir</button>
+    <button class="bulk-close" onclick="limparSelecao()" title="Fechar">✕</button>
+  </div>
+</div>
+
+<!-- ── LIST SECTION ────────────────────────────────────────────────────────── -->
+<div class="content" id="listSection">
+  <div class="card" id="tableWrap">
+    <div class="table-wrap">
+      <table id="tabela">
+        <thead>
+          <tr>
+            <th style="width:36px"><input type="checkbox" id="chkAll" onchange="toggleSelecionarTodos(this.checked)"></th>
+            <th>#</th>
+            <th>Código</th>
+            <th>Descrição / Apelido</th>
+            <th>Cod.Barras</th>
+            <th>Referência</th>
+            <th>Un</th>
+            <th>Vlr.Venda</th>
+            <th>Estoque</th>
+            <th>Grupo</th>
+            <th>Status</th>
+            <th style="width:50px">Ações</th>
+          </tr>
+        </thead>
+        <tbody id="tabelaBody">
+          <tr><td colspan="12" style="text-align:center;padding:40px;color:var(--text2)">Carregando…</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="pagination" id="paginacao"></div>
+  </div>
+  <div id="prodCardsGrid"></div>
+</div>
+
+<!-- ── FORM SECTION ───────────────────────────────────────────────────────── -->
+<div id="formSection">
+  <div class="form-card">
+    <div class="form-header">
+      <span class="form-header-title" id="formTitulo">Novo Produto</span>
+      <button class="btn btn-ghost" onclick="fecharFormulario()">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+        Cancelar
+      </button>
+    </div>
+
+    <div class="form-tabs">
+      <div class="form-tab active" onclick="abrirAba('geral',this)">Geral</div>
+      <div class="form-tab" onclick="abrirAba('precos',this)">Preços / Custos</div>
+      <div class="form-tab" onclick="abrirAba('estoque',this)">Estoque</div>
+      <div class="form-tab" onclick="abrirAba('impostos',this)">Impostos</div>
+      <div class="form-tab" onclick="abrirAba('outras',this)">Outras Informações</div>
+      <div class="form-tab" onclick="abrirAba('obs',this)">Observações</div>
+      <div class="form-tab" onclick="abrirAba('fotos',this)">Fotos</div>
+    </div>
+
+    <div class="form-body">
+
+      <!-- ABA GERAL -->
+      <div class="tab-pane active" id="tab-geral">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Código (ID)</label>
+            <input type="text" id="f_id" readonly placeholder="Gerado automaticamente">
+          </div>
+          <div class="form-group col-span-2">
+            <label>Descrição *</label>
+            <input type="text" id="f_descricao" autocomplete="off" placeholder="Descrição completa do produto">
+          </div>
+          <div class="form-group col-span-2">
+            <label>Apelido / Nome Curto</label>
+            <input type="text" id="f_apelido" autocomplete="off" placeholder="Nome reduzido">
+          </div>
+          <div class="form-group">
+            <label>Status</label>
+            <select id="f_situacao">
+              <option value="A">Ativo</option>
+              <option value="I">Inativo</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Unidade</label>
+            <select id="f_unidade">
+              <option value="">—</option>
+              <option value="UN">UN — Unidade</option>
+              <option value="CX">CX — Caixa</option>
+              <option value="KG">KG — Quilograma</option>
+              <option value="LT">LT — Litro</option>
+              <option value="MT">MT — Metro</option>
+              <option value="PC">PC — Peça</option>
+              <option value="PCT">PCT — Pacote</option>
+              <option value="RL">RL — Rolo</option>
+              <option value="DZ">DZ — Dúzia</option>
+              <option value="GL">GL — Galão</option>
+              <option value="PR">PR — Par</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Marca</label>
+            <input type="text" id="f_marca" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>Grupo</label>
+            <select id="f_id_grupo" onchange="onGrupoChange(this)">
+              <option value="">— Selecione —</option>
+            </select>
+            <input type="hidden" id="f_nome_grupo">
+          </div>
+          <div class="form-group">
+            <label>Família</label>
+            <select id="f_id_familiaproduto">
+              <option value="">— Selecione —</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Segmento</label>
+            <select id="f_segmento">
+              <option value="">— Selecione —</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Cód. Interno</label>
+            <input type="text" id="f_cod_interno" autocomplete="off" placeholder="Código interno">
+          </div>
+          <div class="form-group">
+            <label>Cód. de Barras</label>
+            <input type="text" id="f_cod_barras" autocomplete="off" placeholder="EAN-13, DUN-14…">
+          </div>
+          <div class="form-group">
+            <label>Cód. Fabricante</label>
+            <input type="text" id="f_cod_fabricante" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>Disponível p/ Venda</label>
+            <select id="f_disponivel">
+              <option value="S">Sim</option>
+              <option value="N">Não</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Kit / Composição</label>
+            <select id="f_kit">
+              <option value="N">Não</option>
+              <option value="S">Sim</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- ABA PREÇOS / CUSTOS -->
+      <div class="tab-pane" id="tab-precos">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Custo Inicial (R$)</label>
+            <input type="number" id="f_vlr_custo" step="0.01" min="0" placeholder="0,00"
+              oninput="calcCustoFinal()">
+          </div>
+          <div class="form-group">
+            <label>Despesas / Frete (R$)</label>
+            <input type="number" id="f_vlr_despesas" step="0.01" min="0" placeholder="0,00"
+              oninput="calcCustoFinal()">
+          </div>
+          <div class="form-group">
+            <label>Custo Final (R$)</label>
+            <input type="number" id="f_vlr_custofinal" step="0.01" min="0" placeholder="0,00"
+              oninput="calcVlrVenda()" title="Custo Inicial + Despesas">
+            <span class="calc-hint" id="hintCustoFinal"></span>
+          </div>
+          <hr class="form-section-sep">
+          <div class="form-group">
+            <label>Margem (%)</label>
+            <input type="number" id="f_margem" step="0.01" min="0" placeholder="0,00"
+              oninput="calcVlrVenda()">
+          </div>
+          <div class="form-group">
+            <label>Vlr. Venda (R$)</label>
+            <input type="number" id="f_vlr_venda" step="0.01" min="0" placeholder="0,00">
+          </div>
+          <div class="form-group">
+            <label>Preço B (R$)</label>
+            <input type="number" id="f_precob" step="0.01" min="0" placeholder="0,00">
+          </div>
+          <div class="form-group">
+            <label>Preço C (R$)</label>
+            <input type="number" id="f_precoc" step="0.01" min="0" placeholder="0,00">
+          </div>
+          <div class="form-group">
+            <label>Preço A (Atacado) (R$)</label>
+            <input type="number" id="f_precoa" step="0.01" min="0" placeholder="0,00">
+          </div>
+          <div class="form-group">
+            <label>Tabela de Preço</label>
+            <select id="f_cod_tabelapreco">
+              <option value="">— Selecione —</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Preço Promoção (R$)</label>
+            <input type="number" id="f_precopromo" step="0.01" min="0" placeholder="0,00">
+          </div>
+          <div class="form-group">
+            <label>Desconto (%)</label>
+            <input type="number" id="f_desconto" step="0.01" min="0" max="100" placeholder="0,00">
+          </div>
+          <div class="form-group">
+            <label>Comissão (%)</label>
+            <input type="number" id="f_comissao" step="0.01" min="0" placeholder="0,00">
+          </div>
+        </div>
+      </div>
+
+      <!-- ABA ESTOQUE -->
+      <div class="tab-pane" id="tab-estoque">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Estoque Atual</label>
+            <input type="number" id="f_estoque_atual" step="0.001" min="0" placeholder="0">
+          </div>
+          <div class="form-group">
+            <label>Estoque Mínimo</label>
+            <input type="number" id="f_estoque_minimo" step="0.001" min="0" placeholder="0">
+          </div>
+          <div class="form-group">
+            <label>Estoque Máximo</label>
+            <input type="number" id="f_estoque_maximo" step="0.001" min="0" placeholder="0">
+          </div>
+          <div class="form-group">
+            <label>Kilo / Embalagem (kg)</label>
+            <input type="number" id="f_kilo_embalagem" step="0.001" min="0" placeholder="0.000">
+          </div>
+          <div class="form-group">
+            <label>Embalagem Master</label>
+            <input type="number" id="f_embalagemmaster" step="1" min="0" placeholder="0">
+          </div>
+          <div class="form-group">
+            <label title="A quantidade pedida deve ser múltipla deste valor. Ex: 6 → só aceita 6, 12, 18...">Múltiplo de Venda</label>
+            <input type="number" id="f_multiplo_venda" step="1" min="1" placeholder="1" value="1">
+          </div>
+          <div class="form-group">
+            <label>Estoque Segurança</label>
+            <input type="number" id="f_estoque_seguranca" step="0.001" min="0" placeholder="0">
+          </div>
+          <div class="form-group">
+            <label>Local de Armazenamento</label>
+            <select id="f_id_endereco">
+              <option value="">— Selecione —</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- ── Múltiplos de Venda ─────────────────────────────────────────────── -->
+        <div style="margin-top:18px">
+          <div class="section-title" style="margin-bottom:10px">Múltiplos de Venda</div>
+          <p style="font-size:11px;color:var(--text2);margin-bottom:10px">
+            Defina as embalagens de venda (ex.: UN fator 1, CX12 fator 12, FD6 fator 6).
+            No pedido o representante escolhe qual usar.
+          </p>
+          <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:10px" id="tbl_multiplos">
+            <thead>
+              <tr style="background:var(--bg)">
+                <th style="text-align:left;padding:6px 8px;font-size:10px;font-weight:800;letter-spacing:.04em;color:var(--accent)">SIGLA</th>
+                <th style="text-align:left;padding:6px 8px;font-size:10px;font-weight:800;letter-spacing:.04em;color:var(--accent)">DESCRIÇÃO</th>
+                <th style="text-align:center;padding:6px 8px;font-size:10px;font-weight:800;letter-spacing:.04em;color:var(--accent)">FATOR</th>
+                <th style="width:40px"></th>
+              </tr>
+            </thead>
+            <tbody id="tbody_multiplos">
+              <tr><td colspan="4" style="padding:8px;color:var(--text2);font-size:11px">Salve o produto primeiro para adicionar múltiplos.</td></tr>
+            </tbody>
+          </table>
+          <div id="form_multiplo" style="display:grid;grid-template-columns:100px 1fr 80px auto;gap:8px;align-items:end">
+            <div>
+              <label style="font-size:10px;font-weight:700;color:var(--text2);display:block;margin-bottom:3px">SIGLA *</label>
+              <input type="text" id="mp_sigla" maxlength="20" placeholder="CX12" style="width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:13px" autocomplete="off">
+            </div>
+            <div>
+              <label style="font-size:10px;font-weight:700;color:var(--text2);display:block;margin-bottom:3px">DESCRIÇÃO</label>
+              <input type="text" id="mp_descricao" maxlength="100" placeholder="Caixa c/ 12 unidades" style="width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:13px" autocomplete="off">
+            </div>
+            <div>
+              <label style="font-size:10px;font-weight:700;color:var(--text2);display:block;margin-bottom:3px">FATOR *</label>
+              <input type="number" id="mp_fator" min="1" step="1" value="1" placeholder="12" style="width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);font-size:13px">
+            </div>
+            <button type="button" onclick="adicionarMultiplo()" style="padding:7px 14px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">+ Adicionar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ABA IMPOSTOS -->
+      <div class="tab-pane" id="tab-impostos">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>NCM</label>
+            <input type="text" id="f_ncm" autocomplete="off" placeholder="0000.00.00">
+          </div>
+          <div class="form-group">
+            <label>CEST</label>
+            <input type="text" id="f_cest" autocomplete="off" placeholder="0000000">
+          </div>
+          <div class="form-group">
+            <label>Origem</label>
+            <select id="f_origem">
+              <option value="0">0 - Nacional</option>
+              <option value="1">1 - Estrangeira (importação direta)</option>
+              <option value="2">2 - Estrangeira (mercado interno)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>ICMS (%)</label>
+            <input type="number" id="f_icms" step="0.01" min="0" placeholder="0,00">
+          </div>
+          <div class="form-group">
+            <label>IPI (%)</label>
+            <input type="number" id="f_ipi" step="0.01" min="0" placeholder="0,00">
+          </div>
+          <div class="form-group">
+            <label>PIS (R$)</label>
+            <input type="number" id="f_vlr_pis" step="0.01" min="0" placeholder="0,00">
+          </div>
+          <div class="form-group">
+            <label>COFINS (R$)</label>
+            <input type="number" id="f_vlr_confins" step="0.01" min="0" placeholder="0,00">
+          </div>
+          <div class="form-group">
+            <label>ST (R$)</label>
+            <input type="number" id="f_vlr_st" step="0.01" min="0" placeholder="0,00">
+          </div>
+        </div>
+      </div>
+
+      <!-- ABA OUTRAS INFORMAÇÕES -->
+      <div class="tab-pane" id="tab-outras">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Cor 1</label>
+            <input type="text" id="f_cor1" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>Cor 2</label>
+            <input type="text" id="f_cor2" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>Solado</label>
+            <input type="text" id="f_solado" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>Peso Líquido (kg)</label>
+            <input type="number" id="f_peso_liquido" step="0.001" min="0" placeholder="0.000">
+          </div>
+          <div class="form-group">
+            <label>Tipo de Grade</label>
+            <select id="f_tipograde">
+              <option value="">— Selecione —</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Fornecedor Padrão</label>
+            <select id="f_cod_fornecedorpadrao">
+              <option value="">— Selecione —</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Fornecedor Custo</label>
+            <select id="f_cod_fornecedorcusto">
+              <option value="">— Selecione —</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- ABA OBSERVAÇÕES -->
+      <div class="tab-pane" id="tab-obs">
+        <div class="form-grid">
+          <div class="form-group col-span-3">
+            <label>Observações</label>
+            <textarea id="f_obs" rows="4" placeholder="Observações gerais sobre o produto…"></textarea>
+          </div>
+          <div class="form-group col-span-3">
+            <label>Observação 2 (Interna)</label>
+            <textarea id="f_obs2" rows="4" placeholder="Observação interna…"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- ABA FOTOS -->
+      <div class="tab-pane" id="tab-fotos">
+        <div id="galeriaHintNovo" class="galeria-hint" style="display:none">
+          Salve o produto primeiro para adicionar fotos.
+        </div>
+        <div id="galeriaContent" style="display:none">
+          <div class="galeria-header">
+            <span id="galeriaCount" class="galeria-count">0 / 8 fotos</span>
+            <button type="button" class="btn-add-foto" id="btnAddFoto" onclick="document.getElementById('inputFotos').click()">+ Adicionar fotos</button>
+            <input type="file" id="inputFotos" accept="image/jpeg,image/png,image/webp,image/gif" multiple style="display:none" onchange="uploadFotos(this)">
+          </div>
+          <div id="galeriaGrid" class="galeria-grid"></div>
+        </div>
+      </div>
+
+    </div><!-- /.form-body -->
+
+    <div class="form-footer">
+      <button class="btn btn-ghost" onclick="fecharFormulario()">Cancelar</button>
+      <button class="btn btn-primary" id="btnSalvar" onclick="salvar()">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+        </svg>
+        Salvar
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── QUICK VIEW ──────────────────────────────────────────────────────────── -->
+<div id="qvOverlay" onclick="fecharQuickView()"></div>
+<div id="quickViewPanel">
+  <div class="qv-head">
+    <div class="qv-avatar" id="qvAvatar">P</div>
+    <div style="flex:1;min-width:0">
+      <div class="qv-title" id="qvNome">—</div>
+      <div class="qv-sub" id="qvSub">—</div>
+    </div>
+    <button class="qv-close" onclick="fecharQuickView()">✕</button>
+  </div>
+  <div class="qv-body" id="qvBody">
+    <div style="text-align:center;padding:40px;color:var(--text2)">Carregando…</div>
+  </div>
+  <div class="qv-foot">
+    <button class="btn btn-outline" onclick="const _id=_qvIdAtual;fecharQuickView();abrirEdicao(_id)">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:13px;height:13px">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+      </svg>
+      Editar
+    </button>
+    <button class="btn btn-ghost" onclick="const _id=_qvIdAtual;fecharQuickView();clonarRegistro(_id)">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:13px;height:13px">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+      </svg>
+      Clonar
+    </button>
+  </div>
+</div>
+
+<!-- ── MODAL CONFIRM ──────────────────────────────────────────────────────── -->
+<div id="modalConfirm">
+  <div class="modal-box">
+    <div class="modal-title" id="modalTitle">Confirmar</div>
+    <div class="modal-msg" id="modalMsg">Deseja continuar?</div>
+    <div class="modal-btns">
+      <button class="btn btn-ghost" onclick="fecharModal()">Cancelar</button>
+      <button class="btn btn-danger" id="modalOkBtn">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── TOAST ──────────────────────────────────────────────────────────────── -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════════════════════
+let _token = sessionStorage.getItem('token') || localStorage.getItem('token') || '';
+
+function api(url, opts = {}) {
+  return fetch(url, {
+    ...opts,
+    headers: { 'Content-Type':'application/json', 'Authorization':'Bearer ' + _token, ...(opts.headers||{}) }
+  });
+}
+
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── GALERIA DE FOTOS ──────────────────────────────────────────────────────────
+function carregarGaleria(prodId) {
+  const hint    = document.getElementById('galeriaHintNovo');
+  const content = document.getElementById('galeriaContent');
+  if (!hint || !content) return;
+
+  if (!prodId) {
+    hint.style.display    = '';
+    content.style.display = 'none';
+    return;
+  }
+
+  hint.style.display    = 'none';
+  content.style.display = '';
+
+  const grid  = document.getElementById('galeriaGrid');
+  const count = document.getElementById('galeriaCount');
+  const btn   = document.getElementById('btnAddFoto');
+  grid.innerHTML = '<span style="font-size:12px;color:var(--text2)">Carregando…</span>';
+
+  api(`/api/produtos/${prodId}/imagens`)
+    .then(r => r.json())
+    .then(imgs => {
+      count.textContent = `${imgs.length} / 8 fotos`;
+      btn.disabled = imgs.length >= 8;
+
+      if (!imgs.length) {
+        grid.innerHTML = '<p style="font-size:13px;color:var(--text2)">Nenhuma foto cadastrada.</p>';
+        return;
+      }
+
+      grid.innerHTML = imgs.map(img => `
+        <div class="foto-card ${img.is_principal ? 'foto-principal' : ''}" title="${img.is_principal ? 'Principal' : 'Clique para definir como principal'}">
+          <img src="${escHtml(img.url)}" loading="lazy" onclick="setPrincipalFoto(${prodId},${img.id})" onerror="this.style.display='none'">
+          <button class="foto-del" onclick="deletarFoto(${prodId},${img.id})" title="Remover foto">✕</button>
+          ${img.is_principal ? '<span class="foto-badge">Principal</span>' : ''}
+        </div>
+      `).join('');
+    })
+    .catch(() => { grid.innerHTML = '<p style="font-size:13px;color:#dc2626">Erro ao carregar fotos.</p>'; });
+}
+
+async function uploadFotos(input) {
+  const prodId = _editandoId;
+  if (!prodId || !input.files.length) return;
+
+  const btn = document.getElementById('btnAddFoto');
+  const textoOrig = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Enviando…';
+
+  const fd = new FormData();
+  Array.from(input.files).forEach(f => fd.append('files', f));
+  input.value = '';
+
+  try {
+    const r = await fetch(`/api/produtos/${prodId}/imagens`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + _token },
+      body: fd
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Erro no upload');
+    showToast(`${j.enviadas} foto(s) adicionada(s)`, 'success');
+    carregarGaleria(prodId);
+  } catch(err) {
+    showToast(err.message, 'error');
+    btn.disabled = false;
+    btn.textContent = textoOrig;
+  }
+}
+
+async function setPrincipalFoto(prodId, imgId) {
+  try {
+    const r = await api(`/api/produtos/${prodId}/imagens/${imgId}/principal`, { method: 'PUT' });
+    if (!r.ok) { const j = await r.json(); throw new Error(j.error); }
+    carregarGaleria(prodId);
+  } catch(err) { showToast(err.message || 'Erro', 'error'); }
+}
+
+async function deletarFoto(prodId, imgId) {
+  if (!confirm('Remover esta foto?')) return;
+  try {
+    const r = await api(`/api/produtos/${prodId}/imagens/${imgId}`, { method: 'DELETE' });
+    if (!r.ok) { const j = await r.json(); throw new Error(j.error); }
+    showToast('Foto removida', 'success');
+    carregarGaleria(prodId);
+  } catch(err) { showToast(err.message || 'Erro', 'error'); }
+}
+
+function showToast(msg, tipo = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (tipo ? ' ' + tipo : '');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+function fmtMoeda(v) {
+  if (v === null || v === undefined || v === '') return '—';
+  const n = Number(v);
+  if (isNaN(n)) return '—';
+  return n.toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
+}
+
+function fmtNum(v, dec=3) {
+  if (v === null || v === undefined || v === '') return '—';
+  const n = Number(v);
+  if (isNaN(n)) return '—';
+  return n.toLocaleString('pt-BR', { minimumFractionDigits:0, maximumFractionDigits:dec });
+}
+
+let _debounceTimer;
+function debounceSearch() {
+  clearTimeout(_debounceTimer);
+  _debounceTimer = setTimeout(carregar, 400);
+}
+
+// ═══════════════════════════════════════════════════════════
+// ESTADO
+// ═══════════════════════════════════════════════════════════
+let _status = 'todos';
+let _offset = 0;
+const _limit = 50;
+let _total = 0;
+let _view = 'lista'; // 'lista' | 'cards'
+let _selecionados = new Set();
+let _editandoId = null;
+let _qvIdAtual = null;
+let _dropdownAtual = null;
+let _notifData = null;
+
+// ═══════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  // sticky subbar
+  const tb = document.getElementById('toolbar');
+  const sb = document.getElementById('subbar');
+  const obs = new ResizeObserver(() => { sb.style.top = tb.offsetHeight + 'px'; });
+  obs.observe(tb);
+  sb.style.top = tb.offsetHeight + 'px';
+
+  // move notif panel to body
+  const np = document.getElementById('notifPanel');
+  document.body.appendChild(np);
+
+  aplicarPermissoes();
+  carregar();
+  carregarNotificacoes();
+  carregarLookups();
+
+  // Permite abrir edição vindo de outras telas (ex: Pedidos → Pesquisa Avançada)
+  try {
+    const pid = parseInt(localStorage.getItem('sysrep_open_produto_id') || '0', 10);
+    if (pid) {
+      localStorage.removeItem('sysrep_open_produto_id');
+      // aguarda um tick para garantir que handlers/estado básico já foram inicializados
+      setTimeout(() => abrirEdicao(pid), 50);
+    }
+  } catch(_) {}
+
+  // atalhos
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey||e.metaKey) && e.key === 'n') { e.preventDefault(); novoRegistro(); }
+    if (e.key === 'Escape') { fecharFormulario(); fecharQuickView(); }
+    if ((e.ctrlKey||e.metaKey) && e.key === 'f') { e.preventDefault(); document.getElementById('searchInput').focus(); }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════
+// CARREGAR LISTA
+// ═══════════════════════════════════════════════════════════
+async function carregar(resetOffset = true) {
+  if (resetOffset) _offset = 0;
+  const q   = document.getElementById('searchInput').value.trim();
+  const grp = document.getElementById('fa_grupo').value;
+  const dis = document.getElementById('fa_disponivel').value;
+
+  let params = `q=${encodeURIComponent(q)}&limit=${_limit}&offset=${_offset}`;
+  if (_status !== 'todos' && _status !== 'estbaixo') params += `&status=${_status}`;
+  if (grp) params += `&grupo=${encodeURIComponent(grp)}`;
+  if (dis) params += `&disponivel=${encodeURIComponent(dis)}`;
+
+  try {
+    const r = await api(`/api/produtos?${params}`);
+    if (!r.ok) throw new Error(await r.text());
+    let { produtos, total } = await r.json();
+
+    // filtro estoque baixo (client-side, o backend não tem esse status)
+    if (_status === 'estbaixo') {
+      produtos = produtos.filter(p => Number(p.estoque_minimo) > 0 && Number(p.estoque_atual) <= Number(p.estoque_minimo));
+    }
+
+    _total = total;
+    renderTabela(produtos);
+    renderPaginacao(total);
+    atualizarChips();
+  } catch(err) {
+    document.getElementById('tabelaBody').innerHTML =
+      `<tr><td colspan="12" style="text-align:center;padding:30px;color:var(--danger)">${escHtml(err.message)}</td></tr>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDER TABELA
+// ═══════════════════════════════════════════════════════════
+function renderTabela(lista) {
+  const hoje = new Date();
+  const seteDias = new Date(hoje - 7*24*60*60*1000);
+
+  if (_view === 'cards') {
+    renderCards(lista);
+    return;
+  }
+
+  document.getElementById('tableWrap').style.display = '';
+  document.getElementById('prodCardsGrid').className = '';
+
+  const tbody = document.getElementById('tabelaBody');
+  if (!lista.length) {
+    tbody.innerHTML = `<tr><td colspan="12"><div class="empty-state">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+          d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4"/>
+      </svg>
+      <p>Nenhum produto encontrado</p>
+    </div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = lista.map((p, i) => {
+    const isNovo = p.dt_cadastro && new Date(p.dt_cadastro) >= seteDias;
+    const estBaixo = Number(p.estoque_minimo) > 0 && Number(p.estoque_atual) <= Number(p.estoque_minimo);
+    const est = fmtNum(p.estoque_atual, 2);
+    const estHtml = estBaixo
+      ? `<span class="td-est-baixo" title="Abaixo do mínimo">${est}</span>`
+      : est;
+
+    const statusInfo = {
+      'A': ['#22c55e','Ativo'],
+      'I': ['#f59e0b','Inativo'],
+      'E': ['#ef4444','Excluído']
+    }[p.situacao] || ['#9ca3af','—'];
+
+    const sel = _selecionados.has(p.id);
+    return `<tr class="${sel?'row-selected':''}" onclick="abrirQuickView(${p.id},event)">
+      <td onclick="event.stopPropagation()">
+        <input type="checkbox" ${sel?'checked':''} onchange="toggleSelecionado(${p.id},this.checked)">
+      </td>
+      <td style="color:var(--text2)">${_offset + i + 1}</td>
+      <td style="color:var(--text2);font-size:10px">${escHtml(p.id)}</td>
+      <td>
+        <div class="td-nome">${escHtml(p.descricao||'—')}${isNovo?'<span class="tag-novo">NOVO</span>':''}</div>
+        ${p.apelido ? `<div class="td-sub">${escHtml(p.apelido)}</div>` : ''}
+      </td>
+      <td style="font-size:10px;color:var(--text2)">${escHtml(p.cod_barras||'')}</td>
+      <td style="font-size:10px;color:var(--text2)">${escHtml(p.cod_fabricante||'')}</td>
+      <td>${escHtml(p.unidade||'')}</td>
+      <td>${fmtMoeda(p.vlr_venda)}</td>
+      <td>${estHtml}</td>
+      <td style="font-size:10px">${escHtml(p.nome_grupo||'')}</td>
+      <td>
+        <span class="status-badge">
+          <span class="status-dot" style="background:${statusInfo[0]}"></span>
+          ${statusInfo[1]}
+        </span>
+      </td>
+      <td onclick="event.stopPropagation()">
+        <button class="btn-acoes" onclick="abrirDropdown(${p.id},'${escHtml(p.descricao||'')}','${p.situacao}',this)">⋮</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDER CARDS
+// ═══════════════════════════════════════════════════════════
+function _avatarClass(nome) {
+  if (!nome) return 'av-NUM';
+  const c = nome.trim()[0].toUpperCase();
+  if (c >= 'A' && c <= 'Z') return `av-${c}`;
+  return 'av-NUM';
+}
+
+function renderCards(lista) {
+  document.getElementById('tableWrap').style.display = 'none';
+  document.getElementById('paginacao').innerHTML = '';
+  const grid = document.getElementById('prodCardsGrid');
+  grid.className = 'show';
+
+  if (!lista.length) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+          d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4"/>
+      </svg>
+      <p>Nenhum produto encontrado</p>
+    </div>`;
+    return;
+  }
+
+  grid.innerHTML = lista.map(p => {
+    const estBaixo = Number(p.estoque_minimo) > 0 && Number(p.estoque_atual) <= Number(p.estoque_minimo);
+    const statusColor = {'A':'#22c55e','I':'#f59e0b','E':'#ef4444'}[p.situacao]||'#9ca3af';
+    const statusLabel = {'A':'Ativo','I':'Inativo','E':'Excluído'}[p.situacao]||'—';
+    return `<div class="prod-card" onclick="abrirQuickView(${p.id},event)">
+      <div class="pc-head">
+        <div class="pc-avatar ${_avatarClass(p.descricao)}">${(p.descricao||'?')[0].toUpperCase()}</div>
+        <div class="pc-info">
+          <div class="pc-nome">${escHtml(p.descricao||'—')}</div>
+          <div class="pc-cod">#${p.id}${p.apelido ? ' · '+escHtml(p.apelido) : ''}</div>
+        </div>
+      </div>
+      <div class="pc-rows">
+        <div class="pc-row"><span>Vlr. Venda</span><span>${fmtMoeda(p.vlr_venda)}</span></div>
+        <div class="pc-row"><span>Estoque</span>
+          <span style="${estBaixo?'color:#dc2626;font-weight:700':''}">${fmtNum(p.estoque_atual,2)}</span></div>
+        ${p.nome_grupo ? `<div class="pc-row"><span>Grupo</span><span>${escHtml(p.nome_grupo)}</span></div>` : ''}
+        ${p.unidade ? `<div class="pc-row"><span>Un.</span><span>${escHtml(p.unidade)}</span></div>` : ''}
+      </div>
+      <div class="pc-foot">
+        <span class="status-badge">
+          <span class="status-dot" style="background:${statusColor}"></span>${statusLabel}
+        </span>
+        <button class="btn-acoes" onclick="event.stopPropagation();abrirDropdown(${p.id},'${escHtml(p.descricao||'')}','${p.situacao}',this)">⋮</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+// TOGGLE VIEW
+// ═══════════════════════════════════════════════════════════
+function toggleView(v) {
+  _view = v;
+  document.getElementById('vt-lista').classList.toggle('active', v === 'lista');
+  document.getElementById('vt-cards').classList.toggle('active', v === 'cards');
+  carregar(false);
+}
+
+// ═══════════════════════════════════════════════════════════
+// STATUS CHIPS
+// ═══════════════════════════════════════════════════════════
+function setStatus(s) {
+  _status = s;
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  const map = { todos:'chip-total', A:'chip-ativos', I:'chip-inativos', estbaixo:'chip-estoque' };
+  const el = document.getElementById(map[s]);
+  if (el) el.classList.add('active');
+  carregar();
+}
+
+function atualizarChips() {
+  // apenas sincroniza active state (valores vêm de carregarNotificacoes)
+  const map = { todos:'chip-total', A:'chip-ativos', I:'chip-inativos', estbaixo:'chip-estoque' };
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  const el = document.getElementById(map[_status]);
+  if (el) el.classList.add('active');
+}
+
+// ═══════════════════════════════════════════════════════════
+// PAGINAÇÃO
+// ═══════════════════════════════════════════════════════════
+function renderPaginacao(total) {
+  if (_view === 'cards') return;
+  const pag = document.getElementById('paginacao');
+  const pages = Math.ceil(total / _limit);
+  const cur = Math.floor(_offset / _limit) + 1;
+  pag.innerHTML = `
+    <span>${total} produto${total!==1?'s':''}</span>
+    <div class="pag-btns">
+      <button class="pag-btn" ${cur<=1?'disabled':''} onclick="irPagina(${cur-1})">‹ Anterior</button>
+      <span style="padding:4px 8px;font-weight:600">${cur} / ${pages||1}</span>
+      <button class="pag-btn" ${cur>=pages?'disabled':''} onclick="irPagina(${cur+1})">Próxima ›</button>
+    </div>`;
+}
+
+function irPagina(p) {
+  _offset = (p-1) * _limit;
+  carregar(false);
+}
+
+// ═══════════════════════════════════════════════════════════
+// FILTROS
+// ═══════════════════════════════════════════════════════════
+let _filtroOpen = false;
+function toggleFiltroPanel() {
+  _filtroOpen = !_filtroOpen;
+  document.getElementById('filterPanel').style.display = _filtroOpen ? 'block' : 'none';
+  document.getElementById('fpArrow').style.transform = _filtroOpen ? 'rotate(180deg)' : '';
+}
+
+function limparFiltros() {
+  document.getElementById('fa_grupo').value = '';
+  document.getElementById('fa_disponivel').value = '';
+  carregar();
+}
+
+// ── Permissões ────────────────────────────────────────────────────────────────
+function getPermissoes() {
+  try {
+    const token = sessionStorage.getItem('token') || localStorage.getItem('token') || '';
+    if (!token) return {};
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+    return payload.permissoes || {};
+  } catch(_) { return {}; }
+}
+
+function aplicarPermissoes() {
+  const p = getPermissoes();
+  if (p.incluir_produtos === 'N') {
+    const btnNovo = document.querySelector('[onclick*="novoRegistro"]');
+    if (btnNovo) { btnNovo.disabled = true; btnNovo.title = 'Sem permissão para incluir'; }
+  }
+  if (p.excluir_produtos === 'N') {
+    _semPermExcluir = true;
+  }
+  if (p.alterar_produtos === 'N') {
+    _semPermAlterar = true;
+  }
+}
+
+let _semPermExcluir = false;
+let _semPermAlterar = false;
+
+// ── Lookups ───────────────────────────────────────────────────────────────────
+function _populaSelect(selId, itens, valField, txtField, placeholder = '— Selecione —') {
+  const sel = document.getElementById(selId);
+  if (!sel) return;
+  // mantém opção vazia
+  sel.innerHTML = `<option value="">${placeholder}</option>`;
+  itens.forEach(item => {
+    const opt = document.createElement('option');
+    opt.value = item[valField];
+    opt.textContent = item[txtField];
+    sel.appendChild(opt);
+  });
+}
+
+async function carregarLookups() {
+  const endpoints = [
+    { url:'/api/lookups/grupos',      sel:'f_id_grupo',          v:'id', t:'descricao' },
+    { url:'/api/lookups/familia',     sel:'f_id_familiaproduto', v:'id', t:'nome' },
+    { url:'/api/lookups/categorias',  sel:'f_segmento',          v:'descricao', t:'descricao' },
+    { url:'/api/lookups/local-arm',   sel:'f_id_endereco',       v:'id', t:'nome_local' },
+    { url:'/api/lookups/tipograde',   sel:'f_tipograde',         v:'nome', t:'nome' },
+    { url:'/api/lookups/tabela-preco',sel:'f_cod_tabelapreco',   v:'id', t:'descricao' },
+    { url:'/api/lookups/fornecedores',sel:'f_cod_fornecedorpadrao', v:'id', t:'nome' },
+    { url:'/api/lookups/fornecedores',sel:'f_cod_fornecedorcusto',  v:'id', t:'nome' },
+  ];
+  // carregar grupos também no filtro da subbar
+  try {
+    const r = await api('/api/lookups/grupos');
+    if (r.ok) {
+      const grupos = await r.json();
+      const faGrupo = document.getElementById('fa_grupo');
+      if (faGrupo) {
+        grupos.forEach(g => {
+          faGrupo.appendChild(Object.assign(document.createElement('option'), { value:g.descricao, textContent:g.descricao }));
+        });
+      }
+    }
+  } catch(_) {}
+
+  await Promise.allSettled(endpoints.map(async ({ url, sel, v, t }) => {
+    try {
+      const r = await api(url);
+      if (!r.ok) return;
+      const data = await r.json();
+      _populaSelect(sel, data, v, t);
+    } catch(_) {}
+  }));
+}
+
+function onGrupoChange(sel) {
+  // sincroniza nome_grupo oculto com o texto da opção
+  const txt = sel.options[sel.selectedIndex]?.text || '';
+  const h = document.getElementById('f_nome_grupo');
+  if (h) h.value = txt !== '— Selecione —' ? txt : '';
+}
+
+// ═══════════════════════════════════════════════════════════
+// NOTIFICAÇÕES
+// ═══════════════════════════════════════════════════════════
+async function carregarNotificacoes() {
+  try {
+    const r = await api('/api/produtos/notificacoes');
+    if (!r.ok) return;
+    _notifData = await r.json();
+    const { ativos, inativos, est_baixo, novos7dias } = _notifData;
+    const total = ativos + inativos;
+
+    document.getElementById('ins-total').textContent   = total;
+    document.getElementById('ins-ativos').textContent  = ativos;
+    document.getElementById('ins-inativos').textContent= inativos;
+    document.getElementById('ins-estbaixo').textContent= est_baixo;
+
+    const cnt = (est_baixo || 0) + (novos7dias || 0);
+    const badge = document.getElementById('notifCount');
+    if (cnt > 0) { badge.textContent = cnt; badge.classList.add('show'); }
+    else badge.classList.remove('show');
+
+    renderNotifList(_notifData);
+  } catch(_) {}
+}
+
+function renderNotifList(d) {
+  const { ativos, inativos, est_baixo, novos7dias } = d;
+  const items = [];
+  if (est_baixo > 0) items.push(`<div class="notif-item" onclick="setStatus('estbaixo');fecharNotifPanel()">
+    <div class="notif-icon warn">⚠️</div>
+    <div class="notif-text"><strong>${est_baixo} produto${est_baixo>1?'s':''}</strong> com estoque abaixo do mínimo<small>Estoque crítico</small></div>
+  </div>`);
+  if (novos7dias > 0) items.push(`<div class="notif-item" onclick="fecharNotifPanel()">
+    <div class="notif-icon success">🆕</div>
+    <div class="notif-text"><strong>${novos7dias} produto${novos7dias>1?'s':''}</strong> cadastrado${novos7dias>1?'s':''} nos últimos 7 dias<small>Novos cadastros</small></div>
+  </div>`);
+  if (inativos > 0) items.push(`<div class="notif-item" onclick="setStatus('I');fecharNotifPanel()">
+    <div class="notif-icon info">📦</div>
+    <div class="notif-text"><strong>${inativos} produto${inativos>1?'s':''}</strong> inativo${inativos>1?'s':''}<small>Verificar necessidade</small></div>
+  </div>`);
+
+  document.getElementById('notifList').innerHTML = items.length
+    ? items.join('')
+    : '<div class="notif-empty">Nenhuma notificação</div>';
+}
+
+function toggleNotifPanel() {
+  const panel = document.getElementById('notifPanel');
+  const btn   = document.querySelector('.notif-bell');
+  const wrap  = document.getElementById('notifWrap');
+  const isShow = panel.classList.contains('show');
+  if (isShow) { fecharNotifPanel(); return; }
+
+  const rect = wrap.getBoundingClientRect();
+  panel.style.top  = (rect.bottom + 4) + 'px';
+  panel.style.right = (window.innerWidth - rect.right) + 'px';
+  panel.style.display = '';
+  panel.classList.add('show');
+
+  setTimeout(() => {
+    document.addEventListener('click', _notifOutsideHandler);
+  }, 50);
+}
+
+function fecharNotifPanel() {
+  const panel = document.getElementById('notifPanel');
+  panel.classList.remove('show');
+  panel.style.display = 'none';
+  document.removeEventListener('click', _notifOutsideHandler);
+}
+
+function _notifOutsideHandler(e) {
+  const panel = document.getElementById('notifPanel');
+  const wrap  = document.getElementById('notifWrap');
+  if (!panel.contains(e.target) && !wrap.contains(e.target)) {
+    fecharNotifPanel();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// QUICK VIEW
+// ═══════════════════════════════════════════════════════════
+async function abrirQuickView(id, event) {
+  if (event && event.target.closest('input[type="checkbox"],button,.btn-acoes,.dropdown-menu')) return;
+  _qvIdAtual = id;
+  document.getElementById('quickViewPanel').classList.add('open');
+  document.getElementById('qvOverlay').classList.add('show');
+  document.getElementById('qvBody').innerHTML = '<div style="text-align:center;padding:40px;color:var(--text2)">Carregando…</div>';
+  document.getElementById('qvAvatar').textContent = '…';
+  document.getElementById('qvNome').textContent = '…';
+  document.getElementById('qvSub').textContent = '';
+
+  try {
+    const r = await api(`/api/produtos/${id}`);
+    const p = await r.json();
+
+    const letra = (p.descricao||'?')[0].toUpperCase();
+    document.getElementById('qvAvatar').textContent = letra;
+    document.getElementById('qvNome').textContent   = p.descricao || '—';
+    document.getElementById('qvSub').textContent    = `Código: ${p.id}${p.apelido?' · '+p.apelido:''}`;
+
+    const estBaixo = Number(p.estoque_minimo) > 0 && Number(p.estoque_atual) <= Number(p.estoque_minimo);
+    const statusLabel = {'A':'Ativo','I':'Inativo','E':'Excluído'}[p.situacao]||'—';
+
+    document.getElementById('qvBody').innerHTML = `
+      <div>
+        <div class="qv-section-title">Identificação</div>
+        <div class="qv-row"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>Grupo: <span>${escHtml(p.nome_grupo||'—')}</span></div>
+        <div class="qv-row"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>Família: <span>${escHtml(p.nomefamilia||'—')}</span></div>
+        <div class="qv-row"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>Status: <span>${statusLabel}</span></div>
+        <div class="qv-row"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/></svg>Cód.Barras: <span>${escHtml(p.cod_barras||'—')}</span></div>
+        <div class="qv-row"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>Ref.Fabricante: <span>${escHtml(p.cod_fabricante||'—')}</span></div>
+        <div class="qv-row"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"/></svg>Unidade: <span>${escHtml(p.unidade||'—')}</span></div>
+      </div>
+      <div>
+        <div class="qv-section-title">Preços</div>
+        <div class="qv-row"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>Vlr. Venda: <span>${fmtMoeda(p.vlr_venda)}</span></div>
+        <div class="qv-row"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2z"/></svg>Vlr. Custo: <span>${fmtMoeda(p.vlr_custo)}</span></div>
+        <div class="qv-row"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>Margem: <span>${p.margem != null ? Number(p.margem).toFixed(2)+'%' : '—'}</span></div>
+      </div>
+      <div>
+        <div class="qv-section-title">Estoque</div>
+        <div class="qv-row"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>Estoque Atual: <span style="${estBaixo?'color:#dc2626;font-weight:700':''}">${fmtNum(p.estoque_atual,3)}${estBaixo?' ⚠️':''}</span></div>
+        <div class="qv-row"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>Mínimo: <span>${fmtNum(p.estoque_minimo,3)}</span></div>
+      </div>
+      ${p.obs ? `<div><div class="qv-section-title">Observações</div><p style="font-size:12px;color:var(--text)">${escHtml(p.obs)}</p></div>` : ''}
+    `;
+  } catch(err) {
+    document.getElementById('qvBody').innerHTML = `<div class="empty-state"><p>Erro ao carregar: ${escHtml(err.message)}</p></div>`;
+  }
+}
+
+function fecharQuickView() {
+  document.getElementById('quickViewPanel').classList.remove('open');
+  document.getElementById('qvOverlay').classList.remove('show');
+  _qvIdAtual = null;
+}
+
+// ═══════════════════════════════════════════════════════════
+// DROPDOWN AÇÕES
+// ═══════════════════════════════════════════════════════════
+function abrirDropdown(id, nome, status, btn) {
+  fecharDropdown();
+  const menu = document.createElement('div');
+  menu.className = 'dropdown-menu';
+  menu.id = 'dropdownMenu';
+  const itensMenu = [];
+  // Clonar sempre disponível (não precisa de permissão de alterar)
+  itensMenu.push(`<button class="dropdown-item" onclick="clonarRegistro(${id});fecharDropdown()">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+    Clonar
+  </button>`);
+  if (!_semPermAlterar) {
+    itensMenu.push(`<button class="dropdown-item" onclick="abrirEdicao(${id});fecharDropdown()">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+      Editar
+    </button>`);
+    itensMenu.push(status==='A'
+      ? `<button class="dropdown-item" onclick="inativar(${id});fecharDropdown()">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+          Inativar
+        </button>`
+      : `<button class="dropdown-item" onclick="ativar(${id});fecharDropdown()">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          Ativar
+        </button>`);
+  }
+  if (!_semPermExcluir) {
+    if (itensMenu.length) itensMenu.push('<div class="dropdown-divider"></div>');
+    itensMenu.push(`<button class="dropdown-item danger" onclick="confirmarExclusao(${id},'${nome.replace(/'/g,"\\'")}');fecharDropdown()">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+      Excluir
+    </button>`);
+  }
+  if (!itensMenu.length) itensMenu.push('<div class="dropdown-item" style="color:var(--text2)">Sem permissão</div>');
+  menu.innerHTML = itensMenu.join('');
+
+  document.body.appendChild(menu);
+  const rect = btn.getBoundingClientRect();
+  let left = rect.left;
+  if (left + 170 > window.innerWidth) left = rect.right - 170;
+  menu.style.top  = (rect.bottom + 4) + 'px';
+  menu.style.left = left + 'px';
+
+  setTimeout(() => document.addEventListener('click', fecharDropdown), 10);
+}
+
+function fecharDropdown() {
+  const m = document.getElementById('dropdownMenu');
+  if (m) m.remove();
+  document.removeEventListener('click', fecharDropdown);
+}
+
+// ═══════════════════════════════════════════════════════════
+// FORMULÁRIO
+// ═══════════════════════════════════════════════════════════
+function novoRegistro() {
+  if (_semPermAlterar && !document.querySelector('[onclick*="novoRegistro"]')?.disabled) {
+    // checar se permissao incluir foi bloqueada (botão já desabilitado, mas proteção extra)
+  }
+  _editandoId = null;
+  document.getElementById('formTitulo').textContent = 'Novo Produto';
+  limparForm();
+  carregarGaleria(null);
+  carregarMultiplos(null);
+  mostrarForm();
+}
+
+function abrirEdicao(id) {
+  if (_semPermAlterar) { showToast('Sem permissão para editar', 'error'); return; }
+  _editandoId = id;
+  document.getElementById('formTitulo').textContent = 'Editar Produto';
+  limparForm();
+  mostrarForm();
+  api(`/api/produtos/${id}`).then(r => r.json()).then(p => { preencherForm(p); carregarMultiplos(id); }).catch(err => showToast(err.message,'error'));
+  carregarGaleria(id);
+}
+
+// ── CLONAR ────────────────────────────────────────────────────────────────────
+const _CLONE_LIMPAR_PROD = [
+  'f_id',
+  'f_cod_fabricante',   // explicitamente não clonar
+  'f_cod_barras',       // código de barras único por produto
+  'f_cod_interno',      // código interno único
+  'f_estoque_atual',    // estoque começa zerado no novo produto
+  'f_obs', 'f_obs2',    // observações específicas do original
+];
+
+async function clonarRegistro(id) {
+  if (_semPermAlterar) { showToast('Sem permissão para incluir', 'error'); return; }
+  try {
+    const r = await api(`/api/produtos/${id}`);
+    if (!r.ok) throw new Error();
+    const p = await r.json();
+
+    _editandoId = null;
+    document.getElementById('formTitulo').textContent = 'Novo Produto (Clone)';
+    limparForm();
+    preencherForm(p);
+    carregarMultiplos(null);
+
+    // Limpar campos únicos
+    _CLONE_LIMPAR_PROD.forEach(fid => {
+      const el = document.getElementById(fid);
+      if (el) el.value = '';
+    });
+
+    mostrarForm();
+    showToast('Produto clonado — revise os dados e salve como novo', '');
+    abrirAba('geral', document.querySelector('.form-tab'));
+  } catch { showToast('Erro ao clonar', 'error'); }
+}
+
+function limparForm() {
+  const ids = ['f_id','f_descricao','f_apelido','f_situacao','f_unidade','f_marca',
+    'f_id_grupo','f_nome_grupo','f_id_familiaproduto','f_segmento','f_cod_interno',
+    'f_cod_barras','f_cod_fabricante','f_disponivel','f_kit',
+    'f_vlr_custo','f_vlr_despesas','f_vlr_custofinal','f_margem','f_vlr_venda',
+    'f_precoa','f_precob','f_precoc','f_precopromo','f_desconto','f_comissao','f_cod_tabelapreco',
+    'f_estoque_atual','f_estoque_minimo','f_estoque_maximo','f_estoque_seguranca',
+    'f_kilo_embalagem','f_embalagemmaster','f_multiplo_venda','f_id_endereco',
+    'f_ncm','f_cest','f_icms','f_ipi','f_vlr_pis','f_vlr_confins','f_vlr_st','f_origem',
+    'f_cor1','f_cor2','f_solado','f_peso_liquido','f_tipograde',
+    'f_cod_fornecedorpadrao','f_cod_fornecedorcusto','f_obs','f_obs2'];
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = el.tagName === 'SELECT' ? (el.options[0]?.value||'') : '';
+  });
+  document.getElementById('hintCustoFinal').textContent = '';
+  abrirAba('geral', document.querySelector('.form-tab'));
+}
+
+function preencherForm(p) {
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val ?? ''; };
+  // usar p.ID ou p.id (MySQL retorna maiúsculo)
+  set('f_id',                 p.ID ?? p.id);
+  set('f_descricao',          p.descricao);
+  set('f_apelido',            p.apelido);
+  set('f_situacao',           p.situacao||'A');
+  set('f_unidade',            p.unidade);
+  set('f_marca',              p.marca);
+  set('f_id_grupo',           p.id_grupo);
+  set('f_nome_grupo',         p.nome_grupo);   // hidden field
+  set('f_id_familiaproduto',  p.id_familiaproduto);
+  set('f_segmento',           p.segmento);
+  set('f_cod_interno',        p.cod_interno);
+  set('f_cod_barras',         p.cod_barras);
+  set('f_cod_fabricante',     p.cod_fabricante);
+  set('f_disponivel',         p.disponivel||'S');
+  set('f_kit',                p.kit||'N');
+  set('f_vlr_custo',          p.vlr_custo);
+  set('f_vlr_despesas',       p.vlr_despesas);
+  set('f_vlr_custofinal',     p.vlr_custofinal);
+  set('f_margem',             p.margem);
+  set('f_vlr_venda',          p.vlr_venda);
+  set('f_precoa',             p.precoa);
+  set('f_precob',             p.precob);
+  set('f_precoc',             p.precoc);
+  set('f_precopromo',         p.precopromo);
+  set('f_desconto',           p.desconto);
+  set('f_comissao',           p.comissao);
+  set('f_cod_tabelapreco',    p.cod_tabelapreco);
+  set('f_estoque_atual',      p.estoque_atual);
+  set('f_estoque_minimo',     p.estoque_minimo);
+  set('f_estoque_maximo',     p.estoque_maximo);
+  set('f_estoque_seguranca',  p.estoque_seguranca);
+  set('f_kilo_embalagem',     p.kilo_embalagem);
+  set('f_embalagemmaster',    p.embalagemmaster);
+  set('f_multiplo_venda',     p.multiplo_venda ?? 1);
+  set('f_id_endereco',        p.id_endereco);
+  set('f_ncm',                p.ncm);
+  set('f_cest',               p.cest);
+  set('f_icms',               p.icms);
+  set('f_ipi',                p.ipi);
+  set('f_vlr_pis',            p.vlr_pis);
+  set('f_vlr_confins',        p.vlr_confins);
+  set('f_vlr_st',             p.vlr_st);
+  set('f_origem',             p.origem||'0');
+  set('f_cor1',               p.cor1);
+  set('f_cor2',               p.cor2);
+  set('f_solado',             p.solado);
+  set('f_peso_liquido',       p.peso_liquido);
+  set('f_tipograde',          p.tipograde);
+  set('f_cod_fornecedorpadrao', p.cod_fornecedorpadrao);
+  set('f_cod_fornecedorcusto',  p.cod_fornecedorcusto);
+  set('f_obs',                p.obs);
+  set('f_obs2',               p.obs2);
+}
+
+async function salvar() {
+  const descricao = document.getElementById('f_descricao').value.trim();
+  if (!descricao) { showToast('Descrição é obrigatória','error'); abrirAba('geral',document.querySelector('.form-tab')); return; }
+
+  const v = id => document.getElementById(id)?.value || undefined;
+  // ao mudar o grupo, sincroniza nome_grupo com o texto da option selecionada
+  const grpEl = document.getElementById('f_id_grupo');
+  const nomeGrupo = grpEl?.options[grpEl?.selectedIndex]?.text || undefined;
+
+  const body = {
+    descricao,
+    apelido:              v('f_apelido'),
+    situacao:             document.getElementById('f_situacao').value,
+    unidade:              v('f_unidade'),
+    marca:                v('f_marca'),
+    id_grupo:             v('f_id_grupo'),
+    nome_grupo:           (v('f_id_grupo') && nomeGrupo !== '— Selecione —') ? nomeGrupo : undefined,
+    id_familiaproduto:    v('f_id_familiaproduto'),
+    segmento:             v('f_segmento'),
+    cod_interno:          v('f_cod_interno'),
+    cod_barras:           v('f_cod_barras'),
+    cod_fabricante:       v('f_cod_fabricante'),
+    disponivel:           document.getElementById('f_disponivel').value,
+    kit:                  document.getElementById('f_kit').value,
+    vlr_custo:            v('f_vlr_custo'),
+    vlr_despesas:         v('f_vlr_despesas'),
+    vlr_custofinal:       v('f_vlr_custofinal'),
+    margem:               v('f_margem'),
+    vlr_venda:            v('f_vlr_venda'),
+    precoa:               v('f_precoa'),
+    precob:               v('f_precob'),
+    precoc:               v('f_precoc'),
+    precopromo:           v('f_precopromo'),
+    desconto:             v('f_desconto'),
+    comissao:             v('f_comissao'),
+    cod_tabelapreco:      v('f_cod_tabelapreco'),
+    estoque_atual:        v('f_estoque_atual'),
+    estoque_minimo:       v('f_estoque_minimo'),
+    estoque_maximo:       v('f_estoque_maximo'),
+    estoque_seguranca:    v('f_estoque_seguranca'),
+    kilo_embalagem:       v('f_kilo_embalagem'),
+    embalagemmaster:      v('f_embalagemmaster'),
+    multiplo_venda:       v('f_multiplo_venda') || '1',
+    id_endereco:          v('f_id_endereco'),
+    ncm:                  v('f_ncm'),
+    cest:                 v('f_cest'),
+    icms:                 v('f_icms'),
+    ipi:                  v('f_ipi'),
+    vlr_pis:              v('f_vlr_pis'),
+    vlr_confins:          v('f_vlr_confins'),
+    vlr_st:               v('f_vlr_st'),
+    origem:               v('f_origem'),
+    cor1:                 v('f_cor1'),
+    cor2:                 v('f_cor2'),
+    solado:               v('f_solado'),
+    peso_liquido:         v('f_peso_liquido'),
+    tipograde:            v('f_tipograde'),
+    cod_fornecedorpadrao: v('f_cod_fornecedorpadrao'),
+    cod_fornecedorcusto:  v('f_cod_fornecedorcusto'),
+    obs:                  v('f_obs'),
+    obs2:                 v('f_obs2'),
+  };
+
+  const btn = document.getElementById('btnSalvar');
+  btn.disabled = true;
+  btn.textContent = 'Salvando…';
+
+  try {
+    const url = _editandoId ? `/api/produtos/${_editandoId}` : '/api/produtos';
+    const method = _editandoId ? 'PUT' : 'POST';
+    const r = await api(url, { method, body: JSON.stringify(body) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Erro ao salvar');
+
+    showToast(_editandoId ? 'Produto atualizado!' : 'Produto cadastrado!', 'success');
+    fecharFormulario();
+    carregar();
+    carregarNotificacoes();
+  } catch(err) {
+    showToast(err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:13px;height:13px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Salvar`;
+  }
+}
+
+function mostrarForm() {
+  document.getElementById('listSection').style.display = 'none';
+  document.getElementById('formSection').style.display = 'block';
+  fecharQuickView();
+}
+
+function fecharFormulario() {
+  document.getElementById('formSection').style.display = 'none';
+  document.getElementById('listSection').style.display = '';
+  _editandoId = null;
+}
+
+// ── MÚLTIPLOS DE VENDA ─────────────────────────────────────────────────────────
+async function carregarMultiplos(prodId) {
+  const tbody = document.getElementById('tbody_multiplos');
+  if (!tbody) return;
+  if (!prodId) {
+    tbody.innerHTML = '<tr><td colspan="4" style="padding:8px;color:var(--text2);font-size:11px">Salve o produto primeiro para adicionar múltiplos.</td></tr>';
+    return;
+  }
+  try {
+    const r = await api(`/api/produtos/${prodId}/multiplos`);
+    const data = await r.json();
+    renderMultiplos(Array.isArray(data) ? data : []);
+  } catch(e) { renderMultiplos([]); }
+}
+
+function renderMultiplos(list) {
+  const tbody = document.getElementById('tbody_multiplos');
+  if (!tbody) return;
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="4" style="padding:8px;color:var(--text2);font-size:11px">Nenhum múltiplo cadastrado. Adicione abaixo.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = list.map(m => `
+    <tr>
+      <td style="padding:6px 8px;font-weight:700;font-size:13px">${escHtml(m.sigla)}</td>
+      <td style="padding:6px 8px;font-size:12px;color:var(--text2)">${escHtml(m.descricao || '—')}</td>
+      <td style="padding:6px 8px;text-align:center;font-size:13px">${parseFloat(m.fator).toFixed(0)}</td>
+      <td style="padding:4px 8px;text-align:center">
+        <button type="button" onclick="deletarMultiplo(${m.id})" style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:16px;line-height:1;padding:0 4px" title="Excluir">×</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function adicionarMultiplo() {
+  if (!_editandoId) { showToast('Salve o produto antes de adicionar múltiplos','error'); return; }
+  const sigla    = (document.getElementById('mp_sigla')?.value || '').trim().toUpperCase();
+  const descricao = (document.getElementById('mp_descricao')?.value || '').trim();
+  const fator    = parseFloat(document.getElementById('mp_fator')?.value) || 1;
+  if (!sigla) { showToast('Sigla é obrigatória','error'); return; }
+  try {
+    const r = await api(`/api/produtos/${_editandoId}/multiplos`, {
+      method: 'POST', body: JSON.stringify({ sigla, descricao, fator })
+    });
+    if (!r.ok) { const j = await r.json(); throw new Error(j.error || 'Erro ao salvar'); }
+    document.getElementById('mp_sigla').value = '';
+    document.getElementById('mp_descricao').value = '';
+    document.getElementById('mp_fator').value = '1';
+    carregarMultiplos(_editandoId);
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function deletarMultiplo(mId) {
+  try {
+    const r = await api(`/api/produtos/multiplos/${mId}`, { method: 'DELETE' });
+    if (!r.ok) { const j = await r.json(); throw new Error(j.error || 'Erro ao excluir'); }
+    carregarMultiplos(_editandoId);
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+function abrirAba(id, el) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.form-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  if (el) el.classList.add('active');
+}
+
+// ═══════════════════════════════════════════════════════════
+// CÁLCULOS
+// ═══════════════════════════════════════════════════════════
+function calcCustoFinal() {
+  const custo = parseFloat(document.getElementById('f_vlr_custo').value) || 0;
+  const desp  = parseFloat(document.getElementById('f_vlr_despesas').value) || 0;
+  const final = custo + desp;
+  document.getElementById('f_vlr_custofinal').value = final ? final.toFixed(2) : '';
+  document.getElementById('hintCustoFinal').textContent = final ? `= ${fmtMoeda(final)}` : '';
+  calcVlrVenda();
+}
+
+function calcVlrVenda() {
+  const custo  = parseFloat(document.getElementById('f_vlr_custofinal').value) || 0;
+  const margem = parseFloat(document.getElementById('f_margem').value) || 0;
+  if (custo && margem) {
+    const venda = custo * (1 + margem / 100);
+    document.getElementById('f_vlr_venda').value = venda.toFixed(2);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// ATIVAR / INATIVAR / EXCLUIR
+// ═══════════════════════════════════════════════════════════
+async function ativar(id) {
+  try {
+    await api(`/api/produtos/${id}/ativar`, { method:'PUT' });
+    showToast('Produto ativado!','success');
+    carregar(false);
+    carregarNotificacoes();
+  } catch(err) { showToast(err.message,'error'); }
+}
+
+async function inativar(id) {
+  try {
+    await api(`/api/produtos/${id}/inativar`, { method:'PUT' });
+    showToast('Produto inativado!','success');
+    carregar(false);
+    carregarNotificacoes();
+  } catch(err) { showToast(err.message,'error'); }
+}
+
+function confirmarExclusao(id, nome) {
+  document.getElementById('modalTitle').textContent = 'Excluir Produto';
+  document.getElementById('modalMsg').textContent = `Excluir "${nome}"? Esta ação não pode ser desfeita.`;
+  document.getElementById('modalOkBtn').onclick = async () => {
+    fecharModal();
+    try {
+      await api(`/api/produtos/${id}`, { method:'DELETE' });
+      showToast('Produto excluído!','success');
+      carregar();
+      carregarNotificacoes();
+    } catch(err) { showToast(err.message,'error'); }
+  };
+  document.getElementById('modalConfirm').classList.add('show');
+}
+
+function fecharModal() { document.getElementById('modalConfirm').classList.remove('show'); }
+document.getElementById('modalConfirm').addEventListener('click', e => {
+  if (e.target === document.getElementById('modalConfirm')) fecharModal();
+});
+
+// ═══════════════════════════════════════════════════════════
+// SELEÇÃO / BULK
+// ═══════════════════════════════════════════════════════════
+function toggleSelecionado(id, checked) {
+  checked ? _selecionados.add(id) : _selecionados.delete(id);
+  atualizarBulkBar();
+}
+
+function toggleSelecionarTodos(checked) {
+  document.querySelectorAll('#tabelaBody input[type="checkbox"]').forEach((cb, i) => {
+    cb.checked = checked;
+    const id = parseInt(cb.closest('tr').querySelectorAll('td')[2].textContent);
+    checked ? _selecionados.add(id) : _selecionados.delete(id);
+    cb.closest('tr').classList.toggle('row-selected', checked);
+  });
+  atualizarBulkBar();
+}
+
+function atualizarBulkBar() {
+  const n = _selecionados.size;
+  const bar = document.getElementById('bulkBar');
+  bar.classList.toggle('show', n > 0);
+  const countEl = document.getElementById('bulkCount');
+  if (countEl) countEl.textContent = n;
+}
+
+function limparSelecao() {
+  _selecionados.clear();
+  document.querySelectorAll('#tabelaBody input[type="checkbox"]').forEach(cb => cb.checked = false);
+  document.querySelectorAll('#tabelaBody tr').forEach(tr => tr.classList.remove('row-selected'));
+  document.getElementById('chkAll').checked = false;
+  atualizarBulkBar();
+}
+
+async function bulkAtivar() {
+  for (const id of _selecionados) await api(`/api/produtos/${id}/ativar`, { method:'PUT' });
+  showToast(`${_selecionados.size} produto(s) ativado(s)`, 'success');
+  limparSelecao(); carregar(); carregarNotificacoes();
+}
+
+async function bulkInativar() {
+  for (const id of _selecionados) await api(`/api/produtos/${id}/inativar`, { method:'PUT' });
+  showToast(`${_selecionados.size} produto(s) inativado(s)`, 'success');
+  limparSelecao(); carregar(); carregarNotificacoes();
+}
+
+async function bulkExcluir() {
+  const n = _selecionados.size;
+  document.getElementById('modalTitle').textContent = 'Excluir Selecionados';
+  document.getElementById('modalMsg').textContent = `Excluir ${n} produto${n!==1?'s':''}? Esta ação não pode ser desfeita.`;
+  document.getElementById('modalOkBtn').onclick = async () => {
+    fecharModal();
+    for (const id of _selecionados) await api(`/api/produtos/${id}`, { method:'DELETE' });
+    showToast(`${n} produto(s) excluído(s)`, 'success');
+    limparSelecao(); carregar(); carregarNotificacoes();
+  };
+  document.getElementById('modalConfirm').classList.add('show');
+}
+
+// ═══════════════════════════════════════════════════════════
+// CSV
+// ═══════════════════════════════════════════════════════════
+async function exportarCSV() {
+  try {
+    const r = await api(`/api/produtos?limit=9999&offset=0`);
+    const { produtos } = await r.json();
+    if (!produtos.length) { showToast('Nenhum dado para exportar'); return; }
+
+    const cols = ['id','descricao','apelido','cod_barras','cod_fabricante','unidade','vlr_venda','estoque_atual','estoque_minimo','nome_grupo','situacao'];
+    const header = ['ID','Descrição','Apelido','Cód.Barras','Ref.Fabricante','Un','Vlr.Venda','Estoque','Est.Mínimo','Grupo','Status'];
+    const rows = [header, ...produtos.map(p => cols.map(c => String(p[c]??'').replace(/"/g,'""')))];
+    const csv = rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+
+    const a = document.createElement('a');
+    a.href = 'data:text/csv;charset=utf-8,\uFEFF' + encodeURIComponent(csv);
+    a.download = `produtos_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    showToast('CSV exportado!', 'success');
+  } catch(err) { showToast(err.message, 'error'); }
+}
+</script>
+</body>
+</html>

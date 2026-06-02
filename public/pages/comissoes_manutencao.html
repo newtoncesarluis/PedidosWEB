@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manutenção de Comissões · Flow CRM</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/assets/themes.css">
+    <script src="/assets/themes.js"></script>
+
+    <style>
+        :root {
+            --primary: #6366f1;
+            --dark: #0f172a;
+            --light: #f8fafc;
+            --border: #e2e8f0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f1f5f9;
+            color: #1e293b;
+            font-size: 13px;
+        }
+
+        .main-card {
+            background: #fff;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+            margin-top: 2rem;
+            overflow: hidden;
+        }
+
+        .filter-bar {
+            background: #fff;
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .table-modern th {
+            background: #f8fafc;
+            text-transform: uppercase;
+            font-size: 10px;
+            font-weight: 800;
+            padding: 12px;
+        }
+
+        .form-modern {
+            border-radius: 8px;
+            border: 1px solid #cbd5e1;
+            font-size: 12px;
+            padding: 0.4rem 0.75rem;
+            transition: all 0.2s;
+            background: #fff;
+        }
+        .form-modern:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+            outline: none;
+        }
+
+        .filter-label {
+            font-size: 10px;
+            font-weight: 800;
+            text-transform: uppercase;
+            color: #64748b;
+            margin-bottom: 4px;
+            display: block;
+            letter-spacing: 0.025em;
+        }
+
+        .btn-premium {
+            border-radius: 8px;
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.025em;
+            padding: 0.5rem 1rem;
+            transition: all 0.2s;
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .btn-primary-gradient {
+            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+            color: white;
+        }
+        .btn-primary-gradient:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+            color: white;
+        }
+        .btn-secondary-modern {
+            background: #fff;
+            color: #64748b;
+            border: 1px solid #e2e8f0;
+        }
+        .btn-secondary-modern:hover { background: #f8fafc; color: var(--dark); }
+
+        .btn-edit {
+            padding: 6px 12px;
+            font-size: 11px;
+            border-radius: 8px;
+            font-weight: 700;
+            transition: all 0.2s;
+        }
+
+        #loading {
+            position: fixed; inset: 0; background: rgba(255,255,255,0.7);
+            backdrop-filter: blur(4px);
+            z-index: 9999; display: none; align-items: center; justify-content: center;
+        }
+    </style>
+</head>
+<body>
+
+<div id="loading">
+    <div class="spinner-border text-primary"></div>
+</div>
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h4 class="m-0 fw-800"><i class="fas fa-tools text-primary me-2"></i>Manutenção de Comissões</h4>
+            <p class="text-muted small m-0">Ajuste de percentuais e valores retroativos</p>
+        </div>
+        <a href="comissoes_dash.html" class="btn btn-premium btn-secondary-modern"><i class="fas fa-arrow-left"></i> Voltar ao Dashboard</a>
+    </div>
+
+    <div class="main-card">
+        <div class="filter-bar">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-2">
+                    <label class="filter-label">Vendedor</label>
+                    <select class="form-select form-modern" id="filter_vendedor"><option value="">Todos</option></select>
+                </div>
+                <div class="col-md-2">
+                    <label class="filter-label">Fábrica</label>
+                    <select class="form-select form-modern" id="filter_fornecedor"><option value="">Todas</option></select>
+                </div>
+                <div class="col-md-2">
+                    <label class="filter-label">Status</label>
+                    <select class="form-select form-modern" id="filter_status">
+                        <option value="T">Todos</option>
+                        <option value="P" selected>Pendentes</option>
+                        <option value="Q">Pagos</option>
+                    </select>
+                </div>
+                <div class="col-md-1">
+                    <label class="filter-label">Pedido #</label>
+                    <input type="text" class="form-control form-modern" id="search_pedido" placeholder="000000">
+                </div>
+                <div class="col-md-2">
+                    <label class="filter-label">Cliente (Nome)</label>
+                    <input type="text" class="form-control form-modern" id="search_cliente" placeholder="Buscar cliente...">
+                </div>
+                <div class="col-md-2">
+                    <label class="filter-label">Base de Data</label>
+                    <select class="form-select form-modern" id="filter_tipo_data">
+                        <option value="pedido">Data Pedido</option>
+                        <option value="recebimento" selected>Liquidação (Parcela)</option>
+                    </select>
+                </div>
+                <div class="col-md-1">
+                    <button class="btn btn-premium btn-primary-gradient w-100" onclick="searchCommissions()">
+                        <i class="fas fa-search"></i> Filtrar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-modern table-hover m-0">
+                <thead>
+                    <tr>
+                        <th>Pedido</th>
+                        <th>Vencimento</th>
+                        <th>Cliente</th>
+                        <th>Origem</th>
+                        <th class="text-end">Vlr Base</th>
+                        <th class="text-center">% Atual</th>
+                        <th class="text-end">Comissão</th>
+                        <th class="text-center">Status</th>
+                        <th class="text-center">Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="table_body">
+                    <tr><td colspan="8" class="text-center py-5 text-muted">Use os filtros acima para localizar as comissões.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ── Seção Inadimplência ──────────────────────────────────────────────────── -->
+<div class="container-fluid pb-5">
+  <div class="d-flex justify-content-between align-items-center mb-3 mt-4">
+    <div>
+      <h5 class="m-0 fw-800"><i class="fas fa-triangle-exclamation text-danger me-2"></i>Comissões Bloqueadas — Inadimplência</h5>
+      <p class="text-muted small m-0">Parcelas em aberto vencidas: comissão suspensa até regularização</p>
+    </div>
+    <div class="d-flex gap-2">
+      <div class="d-flex align-items-center gap-2">
+        <label class="small fw-bold text-muted mb-0">Carência (dias):</label>
+        <input type="number" id="dias-carencia" class="form-control form-control-sm" value="30" style="width:80px;">
+      </div>
+      <button class="btn btn-premium btn-primary-gradient" onclick="bloquearInadimplentes()">
+        <i class="fas fa-lock"></i> Bloquear Inadimplentes
+      </button>
+      <button class="btn btn-premium btn-secondary-modern" onclick="carregarInadimplentes()">
+        <i class="fas fa-sync-alt"></i> Atualizar Lista
+      </button>
+      <button class="btn btn-premium" style="background:#22c55e;color:#fff;" onclick="reativarTodos()">
+        <i class="fas fa-lock-open"></i> Reativar Todos
+      </button>
+    </div>
+  </div>
+
+  <div class="main-card" id="card-inad" style="display:none;">
+    <div class="px-3 py-2 d-flex align-items-center justify-content-between border-bottom" style="background:#fef2f2;">
+      <span class="small fw-700 text-danger"><i class="fas fa-circle-xmark me-1"></i><span id="lbl-inad-count">0</span> comissão(ões) bloqueada(s) — Total: <b id="lbl-inad-total">R$ 0,00</b></span>
+      <button class="btn btn-sm" style="background:#fee2e2;color:#b91c1c;font-weight:700;" onclick="reativarSelecionados()">
+        <i class="fas fa-check"></i> Reativar Selecionados
+      </button>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-modern table-hover m-0">
+        <thead>
+          <tr>
+            <th><input type="checkbox" id="chk-all-inad" onchange="toggleAllInad(this)"></th>
+            <th>Pedido</th>
+            <th>Cliente</th>
+            <th>Fornecedor</th>
+            <th>Vendedor</th>
+            <th>Vencimento Parcela</th>
+            <th class="text-end">Vlr Parcela</th>
+            <th class="text-center">Atraso</th>
+            <th class="text-end">Comissão Bloqueada</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-inad">
+          <tr><td colspan="9" class="text-center py-4 text-muted">Nenhuma comissão bloqueada.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de Edição -->
+<div class="modal fade" id="editModal" tabindex="-1">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title fw-bold">Ajustar Comissão</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="edit_forn_rules" class="mb-3 d-flex flex-wrap gap-1"></div>
+                <div class="mb-3">
+                    <label class="small fw-bold text-muted">Valor Base da Parcela</label>
+                    <input type="text" class="form-control form-control-sm bg-light" id="edit_vlr_base" readonly>
+                </div>
+                <div class="row g-2">
+                    <div class="col-6">
+                        <label class="small fw-bold text-muted">Novo %</label>
+                        <input type="number" step="0.01" class="form-control form-control-sm" id="edit_perc" oninput="calcNewValue()">
+                    </div>
+                    <div class="col-6">
+                        <label class="small fw-bold text-muted">Novo Valor R$</label>
+                        <input type="number" step="0.01" class="form-control form-control-sm" id="edit_vlr_final" oninput="calcNewPerc()">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer justify-content-between">
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="recalcularComissao()" title="Recalcula o valor aplicando as regras atuais do fornecedor">
+                    <i class="fas fa-sync-alt me-1"></i>Recalcular
+                </button>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-sm btn-primary" onclick="saveCommission()">Salvar Alteração</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Estorno -->
+<div class="modal fade" id="estornoModal" tabindex="-1">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header" style="background:linear-gradient(135deg,#ef4444,#b91c1c)">
+                <h6 class="modal-title fw-bold text-white"><i class="fas fa-undo-alt me-2"></i>Estornar Comissão</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="estorno_info" class="p-2 rounded mb-3" style="background:#f8fafc;border:1px solid #e2e8f0;font-size:12px"></div>
+                <div class="mb-3">
+                    <label class="small fw-bold text-muted">Motivo do estorno <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control form-control-sm" id="estorno_motivo" placeholder="Ex: lançamento incorreto, pedido cancelado...">
+                </div>
+                <div class="mb-1">
+                    <label class="small fw-bold text-muted">Sua senha <span class="text-danger">*</span></label>
+                    <input type="password" class="form-control form-control-sm" id="estorno_senha" placeholder="Confirme sua senha de acesso">
+                </div>
+                <p class="text-muted mt-2" style="font-size:10px">A comissão voltará para <b>Pendente</b> e o lançamento em Contas a Pagar será cancelado (se ainda não baixado).</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-sm btn-danger" id="btn_confirmar_estorno" onclick="confirmarEstorno()">
+                    <i class="fas fa-undo-alt me-1"></i>Confirmar Estorno
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    let currentEdit = null;
+    let currentEstorno = null;
+
+    function _statusBadge(s) {
+        const map = {
+            P: ['#dbeafe','#1e40af','Pendente'],
+            C: ['#fef3c7','#92400e','Conferida'],
+            R: ['#dcfce7','#166534','Recebida'],
+            G: ['#f3f4f6','#374151','Gerada'],
+        };
+        const [bg, color, label] = map[s] || ['#f3f4f6','#374151', s || '—'];
+        return `<span style="background:${bg};color:${color};border-radius:5px;padding:2px 9px;font-size:10px;font-weight:700">${label}</span>`;
+    }
+
+    $(document).ready(function() {
+        loadLookups();
+    });
+
+    async function loadLookups() {
+        const res = await fetch('/api/pedidos/lookups').then(r => r.json());
+        const pop = (id, list) => {
+            const sel = $('#' + id);
+            (list || []).forEach(i => sel.append(`<option value="${i.id}">${i.nome}</option>`));
+        };
+        pop('filter_vendedor', res.vendedores);
+        pop('filter_fornecedor', res.fornecedores);
+    }
+
+    async function searchCommissions() {
+        const params = new URLSearchParams({
+            id_vendedor: $('#filter_vendedor').val(),
+            id_fornecedor: $('#filter_fornecedor').val(),
+            status: $('#filter_status').val(),
+            id_pedido: $('#search_pedido').val(),
+            q_cliente: $('#search_cliente').val(),
+            tipo_data: $('#filter_tipo_data').val(),
+            limit: 100
+        });
+
+        $('#loading').css('display', 'flex');
+        try {
+            const res = await fetch('/api/comissoes/admin/extrato?' + params.toString()).then(r => r.json());
+            const rows = res.data || [];
+            
+            if(!rows.length) {
+                $('#table_body').html('<tr><td colspan="8" class="text-center py-5">Nenhum resultado encontrado.</td></tr>');
+                return;
+            }
+
+            const fmt = v => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
+            let html = '';
+            rows.forEach(r => {
+                html += `
+                    <tr>
+                        <td><b>#${r.numero}</b> (${r.parcela}/${r.qt_parcelas})</td>
+                        <td>${new Date(r.vencimento).toLocaleDateString('pt-BR')}</td>
+                        <td>${r.nome_cliente}</td>
+                        <td>
+                            <span class="badge bg-light text-dark border d-inline-flex align-items-center gap-1" style="font-size: 9px">
+                                <i class="fas ${r.label_origem === 'FÁBRICA' ? 'fa-industry' : r.label_origem === 'PRODUTO' ? 'fa-box' : 'fa-user-tie'}"></i>
+                                ${r.label_origem}
+                            </span>
+                            <span class="badge ms-1" style="font-size:9px;background:${r.com_tipo==='UNICA'?'#7c3aed':'#0ea5e9'};color:#fff">
+                                ${r.com_tipo === 'UNICA' ? 'Única' : 'Parcelas'}
+                            </span>
+                            ${r.com_sobre_ipi === 'N' ? '<span class="badge bg-warning text-dark ms-1" style="font-size:9px" title="Não paga comissão sobre IPI">-IPI</span>' : ''}
+                            ${r.com_sobre_st  === 'N' ? '<span class="badge bg-warning text-dark ms-1" style="font-size:9px" title="Não paga comissão sobre ST">-ST</span>' : ''}
+                        </td>
+                        <td class="text-end">${fmt(r.valor_parcela)}</td>
+                        <td class="text-center"><span class="badge bg-soft-primary">${parseFloat(r.comissao).toFixed(2)}%</span></td>
+                        <td class="text-end fw-bold">${fmt(r.vlr_comissao)}</td>
+                        <td class="text-center">${_statusBadge(r.status_comissao)}</td>
+                        <td class="text-center" style="white-space:nowrap">
+                            <button class="btn btn-outline-primary btn-edit me-1" onclick='openEdit(${JSON.stringify(r)})' title="Ajustar valor/percentual">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            ${(r.status_comissao === 'C' || r.status_comissao === 'R') ? `
+                            <button class="btn btn-outline-danger btn-edit" onclick='abrirEstorno(${JSON.stringify(r)})' title="Estornar para Pendente">
+                                <i class="fas fa-undo-alt"></i>
+                            </button>` : ''}
+                        </td>
+                    </tr>
+                `;
+            });
+            $('#table_body').html(html);
+        } catch(e) { console.error(e); } finally { $('#loading').hide(); }
+    }
+
+    function openEdit(row) {
+        currentEdit = row;
+        $('#edit_vlr_base').val(row.valor_parcela);
+        $('#edit_perc').val(parseFloat(row.comissao).toFixed(2));
+        $('#edit_vlr_final').val(parseFloat(row.vlr_comissao).toFixed(2));
+
+        // Badges das regras do fornecedor
+        const tipoLabel = row.com_tipo === 'UNICA' ? 'Comissão Única' : 'Parcelada na liquidez';
+        const tipoCor   = row.com_tipo === 'UNICA' ? '#7c3aed' : '#0ea5e9';
+        let badges = `<span class="badge" style="background:${tipoCor};color:#fff">${tipoLabel}</span>`;
+        if (row.com_sobre_ipi === 'N') badges += `<span class="badge bg-warning text-dark">Desconta IPI da base</span>`;
+        else                           badges += `<span class="badge bg-light text-dark border">IPI incluso na base</span>`;
+        if (row.com_sobre_st === 'N')  badges += `<span class="badge bg-warning text-dark">Desconta ST da base</span>`;
+        else                           badges += `<span class="badge bg-light text-dark border">ST incluso na base</span>`;
+        $('#edit_forn_rules').html(badges);
+
+        new bootstrap.Modal('#editModal').show();
+    }
+
+    async function recalcularComissao() {
+        if (!currentEdit) return;
+        if (!confirm('Recalcular o valor desta comissão aplicando as regras atuais do fornecedor?')) return;
+        try {
+            const res = await fetch(`/api/comissoes/admin/recalcular/${currentEdit.id}`, {
+                method: 'POST', credentials: 'include'
+            }).then(r => r.json());
+            if (res.ok) {
+                const fmt = v => new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
+                $('#edit_vlr_final').val(fmt(res.vlr_pago));
+                if (res.base_calculada && res.perc) {
+                    const novoPerc = (res.vlr_pago / res.base_calculada * 100).toFixed(2);
+                    $('#edit_perc').val(novoPerc);
+                }
+                currentEdit.vlr_comissao = res.vlr_pago;
+                bootstrap.Modal.getInstance('#editModal').hide();
+                searchCommissions();
+            } else {
+                alert('Erro ao recalcular: ' + res.error);
+            }
+        } catch(e) { alert('Erro: ' + e.message); }
+    }
+
+    function calcNewValue() {
+        const base = parseFloat($('#edit_vlr_base').val()) || 0;
+        const perc = parseFloat($('#edit_perc').val()) || 0;
+        $('#edit_vlr_final').val((base * (perc / 100)).toFixed(2));
+    }
+
+    function calcNewPerc() {
+        const base = parseFloat($('#edit_vlr_base').val()) || 0;
+        const vlr = parseFloat($('#edit_vlr_final').val()) || 0;
+        if(base > 0) $('#edit_perc').val(((vlr / base) * 100).toFixed(2));
+    }
+
+    function abrirEstorno(row) {
+        currentEstorno = row;
+        const fmt = v => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
+        const statusLabel = { C: 'Conferida', R: 'Recebida' }[row.status_comissao] || row.status_comissao;
+        $('#estorno_info').html(`
+            <div class="d-flex justify-content-between mb-1">
+                <span class="text-muted">Pedido</span><b>#${row.numero} (${row.parcela}/${row.qt_parcelas})</b>
+            </div>
+            <div class="d-flex justify-content-between mb-1">
+                <span class="text-muted">Vendedor</span><b>${row.nome_vendedor || '—'}</b>
+            </div>
+            <div class="d-flex justify-content-between mb-1">
+                <span class="text-muted">Comissão</span><b>${fmt(row.vlr_comissao)}</b>
+            </div>
+            <div class="d-flex justify-content-between">
+                <span class="text-muted">Status atual</span>${_statusBadge(row.status_comissao)}
+            </div>
+        `);
+        $('#estorno_motivo').val('');
+        $('#estorno_senha').val('');
+        $('#btn_confirmar_estorno').prop('disabled', false).html('<i class="fas fa-undo-alt me-1"></i>Confirmar Estorno');
+        new bootstrap.Modal('#estornoModal').show();
+        setTimeout(() => $('#estorno_motivo').focus(), 300);
+    }
+
+    async function confirmarEstorno() {
+        if (!currentEstorno) return;
+        const motivo = $('#estorno_motivo').val().trim();
+        const senha  = $('#estorno_senha').val().trim();
+        if (!motivo) { alert('Informe o motivo do estorno.'); $('#estorno_motivo').focus(); return; }
+        if (!senha)  { alert('Informe sua senha.'); $('#estorno_senha').focus(); return; }
+
+        const btn = $('#btn_confirmar_estorno');
+        btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Processando…');
+
+        try {
+            const res = await fetch(`/api/comissoes/${currentEstorno.id}/estornar`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ senha, motivo })
+            }).then(r => r.json());
+
+            if (res.ok) {
+                bootstrap.Modal.getInstance('#estornoModal').hide();
+                searchCommissions();
+            } else {
+                alert('Erro: ' + res.error);
+                btn.prop('disabled', false).html('<i class="fas fa-undo-alt me-1"></i>Confirmar Estorno');
+            }
+        } catch(e) {
+            alert('Erro: ' + e.message);
+            btn.prop('disabled', false).html('<i class="fas fa-undo-alt me-1"></i>Confirmar Estorno');
+        }
+    }
+
+    async function saveCommission() {
+        if(!confirm("Deseja realmente alterar esta comissão? Isso afetará os relatórios e o dashboard.")) return;
+
+        $('#loading').css('display', 'flex');
+        try {
+            const res = await fetch(`/api/comissoes/${currentEdit.id}/update-perc`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    perc: $('#edit_perc').val(),
+                    valor: $('#edit_vlr_final').val()
+                })
+            }).then(r => r.json());
+
+            if(res.ok) {
+                bootstrap.Modal.getInstance('#editModal').hide();
+                searchCommissions(); // Recarrega
+            } else {
+                alert("Erro ao salvar: " + res.error);
+            }
+        } catch(e) { console.error(e); } finally { $('#loading').hide(); }
+    }
+
+    // ── Inadimplência ──────────────────────────────────────────────────────────
+    const fmtR = v => 'R$ ' + parseFloat(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+    const fmtD = d => d ? new Date(d+'T12:00:00').toLocaleDateString('pt-BR') : '—';
+
+    async function bloquearInadimplentes() {
+        const dc = parseInt($('#dias-carencia').val()) || 30;
+        const ok = confirm(`Bloquear comissões cujas parcelas estão em aberto há mais de ${dc} dias?\n\nEssa ação altera o status de Pendente → Inadimplente.`);
+        if (!ok) return;
+        $('#loading').css('display','flex');
+        try {
+            const res = await fetch('/api/comissoes/admin/bloquear-inadimplentes', {
+                method:'POST', credentials:'include',
+                headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({ dias_carencia: dc })
+            }).then(r => r.json());
+            if (res.ok) {
+                alert(`${res.bloqueadas} comissão(ões) bloqueada(s) com sucesso.`);
+                carregarInadimplentes();
+            } else {
+                alert('Erro: ' + (res.error||'desconhecido'));
+            }
+        } catch(e) { alert('Erro de rede: ' + e.message); }
+        finally { $('#loading').hide(); }
+    }
+
+    async function carregarInadimplentes() {
+        try {
+            const res = await fetch('/api/comissoes/admin/inadimplentes', {credentials:'include'}).then(r => r.json());
+            const rows = res.data || [];
+            const card = document.getElementById('card-inad');
+            const tbody = document.getElementById('tbody-inad');
+
+            document.getElementById('lbl-inad-count').textContent = rows.length;
+            document.getElementById('lbl-inad-total').textContent = fmtR(res.total||0);
+
+            if (!rows.length) {
+                card.style.display = 'none';
+                return;
+            }
+            card.style.display = '';
+            tbody.innerHTML = rows.map(r => `
+                <tr>
+                    <td><input type="checkbox" class="chk-inad" value="${r.id}"></td>
+                    <td><b>${r.pedido||'—'}</b></td>
+                    <td>${r.nome_cliente||'—'}</td>
+                    <td>${r.nome_fornecedor||'—'}</td>
+                    <td>${r.nome_vendedor||'—'}</td>
+                    <td>${fmtD(r.vencimento)}</td>
+                    <td class="text-end">${fmtR(r.vlr_parcela)}</td>
+                    <td class="text-center"><span class="badge bg-danger">${r.dias_atraso||0}d</span></td>
+                    <td class="text-end text-danger fw-bold">${fmtR(r.vlr_pago)}</td>
+                </tr>
+            `).join('');
+        } catch(e) { console.error('Erro ao carregar inadimplentes:', e); }
+    }
+
+    function toggleAllInad(chk) {
+        document.querySelectorAll('.chk-inad').forEach(c => c.checked = chk.checked);
+    }
+
+    async function reativarSelecionados() {
+        const ids = [...document.querySelectorAll('.chk-inad:checked')].map(c => parseInt(c.value));
+        if (!ids.length) { alert('Selecione ao menos uma comissão.'); return; }
+        if (!confirm(`Reativar ${ids.length} comissão(ões) para Pendente?`)) return;
+        $('#loading').css('display','flex');
+        try {
+            const res = await fetch('/api/comissoes/admin/reativar-inadimplentes', {
+                method:'POST', credentials:'include',
+                headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({ ids })
+            }).then(r => r.json());
+            if (res.ok) { alert(`${res.reativadas} reativada(s).`); carregarInadimplentes(); }
+            else alert('Erro: ' + (res.error||'desconhecido'));
+        } catch(e) { alert('Erro: ' + e.message); }
+        finally { $('#loading').hide(); }
+    }
+
+    async function reativarTodos() {
+        if (!confirm('Reativar TODAS as comissões bloqueadas por inadimplência?')) return;
+        $('#loading').css('display','flex');
+        try {
+            const res = await fetch('/api/comissoes/admin/reativar-inadimplentes', {
+                method:'POST', credentials:'include',
+                headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({ ids: [] })
+            }).then(r => r.json());
+            if (res.ok) { alert(`${res.reativadas} reativada(s).`); carregarInadimplentes(); }
+            else alert('Erro: ' + (res.error||'desconhecido'));
+        } catch(e) { alert('Erro: ' + e.message); }
+        finally { $('#loading').hide(); }
+    }
+
+    // Carrega a lista de inadimplentes ao abrir a página
+    $(document).ready(function() { carregarInadimplentes(); });
+</script>
+
+</body>
+</html>

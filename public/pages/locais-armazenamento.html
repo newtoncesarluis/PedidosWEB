@@ -26,6 +26,7 @@
     .action-btn { cursor: pointer; transition: transform 0.2s; }
     .action-btn:hover { transform: scale(1.1); }
   </style>
+<link rel="stylesheet" href="/assets/themes.css">
 <script src="/assets/themes.js"></script>
 </head>
 <body>
@@ -39,12 +40,21 @@
         <button id="btnNovo" class="btn btn-primary shadow-sm" style="display:none;">
           <i class="bi bi-plus-lg me-2"></i> Novo Local
         </button>
+        <!-- ★ Card View toggle -->
+        <div class="cv-view-toggle" id="cvToggle" style="vertical-align:middle;margin-left:8px">
+          <button type="button" class="cv-vt-btn active" id="cvBtnTable" title="Tabela">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+          </button>
+          <button type="button" class="cv-vt-btn" id="cvBtnCards" title="Cards">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          </button>
+        </div>
       </div>
     </div>
 
     <div class="card shadow-sm">
       <div class="card-body p-4">
-        <div class="table-responsive">
+        <div class="table-responsive" id="cvTableResponsive">
           <table id="tabelaLocais" class="table table-hover align-middle" style="width:100%">
             <thead class="table-light">
               <tr>
@@ -58,6 +68,8 @@
             <tbody></tbody>
           </table>
         </div>
+        <!-- ★ Card View grid -->
+        <div id="cvCardsGrid" class="cv-cards-grid" style="display:none"></div>
       </div>
     </div>
   </div>
@@ -108,6 +120,9 @@
   <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
   <script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+  <!-- ★ Card View (CSS apenas — a integração com DataTables é inline abaixo) -->
+  <link rel="stylesheet" href="/assets/card-view.css">
 
   <script>
     let tabela;
@@ -222,6 +237,90 @@
         }
       });
     }
+
+    /* ★ Card View — integração one-off com DataTables */
+    (function(){
+      const KEY  = 'cv-mode:' + location.pathname;
+      let mode   = localStorage.getItem(KEY) || 'table';
+      const btnT = document.getElementById('cvBtnTable');
+      const btnC = document.getElementById('cvBtnCards');
+      const tw   = document.getElementById('cvTableResponsive');
+      const cg   = document.getElementById('cvCardsGrid');
+
+      function avatarClass(s) {
+        const c = (String(s || '?')[0]).toUpperCase();
+        if (/[A-Z]/.test(c)) return 'cv-av-' + c;
+        if (/[0-9]/.test(c)) return 'cv-av-NUM';
+        return 'cv-av-A';
+      }
+      function esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, c => (
+          { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]
+        ));
+      }
+
+      function renderCards() {
+        if (!tabela) return;
+        const rows = tabela.rows({ search:'applied' }).data().toArray();
+        if (!rows.length) {
+          cg.innerHTML = '<div class="cv-empty">Nenhum registro encontrado</div>';
+          return;
+        }
+        cg.innerHTML = rows.map(r => {
+          const desc  = r.descricao || '';
+          const ini   = (desc[0] || '?').toUpperCase();
+          const ativo = r.status === 'A';
+          const canE  = permissoes.alterar === 'S';
+          const canD  = permissoes.excluir === 'S';
+          return `<div class="cv-card" data-id="${r.id}">
+            <div class="cv-card-head">
+              <div class="cv-avatar ${avatarClass(desc)}">${esc(ini)}</div>
+              <div class="cv-card-head-text">
+                <div class="cv-card-title"><span>${esc(desc)}</span></div>
+                ${r.tipo ? `<div class="cv-card-sub">${esc(r.tipo)}</div>` : ''}
+              </div>
+            </div>
+            <div class="cv-card-body">
+              <div class="cv-card-row"><span class="cv-val">Código #${esc(r.id)}</span></div>
+            </div>
+            <div class="cv-card-foot">
+              <div class="cv-card-foot-left">
+                <span class="cv-badge cv-badge-${ativo ? 'success' : 'neutral'}">${ativo ? 'Ativo' : 'Inativo'}</span>
+              </div>
+              <div class="cv-card-foot-right">
+                ${canE ? '<button class="cv-card-action" data-edit title="Editar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>' : ''}
+                ${canD ? '<button class="cv-card-action" data-del  title="Excluir"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>' : ''}
+              </div>
+            </div>
+          </div>`;
+        }).join('');
+
+        cg.querySelectorAll('.cv-card').forEach(el => {
+          const id = parseInt(el.dataset.id, 10);
+          el.addEventListener('click', e => {
+            if (e.target.closest('[data-edit]')) { editarLocal(id); return; }
+            if (e.target.closest('[data-del]'))  { excluirLocal(id); return; }
+            if (permissoes.alterar === 'S') editarLocal(id);
+          });
+        });
+      }
+
+      function applyMode() {
+        const cards = mode === 'cards';
+        tw.style.display = cards ? 'none' : '';
+        cg.style.display = cards ? '' : 'none';
+        btnT.classList.toggle('active', !cards);
+        btnC.classList.toggle('active', cards);
+        if (cards) renderCards();
+      }
+
+      btnT.addEventListener('click', () => { mode = 'table'; localStorage.setItem(KEY, 'table'); applyMode(); });
+      btnC.addEventListener('click', () => { mode = 'cards'; localStorage.setItem(KEY, 'cards'); applyMode(); });
+
+      // DataTables: rerender cards a cada draw (search/sort/pagination/reload)
+      $(document).on('init.dt draw.dt', '#tabelaLocais', () => { if (mode === 'cards') renderCards(); });
+      $(document).on('init.dt', '#tabelaLocais', applyMode);
+    })();
   </script>
 </body>
 </html>

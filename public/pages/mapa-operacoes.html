@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Mapa de Operações · SysRepWeb</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+<script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<link rel="stylesheet" href="/assets/ajuda-tour.css">
+<script src="/assets/ajuda-tour.js"></script>
+<script src="/assets/ajuda-tours.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:var(--content-bg,#f0f2f5);--card:var(--card-bg,#fff);--border:var(--card-border,#e5e7eb);
+  --text:var(--content-text,#111827);--text2:var(--text-muted,#6b7280);--accent:var(--accent,#6366f1);
+}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
+
+.toolbar{background:var(--card);border-bottom:1px solid var(--border);padding:10px 16px;
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;top:0;z-index:200}
+.toolbar-title{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;display:flex;align-items:center;gap:6px}
+.sep{width:1px;height:28px;background:var(--border)}
+.filter-tabs{display:flex;gap:3px;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:3px;flex-wrap:wrap}
+.filter-tab{padding:4px 10px;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;border:none;background:transparent;color:var(--text2);font-family:inherit;display:inline-flex;align-items:center;gap:4px}
+.filter-tab.active{background:var(--accent);color:#fff}
+.tab-ct{background:rgba(0,0,0,.12);border-radius:10px;padding:1px 5px;font-size:9px;font-weight:800;min-width:14px;text-align:center}
+.filter-tab.active .tab-ct{background:rgba(255,255,255,.25)}
+.date-filters{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.date-filters input,.date-filters select{font-size:11px;padding:5px 8px;border:1.5px solid var(--border);border-radius:7px;font-family:inherit;background:var(--card);color:var(--text)}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;border:none;font-family:inherit;transition:.15s}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-outline{background:var(--card);color:var(--accent);border:1.5px solid var(--accent)}
+.btn-neutral{background:var(--bg);color:var(--text);border:1.5px solid var(--border)}
+.btn svg{width:14px;height:14px}
+
+.intro-banner{background:linear-gradient(135deg,rgba(99,102,241,.08),rgba(14,165,233,.06));border-bottom:1px solid var(--border);padding:10px 16px;font-size:12px;line-height:1.5;color:var(--text2)}
+.intro-banner strong{color:var(--text);font-weight:700}
+
+.main-layout{display:grid;grid-template-columns:320px 1fr;flex:1;min-height:0;height:calc(100vh - 105px)}
+@media(max-width:900px){.main-layout{grid-template-columns:1fr;grid-template-rows:auto 1fr;height:auto;min-height:calc(100vh - 105px)}}
+
+.left-panel{background:var(--card);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.left-header{padding:12px;border-bottom:1px solid var(--border)}
+.left-header h2{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);margin-bottom:10px}
+
+.kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.kpi-card{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:10px;text-align:center}
+.kpi-val{font-size:20px;font-weight:800;line-height:1}
+.kpi-lbl{font-size:9px;font-weight:700;text-transform:uppercase;color:var(--text2);margin-top:4px;letter-spacing:.3px}
+.kpi-card.kpi-total{grid-column:1/-1;background:rgba(99,102,241,.06);border-color:rgba(99,102,241,.2)}
+.kpi-total .kpi-val{color:var(--accent)}
+
+.alert-sem-geo{margin-top:10px;padding:8px 10px;border-radius:8px;font-size:11px;background:#fef3c7;color:#92400e;border:1px solid #fde68a;display:none}
+.alert-sem-geo.show{display:block}
+.geo-panel{margin-top:10px;padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--bg);font-size:11px}
+.geo-panel h3{font-size:10px;font-weight:800;text-transform:uppercase;color:var(--text2);margin-bottom:8px;letter-spacing:.4px}
+.geo-panel-actions{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.geo-pend-list{max-height:100px;overflow-y:auto;color:var(--text2);line-height:1.5}
+.geo-pend-list div{padding:2px 0;border-bottom:1px dashed var(--border)}
+.sync-badge{font-size:10px;color:var(--text2);white-space:nowrap}
+.sync-badge.live{color:#16a34a;font-weight:700}
+.map-status{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:500;background:var(--card);border:1px solid var(--border);padding:4px 10px;border-radius:20px;font-size:10px;font-weight:600;box-shadow:0 2px 8px rgba(0,0,0,.1)}
+
+.left-scroll{flex:1;overflow-y:auto;padding:10px}
+.marcador-item{padding:10px;border:1px solid var(--border);border-radius:10px;margin-bottom:6px;cursor:pointer;background:var(--bg);transition:.12s}
+.marcador-item:hover,.marcador-item.sel{border-color:var(--accent);background:rgba(99,102,241,.06)}
+.marcador-item .nome{font-size:12px;font-weight:700}
+.marcador-item .meta{font-size:10px;color:var(--text2);margin-top:3px;line-height:1.4}
+.status-pill{display:inline-block;padding:2px 7px;border-radius:20px;font-size:9px;font-weight:800;text-transform:uppercase;margin-top:5px}
+
+#map{width:100%;height:100%;min-height:360px}
+.map-wrap{position:relative;overflow:hidden;min-height:360px}
+.map-legend{position:absolute;bottom:24px;left:10px;z-index:500;background:var(--card);border:1px solid var(--border);
+  border-radius:10px;padding:10px 12px;font-size:11px;box-shadow:0 4px 14px rgba(0,0,0,.12)}
+.map-legend-title{font-weight:800;font-size:10px;text-transform:uppercase;color:var(--text2);margin-bottom:6px;letter-spacing:.4px}
+.legend-item{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.legend-dot{width:12px;height:12px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.map-refresh{position:absolute;top:10px;right:10px;z-index:500}
+
+.loader{display:flex;justify-content:center;padding:24px}
+.spin{width:22px;height:22px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.empty{text-align:center;padding:24px;color:var(--text2);font-size:12px}
+
+.marker-cluster{background:rgba(99,102,241,.28)!important;border:2px solid var(--accent)!important}
+.marker-cluster div{background:var(--accent)!important;color:#fff!important;font-weight:800!important}
+.marker-cluster.mc-VISITADO{background:rgba(34,197,94,.25)!important;border-color:#22c55e!important}
+.marker-cluster.mc-VISITADO div{background:#22c55e!important}
+.marker-cluster.mc-PENDENTE{background:rgba(59,130,246,.25)!important;border-color:#3b82f6!important}
+.marker-cluster.mc-PENDENTE div{background:#3b82f6!important}
+.marker-cluster.mc-EM_ANDAMENTO{background:rgba(245,158,11,.25)!important;border-color:#f59e0b!important}
+.marker-cluster.mc-EM_ANDAMENTO div{background:#f59e0b!important}
+.marker-cluster.mc-CANCELADA{background:rgba(107,114,128,.25)!important;border-color:#6b7280!important}
+.marker-cluster.mc-CANCELADA div{background:#6b7280!important}
+.marker-cluster.mc-PROSPECT{background:rgba(168,85,247,.25)!important;border-color:#a855f7!important}
+.marker-cluster.mc-PROSPECT div{background:#a855f7!important}
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <span class="toolbar-title">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px">
+      <path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
+    </svg>
+    Mapa de Operações
+  </span>
+  <div class="sep"></div>
+  <div class="filter-tabs" id="statusTabs">
+    <button type="button" class="filter-tab active" data-status="" onclick="setStatusFiltro('',this)">Todos<span class="tab-ct" id="ct-todos"></span></button>
+    <button type="button" class="filter-tab" data-status="VISITADO" onclick="setStatusFiltro('VISITADO',this)">Visitados<span class="tab-ct" id="ct-visitado"></span></button>
+    <button type="button" class="filter-tab" data-status="PENDENTE" onclick="setStatusFiltro('PENDENTE',this)">Pendentes<span class="tab-ct" id="ct-pendente"></span></button>
+    <button type="button" class="filter-tab" data-status="EM_ANDAMENTO" onclick="setStatusFiltro('EM_ANDAMENTO',this)">Em andamento<span class="tab-ct" id="ct-andamento"></span></button>
+    <button type="button" class="filter-tab" data-status="CANCELADA" onclick="setStatusFiltro('CANCELADA',this)">Canceladas<span class="tab-ct" id="ct-cancelada"></span></button>
+    <button type="button" class="filter-tab" data-status="PROSPECT" onclick="setStatusFiltro('PROSPECT',this)">Prospects<span class="tab-ct" id="ct-prospect"></span></button>
+  </div>
+  <div class="sep"></div>
+  <div class="date-filters">
+    <select id="selTipo" onchange="carregar()" title="Tipo">
+      <option value="todos">Clientes + Prospects</option>
+      <option value="clientes">Só clientes</option>
+      <option value="prospects">Só prospects</option>
+    </select>
+    <select id="selVendedor" onchange="carregar()" title="Vendedor">
+      <option value="">Todos vendedores</option>
+    </select>
+    <input type="date" id="dtRef" onchange="carregar()" title="Data">
+    <button type="button" class="btn btn-outline" onclick="filtroHoje()">Hoje</button>
+    <input type="search" id="inpBusca" placeholder="Buscar..." style="width:120px" oninput="debounceBusca()">
+  </div>
+  <div style="flex:1"></div>
+  <span class="sync-badge" id="syncBadge">—</span>
+  <label style="font-size:11px;display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--text2)">
+    <input type="checkbox" id="chkAuto" checked> Auto
+  </label>
+  <select id="selInterval" style="font-size:11px;padding:4px 6px;border:1px solid var(--border);border-radius:6px" onchange="reiniciarAutoRefresh()">
+    <option value="15">15s</option>
+    <option value="30" selected>30s</option>
+    <option value="60">60s</option>
+    <option value="120">2min</option>
+  </select>
+  <label style="font-size:11px;display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--text2)">
+    <input type="checkbox" id="chkVendedores" checked> Vendedores
+  </label>
+  <button type="button" class="btn btn-neutral" onclick="carregar()" title="Atualizar">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v6h6M20 20v-6h-6M20 8A8 8 0 004.93 16.5M4 16A8 8 0 0019.07 7.5"/></svg>
+  </button>
+  <button type="button" class="btn btn-neutral" onclick="reenquadrarMapa()" title="Reenquadrar mapa">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7V4h3M20 7V4h-3M4 17v3h3M20 17v3h-3M8 12h8M12 8v8"/></svg>
+  </button>
+  <button type="button" class="btn btn-primary" onclick="SysRepTour && SysRepTour.start('mapa-operacoes')" title="Tour — Mapa de Operações">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3" stroke-linejoin="round"/></svg>
+    Tour
+  </button>
+  <button type="button" class="btn btn-outline" onclick="abrirAjudaMapa()" title="Passo a passo">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+    Ajuda
+  </button>
+</div>
+
+<div class="intro-banner">
+  <strong>Controle visual:</strong> com o Mapa de Operações, você visualiza em tempo real o que está acontecendo em campo,
+  acompanhando clientes de forma geográfica e objetiva. Tenha clareza imediata sobre onde o time está atuando,
+  quais visitas foram realizadas e como a operação evolui ao longo do dia.
+</div>
+
+<div class="main-layout" id="mainLayout">
+  <div class="left-panel">
+    <div class="left-header">
+      <h2>Resumo do dia</h2>
+      <div class="kpi-grid" id="kpiGrid">
+        <div class="kpi-card kpi-total"><div class="kpi-val" id="kpiTotal">—</div><div class="kpi-lbl">No mapa</div></div>
+        <div class="kpi-card"><div class="kpi-val" id="kpiVisitado" style="color:#22c55e">—</div><div class="kpi-lbl">Realizadas</div></div>
+        <div class="kpi-card"><div class="kpi-val" id="kpiPendente" style="color:#3b82f6">—</div><div class="kpi-lbl">Pendentes</div></div>
+        <div class="kpi-card"><div class="kpi-val" id="kpiAndamento" style="color:#f59e0b">—</div><div class="kpi-lbl">Em andamento</div></div>
+        <div class="kpi-card"><div class="kpi-val" id="kpiCancelada" style="color:#6b7280">—</div><div class="kpi-lbl">Canceladas</div></div>
+        <div class="kpi-card"><div class="kpi-val" id="kpiProspect" style="color:#a855f7">—</div><div class="kpi-lbl">Prospects</div></div>
+      </div>
+      <div class="alert-sem-geo" id="alertSemGeo"></div>
+      <div class="geo-panel" id="geoPanel">
+        <h3>Geolocalização pendente (dia)</h3>
+        <div class="geo-panel-actions">
+          <button type="button" class="btn btn-outline" id="btnGeoClientes" onclick="processarGeo('clientes')">Clientes (<span id="geoCtCli">0</span>)</button>
+          <button type="button" class="btn btn-outline" id="btnGeoLeads" onclick="processarGeo('leads')">Prospects (<span id="geoCtLead">0</span>)</button>
+        </div>
+        <div class="geo-pend-list" id="geoPendList"></div>
+      </div>
+    </div>
+    <div class="left-scroll" id="listaMarcadores">
+      <div class="loader"><div class="spin"></div></div>
+    </div>
+  </div>
+
+  <div class="map-wrap">
+    <div id="map"></div>
+    <div class="map-status" id="mapStatus" style="display:none">Atualizando…</div>
+    <div class="map-legend" id="mapLegend">
+      <div class="map-legend-title">Legenda</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#22c55e"></div><span>Cliente visitado</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div><span>Visita pendente</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div><span>Visita em andamento</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background:#6b7280"></div><span>Cancelada / não realizada</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background:#a855f7;border-radius:4px"></div><span>Prospect em acompanhamento</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background:#ea580c;box-shadow:0 0 0 3px rgba(234,88,12,.35)"></div><span>Vendedor (último check-in)</span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const STATUS_COLOR = {
+  VISITADO: '#22c55e',
+  PENDENTE: '#3b82f6',
+  EM_ANDAMENTO: '#f59e0b',
+  CANCELADA: '#6b7280',
+  PROSPECT: '#a855f7',
+};
+const STATUS_PILL_BG = {
+  VISITADO: 'rgba(34,197,94,.15)',
+  PENDENTE: 'rgba(59,130,246,.15)',
+  EM_ANDAMENTO: 'rgba(245,158,11,.15)',
+  CANCELADA: 'rgba(107,114,128,.15)',
+  PROSPECT: 'rgba(168,85,247,.15)',
+};
+
+let mapa = null;
+let clusterLayer = null;
+let marcadoresLeaflet = [];
+let vendedoresLeaflet = [];
+let filtroStatus = '';
+let dadosCache = [];
+let vendedoresCache = [];
+let resumoCache = {};
+let _timerBusca = null;
+let _timerAuto = null;
+let selId = null;
+let selTipoMarcador = 'cli';
+let _mapaAjustado = false;
+let _carregando = false;
+
+const PREFS_KEY = 'sysrep_mapa_operacoes_prefs_v1';
+function loadPrefs() {
+  try {
+    return JSON.parse(localStorage.getItem(PREFS_KEY) || '{}') || {};
+  } catch (_) {
+    return {};
+  }
+}
+function savePrefs(partial) {
+  const cur = loadPrefs();
+  const next = { ...cur, ...partial };
+  localStorage.setItem(PREFS_KEY, JSON.stringify(next));
+}
+
+function token() {
+  return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+}
+async function api(url, opts = {}) {
+  const r = await fetch(url, {
+    headers: { Authorization: 'Bearer ' + token(), ...(opts.headers || {}) },
+    ...opts,
+  });
+  if (!r.ok) throw new Error((await r.text()) || r.statusText);
+  return r.json();
+}
+async function apiPost(url, body) {
+  return api(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+function esc(s) {
+  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+}
+function fmtDt(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+function hojeStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function abrirAjudaMapa() {
+  const page = '/pages/ajuda-mapa-operacoes.html';
+  if (window.parent && typeof window.parent.openTab === 'function') {
+    window.parent.openTab(page, 'Ajuda: Mapa de Operações');
+    return;
+  }
+  window.location.href = page;
+}
+
+function initMapa() {
+  mapa = L.map('map', { center: [-14.235, -51.9253], zoom: 5 });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap',
+    maxZoom: 19,
+  }).addTo(mapa);
+  clusterLayer = L.markerClusterGroup({
+    showCoverageOnHover: false,
+    maxClusterRadius: 50,
+    spiderfyOnMaxZoom: true,
+    removeOutsideVisibleBounds: false,
+    iconCreateFunction: (cluster) => {
+      const counts = { VISITADO: 0, PENDENTE: 0, EM_ANDAMENTO: 0, CANCELADA: 0, PROSPECT: 0 };
+      cluster.getAllChildMarkers().forEach(mk => {
+        const s = mk?._statusMapa;
+        if (s && counts[s] !== undefined) counts[s] += 1;
+      });
+      let top = 'PENDENTE';
+      let topN = -1;
+      Object.keys(counts).forEach(k => {
+        if (counts[k] > topN) { topN = counts[k]; top = k; }
+      });
+      return L.divIcon({
+        html: `<div><span>${cluster.getChildCount()}</span></div>`,
+        className: `marker-cluster mc-${top}`,
+        iconSize: L.point(40, 40),
+      });
+    },
+  });
+  mapa.addLayer(clusterLayer);
+  mapa.on('moveend', () => { _mapaAjustado = true; });
+}
+
+function limparMarcadores() {
+  if (clusterLayer) clusterLayer.clearLayers();
+  marcadoresLeaflet = [];
+}
+
+function ajustarMapaBounds(lista) {
+  if (_mapaAjustado || !mapa) return;
+  const pts = [];
+  lista.forEach(m => {
+    const lat = parseFloat(m.latitude);
+    const lng = parseFloat(m.longitude);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) pts.push([lat, lng]);
+  });
+  if (document.getElementById('chkVendedores').checked) {
+    vendedoresCache.forEach(v => {
+      const lat = parseFloat(v.latitude);
+      const lng = parseFloat(v.longitude);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) pts.push([lat, lng]);
+    });
+  }
+  if (pts.length) {
+    mapa.fitBounds(pts, { padding: [40, 40], maxZoom: 14 });
+    _mapaAjustado = true;
+  }
+}
+
+function getListaFiltradaAtual() {
+  return filtroStatus ? dadosCache.filter(m => m.status_mapa === filtroStatus) : dadosCache;
+}
+
+function reenquadrarMapa() {
+  _mapaAjustado = false;
+  ajustarMapaBounds(getListaFiltradaAtual());
+}
+
+function limparVendedores() {
+  vendedoresLeaflet.forEach(m => m.remove());
+  vendedoresLeaflet = [];
+}
+
+function pinVendedores(lista) {
+  limparVendedores();
+  if (!document.getElementById('chkVendedores').checked) return;
+  lista.forEach(v => {
+    const icon = L.divIcon({
+      html: `<div style="background:#ea580c;color:#fff;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;border:3px solid #fff;box-shadow:0 0 0 4px rgba(234,88,12,.4)">V</div>`,
+      iconSize: [30, 30],
+      iconAnchor: [15, 15],
+      className: '',
+    });
+    const popup = `
+      <div style="font-family:Inter,sans-serif;min-width:200px">
+        <strong style="font-size:13px">${esc(v.nome)}</strong>
+        <div style="font-size:10px;color:#ea580c;font-weight:700;margin-top:4px">VENDEDOR EM CAMPO</div>
+        <div style="font-size:11px;margin-top:6px"><b>Último check-in:</b> ${fmtDt(v.ultimo_checkin)}</div>
+        ${v.cliente_checkin ? `<div style="font-size:11px"><b>Em:</b> ${esc(v.cliente_checkin)}</div>` : ''}
+        ${v.status_visita ? `<div style="font-size:11px"><b>Status:</b> ${esc(v.status_visita)}</div>` : ''}
+        ${v.descricao_rota ? `<div style="font-size:10px;color:#666;margin-top:4px">${esc(v.descricao_rota)}</div>` : ''}
+      </div>`;
+    const mk = L.marker([v.latitude, v.longitude], { icon, zIndexOffset: 1000 }).addTo(mapa);
+    mk.bindPopup(popup, { maxWidth: 260 });
+    vendedoresLeaflet.push(mk);
+  });
+}
+
+function pinMarcadores(lista) {
+  limparMarcadores();
+  if (!clusterLayer) return;
+  lista.forEach((m, i) => {
+    const cor = STATUS_COLOR[m.status_mapa] || STATUS_COLOR.PENDENTE;
+    const isProspect = m.tipo === 'prospect';
+    const label = isProspect ? 'P' : String(i + 1);
+    const radius = isProspect ? '6px' : '50%';
+    const mid = m.id_marcador || ('cli-' + m.id_cliente);
+    const icon = L.divIcon({
+      html: `<div style="background:${cor};color:#fff;width:26px;height:26px;border-radius:${radius};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:10px;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.25)">${label}</div>`,
+      iconSize: [26, 26],
+      iconAnchor: [13, 13],
+      className: '',
+    });
+    const end = [m.endereco, m.cidade, m.uf].filter(Boolean).join(' · ');
+    const popup = `
+      <div style="font-family:Inter,sans-serif;min-width:200px">
+        <strong style="font-size:13px">${esc(m.nome)}</strong>
+        ${m.apelido ? `<div style="font-size:11px;color:#666">${esc(m.apelido)}</div>` : ''}
+        <div style="font-size:10px;color:#a855f7;font-weight:700;margin-top:2px">${isProspect ? 'PROSPECT' : 'CLIENTE'}</div>
+        <div style="font-size:11px;margin:8px 0;color:#444">${esc(end)}</div>
+        <div style="font-size:11px"><b>Vendedor:</b> ${esc(m.nome_vendedor || '—')}</div>
+        <div style="font-size:11px;margin-top:4px"><b>Status:</b> <span style="color:${cor};font-weight:700">${esc(m.status_label)}</span></div>
+        ${m.hora_visita ? `<div style="font-size:11px"><b>Horário visita:</b> ${String(m.hora_visita).slice(0, 5)}</div>` : ''}
+        ${m.data_proximo_contato ? `<div style="font-size:11px"><b>Próximo contato:</b> ${esc(String(m.data_proximo_contato).slice(0, 10))}</div>` : ''}
+        <div style="font-size:10px;color:#888;margin-top:6px">Atualizado: ${fmtDt(m.ultima_atualizacao)}</div>
+        ${m.descricao_rota ? `<div style="font-size:10px;margin-top:4px">Rota: ${esc(m.descricao_rota)}</div>` : ''}
+      </div>`;
+    const mk = L.marker([m.latitude, m.longitude], { icon });
+    mk._marcadorId = mid;
+    mk._statusMapa = m.status_mapa;
+    mk.bindPopup(popup, { maxWidth: 280 });
+    mk.on('click', () => selecionarItem(mid, m.tipo));
+    clusterLayer.addLayer(mk);
+    marcadoresLeaflet.push(mk);
+  });
+  ajustarMapaBounds(lista);
+}
+
+function renderGeoPendentes(pendentes, semGeo, semGeoLeads) {
+  document.getElementById('geoCtCli').textContent = semGeo || 0;
+  document.getElementById('geoCtLead').textContent = semGeoLeads || 0;
+  const btnCli = document.getElementById('btnGeoClientes');
+  const btnLead = document.getElementById('btnGeoLeads');
+  btnCli.disabled = !(semGeo > 0);
+  btnLead.disabled = !(semGeoLeads > 0);
+
+  const el = document.getElementById('geoPendList');
+  const linhas = [];
+  (pendentes?.clientes || []).slice(0, 8).forEach(c => {
+    linhas.push(`<div>👤 ${esc(c.nome)} — ${esc(c.cidade || '')}</div>`);
+  });
+  (pendentes?.leads || []).slice(0, 8).forEach(l => {
+    linhas.push(`<div>◆ ${esc(l.nome)} — ${esc(l.cidade || '')}</div>`);
+  });
+  const extra = (semGeo + semGeoLeads) - linhas.length;
+  if (extra > 0) linhas.push(`<div style="font-style:italic">+ ${extra} registro(s)…</div>`);
+  el.innerHTML = linhas.length ? linhas.join('') : '<div>Nenhuma pendência de GPS para o dia.</div>';
+}
+
+function renderLista(lista) {
+  const el = document.getElementById('listaMarcadores');
+  if (!lista.length) {
+    el.innerHTML = '<div class="empty"><p>Nenhum ponto no mapa para os filtros selecionados.</p><p style="margin-top:8px;font-size:11px">Cadastre latitude/longitude no cliente ou use Rotas / Agenda de Visitas.</p></div>';
+    return;
+  }
+  el.innerHTML = lista.map(m => {
+    const cor = STATUS_COLOR[m.status_mapa] || '#3b82f6';
+    const bg = STATUS_PILL_BG[m.status_mapa] || STATUS_PILL_BG.PENDENTE;
+    const mid = m.id_marcador || ('cli-' + m.id_cliente);
+    const tipo = m.tipo || 'cliente';
+    return `<div class="marcador-item ${selId === mid ? 'sel' : ''}" data-id="${esc(mid)}" data-tipo="${tipo}" onclick="selecionarItem('${esc(mid)}','${tipo}')">
+      <div class="nome">${m.tipo === 'prospect' ? '◆ ' : ''}${esc(m.nome)}</div>
+      <div class="meta">${esc(m.cidade || '')}${m.uf ? '/' + esc(m.uf) : ''} · ${esc(m.nome_vendedor || '—')}</div>
+      <span class="status-pill" style="background:${bg};color:${cor}">${esc(m.status_label)}</span>
+    </div>`;
+  }).join('');
+}
+
+function selecionarItem(id, tipo) {
+  selId = id;
+  selTipoMarcador = tipo || 'cliente';
+  document.querySelectorAll('.marcador-item').forEach(el => {
+    el.classList.toggle('sel', el.dataset.id === String(id));
+  });
+  const m = dadosCache.find(x => (x.id_marcador || ('cli-' + x.id_cliente)) === id);
+  if (m && mapa) {
+    mapa.setView([m.latitude, m.longitude], 15);
+    const mk = marcadoresLeaflet.find(x => x._marcadorId === id);
+    if (mk && clusterLayer) {
+      clusterLayer.zoomToShowLayer(mk, () => mk.openPopup());
+    } else if (mk) {
+      mk.openPopup();
+    }
+  }
+}
+
+function atualizarKpis(resumo) {
+  document.getElementById('kpiTotal').textContent = resumo.total ?? 0;
+  document.getElementById('kpiVisitado').textContent = resumo.visitado ?? 0;
+  document.getElementById('kpiPendente').textContent = resumo.pendente ?? 0;
+  document.getElementById('kpiAndamento').textContent = resumo.em_andamento ?? 0;
+  document.getElementById('kpiCancelada').textContent = resumo.cancelada ?? 0;
+  document.getElementById('kpiProspect').textContent = resumo.prospect ?? 0;
+  document.getElementById('ct-todos').textContent = resumo.total > 0 ? resumo.total : '';
+  document.getElementById('ct-visitado').textContent = resumo.visitado > 0 ? resumo.visitado : '';
+  document.getElementById('ct-pendente').textContent = resumo.pendente > 0 ? resumo.pendente : '';
+  document.getElementById('ct-andamento').textContent = resumo.em_andamento > 0 ? resumo.em_andamento : '';
+  document.getElementById('ct-cancelada').textContent = resumo.cancelada > 0 ? resumo.cancelada : '';
+  document.getElementById('ct-prospect').textContent = resumo.prospect > 0 ? resumo.prospect : '';
+}
+
+function setStatusFiltro(s, btn) {
+  filtroStatus = s;
+  document.querySelectorAll('.filter-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  aplicarFiltroLocal();
+}
+
+function aplicarFiltroLocal() {
+  const lista = getListaFiltradaAtual();
+  renderLista(lista);
+  pinVendedores(vendedoresCache);
+  pinMarcadores(lista);
+}
+
+function filtroHoje() {
+  document.getElementById('dtRef').value = hojeStr();
+  carregar();
+}
+
+function debounceBusca() {
+  clearTimeout(_timerBusca);
+  _timerBusca = setTimeout(carregar, 400);
+}
+
+function buildParams(semStatus) {
+  const p = new URLSearchParams();
+  p.set('data', document.getElementById('dtRef').value || hojeStr());
+  const v = document.getElementById('selVendedor').value;
+  if (v) p.set('id_vendedor', v);
+  p.set('tipo', document.getElementById('selTipo').value || 'todos');
+  const q = document.getElementById('inpBusca').value.trim();
+  if (q) p.set('q', q);
+  if (!semStatus && filtroStatus) p.set('status', filtroStatus);
+  return p;
+}
+
+async function carregar(silencioso) {
+  if (_carregando) return;
+  _carregando = true;
+  const statusEl = document.getElementById('mapStatus');
+  if (!silencioso) {
+    document.getElementById('listaMarcadores').innerHTML = '<div class="loader"><div class="spin"></div></div>';
+  } else {
+    statusEl.style.display = 'block';
+  }
+  try {
+    const d = await api('/api/mapa-operacoes?' + buildParams(true));
+    dadosCache = d.marcadores || [];
+    vendedoresCache = d.vendedores || [];
+    resumoCache = d.resumo || {};
+    atualizarKpis(resumoCache);
+
+    const badge = document.getElementById('syncBadge');
+    if (d.atualizado_em) {
+      badge.textContent = 'Atualizado ' + fmtDt(d.atualizado_em);
+      badge.classList.add('live');
+    }
+
+    const alert = document.getElementById('alertSemGeo');
+    const parts = [];
+    if (d.sem_geo > 0) parts.push(`${d.sem_geo} cliente(s) com visita/rota sem GPS`);
+    if (d.sem_geo_leads > 0) parts.push(`${d.sem_geo_leads} prospect(s) do dia sem GPS`);
+    if (parts.length) {
+      alert.textContent = parts.join(' · ') + '. Use o painel abaixo para geocodificar em lote.';
+      alert.classList.add('show');
+    } else {
+      alert.classList.remove('show');
+    }
+
+    renderGeoPendentes(d.pendentes_lista, d.sem_geo, d.sem_geo_leads);
+    aplicarFiltroLocal();
+    if (mapa) setTimeout(() => mapa.invalidateSize(), 200);
+  } catch (e) {
+    if (!silencioso) {
+      document.getElementById('listaMarcadores').innerHTML = `<div class="empty"><p>Erro: ${esc(e.message)}</p></div>`;
+    }
+    document.getElementById('syncBadge').textContent = 'Erro ao atualizar';
+    document.getElementById('syncBadge').classList.remove('live');
+  } finally {
+    _carregando = false;
+    statusEl.style.display = 'none';
+  }
+}
+
+async function processarGeo(tipo) {
+  const btn = tipo === 'leads' ? document.getElementById('btnGeoLeads') : document.getElementById('btnGeoClientes');
+  btn.disabled = true;
+  try {
+    const body = {
+      tipo,
+      limite: 10,
+      data: document.getElementById('dtRef').value || hojeStr(),
+    };
+    const v = document.getElementById('selVendedor').value;
+    if (v) body.id_vendedor = parseInt(v, 10);
+    const r = await apiPost('/api/mapa-operacoes/processar-geo', body);
+    const c = r.resultado?.clientes || {};
+    const l = r.resultado?.leads || {};
+    alert(`Geocoding concluído.\nClientes: ${c.ok || 0} OK, ${c.falha || 0} falha(s).\nProspects: ${l.ok || 0} OK, ${l.falha || 0} falha(s).`);
+    _mapaAjustado = false;
+    await carregar();
+  } catch (e) {
+    alert('Erro: ' + (e.message || 'falha no geocoding'));
+  } finally {
+    const nCli = parseInt(document.getElementById('geoCtCli').textContent, 10) || 0;
+    const nLead = parseInt(document.getElementById('geoCtLead').textContent, 10) || 0;
+    document.getElementById('btnGeoClientes').disabled = nCli <= 0;
+    document.getElementById('btnGeoLeads').disabled = nLead <= 0;
+  }
+}
+
+async function carregarVendedores() {
+  try {
+    const d = await api('/api/vendedores');
+    const sel = document.getElementById('selVendedor');
+    (d.vendedores || []).forEach(v => {
+      const o = document.createElement('option');
+      o.value = v.id;
+      o.textContent = v.nome;
+      sel.appendChild(o);
+    });
+  } catch (_) {}
+}
+
+function reiniciarAutoRefresh() {
+  iniciarAutoRefresh();
+}
+
+function iniciarAutoRefresh() {
+  clearInterval(_timerAuto);
+  const sec = parseInt(document.getElementById('selInterval').value, 10) || 30;
+  _timerAuto = setInterval(() => {
+    if (document.getElementById('chkAuto').checked) carregar(true);
+  }, sec * 1000);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const prefs = loadPrefs();
+  if (typeof prefs.auto === 'boolean') document.getElementById('chkAuto').checked = prefs.auto;
+  if (typeof prefs.vendedores === 'boolean') document.getElementById('chkVendedores').checked = prefs.vendedores;
+  if (prefs.intervalo) document.getElementById('selInterval').value = String(prefs.intervalo);
+
+  document.getElementById('dtRef').value = hojeStr();
+  initMapa();
+  document.getElementById('chkVendedores').addEventListener('change', () => {
+    savePrefs({ vendedores: document.getElementById('chkVendedores').checked });
+    aplicarFiltroLocal();
+  });
+  document.getElementById('chkAuto').addEventListener('change', () => {
+    savePrefs({ auto: document.getElementById('chkAuto').checked });
+  });
+  document.getElementById('selInterval').addEventListener('change', () => {
+    savePrefs({ intervalo: parseInt(document.getElementById('selInterval').value, 10) || 30 });
+    reiniciarAutoRefresh();
+  });
+  carregarVendedores().then(() => carregar());
+  iniciarAutoRefresh();
+  window.addEventListener('resize', () => { if (mapa) mapa.invalidateSize(); });
+});
+</script>
+</body>
+</html>

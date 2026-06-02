@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Minhas Rotas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/themes.css?v=font-menu-20260517">
+<script src="/assets/themes.js?v=font-menu-20260517"></script>
+<link rel="stylesheet" href="/assets/ajuda-tour.css">
+<script src="/assets/ajuda-tour.js"></script>
+<script src="/assets/ajuda-tours.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:var(--font,'Inter',sans-serif); background:var(--bg,#f4f5f7); color:var(--text,#1e293b); min-height:100vh; }
+
+/* ── TOOLBAR ─────────────────────────────────────────── */
+.toolbar {
+  position:sticky; top:0; z-index:100;
+  background:var(--card,#fff); border-bottom:1px solid var(--border,#e2e8f0);
+  padding:0 16px; height:52px;
+  display:flex; align-items:center; gap:10px;
+}
+.toolbar-title { font-size:15px; font-weight:800; flex:1; }
+.btn-icon {
+  width:36px; height:36px; border-radius:10px; border:none;
+  background:var(--bg,#f4f5f7); color:var(--text2,#64748b);
+  display:flex; align-items:center; justify-content:center; cursor:pointer;
+  transition:background .15s;
+}
+.btn-icon:hover { background:var(--border,#e2e8f0); }
+.btn-icon svg { width:18px; height:18px; }
+.badge-count {
+  background:var(--accent,#0ea5e9); color:#fff;
+  font-size:10px; font-weight:800; padding:1px 6px;
+  border-radius:20px; margin-left:4px;
+}
+
+/* ── EMPTY / LOADING ─────────────────────────────────── */
+.empty-state {
+  display:flex; flex-direction:column; align-items:center;
+  justify-content:center; padding:60px 24px; gap:12px;
+  color:var(--text2,#64748b); text-align:center;
+}
+.empty-state svg { opacity:.3; }
+.empty-state p { font-size:14px; }
+.spin { width:32px; height:32px; border:3px solid var(--border,#e2e8f0); border-top-color:var(--accent,#0ea5e9); border-radius:50%; animation:spin .7s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* ── LISTA DE ROTAS ──────────────────────────────────── */
+#view-lista { padding:14px; display:flex; flex-direction:column; gap:10px; }
+
+.rota-card {
+  background:var(--card,#fff);
+  border:1px solid var(--border,#e2e8f0);
+  border-radius:16px; padding:16px;
+  display:flex; flex-direction:column; gap:12px;
+  box-shadow:0 2px 8px rgba(0,0,0,.04);
+  transition:box-shadow .2s;
+}
+.rota-card:hover { box-shadow:0 4px 16px rgba(0,0,0,.08); }
+.rota-card-top { display:flex; align-items:flex-start; gap:12px; }
+.rota-dot { width:12px; height:12px; border-radius:50%; flex-shrink:0; margin-top:4px; }
+.rota-card-info { flex:1; min-width:0; }
+.rota-card-nome { font-size:14px; font-weight:800; line-height:1.3; }
+.rota-card-meta { font-size:12px; color:var(--text2,#64748b); margin-top:3px; }
+.rota-status-pill {
+  font-size:10px; font-weight:700; padding:3px 10px;
+  border-radius:20px; white-space:nowrap; flex-shrink:0;
+}
+.pill-pendente { background:rgba(245,158,11,.12); color:#d97706; }
+.pill-em_andamento { background:rgba(16,185,129,.12); color:#059669; }
+.pill-concluida { background:rgba(100,116,139,.1); color:#64748b; }
+
+.rota-progresso { display:flex; flex-direction:column; gap:4px; }
+.prog-bar { background:var(--border,#e2e8f0); border-radius:99px; height:6px; overflow:hidden; }
+.prog-fill { height:100%; border-radius:99px; background:var(--accent,#0ea5e9); transition:width .4s; }
+.prog-label { font-size:11px; color:var(--text2,#64748b); }
+
+.rota-card-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.btn-acao {
+  flex:1; min-width:100px; padding:10px 14px; border-radius:10px; border:none;
+  font-size:12px; font-weight:700; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; gap:6px;
+  transition:all .15s;
+}
+.btn-primario { background:var(--accent,#0ea5e9); color:#fff; }
+.btn-primario:hover { background:#0284c7; }
+.btn-maps { background:#eef9ff; color:#0284c7; border:1px solid #bae6fd; }
+.btn-maps:hover { background:#bae6fd; }
+.btn-waze { background:#fff8e6; color:#d97706; border:1px solid #fcd34d; }
+.btn-waze:hover { background:#fde68a; }
+.btn-outline { background:transparent; color:var(--text2,#64748b); border:1px solid var(--border,#e2e8f0); }
+.btn-outline:hover { background:var(--bg,#f4f5f7); }
+
+/* ── DETALHE DA ROTA ─────────────────────────────────── */
+#view-detalhe { display:none; flex-direction:column; }
+
+.detalhe-header {
+  background:var(--card,#fff); border-bottom:1px solid var(--border,#e2e8f0);
+  padding:12px 16px; display:flex; flex-direction:column; gap:10px;
+}
+.detalhe-back {
+  display:flex; align-items:center; gap:8px;
+  font-size:13px; font-weight:700; cursor:pointer;
+  color:var(--accent,#0ea5e9); background:none; border:none; padding:0;
+}
+.detalhe-back svg { width:18px; height:18px; }
+.detalhe-titulo { font-size:16px; font-weight:800; }
+.detalhe-subtitulo { font-size:12px; color:var(--text2,#64748b); margin-top:2px; }
+.detalhe-progresso { margin-top:6px; }
+
+/* Faixa de navegação global */
+.nav-faixa {
+  display:flex; gap:8px; padding:12px 16px;
+  background:var(--card,#fff); border-bottom:1px solid var(--border,#e2e8f0);
+  overflow-x:auto; scrollbar-width:none;
+}
+.nav-faixa::-webkit-scrollbar { display:none; }
+.btn-nav {
+  flex-shrink:0; padding:9px 16px; border-radius:10px; border:none;
+  font-size:12px; font-weight:700; cursor:pointer;
+  display:flex; align-items:center; gap:6px; white-space:nowrap;
+  transition:all .15s;
+}
+.btn-nav-maps { background:#0ea5e9; color:#fff; }
+.btn-nav-maps:hover { background:#0284c7; }
+.btn-nav-waze { background:#33ccff; color:#fff; }
+.btn-nav-waze:hover { background:#00b3d9; }
+.btn-nav-otimizar { background:rgba(139,92,246,.1); color:#7c3aed; border:1px solid rgba(139,92,246,.2); }
+.btn-nav-otimizar:hover { background:rgba(139,92,246,.2); }
+.btn-nav-concluir { background:rgba(16,185,129,.1); color:#059669; border:1px solid rgba(16,185,129,.2); }
+.btn-nav-concluir:hover { background:rgba(16,185,129,.2); }
+
+/* Lista de clientes */
+#lista-clientes { padding:12px; display:flex; flex-direction:column; gap:8px; }
+
+.cli-card {
+  background:var(--card,#fff); border:1px solid var(--border,#e2e8f0);
+  border-radius:14px; overflow:hidden;
+  transition:box-shadow .15s;
+}
+.cli-card:hover { box-shadow:0 2px 12px rgba(0,0,0,.07); }
+.cli-card-top {
+  display:flex; align-items:center; gap:12px; padding:14px;
+  cursor:pointer;
+}
+.cli-num {
+  width:28px; height:28px; border-radius:8px;
+  background:var(--accent,#0ea5e9); color:#fff;
+  font-size:11px; font-weight:800;
+  display:flex; align-items:center; justify-content:center; flex-shrink:0;
+}
+.cli-num.visitado { background:#10b981; }
+.cli-num.pedido   { background:#6366f1; }
+.cli-num.nao-enc  { background:#ef4444; }
+.cli-num.reagendar{ background:#f59e0b; }
+.cli-info { flex:1; min-width:0; }
+.cli-nome { font-size:13px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.cli-meta { font-size:11px; color:var(--text2,#64748b); margin-top:2px; }
+.cli-status-pill {
+  font-size:10px; font-weight:700; padding:3px 9px;
+  border-radius:20px; flex-shrink:0; white-space:nowrap;
+}
+.s-pendente   { background:rgba(100,116,139,.1); color:#64748b; }
+.s-visitado   { background:rgba(16,185,129,.12); color:#059669; }
+.s-pedido     { background:rgba(99,102,241,.1);  color:#4338ca; }
+.s-nao-enc    { background:rgba(239,68,68,.1);   color:#dc2626; }
+.s-reagendar  { background:rgba(245,158,11,.12); color:#d97706; }
+
+/* Painel expandido por cliente */
+.cli-painel {
+  display:none; border-top:1px solid var(--border,#e2e8f0);
+  padding:12px 14px; flex-direction:column; gap:10px;
+}
+.cli-painel.open { display:flex; }
+.cli-nav-row { display:flex; gap:8px; }
+.btn-cli-nav {
+  flex:1; padding:9px 8px; border-radius:10px; border:none;
+  font-size:11px; font-weight:700; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; gap:5px;
+}
+.btn-cli-maps { background:#eef9ff; color:#0284c7; border:1px solid #bae6fd; }
+.btn-cli-maps:hover { background:#bae6fd; }
+.btn-cli-waze { background:#fff8e6; color:#d97706; border:1px solid #fcd34d; }
+.btn-cli-waze:hover { background:#fde68a; }
+.btn-cli-tel { background:rgba(16,185,129,.1); color:#059669; border:1px solid rgba(16,185,129,.2); }
+.btn-cli-tel:hover { background:rgba(16,185,129,.2); }
+.btn-cli-pedido { background:rgba(99,102,241,.1); color:#4338ca; border:1px solid rgba(99,102,241,.2); }
+.btn-cli-pedido:hover { background:rgba(99,102,241,.2); }
+
+.cli-status-row { display:flex; flex-wrap:wrap; gap:6px; }
+.btn-status {
+  flex:1; min-width:calc(50% - 3px); padding:9px 6px;
+  border-radius:10px; border:1px solid var(--border,#e2e8f0);
+  font-size:11px; font-weight:700; cursor:pointer;
+  background:var(--bg,#f4f5f7); color:var(--text2,#64748b);
+  transition:all .15s;
+}
+.btn-status:hover { border-color:var(--accent,#0ea5e9); color:var(--accent,#0ea5e9); background:#f0f9ff; }
+.btn-status.ativo { background:var(--accent,#0ea5e9); color:#fff; border-color:var(--accent,#0ea5e9); }
+.btn-status-visitado.ativo  { background:#10b981; border-color:#10b981; }
+.btn-status-pedido.ativo    { background:#6366f1; border-color:#6366f1; }
+.btn-status-naoencontrado.ativo { background:#ef4444; border-color:#ef4444; }
+.btn-status-reagendar.ativo { background:#f59e0b; border-color:#f59e0b; }
+
+.cli-obs-row input {
+  width:100%; padding:9px 12px; border-radius:10px;
+  border:1px solid var(--border,#e2e8f0);
+  background:var(--bg,#f4f5f7); color:var(--text,#1e293b);
+  font-size:12px; font-family:inherit;
+}
+.cli-obs-row input::placeholder { color:var(--text2,#64748b); }
+.cli-pedido-vinculado {
+  display:flex; align-items:center; gap:8px; padding:8px 12px;
+  background:rgba(99,102,241,.07); border-radius:10px;
+  font-size:12px; color:#4338ca; font-weight:600;
+}
+
+/* Modal status */
+.modal-overlay {
+  display:none; position:fixed; inset:0; z-index:999;
+  background:rgba(0,0,0,.5); backdrop-filter:blur(3px);
+  align-items:flex-end; justify-content:center;
+}
+.modal-overlay.open { display:flex; }
+.modal-sheet {
+  background:var(--card,#fff); border-radius:20px 20px 0 0;
+  width:100%; max-width:480px; padding:24px 20px 32px;
+  animation:slideUp .22s cubic-bezier(.32,1.2,.5,1);
+}
+@keyframes slideUp { from { transform:translateY(100%); } to { transform:translateY(0); } }
+.modal-handle { width:40px; height:4px; background:var(--border,#ddd); border-radius:2px; margin:0 auto 18px; }
+.modal-titulo { font-size:15px; font-weight:800; margin-bottom:14px; }
+
+@media (min-width:500px) {
+  .modal-overlay { align-items:center; padding:20px; }
+  .modal-sheet { border-radius:20px; max-width:420px; }
+}
+@media (min-width:900px) {
+  #view-lista { max-width:720px; margin:0 auto; padding:20px; }
+  #view-detalhe { max-width:720px; margin:0 auto; }
+  .nav-faixa { padding:12px 0; }
+  #lista-clientes { padding:12px 0; }
+}
+</style>
+</head>
+<body data-tour-default="rotas-campo">
+
+<!-- ── TOOLBAR ────────────────────────────────────────────────────────── -->
+<div class="toolbar" id="toolbar-lista">
+  <span class="toolbar-title">Minhas Rotas</span>
+  <span id="badge-pendentes" class="badge-count" style="display:none">0</span>
+  <button class="btn-icon" onclick="carregarRotas()" title="Atualizar">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+  </button>
+  <button type="button" class="btn-sysrep-tour" onclick="SysRepTour.start('rotas-campo')" title="Tour — Executar rotas">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+    Tour
+  </button>
+</div>
+
+<!-- ── VIEW: LISTA DE ROTAS ───────────────────────────────────────────── -->
+<div id="view-lista">
+  <div class="empty-state" id="lista-loading">
+    <div class="spin"></div>
+    <p>Carregando rotas…</p>
+  </div>
+</div>
+
+<!-- ── VIEW: DETALHE DA ROTA ─────────────────────────────────────────── -->
+<div id="view-detalhe">
+  <div class="detalhe-header">
+    <button class="detalhe-back" onclick="voltarLista()">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+      Minhas Rotas
+    </button>
+    <div>
+      <div class="detalhe-titulo" id="detalhe-nome"></div>
+      <div class="detalhe-subtitulo" id="detalhe-meta"></div>
+    </div>
+    <div class="detalhe-progresso">
+      <div class="prog-bar"><div class="prog-fill" id="detalhe-prog-fill" style="width:0%"></div></div>
+      <div class="prog-label" id="detalhe-prog-label"></div>
+    </div>
+  </div>
+
+  <!-- Faixa de ações de navegação -->
+  <div class="nav-faixa">
+    <button class="btn-nav btn-nav-maps" onclick="abrirMapsRota()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+      Rota no Maps
+    </button>
+    <button class="btn-nav btn-nav-waze" onclick="abrirWazeProximo()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3"/></svg>
+      Próximo no Waze
+    </button>
+    <button class="btn-nav btn-nav-otimizar" onclick="otimizarTrajetoVendedor()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+      Otimizar
+    </button>
+    <button class="btn-nav btn-nav-concluir" id="btn-concluir-rota" onclick="concluirRota()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+      Concluir
+    </button>
+  </div>
+
+  <div id="lista-clientes"></div>
+</div>
+
+<!-- ── MODAL INICIAR ROTA ─────────────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-iniciar" onclick="if(event.target===this)fecharModalIniciar()">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-titulo" id="modal-iniciar-titulo">Iniciar Rota</div>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:18px" id="modal-iniciar-desc"></p>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <button onclick="iniciarEAbrirMaps()" style="padding:13px;border-radius:12px;background:#0ea5e9;color:#fff;border:none;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><path stroke-linecap="round" stroke-linejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+        Iniciar e abrir Google Maps
+      </button>
+      <button onclick="iniciarEAbrirWaze()" style="padding:13px;border-radius:12px;background:#33ccff;color:#fff;border:none;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3"/></svg>
+        Iniciar e abrir Waze
+      </button>
+      <button onclick="iniciarSemNav()" style="padding:13px;border-radius:12px;background:transparent;color:var(--text2);border:1px solid var(--border);font-size:13px;font-weight:700;cursor:pointer">
+        Só iniciar, sem navegação
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+const _token = () => sessionStorage.getItem('token') || localStorage.getItem('token');
+const _user  = () => { try { return JSON.parse(sessionStorage.getItem('user') || '{}'); } catch { return {}; } };
+
+async function api(url, opts = {}) {
+  opts.headers = { ...(opts.headers || {}), Authorization: 'Bearer ' + _token() };
+  const r = await fetch(url, opts);
+  if (r.status === 401) { (window.top || window).location.href = '/login.html'; throw new Error('401'); }
+  return r;
+}
+async function apiJ(url, method = 'GET', body) {
+  return api(url, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined
+  }).then(r => r.json());
+}
+
+const fmtData = d => d ? new Date(d.toString().slice(0,10)+'T12:00:00').toLocaleDateString('pt-BR') : '';
+
+let _rotas = [];
+let _rotaAtual = null;
+
+// ── LISTA ─────────────────────────────────────────────────────────────────────
+async function carregarRotas() {
+  document.getElementById('view-lista').innerHTML = `<div class="empty-state" id="lista-loading"><div class="spin"></div><p>Carregando…</p></div>`;
+  try {
+    const d = await apiJ('/api/regiao-rota/rotas-vendedor/minhas-rotas-pendentes');
+    _rotas = d.rotas || [];
+
+    // Também busca concluídas recentes (últimas 5)
+    const dc = await apiJ('/api/regiao-rota/rotas-vendedor/lista?status=CONCLUIDA&limit=5').catch(() => ({ rotas: [] }));
+    const concluidas = (dc.rotas || []).slice(0, 5);
+
+    const pendentes = _rotas.length;
+    const badge = document.getElementById('badge-pendentes');
+    badge.textContent = pendentes;
+    badge.style.display = pendentes > 0 ? '' : 'none';
+
+    renderLista([..._rotas, ...concluidas]);
+  } catch (e) {
+    document.getElementById('view-lista').innerHTML = `<div class="empty-state"><p style="color:#ef4444">${e.message}</p></div>`;
+  }
+}
+
+function renderLista(rotas) {
+  const el = document.getElementById('view-lista');
+  if (!rotas.length) {
+    el.innerHTML = `<div class="empty-state">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:64px;height:64px"><path stroke-linecap="round" stroke-linejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+      <p>Nenhuma rota atribuída a você no momento.</p>
+    </div>`;
+    return;
+  }
+  el.innerHTML = rotas.map(rv => cardRota(rv)).join('');
+}
+
+function cardRota(rv) {
+  const cor       = rv.cor_regiao || '#3b82f6';
+  const tot       = parseInt(rv.total_clientes) || 0;
+  const vis       = parseInt(rv.visitados) || 0;
+  const pct       = tot > 0 ? Math.round(vis / tot * 100) : 0;
+  const stClass   = { PENDENTE:'pill-pendente', EM_ANDAMENTO:'pill-em_andamento', CONCLUIDA:'pill-concluida' }[rv.status] || 'pill-pendente';
+  const stLabel   = { PENDENTE:'Pendente', EM_ANDAMENTO:'Em andamento', CONCLUIDA:'Concluída' }[rv.status] || rv.status;
+  const dataStr   = rv.data_prevista ? fmtData(rv.data_prevista) : 'Sem data';
+  const concluida = rv.status === 'CONCLUIDA';
+
+  const btnPrincipal = concluida
+    ? `<button class="btn-acao btn-outline" onclick="abrirDetalhe(${rv.id})">Ver detalhes</button>`
+    : rv.status === 'EM_ANDAMENTO'
+      ? `<button class="btn-acao btn-primario" onclick="abrirDetalhe(${rv.id})">▶ Continuar rota</button>`
+      : `<button class="btn-acao btn-primario" onclick="modalIniciar(${rv.id})">▶ Iniciar rota</button>`;
+
+  return `<div class="rota-card">
+    <div class="rota-card-top">
+      <div class="rota-dot" style="background:${cor}"></div>
+      <div class="rota-card-info">
+        <div class="rota-card-nome">${rv.descricao}</div>
+        <div class="rota-card-meta">${rv.nome_regiao ? rv.nome_regiao + ' · ' : ''}${dataStr} · ${tot} cliente${tot !== 1 ? 's' : ''}</div>
+      </div>
+      <span class="rota-status-pill ${stClass}">${stLabel}</span>
+    </div>
+    <div class="rota-progresso">
+      <div class="prog-bar"><div class="prog-fill" style="width:${pct}%;background:${cor}"></div></div>
+      <div class="prog-label">${vis}/${tot} visitados · ${pct}%</div>
+    </div>
+    <div class="rota-card-actions">
+      ${btnPrincipal}
+      ${!concluida ? `
+      <button class="btn-acao btn-maps" onclick="abrirMapsRotaId(${rv.id})" title="Google Maps">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3"/></svg>
+        Maps
+      </button>
+      <button class="btn-acao btn-waze" onclick="abrirWazeRotaId(${rv.id})" title="Waze">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3"/></svg>
+        Waze
+      </button>` : ''}
+    </div>
+  </div>`;
+}
+
+// ── MODAL INICIAR ─────────────────────────────────────────────────────────────
+let _idRotaIniciar = null;
+
+async function modalIniciar(idRota) {
+  _idRotaIniciar = idRota;
+  const rv = _rotas.find(r => r.id === idRota);
+  document.getElementById('modal-iniciar-titulo').textContent = rv?.descricao || 'Iniciar Rota';
+  document.getElementById('modal-iniciar-desc').textContent =
+    `${rv?.total_clientes || '?'} cliente(s) · ${fmtData(rv?.data_prevista) || 'sem data'}. Como deseja navegar?`;
+  document.getElementById('modal-iniciar').classList.add('open');
+}
+function fecharModalIniciar() { document.getElementById('modal-iniciar').classList.remove('open'); }
+
+async function _marcarEmAndamento(idRota) {
+  await apiJ(`/api/regiao-rota/rotas-vendedor/${idRota}/status`, 'PATCH', { status: 'EM_ANDAMENTO' }).catch(() => {});
+}
+
+async function iniciarEAbrirMaps() {
+  fecharModalIniciar();
+  await _marcarEmAndamento(_idRotaIniciar);
+  await abrirDetalhe(_idRotaIniciar);
+  abrirMapsRota();
+}
+async function iniciarEAbrirWaze() {
+  fecharModalIniciar();
+  await _marcarEmAndamento(_idRotaIniciar);
+  await abrirDetalhe(_idRotaIniciar);
+  abrirWazeProximo();
+}
+async function iniciarSemNav() {
+  fecharModalIniciar();
+  await _marcarEmAndamento(_idRotaIniciar);
+  abrirDetalhe(_idRotaIniciar);
+}
+
+// ── DETALHE ───────────────────────────────────────────────────────────────────
+async function abrirDetalhe(idRota) {
+  document.getElementById('view-lista').style.display = 'none';
+  document.getElementById('toolbar-lista').style.display = 'none';
+  document.getElementById('view-detalhe').style.display = 'flex';
+
+  document.getElementById('lista-clientes').innerHTML = `<div class="empty-state"><div class="spin"></div><p>Carregando…</p></div>`;
+
+  const rv = await apiJ(`/api/regiao-rota/rotas-vendedor/${idRota}`);
+  _rotaAtual = rv;
+
+  const tot = rv.clientes?.length || 0;
+  const vis = rv.clientes?.filter(c => ['VISITADO','PEDIDO_REALIZADO'].includes(c.status_visita)).length || 0;
+  const pct = tot > 0 ? Math.round(vis / tot * 100) : 0;
+
+  document.getElementById('detalhe-nome').textContent = rv.descricao;
+  document.getElementById('detalhe-meta').textContent =
+    `${rv.nome_regiao ? rv.nome_regiao + ' · ' : ''}${fmtData(rv.data_prevista) || 'sem data'} · ${rv.nome_vendedor || ''}`;
+  document.getElementById('detalhe-prog-fill').style.width = pct + '%';
+  document.getElementById('detalhe-prog-label').textContent = `${vis}/${tot} visitados · ${pct}%`;
+
+  const btnConcluir = document.getElementById('btn-concluir-rota');
+  if (rv.status === 'CONCLUIDA') btnConcluir.style.display = 'none';
+  else btnConcluir.style.display = '';
+
+  renderClientes(rv.clientes || [], idRota);
+}
+
+function voltarLista() {
+  _rotaAtual = null;
+  document.getElementById('view-detalhe').style.display = 'none';
+  document.getElementById('view-lista').style.display = '';
+  document.getElementById('toolbar-lista').style.display = '';
+  carregarRotas();
+}
+
+function renderClientes(clientes, idRota) {
+  const el = document.getElementById('lista-clientes');
+  if (!clientes.length) {
+    el.innerHTML = `<div class="empty-state"><p>Nenhum cliente nesta rota.</p></div>`;
+    return;
+  }
+  el.innerHTML = clientes.map((c, i) => cardCliente(c, i + 1, idRota)).join('');
+}
+
+function _numClass(status) {
+  return { VISITADO:'visitado', PEDIDO_REALIZADO:'pedido', NAO_ENCONTRADO:'nao-enc', REAGENDAR:'reagendar' }[status] || '';
+}
+function _pillClass(status) {
+  return { VISITADO:'s-visitado', PEDIDO_REALIZADO:'s-pedido', NAO_ENCONTRADO:'s-nao-enc', REAGENDAR:'s-reagendar' }[status] || 's-pendente';
+}
+function _pillLabel(status) {
+  return { PENDENTE:'Pendente', VISITADO:'Visitado', PEDIDO_REALIZADO:'Pedido realizado', NAO_ENCONTRADO:'Não encontrado', REAGENDAR:'Reagendar' }[status] || status;
+}
+
+function cardCliente(c, num, idRota) {
+  const diasStr = c.dias_sem_compra && c.dias_sem_compra < 9999 ? `${c.dias_sem_compra}d sem compra` : '';
+  const tel = (c.foneprincipal || '').replace(/\D/g,'');
+  const telHref = tel ? `tel:+55${tel}` : '#';
+  const temGeo = c.latitude && c.longitude;
+
+  const pedidoVinculado = c.id_pedido_vinculado
+    ? `<div class="cli-pedido-vinculado"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" style="width:14px;height:14px"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>Pedido #${c.id_pedido_vinculado} vinculado</div>`
+    : '';
+
+  const btnStatus = (st, label, cls) => {
+    const ativo = c.status_visita === st ? `ativo btn-status-${cls}` : '';
+    return `<button class="btn-status ${ativo}" onclick="marcarStatus(${idRota},${c.id_cliente},\'${st}\',this)">${label}</button>`;
+  };
+
+  return `<div class="cli-card" id="cli-card-${c.id_cliente}">
+    <div class="cli-card-top" onclick="toggleCliPainel(${c.id_cliente})">
+      <div class="cli-num ${_numClass(c.status_visita)}">${num}</div>
+      <div class="cli-info">
+        <div class="cli-nome">${c.nome || c.apelido || '—'}</div>
+        <div class="cli-meta">${[c.cidade, c.uf].filter(Boolean).join('/')}${diasStr ? ' · ' + diasStr : ''}</div>
+      </div>
+      <span class="cli-status-pill ${_pillClass(c.status_visita)}">${_pillLabel(c.status_visita)}</span>
+    </div>
+    <div class="cli-painel" id="painel-${c.id_cliente}">
+      ${pedidoVinculado}
+      <div class="cli-nav-row">
+        ${temGeo
+          ? `<button class="btn-cli-nav btn-cli-maps" onclick="abrirMapsCliente(${c.latitude},${c.longitude})">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3"/></svg>Maps
+            </button>
+            <button class="btn-cli-nav btn-cli-waze" onclick="abrirWazeCliente(${c.latitude},${c.longitude})">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3"/></svg>Waze
+            </button>`
+          : `<button class="btn-cli-nav btn-cli-maps" onclick="abrirMapsEndereco('${encodeURIComponent((c.endereco||c.nome||'')+(c.cidade?', '+c.cidade:''))}')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3"/></svg>Maps (endereço)
+            </button>`
+        }
+        ${tel ? `<button class="btn-cli-nav btn-cli-tel" onclick="location.href='${telHref}'">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>Ligar
+        </button>` : ''}
+        <button class="btn-cli-nav btn-cli-pedido" onclick="abrirPedidoCliente(${c.id_cliente},'${(c.nome||'').replace(/'/g,"\\'")}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path stroke-linecap="round" stroke-linejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>Pedido
+        </button>
+      </div>
+      <div class="cli-status-row">
+        ${btnStatus('VISITADO','✓ Visitado','visitado')}
+        ${btnStatus('PEDIDO_REALIZADO','🛒 Pedido realizado','pedido')}
+        ${btnStatus('NAO_ENCONTRADO','✗ Não encontrado','naoencontrado')}
+        ${btnStatus('REAGENDAR','↩ Reagendar','reagendar')}
+      </div>
+      <div class="cli-obs-row">
+        <input type="text" placeholder="Observação…" id="obs-${c.id_cliente}"
+          value="${c.observacao || ''}"
+          onblur="salvarObs(${idRota},${c.id_cliente},this.value)">
+      </div>
+    </div>
+  </div>`;
+}
+
+function toggleCliPainel(idCliente) {
+  document.getElementById(`painel-${idCliente}`)?.classList.toggle('open');
+}
+
+// ── MARCAR STATUS ─────────────────────────────────────────────────────────────
+async function marcarStatus(idRota, idCliente, status, btn) {
+  const card = document.getElementById(`cli-card-${idCliente}`);
+  const todos = card.querySelectorAll('.btn-status');
+  todos.forEach(b => b.classList.remove('ativo','btn-status-visitado','btn-status-pedido','btn-status-naoencontrado','btn-status-reagendar'));
+  const classMap = { VISITADO:'btn-status-visitado', PEDIDO_REALIZADO:'btn-status-pedido', NAO_ENCONTRADO:'btn-status-naoencontrado', REAGENDAR:'btn-status-reagendar' };
+  btn.classList.add('ativo', classMap[status] || '');
+
+  const obs = document.getElementById(`obs-${idCliente}`)?.value || '';
+  try {
+    await apiJ(`/api/regiao-rota/rotas-vendedor/${idRota}/cliente/${idCliente}/status`, 'PATCH', {
+      status_visita: status, observacao: obs
+    });
+    // Atualiza pill e número visual
+    const pill = card.querySelector('.cli-status-pill');
+    if (pill) { pill.className = `cli-status-pill ${_pillClass(status)}`; pill.textContent = _pillLabel(status); }
+    const num = card.querySelector('.cli-num');
+    if (num) { num.className = `cli-num ${_numClass(status)}`; }
+    // Atualiza progresso do cabeçalho
+    await atualizarProgresso(idRota);
+  } catch(e) { alert('Erro: ' + e.message); }
+}
+
+async function salvarObs(idRota, idCliente, obs) {
+  await apiJ(`/api/regiao-rota/rotas-vendedor/${idRota}/cliente/${idCliente}/status`, 'PATCH', { status_visita: 'PENDENTE', observacao: obs }).catch(() => {});
+}
+
+async function atualizarProgresso(idRota) {
+  const rv = await apiJ(`/api/regiao-rota/rotas-vendedor/${idRota}`).catch(() => null);
+  if (!rv) return;
+  _rotaAtual = rv;
+  const tot = rv.clientes?.length || 0;
+  const vis = rv.clientes?.filter(c => ['VISITADO','PEDIDO_REALIZADO'].includes(c.status_visita)).length || 0;
+  const pct = tot > 0 ? Math.round(vis / tot * 100) : 0;
+  document.getElementById('detalhe-prog-fill').style.width = pct + '%';
+  document.getElementById('detalhe-prog-label').textContent = `${vis}/${tot} visitados · ${pct}%`;
+  if (rv.status === 'CONCLUIDA') document.getElementById('btn-concluir-rota').style.display = 'none';
+}
+
+// ── NAVEGAÇÃO ─────────────────────────────────────────────────────────────────
+function _clientesComGeo() {
+  return (_rotaAtual?.clientes || []).filter(c => c.latitude && c.longitude);
+}
+function _proximoSemVisita() {
+  const pts = _clientesComGeo();
+  return pts.find(c => !['VISITADO','PEDIDO_REALIZADO'].includes(c.status_visita)) || pts[0];
+}
+
+function abrirMapsRota() {
+  const pts = _clientesComGeo();
+  if (!pts.length) { alert('Nenhum cliente com GPS nesta rota.'); return; }
+  const stops = pts.slice(0, 23).map(c => `${c.latitude},${c.longitude}`).join('/');
+  window.open(`https://www.google.com/maps/dir/${stops}`, '_blank');
+  if (pts.length > 23) alert(`Google Maps suporta até 23 paradas. Os primeiros 23 de ${pts.length} foram incluídos.`);
+}
+
+async function abrirMapsRotaId(idRota) {
+  const rv = await apiJ(`/api/regiao-rota/rotas-vendedor/${idRota}`).catch(() => null);
+  if (!rv) return;
+  _rotaAtual = rv;
+  abrirMapsRota();
+}
+
+function abrirWazeProximo() {
+  const prox = _proximoSemVisita();
+  if (!prox) { alert('Nenhum cliente com GPS disponível.'); return; }
+  window.open(`https://waze.com/ul?ll=${prox.latitude},${prox.longitude}&navigate=yes&zoom=17`, '_blank');
+}
+
+async function abrirWazeRotaId(idRota) {
+  const rv = await apiJ(`/api/regiao-rota/rotas-vendedor/${idRota}`).catch(() => null);
+  if (!rv) return;
+  _rotaAtual = rv;
+  abrirWazeProximo();
+}
+
+function abrirMapsCliente(lat, lng) {
+  window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`, '_blank');
+}
+function abrirWazeCliente(lat, lng) {
+  window.open(`https://waze.com/ul?ll=${lat},${lng}&navigate=yes&zoom=17`, '_blank');
+}
+function abrirMapsEndereco(enc) {
+  window.open(`https://www.google.com/maps/search/?api=1&query=${enc}`, '_blank');
+}
+
+// ── CONCLUIR ROTA ─────────────────────────────────────────────────────────────
+async function concluirRota() {
+  if (!_rotaAtual) return;
+  if (!confirm(`Deseja concluir a rota "${_rotaAtual.descricao}"?`)) return;
+  await apiJ(`/api/regiao-rota/rotas-vendedor/${_rotaAtual.id}/status`, 'PATCH', { status: 'CONCLUIDA' });
+  document.getElementById('btn-concluir-rota').style.display = 'none';
+  alert('Rota concluída!');
+  voltarLista();
+}
+
+// ── OTIMIZAR ─────────────────────────────────────────────────────────────────
+function nearestNeighbor(clientes) {
+  const com = clientes.filter(c => c.latitude && c.longitude);
+  const sem = clientes.filter(c => !c.latitude || !c.longitude);
+  if (com.length < 2) return clientes;
+  const visited = [com[0]];
+  const rest = com.slice(1);
+  while (rest.length) {
+    const last = visited[visited.length - 1];
+    let bestIdx = 0, bestD = Infinity;
+    rest.forEach((c, i) => {
+      const d = Math.pow(c.latitude - last.latitude, 2) + Math.pow(c.longitude - last.longitude, 2);
+      if (d < bestD) { bestD = d; bestIdx = i; }
+    });
+    visited.push(rest.splice(bestIdx, 1)[0]);
+  }
+  return [...visited, ...sem];
+}
+
+async function otimizarTrajetoVendedor() {
+  if (!_rotaAtual) return;
+  const otimizados = nearestNeighbor(_rotaAtual.clientes);
+  _rotaAtual.clientes = otimizados;
+  renderClientes(otimizados, _rotaAtual.id);
+  const ordem = otimizados.map((c, i) => ({ id_cliente: c.id_cliente, ordem: i + 1 }));
+  await apiJ(`/api/regiao-rota/rotas-vendedor/${_rotaAtual.id}/reordenar`, 'PATCH', { ordem }).catch(() => {});
+  alert(`Trajeto otimizado! ${otimizados.filter(c => c.latitude).length} clientes com GPS reordenados.`);
+}
+
+// ── ABRIR PEDIDO ──────────────────────────────────────────────────────────────
+function abrirPedidoCliente(idCliente, nome) {
+  const url = `/pages/pedidos.html?id_cliente=${idCliente}&nome_cliente=${encodeURIComponent(nome)}`;
+  // Se estiver dentro do mobile-shell, navega pelo frame
+  if (window.parent && window.parent !== window) {
+    try { window.parent.postMessage({ type: 'MS_NAVIGATE', href: url }, '*'); return; } catch(_) {}
+  }
+  window.open(url, '_blank');
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+(async () => {
+  const token = _token();
+  if (!token) { (window.top || window).location.href = '/login.html'; return; }
+
+  // Abre rota direto se vier ?id=X na URL
+  const params = new URLSearchParams(window.location.search);
+  const idParam = params.get('id');
+
+  await carregarRotas();
+
+  if (idParam) {
+    await abrirDetalhe(parseInt(idParam));
+  }
+})();
+</script>
+</body>
+</html>

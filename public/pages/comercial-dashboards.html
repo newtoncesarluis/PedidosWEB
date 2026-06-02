@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>DashBoards / Apoio da IA</title>
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<script src="/assets/mobile-app.js"></script>
+<link rel="stylesheet" href="/assets/mobile-app.css">
+<style>
+  :root {
+    --bg: var(--content-bg);
+    --card: var(--card-bg);
+    --border: var(--card-border);
+    --text: var(--content-text);
+    --text2: var(--text2);
+    --accent: var(--accent);
+    --accent-soft: var(--accent-soft);
+    --success: #059669;
+    --warn: #d97706;
+    --danger: #dc2626;
+    --shadow: 0 10px 30px rgba(0,0,0,.08);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+  }
+
+  .page {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 18px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: 12px;
+    box-shadow: 0 2px 10px rgba(0,0,0,.03);
+  }
+
+  .title-wrap {
+    min-width: 240px;
+    margin-right: auto;
+  }
+  .eyebrow {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .8px;
+    color: var(--text2);
+    font-weight: 800;
+  }
+  h1 {
+    margin: 3px 0 0;
+    font-size: 22px;
+    line-height: 1.1;
+  }
+  .subtitle {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--text2);
+  }
+
+  .filter {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 140px;
+  }
+  .filter label {
+    font-size: 10px;
+    text-transform: uppercase;
+    color: var(--text2);
+    font-weight: 800;
+    letter-spacing: .7px;
+  }
+  .filter input,
+  .filter select {
+    height: 36px;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 0 10px;
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    outline: none;
+  }
+  .filter input:focus,
+  .filter select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+
+  .btn {
+    height: 36px;
+    border: none;
+    border-radius: 10px;
+    padding: 0 14px;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: var(--btn-text, #fff);
+  }
+  .btn-secondary {
+    background: var(--bg);
+    color: var(--text);
+    border: 1.5px solid var(--border);
+  }
+
+  .content {
+    padding: 18px;
+    display: grid;
+    gap: 16px;
+  }
+
+  .section-band {
+    display: grid;
+    gap: 16px;
+  }
+
+  .kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+  }
+  .kpi {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    box-shadow: var(--shadow);
+  }
+  .kpi-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .7px;
+    color: var(--text2);
+    font-weight: 800;
+  }
+  .kpi-value {
+    font-size: 26px;
+    font-weight: 800;
+    margin-top: 8px;
+  }
+  .kpi-sub {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--text2);
+  }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1.2fr .8fr;
+    gap: 16px;
+  }
+
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    box-shadow: var(--shadow);
+  }
+  .panel h2 {
+    margin: 0 0 4px;
+    font-size: 15px;
+  }
+  .panel-sub {
+    font-size: 12px;
+    color: var(--text2);
+    margin-bottom: 14px;
+  }
+
+  .bars {
+    display: grid;
+    gap: 10px;
+  }
+  .bar-row {
+    display: grid;
+    grid-template-columns: minmax(120px, 1fr) 90px;
+    gap: 10px;
+    align-items: center;
+  }
+  .bar-meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 12px;
+    margin-bottom: 4px;
+  }
+  .bar-track {
+    width: 100%;
+    height: 10px;
+    background: rgba(148,163,184,.16);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--accent), #22c55e);
+  }
+  .bar-value {
+    text-align: right;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text2);
+  }
+
+  .rank-list {
+    display: grid;
+    gap: 10px;
+  }
+  .rank-item {
+    display: grid;
+    grid-template-columns: 28px 1fr auto;
+    gap: 10px;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .rank-item:last-child { border-bottom: none; }
+  .rank-pos {
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 800;
+  }
+  .rank-main {
+    min-width: 0;
+  }
+  .rank-title {
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .rank-sub {
+    font-size: 11px;
+    color: var(--text2);
+    margin-top: 2px;
+  }
+  .rank-val {
+    text-align: right;
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .insights {
+    display: grid;
+    gap: 10px;
+  }
+  .insight {
+    border: 1px solid var(--border);
+    border-left-width: 4px;
+    border-radius: 8px;
+    padding: 12px 12px 12px 14px;
+    background: var(--bg);
+  }
+  .insight[data-tipo="ok"] { border-left-color: var(--success); }
+  .insight[data-tipo="alerta"] { border-left-color: var(--warn); }
+  .insight[data-tipo="risco"] { border-left-color: var(--danger); }
+  .insight[data-tipo="oportunidade"] { border-left-color: var(--accent); }
+  .insight-title {
+    font-size: 13px;
+    font-weight: 800;
+    margin-bottom: 4px;
+  }
+  .insight-msg {
+    font-size: 12px;
+    color: var(--text2);
+    line-height: 1.5;
+  }
+
+  .placeholder {
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    background: rgba(148,163,184,.05);
+    font-size: 12px;
+    color: var(--text2);
+  }
+
+  .compare-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+  }
+  .compare-card {
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+  }
+  .compare-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .7px;
+    color: var(--text2);
+    font-weight: 800;
+  }
+  .compare-main {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: end;
+    margin-top: 8px;
+  }
+  .compare-current { font-size: 20px; font-weight: 800; }
+  .compare-delta { font-size: 12px; font-weight: 800; }
+  .compare-delta[data-dir="up"] { color: var(--success); }
+  .compare-delta[data-dir="down"] { color: var(--danger); }
+  .compare-sub { margin-top: 4px; font-size: 11px; color: var(--text2); }
+
+  .loading,
+  .error {
+    padding: 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    background: var(--card);
+    border: 1px solid var(--border);
+  }
+  .error { color: var(--danger); }
+
+  @media (max-width: 980px) {
+    .grid-2 {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="toolbar">
+    <div class="title-wrap">
+      <div class="eyebrow">Comercial</div>
+      <h1>DashBoards / Apoio da IA</h1>
+      <div class="subtitle">Primeira etapa: painel executivo de pedidos com base analítica isolada.</div>
+    </div>
+
+    <div class="filter">
+      <label for="dtInicio">Data inicial</label>
+      <input id="dtInicio" type="date">
+    </div>
+    <div class="filter">
+      <label for="dtFim">Data final</label>
+      <input id="dtFim" type="date">
+    </div>
+    <div class="filter">
+      <label for="situacao">Situação</label>
+      <select id="situacao">
+        <option value="TODOS">Todas</option>
+        <option value="PENDENTE">Pendente</option>
+        <option value="APROVADO">Aprovado</option>
+        <option value="CANCELADO">Cancelado</option>
+      </select>
+    </div>
+    <div class="filter">
+      <label for="tipoPedido">Tipo</label>
+      <select id="tipoPedido">
+        <option value="TODOS">Todos</option>
+      </select>
+    </div>
+    <div class="filter" id="vendorFilter" style="display:none">
+      <label for="idVendedor">Vendedor</label>
+      <select id="idVendedor">
+        <option value="">Todos</option>
+      </select>
+    </div>
+
+    <button class="btn btn-primary" id="btnAplicar">Atualizar</button>
+    <button class="btn btn-secondary" id="btnResetar">Período atual</button>
+  </div>
+
+  <div class="content">
+    <div id="stateBox" class="loading">Carregando indicadores...</div>
+
+    <div id="dashboard" style="display:none" class="section-band">
+      <div class="kpis" id="kpiGrid"></div>
+
+      <div class="panel">
+        <h2>Comparacao de Periodos</h2>
+        <div class="panel-sub" id="compareSubtitle">Leitura do periodo atual contra o periodo anterior equivalente.</div>
+        <div class="compare-grid" id="compareGrid"></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="panel">
+          <h2>Situação dos Pedidos</h2>
+          <div class="panel-sub">Distribuição por status no filtro atual.</div>
+          <div class="bars" id="statusBars"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Apoio da IA</h2>
+          <div class="panel-sub">Insights automáticos para orientar a próxima ação.</div>
+          <div class="insights" id="insightsList"></div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="panel">
+          <h2>Série Mensal</h2>
+          <div class="panel-sub">Pedidos e faturamento por mês.</div>
+          <div class="bars" id="seriesBars"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Tipos de Pedido</h2>
+          <div class="panel-sub">Comparativo por tipo.</div>
+          <div class="bars" id="typeBars"></div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="panel">
+          <h2>Top Clientes</h2>
+          <div class="panel-sub">Maior faturamento no período.</div>
+          <div class="rank-list" id="clientRank"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Top Produtos</h2>
+          <div class="panel-sub">Itens com maior valor faturado.</div>
+          <div class="rank-list" id="productRank"></div>
+        </div>
+      </div>
+
+      <div class="panel" id="vendorPanel" style="display:none">
+        <h2>Top Vendedores</h2>
+        <div class="panel-sub">Disponível quando o acesso permite visão consolidada.</div>
+        <div class="rank-list" id="vendorRank"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+const money = v => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const integer = v => Number(v || 0).toLocaleString('pt-BR');
+const percent = v => `${Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
+const plain = v => Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
+function token() {
+  return localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+}
+
+async function api(url) {
+  const r = await fetch(url, { headers: { Authorization: 'Bearer ' + token() } });
+  if (!r.ok) throw new Error('Falha ao carregar dados');
+  return r.json();
+}
+
+function setDefaultDates() {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  document.getElementById('dtFim').value = `${yyyy}-${mm}-${dd}`;
+  document.getElementById('dtInicio').value = `${yyyy}-${mm}-01`;
+}
+
+function buildQuery() {
+  const qs = new URLSearchParams();
+  const dtInicio = document.getElementById('dtInicio').value;
+  const dtFim = document.getElementById('dtFim').value;
+  const situacao = document.getElementById('situacao').value;
+  const tipoPedido = document.getElementById('tipoPedido').value;
+  const idVendedor = document.getElementById('idVendedor').value;
+
+  if (dtInicio) qs.set('dt_inicio', dtInicio);
+  if (dtFim) qs.set('dt_fim', dtFim);
+  if (situacao) qs.set('situacao', situacao);
+  if (tipoPedido) qs.set('tipo_pedido', tipoPedido);
+  if (idVendedor) qs.set('id_vendedor', idVendedor);
+  return qs.toString();
+}
+
+function renderKpis(kpis) {
+  const items = [
+    ['Pedidos', integer(kpis.total_pedidos), `${integer(kpis.total_clientes)} clientes`],
+    ['Faturamento', money(kpis.valor_total), `${integer(kpis.total_fornecedores)} fornecedores`],
+    ['Ticket Médio', money(kpis.ticket_medio), 'Média por pedido'],
+    ['Aprovação', percent(kpis.taxa_aprovacao), `${integer(kpis.aprovados)} aprovados`],
+    ['Pendentes', integer(kpis.pendentes), 'Carteira aguardando ação'],
+    ['Cancelamento', percent(kpis.taxa_cancelamento), `${integer(kpis.cancelados)} cancelados`],
+  ];
+
+  document.getElementById('kpiGrid').innerHTML = items.map(([label, value, sub]) => `
+    <div class="kpi">
+      <div class="kpi-label">${label}</div>
+      <div class="kpi-value">${value}</div>
+      <div class="kpi-sub">${sub}</div>
+    </div>
+  `).join('');
+}
+
+function renderBars(elId, rows, labelKey, valueKey, valueFormatter) {
+  const box = document.getElementById(elId);
+  if (!rows || !rows.length) {
+    box.innerHTML = '<div class="placeholder">Sem dados para o filtro atual.</div>';
+    return;
+  }
+
+  const max = Math.max(...rows.map(r => Number(r[valueKey] || 0)), 1);
+  box.innerHTML = rows.map(row => {
+    const value = Number(row[valueKey] || 0);
+    const width = Math.max(4, (value / max) * 100);
+    return `
+      <div class="bar-row">
+        <div>
+          <div class="bar-meta">
+            <span>${row[labelKey]}</span>
+            <strong>${valueFormatter(value)}</strong>
+          </div>
+          <div class="bar-track"><div class="bar-fill" style="width:${width}%"></div></div>
+        </div>
+        <div class="bar-value">${integer(row.total || row.aprovados || 0)}</div>
+      </div>
+    `;
+  }).join('');
+  ;
+}
+
+function renderRanking(elId, rows, titleKey, mainFormatter, subFormatter) {
+  const box = document.getElementById(elId);
+  if (!rows || !rows.length) {
+    box.innerHTML = '<div class="placeholder">Sem dados para o filtro atual.</div>';
+    return;
+  }
+
+  box.innerHTML = rows.map((row, idx) => `
+    <div class="rank-item">
+      <div class="rank-pos">${idx + 1}</div>
+      <div class="rank-main">
+        <div class="rank-title">${row[titleKey]}</div>
+        <div class="rank-sub">${subFormatter(row)}</div>
+      </div>
+      <div class="rank-val">${mainFormatter(row)}</div>
+    </div>
+  `).join('');
+}
+
+function renderInsights(rows) {
+  const box = document.getElementById('insightsList');
+  if (!rows || !rows.length) {
+    box.innerHTML = '<div class="placeholder">Nenhum insight disponível.</div>';
+    return;
+  }
+
+  box.innerHTML = rows.map(row => `
+    <div class="insight" data-tipo="${row.tipo}">
+      <div class="insight-title">${row.titulo}</div>
+      <div class="insight-msg">${row.mensagem}</div>
+    </div>
+  `).join('');
+}
+
+function renderComparativos(comp) {
+  const box = document.getElementById('compareGrid');
+  const sub = document.getElementById('compareSubtitle');
+  if (!comp || !comp.faturamento) {
+    box.innerHTML = '<div class="placeholder">Sem comparativo disponivel.</div>';
+    sub.textContent = 'Leitura do periodo atual contra o periodo anterior equivalente.';
+    return;
+  }
+
+  sub.textContent = `Atual: ${comp.atual.dt_inicio} a ${comp.atual.dt_fim} • Comparado com: ${comp.anterior.dt_inicio} a ${comp.anterior.dt_fim}`;
+
+  const items = [
+    ['Faturamento', comp.faturamento, money],
+    ['Pedidos', comp.pedidos, integer],
+    ['Ticket medio', comp.ticket_medio, money],
+    ['Taxa aprovacao', comp.taxa_aprovacao, percent],
+  ];
+
+  box.innerHTML = items.map(([label, row, fmt]) => {
+    const delta = Number(row.variacao_pct || 0);
+    const dir = delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat';
+    const signal = delta > 0 ? '+' : '';
+    return `
+      <div class="compare-card">
+        <div class="compare-label">${label}</div>
+        <div class="compare-main">
+          <div class="compare-current">${fmt(row.atual)}</div>
+          <div class="compare-delta" data-dir="${dir}">${signal}${plain(delta)}%</div>
+        </div>
+        <div class="compare-sub">Anterior: ${fmt(row.anterior)}</div>
+      </div>`;
+  }).join('');
+}
+
+function fillTypeFilter(rows) {
+  const sel = document.getElementById('tipoPedido');
+  const current = sel.value || 'TODOS';
+  const options = ['<option value="TODOS">Todos</option>']
+    .concat((rows || []).map(r => `<option value="${r.tipo_pedido}">${r.tipo_pedido}</option>`));
+  sel.innerHTML = options.join('');
+  sel.value = [...sel.options].some(o => o.value === current) ? current : 'TODOS';
+}
+
+async function fillVendorFilter() {
+  try {
+    const data = await api('/api/pedidos/lookup/vendedores');
+    const list = data.vendedores || [];
+    document.getElementById('idVendedor').innerHTML = '<option value="">Todos</option>' +
+      list.map(v => `<option value="${v.id}">${v.nome || v.nome_vendedor}</option>`).join('');
+  } catch (_) {}
+}
+
+async function loadDashboard() {
+  const stateBox = document.getElementById('stateBox');
+  const dashboard = document.getElementById('dashboard');
+  stateBox.className = 'loading';
+  stateBox.textContent = 'Atualizando indicadores...';
+  stateBox.style.display = '';
+  dashboard.style.display = 'none';
+
+  try {
+    const data = await api('/api/analytics/comercial/overview?' + buildQuery());
+
+    renderKpis(data.kpis || {});
+    renderComparativos(data.comparativos || null);
+    renderBars('statusBars', data.status || [], 'situacao', 'valor_total', money);
+    renderBars('typeBars', data.tipos || [], 'tipo_pedido', 'valor_total', money);
+    renderBars('seriesBars', data.serie_mensal || [], 'periodo', 'valor_total', money);
+    renderRanking('clientRank', data.rankings?.clientes || [], 'nome_cliente', r => money(r.valor_total), r => `${integer(r.total_pedidos)} pedidos`);
+    renderRanking('productRank', data.rankings?.produtos || [], 'desc_prod', r => money(r.valor_total), r => `${integer(r.quantidade_total)} unidades`);
+    renderInsights(data.insights || []);
+    fillTypeFilter(data.tipos || []);
+
+    const vendorPanel = document.getElementById('vendorPanel');
+    const vendorFilter = document.getElementById('vendorFilter');
+    if (data.filtros?.isAdmin) {
+      vendorPanel.style.display = '';
+      vendorFilter.style.display = '';
+      renderRanking('vendorRank', data.rankings?.vendedores || [], 'nome_vendedor', r => money(r.valor_total), r => `${integer(r.total_pedidos)} pedidos`);
+    } else {
+      vendorPanel.style.display = 'none';
+      vendorFilter.style.display = 'none';
+    }
+
+    dashboard.style.display = '';
+    stateBox.style.display = 'none';
+  } catch (err) {
+    stateBox.className = 'error';
+    stateBox.textContent = err.message || 'Erro ao carregar dashboard';
+  }
+}
+
+document.getElementById('btnAplicar').addEventListener('click', loadDashboard);
+document.getElementById('btnResetar').addEventListener('click', () => {
+  setDefaultDates();
+  document.getElementById('situacao').value = 'TODOS';
+  document.getElementById('tipoPedido').value = 'TODOS';
+  const vendor = document.getElementById('idVendedor');
+  if (vendor) vendor.value = '';
+  loadDashboard();
+});
+
+setDefaultDates();
+fillVendorFilter().finally(loadDashboard);
+
+window.addEventListener('message', (ev) => {
+  if (ev.data && ev.data.type === 'theme-changed') {
+    document.documentElement.setAttribute('data-theme', ev.data.theme);
+  }
+  if (ev.data && ev.data.type === 'font-pref-changed') {
+    window.SysFont?.apply(ev.data.familyId, ev.data.sizeId);
+    window.SysVisual?.apply(ev.data.accentId, ev.data.compact);
+  }
+});
+</script>
+</body>
+</html>

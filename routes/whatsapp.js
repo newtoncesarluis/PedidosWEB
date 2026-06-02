@@ -1,46 +1,31 @@
 const express = require('express');
 const router  = express.Router();
-const https   = require('https');
-const http    = require('http');
+const axios   = require('axios');
 const { getPool } = require('../config/database');
+const { logError } = require('../config/logger');
 
-// ─── helper: faz request HTTP/HTTPS para a Evolution API ─────────────────────
-function apiRequest(baseUrl, path, method = 'GET', apikey, body = null) {
-  return new Promise((resolve, reject) => {
-    const url    = new URL(path, baseUrl.endsWith('/') ? baseUrl : baseUrl + '/');
-    const isHttps = url.protocol === 'https:';
-    const lib    = isHttps ? https : http;
-
-    const options = {
-      hostname: url.hostname,
-      port:     url.port || (isHttps ? 443 : 80),
-      path:     url.pathname + url.search,
+// ─── helper: faz request HTTP/HTTPS para a Evolution API (via axios) ─────────
+async function apiRequest(baseUrl, path, method = 'GET', apikey, body = null, timeoutMs = 15000) {
+  const url = (baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl) + path;
+  try {
+    const resp = await axios({
       method,
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': apikey
-      },
-      timeout: 15000,
-      rejectUnauthorized: false   // aceita cert auto-assinado
-    };
-
-    const bodyStr = body ? JSON.stringify(body) : null;
-    if (bodyStr) options.headers['Content-Length'] = Buffer.byteLength(bodyStr);
-
-    const req = lib.request(options, res => {
-      let data = '';
-      res.on('data', c => data += c);
-      res.on('end', () => {
-        try { resolve({ status: res.statusCode, body: JSON.parse(data) }); }
-        catch { resolve({ status: res.statusCode, body: data }); }
-      });
+      url,
+      headers: { 'Content-Type': 'application/json', apikey },
+      data: body || undefined,
+      timeout: timeoutMs
     });
-
-    req.on('error', reject);
-    req.on('timeout', () => { req.destroy(); reject(new Error('Timeout na API')); });
-    if (bodyStr) req.write(bodyStr);
-    req.end();
-  });
+    return { status: resp.status, body: resp.data };
+  } catch (err) {
+    if (err.response) {
+      // A API respondeu com status de erro (4xx/5xx) — não lançamos, retornamos
+      return { status: err.response.status, body: err.response.data };
+    }
+    if (err.code === 'ECONNABORTED' || err.message.includes('timeout')) {
+      throw new Error(`Timeout na API (${timeoutMs/1000}s) — verifique se a URL está correta e a API está no ar`);
+    }
+    throw err;
+  }
 }
 
 // ─── pega configuração salva no banco ────────────────────────────────────────
@@ -55,23 +40,41 @@ async function getConfig() {
   return { url: rows[0].w_urlplataforma, apikey: rows[0].w_apiglobal };
 }
 
+// ─── pega chave por instância (fallback: GlobalAPI) ──────────────────────────
+// O Delphi usa ChaveApi (por instância) para ObterQrCode e chamadas de instância.
+// Aqui buscamos a chave salva no banco, com fallback para GlobalAPI.
+async function getInstKey(pool, cfg, instancia) {
+  try {
+    const [rows] = await pool.query(
+      `SELECT chave FROM usuarios WHERE instancia=? AND excluido='N' LIMIT 1`, [instancia]
+    );
+    return rows[0]?.chave || cfg.apikey;
+  } catch {
+    return cfg.apikey;
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/whatsapp/testar-api
 // Testa a conexão com a Evolution API (lista instâncias)
 // ─────────────────────────────────────────────────────────────────────────────
 router.post('/testar-api', async (req, res) => {
+  const { url, apikey } = req.body;
+  if (!url || !apikey) return res.status(400).json({ error: 'url e apikey obrigatórios' });
   try {
-    const { url, apikey } = req.body;
-    if (!url || !apikey) return res.status(400).json({ error: 'url e apikey obrigatórios' });
-
-    const r = await apiRequest(url, '/instance/fetchInstances', 'GET', apikey);
+    const r = await apiRequest(url, '/instance/fetchInstances', 'GET', apikey, null, 20000);
     if (r.status === 200 || r.status === 201) {
       const lista = Array.isArray(r.body) ? r.body : (r.body?.instances || []);
-      res.json({ ok: true, instancias: lista.length });
+      res.json({ ok: true, instancias: lista.length, url });
     } else {
-      res.json({ ok: false, error: `Erro ${r.status}: ${JSON.stringify(r.body)}` });
+      res.json({ ok: false, error: `Erro ${r.status}: ${JSON.stringify(r.body)}`, url });
     }
-  } catch (err) { res.json({ ok: false, error: err.message }); }
+  } catch (err) {
+    const msg = err.message.includes('timeout') || err.message.includes('Timeout')
+      ? `Sem resposta da API — verifique se a URL está correta e o servidor está no ar`
+      : err.message;
+    res.json({ ok: false, error: msg, url });
+  }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -112,7 +115,7 @@ router.get('/usuarios', async (req, res) => {
     // Garante coluna numero_whatsApp (silencioso se já existir)
     if (cfg) {
       await pool.query(
-        `ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS numero_whatsApp VARCHAR(50) NULL DEFAULT NULL`
+        `ALTER TABLE usuarios ADD COLUMN numero_whatsApp VARCHAR(50) NULL DEFAULT NULL`
       ).catch(() => {});
     }
 
@@ -160,7 +163,7 @@ router.get('/usuarios', async (req, res) => {
     }
 
     res.json({ usuarios });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { logError(`${req.method} ${req.path}`, err); res.status(500).json({ error: err.message }); }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -190,7 +193,7 @@ router.post('/criar-instancia', async (req, res) => {
       instanceName,
       qrcode: true,
       integration: 'WHATSAPP-BAILEYS'
-    });
+    }, 45000);
 
     if (r.status !== 200 && r.status !== 201) {
       return res.status(500).json({ error: `Erro ao criar instância: ${JSON.stringify(r.body)}` });
@@ -208,7 +211,7 @@ router.post('/criar-instancia', async (req, res) => {
     ).catch(() => {});
 
     res.json({ ok: true, instanceName, qrcode: qrBase64, code: qrCode });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { logError(`${req.method} ${req.path}`, err); res.status(500).json({ error: err.message }); }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -217,8 +220,10 @@ router.post('/criar-instancia', async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/qr/:instanceName', async (req, res) => {
   try {
-    const cfg = await getConfig();
-    const r   = await apiRequest(cfg.url, `/instance/connect/${req.params.instanceName}`, 'GET', cfg.apikey);
+    const cfg     = await getConfig();
+    const pool    = getPool();
+    const instKey = await getInstKey(pool, cfg, req.params.instanceName);
+    const r       = await apiRequest(cfg.url, `/instance/connect/${req.params.instanceName}`, 'GET', instKey, null, 30000);
 
     if (r.status !== 200 && r.status !== 201) {
       return res.status(500).json({ error: `Erro ${r.status}: ${JSON.stringify(r.body)}` });
@@ -228,7 +233,7 @@ router.get('/qr/:instanceName', async (req, res) => {
       qrcode: r.body?.base64 || null,
       code:   r.body?.code   || null
     });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { logError(`${req.method} ${req.path}`, err); res.status(500).json({ error: err.message }); }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -268,12 +273,14 @@ router.get('/status', async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/status/:instanceName', async (req, res) => {
   try {
-    const cfg   = await getConfig();
-    const r     = await apiRequest(cfg.url, `/instance/connectionState/${req.params.instanceName}`, 'GET', cfg.apikey);
-    const state = r.body?.instance?.state || r.body?.state || 'unknown';
-    const owner = r.body?.instance?.owner || r.body?.owner || null;
+    const cfg     = await getConfig();
+    const pool    = getPool();
+    const instKey = await getInstKey(pool, cfg, req.params.instanceName);
+    const r       = await apiRequest(cfg.url, `/instance/connectionState/${req.params.instanceName}`, 'GET', instKey);
+    const state   = r.body?.instance?.state || r.body?.state || 'unknown';
+    const owner   = r.body?.instance?.owner || r.body?.owner || null;
     res.json({ state, conectado: state === 'open', owner });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { logError(`${req.method} ${req.path}`, err); res.status(500).json({ error: err.message }); }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -287,7 +294,7 @@ router.post('/confirmar-conexao/:usuarioId', async (req, res) => {
 
     // Garante que coluna existe
     await pool.query(
-      `ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS numero_whatsApp VARCHAR(50) NULL DEFAULT NULL`
+      `ALTER TABLE usuarios ADD COLUMN numero_whatsApp VARCHAR(50) NULL DEFAULT NULL`
     ).catch(() => {});
 
     if (numero) {
@@ -302,7 +309,7 @@ router.post('/confirmar-conexao/:usuarioId', async (req, res) => {
       ).catch(() => {});
     }
     res.json({ ok: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { logError(`${req.method} ${req.path}`, err); res.status(500).json({ error: err.message }); }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -330,7 +337,7 @@ router.delete('/deletar/:usuarioId', async (req, res) => {
     ).catch(() => {});
 
     res.json({ ok: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { logError(`${req.method} ${req.path}`, err); res.status(500).json({ error: err.message }); }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -349,11 +356,13 @@ router.post('/enviar-teste', async (req, res) => {
     const pool = getPool();
 
     const [rows] = await pool.query(
-      'SELECT instancia FROM usuarios WHERE idusuario=? AND excluido=\'N\' LIMIT 1',
+      'SELECT instancia, chave FROM usuarios WHERE idusuario=? AND excluido=\'N\' LIMIT 1',
       [usuarioId]
     );
     const instancia = rows[0]?.instancia;
     if (!instancia) return res.status(400).json({ error: 'Usuário sem instância configurada' });
+
+    const instKey = rows[0]?.chave || cfg.apikey;
 
     // Normaliza número: remove tudo que não for dígito
     const numeroLimpo = numero.replace(/\D/g, '');
@@ -362,7 +371,7 @@ router.post('/enviar-teste', async (req, res) => {
       cfg.url,
       `/message/sendText/${instancia}`,
       'POST',
-      cfg.apikey,
+      instKey,
       { number: numeroLimpo, text: mensagem }
     );
 
@@ -371,7 +380,230 @@ router.post('/enviar-teste', async (req, res) => {
     } else {
       res.status(500).json({ error: `Erro ${r.status}: ${JSON.stringify(r.body)}` });
     }
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { logError(`${req.method} ${req.path}`, err); res.status(500).json({ error: err.message }); }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/whatsapp/qrcode
+// Chamado pelo home.html ao clicar no botão WhatsApp da topbar.
+// Usa a instância do usuário logado; se não tiver, tenta criar automaticamente.
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/qrcode', async (req, res) => {
+  try {
+    const cfg  = await getConfig();
+    const pool = getPool();
+
+    const [[user]] = await pool.query(
+      `SELECT idusuario, loginusu, instancia FROM usuarios WHERE idusuario=? AND excluido='N'`,
+      [req.user.id]
+    );
+    if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
+
+    let instancia = user.instancia;
+
+    // Se não tem instância, cria automaticamente
+    if (!instancia) {
+      instancia = `rep_${user.loginusu}`.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase().slice(0, 50);
+
+      const rc = await apiRequest(cfg.url, '/instance/create', 'POST', cfg.apikey, {
+        instanceName: instancia, qrcode: true, integration: 'WHATSAPP-BAILEYS'
+      }, 45000);
+      const instKey = rc.body?.hash?.apikey || rc.body?.apikey || null;
+      await pool.query(
+        `UPDATE usuarios SET instancia=?, chave=?, status='AGUARDANDO', data_conexao=NULL WHERE idusuario=?`,
+        [instancia, instKey, user.idusuario]
+      ).catch(() => {});
+
+      if (rc.body?.qrcode?.base64) {
+        return res.json({ qrcode: rc.body.qrcode.base64 });
+      }
+    }
+
+    // Busca QR atual da instância (usa chave por instância se disponível)
+    const [[uRow]] = await pool.query(
+      `SELECT chave FROM usuarios WHERE idusuario=? AND excluido='N'`, [req.user.id]
+    );
+    const instKey = uRow?.chave || cfg.apikey;
+    const r = await apiRequest(cfg.url, `/instance/connect/${instancia}`, 'GET', instKey, null, 30000);
+    res.json({ qrcode: r.body?.base64 || null });
+  } catch (err) {
+    res.json({ qrcode: null, error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET  /api/whatsapp/config-global  — lê config da Evolution API
+// POST /api/whatsapp/config-global  — salva config da Evolution API (sem senha admin)
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/config-global', async (req, res) => {
+  try {
+    const pool = getPool();
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS configuracao (
+        id              INT(11)      NOT NULL AUTO_INCREMENT,
+        w_apiglobal     VARCHAR(250) NULL DEFAULT NULL,
+        w_urlplataforma VARCHAR(250) NULL DEFAULT NULL,
+        excluido        VARCHAR(1)   NULL DEFAULT 'N',
+        empresa_liberada VARCHAR(50) NULL DEFAULT NULL,
+        PRIMARY KEY (id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+    `).catch(() => {});
+
+    const [rows] = await pool.query(
+      `SELECT w_apiglobal, w_urlplataforma, empresa_liberada
+       FROM configuracao WHERE excluido='N' ORDER BY id DESC LIMIT 1`
+    );
+    res.json(rows[0] || {});
+  } catch (err) { logError(`${req.method} ${req.path}`, err); res.status(500).json({ error: err.message }); }
+});
+
+router.post('/config-global', async (req, res) => {
+  try {
+    const pool = getPool();
+    const { w_apiglobal, w_urlplataforma, empresa_liberada } = req.body;
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS configuracao (
+        id              INT(11)      NOT NULL AUTO_INCREMENT,
+        w_apiglobal     VARCHAR(250) NULL DEFAULT NULL,
+        w_urlplataforma VARCHAR(250) NULL DEFAULT NULL,
+        excluido        VARCHAR(1)   NULL DEFAULT 'N',
+        empresa_liberada VARCHAR(50) NULL DEFAULT NULL,
+        PRIMARY KEY (id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+    `).catch(() => {});
+
+    const url = w_urlplataforma ? w_urlplataforma.replace(/\/$/, '') : null;
+    const [existing] = await pool.query(
+      `SELECT id FROM configuracao WHERE excluido='N' ORDER BY id DESC LIMIT 1`
+    );
+
+    if (existing[0]) {
+      await pool.query(
+        `UPDATE configuracao SET w_apiglobal=?, w_urlplataforma=?, empresa_liberada=? WHERE id=?`,
+        [w_apiglobal||null, url, empresa_liberada||null, existing[0].id]
+      );
+    } else {
+      await pool.query(
+        `INSERT INTO configuracao (w_apiglobal, w_urlplataforma, empresa_liberada) VALUES (?, ?, ?)`,
+        [w_apiglobal||null, url, empresa_liberada||null]
+      );
+    }
+    res.json({ ok: true });
+  } catch (err) { logError(`${req.method} ${req.path}`, err); res.status(500).json({ error: err.message }); }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/whatsapp/qr-usuario/:usuarioId
+// Cria instância se não existir e retorna QR code
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/qr-usuario/:usuarioId', async (req, res) => {
+  try {
+    const cfg  = await getConfig();
+    const pool = getPool();
+    const { usuarioId } = req.params;
+
+    const [[user]] = await pool.query(
+      `SELECT idusuario, loginusu, instancia FROM usuarios WHERE idusuario=? AND excluido='N'`,
+      [usuarioId]
+    );
+    if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
+
+    let instancia = user.instancia;
+
+    if (!instancia) {
+      // Gera nome de instância a partir do login
+      instancia = `rep_${user.loginusu}`.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase().slice(0, 50);
+
+      const r = await apiRequest(cfg.url, '/instance/create', 'POST', cfg.apikey, {
+        instanceName: instancia, qrcode: true, integration: 'WHATSAPP-BAILEYS'
+      });
+      if (r.status !== 200 && r.status !== 201) {
+        return res.status(500).json({ error: `Erro ao criar instância: ${JSON.stringify(r.body)}` });
+      }
+      const instKey  = r.body?.hash?.apikey || r.body?.apikey || null;
+      const qrBase64 = r.body?.qrcode?.base64 || null;
+
+      await pool.query(
+        `UPDATE usuarios SET instancia=?, chave=?, status='AGUARDANDO', data_conexao=NULL WHERE idusuario=?`,
+        [instancia, instKey, usuarioId]
+      ).catch(() => {});
+
+      return res.json({ ok: true, instancia, qrcode: qrBase64 });
+    }
+
+    // Instância já existe — pega QR de conexão usando chave por instância
+    const [[uRow]] = await pool.query(
+      `SELECT chave FROM usuarios WHERE idusuario=? AND excluido='N'`, [usuarioId]
+    );
+    const connKey = uRow?.chave || cfg.apikey;
+    const r = await apiRequest(cfg.url, `/instance/connect/${instancia}`, 'GET', connKey, null, 30000);
+    res.json({ instancia, qrcode: r.body?.base64 || null, code: r.body?.code || null });
+  } catch (err) { logError(`${req.method} ${req.path}`, err); res.status(500).json({ error: err.message }); }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/whatsapp/verificar-usuario/:usuarioId
+// Verifica estado de conexão e confirma no banco se conectado
+// Body: { instancia }
+// ─────────────────────────────────────────────────────────────────────────────
+router.post('/verificar-usuario/:usuarioId', async (req, res) => {
+  try {
+    const cfg  = await getConfig();
+    const pool = getPool();
+    const { instancia } = req.body;
+    if (!instancia) return res.status(400).json({ error: 'instancia obrigatória' });
+
+    const instKey = await getInstKey(pool, cfg, instancia);
+    const r       = await apiRequest(cfg.url, `/instance/connectionState/${instancia}`, 'GET', instKey);
+    const state = r.body?.instance?.state || r.body?.state || 'unknown';
+    const owner = r.body?.instance?.owner || r.body?.owner || null;
+    const conectado = state === 'open';
+
+    if (conectado) {
+      await pool.query(
+        `ALTER TABLE usuarios ADD COLUMN numero_whatsApp VARCHAR(50) NULL DEFAULT NULL`
+      ).catch(() => {});
+
+      const sets = ['status=\'CONECTADO\'', 'data_conexao=NOW()'];
+      const vals = [];
+      if (owner) { sets.push('numero_whatsApp=?'); vals.push(owner); }
+      vals.push(req.params.usuarioId);
+      await pool.query(`UPDATE usuarios SET ${sets.join(', ')} WHERE idusuario=?`, vals).catch(() => {});
+    }
+
+    res.json({ conectado, status: state, owner });
+  } catch (err) { logError(`${req.method} ${req.path}`, err); res.status(500).json({ error: err.message }); }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/whatsapp/desconectar-usuario/:usuarioId
+// Faz logout da instância sem deletá-la
+// ─────────────────────────────────────────────────────────────────────────────
+router.post('/desconectar-usuario/:usuarioId', async (req, res) => {
+  try {
+    const pool = getPool();
+    const [[user]] = await pool.query(
+      `SELECT instancia FROM usuarios WHERE idusuario=?`, [req.params.usuarioId]
+    );
+    const instancia = user?.instancia;
+
+    if (instancia) {
+      let cfg = null;
+      try { cfg = await getConfig(); } catch {}
+      if (cfg) {
+        const instKey = await getInstKey(pool, cfg, instancia);
+        await apiRequest(cfg.url, `/instance/logout/${instancia}`, 'DELETE', instKey).catch(() => {});
+      }
+    }
+
+    await pool.query(
+      `UPDATE usuarios SET status='DESCONECTADO', data_conexao=NULL WHERE idusuario=?`,
+      [req.params.usuarioId]
+    ).catch(() => {});
+
+    res.json({ ok: true });
+  } catch (err) { logError(`${req.method} ${req.path}`, err); res.status(500).json({ error: err.message }); }
 });
 
 module.exports = router;

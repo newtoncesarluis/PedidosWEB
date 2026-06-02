@@ -6,7 +6,7 @@ const path    = require('path');
 const fs      = require('fs');
 
 // ─── Multer: upload de fotos do fornecedor ────────────────────────────────────
-const _uploadsBase = path.join(__dirname, '..', 'public', 'uploads', 'fornecedores');
+const _uploadsBase = path.join(process.cwd(), 'public', 'uploads', 'fornecedores');
 const _storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const dir = path.join(_uploadsBase, String(req.params.id));
@@ -37,11 +37,93 @@ async function getColunasReais(pool) {
   return _colunasCache;
 }
 
+let _migrationDone = false;
+async function ensureColumns(pool) {
+  if (_migrationDone) return;
+  _migrationDone = true;
+  const cols = await getColunasReais(pool);
+  if (!cols.has('tipo_desconto')) {
+    await pool.query(`ALTER TABLE fornecedores ADD COLUMN tipo_desconto VARCHAR(20) DEFAULT 'PERCENTUAL'`).catch(() => {});
+    _colunasCache = null; // invalida cache para próxima leitura
+  }
+  if (!cols.has('forma_pagtopadrao')) {
+    await pool.query(`ALTER TABLE fornecedores ADD COLUMN forma_pagtopadrao INT(11) DEFAULT NULL`).catch(() => {});
+    _colunasCache = null;
+  }
+  if (!cols.has('exibirtodosdesconto')) {
+    await pool.query(`ALTER TABLE fornecedores ADD COLUMN exibirtodosdesconto VARCHAR(1) DEFAULT 'N'`).catch(() => {});
+    _colunasCache = null;
+  }
+  if (!cols.has('imprimirparcelaspedido')) {
+    await pool.query(`ALTER TABLE fornecedores ADD COLUMN imprimirparcelaspedido VARCHAR(1) DEFAULT 'N'`).catch(() => {});
+    _colunasCache = null;
+  }
+  if (!cols.has('cor_obspedido')) {
+    await pool.query(`ALTER TABLE fornecedores ADD COLUMN cor_obspedido VARCHAR(20) DEFAULT NULL`).catch(() => {});
+    _colunasCache = null;
+  }
+  if (!cols.has('estilo_obspedido')) {
+    await pool.query(`ALTER TABLE fornecedores ADD COLUMN estilo_obspedido VARCHAR(50) DEFAULT NULL`).catch(() => {});
+    _colunasCache = null;
+  }
+  if (!cols.has('pedidos_codfabricante')) {
+    await pool.query(`ALTER TABLE fornecedores ADD COLUMN pedidos_codfabricante VARCHAR(1) DEFAULT 'N'`).catch(() => {});
+    _colunasCache = null;
+  }
+  if (!cols.has('tipo')) {
+    await pool.query(`ALTER TABLE fornecedores ADD COLUMN tipo VARCHAR(20) DEFAULT 'FABRICA'`).catch(() => {});
+    _colunasCache = null;
+  }
+  if (!cols.has('ipi_frete_base')) {
+    await pool.query(`ALTER TABLE fornecedores ADD COLUMN ipi_frete_base CHAR(1) DEFAULT 'N'`).catch(() => {});
+    _colunasCache = null;
+  }
+  if (!cols.has('com_sobre_ipi')) {
+    await pool.query(`ALTER TABLE fornecedores ADD COLUMN com_sobre_ipi CHAR(1) DEFAULT 'S'`).catch(() => {});
+    _colunasCache = null;
+  }
+  if (!cols.has('com_sobre_st')) {
+    await pool.query(`ALTER TABLE fornecedores ADD COLUMN com_sobre_st CHAR(1) DEFAULT 'S'`).catch(() => {});
+    _colunasCache = null;
+  }
+  if (!cols.has('com_tipo')) {
+    await pool.query(`ALTER TABLE fornecedores ADD COLUMN com_tipo VARCHAR(20) DEFAULT 'PARCELADA'`).catch(() => {});
+    _colunasCache = null;
+  }
+  if (!cols.has('tipo_num_pedido')) {
+    await pool.query(`ALTER TABLE fornecedores ADD COLUMN tipo_num_pedido VARCHAR(20) DEFAULT 'SISTEMA'`).catch(() => {});
+    _colunasCache = null;
+  }
+  if (!cols.has('base_conciliacao')) {
+    await pool.query(`ALTER TABLE fornecedores ADD COLUMN base_conciliacao VARCHAR(10) DEFAULT 'PARCELA'`).catch(() => {});
+    _colunasCache = null;
+  }
+  if (!cols.has('recalc_comissao_fatur')) {
+    await pool.query(`ALTER TABLE fornecedores ADD COLUMN recalc_comissao_fatur CHAR(1) DEFAULT 'N'`).catch(() => {});
+    _colunasCache = null;
+  }
+  if (!cols.has('min_cx_pedido')) {
+    await pool.query(`ALTER TABLE fornecedores ADD COLUMN min_cx_pedido INT DEFAULT 0`).catch(() => {});
+    _colunasCache = null;
+  }
+  // Tabela de condições de pagamento por fornecedor
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS fornecedor_condicoes_pagamento (
+      id           INT AUTO_INCREMENT PRIMARY KEY,
+      id_fornecedor INT NOT NULL,
+      id_condicao   INT NOT NULL,
+      valor_minimo  DECIMAL(15,2) DEFAULT 0.00,
+      excluido      CHAR(1) DEFAULT 'N',
+      INDEX idx_forn_cond (id_fornecedor)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `).catch(() => {});
+}
+
 // Campos texto que devem ser salvos em UPPERCASE
 const _camposUpper = new Set([
   'nome','apelido','rg','tipo_pessoa','tipo_cadastro','sexo',
   'cep','endereco','bairro','cidade','uf','contato',
-  'segmento','obsgerais','observacaopedido','obspedido',
+  'segmento','obsgerais','observacaopedido','obspedido','tipo',
   'endereco_faturamento','bairro_faturamento','cidade_faturamento',
   'cep_faturamento','uf_faturamento','contato_recebedor','contato_financeiro',
   'telefone1_faturamento','telefone2_faturamento'
@@ -51,7 +133,7 @@ function aplicarUpper(body) {
   const out = { ...body };
   for (const k of _camposUpper) {
     if (typeof out[k] === 'string' && out[k].trim()) {
-      out[k] = out[k].toUpperCase();
+      out[k] = out[k].trim().toUpperCase();
     }
   }
   return out;
@@ -61,7 +143,8 @@ function aplicarUpper(body) {
 router.get('/', async (req, res) => {
   try {
     const pool = getPool();
-    const { q = '', status = 'A', limit = 100, offset = 0, cidade = '', segmento = '' } = req.query;
+    await ensureColumns(pool);
+    const { q = '', status = 'A', limit = 100, offset = 0, cidade = '', segmento = '', padrao = '', somente_fabricas = '', preposto_id = '' } = req.query;
 
     let where = [`(f.excluido = 'N' OR f.excluido IS NULL OR f.excluido = '')`];
     const vals = [];
@@ -76,20 +159,41 @@ router.get('/', async (req, res) => {
     }
     if (cidade.trim())    { where.push(`LOWER(f.cidade) LIKE ?`);    vals.push(`%${cidade.trim().toLowerCase()}%`); }
     if (segmento.trim())  { where.push(`LOWER(f.segmento) LIKE ?`);  vals.push(`%${segmento.trim().toLowerCase()}%`); }
+    if (padrao === 'S')   { where.push(`f.fornecedorpadraopedido = 'S'`); }
+    if (somente_fabricas === 'true') { where.push(`COALESCE(f.tipo, 'FABRICA') = 'FABRICA'`); }
+    // Ocultar fábricas bloqueadas para o preposto informado
+    if (preposto_id && parseInt(preposto_id)) {
+      where.push(`NOT EXISTS (SELECT 1 FROM preposto_comissao_fornecedor pcf WHERE pcf.id_usuario = ? AND pcf.id_fornecedor = f.id AND pcf.oculta = 'S')`);
+      vals.push(parseInt(preposto_id));
+    }
 
     const whereClause = where.join(' AND ');
 
     const [rows] = await pool.query(
       `SELECT f.id, f.nome, f.apelido, f.cpf, f.tipo_pessoa,
               f.foneprincipal, f.email, f.contato,
-              f.cidade, f.uf, f.segmento, f.status, f.dtcadastro,
-              (SELECT COUNT(id) FROM pedidos WHERE cod_fornecedor = f.id AND COALESCE(excluido,'N')='N') as total_pedidos
+              f.cidade, f.uf, f.segmento, f.status, f.dtcadastro, 
+              COALESCE(f.tipo, 'FABRICA') as tipo,
+              (SELECT COUNT(id) FROM pedidos WHERE cod_fornecedor = f.id AND COALESCE(excluido,'N')='N') as total_pedidos,
+              (SELECT ff.caminho
+                 FROM fornecedor_fotos ff
+                WHERE ff.cod_fornecedor = f.id
+                  AND (ff.excluido = 'N' OR ff.excluido IS NULL OR ff.excluido = '')
+                  AND ff.caminho IS NOT NULL AND ff.caminho <> ''
+                ORDER BY (ff.principal = 'S') DESC, ff.id ASC
+                LIMIT 1) AS foto_principal
        FROM fornecedores f
        WHERE ${whereClause}
        ORDER BY f.nome
        LIMIT ? OFFSET ?`,
       [...vals, parseInt(limit), parseInt(offset)]
     );
+
+    rows.forEach(r => {
+      if (r.foto_principal && !String(r.foto_principal).startsWith('/')) {
+        r.foto_principal = '/' + r.foto_principal;
+      }
+    });
 
     const [total] = await pool.query(
       `SELECT COUNT(*) AS total FROM fornecedores f WHERE ${whereClause}`, vals
@@ -161,13 +265,82 @@ router.get('/notificacoes', async (req, res) => {
   }
 });
 
+// ─── Preferências da lista (ex.: exibir fotos) ───────────────────────────────
+const CREATE_PREFS_GRID = `
+  CREATE TABLE IF NOT EXISTS preferencias_grid (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    id_usuario INT NOT NULL,
+    nome_grid VARCHAR(50) NOT NULL,
+    config_json TEXT NOT NULL,
+    dt_alterado DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY unq_user_grid (id_usuario, nome_grid)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3
+`;
+
+function parseListaConfig(raw) {
+  if (!raw) return {};
+  try {
+    const cfg = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    return cfg && typeof cfg === 'object' ? cfg : {};
+  } catch (_) {
+    return {};
+  }
+}
+
+router.get('/config/lista', async (req, res) => {
+  try {
+    const id_usuario = req.user?.id;
+    if (!id_usuario) return res.status(401).json({ error: 'Usuário não identificado' });
+    const pool = getPool();
+    await pool.query(CREATE_PREFS_GRID).catch(() => {});
+    const [rows] = await pool.query(
+      `SELECT config_json FROM preferencias_grid WHERE id_usuario = ? AND nome_grid = 'fornecedores_lista'`,
+      [id_usuario]
+    );
+    res.json(parseListaConfig(rows[0]?.config_json));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/config/lista', async (req, res) => {
+  try {
+    const id_usuario = req.user?.id;
+    if (!id_usuario) return res.status(401).json({ error: 'Usuário não identificado' });
+    const pool = getPool();
+    await pool.query(CREATE_PREFS_GRID).catch(() => {});
+    const [rows] = await pool.query(
+      `SELECT config_json FROM preferencias_grid WHERE id_usuario = ? AND nome_grid = 'fornecedores_lista'`,
+      [id_usuario]
+    );
+    const cfg = { ...parseListaConfig(rows[0]?.config_json), ...req.body };
+    const json = JSON.stringify(cfg);
+    await pool.query(
+      `INSERT INTO preferencias_grid (id_usuario, nome_grid, config_json, dt_alterado)
+       VALUES (?, 'fornecedores_lista', ?, NOW())
+       ON DUPLICATE KEY UPDATE config_json = VALUES(config_json), dt_alterado = NOW()`,
+      [id_usuario, json]
+    );
+    res.json({ ok: true, ...cfg });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── GET /api/fornecedores/lookup (simplificado) ───────────────────────────
 router.get('/lookup', async (req, res) => {
   try {
+    const { todostipos } = req.query;
+    let tipoFilter = "AND COALESCE(tipo, 'FABRICA') = 'FABRICA'";
+    if (todostipos === 'true') {
+      tipoFilter = ""; // Retorna todos (usado no Contas a Pagar)
+    }
+
     const pool = getPool();
     const [rows] = await pool.query(
       `SELECT id, nome, apelido FROM fornecedores 
        WHERE (excluido='N' OR excluido IS NULL OR excluido='') 
+       ${tipoFilter}
        ORDER BY nome`
     );
     res.json(rows);
@@ -277,15 +450,21 @@ router.post('/', async (req, res) => {
       'fornecedorpadraopedido','observacaopedido','obspedido',
       'consignado','logopedido','vendasduplicaritem','descontomultiplos',
       'xml_pedidovenda','peso_exibritelapedidos','manterobsped','manterprazoped',
-      'tabelasunificadas','cod_fabrelgraficos','pedido_grades',
+      'tabelasunificadas','cod_fabrelgraficos','pedido_grades','fotosprodutospedido',
       'casasdecimaisqt','casasdecimaisvalor',
+      'tipo_desconto','exibirtodosdesconto','forma_pagtopadrao',
       'desconto1','desconto2','desconto3','desconto4','desconto5','desconto6',
       'desconto7','desconto8','desconto9','desconto10',
       'precoa','precob','precoc','precod','precoe','precof','precopromo','precoprincipal',
       'vlr_minimofaturamento',
       'cep_faturamento','endereco_faturamento','bairro_faturamento','cidade_faturamento',
       'uf_faturamento','telefone1_faturamento','telefone2_faturamento',
-      'contato_recebedor','contato_financeiro','avisardiasfaturamento'
+      'contato_recebedor','contato_financeiro','avisardiasfaturamento',
+      'imprimirparcelaspedido','cor_obspedido','estilo_obspedido',
+      'pedidos_codfabricante',
+      'tipo',
+      'ipi_frete_base','com_sobre_ipi','com_sobre_st','com_tipo','tipo_num_pedido','base_conciliacao',
+      'min_cx_pedido','recalc_comissao_fatur'
     ];
 
     const campos = todosCampos.filter(c => body[c] !== undefined && colunasReais.has(c));
@@ -330,15 +509,21 @@ router.put('/:id', async (req, res) => {
       'fornecedorpadraopedido','observacaopedido','obspedido',
       'consignado','logopedido','vendasduplicaritem','descontomultiplos',
       'xml_pedidovenda','peso_exibritelapedidos','manterobsped','manterprazoped',
-      'tabelasunificadas','cod_fabrelgraficos','pedido_grades',
+      'tabelasunificadas','cod_fabrelgraficos','pedido_grades','fotosprodutospedido',
       'casasdecimaisqt','casasdecimaisvalor',
+      'tipo_desconto','exibirtodosdesconto','forma_pagtopadrao',
       'desconto1','desconto2','desconto3','desconto4','desconto5','desconto6',
       'desconto7','desconto8','desconto9','desconto10',
       'precoa','precob','precoc','precod','precoe','precof','precopromo','precoprincipal',
       'vlr_minimofaturamento',
       'cep_faturamento','endereco_faturamento','bairro_faturamento','cidade_faturamento',
       'uf_faturamento','telefone1_faturamento','telefone2_faturamento',
-      'contato_recebedor','contato_financeiro','avisardiasfaturamento'
+      'contato_recebedor','contato_financeiro','avisardiasfaturamento',
+      'imprimirparcelaspedido','cor_obspedido','estilo_obspedido',
+      'pedidos_codfabricante',
+      'tipo',
+      'ipi_frete_base','com_sobre_ipi','com_sobre_st','com_tipo','tipo_num_pedido','base_conciliacao',
+      'min_cx_pedido','recalc_comissao_fatur'
     ];
 
     const campos = todosCampos.filter(c => body[c] !== undefined && colunasReais.has(c));
@@ -498,7 +683,7 @@ router.delete('/:id/fotos/:fotoId', async (req, res) => {
       [req.params.fotoId, req.params.id]
     );
     if (rows[0]?.caminho) {
-      const abs = path.join(__dirname, '..', 'public', rows[0].caminho);
+      const abs = path.join(process.cwd(), 'public', rows[0].caminho);
       fs.unlink(abs, () => {}); // silencioso se já não existir
     }
     await pool.query(`UPDATE fornecedor_fotos SET excluido = 'S' WHERE id = ?`, [req.params.fotoId]);
@@ -524,6 +709,55 @@ router.get('/:id/produtos', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// ─── GET /api/fornecedores/:id/condicoes-pagamento ───────────────────────────
+router.get('/:id/condicoes-pagamento', async (req, res) => {
+  try {
+    const pool = getPool();
+    await ensureColumns(pool);
+    const [rows] = await pool.query(`
+      SELECT fcp.id, fcp.id_condicao, fcp.valor_minimo,
+             fp.descricao, fp.prazopadrao
+      FROM fornecedor_condicoes_pagamento fcp
+      INNER JOIN forma_pagto fp ON fp.id = fcp.id_condicao
+      WHERE fcp.id_fornecedor = ? AND fcp.excluido = 'N'
+      ORDER BY fp.descricao
+    `, [req.params.id]).catch(() => [[]]);
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── POST /api/fornecedores/:id/condicoes-pagamento — substitui lista ────────
+router.post('/:id/condicoes-pagamento', async (req, res) => {
+  const { id } = req.params;
+  const { condicoes = [] } = req.body; // [{ id_condicao, valor_minimo }]
+  try {
+    const pool = getPool();
+    await ensureColumns(pool);
+    await pool.query(
+      `UPDATE fornecedor_condicoes_pagamento SET excluido='S' WHERE id_fornecedor=?`, [id]
+    );
+    for (const c of condicoes) {
+      if (!c.id_condicao) continue;
+      const [ex] = await pool.query(
+        `SELECT id FROM fornecedor_condicoes_pagamento WHERE id_fornecedor=? AND id_condicao=? LIMIT 1`,
+        [id, c.id_condicao]
+      );
+      if (ex.length) {
+        await pool.query(
+          `UPDATE fornecedor_condicoes_pagamento SET excluido='N', valor_minimo=? WHERE id=?`,
+          [parseFloat(c.valor_minimo) || 0, ex[0].id]
+        );
+      } else {
+        await pool.query(
+          `INSERT INTO fornecedor_condicoes_pagamento (id_fornecedor, id_condicao, valor_minimo, excluido) VALUES (?,?,?,'N')`,
+          [id, c.id_condicao, parseFloat(c.valor_minimo) || 0]
+        );
+      }
+    }
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 module.exports = router;

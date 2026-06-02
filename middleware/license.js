@@ -1,15 +1,18 @@
 const LicenseService = require('../services/license-service');
+const LicenseCache   = require('../services/license-cache');
+const jwt            = require('jsonwebtoken');
+const { customerDbFromLicense, getBoundChave } = require('../config/database');
 
-// Sem cache — verifica sempre no banco remoto para bloqueio em tempo real
-let _cache     = null;
-let _cacheTime = 0;
-const CACHE_TTL = 30 * 1000; // 30 segundos (mínimo para não sobrecarregar o banco)
+// Cache em memória isolado por chave_licenca
+const _cacheMap = new Map(); // chave → { data, ts }
+const CACHE_TTL = 30 * 1000; // 30 segundos
 
 // Rotas que NÃO precisam de licença válida
 const BYPASS = [
   '/api/setup',
   '/api/auth',
   '/api/license',
+  '/api/client-log',
   '/api/licencas',
   '/setup.html',
   '/login.html',
@@ -18,55 +21,112 @@ const BYPASS = [
   '/favicon.ico',
 ];
 
+function getLicenseKey(req) {
+  // Modo bound: chave vem do processo, não do JWT de cada usuário
+  const bound = getBoundChave();
+  if (bound) return bound;
+
+  try {
+    const raw = req.cookies?.token || (req.headers.authorization || '').replace('Bearer ', '').trim();
+    if (!raw) return null;
+    const decoded = jwt.verify(raw, process.env.JWT_SECRET);
+    return decoded.chave_licenca || null;
+  } catch {
+    return null;
+  }
+}
+
 async function licenseMiddleware(req, res, next) {
   if (BYPASS.some(p => req.originalUrl.startsWith(p))) return next();
 
   try {
-    const now = Date.now();
-    if (!_cache || now - _cacheTime > CACHE_TTL) {
-      _cache     = await LicenseService.checkLocal();
-      _cacheTime = now;
+    const now    = Date.now();
+    const chave  = getLicenseKey(req);
+    const mapKey = chave || '__default__';
+
+    // 1. Cache em memória (30 s)
+    const entry = _cacheMap.get(mapKey);
+    if (entry && now - entry.ts <= CACHE_TTL) {
+      return applyResult(entry.data, req, res, next);
     }
 
-    if (!_cache.valid) {
-      if (req.accepts('html') && !req.originalUrl.startsWith('/api/')) {
-        return res.redirect('/login.html?license=expired');
+    let result;
+
+    if (chave) {
+      // 2. Cache em arquivo criptografado (24 h) — isolado por chave
+      const cached = LicenseCache.read(chave);
+      if (cached) {
+        _cacheMap.set(mapKey, { data: cached, ts: now });
+        return applyResult(cached, req, res, next);
       }
-      return res.status(402).json({
-        error:    'licenca_invalida',
-        status:   _cache.status,
-        mensagem: _cache.mensagem || 'Licença inválida. Entre em contato com o suporte.',
-        motivo:   _cache.motivo  || null,
-        chave:    _cache.chave   || null,
-        sistema:              process.env.SYSTEM_NAME         || 'SysRepWeb',
-        suporte_whatsapp:     process.env.SUPORTE_WHATSAPP   || '',
-        suporte_nome:         process.env.SUPORTE_NOME       || 'Suporte Técnico',
-        suporte_email:        process.env.SUPORTE_EMAIL      || '',
-        pix_chave:            process.env.PIX_CHAVE          || '',
-        pix_tipo:             process.env.PIX_TIPO           || '',
-        pix_nome:             process.env.PIX_NOME           || '',
-        pix_descricao:        process.env.PIX_DESCRICAO      || '',
-      });
+
+      // 3. Consulta direta ao remoto pela chave
+      result = await LicenseService.checkByKey(chave);
+      if (result.valid) LicenseCache.write(chave, result);
+    } else {
+      if (customerDbFromLicense()) {
+        result = { valid: false, status: 'sem_licenca', mensagem: 'Informe sua chave de licença' };
+      } else {
+        result = await LicenseService.checkLocal();
+      }
     }
 
-    // Aviso de vencimento próximo ou período de carência
-    if (_cache.vencido) {
-      res.setHeader('X-License-Warning', `Sistema vencido. Bloqueio em ${_cache.diasRestantesCarencia} dia(s)`);
-    } else if (_cache.aviso) {
-      res.setHeader('X-License-Warning', `Licença expira em ${_cache.diasRestantes} dia(s)`);
-    }
+    _cacheMap.set(mapKey, { data: result, ts: now });
+    return applyResult(result, req, res, next);
 
-    req.licenca = _cache;
-    next();
-  } catch {
-    // Em caso de erro na verificação, libera o acesso (fail-open)
+  } catch (err) {
+    if (getBoundChave() || customerDbFromLicense()) {
+      const isApi = (req.originalUrl || '').startsWith('/api/');
+      if (isApi) return res.status(503).json({ error: 'Erro ao verificar licença. Tente novamente.' });
+      return res.redirect('/login.html?license=error');
+    }
     next();
   }
 }
 
-function invalidateLicenseCache() {
-  _cache     = null;
-  _cacheTime = 0;
+function applyResult(result, req, res, next) {
+  if (!result.valid) {
+    if (req.accepts('html') && !req.originalUrl.startsWith('/api/')) {
+      return res.redirect('/login.html?license=expired');
+    }
+    return res.status(402).json({
+      error:            'licenca_invalida',
+      status:           result.status,
+      mensagem:         result.mensagem         || 'Licença inválida. Entre em contato com o suporte.',
+      motivo:           result.motivo           || null,
+      chave:            result.chave            || null,
+      sistema:          process.env.SYSTEM_NAME         || 'SysRepWeb',
+      suporte_whatsapp: process.env.SUPORTE_WHATSAPP   || '',
+      suporte_nome:     process.env.SUPORTE_NOME       || 'Suporte Técnico',
+      suporte_email:    process.env.SUPORTE_EMAIL       || '',
+      pix_chave:        process.env.PIX_CHAVE           || '',
+      pix_tipo:         process.env.PIX_TIPO            || '',
+      pix_nome:         process.env.PIX_NOME            || '',
+      pix_descricao:    process.env.PIX_DESCRICAO       || '',
+    });
+  }
+
+  if (result.vencido) {
+    res.setHeader('X-License-Warning', `Sistema vencido. Bloqueio em ${result.diasRestantesCarencia} dia(s)`);
+  } else if (result.aviso) {
+    res.setHeader('X-License-Warning', `Licença expira em ${result.diasRestantes} dia(s)`);
+  }
+
+  req.licenca = result;
+  next();
+}
+
+function invalidateLicenseCache(chave) {
+  if (chave) {
+    _cacheMap.delete(chave);
+    LicenseCache.clear(chave);
+    const { destroyPoolForLicense } = require('../config/database');
+    destroyPoolForLicense(chave);
+  } else {
+    _cacheMap.clear();
+  }
+  const { resetDbConfigFlag } = require('../services/license-service');
+  resetDbConfigFlag();
 }
 
 module.exports = { licenseMiddleware, invalidateLicenseCache };

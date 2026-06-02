@@ -1,0 +1,1492 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Planejamento de Rotas</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<link rel="stylesheet" href="/assets/ajuda-tour.css">
+<script src="/assets/ajuda-tour.js"></script>
+<script src="/assets/ajuda-tours.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:var(--content-bg);--card:var(--card-bg);--border:var(--card-border);
+  --text:var(--content-text);--text2:var(--text2);--accent:var(--accent);
+  --accent-hover:var(--accent-hover);--danger:#ef4444;--warn:#f59e0b;--success:#22c55e;
+  --input-bg:var(--card-bg);
+}
+body{font-family:var(--font,'Inter',sans-serif);background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
+
+/* TOOLBAR */
+.toolbar{background:var(--card);border-bottom:1px solid var(--border);padding:10px 16px;
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;top:0;z-index:200;
+  box-shadow:0 4px 12px rgba(0,0,0,.04)}
+.toolbar-title{font-size:13px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;white-space:nowrap;display:flex;align-items:center;gap:6px}
+.sep{width:1px;height:28px;background:var(--border);flex-shrink:0}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border:none;border-radius:8px;
+  font-size:12px;font-weight:700;cursor:pointer;transition:.15s;font-family:inherit;white-space:nowrap}
+.btn svg{width:14px;height:14px;flex-shrink:0}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-primary{background:var(--accent);color:#fff;border:1.5px solid var(--accent)}
+.btn-primary:hover:not(:disabled){background:var(--accent-hover);border-color:var(--accent-hover)}
+.btn-outline{background:var(--card);color:var(--accent);border:1.5px solid var(--accent)}
+.btn-outline:hover{filter:brightness(.95)}
+.btn-danger{background:#ef4444;color:#fff;border:1.5px solid #ef4444}
+.btn-success{background:#16a34a;color:#fff;border:1.5px solid #16a34a}
+.btn-warn{background:#f59e0b;color:#fff;border:1.5px solid #f59e0b}
+.btn-neutral{background:var(--bg);color:var(--text);border:1.5px solid var(--border)}
+.btn-sm{padding:5px 10px;font-size:11px}
+.btn-icon{padding:6px;border-radius:7px}
+input,select,textarea{font-family:inherit;font-size:13px;background:var(--input-bg);
+  color:var(--text);border:1.5px solid var(--border);border-radius:8px;padding:8px 12px;
+  width:100%;transition:.15s;outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+
+/* NOTIF BELL */
+.notif-bell{position:relative;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;
+  width:34px;height:34px;border-radius:8px;background:var(--bg);border:1.5px solid var(--border);transition:.15s}
+.notif-bell:hover{border-color:var(--accent)}
+.notif-badge{position:absolute;top:-5px;right:-5px;background:#ef4444;color:#fff;
+  font-size:9px;font-weight:800;border-radius:10px;min-width:16px;height:16px;
+  display:none;align-items:center;justify-content:center;padding:0 3px}
+.notif-badge.show{display:flex}
+
+/* NOTIF PANEL */
+.notif-panel{position:fixed;top:57px;right:0;width:360px;background:var(--card);
+  border-left:1px solid var(--border);border-bottom:1px solid var(--border);
+  z-index:300;box-shadow:-8px 4px 24px rgba(0,0,0,.15);border-radius:0 0 0 12px;
+  max-height:70vh;overflow-y:auto;display:none}
+.notif-panel.open{display:block}
+.notif-panel-header{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.notif-panel-header h4{font-size:13px;font-weight:800}
+.notif-item{padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:.15s}
+.notif-item:hover{background:var(--bg)}
+.notif-item:last-child{border-bottom:none}
+.notif-item-title{font-size:12px;font-weight:700;margin-bottom:3px}
+.notif-item-meta{font-size:11px;color:var(--text2)}
+
+/* DATE FILTERS */
+.date-filters{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.date-filters input[type=date]{width:130px;font-size:11px;padding:5px 8px}
+.date-filters select{width:auto;min-width:130px;font-size:11px;padding:5px 8px}
+
+/* LAYOUT PRINCIPAL */
+.main-layout{display:grid;grid-template-columns:390px 1fr;flex:1;min-height:0;height:calc(100vh - 57px)}
+.main-layout.panel-collapsed{grid-template-columns:0 1fr}
+@media(max-width:900px){.main-layout{grid-template-columns:1fr;grid-template-rows:auto 1fr}}
+
+/* PAINEL ESQUERDO */
+.left-panel{background:var(--card);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;transition:none}
+.main-layout.panel-collapsed .left-panel{width:0;min-width:0;border-right:none;overflow:hidden}
+/* Botão colapso painel */
+#btnTogglePanel{position:absolute;left:0;top:50%;transform:translateY(-50%);z-index:900;background:var(--card);border:1px solid var(--border);border-left:none;border-radius:0 6px 6px 0;width:18px;height:48px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:2px 0 8px rgba(0,0,0,.1);transition:left .2s}
+#btnTogglePanel:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+#btnTogglePanel svg{transition:transform .2s}
+.panel-collapsed #btnTogglePanel svg{transform:rotate(180deg)}
+.left-header{padding:12px;border-bottom:1px solid var(--border);flex-shrink:0}
+.left-header h2{font-size:12px;font-weight:800;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px}
+.left-scroll{flex:1;overflow-y:auto;padding:10px}
+
+/* ROTA CARD */
+.rota-card{background:var(--bg);border:1.5px solid var(--border);border-radius:12px;padding:12px;margin-bottom:8px;cursor:pointer;transition:.15s}
+.rota-card:hover,.rota-card.selected{border-color:var(--accent);background:rgba(14,165,233,.05)}
+.rota-card-header{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.rota-card-title{font-size:13px;font-weight:700}
+.rota-card-meta{font-size:11px;color:var(--text2);margin-top:3px}
+.rota-card-footer{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;align-items:center}
+
+/* BADGES */
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;font-size:10px;font-weight:700}
+.badge-pendente{background:#fef3c7;color:#92400e}
+.badge-em-andamento{background:#dbeafe;color:#1e40af}
+.badge-concluida{background:#dcfce7;color:#15803d}
+.badge-cancelada{background:#f1f5f9;color:#475569}
+.badge-info{background:rgba(14,165,233,.1);color:#0284c7}
+.badge-teal{background:rgba(13,148,136,.1);color:#0d9488}
+
+/* MAP */
+#map{width:100%;height:100%;z-index:1}
+@media(max-width:900px){#map{height:400px}}
+
+/* MAP LEGEND */
+.map-legend{position:absolute;bottom:30px;left:10px;z-index:10;background:var(--card);
+  border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:11px;min-width:160px;
+  box-shadow:0 4px 12px rgba(0,0,0,.15)}
+.map-legend-title{font-weight:800;font-size:11px;margin-bottom:6px;color:var(--text2);text-transform:uppercase;letter-spacing:.5px}
+.legend-item{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.legend-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;border:2px solid rgba(255,255,255,.8)}
+
+/* PROGRESS BAR */
+.progress-bar{background:var(--border);border-radius:4px;height:5px;overflow:hidden;margin-top:6px}
+.progress-fill{height:100%;background:var(--accent);border-radius:4px;transition:.3s}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;display:none;align-items:center;justify-content:center;padding:16px}
+.modal-overlay.open{display:flex}
+.modal{background:var(--card);border-radius:16px;padding:24px;width:100%;max-width:640px;
+  box-shadow:0 20px 60px rgba(0,0,0,.3);border:1px solid var(--border);max-height:92vh;overflow-y:auto}
+.modal h2{font-size:15px;font-weight:800;margin-bottom:18px}
+.modal-sm{max-width:460px}
+.modal-xl{max-width:920px;overflow-y:visible;display:flex;flex-direction:column;max-height:92vh}
+.modal-xl form{display:flex;flex-direction:column;flex:1;min-height:0}
+.modal-xl .modal-body-split{display:grid;grid-template-columns:1fr 1fr;gap:20px;flex:1;min-height:0;overflow:hidden}
+.modal-xl .split-col{display:flex;flex-direction:column;min-height:0;overflow-y:auto;padding-right:4px}
+.modal-xl .split-col::-webkit-scrollbar{width:4px}
+.modal-xl .split-col::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-grid .full{grid-column:1/-1}
+.form-group label{display:block;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:18px;padding-top:14px;border-top:1px solid var(--border)}
+
+/* VISIT STATUS BUTTONS */
+.visit-status-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
+.vstatus-btn{padding:10px 6px;border:2px solid var(--border);border-radius:10px;cursor:pointer;text-align:center;
+  background:var(--bg);transition:.15s;font-family:inherit;font-size:11px;font-weight:700;color:var(--text2)}
+.vstatus-btn:hover{border-color:var(--accent)}
+.vstatus-btn.sel-VISITADO{border-color:#22c55e;background:rgba(34,197,94,.1);color:#15803d}
+.vstatus-btn.sel-NAO_ENCONTRADO{border-color:#ef4444;background:rgba(239,68,68,.1);color:#b91c1c}
+.vstatus-btn.sel-PEDIDO_REALIZADO{border-color:#0d9488;background:rgba(13,148,136,.1);color:#0d9488}
+.vstatus-btn.sel-REAGENDAR{border-color:#f59e0b;background:rgba(245,158,11,.1);color:#b45309}
+.vstatus-btn.sel-CANCELADO{border-color:#6b7280;background:rgba(107,114,128,.1);color:#374151}
+.vstatus-dot{width:10px;height:10px;border-radius:50%;margin:0 auto 5px;flex-shrink:0}
+
+/* GPS STATUS */
+.gps-status{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;font-size:12px;margin-bottom:12px}
+.gps-ok{background:rgba(34,197,94,.1);color:#15803d}
+.gps-warn{background:rgba(245,158,11,.1);color:#b45309}
+.gps-err{background:rgba(239,68,68,.1);color:#b91c1c}
+.gps-loading{background:rgba(14,165,233,.1);color:#0284c7}
+
+/* CLIENTE ITEM */
+.cliente-item{display:flex;align-items:flex-start;gap:8px;padding:10px;border:1px solid var(--border);border-radius:10px;margin-bottom:6px;background:var(--bg)}
+.cliente-item .ordem{width:22px;height:22px;background:var(--accent);color:#fff;border-radius:5px;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.cliente-item .nome{font-size:12px;font-weight:600;flex:1;min-width:0}
+.cliente-item .meta{font-size:11px;color:var(--text2);line-height:1.4}
+.status-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:3px}
+.dot-PENDENTE{background:#3b82f6}
+.dot-VISITADO{background:#22c55e}
+.dot-NAO_ENCONTRADO{background:#ef4444}
+.dot-PEDIDO_REALIZADO{background:#0d9488}
+.dot-REAGENDAR{background:#f59e0b}
+.dot-CANCELADO{background:#6b7280}
+
+/* ACOES CLIENTE */
+.cli-acoes{display:flex;gap:4px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end}
+
+/* FILTER TABS */
+.filter-tabs{display:flex;gap:3px;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:3px}
+.filter-tab{padding:4px 10px;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;border:none;background:transparent;color:var(--text2);transition:.15s;font-family:inherit;display:inline-flex;align-items:center;gap:4px}
+.filter-tab.active{background:var(--accent);color:#fff}
+.tab-ct{background:rgba(0,0,0,.14);border-radius:10px;padding:1px 5px;font-size:9px;font-weight:800;min-width:14px;text-align:center;line-height:14px}
+.filter-tab.active .tab-ct{background:rgba(255,255,255,.28)}
+.tab-ct:empty{display:none}
+
+/* CLIENTE MODAL LIST */
+.cli-sel-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;cursor:pointer;transition:.15s}
+.cli-sel-item:hover{background:rgba(14,165,233,.08)}
+.cli-sel-item input[type=checkbox]{width:14px;height:14px;cursor:pointer;flex-shrink:0}
+.cli-drag-handle{cursor:grab;color:var(--text2);padding:2px;flex-shrink:0}
+.cli-drag-handle:active{cursor:grabbing}
+
+/* EMPTY */
+.empty{text-align:center;padding:32px;color:var(--text2)}
+.empty p{font-size:12px}
+
+/* LOADER */
+.loader{display:flex;align-items:center;justify-content:center;padding:24px}
+.spin{width:22px;height:22px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* DETALHE OVERLAY */
+.detalhe-overlay{position:fixed;top:var(--toolbar-h,57px);right:0;bottom:0;width:440px;background:var(--card);
+  border-left:1px solid var(--border);z-index:150;transform:translateX(100%);transition:.3s;
+  display:flex;flex-direction:column;box-shadow:-8px 0 24px rgba(0,0,0,.12)}
+.detalhe-overlay.open{transform:translateX(0)}
+.detalhe-header{padding:12px 14px;border-bottom:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;gap:8px}
+.detalhe-header h3{font-size:13px;font-weight:800;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.detalhe-scroll{flex:1;overflow-y:auto;padding:14px}
+@media(max-width:900px){.detalhe-overlay{width:100%;top:auto}}
+@media(max-width:700px){.modal-xl .modal-body-split{grid-template-columns:1fr;overflow-y:auto}.modal-xl .split-col{border-left:none!important;padding-left:0!important}.modal-xl{overflow-y:auto}}
+
+/* PRODUCTIVITY MODAL */
+.prod-table{width:100%;border-collapse:collapse;font-size:12px}
+.prod-table th{font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;padding:8px 10px;text-align:right;border-bottom:1px solid var(--border)}
+.prod-table th:first-child{text-align:left}
+.prod-table td{padding:10px;border-bottom:1px solid var(--border);text-align:right}
+.prod-table td:first-child{text-align:left;font-weight:600}
+.prod-table tr:last-child td{border-bottom:none}
+
+/* PRINT */
+@media print{
+  .toolbar,.detalhe-overlay,.modal-overlay,.notif-panel,.map-legend,#map,.left-panel{display:none!important}
+  #printArea{display:block!important}
+  body{background:#fff;color:#000}
+  .print-title{font-size:18px;font-weight:800;margin-bottom:4px}
+  .print-sub{font-size:12px;color:#666;margin-bottom:16px}
+  .print-item{padding:10px 0;border-bottom:1px solid #eee;display:flex;gap:12px;align-items:flex-start}
+  .print-num{width:28px;height:28px;background:#0ea5e9;color:#fff;border-radius:6px;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .print-info{flex:1}
+  .print-nome{font-weight:700;font-size:13px}
+  .print-addr{font-size:11px;color:#666}
+}
+#printArea{display:none}
+</style>
+</head>
+<body data-tour-default="rotas-planejar">
+
+<!-- NOTIF PANEL -->
+<div id="notifPanel" class="notif-panel">
+  <div class="notif-panel-header">
+    <h4>Novas Rotas para você</h4>
+    <button class="btn btn-sm btn-outline" onclick="fecharNotifPanel()">Fechar</button>
+  </div>
+  <div id="notifLista"></div>
+</div>
+
+<!-- TOOLBAR -->
+<div class="toolbar">
+  <span class="toolbar-title">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px">
+      <path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
+    </svg>
+    Rotas
+  </span>
+  <div class="sep"></div>
+  <div class="filter-tabs">
+    <button class="filter-tab" data-status="" onclick="setFiltro('',this)">Todas<span class="tab-ct"></span></button>
+    <button class="filter-tab" data-status="PENDENTE" onclick="setFiltro('PENDENTE',this)">Pendentes<span class="tab-ct"></span></button>
+    <button class="filter-tab" data-status="EM_ANDAMENTO" onclick="setFiltro('EM_ANDAMENTO',this)">Em Andamento<span class="tab-ct"></span></button>
+    <button class="filter-tab" data-status="CONCLUIDA" onclick="setFiltro('CONCLUIDA',this)">Concluídas<span class="tab-ct"></span></button>
+    <button class="filter-tab" data-status="CANCELADA" onclick="setFiltro('CANCELADA',this)">Canceladas<span class="tab-ct"></span></button>
+  </div>
+  <div class="sep"></div>
+  <div class="date-filters">
+    <select id="selVendedor" style="min-width:140px" onchange="carregar()">
+      <option value="">Todos vendedores</option>
+    </select>
+    <input type="date" id="dtInicio" title="Data inicial" onchange="carregar()">
+    <input type="date" id="dtFim" title="Data final" onchange="carregar()">
+    <button class="btn btn-sm btn-warn" onclick="filtroHoje()">Hoje</button>
+    <input id="inpBusca" placeholder="Buscar..." oninput="debounce()" style="width:130px;font-size:11px;padding:5px 8px" autocomplete="off">
+  </div>
+  <div style="flex:1"></div>
+  <!-- Bell de notificação do vendedor -->
+  <div class="notif-bell" id="notifBell" onclick="toggleNotifPanel()" title="Novas rotas">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px">
+      <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+    </svg>
+    <span class="notif-badge" id="notifBadge">0</span>
+  </div>
+  <button class="btn btn-sm btn-neutral" onclick="toggleMapa()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+    Mapa
+  </button>
+  <button class="btn btn-sm btn-neutral" onclick="abrirRelatorio()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+    Relatório
+  </button>
+  <button type="button" class="btn-sysrep-tour" onclick="SysRepTour.start('rotas-planejar')" title="Tour — Montar rotas">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+    Tour
+  </button>
+  <button class="btn btn-sm btn-primary" onclick="novaRota()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+    Nova Rota
+  </button>
+</div>
+
+<!-- LAYOUT PRINCIPAL -->
+<div class="main-layout" id="mainLayout">
+  <!-- PAINEL ESQUERDO -->
+  <div class="left-panel">
+    <div class="left-header">
+      <h2>Rotas Planejadas</h2>
+      <div style="font-size:11px;color:var(--text2);display:flex;gap:6px;align-items:flex-start;background:rgba(14,165,233,.07);padding:6px 8px;border-radius:6px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#0ea5e9" stroke-width="2" style="width:12px;height:12px;flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span>Clientes aparecem no mapa quando têm <strong>Latitude/Longitude</strong> preenchidas no cadastro.</span>
+      </div>
+    </div>
+    <div class="left-scroll" id="listaRotas">
+      <div class="loader"><div class="spin"></div></div>
+    </div>
+  </div>
+
+  <!-- MAPA -->
+  <div style="position:relative;overflow:hidden">
+    <button id="btnTogglePanel" onclick="togglePanel()" title="Recolher/expandir painel">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:10px;height:10px"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+    </button>
+    <div id="map"></div>
+    <div class="map-legend" id="mapLegend">
+      <div class="map-legend-title">Legenda</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div><span>Pendente</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background:#22c55e"></div><span>Visitado</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background:#0d9488"></div><span>Pedido Realizado</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div><span>Não Encontrado</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div><span>Reagendar</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background:#6b7280"></div><span>Cancelado</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- DETALHE DA ROTA -->
+<div id="detalheOverlay" class="detalhe-overlay">
+  <div class="detalhe-header">
+    <button class="btn btn-sm btn-neutral btn-icon" onclick="fecharDetalhe()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 18L18 6M6 6l12 12"/></svg>
+    </button>
+    <h3 id="detalheTitle" style="min-width:0">—</h3>
+    <div style="display:flex;gap:4px;flex-shrink:0">
+      <button class="btn btn-sm btn-outline btn-icon" title="Editar" onclick="editarRotaAtual()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+      </button>
+      <button class="btn btn-sm btn-danger btn-icon" title="Excluir" onclick="excluirRotaAtual()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="detalhe-scroll" id="detalheContent">
+    <div class="loader"><div class="spin"></div></div>
+  </div>
+</div>
+
+<!-- MODAL NOVA/EDITAR ROTA -->
+<div id="modalOverlay" class="modal-overlay">
+  <div class="modal modal-xl">
+    <h2 id="modalTitulo" style="margin-bottom:14px">Nova Rota</h2>
+    <form onsubmit="salvarRota(event)">
+      <div class="modal-body-split">
+
+        <!-- COLUNA ESQUERDA: campos do formulário -->
+        <div class="split-col">
+          <div class="form-group" style="margin-bottom:10px">
+            <label>Descrição da Rota *</label>
+            <input id="fDesc" required autocomplete="off" placeholder="Ex: Visitas Nordeste — Semana 20">
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+            <div class="form-group">
+              <label>Vendedor *</label>
+              <select id="fVend" required></select>
+            </div>
+            <div class="form-group">
+              <label>Data Prevista</label>
+              <input id="fData" type="date">
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom:10px">
+            <label>Região</label>
+            <select id="fRegiao" onchange="filtrarClientesPorRegiao()">
+              <option value="">— Todas as regiões —</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom:10px">
+            <label>Observação</label>
+            <textarea id="fObs" rows="3" placeholder="Observações sobre a rota..." style="resize:vertical"></textarea>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;padding:10px;background:rgba(14,165,233,.07);border-radius:8px;margin-top:auto">
+            <input type="checkbox" id="chkNotifWpp" style="width:14px;height:14px;flex-shrink:0">
+            <label for="chkNotifWpp" style="font-size:12px;cursor:pointer;font-weight:600">
+              Notificar vendedor via WhatsApp ao salvar
+            </label>
+          </div>
+        </div>
+
+        <!-- COLUNA DIREITA: seleção de clientes -->
+        <div class="split-col" style="border-left:1px solid var(--border);padding-left:20px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-shrink:0">
+            <label style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px">
+              Clientes da Rota
+            </label>
+            <div style="display:flex;gap:6px;align-items:center">
+              <span id="lblSelCount" style="font-size:11px;color:var(--accent);font-weight:700">0 selecionado(s)</span>
+              <span id="lblGpsWarn" style="display:none;font-size:10px;font-weight:700;color:#d97706;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:5px;padding:2px 6px;cursor:default" title="Estes clientes não aparecerão no mapa">⚠ <span id="lblGpsWarnNum">0</span> sem GPS</span>
+              <button type="button" class="btn btn-sm btn-outline" onclick="otimizarOrdemModal()" title="Otimizar ordem por proximidade geográfica">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                Otimizar
+              </button>
+            </div>
+          </div>
+          <input id="inpFiltroCliente" placeholder="Filtrar clientes..." oninput="debounceClientes()" style="font-size:12px;padding:6px 8px;margin-bottom:8px;flex-shrink:0" autocomplete="off">
+          <div id="listaClientesModal" style="flex:1;min-height:180px;max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;padding:6px;flex-shrink:0">
+            <div class="loader"><div class="spin"></div></div>
+          </div>
+          <div id="clientesSelecionadosOrdem" style="margin-top:10px;display:none;flex-shrink:0">
+            <div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">
+              Ordem da visita (arraste para reordenar)
+            </div>
+            <div id="listaOrdem" style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:4px"></div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-neutral" onclick="fecharModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="btnSalvarRota">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 13l4 4L19 7"/></svg>
+          Salvar Rota
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL REGISTRAR VISITA -->
+<div id="modalVisitaOverlay" class="modal-overlay">
+  <div class="modal modal-sm">
+    <h2 id="visitaTitle">Registrar Visita</h2>
+    <div class="visit-status-grid" id="visitaStatusGrid">
+      <button type="button" class="vstatus-btn" onclick="selecionarStatus('VISITADO',this)">
+        <div class="vstatus-dot" style="background:#22c55e"></div>Visitado
+      </button>
+      <button type="button" class="vstatus-btn" onclick="selecionarStatus('PEDIDO_REALIZADO',this)">
+        <div class="vstatus-dot" style="background:#0d9488"></div>Pedido Realizado
+      </button>
+      <button type="button" class="vstatus-btn" onclick="selecionarStatus('NAO_ENCONTRADO',this)">
+        <div class="vstatus-dot" style="background:#ef4444"></div>Não Encontrado
+      </button>
+      <button type="button" class="vstatus-btn" onclick="selecionarStatus('REAGENDAR',this)">
+        <div class="vstatus-dot" style="background:#f59e0b"></div>Reagendar
+      </button>
+      <button type="button" class="vstatus-btn" onclick="selecionarStatus('CANCELADO',this)">
+        <div class="vstatus-dot" style="background:#6b7280"></div>Cancelado
+      </button>
+      <button type="button" class="vstatus-btn" onclick="selecionarStatus('PENDENTE',this)">
+        <div class="vstatus-dot" style="background:#3b82f6"></div>Desfazer
+      </button>
+    </div>
+
+    <div id="gpsStatus" class="gps-status gps-loading">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;flex-shrink:0"><path d="M12 2a7 7 0 107 7 7 7 0 00-7-7zm0 9a2 2 0 112-2 2 2 0 01-2 2z"/></svg>
+      <span id="gpsText">Obtendo localização GPS...</span>
+    </div>
+
+    <div class="form-group" style="margin-bottom:10px">
+      <label>Observação da visita</label>
+      <textarea id="visitaObs" rows="2" placeholder="Comentário sobre a visita..."></textarea>
+    </div>
+
+    <div id="motivoWrap" style="display:none" class="form-group" style="margin-bottom:10px">
+      <label id="motivoLabel">Motivo</label>
+      <input id="visitaMotivo" autocomplete="off" placeholder="Descreva o motivo...">
+    </div>
+
+    <div id="retornoWrap" style="display:none" class="form-group" style="margin-bottom:10px">
+      <label>Data de Retorno</label>
+      <input id="visitaRetorno" type="date">
+    </div>
+
+    <div class="modal-footer">
+      <button type="button" class="btn btn-neutral" onclick="fecharModalVisita()">Cancelar</button>
+      <button type="button" class="btn btn-primary" id="btnSalvarVisita" onclick="salvarVisita()" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 13l4 4L19 7"/></svg>
+        Salvar
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL WHATSAPP CHEGANDO -->
+<div id="modalWppOverlay" class="modal-overlay">
+  <div class="modal modal-sm">
+    <h2>Enviar WhatsApp</h2>
+    <div class="form-group" style="margin-bottom:16px">
+      <label>Mensagem (editável)</label>
+      <textarea id="wppMensagem" rows="5"></textarea>
+    </div>
+    <div id="wppFoneInfo" style="font-size:11px;color:var(--text2);margin-bottom:12px"></div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-neutral" onclick="fecharModalWpp()">Cancelar</button>
+      <button type="button" class="btn btn-success" id="btnEnviarWpp" onclick="confirmarEnvioWpp()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+        Enviar
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL RELATÓRIO DE PRODUTIVIDADE -->
+<div id="modalRelatorioOverlay" class="modal-overlay">
+  <div class="modal" style="max-width:900px">
+    <h2>Relatório de Produtividade — Rotas</h2>
+    <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:flex-end">
+      <div class="form-group" style="margin:0">
+        <label>Período</label>
+        <div style="display:flex;gap:6px">
+          <input type="date" id="rptInicio" style="width:140px">
+          <input type="date" id="rptFim" style="width:140px">
+        </div>
+      </div>
+      <div class="form-group" style="margin:0">
+        <label>Vendedor</label>
+        <select id="rptVendedor" style="min-width:160px"><option value="">Todos</option></select>
+      </div>
+      <button class="btn btn-primary" onclick="carregarRelatorio()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        Filtrar
+      </button>
+    </div>
+    <div id="relatorioBody" style="overflow-x:auto">
+      <div class="empty"><p>Defina o período e clique em Filtrar.</p></div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-neutral" onclick="document.getElementById('modalRelatorioOverlay').classList.remove('open')">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- PRINT AREA -->
+<div id="printArea"></div>
+
+<script>
+// ─── helpers ──────────────────────────────────────────────────────────────────
+function token(){ return localStorage.getItem('token')||sessionStorage.getItem('token')||''; }
+async function api(url, opts={}){
+  const r = await fetch(url,{headers:{Authorization:'Bearer '+token(),...(opts.headers||{})}, ...opts});
+  if(!r.ok){ const t=await r.text(); throw new Error(t); }
+  return r.json();
+}
+function fmt(date){ return date ? new Date(date.toString().substring(0,10)+'T12:00:00').toLocaleDateString('pt-BR') : '—'; }
+function fmtDt(dt){ return dt ? new Date(dt).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—'; }
+function escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/'/g,"\\'"); }
+
+// ─── Estado global ────────────────────────────────────────────────────────────
+let mapaVisivel=true, mapa=null, marcadores=[], polylinhas=[], _timer, filtroStatus='', rotaAtualId=null;
+let todosClientes=[], clientesSelecionados=new Map(), _rotaDetalheCache=null;
+let editRotaId=null, visitaIdRota=null, visitaIdCliente=null, visitaStatus=null;
+let gpsCoords={lat:null,lng:null,autorizado:'N'};
+let wppIdRota=null, wppIdCliente=null, _sortable=null, _debounceTimer=null;
+
+const VISIT_COLOR={PENDENTE:'#3b82f6',VISITADO:'#22c55e',PEDIDO_REALIZADO:'#0d9488',NAO_ENCONTRADO:'#ef4444',REAGENDAR:'#f59e0b',CANCELADO:'#6b7280'};
+const VISIT_LABEL={PENDENTE:'Pendente',VISITADO:'Visitado',PEDIDO_REALIZADO:'Pedido Realizado',NAO_ENCONTRADO:'Não Encontrado',REAGENDAR:'Reagendar',CANCELADO:'Cancelado'};
+const STATUS_CLASS={PENDENTE:'badge-pendente',EM_ANDAMENTO:'badge-em-andamento',CONCLUIDA:'badge-concluida',CANCELADA:'badge-cancelada'};
+const STATUS_LABEL={PENDENTE:'Pendente',EM_ANDAMENTO:'Em Andamento',CONCLUIDA:'Concluída',CANCELADA:'Cancelada'};
+
+// ─── MAPA ─────────────────────────────────────────────────────────────────────
+function initMapa(){
+  mapa = L.map('map',{center:[-14.235,-51.9253],zoom:5});
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:19}).addTo(mapa);
+}
+function toggleMapa(){
+  const m=document.getElementById('mainLayout');
+  mapaVisivel=!mapaVisivel;
+  m.style.gridTemplateColumns=mapaVisivel?'390px 1fr':'1fr';
+  document.getElementById('mapLegend').style.display=mapaVisivel?'block':'none';
+  const mapEl=document.getElementById('map');
+  mapEl.style.display=mapaVisivel?'block':'none';
+  if(mapaVisivel && mapa) setTimeout(()=>mapa.invalidateSize(),300);
+}
+let _painelRecolhido = false;
+function togglePanel(){
+  _painelRecolhido = !_painelRecolhido;
+  document.getElementById('mainLayout').classList.toggle('panel-collapsed', _painelRecolhido);
+  if(mapa) setTimeout(()=>mapa.invalidateSize(), 250);
+}
+
+function limparMapa(){ marcadores.forEach(m=>m.remove()); marcadores=[]; polylinhas.forEach(p=>p.remove()); polylinhas=[]; }
+
+// Separa pins próximos (~1 km) em leque para não ficarem sobrepostos
+// Usa índice original para evitar match frágil por nome/id
+// Após fitBounds, separa marcadores sobrepostos usando coordenadas de pixel
+// — funciona em qualquer nível de zoom, não depende de graus
+function _dessobreporMarcadores(mapa, mks){
+  if(mks.length < 2) return;
+  const LIMIAR = 30; // px — menor que o tamanho do ícone (28px)
+  const RAIO   = 38; // px — raio do leque de separação
+  const pts = mks.map(mk=>({ mk, p: mapa.latLngToLayerPoint(mk.getLatLng()) }));
+  const vis = new Array(pts.length).fill(false);
+  pts.forEach((_, i)=>{
+    if(vis[i]) return;
+    const grupo=[i]; vis[i]=true;
+    pts.forEach((_, j)=>{
+      if(j<=i||vis[j]) return;
+      const dx=pts[j].p.x-pts[i].p.x, dy=pts[j].p.y-pts[i].p.y;
+      if(Math.sqrt(dx*dx+dy*dy)<LIMIAR){ grupo.push(j); vis[j]=true; }
+    });
+    if(grupo.length<2) return;
+    const cx=pts[grupo[0]].p.x, cy=pts[grupo[0]].p.y;
+    grupo.forEach((idx, k)=>{
+      const ang=(2*Math.PI*k/grupo.length)-Math.PI/2;
+      pts[idx].mk.setLatLng(mapa.layerPointToLatLng([cx+RAIO*Math.cos(ang), cy+RAIO*Math.sin(ang)]));
+    });
+  });
+}
+
+async function pinClientes(clientes){
+  limparMapa();
+
+  // Clientes sem GPS — geocodificar por cidade/UF
+  const semGeo = clientes.filter(c=>!c.latitude||!c.longitude);
+  let cidadeCoords = {};
+  if(semGeo.length){
+    const cidadesUnicas=[...new Map(semGeo.filter(c=>c.cidade).map(c=>[
+      `${(c.cidade||'').toLowerCase()},${(c.uf||'').toLowerCase()}`,{cidade:c.cidade,uf:c.uf}
+    ])).values()];
+    try{
+      cidadeCoords=await api('/api/geocoding/cidades',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cidades:cidadesUnicas})});
+    }catch(_){}
+  }
+
+  // Lista final preservando a ordem da rota
+  const todos=clientes.map(c=>{
+    if(c.latitude&&c.longitude) return {...c,_aprox:false};
+    const k=`${(c.cidade||'').toLowerCase()},${(c.uf||'').toLowerCase()}`;
+    if(cidadeCoords[k]) return {...c,latitude:cidadeCoords[k].lat,longitude:cidadeCoords[k].lng,_aprox:true};
+    return null;
+  }).filter(Boolean);
+
+  // Polilinha com GPS exato (não distorce o trajeto com posições aproximadas)
+  const ptsTrajeto=todos.filter(c=>!c._aprox).map(c=>[parseFloat(c.latitude),parseFloat(c.longitude)]);
+  if(ptsTrajeto.length>1)
+    polylinhas.push(L.polyline(ptsTrajeto,{color:'#0ea5e9',weight:2,opacity:.4,dashArray:'6 6'}).addTo(mapa));
+
+  // Marcadores na posição real (sobreposição resolvida depois do fitBounds)
+  todos.forEach((c,i)=>{
+    const cor=VISIT_COLOR[c.status_visita]||VISIT_COLOR.PENDENTE;
+    const borda=c._aprox?'border:2.5px dashed #fff;opacity:.82':'border:2.5px solid #fff';
+    const forma=c._aprox?'border-radius:6px':'border-radius:50%';
+    const aproxTag=c._aprox?'<br><span style="font-size:10px;background:#f59e0b;color:#fff;padding:1px 5px;border-radius:4px">📍 aprox. cidade</span>':'';
+    const icon=L.divIcon({
+      html:`<div style="background:${cor};color:#fff;width:28px;height:28px;${forma};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;${borda};box-shadow:0 2px 8px rgba(0,0,0,.3)">${i+1}</div>`,
+      iconSize:[28,28],iconAnchor:[14,14],className:''
+    });
+    const popup=`<strong style="font-size:12px">${c.nome}</strong>${aproxTag}<br>
+      <span style="font-size:11px;color:#666">${c.cidade||''}${c.uf?'/'+c.uf:''}</span><br>
+      Status: <strong style="color:${cor}">${VISIT_LABEL[c.status_visita]||c.status_visita||'Pendente'}</strong><br>
+      ${c.data_hora_checkin?'Check-in: '+fmtDt(c.data_hora_checkin)+'<br>':''}
+      ${c.observacao?'Obs: '+c.observacao+'<br>':''}
+      ${c.motivo_nao_encontrado?'Motivo: '+c.motivo_nao_encontrado+'<br>':''}
+      Últ. compra: ${c.dtultimacompra?fmt(c.dtultimacompra):'—'}`;
+    const mk=L.marker([parseFloat(c.latitude),parseFloat(c.longitude)],{icon}).addTo(mapa);
+    mk.bindPopup(popup,{maxWidth:240});
+    marcadores.push(mk);
+  });
+
+  if(marcadores.length>0){
+    const grp=L.featureGroup(marcadores);
+    mapa.fitBounds(grp.getBounds().pad(.2));
+    // Depois que o zoom assentar, separar pins sobrepostos em pixels
+    mapa.once('moveend',()=>_dessobreporMarcadores(mapa, marcadores));
+  }
+}
+
+// ─── NOTIFICAÇÕES ─────────────────────────────────────────────────────────────
+async function checarNotificacoes(){
+  try{
+    const d=await api('/api/regiao-rota/rotas-vendedor/minhas-notificacoes');
+    const badge=document.getElementById('notifBadge');
+    const bell=document.getElementById('notifBell');
+    if(d.total>0){
+      badge.textContent=d.total;
+      badge.classList.add('show');
+      bell.style.borderColor='#ef4444';
+      renderNotifLista(d.notificacoes);
+    } else {
+      badge.classList.remove('show');
+      bell.style.borderColor='';
+    }
+  }catch(_){}
+}
+function renderNotifLista(items){
+  const el=document.getElementById('notifLista');
+  if(!items.length){el.innerHTML='<div class="empty"><p>Nenhuma nova rota.</p></div>';return;}
+  el.innerHTML=items.map(n=>`
+    <div class="notif-item" onclick="abrirDetalhe(${n.id});fecharNotifPanel();marcarVisualizado(${n.id})">
+      <div class="notif-item-title">${n.descricao}</div>
+      <div class="notif-item-meta">
+        ${n.data_prevista?fmt(n.data_prevista)+' · ':''}
+        ${n.qtde_clientes} cliente(s) · por ${n.nome_gestor||'—'}
+      </div>
+    </div>
+  `).join('');
+}
+function toggleNotifPanel(){
+  const p=document.getElementById('notifPanel');
+  p.classList.toggle('open');
+}
+function fecharNotifPanel(){ document.getElementById('notifPanel').classList.remove('open'); }
+async function marcarVisualizado(id){
+  try{ await api(`/api/regiao-rota/rotas-vendedor/${id}/visualizar`,{method:'PATCH'}); checarNotificacoes(); }catch(_){}
+}
+// Fecha ao clicar fora
+document.addEventListener('click',e=>{
+  if(!e.target.closest('#notifPanel')&&!e.target.closest('#notifBell'))
+    fecharNotifPanel();
+});
+
+// ─── LISTAGEM ─────────────────────────────────────────────────────────────────
+function setFiltro(s,btn){
+  filtroStatus=s;
+  document.querySelectorAll('.filter-tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  carregar();
+}
+function debounce(){ clearTimeout(_timer); _timer=setTimeout(carregar,350); }
+function filtroHoje(){
+  document.getElementById('dtInicio').value='';
+  document.getElementById('dtFim').value='';
+  carregar(true);
+}
+async function carregar(hoje=false){
+  document.getElementById('listaRotas').innerHTML='<div class="loader"><div class="spin"></div></div>';
+  const id_usuario=document.getElementById('selVendedor').value;
+  const q=document.getElementById('inpBusca').value.trim();
+  const di=document.getElementById('dtInicio').value;
+  const df=document.getElementById('dtFim').value;
+  const params=new URLSearchParams({limit:100});
+  if(filtroStatus) params.set('status',filtroStatus);
+  if(id_usuario) params.set('id_usuario',id_usuario);
+  if(hoje) params.set('hoje','1');
+  else{
+    if(di) params.set('data_inicio',di);
+    if(df) params.set('data_fim',df);
+  }
+  if(q) params.set('q',q);
+  try{
+    const d=await api('/api/regiao-rota/rotas-vendedor/lista?'+params);
+    renderRotas(d.rotas);
+    atualizarContagesTabs();
+  }catch(e){
+    document.getElementById('listaRotas').innerHTML=`<div class="empty"><p>${e.message}</p></div>`;
+  }
+}
+
+async function atualizarContagesTabs(){
+  const iv=document.getElementById('selVendedor').value;
+  const di=document.getElementById('dtInicio').value;
+  const df=document.getElementById('dtFim').value;
+  const q=document.getElementById('inpBusca').value.trim();
+  const statuses=['','PENDENTE','EM_ANDAMENTO','CONCLUIDA','CANCELADA'];
+  await Promise.all(statuses.map(async(status,i)=>{
+    const p=new URLSearchParams({limit:1});
+    if(status) p.set('status',status);
+    if(iv) p.set('id_usuario',iv);
+    if(di) p.set('data_inicio',di);
+    if(df) p.set('data_fim',df);
+    if(q) p.set('q',q);
+    try{
+      const d=await api('/api/regiao-rota/rotas-vendedor/lista?'+p);
+      const ct=document.querySelectorAll('.filter-tab')[i]?.querySelector('.tab-ct');
+      if(ct) ct.textContent=d.total>0?d.total:'';
+    }catch(_){}
+  }));
+}
+
+function renderRotas(rotas){
+  if(!rotas.length){
+    document.getElementById('listaRotas').innerHTML='<div class="empty"><p>Nenhuma rota encontrada.</p></div>';
+    return;
+  }
+  document.getElementById('listaRotas').innerHTML=rotas.map(r=>{
+    const total=r.total_clientes||0;
+    const visit=(r.total_visitados||0);
+    const pct=total>0?Math.round(visit/total*100):0;
+    const corR=r.cor_regiao||'#3b82f6';
+    return `<div class="rota-card ${rotaAtualId===r.id?'selected':''}" onclick="abrirDetalhe(${r.id})" data-id="${r.id}">
+      <div class="rota-card-header">
+        <div>
+          ${r.id_regiao?`<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${corR};margin-right:5px;vertical-align:1px"></span>`:''}
+          <span class="rota-card-title">${r.descricao}</span>
+        </div>
+        <span class="badge ${STATUS_CLASS[r.status]||'badge-pendente'}">${STATUS_LABEL[r.status]||r.status}</span>
+      </div>
+      <div class="rota-card-meta">
+        ${r.nome_vendedor?`<strong>${r.nome_vendedor}</strong> · `:''}
+        ${r.nome_regiao?`${r.sigla_regiao||r.nome_regiao} · `:''}
+        ${r.data_prevista?fmt(r.data_prevista):'Sem data'}
+      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+      <div class="rota-card-footer">
+        <span class="badge badge-info">${total} clientes</span>
+        ${r.total_visitados?`<span class="badge badge-concluida">✓ ${r.total_visitados}</span>`:''}
+        ${r.total_pedidos?`<span class="badge badge-teal">🛒 ${r.total_pedidos}</span>`:''}
+        ${r.total_nao_enc?`<span class="badge" style="background:#fee2e2;color:#b91c1c">✗ ${r.total_nao_enc}</span>`:''}
+        <span style="font-size:10px;color:var(--text2);margin-left:auto">${pct}%</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ─── DETALHE ──────────────────────────────────────────────────────────────────
+async function abrirDetalhe(id){
+  syncToolbarH();
+  rotaAtualId=id;
+  document.querySelectorAll('.rota-card').forEach(c=>c.classList.toggle('selected',+c.dataset.id===id));
+  document.getElementById('detalheOverlay').classList.add('open');
+  document.getElementById('detalheContent').innerHTML='<div class="loader"><div class="spin"></div></div>';
+  try{
+    const d=await api(`/api/regiao-rota/rotas-vendedor/${id}`);
+    _rotaDetalheCache=d;
+    document.getElementById('detalheTitle').textContent=d.descricao;
+    pinClientes(d.clientes); // async — não bloqueia o detalhe
+    renderDetalhe(d);
+  }catch(e){
+    document.getElementById('detalheContent').innerHTML=`<div class="empty"><p>${e.message}</p></div>`;
+  }
+}
+
+function renderDetalhe(d){
+  const total=d.clientes.length;
+  const visit=d.clientes.filter(c=>c.status_visita==='VISITADO'||c.status_visita==='PEDIDO_REALIZADO').length;
+  const pct=total>0?Math.round(visit/total*100):0;
+  const isConcluida=d.status==='CONCLUIDA';
+  const isCancelada=d.status==='CANCELADA';
+  const isAndamento=d.status==='EM_ANDAMENTO';
+
+  let html=`
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+      <span class="badge ${STATUS_CLASS[d.status]||'badge-pendente'}">${STATUS_LABEL[d.status]||d.status}</span>
+      ${d.nome_regiao?`<span class="badge badge-info">${d.nome_regiao}</span>`:''}
+      ${d.data_prevista?`<span style="font-size:11px;color:var(--text2);display:flex;align-items:center">${fmt(d.data_prevista)}</span>`:''}
+    </div>
+    ${d.nome_vendedor?`<div style="font-size:12px;color:var(--text2);margin-bottom:10px">Vendedor: <strong>${d.nome_vendedor}</strong>${d.nome_criador?' · Criado por: <strong>'+d.nome_criador+'</strong>':''}</div>`:''}
+    <div style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text2);margin-bottom:4px">
+        <span>Progresso</span><span>${visit}/${total} (${pct}%)</span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
+      ${!isAndamento&&!isConcluida&&!isCancelada?`<button class="btn btn-sm btn-warn" onclick="mudarStatus(${d.id},'EM_ANDAMENTO')">▶ Iniciar</button>`:''}
+      ${!isConcluida&&!isCancelada?`<button class="btn btn-sm btn-success" onclick="mudarStatus(${d.id},'CONCLUIDA')">✓ Concluir</button>`:''}
+      ${!isCancelada&&!isConcluida?`<button class="btn btn-sm btn-danger" onclick="mudarStatus(${d.id},'CANCELADA')">✗ Cancelar</button>`:''}
+      <div style="position:relative;display:inline-block">
+        <button class="btn btn-sm btn-neutral" onclick="toggleNavMenu(event)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+          Ações ▾
+        </button>
+        <div id="navMenu" style="display:none;position:absolute;top:calc(100% + 4px);left:0;background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.15);z-index:9999;min-width:230px;padding:4px 0">
+          ${_menuItem('Abrir no Google Maps','#4285f4','M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0zM15 11a3 3 0 11-6 0 3 3 0 016 0z','abrirGoogleMaps()')}
+          ${_menuItem('Waze — próximo','#33ccff','M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 14.5c-2.49 0-4.5-2.01-4.5-4.5S9.51 7.5 12 7.5s4.5 2.01 4.5 4.5-2.01 4.5-4.5 4.5z','abrirWaze()')}
+          <div style="height:1px;background:var(--border);margin:4px 0"></div>
+          ${_menuItem('Otimizar trajeto','#0d9488','M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5','otimizarTrajeto()')}
+          ${_menuItem('Exportar PDF / Imprimir','#6b7280','M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z','imprimirRota()')}
+          ${_menuItem('Baixar KML','#34a853','M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4','baixarKML()')}
+          <div style="height:1px;background:var(--border);margin:4px 0"></div>
+          ${_menuItem('Notificar Vendedor (WPP)','#25d366','M12 19l9 2-9-18-9 18 9-2zm0 0v-8','notificarVendedor()')}
+        </div>
+      </div>
+    </div>
+    <div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Clientes (${total})</div>`;
+
+  if(!d.clientes.length){
+    html+='<div class="empty"><p>Nenhum cliente nesta rota.</p></div>';
+  } else {
+    html+=d.clientes.map(c=>{
+      const risco=c.dias_sem_compra>180?'color:#ef4444':c.dias_sem_compra>90?'color:#f59e0b':'';
+      const statusV=c.status_visita||'PENDENTE';
+      const corV=VISIT_COLOR[statusV]||VISIT_COLOR.PENDENTE;
+      const labelV=VISIT_LABEL[statusV]||statusV;
+      const wppEnviado=c.whatsapp_enviado==='S';
+      const semGps=!c.latitude||!c.longitude;
+      const alertaGps=semGps?`
+        <div style="display:flex;align-items:center;gap:5px;margin-top:4px;padding:4px 7px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:6px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" style="width:11px;height:11px;flex-shrink:0"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+          <span style="font-size:10px;color:#d97706;font-weight:600">Sem GPS — não aparece no mapa</span>
+          <button onclick="geocodificarCliente(${c.id_cliente},${d.id},this)" style="margin-left:auto;font-size:9px;padding:2px 7px;background:#d97706;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:700">Corrigir</button>
+        </div>`:'';
+      return `<div class="cliente-item">
+        <div class="ordem">${c.ordem}</div>
+        <div class="status-dot dot-${statusV}"></div>
+        <div style="flex:1;min-width:0">
+          <div class="nome">${c.nome}${wppEnviado?'<span title="WhatsApp enviado" style="margin-left:4px;font-size:10px;color:#25d366">💬</span>':''}</div>
+          <div class="meta">${c.cidade||''}${c.uf?'/'+c.uf:''} · <span style="${risco}">${c.dias_sem_compra!=null?c.dias_sem_compra+'d sem compra':''}</span></div>
+          <div style="margin-top:3px"><span style="font-size:10px;font-weight:700;color:${corV}">${labelV}</span>${c.data_hora_checkin?`<span style="font-size:10px;color:var(--text2)"> · ${fmtDt(c.data_hora_checkin)}</span>`:''}</div>
+          ${c.motivo_nao_encontrado?`<div style="font-size:10px;color:#b91c1c;margin-top:2px">↪ ${c.motivo_nao_encontrado}</div>`:''}
+          ${c.data_retorno?`<div style="font-size:10px;color:#b45309;margin-top:2px">📅 Retorno: ${fmt(c.data_retorno)}</div>`:''}
+          ${c.id_pedido_vinculado?`<div style="font-size:10px;color:#0d9488;margin-top:2px">🛒 Pedido #${c.id_pedido_vinculado}</div>`:''}
+          ${alertaGps}
+        </div>
+        <div class="cli-acoes">
+          <button class="btn btn-sm btn-primary btn-icon" title="Registrar visita" onclick="abrirModalVisita(${d.id},${c.id_cliente},'${escHtml(c.nome)}')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+          </button>
+          <button class="btn btn-sm btn-neutral btn-icon" title="Enviar WhatsApp" onclick="abrirModalWpp(${d.id},${c.id_cliente},'${escHtml(c.nome)}','${escHtml(c.foneprincipal||'')}')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#25d366" stroke-width="2"><path d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+          </button>
+          <button class="btn btn-sm btn-neutral btn-icon" title="Fazer Pedido" onclick="fazerPedido(${d.id},${c.id_cliente})">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
+          </button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+  if(d.observacao) html+=`<div style="margin-top:12px;padding:10px;background:var(--bg);border-radius:8px;font-size:12px;color:var(--text2)">${d.observacao}</div>`;
+  document.getElementById('detalheContent').innerHTML=html;
+}
+
+function _menuItem(label, cor, svgPath, onclick){
+  return `<button onclick="${onclick};fecharNavMenu()" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;background:none;border:none;cursor:pointer;font-size:12px;font-weight:600;color:var(--text);text-align:left" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background='none'">
+    <svg viewBox="0 0 24 24" style="width:16px;height:16px;flex-shrink:0" fill="none" stroke="${cor}" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="${svgPath}"/></svg>
+    ${label}
+  </button>`;
+}
+
+function toggleNavMenu(e){
+  e.stopPropagation();
+  const m=document.getElementById('navMenu');
+  if(!m) return;
+  const aberto=m.style.display==='block';
+  m.style.display=aberto?'none':'block';
+  if(!aberto) setTimeout(()=>document.addEventListener('click',fecharNavMenu,{once:true}),50);
+}
+function fecharNavMenu(){ const m=document.getElementById('navMenu'); if(m) m.style.display='none'; }
+
+async function mudarStatus(id, status){
+  try{
+    await api(`/api/regiao-rota/rotas-vendedor/${id}/status`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});
+    abrirDetalhe(id); carregar();
+  }catch(e){ alert(e.message); }
+}
+
+function fecharDetalhe(){ document.getElementById('detalheOverlay').classList.remove('open'); rotaAtualId=null; limparMapa(); fecharNavMenu(); }
+
+async function geocodificarCliente(idCliente, idRota, btn){
+  const wrap=btn.closest('div[style]');
+  btn.disabled=true; btn.textContent='…';
+  try{
+    const r=await api(`/api/geocoding/cliente/${idCliente}`,{method:'PUT'});
+    // Substitui o alerta por confirmação verde
+    wrap.innerHTML=`<span style="font-size:10px;color:#16a34a;font-weight:600">📍 GPS salvo (${parseFloat(r.lat).toFixed(4)}, ${parseFloat(r.lng).toFixed(4)})</span>`;
+    // Atualiza os pins no mapa sem recarregar tudo
+    if(_rotaDetalheCache){
+      const cli=_rotaDetalheCache.clientes.find(c=>c.id_cliente===idCliente);
+      if(cli){ cli.latitude=r.lat; cli.longitude=r.lng; }
+      pinClientes(_rotaDetalheCache.clientes);
+    }
+  }catch(e){
+    btn.disabled=false; btn.textContent='Corrigir';
+    wrap.querySelector('span[style*="d97706"]').textContent='Falha: '+e.message;
+  }
+}
+function editarRotaAtual(){ if(rotaAtualId){ editRotaId=rotaAtualId; document.getElementById('modalTitulo').textContent='Editar Rota'; abrirModal(rotaAtualId); } }
+async function excluirRotaAtual(){
+  if(!rotaAtualId||!confirm('Excluir esta rota?')) return;
+  try{ await api(`/api/regiao-rota/rotas-vendedor/${rotaAtualId}`,{method:'DELETE'}); fecharDetalhe(); carregar(); }catch(e){ alert(e.message); }
+}
+
+// ─── NAVEGAÇÃO / EXPORTAR ─────────────────────────────────────────────────────
+function _clientesComGeo(){ return (_rotaDetalheCache?.clientes||[]).filter(c=>c.latitude&&c.longitude); }
+
+function abrirGoogleMaps(){
+  const pts=_clientesComGeo();
+  if(!pts.length){ alert('Nenhum cliente com coordenadas nesta rota.'); return; }
+  const stops=pts.slice(0,23).map(c=>`${c.latitude},${c.longitude}`).join('/');
+  window.open(`https://www.google.com/maps/dir/${stops}`,'_blank');
+  if(pts.length>23) alert(`Google Maps suporta até 23 paradas. Os primeiros 23 de ${pts.length} foram incluídos.`);
+}
+
+function abrirWaze(){
+  const pts=_clientesComGeo();
+  const prox=pts.find(c=>c.status_visita!=='VISITADO'&&c.status_visita!=='PEDIDO_REALIZADO')||pts[0];
+  if(!prox){ alert('Nenhum cliente com coordenadas disponível.'); return; }
+  window.open(`https://waze.com/ul?ll=${prox.latitude},${prox.longitude}&navigate=yes&zoom=17`,'_blank');
+}
+
+function otimizarTrajeto(){
+  if(!_rotaDetalheCache) return;
+  const otimizados=nearestNeighbor(_rotaDetalheCache.clientes);
+  _rotaDetalheCache.clientes=otimizados;
+  renderDetalhe(_rotaDetalheCache);
+  pinClientes(otimizados);
+  // Salva nova ordem
+  const ordem=otimizados.map((c,i)=>({id_cliente:c.id_cliente,ordem:i+1}));
+  api(`/api/regiao-rota/rotas-vendedor/${_rotaDetalheCache.id}/reordenar`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({ordem})}).catch(()=>{});
+  alert(`Trajeto otimizado! ${otimizados.filter(c=>c.latitude).length} clientes com GPS reordenados por proximidade.`);
+}
+
+function nearestNeighbor(clientes){
+  const comGeo=clientes.filter(c=>c.latitude&&c.longitude);
+  const semGeo=clientes.filter(c=>!c.latitude||!c.longitude);
+  if(comGeo.length<2) return clientes;
+  const result=[comGeo[0]];
+  const rest=[...comGeo.slice(1)];
+  while(rest.length){
+    const ultimo=result[result.length-1];
+    let bestIdx=0, bestDist=Infinity;
+    rest.forEach((c,i)=>{
+      const d=Math.hypot(parseFloat(c.latitude)-parseFloat(ultimo.latitude),parseFloat(c.longitude)-parseFloat(ultimo.longitude));
+      if(d<bestDist){bestDist=d;bestIdx=i;}
+    });
+    result.push(rest.splice(bestIdx,1)[0]);
+  }
+  return [...result,...semGeo].map((c,i)=>({...c,ordem:i+1}));
+}
+
+function imprimirRota(){
+  const d=_rotaDetalheCache;
+  if(!d) return;
+  const area=document.getElementById('printArea');
+  area.innerHTML=`
+    <div class="print-title">${d.descricao}</div>
+    <div class="print-sub">
+      Vendedor: ${d.nome_vendedor||'—'} · Data: ${fmt(d.data_prevista)} · ${d.clientes.length} cliente(s)
+    </div>
+    ${d.clientes.map((c,i)=>`
+      <div class="print-item">
+        <div class="print-num">${i+1}</div>
+        <div class="print-info">
+          <div class="print-nome">${c.nome}</div>
+          <div class="print-addr">
+            ${[c.endereco,c.bairro,c.cidade+(c.uf?'/'+c.uf:''),c.cep].filter(Boolean).join(' · ')}
+          </div>
+          <div class="print-addr">Tel: ${c.foneprincipal||'—'} · ${c.dias_sem_compra!=null?c.dias_sem_compra+'d sem compra':''}</div>
+        </div>
+        <div style="width:80px;border-bottom:1px solid #ccc;margin-top:14px"></div>
+      </div>
+    `).join('')}
+  `;
+  window.print();
+}
+
+function baixarKML(){
+  const d=_rotaDetalheCache;
+  if(!d) return;
+  const pts=_clientesComGeo();
+  if(!pts.length){ alert('Nenhum cliente com coordenadas para exportar.'); return; }
+  const placemarks=pts.map((c,i)=>`
+  <Placemark>
+    <name>${i+1}. ${(c.nome||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')}</name>
+    <description>${c.cidade||''}${c.uf?'/'+c.uf:''}</description>
+    <Point><coordinates>${c.longitude},${c.latitude},0</coordinates></Point>
+  </Placemark>`).join('');
+  const kml=`<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2"><Document>
+  <name>${(d.descricao||'Rota').replace(/&/g,'&amp;')}</name>${placemarks}
+</Document></kml>`;
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([kml],{type:'application/vnd.google-earth.kml+xml'}));
+  a.download=`rota-${(d.descricao||'rota').replace(/\s+/g,'-').toLowerCase()}.kml`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+async function notificarVendedor(){
+  const d=_rotaDetalheCache;
+  if(!d) return;
+  const data=fmt(d.data_prevista);
+  const texto=`Olá, ${d.nome_vendedor}! Uma nova rota foi criada para você: *${d.descricao}*, com *${d.clientes.length}* cliente(s), para o dia *${data}*.\n\nAcesse o sistema para visualizar e iniciar as visitas. Boas vendas! 🚀`;
+  const msg=prompt('Mensagem para o vendedor (edite se quiser):', texto);
+  if(msg===null) return;
+  try{
+    await api(`/api/regiao-rota/rotas-vendedor/${d.id}/notificar-wpp`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mensagem:msg})});
+    alert('WhatsApp enviado ao vendedor com sucesso!');
+  }catch(e){ alert('Erro: '+e.message); }
+}
+
+// ─── REGISTRAR VISITA ─────────────────────────────────────────────────────────
+function abrirModalVisita(idRota, idCliente, nomeCliente){
+  visitaIdRota=idRota; visitaIdCliente=idCliente; visitaStatus=null;
+  gpsCoords={lat:null,lng:null,autorizado:'N'};
+  document.getElementById('visitaTitle').textContent='Registrar Visita — '+nomeCliente;
+  document.getElementById('visitaObs').value='';
+  document.getElementById('visitaMotivo').value='';
+  document.getElementById('visitaRetorno').value='';
+  document.getElementById('motivoWrap').style.display='none';
+  document.getElementById('retornoWrap').style.display='none';
+  document.getElementById('btnSalvarVisita').disabled=true;
+  document.querySelectorAll('.vstatus-btn').forEach(b=>b.className='vstatus-btn');
+  document.getElementById('modalVisitaOverlay').classList.add('open');
+  obterGPS();
+}
+function fecharModalVisita(){ document.getElementById('modalVisitaOverlay').classList.remove('open'); }
+
+function obterGPS(){
+  const el=document.getElementById('gpsStatus');
+  const txt=document.getElementById('gpsText');
+  el.className='gps-status gps-loading';
+  txt.textContent='Obtendo localização GPS...';
+  if(!navigator.geolocation){
+    el.className='gps-status gps-warn';
+    txt.textContent='GPS não disponível neste dispositivo';
+    gpsCoords.autorizado='N';
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    pos=>{
+      gpsCoords={lat:pos.coords.latitude,lng:pos.coords.longitude,autorizado:'S'};
+      el.className='gps-status gps-ok';
+      txt.textContent=`GPS: ${gpsCoords.lat.toFixed(5)}, ${gpsCoords.lng.toFixed(5)}`;
+    },
+    err=>{
+      gpsCoords={lat:null,lng:null,autorizado:'N'};
+      el.className='gps-status gps-err';
+      txt.textContent='GPS não autorizado — visita será salva sem localização';
+    },
+    {timeout:10000,enableHighAccuracy:true}
+  );
+}
+
+function selecionarStatus(status, btn){
+  visitaStatus=status;
+  document.querySelectorAll('.vstatus-btn').forEach(b=>b.className='vstatus-btn');
+  btn.className=`vstatus-btn sel-${status}`;
+  const mostrarMotivo=status==='NAO_ENCONTRADO'||status==='REAGENDAR'||status==='CANCELADO';
+  const mostrarRetorno=status==='NAO_ENCONTRADO'||status==='REAGENDAR';
+  document.getElementById('motivoWrap').style.display=mostrarMotivo?'block':'none';
+  document.getElementById('retornoWrap').style.display=mostrarRetorno?'block':'none';
+  const labels={NAO_ENCONTRADO:'Motivo — Não Encontrado',REAGENDAR:'Motivo do Reagendamento',CANCELADO:'Motivo do Cancelamento'};
+  document.getElementById('motivoLabel').textContent=labels[status]||'Motivo';
+  document.getElementById('btnSalvarVisita').disabled=false;
+}
+
+async function salvarVisita(){
+  if(!visitaStatus) return;
+  const btn=document.getElementById('btnSalvarVisita');
+  btn.disabled=true;
+  try{
+    await api(`/api/regiao-rota/rotas-vendedor/${visitaIdRota}/cliente/${visitaIdCliente}/status`,{
+      method:'PATCH',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        status_visita: visitaStatus,
+        observacao: document.getElementById('visitaObs').value||null,
+        motivo_nao_encontrado: document.getElementById('visitaMotivo').value||null,
+        data_retorno: document.getElementById('visitaRetorno').value||null,
+        latitude: gpsCoords.lat,
+        longitude: gpsCoords.lng,
+        gps_autorizado: gpsCoords.autorizado,
+      })
+    });
+    fecharModalVisita();
+    abrirDetalhe(visitaIdRota);
+    carregar();
+  }catch(e){ alert('Erro: '+e.message); }
+  finally{ btn.disabled=false; }
+}
+
+// ─── WHATSAPP CHEGANDO ────────────────────────────────────────────────────────
+function abrirModalWpp(idRota, idCliente, nome, fone){
+  wppIdRota=idRota; wppIdCliente=idCliente;
+  const vend=_rotaDetalheCache?.nome_vendedor||'o vendedor';
+  document.getElementById('wppMensagem').value=`Olá, *${nome}*! Aqui é *${vend}*. Estou a caminho para realizar sua visita. Em breve estarei aí. Obrigado! 😊`;
+  document.getElementById('wppFoneInfo').textContent=fone?`Fone: ${fone}`:'⚠️ Telefone não cadastrado — verifique o cadastro do cliente';
+  document.getElementById('modalWppOverlay').classList.add('open');
+}
+function fecharModalWpp(){ document.getElementById('modalWppOverlay').classList.remove('open'); }
+
+async function confirmarEnvioWpp(){
+  const btn=document.getElementById('btnEnviarWpp');
+  btn.disabled=true;
+  try{
+    const mensagem=document.getElementById('wppMensagem').value;
+    await api(`/api/regiao-rota/rotas-vendedor/${wppIdRota}/cliente/${wppIdCliente}/whatsapp-chegando`,{
+      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mensagem})
+    });
+    fecharModalWpp();
+    abrirDetalhe(wppIdRota);
+    alert('WhatsApp enviado com sucesso!');
+  }catch(e){ alert('Erro: '+e.message); }
+  finally{ btn.disabled=false; }
+}
+
+// ─── FAZER PEDIDO ─────────────────────────────────────────────────────────────
+function fazerPedido(idRota, idCliente){
+  window.location.href=`/pages/pedidos.html?id_cliente=${idCliente}`;
+}
+
+// ─── NOVA ROTA / EDITAR ───────────────────────────────────────────────────────
+function novaRota(){ editRotaId=null; document.getElementById('modalTitulo').textContent='Nova Rota'; abrirModal(); }
+
+async function abrirModal(id=null){
+  clientesSelecionados.clear();
+  ['fDesc','fData','fObs'].forEach(f=>document.getElementById(f).value='');
+  document.getElementById('fVend').value='';
+  document.getElementById('fRegiao').value='';
+  document.getElementById('chkNotifWpp').checked=false;
+  atualizarContador();
+  document.getElementById('clientesSelecionadosOrdem').style.display='none';
+  document.getElementById('modalOverlay').classList.add('open');
+  await carregarClientesModal();
+  if(id){
+    try{
+      const d=await api(`/api/regiao-rota/rotas-vendedor/${id}`);
+      document.getElementById('fDesc').value=d.descricao||'';
+      document.getElementById('fData').value=d.data_prevista?d.data_prevista.toString().substring(0,10):'';
+      document.getElementById('fObs').value=d.observacao||'';
+      document.getElementById('fVend').value=d.id_usuario||'';
+      document.getElementById('fRegiao').value=d.id_regiao||'';
+      d.clientes.forEach(c=>clientesSelecionados.set(c.id_cliente,{id_cliente:c.id_cliente,nome:c.nome,latitude:c.latitude,longitude:c.longitude}));
+      atualizarContador();
+      renderClientesModal(todosClientes);
+      renderOrdemSelecionados();
+    }catch(e){ alert(e.message); }
+  }
+}
+function fecharModal(){ document.getElementById('modalOverlay').classList.remove('open'); }
+
+function debounceClientes(){ clearTimeout(_debounceTimer); _debounceTimer=setTimeout(()=>carregarClientesModal(),300); }
+
+async function carregarClientesModal(){
+  const idRegiao=document.getElementById('fRegiao').value;
+  if(!idRegiao){
+    todosClientes=[];
+    document.getElementById('listaClientesModal').innerHTML='<div class="empty"><p>Selecione uma região para ver os clientes.</p></div>';
+    return;
+  }
+  document.getElementById('listaClientesModal').innerHTML='<div class="loader"><div class="spin"></div></div>';
+  const q=(document.getElementById('inpFiltroCliente').value||'').trim();
+  const params=new URLSearchParams({limit:500});
+  if(q) params.set('q',q);
+  try{
+    const d=await api(`/api/regiao-rota/${idRegiao}/clientes?`+params);
+    todosClientes=d.clientes||[];
+    renderClientesModal(todosClientes);
+  }catch(e){
+    document.getElementById('listaClientesModal').innerHTML=`<div style="padding:12px;font-size:12px;color:var(--danger)">${e.message}</div>`;
+  }
+}
+function filtrarClientesPorRegiao(){ carregarClientesModal(); }
+
+function renderClientesModal(lista){
+  if(!lista.length){ document.getElementById('listaClientesModal').innerHTML='<div class="empty"><p>Nenhum cliente encontrado.</p></div>'; return; }
+  document.getElementById('listaClientesModal').innerHTML=lista.map(c=>{
+    const semGps=!c.latitude||!c.longitude;
+    return `
+    <div class="cli-sel-item" onclick="toggleCliente(${c.id},'${escHtml(c.nome)}',${c.latitude||'null'},${c.longitude||'null'})">
+      <input type="checkbox" ${clientesSelecionados.has(c.id)?'checked':''} onclick="event.stopPropagation();toggleCliente(${c.id},'${escHtml(c.nome)}',${c.latitude||'null'},${c.longitude||'null'})">
+      <div style="flex:1">
+        <div style="font-size:12px;font-weight:600">${c.nome}</div>
+        <div style="font-size:10px;color:var(--text2)">${c.cidade||''}${c.uf?'/'+c.uf:''}${c.latitude?'  📍':''}${semGps?'  <span style="color:#d97706;font-weight:700" title="Sem latitude/longitude cadastrada">⚠ sem GPS</span>':''}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleCliente(id, nome, lat, lng){
+  if(clientesSelecionados.has(id)) clientesSelecionados.delete(id);
+  else clientesSelecionados.set(id,{id_cliente:id,nome,latitude:lat||null,longitude:lng||null});
+  atualizarContador();
+  renderClientesModal(todosClientes);
+  renderOrdemSelecionados();
+}
+
+function atualizarContador(){
+  document.getElementById('lblSelCount').textContent=clientesSelecionados.size+' selecionado(s)';
+  const semGps=[...clientesSelecionados.values()].filter(c=>!c.latitude||!c.longitude).length;
+  const warn=document.getElementById('lblGpsWarn');
+  if(warn){
+    warn.style.display=semGps>0?'inline-flex':'none';
+    const n=document.getElementById('lblGpsWarnNum');
+    if(n) n.textContent=semGps;
+  }
+}
+
+function renderOrdemSelecionados(){
+  const wrap=document.getElementById('clientesSelecionadosOrdem');
+  const lista=document.getElementById('listaOrdem');
+  const items=[...clientesSelecionados.values()];
+  if(!items.length){ wrap.style.display='none'; return; }
+  wrap.style.display='block';
+  lista.innerHTML=items.map((c,i)=>`
+    <div class="cli-sel-item" data-id="${c.id_cliente}" title="Arraste para reordenar" style="border:1px solid var(--border);border-radius:6px;margin-bottom:4px;cursor:grab;background:var(--bg)">
+      <div class="cli-drag-handle">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M9 5h.01M9 12h.01M9 19h.01M15 5h.01M15 12h.01M15 19h.01"/></svg>
+      </div>
+      <span style="font-size:11px;font-weight:700;color:var(--accent);width:18px;flex-shrink:0">${i+1}</span>
+      <div style="flex:1;font-size:12px;font-weight:600">${c.nome}</div>
+      ${c.latitude?'<span style="font-size:10px;color:#22c55e">📍</span>':''}
+    </div>
+  `).join('');
+  // SortableJS drag-and-drop
+  if(_sortable) _sortable.destroy();
+  _sortable=Sortable.create(lista,{
+    animation:150,
+    onEnd(){
+      const novos=[...lista.querySelectorAll('[data-id]')].map(el=>clientesSelecionados.get(parseInt(el.dataset.id))).filter(Boolean);
+      clientesSelecionados.clear();
+      novos.forEach(c=>clientesSelecionados.set(c.id_cliente,c));
+      renderOrdemSelecionados();
+      atualizarContador();
+    }
+  });
+}
+
+function otimizarOrdemModal(){
+  if(!clientesSelecionados.size){ alert('Selecione clientes primeiro.'); return; }
+  const items=[...clientesSelecionados.values()];
+  const comGeo=items.filter(c=>c.latitude&&c.longitude);
+  const semGeo=items.filter(c=>!c.latitude||!c.longitude);
+  if(comGeo.length<2){ alert('Pelo menos 2 clientes com coordenadas GPS são necessários para otimizar.'); return; }
+  const otimizados=nearestNeighborSimple(comGeo);
+  clientesSelecionados.clear();
+  [...otimizados,...semGeo].forEach(c=>clientesSelecionados.set(c.id_cliente,c));
+  atualizarContador();
+  renderOrdemSelecionados();
+  alert(`Ordem otimizada! ${comGeo.length} clientes com GPS reordenados.`);
+}
+
+function nearestNeighborSimple(items){
+  if(items.length<2) return items;
+  const result=[items[0]];
+  const rest=[...items.slice(1)];
+  while(rest.length){
+    const ult=result[result.length-1];
+    let bi=0,bd=Infinity;
+    rest.forEach((c,i)=>{
+      const d=Math.hypot(parseFloat(c.latitude)-parseFloat(ult.latitude),parseFloat(c.longitude)-parseFloat(ult.longitude));
+      if(d<bd){bd=d;bi=i;}
+    });
+    result.push(rest.splice(bi,1)[0]);
+  }
+  return result;
+}
+
+async function salvarRota(e){
+  e.preventDefault();
+  const btn=document.getElementById('btnSalvarRota');
+  btn.disabled=true;
+  const clientes=[...clientesSelecionados.values()].map((c,i)=>({id_cliente:c.id_cliente||c.id,ordem:i+1}));
+  const body={
+    descricao: document.getElementById('fDesc').value.trim(),
+    id_usuario: document.getElementById('fVend').value,
+    id_regiao: document.getElementById('fRegiao').value||null,
+    data_prevista: document.getElementById('fData').value||null,
+    observacao: document.getElementById('fObs').value||null,
+    clientes,
+  };
+  try{
+    let idRota=editRotaId;
+    if(editRotaId) await api(`/api/regiao-rota/rotas-vendedor/${editRotaId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    else{
+      const r=await api('/api/regiao-rota/rotas-vendedor',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      idRota=r.id;
+    }
+    // Notificar via WPP se marcado
+    if(document.getElementById('chkNotifWpp').checked && idRota){
+      try{ await api(`/api/regiao-rota/rotas-vendedor/${idRota}/notificar-wpp`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}); }
+      catch(we){ console.warn('WPP não enviado:',we.message); }
+    }
+    fecharModal(); carregar();
+    if(idRota) abrirDetalhe(idRota);
+  }catch(err){ alert('Erro: '+err.message); }
+  finally{ btn.disabled=false; }
+}
+
+// ─── RELATÓRIO ────────────────────────────────────────────────────────────────
+function abrirRelatorio(){
+  document.getElementById('modalRelatorioOverlay').classList.add('open');
+}
+
+async function carregarRelatorio(){
+  document.getElementById('relatorioBody').innerHTML='<div class="loader"><div class="spin"></div></div>';
+  const di=document.getElementById('rptInicio').value;
+  const df=document.getElementById('rptFim').value;
+  const iv=document.getElementById('rptVendedor').value;
+  const params=new URLSearchParams();
+  if(di) params.set('data_inicio',di);
+  if(df) params.set('data_fim',df);
+  if(iv) params.set('id_usuario',iv);
+  try{
+    const d=await api('/api/regiao-rota/rotas-vendedor/relatorio-produtividade?'+params);
+    if(!d.relatorio.length){
+      document.getElementById('relatorioBody').innerHTML='<div class="empty"><p>Nenhum dado encontrado para o período.</p></div>';
+      return;
+    }
+    const html=`<table class="prod-table">
+      <thead><tr>
+        <th>Vendedor</th><th>Rotas</th><th>Clientes</th><th title="Visitados + Pedidos">Visitados</th>
+        <th>Pedidos</th><th>Não Enc.</th><th>Reagend.</th><th>Conversão</th>
+      </tr></thead>
+      <tbody>${d.relatorio.map(r=>`<tr>
+        <td>${r.vendedor}</td>
+        <td>${r.total_rotas}</td>
+        <td>${r.total_clientes}</td>
+        <td style="color:#22c55e;font-weight:700">${r.total_visitados||0}</td>
+        <td style="color:#0d9488;font-weight:700">${r.total_pedidos||0}</td>
+        <td style="color:#ef4444">${r.total_nao_enc||0}</td>
+        <td style="color:#f59e0b">${r.total_reagendados||0}</td>
+        <td style="font-weight:800;color:var(--accent)">${r.taxa_conversao||0}%</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+    document.getElementById('relatorioBody').innerHTML=html;
+  }catch(e){
+    document.getElementById('relatorioBody').innerHTML=`<div class="empty"><p>${e.message}</p></div>`;
+  }
+}
+
+// ─── CARREGAMENTO INICIAL ─────────────────────────────────────────────────────
+async function carregarVendedores(){
+  try{
+    const d=await api('/api/vendedores');
+    const sels=['selVendedor','fVend','rptVendedor'].map(id=>document.getElementById(id));
+    (d.vendedores||[]).forEach(v=>{
+      sels.forEach(s=>{
+        if(!s) return;
+        const o=document.createElement('option');
+        o.value=v.id; o.textContent=v.nome;
+        s.appendChild(o);
+      });
+    });
+  }catch(_){}
+}
+
+async function carregarRegioes(){
+  try{
+    const rows=await api('/api/regiao-rota/lookup');
+    const sel=document.getElementById('fRegiao');
+    rows.forEach(r=>{
+      const o=document.createElement('option');
+      o.value=r.id; o.textContent=r.descricao+(r.sigla?` (${r.sigla})`:'');
+      sel.appendChild(o);
+    });
+  }catch(_){}
+}
+
+// Init
+initMapa();
+carregarVendedores();
+carregarRegioes();
+
+// Datas padrão: hoje e hoje - 30 dias
+(function(){
+  const hoje=new Date();
+  const menos30=new Date(hoje);
+  menos30.setDate(menos30.getDate()-30);
+  document.getElementById('dtFim').value=hoje.toISOString().substring(0,10);
+  document.getElementById('dtInicio').value=menos30.toISOString().substring(0,10);
+})();
+
+// Smart tab: Pendentes → Em Andamento → Concluídas → Todas
+async function iniciarSmartTab(){
+  const di=document.getElementById('dtInicio').value;
+  const df=document.getElementById('dtFim').value;
+  const ordem=['PENDENTE','EM_ANDAMENTO','CONCLUIDA',''];
+  for(const status of ordem){
+    const p=new URLSearchParams({limit:1});
+    if(status){p.set('status',status);}
+    if(di) p.set('data_inicio',di);
+    if(df) p.set('data_fim',df);
+    try{
+      const d=await api('/api/regiao-rota/rotas-vendedor/lista?'+p);
+      if(d.total>0||status===''){
+        filtroStatus=status;
+        document.querySelectorAll('.filter-tab').forEach(b=>{
+          b.classList.toggle('active', b.dataset.status===status);
+        });
+        break;
+      }
+    }catch(_){ break; }
+  }
+  carregar();
+}
+function syncToolbarH(){
+  const tb=document.querySelector('.toolbar');
+  if(tb) document.documentElement.style.setProperty('--toolbar-h',tb.offsetHeight+'px');
+}
+syncToolbarH();
+window.addEventListener('resize',syncToolbarH);
+iniciarSmartTab();
+checarNotificacoes();
+setInterval(checarNotificacoes, 60000);
+</script>
+</body>
+</html>

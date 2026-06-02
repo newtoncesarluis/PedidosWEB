@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NC Sistemas — Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    .card { background: #0f172a; border: 1px solid #1e293b; border-radius: 14px; }
+    .badge-online  { background:#16a34a22; color:#4ade80; border:1px solid #16a34a44; }
+    .badge-stopped { background:#47556922; color:#94a3b8; border:1px solid #47556944; }
+    .badge-errored { background:#dc262622; color:#f87171; border:1px solid #dc262644; }
+    .badge-default { background:#ca8a0422; color:#fbbf24; border:1px solid #ca8a0444; }
+    .btn-action { flex:1; padding:10px 0; font-size:11px; color:#94a3b8; border-top:1px solid #1e293b;
+                  display:flex; align-items:center; justify-content:center; gap:5px;
+                  transition:background .15s,color .15s; cursor:pointer; background:none;
+                  border-left:0; border-right:0; border-bottom:0; }
+    .btn-action:not(:first-child) { border-left:1px solid #1e293b; }
+    .btn-action:hover { background:#1e293b; }
+    .btn-restart:hover { color:#38bdf8; }
+    .btn-stop:hover    { color:#f87171; }
+    .btn-start:hover   { color:#4ade80; }
+    .btn-logs:hover    { color:#c4b5fd; }
+    .meter { height:4px; background:#1e293b; border-radius:4px; overflow:hidden; margin-top:5px; }
+    .meter-fill { height:100%; border-radius:4px; transition:width .5s; }
+    input, select { background:#0a1628; border:1px solid #1e293b; border-radius:8px;
+                    padding:8px 12px; color:#e2e8f0; font-size:13px; width:100%; }
+    input:focus, select:focus { outline:none; border-color:#0ea5e9; }
+    label { font-size:12px; color:#64748b; margin-bottom:4px; display:block; }
+    .spin { animation:spin 1s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .pulse-green { animation:pg 2s infinite; }
+    @keyframes pg { 0%,100%{opacity:1} 50%{opacity:.3} }
+    #log-pre, #prov-out { font-family:'Courier New',monospace; font-size:11.5px; line-height:1.6; }
+    .ssl-ok   { color:#4ade80; }
+    .ssl-warn { color:#fbbf24; }
+    .ssl-crit { color:#f87171; }
+    .ssl-none { color:#475569; }
+    .modal-backdrop { background:rgba(0,0,0,.75); backdrop-filter:blur(2px); }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-200 min-h-screen">
+
+<!-- ── LOGIN ─────────────────────────────────────────────────────────────── -->
+<div id="overlay-login" class="fixed inset-0 bg-slate-950 flex items-center justify-center z-50">
+  <div class="card p-8 w-80 shadow-2xl">
+    <div class="text-center mb-6">
+      <div class="w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3" style="background:#0ea5e922">
+        <svg class="w-6 h-6" style="color:#38bdf8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/>
+        </svg>
+      </div>
+      <h1 class="text-white font-bold text-lg">NC Sistemas</h1>
+      <p class="text-slate-400 text-xs mt-1">Painel Administrativo</p>
+    </div>
+    <input id="inp-token" type="password" placeholder="Token de acesso" autocomplete="off"
+      style="margin-bottom:12px" onkeydown="if(event.key==='Enter')doLogin()">
+    <button onclick="doLogin()" class="w-full py-2.5 rounded-lg text-sm font-semibold text-white transition-colors"
+      style="background:#0ea5e9">Entrar</button>
+    <p id="login-err" class="text-red-400 text-xs text-center mt-2 hidden">Token inválido</p>
+  </div>
+</div>
+
+<!-- ── APP ───────────────────────────────────────────────────────────────── -->
+<div id="app" class="hidden">
+
+  <!-- Header -->
+  <header class="sticky top-0 z-40 border-b border-slate-800 px-5 py-3 flex items-center justify-between"
+          style="background:#060c17ee;backdrop-filter:blur(8px)">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:#0ea5e9">
+        <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="text-white font-semibold text-sm leading-none">NC Sistemas</h1>
+        <p class="text-slate-500 text-xs mt-0.5">Painel de Instâncias</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-4">
+      <span id="hdr-alerts" class="text-xs hidden"></span>
+      <span id="hdr-sys" class="text-slate-500 text-xs hidden md:block"></span>
+      <div class="flex items-center gap-1.5">
+        <div id="dot-refresh" class="w-2 h-2 rounded-full pulse-green" style="background:#4ade80"></div>
+        <span id="hdr-time" class="text-slate-500 text-xs">—</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Stats -->
+  <div class="px-5 pt-5 grid grid-cols-2 md:grid-cols-4 gap-3">
+    <div class="card p-4">
+      <p class="text-slate-500 text-xs mb-1">Clientes</p>
+      <p class="text-2xl font-bold text-white" id="s-total">—</p>
+    </div>
+    <div class="card p-4">
+      <p class="text-slate-500 text-xs mb-1">Online</p>
+      <p class="text-2xl font-bold" id="s-online" style="color:#4ade80">—</p>
+    </div>
+    <div class="card p-4">
+      <p class="text-slate-500 text-xs mb-1">Memória usada</p>
+      <p class="text-2xl font-bold" id="s-memory" style="color:#a78bfa">—</p>
+    </div>
+    <div class="card p-4">
+      <p class="text-slate-500 text-xs mb-1">Load VPS</p>
+      <p class="text-2xl font-bold" id="s-load" style="color:#38bdf8">—</p>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="px-5 pt-4 grid grid-cols-1 lg:grid-cols-2 gap-3">
+    <div class="card p-4">
+      <p class="text-white text-xs font-semibold mb-3">Memória por instância (MB)</p>
+      <canvas id="chart-mem" height="100"></canvas>
+    </div>
+    <div class="card p-4">
+      <p class="text-white text-xs font-semibold mb-3">CPU por instância (%)</p>
+      <canvas id="chart-cpu" height="100"></canvas>
+    </div>
+  </div>
+
+  <!-- Instances -->
+  <div class="px-5 py-5">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-white font-semibold text-sm">Instâncias</h2>
+      <div class="flex gap-2">
+        <button onclick="openCreateDb()"
+          class="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg transition-colors"
+          style="background:#1e293b;color:#94a3b8" onmouseover="this.style.background='#334155'" onmouseout="this.style.background='#1e293b'">
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/>
+          </svg>
+          Criar Banco
+        </button>
+        <button onclick="openProvision()"
+          class="flex items-center gap-1.5 text-xs font-medium text-white px-3 py-2 rounded-lg transition-colors"
+          style="background:#0ea5e9" onmouseover="this.style.background='#38bdf8'" onmouseout="this.style.background='#0ea5e9'">
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+          </svg>
+          Novo Cliente
+        </button>
+      </div>
+    </div>
+    <div id="grid-instances" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+      <div class="text-slate-600 text-sm">Carregando...</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL LOGS ─────────────────────────────────────────────────────────── -->
+<div id="modal-logs" class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 hidden"
+     onclick="if(event.target===this)closeLogs()">
+  <div class="card w-full max-w-3xl mx-4 shadow-2xl flex flex-col" style="max-height:82vh">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-slate-800">
+      <div class="flex items-center gap-2">
+        <svg class="w-4 h-4" style="color:#c4b5fd" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+        <span class="text-white text-sm font-medium" id="log-title">Logs</span>
+      </div>
+      <button onclick="closeLogs()" class="text-slate-500 hover:text-white">✕</button>
+    </div>
+    <div class="overflow-auto flex-1 rounded-b-xl" style="background:#030712">
+      <pre id="log-pre" class="p-4 text-green-400 whitespace-pre-wrap break-words"></pre>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL PROVISIONAR ──────────────────────────────────────────────────── -->
+<div id="modal-prov" class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 hidden"
+     onclick="if(event.target===this&&!provRunning)closeProvision()">
+  <div class="card w-full max-w-md mx-4 shadow-2xl flex flex-col" style="max-height:90vh">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-slate-800">
+      <div class="flex items-center gap-2">
+        <svg class="w-4 h-4" style="color:#38bdf8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M12 4v16m8-8H4"/>
+        </svg>
+        <span class="text-white text-sm font-medium">Provisionar Novo Cliente</span>
+      </div>
+      <button onclick="if(!provRunning)closeProvision()" class="text-slate-500 hover:text-white">✕</button>
+    </div>
+
+    <!-- Form -->
+    <div id="prov-form-area" class="p-5 space-y-4 overflow-auto">
+      <div>
+        <label>Pré-requisito: adicionar registro A no Registro.br</label>
+        <div style="background:#0a1628;border-radius:8px;padding:10px 12px" class="text-xs text-slate-400 font-mono">
+          <span style="color:#38bdf8">A</span>&nbsp;&nbsp;
+          <span id="prov-preview-domain" style="color:#e2e8f0">slug.nresolutions.com.br</span>
+          &nbsp;→&nbsp;<span style="color:#4ade80">2.25.154.140</span>
+        </div>
+      </div>
+      <div>
+        <label>Slug (subdomínio) *</label>
+        <input id="prov-slug" type="text" placeholder="ex: acme" autocomplete="off"
+          oninput="updateProvPreview()" style="text-transform:lowercase">
+        <p class="text-slate-600 text-xs mt-1">Apenas letras minúsculas, números e hífen</p>
+      </div>
+      <div>
+        <label>Chave de Licença *</label>
+        <input id="prov-chave" type="text" placeholder="ex: ABCD-1234-EFGH-5678" autocomplete="off"
+          style="text-transform:uppercase">
+      </div>
+      <div>
+        <label>Domínio base</label>
+        <input id="prov-domain" type="text" placeholder="nresolutions.com.br" autocomplete="off" value="nresolutions.com.br">
+      </div>
+      <div class="flex items-center gap-2 pt-1">
+        <input type="checkbox" id="prov-dns-ok" style="width:auto;padding:0">
+        <label for="prov-dns-ok" style="margin:0;cursor:pointer">
+          Confirmo que o registro A já foi adicionado no Registro.br
+        </label>
+      </div>
+      <p id="prov-err" class="text-red-400 text-xs hidden"></p>
+    </div>
+
+    <!-- Saída do processo -->
+    <div id="prov-output-area" class="hidden flex-1 overflow-hidden flex flex-col" style="min-height:200px">
+      <div class="px-5 py-2 border-b border-slate-800 flex items-center justify-between">
+        <span class="text-xs text-slate-400" id="prov-status-txt">Provisionando...</span>
+        <div id="prov-spin" class="spin">
+          <svg class="w-4 h-4 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+          </svg>
+        </div>
+      </div>
+      <div class="overflow-auto flex-1 p-4" style="background:#030712">
+        <pre id="prov-out" class="text-green-400 whitespace-pre-wrap break-words text-xs"></pre>
+      </div>
+    </div>
+
+    <div class="px-5 py-4 border-t border-slate-800 flex gap-2">
+      <button id="btn-prov-cancel" onclick="closeProvision()"
+        class="flex-1 py-2 rounded-lg text-sm text-slate-400 transition-colors"
+        style="background:#1e293b" onmouseover="this.style.background='#334155'" onmouseout="this.style.background='#1e293b'">
+        Cancelar
+      </button>
+      <button id="btn-prov-start" onclick="startProvision()"
+        class="flex-1 py-2 rounded-lg text-sm font-semibold text-white transition-colors"
+        style="background:#0ea5e9" onmouseover="this.style.background='#38bdf8'" onmouseout="this.style.background='#0ea5e9'">
+        Provisionar
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL CRIAR BANCO ──────────────────────────────────────────────────── -->
+<div id="modal-db" class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 hidden"
+     onclick="if(event.target===this)closeCreateDb()">
+  <div class="card w-full max-w-sm mx-4 shadow-2xl">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-slate-800">
+      <div class="flex items-center gap-2">
+        <svg class="w-4 h-4" style="color:#4ade80" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/>
+        </svg>
+        <span class="text-white text-sm font-medium">Criar Banco MySQL</span>
+      </div>
+      <button onclick="closeCreateDb()" class="text-slate-500 hover:text-white">✕</button>
+    </div>
+    <div class="p-5 space-y-4">
+      <div>
+        <label>Nome do banco *</label>
+        <input id="db-name" type="text" placeholder="ex: nc_nomedocliente" autocomplete="off"
+          oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9_]/g,'')">
+        <p class="text-slate-600 text-xs mt-1">Sugestão: nc_<span id="db-slug-hint">slug</span></p>
+      </div>
+      <div id="db-bancos" style="background:#0a1628;border-radius:8px;padding:10px 12px;max-height:120px;overflow-y:auto">
+        <p class="text-slate-600 text-xs">Carregando bancos existentes...</p>
+      </div>
+      <p id="db-err" class="text-red-400 text-xs hidden"></p>
+      <p id="db-ok" class="text-green-400 text-xs hidden"></p>
+    </div>
+    <div class="px-5 pb-5 flex gap-2">
+      <button onclick="closeCreateDb()"
+        class="flex-1 py-2 rounded-lg text-sm text-slate-400"
+        style="background:#1e293b">Cancelar</button>
+      <button id="btn-db-criar" onclick="criarBanco()"
+        class="flex-1 py-2 rounded-lg text-sm font-semibold text-white"
+        style="background:#16a34a">Criar Banco</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL CHECKLIST PÓS-PROVISIONAMENTO ────────────────────────────────── -->
+<div id="modal-checklist" class="fixed inset-0 modal-backdrop flex items-center justify-center z-50 hidden">
+  <div class="card w-full max-w-md mx-4 shadow-2xl">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-slate-800">
+      <div class="flex items-center gap-2">
+        <span style="font-size:18px">✅</span>
+        <span class="text-white text-sm font-medium">Cliente provisionado! Próximos passos:</span>
+      </div>
+    </div>
+    <div class="p-5 space-y-3">
+      <div style="background:#0a1628;border-radius:10px;padding:14px" class="space-y-3">
+        <div class="flex gap-3 items-start">
+          <span style="background:#16a34a22;color:#4ade80;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:11px;font-weight:700">1</span>
+          <div>
+            <p class="text-white text-xs font-medium">Criar banco MySQL</p>
+            <p class="text-slate-500 text-xs mt-0.5">Clique em "Criar Banco" e crie <span id="ck-db-name" class="text-sky-400 font-mono"></span></p>
+          </div>
+        </div>
+        <div class="flex gap-3 items-start">
+          <span style="background:#0ea5e922;color:#38bdf8;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:11px;font-weight:700">2</span>
+          <div>
+            <p class="text-white text-xs font-medium">Configurar no Painel de Licenças</p>
+            <p class="text-slate-500 text-xs mt-0.5">
+              Host: <span class="text-slate-300 font-mono">2.25.154.140</span> ·
+              Host App: <span class="text-slate-300 font-mono">localhost</span> ·
+              User: <span class="text-slate-300 font-mono">app_pedidosweb</span> ·
+              Banco: <span id="ck-db-name2" class="text-sky-400 font-mono"></span>
+            </p>
+          </div>
+        </div>
+        <div class="flex gap-3 items-start">
+          <span style="background:#ca8a0422;color:#fbbf24;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:11px;font-weight:700">3</span>
+          <div>
+            <p class="text-white text-xs font-medium">Primeiro acesso do cliente</p>
+            <p class="text-slate-500 text-xs mt-0.5">Na primeira vez, o sistema pede a chave de licença. É só digitar uma vez.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="px-5 pb-5 flex gap-2">
+      <button onclick="openCreateDbFromChecklist()"
+        class="flex-1 py-2 rounded-lg text-sm font-semibold text-white"
+        style="background:#16a34a">Criar Banco Agora</button>
+      <button onclick="document.getElementById('modal-checklist').classList.add('hidden');refresh()"
+        class="flex-1 py-2 rounded-lg text-sm text-slate-400"
+        style="background:#1e293b">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Config ────────────────────────────────────────────────────────────────────
+let TOKEN = localStorage.getItem('nc_admin_tok') || '';
+let chartMem, chartCpu;
+let provRunning = false;
+let provPollTimer = null;
+
+const PALETTE = ['#38bdf8','#a78bfa','#4ade80','#fb923c','#f472b6','#fbbf24','#34d399','#e879f9'];
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+async function doLogin() {
+  TOKEN = document.getElementById('inp-token').value.trim();
+  const r = await fetch('/api/system', { headers: { 'x-admin-token': TOKEN } }).catch(() => null);
+  if (r?.ok) {
+    localStorage.setItem('nc_admin_tok', TOKEN);
+    boot();
+  } else {
+    document.getElementById('login-err').classList.remove('hidden');
+  }
+}
+
+async function api(url) {
+  const r = await fetch(url, { headers: { 'x-admin-token': TOKEN } });
+  if (r.status === 401) { localStorage.removeItem('nc_admin_tok'); location.reload(); }
+  return r.json();
+}
+
+async function apiPost(url, body) {
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: { 'x-admin-token': TOKEN, 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return r.json();
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+function boot() {
+  document.getElementById('overlay-login').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  initCharts();
+  refresh();
+  setInterval(refresh, 15000);
+  checkAlertConfig();
+}
+
+if (TOKEN) boot();
+
+async function checkAlertConfig() {
+  const r = await api('/api/config/alerts').catch(() => null);
+  if (!r) return;
+  const el = document.getElementById('hdr-alerts');
+  if (r.configured) {
+    el.innerHTML = `<span style="color:#4ade80">🔔 Alertas ativos (${r.phone})</span>`;
+    el.classList.remove('hidden');
+  } else {
+    el.innerHTML = `<span style="color:#475569" title="Adicione EVOLUTION_URL, EVOLUTION_KEY, EVOLUTION_INSTANCE e ALERT_PHONE no .env">🔕 Alertas WA não configurados</span>`;
+    el.classList.remove('hidden');
+  }
+}
+
+// ── Charts ────────────────────────────────────────────────────────────────────
+const CHART_OPTS = {
+  responsive: true,
+  maintainAspectRatio: true,
+  animation: false,
+  plugins: {
+    legend: { labels: { color:'#64748b', font:{ size:10, family:'Inter' }, boxWidth:10, padding:12 } }
+  },
+  scales: {
+    x: { ticks:{ color:'#475569', font:{size:9}, maxTicksLimit:8 }, grid:{ color:'#0f172a' } },
+    y: { ticks:{ color:'#475569', font:{size:9} }, grid:{ color:'#0f172a' }, beginAtZero:true },
+  },
+};
+
+function initCharts() {
+  chartMem = new Chart(document.getElementById('chart-mem'), {
+    type: 'line', data: { labels:[], datasets:[] },
+    options: { ...CHART_OPTS },
+  });
+  chartCpu = new Chart(document.getElementById('chart-cpu'), {
+    type: 'line', data: { labels:[], datasets:[] },
+    options: { ...CHART_OPTS },
+  });
+}
+
+function updateCharts(history) {
+  if (!history.length) return;
+  const labels = history.map(s =>
+    new Date(s.ts).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' })
+  );
+  const slugs = [...new Set(history.flatMap(s => s.procs.map(p => p.slug)))];
+
+  function ds(key, div) {
+    return slugs.map((slug, i) => ({
+      label: slug,
+      data: history.map(s => {
+        const p = s.procs.find(x => x.slug === slug);
+        return p ? +(p[key] / (div||1)).toFixed(1) : 0;
+      }),
+      borderColor: PALETTE[i % PALETTE.length],
+      backgroundColor: PALETTE[i % PALETTE.length] + '12',
+      borderWidth: 2, pointRadius: 0, tension: 0.3, fill: true,
+    }));
+  }
+  chartMem.data.labels = labels;
+  chartMem.data.datasets = ds('mem', 1024*1024);
+  chartMem.update('none');
+  chartCpu.data.labels = labels;
+  chartCpu.data.datasets = ds('cpu', 1);
+  chartCpu.update('none');
+}
+
+// ── Refresh ───────────────────────────────────────────────────────────────────
+async function refresh() {
+  document.getElementById('dot-refresh').style.background = '#fbbf24';
+  try {
+    const [insts, sys, hist] = await Promise.all([
+      api('/api/instances'),
+      api('/api/system'),
+      api('/api/metrics/history'),
+    ]);
+    document.getElementById('s-total').textContent  = insts.length;
+    document.getElementById('s-online').textContent = insts.filter(i => i.status === 'online').length;
+    const memMB = insts.reduce((s,i) => s + (i.memory||0), 0) / 1024 / 1024;
+    document.getElementById('s-memory').textContent = memMB.toFixed(0) + ' MB';
+    document.getElementById('s-load').textContent   = sys.loadavg[0].toFixed(2);
+    const memPct = Math.round((1 - sys.freeMem / sys.totalMem) * 100);
+    document.getElementById('hdr-sys').textContent =
+      `${sys.hostname} · RAM ${memPct}% · ${sys.cpuCount} CPUs`;
+    updateCharts(hist);
+    renderGrid(insts);
+    document.getElementById('hdr-time').textContent = new Date().toLocaleTimeString('pt-BR');
+    document.getElementById('dot-refresh').style.background = '#4ade80';
+  } catch {
+    document.getElementById('dot-refresh').style.background = '#f87171';
+  }
+}
+
+// ── Grid ──────────────────────────────────────────────────────────────────────
+function fmtUptime(ms) {
+  if (!ms) return '—';
+  const s = Math.floor((Date.now() - ms) / 1000);
+  if (s < 60) return `${s}s`;
+  if (s < 3600) return `${Math.floor(s/60)}m`;
+  if (s < 86400) return `${Math.floor(s/3600)}h ${Math.floor((s%3600)/60)}m`;
+  return `${Math.floor(s/86400)}d ${Math.floor((s%86400)/3600)}h`;
+}
+
+function fmtMem(b) { return b ? (b/1024/1024).toFixed(1)+' MB' : '0 MB'; }
+
+function badge(status) {
+  const cls = { online:'badge-online', stopped:'badge-stopped', errored:'badge-errored' }[status] || 'badge-default';
+  return `<span class="${cls} text-xs px-2 py-0.5 rounded-full font-medium">${status}</span>`;
+}
+
+function sslBadge(days) {
+  if (days === null || days === undefined) return `<span class="ssl-none text-xs">SSL —</span>`;
+  if (days > 30)  return `<span class="ssl-ok  text-xs">SSL ${days}d ✓</span>`;
+  if (days > 10)  return `<span class="ssl-warn text-xs">SSL ${days}d ⚠</span>`;
+  return `<span class="ssl-crit text-xs">SSL ${days}d !</span>`;
+}
+
+function renderGrid(insts) {
+  const grid = document.getElementById('grid-instances');
+  if (!insts.length) {
+    grid.innerHTML = '<p class="text-slate-600 text-sm col-span-3">Nenhuma instância encontrada.</p>';
+    return;
+  }
+  grid.innerHTML = insts.map(i => {
+    const cpuPct = Math.min(i.cpu || 0, 100);
+    const memPct = Math.min((i.memory||0) / 1024 / 1024 / 512 * 100, 100);
+    const isOnline = i.status === 'online';
+
+    return `
+    <div class="card overflow-hidden">
+      <div class="p-4">
+        <div class="flex items-start justify-between mb-3">
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-2">
+              <h3 class="text-white font-semibold text-sm">${i.slug}</h3>
+              ${badge(i.status)}
+            </div>
+            <a href="${i.domain}" target="_blank"
+               class="text-xs mt-0.5 block truncate hover:underline" style="color:#38bdf8">
+              ${i.domain.replace('https://','')}
+            </a>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 mb-3">
+          <div style="background:#0a1628;border-radius:10px" class="p-2.5">
+            <p class="text-slate-500 text-xs">CPU</p>
+            <p class="text-white font-semibold text-sm mt-0.5">${cpuPct.toFixed(1)}%</p>
+            <div class="meter"><div class="meter-fill" style="width:${cpuPct}%;background:#38bdf8"></div></div>
+          </div>
+          <div style="background:#0a1628;border-radius:10px" class="p-2.5">
+            <p class="text-slate-500 text-xs">Memória</p>
+            <p class="text-white font-semibold text-sm mt-0.5">${fmtMem(i.memory)}</p>
+            <div class="meter"><div class="meter-fill" style="width:${memPct}%;background:#a78bfa"></div></div>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 mb-3">
+          <span>Porta <span class="text-slate-300">${i.port || '—'}</span></span>
+          <span>Up <span class="text-slate-300">${fmtUptime(i.uptime)}</span></span>
+          <span>↺ <span class="text-slate-300">${i.restarts || 0}</span></span>
+          <span>${sslBadge(i.sslDaysLeft)}</span>
+        </div>
+
+        ${i.chave ? `
+        <div style="background:#0a1628;border-radius:8px" class="px-3 py-1.5">
+          <p class="text-xs text-slate-500 font-mono truncate">${i.chave}</p>
+        </div>` : ''}
+      </div>
+
+      <div class="flex" style="border-top:1px solid #1e293b">
+        <button class="btn-action btn-restart" onclick="doAction('${i.slug}','restart')">
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          Restart
+        </button>
+        <button class="btn-action ${isOnline ? 'btn-stop' : 'btn-start'}"
+                onclick="doAction('${i.slug}','${isOnline ? 'stop' : 'start'}')">
+          ${isOnline
+            ? `<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v7.5H12v-7.5z"/></svg>Stop`
+            : `<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>Start`
+          }
+        </button>
+        <button class="btn-action btn-logs" onclick="showLogs('${i.slug}')">
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          Logs
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Actions ───────────────────────────────────────────────────────────────────
+async function doAction(slug, action) {
+  const btn = event.currentTarget;
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = `<svg class="w-3.5 h-3.5 spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>`;
+  try {
+    const r = await apiPost(`/api/instances/${slug}/${action}`);
+    if (r.error) alert('Erro: ' + r.error);
+    setTimeout(refresh, 2000);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = orig;
+  }
+}
+
+async function showLogs(slug) {
+  document.getElementById('log-title').textContent = `Logs — sysrep-${slug}`;
+  document.getElementById('log-pre').textContent = 'Carregando…';
+  document.getElementById('modal-logs').classList.remove('hidden');
+  const r = await api(`/api/instances/${slug}/logs?lines=200`);
+  const pre = document.getElementById('log-pre');
+  pre.textContent = r.logs || '(sem logs)';
+  pre.scrollTop = pre.scrollHeight;
+}
+
+function closeLogs() { document.getElementById('modal-logs').classList.add('hidden'); }
+
+// ── Provision ─────────────────────────────────────────────────────────────────
+function openProvision() {
+  document.getElementById('prov-form-area').classList.remove('hidden');
+  document.getElementById('prov-output-area').classList.add('hidden');
+  document.getElementById('btn-prov-start').classList.remove('hidden');
+  document.getElementById('btn-prov-cancel').textContent = 'Cancelar';
+  document.getElementById('prov-slug').value  = '';
+  document.getElementById('prov-chave').value = '';
+  document.getElementById('prov-dns-ok').checked = false;
+  document.getElementById('prov-err').classList.add('hidden');
+  document.getElementById('prov-out').textContent = '';
+  provRunning = false;
+  document.getElementById('modal-prov').classList.remove('hidden');
+}
+
+function closeProvision() {
+  if (provRunning) return;
+  if (provPollTimer) { clearInterval(provPollTimer); provPollTimer = null; }
+  document.getElementById('modal-prov').classList.add('hidden');
+  refresh();
+}
+
+function updateProvPreview() {
+  const slug   = document.getElementById('prov-slug').value.trim().toLowerCase();
+  const domain = document.getElementById('prov-domain').value.trim() || 'nresolutions.com.br';
+  document.getElementById('prov-preview-domain').textContent =
+    slug ? `${slug}.${domain}` : `slug.${domain}`;
+}
+
+async function startProvision() {
+  const slug   = document.getElementById('prov-slug').value.trim().toLowerCase();
+  const chave  = document.getElementById('prov-chave').value.trim().toUpperCase();
+  const domain = document.getElementById('prov-domain').value.trim() || 'nresolutions.com.br';
+  const dnsOk  = document.getElementById('prov-dns-ok').checked;
+  const errEl  = document.getElementById('prov-err');
+
+  if (!slug)   { errEl.textContent='Informe o slug'; errEl.classList.remove('hidden'); return; }
+  if (!chave)  { errEl.textContent='Informe a chave de licença'; errEl.classList.remove('hidden'); return; }
+  if (!dnsOk)  { errEl.textContent='Confirme que o registro A foi adicionado no Registro.br'; errEl.classList.remove('hidden'); return; }
+  if (!/^[a-z0-9-]+$/.test(slug)) { errEl.textContent='Slug inválido'; errEl.classList.remove('hidden'); return; }
+
+  errEl.classList.add('hidden');
+  provRunning = true;
+  document.getElementById('btn-prov-start').classList.add('hidden');
+  document.getElementById('btn-prov-cancel').textContent = 'Aguarde...';
+  document.getElementById('prov-form-area').classList.add('hidden');
+  document.getElementById('prov-output-area').classList.remove('hidden');
+  document.getElementById('prov-out').textContent = '';
+  document.getElementById('prov-status-txt').textContent = `Provisionando ${slug}.${domain}…`;
+  document.getElementById('prov-spin').style.display = 'block';
+
+  let r;
+  try {
+    r = await apiPost('/api/provision', { slug, chave, domainBase: domain });
+  } catch(e) {
+    document.getElementById('prov-out').textContent = 'Erro ao iniciar: ' + e.message;
+    finishProvision(true);
+    return;
+  }
+
+  if (r.error) {
+    document.getElementById('prov-out').textContent = 'Erro: ' + r.error;
+    finishProvision(true);
+    return;
+  }
+
+  // Polling
+  const jobId = r.jobId;
+  const outEl = document.getElementById('prov-out');
+  const outDiv = outEl.parentElement;
+
+  provPollTimer = setInterval(async () => {
+    const job = await api(`/api/provision/${jobId}`).catch(() => null);
+    if (!job) return;
+    outEl.textContent = job.output;
+    outDiv.scrollTop = outDiv.scrollHeight;
+
+    if (job.done) {
+      clearInterval(provPollTimer);
+      provPollTimer = null;
+      if (job.error) {
+        document.getElementById('prov-status-txt').textContent = '❌ Falhou: ' + job.error;
+        finishProvision(true);
+      } else {
+        document.getElementById('prov-status-txt').textContent = `✅ ${slug}.${domain} provisionado!`;
+        finishProvision(false);
+      }
+    }
+  }, 2000);
+}
+
+function finishProvision(hasError) {
+  provRunning = false;
+  document.getElementById('prov-spin').style.display = 'none';
+  document.getElementById('btn-prov-cancel').textContent = 'Fechar';
+  document.getElementById('btn-prov-cancel').style.color = hasError ? '#f87171' : '#4ade80';
+  if (!hasError) {
+    const slug = document.getElementById('prov-slug').value.trim().toLowerCase();
+    setTimeout(() => {
+      document.getElementById('modal-prov').classList.add('hidden');
+      showChecklist(slug);
+    }, 1500);
+  }
+}
+
+// ── Checklist ─────────────────────────────────────────────────────────────────
+let _lastProvSlug = '';
+function showChecklist(slug) {
+  _lastProvSlug = slug;
+  const dbName = 'nc_' + slug.replace(/-/g, '_');
+  document.getElementById('ck-db-name').textContent  = dbName;
+  document.getElementById('ck-db-name2').textContent = dbName;
+  document.getElementById('modal-checklist').classList.remove('hidden');
+}
+
+function openCreateDbFromChecklist() {
+  document.getElementById('modal-checklist').classList.add('hidden');
+  openCreateDb(_lastProvSlug);
+}
+
+// ── Criar Banco MySQL ─────────────────────────────────────────────────────────
+async function openCreateDb(slugHint) {
+  document.getElementById('db-err').classList.add('hidden');
+  document.getElementById('db-ok').classList.add('hidden');
+  document.getElementById('btn-db-criar').disabled = false;
+  const hint = slugHint || '';
+  const dbName = hint ? 'nc_' + hint.replace(/-/g, '_') : '';
+  document.getElementById('db-name').value = dbName;
+  document.getElementById('db-slug-hint').textContent = hint || 'slug';
+  document.getElementById('modal-db').classList.remove('hidden');
+
+  // Carregar bancos existentes
+  const el = document.getElementById('db-bancos');
+  el.innerHTML = '<p class="text-slate-600 text-xs">Carregando...</p>';
+  try {
+    const r = await api('/api/mysql/databases');
+    if (r.databases?.length) {
+      el.innerHTML = '<p class="text-slate-500 text-xs mb-1">Bancos existentes:</p>' +
+        r.databases.map(d => `<span class="text-xs font-mono text-slate-400 mr-2">${d}</span>`).join('');
+    } else {
+      el.innerHTML = '<p class="text-slate-600 text-xs">Nenhum banco encontrado.</p>';
+    }
+  } catch {
+    el.innerHTML = '<p class="text-slate-600 text-xs">Não foi possível listar os bancos.</p>';
+  }
+}
+
+function closeCreateDb() {
+  document.getElementById('modal-db').classList.add('hidden');
+}
+
+async function criarBanco() {
+  const dbName = document.getElementById('db-name').value.trim();
+  const errEl  = document.getElementById('db-err');
+  const okEl   = document.getElementById('db-ok');
+  errEl.classList.add('hidden');
+  okEl.classList.add('hidden');
+  if (!dbName) { errEl.textContent = 'Informe o nome do banco'; errEl.classList.remove('hidden'); return; }
+
+  const btn = document.getElementById('btn-db-criar');
+  btn.disabled = true;
+  btn.textContent = 'Criando...';
+  try {
+    const r = await apiPost('/api/mysql/create-db', { dbName });
+    if (r.ok) {
+      okEl.textContent = `✅ Banco "${dbName}" criado com sucesso!`;
+      okEl.classList.remove('hidden');
+      btn.textContent = 'Criado ✓';
+    } else {
+      errEl.textContent = r.error || 'Erro ao criar banco';
+      errEl.classList.remove('hidden');
+      btn.disabled = false;
+      btn.textContent = 'Criar Banco';
+    }
+  } catch(e) {
+    errEl.textContent = 'Erro: ' + e.message;
+    errEl.classList.remove('hidden');
+    btn.disabled = false;
+    btn.textContent = 'Criar Banco';
+  }
+}
+</script>
+</body>
+</html>

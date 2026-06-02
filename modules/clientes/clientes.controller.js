@@ -258,6 +258,93 @@ const notificacoes = async (req, res) => {
   }
 };
 
+const checkCnpj = async (req, res) => {
+  try {
+    const pool = getPool();
+    const { cpf, excluir_id } = req.query;
+    if (!cpf?.trim()) return res.status(400).json({ error: 'CPF/CNPJ obrigatório' });
+
+    const [sys] = await pool.query(
+      `SELECT gpermitecnpjduplicadoclientes FROM sistemas ORDER BY id DESC LIMIT 1`
+    ).catch(() => [[]]);
+    if ((sys[0]?.gpermitecnpjduplicadoclientes || 'S').toUpperCase() === 'S')
+      return res.json({ permiteDuplicado: true, duplicado: false, cliente: null });
+
+    const docLimpo = cpf.replace(/\D/g, '');
+    let sql  = `SELECT id, nome, apelido, cpf, foneprincipal, cidade, uf, status
+                FROM clientes
+                WHERE REPLACE(REPLACE(REPLACE(cpf,'.',''),'-',''),'/','') = ?
+                  AND (excluido = 'N' OR excluido IS NULL OR excluido = '')`;
+    const vals = [docLimpo];
+    if (excluir_id) { sql += ` AND id <> ?`; vals.push(parseInt(excluir_id, 10)); }
+    sql += ` LIMIT 1`;
+
+    const [rows] = await pool.query(sql, vals);
+    res.json(rows[0]
+      ? { permiteDuplicado: false, duplicado: true,  cliente: rows[0] }
+      : { permiteDuplicado: false, duplicado: false, cliente: null });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+const aniversariantes = async (req, res) => {
+  try {
+    const pool = getPool();
+    const dias = Math.min(Math.max(parseInt(req.query.dias || 30, 10), 1), 90);
+    const hoje = new Date();
+    const fim = new Date(hoje);
+    fim.setDate(hoje.getDate() + dias);
+
+    const mesH = hoje.getMonth() + 1;
+    const diaH = hoje.getDate();
+    const mesF = fim.getMonth() + 1;
+    const diaF = fim.getDate();
+
+    let sql;
+    let vals;
+    if (mesH === mesF) {
+      sql = `SELECT id, nome, apelido, dtnascimento, foneprincipal AS celular, cidade, uf
+             FROM clientes
+             WHERE (excluido='N' OR excluido IS NULL OR excluido='')
+               AND dtnascimento IS NOT NULL
+               AND MONTH(dtnascimento)=? AND DAY(dtnascimento) BETWEEN ? AND ?
+             ORDER BY DAY(dtnascimento) LIMIT 100`;
+      vals = [mesH, diaH, diaF];
+    } else {
+      sql = `SELECT id, nome, apelido, dtnascimento, foneprincipal AS celular, cidade, uf
+             FROM clientes
+             WHERE (excluido='N' OR excluido IS NULL OR excluido='')
+               AND dtnascimento IS NOT NULL
+               AND ((MONTH(dtnascimento)=? AND DAY(dtnascimento)>=?)
+                 OR (MONTH(dtnascimento)=? AND DAY(dtnascimento)<=?))
+             ORDER BY MONTH(dtnascimento), DAY(dtnascimento) LIMIT 100`;
+      vals = [mesH, diaH, mesF, diaF];
+    }
+
+    const [rows] = await pool.query(sql, vals);
+    const hoje_mes = mesH;
+    const hoje_dia = diaH;
+    const result = rows.map(r => {
+      const dt = r.dtnascimento ? new Date(r.dtnascimento) : null;
+      const mes = dt ? dt.getUTCMonth() + 1 : null;
+      const dia = dt ? dt.getUTCDate() : null;
+      const hoje_aniver = mes === hoje_mes && dia === hoje_dia;
+      const dias_faltam = (() => {
+        if (!dt) return null;
+        const thisYear = hoje.getFullYear();
+        let aniver = new Date(thisYear, mes - 1, dia);
+        if (aniver < hoje) aniver = new Date(thisYear + 1, mes - 1, dia);
+        return Math.round((aniver - hoje) / 86400000);
+      })();
+      return { ...r, hoje_aniver, dias_faltam };
+    });
+    res.json({ clientes: result, total: result.length, dias });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
 module.exports = {
   listar,
   buscar,
@@ -280,4 +367,6 @@ module.exports = {
   historicoDetalhe,
   financeiro,
   notificacoes,
+  checkCnpj,
+  aniversariantes,
 };

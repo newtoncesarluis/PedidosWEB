@@ -24,7 +24,7 @@ router.post('/install', async (req, res) => {
   try {
     // 2. Salva .env
     const envContent = `# Banco de Dados\nDB_HOST=${db.host}\nDB_PORT=${db.port || 3306}\nDB_USER=${db.user}\nDB_PASSWORD=${db.password}\nDB_NAME=${db.database}\n\n# Segurança\nJWT_SECRET=${require('crypto').randomBytes(32).toString('hex')}\n\n# Servidor\nPORT=${process.env.PORT || 3002}\nNODE_ENV=production\n`;
-    fs.writeFileSync(path.join(__dirname, '../.env'), envContent);
+    fs.writeFileSync(path.join(process.cwd(), '.env'), envContent);
 
     // Recarrega variáveis de ambiente
     require('dotenv').config({ override: true });
@@ -61,7 +61,7 @@ router.post('/install', async (req, res) => {
     } catch { /* demo opcional no setup */ }
 
     // 7. Marca setup como concluído
-    fs.writeFileSync(path.join(__dirname, '../.installed'), JSON.stringify({ at: new Date(), version: '1.0.0' }));
+    fs.writeFileSync(path.join(process.cwd(), '.installed'), JSON.stringify({ at: new Date(), version: '1.0.0' }));
 
     res.json({ ok: true });
 
@@ -73,7 +73,7 @@ router.post('/install', async (req, res) => {
 
 // GET /api/setup/status
 router.get('/status', (req, res) => {
-  const installed = fs.existsSync(path.join(__dirname, '../.installed'));
+  const installed = fs.existsSync(path.join(process.cwd(), '.installed'));
   res.json({ installed });
 });
 

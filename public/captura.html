@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fale Conosco</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #f0f9ff;
+      --card: #ffffff;
+      --primary: #0ea5e9;
+      --primary-dark: #0284c7;
+      --text: #0f172a;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --radius: 12px;
+      --shadow: 0 4px 24px rgba(0,0,0,.08);
+    }
+    body {
+      font-family: 'Inter', 'Segoe UI', sans-serif;
+      background: var(--bg);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 32px 16px 48px;
+      color: var(--text);
+    }
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      width: 100%;
+      max-width: 480px;
+      padding: 36px 32px;
+    }
+    .logo-area { text-align: center; margin-bottom: 24px; }
+    .logo-area svg { width: 48px; height: 48px; color: var(--primary); }
+    h1 { font-size: 1.5rem; font-weight: 700; text-align: center; margin-bottom: 6px; }
+    .subtitle { font-size: .875rem; color: var(--muted); text-align: center; margin-bottom: 28px; }
+    .field { margin-bottom: 16px; }
+    label { display: block; font-size: .8125rem; font-weight: 500; color: var(--muted); margin-bottom: 6px; }
+    input, textarea, select {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: .9375rem;
+      color: var(--text);
+      background: #fff;
+      outline: none;
+      transition: border-color .15s;
+    }
+    input:focus, textarea:focus, select:focus { border-color: var(--primary); }
+    textarea { resize: vertical; min-height: 90px; }
+    .btn-submit {
+      width: 100%;
+      padding: 13px;
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 8px;
+      transition: background .15s;
+    }
+    .btn-submit:hover:not(:disabled) { background: var(--primary-dark); }
+    .btn-submit:disabled { opacity: .6; cursor: not-allowed; }
+    .msg-success {
+      display: none;
+      text-align: center;
+      padding: 32px 16px;
+    }
+    .msg-success svg { width: 56px; height: 56px; color: #22c55e; margin-bottom: 16px; }
+    .msg-success h2 { font-size: 1.25rem; font-weight: 700; margin-bottom: 8px; }
+    .msg-success p { color: var(--muted); font-size: .9375rem; }
+    .spinner {
+      display: inline-block;
+      width: 18px; height: 18px;
+      border: 2.5px solid rgba(255,255,255,.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .err { font-size: .8125rem; color: #ef4444; margin-top: 6px; display: none; }
+    .not-found {
+      text-align: center;
+      padding: 48px 16px;
+      color: var(--muted);
+    }
+    .not-found h2 { font-size: 1.25rem; font-weight: 600; margin-bottom: 8px; color: var(--text); }
+    @media (max-width: 480px) {
+      .card { padding: 28px 20px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div id="loading" style="text-align:center;padding:48px 0;color:#64748b">
+      <div class="spinner" style="border-color:rgba(14,165,233,.3);border-top-color:#0ea5e9;width:28px;height:28px;margin:0 auto 12px"></div>
+      Carregando...
+    </div>
+    <div id="form-area" style="display:none">
+      <div class="logo-area">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+      </div>
+      <h1 id="titulo">Fale Conosco</h1>
+      <p class="subtitle" id="subtitulo"></p>
+      <form id="captura-form" autoComplete="off" novalidate>
+        <div id="campos-dinamicos"></div>
+        <div class="err" id="form-err"></div>
+        <button type="submit" class="btn-submit" id="btn-submit">Enviar</button>
+      </form>
+    </div>
+    <div class="msg-success" id="msg-success">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+        <polyline points="22 4 12 14.01 9 11.01"/>
+      </svg>
+      <h2>Enviado com sucesso!</h2>
+      <p id="msg-sucesso-texto">Obrigado! Entraremos em contato em breve.</p>
+    </div>
+    <div class="not-found" id="not-found" style="display:none">
+      <h2>Formulário não encontrado</h2>
+      <p>O link pode estar inativo ou expirado.</p>
+    </div>
+  </div>
+
+  <script>
+    const FIELD_LABELS = {
+      nome:      { label: 'Nome*',       type: 'text',     placeholder: 'Seu nome completo' },
+      email:     { label: 'E-mail*',     type: 'email',    placeholder: 'seu@email.com' },
+      telefone:  { label: 'Telefone / WhatsApp*', type: 'tel', placeholder: '(00) 00000-0000' },
+      empresa:   { label: 'Empresa',     type: 'text',     placeholder: 'Nome da empresa' },
+      cidade:    { label: 'Cidade',      type: 'text',     placeholder: 'Sua cidade' },
+      uf:        { label: 'Estado (UF)', type: 'text',     placeholder: 'SP' },
+      cargo:     { label: 'Cargo',       type: 'text',     placeholder: 'Seu cargo' },
+      interesse: { label: 'Interesse',   type: 'text',     placeholder: 'O que você procura?' },
+      mensagem:  { label: 'Mensagem',    type: 'textarea', placeholder: 'Escreva sua mensagem...' },
+    };
+
+    const parts = location.pathname.split('/').filter(Boolean);
+    const token = parts[parts.indexOf('c') + 1] || parts.pop();
+    let msgSucesso = '';
+
+    async function init() {
+      try {
+        const r = await fetch(`/api/captura/${token}`);
+        if (!r.ok) { showNotFound(); return; }
+        const cfg = await r.json();
+        msgSucesso = cfg.msg_sucesso || 'Obrigado! Entraremos em contato em breve.';
+
+        document.getElementById('titulo').textContent = cfg.titulo || 'Fale Conosco';
+        const sub = document.getElementById('subtitulo');
+        sub.textContent = cfg.subtitulo || '';
+        sub.style.display = cfg.subtitulo ? '' : 'none';
+
+        const campos = typeof cfg.campos === 'string' ? JSON.parse(cfg.campos) : (cfg.campos || ['nome','email','telefone']);
+        const wrap = document.getElementById('campos-dinamicos');
+        for (const campo of campos) {
+          const def = FIELD_LABELS[campo] || { label: campo, type: 'text', placeholder: '' };
+          const div = document.createElement('div');
+          div.className = 'field';
+          if (def.type === 'textarea') {
+            div.innerHTML = `<label>${def.label}</label><textarea name="${campo}" placeholder="${def.placeholder}" autoComplete="off"></textarea>`;
+          } else {
+            div.innerHTML = `<label>${def.label}</label><input type="${def.type}" name="${campo}" placeholder="${def.placeholder}" autoComplete="off">`;
+          }
+          wrap.appendChild(div);
+        }
+
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('form-area').style.display = '';
+      } catch (_) {
+        showNotFound();
+      }
+    }
+
+    function showNotFound() {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('not-found').style.display = '';
+    }
+
+    document.getElementById('captura-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('btn-submit');
+      const err = document.getElementById('form-err');
+      err.style.display = 'none';
+
+      const data = {};
+      new FormData(e.target).forEach((v, k) => { data[k] = v; });
+
+      const nome = (data.nome || '').trim();
+      const phone = (data.telefone || '').trim();
+      const email = (data.email || '').trim();
+
+      if (!nome) { err.textContent = 'Por favor informe seu nome.'; err.style.display = ''; return; }
+      if (!phone && !email) { err.textContent = 'Por favor informe telefone ou e-mail.'; err.style.display = ''; return; }
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span>Enviando...';
+
+      try {
+        const r = await fetch(`/api/captura/${token}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+        const json = await r.json();
+        if (!r.ok) throw new Error(json.error || 'Erro ao enviar');
+
+        document.getElementById('form-area').style.display = 'none';
+        document.getElementById('msg-sucesso-texto').textContent = msgSucesso;
+        document.getElementById('msg-success').style.display = '';
+      } catch (ex) {
+        err.textContent = ex.message;
+        err.style.display = '';
+        btn.disabled = false;
+        btn.innerHTML = 'Enviar';
+      }
+    });
+
+    init();
+  </script>
+</body>
+</html>

@@ -94,7 +94,12 @@ input:focus,select:focus,textarea:focus { border-color:var(--accent);box-shadow:
 .toast-ok   { background:#1a1a2e;color:#fff; }
 .toast-err  { background:#ef4444;color:#fff; }
 </style>
+<link rel="stylesheet" href="/assets/themes.css">
 <script src="/assets/themes.js"></script>
+
+<!-- ★ Card View -->
+<link rel="stylesheet" href="/assets/card-view.css">
+<script src="/assets/card-view.js"></script>
 </head>
 <body>
 
@@ -297,6 +302,36 @@ function toast(msg, tipo='ok') {
   document.getElementById('toast-container').appendChild(t); setTimeout(()=>t.remove(), 3000);
 }
 document.addEventListener('DOMContentLoaded', buscar);
+
+/* ★ Card View — padrão compartilhado */
+CardView.attach({
+  toolbar:   '.toolbar-bar',
+  tableWrap: '.table-wrap',
+  container: '.table-card',
+  wrap:      'renderLista',
+  card: (f) => {
+    const saldo = parseFloat(f.saldo || 0)
+      .toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
+    return {
+      title:    f.nome,
+      subtitle: f.apelido,
+      avatar:   f.nome,
+      badge:    f.status === 'A'
+                  ? { label:'Ativo',   tone:'success' }
+                  : { label:'Inativo', tone:'neutral' },
+      rows: [
+        f.num_banco            ? { icon:'bank',  text:'Banco ' + f.num_banco } : null,
+        (f.agencia || f.conta) ? { icon:'doc',   text:[f.agencia, f.conta].filter(Boolean).join(' / ') } : null,
+                                  { icon:'money', text: saldo }
+      ].filter(Boolean),
+      onClick: () => abrirEditar(f.id),
+      actions: [
+        { label:'Editar',  icon:'edit',  onClick: () => abrirEditar(f.id) },
+        { label:'Excluir', icon:'trash', onClick: () => { if(confirm('Excluir?')) excluir(f.id); } }
+      ]
+    };
+  }
+});
 </script>
 </body>
 </html>

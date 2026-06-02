@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LGPD — Gestão de Consentimento</title>
+<link rel="stylesheet" href="/assets/themes.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font,'Inter','Segoe UI',sans-serif); background: var(--content-bg,#f1f5f9); color: var(--text,#1e293b); min-height: 100vh; }
+
+  /* Toolbar */
+  .toolbar { position: sticky; top: 0; z-index: 100; background: var(--glass-bg,rgba(255,255,255,.95)); backdrop-filter: blur(8px); border-bottom: 1px solid var(--border,#e2e8f0); display: flex; align-items: center; gap: 10px; padding: 10px 20px; flex-wrap: wrap; }
+  .toolbar h2 { font-size: 17px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+  .toolbar-spacer { flex: 1; }
+  .btn { cursor: pointer; border: none; border-radius: 7px; padding: 6px 14px; font-size: 13px; font-weight: 600; transition: opacity .15s; display: inline-flex; align-items: center; gap: 5px; }
+  .btn:hover { opacity: .82; }
+  .btn-primary { background: var(--accent,#0d9488); color: #fff; }
+  .btn-danger  { background: #dc2626; color: #fff; }
+  .btn-ghost   { background: var(--row-hover,rgba(0,0,0,.06)); color: var(--text,#1e293b); }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+  input[type=text], input[type=search], select.sel, textarea {
+    border: 1px solid var(--border,#e2e8f0); background: var(--card-bg,#fff);
+    color: var(--text,#1e293b); border-radius: 7px; padding: 6px 10px; font-size: 13px;
+  }
+  textarea { resize: vertical; min-height: 70px; width: 100%; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 4px; padding: 12px 20px 0; border-bottom: 1px solid var(--border,#e2e8f0); background: var(--card-bg,#fff); }
+  .tab { padding: 8px 18px; font-size: 13px; font-weight: 600; cursor: pointer; border-radius: 8px 8px 0 0; border-bottom: 3px solid transparent; color: var(--muted,#64748b); transition: all .15s; }
+  .tab:hover { background: var(--row-hover,rgba(0,0,0,.05)); }
+  .tab.active { color: var(--accent,#0d9488); border-bottom-color: var(--accent,#0d9488); }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* Layout */
+  .page { padding: 20px; max-width: 1100px; margin: 0 auto; }
+
+  /* KPIs */
+  .kpi-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .kpi-card { background: var(--card-bg,#fff); border-radius: 12px; padding: 14px 16px; border: 1px solid var(--border,#e2e8f0); }
+  .kpi-label { font-size: 11px; font-weight: 600; color: var(--muted,#64748b); text-transform: uppercase; letter-spacing: .5px; }
+  .kpi-value { font-size: 26px; font-weight: 800; margin: 4px 0 2px; }
+  .kpi-sub { font-size: 11px; color: var(--muted,#64748b); }
+
+  /* Filtros */
+  .filtros { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; align-items: center; }
+  .filtros input { flex: 1; min-width: 200px; }
+
+  /* Status badge */
+  .badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
+  .badge-ok    { background: rgba(5,150,105,.12);  color: #059669; }
+  .badge-sem   { background: rgba(245,158,11,.12); color: #d97706; }
+  .badge-rev   { background: rgba(220,38,38,.12);  color: #dc2626; }
+  .badge-anon  { background: rgba(100,116,139,.12); color: #475569; }
+
+  /* Table */
+  .card { background: var(--card-bg,#fff); border-radius: 14px; border: 1px solid var(--border,#e2e8f0); overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { background: var(--row-hover,rgba(0,0,0,.04)); padding: 10px 14px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--muted,#64748b); }
+  td { padding: 10px 14px; border-bottom: 1px solid var(--border,#e2e8f0); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--row-hover,rgba(0,0,0,.03)); }
+  .td-nome { font-weight: 600; }
+  .td-sub { font-size: 11px; color: var(--muted,#64748b); }
+
+  /* Paginação */
+  .pagination { display: flex; gap: 6px; justify-content: center; margin-top: 16px; align-items: center; }
+  .page-btn { border: 1px solid var(--border,#e2e8f0); background: var(--card-bg,#fff); color: var(--text,#1e293b); border-radius: 7px; padding: 5px 12px; font-size: 13px; cursor: pointer; transition: background .12s; }
+  .page-btn:hover { background: var(--row-hover,rgba(0,0,0,.06)); }
+  .page-btn.active { background: var(--accent,#0d9488); color: #fff; border-color: var(--accent,#0d9488); }
+  .page-btn:disabled { opacity: .4; cursor: default; }
+
+  /* Modal */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 1000; align-items: center; justify-content: center; padding: 20px; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--card-bg,#fff); border-radius: 16px; padding: 24px; max-width: 480px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,.2); }
+  .modal h3 { font-size: 16px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .modal-field { margin-bottom: 12px; }
+  .modal-field label { display: block; font-size: 12px; font-weight: 600; color: var(--muted,#64748b); margin-bottom: 4px; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+
+  /* Histórico */
+  .historico-item { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid var(--border,#e2e8f0); }
+  .historico-item:last-child { border-bottom: none; }
+  .hist-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
+  .hist-dot.ok  { background: #059669; }
+  .hist-dot.rev { background: #dc2626; }
+  .hist-dot.anon { background: #94a3b8; }
+
+  /* Loading */
+  .loading-overlay { text-align: center; padding: 60px 20px; color: var(--muted,#64748b); }
+  .spinner { width: 28px; height: 28px; border: 3px solid var(--border,#e2e8f0); border-top-color: var(--accent,#0d9488); border-radius: 50%; animation: spin .7s linear infinite; margin: 0 auto 10px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Info box */
+  .info-box { background: rgba(14,165,233,.08); border: 1px solid rgba(14,165,233,.2); border-radius: 10px; padding: 12px 16px; font-size: 13px; color: var(--text,#1e293b); margin-bottom: 16px; }
+  .info-box strong { color: #0ea5e9; }
+  .warn-box { background: rgba(220,38,38,.06); border: 1px solid rgba(220,38,38,.2); border-radius: 10px; padding: 12px 16px; font-size: 13px; margin-bottom: 12px; }
+
+  @media (max-width: 700px) {
+    th:nth-child(3), td:nth-child(3),
+    th:nth-child(4), td:nth-child(4) { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Toolbar -->
+<div class="toolbar">
+  <h2>🔒 LGPD</h2>
+  <span style="font-size:12px;color:var(--muted,#64748b)">Gestão de Consentimento e Dados Pessoais</span>
+  <div class="toolbar-spacer"></div>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('painel')">📊 Painel</div>
+  <div class="tab" onclick="switchTab('clientes')">👥 Clientes</div>
+  <div class="tab" onclick="switchTab('sobre')">📋 Sobre a LGPD</div>
+</div>
+
+<!-- Painel -->
+<div id="tab-painel" class="tab-content active">
+  <div class="page">
+    <div id="kpis" class="kpi-strip">
+      <div class="loading-overlay" style="grid-column:1/-1"><div class="spinner"></div></div>
+    </div>
+    <div class="info-box">
+      <strong>Lei 13.709/2018 — LGPD.</strong>
+      Toda empresa que armazena dados pessoais de pessoas físicas (nome, CPF, e-mail, telefone, localização) precisa
+      registrar a base legal do tratamento. Use este painel para registrar consentimentos, exportar dados a pedido do
+      titular e anonimizar cadastros quando necessário.
+    </div>
+    <div class="card" style="padding:20px">
+      <h3 style="font-size:14px;font-weight:700;margin-bottom:12px">📌 Ações rápidas</h3>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="switchTab('clientes')">👥 Gerenciar clientes</button>
+        <button class="btn btn-ghost" onclick="baixarRelatorio()">📥 Baixar relatório de consentimentos</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Clientes -->
+<div id="tab-clientes" class="tab-content">
+  <div class="page">
+    <div class="filtros">
+      <input type="search" id="busca" placeholder="Buscar por nome, CPF ou e-mail…" oninput="debSearch()" autocomplete="off">
+      <select class="sel" id="filtro-status" onchange="buscar(1)">
+        <option value="">Todos os clientes</option>
+        <option value="com">Com consentimento</option>
+        <option value="sem">Sem consentimento</option>
+        <option value="revogado">Consentimento revogado</option>
+      </select>
+      <button class="btn btn-primary" onclick="buscar(1)">Buscar</button>
+    </div>
+
+    <div id="tabela-wrap" class="card">
+      <div class="loading-overlay"><div class="spinner"></div><p>Carregando…</p></div>
+    </div>
+    <div id="paginacao" class="pagination"></div>
+  </div>
+</div>
+
+<!-- Sobre -->
+<div id="tab-sobre" class="tab-content">
+  <div class="page">
+    <div class="card" style="padding:24px;max-width:700px">
+      <h3 style="font-size:16px;font-weight:700;margin-bottom:16px">📋 LGPD — O que o sistema faz</h3>
+      <div style="display:flex;flex-direction:column;gap:16px;font-size:14px;line-height:1.6">
+        <div>
+          <strong>🔵 Registro de consentimento</strong><br>
+          Salva na tabela <code>lgpd_consentimentos</code> que o titular autorizou o armazenamento dos seus dados,
+          com data, responsável e origem (cadastro manual, formulário web, importação).
+        </div>
+        <div>
+          <strong>🔴 Revogação</strong><br>
+          Registra a data de revogação do consentimento. Os dados continuam no banco (necessário para obrigações
+          legais e contratuais), mas o sistema passa a indicar que o cliente revogou.
+        </div>
+        <div>
+          <strong>📥 Exportação</strong><br>
+          Gera um arquivo JSON com todos os dados do titular: cadastro, pedidos, visitas e histórico de
+          consentimentos. Entregue ao cliente quando ele exercer o direito de acesso (Art. 18, II).
+        </div>
+        <div>
+          <strong>🚫 Anonimização</strong><br>
+          Substitui nome, CPF, e-mail e telefone por valores neutros. O histórico de pedidos é mantido (apenas
+          vinculado a um ID anônimo). Irreversível — use somente quando o titular exigir exclusão definitiva
+          (Art. 18, VI) e não houver obrigação legal que impeça.
+        </div>
+        <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:8px;padding:12px">
+          <strong>⚠️ Importante:</strong> A LGPD não exige consentimento para todas as hipóteses de tratamento.
+          Contratos, obrigações legais e interesse legítimo também são bases válidas. O consentimento aqui
+          registrado é opcional, mas recomendado como boas práticas.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Consentimento -->
+<div class="modal-overlay" id="modal-consentimento">
+  <div class="modal">
+    <h3>✅ Registrar Consentimento</h3>
+    <input type="hidden" id="cons-id-cliente">
+    <div class="modal-field">
+      <label>Cliente</label>
+      <div id="cons-nome" style="font-weight:600;font-size:14px"></div>
+    </div>
+    <div class="modal-field">
+      <label>Tipo</label>
+      <select class="sel" id="cons-tipo" style="width:100%">
+        <option value="DADOS_PESSOAIS">Dados Pessoais</option>
+        <option value="MARKETING">Marketing / Comunicação</option>
+        <option value="LOCALIZACAO">Localização</option>
+        <option value="COMPARTILHAMENTO">Compartilhamento com terceiros</option>
+      </select>
+    </div>
+    <div class="modal-field">
+      <label>Origem</label>
+      <select class="sel" id="cons-origem" style="width:100%">
+        <option value="CADASTRO_MANUAL">Cadastro manual</option>
+        <option value="FORMULARIO_WEB">Formulário web</option>
+        <option value="IMPORTACAO">Importação de planilha</option>
+        <option value="CONTRATO">Assinatura de contrato</option>
+        <option value="VERBAL">Autorização verbal (gravada)</option>
+      </select>
+    </div>
+    <div class="modal-field">
+      <label>Observação (opcional)</label>
+      <textarea id="cons-obs" placeholder="Ex: Autorizado via contrato nº 123 em 01/01/2025"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="fecharModal('modal-consentimento')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarConsentimento()">Registrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Anonimizar -->
+<div class="modal-overlay" id="modal-anonimizar">
+  <div class="modal">
+    <h3>🚫 Anonimizar Dados</h3>
+    <input type="hidden" id="anon-id-cliente">
+    <div class="warn-box">
+      <strong>⚠️ Atenção — ação irreversível.</strong><br>
+      Nome, CPF, e-mail, telefone e endereço serão substituídos por valores neutros.
+      O histórico de pedidos e financeiro é mantido vinculado a um ID anônimo.
+    </div>
+    <div class="modal-field">
+      <label>Cliente</label>
+      <div id="anon-nome" style="font-weight:600;font-size:14px"></div>
+    </div>
+    <div class="modal-field">
+      <label>Motivo / Protocolo</label>
+      <textarea id="anon-motivo" placeholder="Ex: Solicitação do titular em 01/01/2025 — protocolo #123"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="fecharModal('modal-anonimizar')">Cancelar</button>
+      <button class="btn btn-danger" onclick="confirmarAnonimizar()">Anonimizar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Histórico -->
+<div class="modal-overlay" id="modal-historico">
+  <div class="modal" style="max-width:520px">
+    <h3>📋 Histórico de Consentimentos</h3>
+    <div id="historico-nome" style="font-size:13px;color:var(--muted,#64748b);margin-bottom:12px"></div>
+    <div id="historico-lista"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="fecharModal('modal-historico')">Fechar</button>
+      <button class="btn btn-ghost btn-sm" onclick="exportarCliente()">📥 Exportar dados</button>
+    </div>
+  </div>
+</div>
+
+<script src="/assets/themes.js"></script>
+<script>
+let _currentPage = 1;
+let _debTimer = null;
+let _clienteExportId = null;
+
+// ── Tabs ────────────────────────────────────────────────────────────────────
+function switchTab(nome) {
+  const ids = ['painel','clientes','sobre'];
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', ids[i] === nome));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.getElementById(`tab-${nome}`).classList.add('active');
+  if (nome === 'clientes' && document.getElementById('tabela-wrap').querySelector('.spinner')) buscar(1);
+}
+
+// ── Init ────────────────────────────────────────────────────────────────────
+carregarKPIs();
+
+async function carregarKPIs() {
+  try {
+    const r = await fetch('/api/lgpd/resumo');
+    if (!r.ok) throw new Error(await r.text());
+    const d = await r.json();
+    const pct = d.total_clientes > 0 ? Math.round((d.com_consentimento / d.total_clientes) * 100) : 0;
+    document.getElementById('kpis').innerHTML = `
+      <div class="kpi-card">
+        <div class="kpi-label">Total Clientes</div>
+        <div class="kpi-value">${d.total_clientes}</div>
+        <div class="kpi-sub">cadastrados ativos</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Com Consentimento</div>
+        <div class="kpi-value" style="color:#059669">${d.com_consentimento}</div>
+        <div class="kpi-sub">${pct}% da base</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Sem Consentimento</div>
+        <div class="kpi-value" style="color:#d97706">${d.sem_consentimento}</div>
+        <div class="kpi-sub">pendentes</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Revogados</div>
+        <div class="kpi-value" style="color:#dc2626">${d.revogados}</div>
+        <div class="kpi-sub">consentimentos</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Anonimizados</div>
+        <div class="kpi-value" style="color:#64748b">${d.anonimizados}</div>
+        <div class="kpi-sub">titulares</div>
+      </div>
+    `;
+  } catch(e) {
+    document.getElementById('kpis').innerHTML = `<div class="loading-overlay"><p>Erro: ${e.message}</p></div>`;
+  }
+}
+
+// ── Busca ────────────────────────────────────────────────────────────────────
+function debSearch() {
+  clearTimeout(_debTimer);
+  _debTimer = setTimeout(() => buscar(1), 350);
+}
+
+async function buscar(page) {
+  _currentPage = page || 1;
+  const q      = document.getElementById('busca').value.trim();
+  const status = document.getElementById('filtro-status').value;
+
+  document.getElementById('tabela-wrap').innerHTML =
+    '<div class="loading-overlay"><div class="spinner"></div><p>Carregando…</p></div>';
+
+  try {
+    const url = `/api/lgpd/clientes?q=${encodeURIComponent(q)}&status=${status}&page=${_currentPage}&limit=50`;
+    const r   = await fetch(url);
+    if (!r.ok) throw new Error(await r.text());
+    const d = await r.json();
+    renderTabela(d);
+  } catch(e) {
+    document.getElementById('tabela-wrap').innerHTML =
+      `<div class="loading-overlay"><p>Erro: ${e.message}</p></div>`;
+  }
+}
+
+function renderTabela(d) {
+  const { clientes, total, limit } = d;
+  if (!clientes.length) {
+    document.getElementById('tabela-wrap').innerHTML =
+      '<div class="loading-overlay"><p>Nenhum cliente encontrado</p></div>';
+    document.getElementById('paginacao').innerHTML = '';
+    return;
+  }
+
+  let html = `<table>
+    <thead><tr>
+      <th>Cliente</th>
+      <th>CPF / CNPJ</th>
+      <th>Cidade</th>
+      <th>Cadastro</th>
+      <th>Status LGPD</th>
+      <th>Ações</th>
+    </tr></thead><tbody>`;
+
+  clientes.forEach(c => {
+    const anon = c.nome.startsWith('CLIENTE ANONIMIZADO');
+    let badge, acoes;
+
+    if (anon) {
+      badge = `<span class="badge badge-anon">🚫 Anonimizado</span>`;
+      acoes = `<span style="font-size:12px;color:var(--muted,#64748b)">—</span>`;
+    } else if (c.revogado > 0) {
+      badge = `<span class="badge badge-rev">🔴 Revogado</span>`;
+      acoes = `
+        <button class="btn btn-ghost btn-sm" onclick="abrirHistorico(${c.id},'${esc(c.nome)}')">Histórico</button>
+        <button class="btn btn-danger btn-sm" onclick="abrirAnonimizar(${c.id},'${esc(c.nome)}')">Anonimizar</button>
+      `;
+    } else if (c.tem_consentimento > 0) {
+      badge = `<span class="badge badge-ok">✅ Consentido</span>`;
+      acoes = `
+        <button class="btn btn-ghost btn-sm" onclick="abrirHistorico(${c.id},'${esc(c.nome)}')">Histórico</button>
+        <button class="btn btn-ghost btn-sm" onclick="revogar(${c.id},'${esc(c.nome)}')">Revogar</button>
+      `;
+    } else {
+      badge = `<span class="badge badge-sem">⚠️ Sem consentimento</span>`;
+      acoes = `
+        <button class="btn btn-primary btn-sm" onclick="abrirConsentimento(${c.id},'${esc(c.nome)}')">Registrar</button>
+        <button class="btn btn-ghost btn-sm" onclick="abrirHistorico(${c.id},'${esc(c.nome)}')">Histórico</button>
+      `;
+    }
+
+    const dtCad = c.dtcadastro ? new Date(c.dtcadastro).toLocaleDateString('pt-BR') : '—';
+
+    html += `<tr>
+      <td class="td-nome">${c.nome}<div class="td-sub">${c.email || ''}</div></td>
+      <td><div class="td-sub">${c.cpf || '—'}</div></td>
+      <td><div class="td-sub">${c.cidade || ''}${c.uf ? '/'+c.uf : ''}</div></td>
+      <td><div class="td-sub">${dtCad}</div></td>
+      <td>${badge}</td>
+      <td style="display:flex;gap:4px;flex-wrap:wrap">${acoes}</td>
+    </tr>`;
+  });
+
+  html += '</tbody></table>';
+  document.getElementById('tabela-wrap').innerHTML = html;
+
+  // Paginação
+  const totalPages = Math.ceil(total / limit);
+  let pag = `<button class="page-btn" onclick="buscar(${_currentPage-1})" ${_currentPage<=1?'disabled':''}>‹</button>`;
+  for (let i = 1; i <= totalPages; i++) {
+    if (totalPages > 8 && Math.abs(i - _currentPage) > 2 && i !== 1 && i !== totalPages) {
+      if (i === 2 || i === totalPages - 1) pag += `<span style="padding:0 4px">…</span>`;
+      continue;
+    }
+    pag += `<button class="page-btn ${i===_currentPage?'active':''}" onclick="buscar(${i})">${i}</button>`;
+  }
+  pag += `<button class="page-btn" onclick="buscar(${_currentPage+1})" ${_currentPage>=totalPages?'disabled':''}>›</button>`;
+  pag += `<span style="font-size:12px;color:var(--muted,#64748b)">${total} clientes</span>`;
+  document.getElementById('paginacao').innerHTML = pag;
+}
+
+// ── Consentimento ────────────────────────────────────────────────────────────
+function abrirConsentimento(id, nome) {
+  document.getElementById('cons-id-cliente').value = id;
+  document.getElementById('cons-nome').textContent = nome;
+  document.getElementById('cons-obs').value = '';
+  abrirModal('modal-consentimento');
+}
+
+async function salvarConsentimento() {
+  const id_cliente = document.getElementById('cons-id-cliente').value;
+  const tipo       = document.getElementById('cons-tipo').value;
+  const origem     = document.getElementById('cons-origem').value;
+  const observacao = document.getElementById('cons-obs').value;
+
+  try {
+    const r = await fetch('/api/lgpd/consentimento', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id_cliente, tipo, origem, observacao }),
+    });
+    if (!r.ok) throw new Error((await r.json()).error);
+    fecharModal('modal-consentimento');
+    toast('Consentimento registrado', '#059669');
+    buscar(_currentPage);
+    carregarKPIs();
+  } catch(e) { toast('Erro: ' + e.message, '#dc2626'); }
+}
+
+// ── Revogar ──────────────────────────────────────────────────────────────────
+async function revogar(id, nome) {
+  if (!confirm(`Revogar consentimento de "${nome}"?\n\nOs dados continuam no banco mas o status passa para "Revogado".`)) return;
+  try {
+    const r = await fetch(`/api/lgpd/revogar/${id}`, { method: 'POST' });
+    if (!r.ok) throw new Error((await r.json()).error);
+    toast('Consentimento revogado', '#d97706');
+    buscar(_currentPage);
+    carregarKPIs();
+  } catch(e) { toast('Erro: ' + e.message, '#dc2626'); }
+}
+
+// ── Histórico ────────────────────────────────────────────────────────────────
+async function abrirHistorico(id, nome) {
+  _clienteExportId = id;
+  document.getElementById('historico-nome').textContent = nome;
+  document.getElementById('historico-lista').innerHTML =
+    '<div class="loading-overlay" style="padding:20px 0"><div class="spinner"></div></div>';
+  abrirModal('modal-historico');
+
+  try {
+    const r = await fetch(`/api/lgpd/historico/${id}`);
+    const d = await r.json();
+    if (!d.historico.length) {
+      document.getElementById('historico-lista').innerHTML =
+        '<p style="font-size:13px;color:var(--muted,#64748b)">Nenhum registro de consentimento.</p>';
+      return;
+    }
+    document.getElementById('historico-lista').innerHTML = d.historico.map(h => {
+      const dt = new Date(h.data_consentimento).toLocaleString('pt-BR');
+      const tipo = h.tipo === 'ANONIMIZACAO' ? 'anon' : h.data_revogacao ? 'rev' : 'ok';
+      const label = h.aceito ? 'Consentimento registrado' : 'Revogado / Anonimizado';
+      return `<div class="historico-item">
+        <div class="hist-dot ${tipo}"></div>
+        <div>
+          <div style="font-weight:600;font-size:13px">${label} — ${h.tipo}</div>
+          <div style="font-size:12px;color:var(--muted,#64748b)">${dt} · Origem: ${h.origem}${h.responsavel?' · '+h.responsavel:''}</div>
+          ${h.observacao ? `<div style="font-size:12px;margin-top:2px">${h.observacao}</div>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    document.getElementById('historico-lista').innerHTML = `<p style="color:#dc2626">Erro: ${e.message}</p>`;
+  }
+}
+
+function exportarCliente() {
+  if (!_clienteExportId) return;
+  window.open(`/api/lgpd/exportar/${_clienteExportId}`, '_blank');
+}
+
+// ── Anonimizar ───────────────────────────────────────────────────────────────
+function abrirAnonimizar(id, nome) {
+  document.getElementById('anon-id-cliente').value = id;
+  document.getElementById('anon-nome').textContent = nome;
+  document.getElementById('anon-motivo').value = '';
+  abrirModal('modal-anonimizar');
+}
+
+async function confirmarAnonimizar() {
+  const id     = document.getElementById('anon-id-cliente').value;
+  const motivo = document.getElementById('anon-motivo').value;
+  if (!motivo.trim()) { toast('Informe o motivo/protocolo', '#d97706'); return; }
+
+  try {
+    const r = await fetch(`/api/lgpd/anonimizar/${id}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ motivo }),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error);
+    fecharModal('modal-anonimizar');
+    toast(d.mensagem, '#059669');
+    buscar(_currentPage);
+    carregarKPIs();
+  } catch(e) { toast('Erro: ' + e.message, '#dc2626'); }
+}
+
+// ── Relatório ────────────────────────────────────────────────────────────────
+async function baixarRelatorio() {
+  try {
+    const r = await fetch('/api/lgpd/clientes?limit=9999');
+    const d = await r.json();
+    const linhas = [['ID','Nome','CPF','Email','Cidade','UF','Status','Último Consentimento']];
+    d.clientes.forEach(c => {
+      const status = c.nome.startsWith('CLIENTE ANONIMIZADO') ? 'Anonimizado'
+        : c.revogado > 0 ? 'Revogado'
+        : c.tem_consentimento > 0 ? 'Consentido'
+        : 'Sem consentimento';
+      const dt = c.ultimo_consentimento ? new Date(c.ultimo_consentimento).toLocaleDateString('pt-BR') : '';
+      linhas.push([c.id, c.nome, c.cpf||'', c.email||'', c.cidade||'', c.uf||'', status, dt]);
+    });
+    const csv = linhas.map(l => l.map(v => `"${String(v).replace(/"/g,'""')}"`).join(';')).join('\n');
+    const blob = new Blob(['﻿'+csv], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `lgpd_consentimentos_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+  } catch(e) { toast('Erro: ' + e.message, '#dc2626'); }
+}
+
+// ── Utilitários ──────────────────────────────────────────────────────────────
+function abrirModal(id)  { document.getElementById(id).classList.add('open'); }
+function fecharModal(id) { document.getElementById(id).classList.remove('open'); }
+function esc(s) { return (s||'').replace(/'/g,"\\'"); }
+function toast(msg, cor) {
+  if (window.PTToast) { window.PTToast(msg); return; }
+  const t = document.createElement('div');
+  t.textContent = msg;
+  Object.assign(t.style, { position:'fixed', bottom:'20px', right:'20px', background: cor||'#0d9488', color:'#fff', padding:'10px 18px', borderRadius:'8px', fontWeight:'600', fontSize:'13px', zIndex:'9999', boxShadow:'0 4px 20px rgba(0,0,0,.2)' });
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
+// Fechar modal ao clicar fora
+document.querySelectorAll('.modal-overlay').forEach(o => {
+  o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); });
+});
+</script>
+</body>
+</html>

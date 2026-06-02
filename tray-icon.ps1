@@ -1,4 +1,4 @@
-# SysRepWeb — Ícone na bandeja do sistema
+﻿# SysRepWeb - Icone na bandeja do sistema
 # REQUER: powershell.exe -Sta (single-threaded apartment) para Windows Forms funcionar
 
 param([int]$Port = 3002)
@@ -39,7 +39,7 @@ $appCtx = New-Object System.Windows.Forms.ApplicationContext
 # ── NotifyIcon ───────────────────────────────────────────────────────────────
 $ni = New-Object System.Windows.Forms.NotifyIcon
 $ni.Icon    = New-TrayIcon
-$ni.Text    = "SysRepWeb — porta $Port"
+$ni.Text    = "SysRepWeb - porta $Port"
 $ni.Visible = $true
 
 # ── Menu de contexto ─────────────────────────────────────────────────────────
@@ -54,11 +54,11 @@ $menu.Items.Add([System.Windows.Forms.ToolStripSeparator]::new()) | Out-Null
 $itmStatus = $menu.Items.Add("  Verificar status")
 $itmStatus.add_Click({
   if (Test-Server $Port) {
-    $ni.BalloonTipTitle = "SysRepWeb — Online"
+    $ni.BalloonTipTitle = "SysRepWeb - Online"
     $ni.BalloonTipText  = "Servidor respondendo em http://localhost:$Port"
     $ni.BalloonTipIcon  = [System.Windows.Forms.ToolTipIcon]::Info
   } else {
-    $ni.BalloonTipTitle = "SysRepWeb — Offline"
+    $ni.BalloonTipTitle = "SysRepWeb - Offline"
     $ni.BalloonTipText  = "Servidor nao esta respondendo na porta $Port"
     $ni.BalloonTipIcon  = [System.Windows.Forms.ToolTipIcon]::Error
   }
@@ -109,7 +109,7 @@ $ni.add_DoubleClick({ Start-Process "http://localhost:$Port" })
 
 # ── Balloon de boas-vindas ───────────────────────────────────────────────────
 $ni.BalloonTipTitle = "SysRepWeb iniciado!"
-$ni.BalloonTipText  = "http://localhost:$Port — clique duplo para abrir"
+$ni.BalloonTipText  = "http://localhost:$Port - clique duplo para abrir"
 $ni.BalloonTipIcon  = [System.Windows.Forms.ToolTipIcon]::Info
 $ni.ShowBalloonTip(4000)
 

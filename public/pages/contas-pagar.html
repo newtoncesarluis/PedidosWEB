@@ -1,0 +1,2727 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<script src="/assets/sw-kill.js"></script>
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Contas a Pagar — SysRepWeb</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<script src="/assets/mobile-app.js"></script>
+<link rel="stylesheet" href="/assets/mobile-app.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+:root {
+  --bg: var(--content-bg);
+  --card: var(--card-bg);
+  --card-border: var(--card-border);
+  --text: var(--content-text);
+  --text2: var(--text2);
+  --accent: var(--accent);
+  --accent-soft: var(--accent-soft);
+  --danger: #ff4b5c;
+  --success: #00e676;
+  --warn: #ffab40;
+  --font: var(--font);
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body {
+    height: 100%;
+    overflow: hidden;
+}
+body { 
+    font-family: var(--font); 
+    background: var(--bg); 
+    color: var(--text); 
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    background-image: 
+        radial-gradient(circle at 10% 20%, rgba(0, 242, 254, 0.02) 0%, transparent 40%),
+        radial-gradient(circle at 90% 80%, rgba(13, 148, 136, 0.02) 0%, transparent 40%);
+}
+
+/* ── TOOLBAR ── */
+.toolbar {
+    background: var(--card-bg);
+    border-bottom: 1px solid var(--card-border);
+    padding: 8px 14px;
+    display: flex; align-items: center; gap: 10px;
+    flex-shrink: 0;
+    position: sticky; top: 0; z-index: 100;
+}
+.toolbar-title { font-size: 16px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--accent); }
+.toolbar-pagar-actions { display: contents; }
+
+/* ── TABS ── */
+.tabs-container { display: flex; gap: 4px; background: var(--bg); padding: 4px; border-radius: 12px; margin-left: 20px; }
+.tab-btn { 
+    padding: 8px 16px; border-radius: 8px; border: none; background: transparent; 
+    color: var(--text2); font-size: 12px; font-weight: 700; cursor: pointer; transition: 0.2s;
+}
+.tab-btn.active { background: var(--accent); color: var(--btn-text, #fff); }
+
+/* ── KPI TOTAIS ── */
+.kpi-row {
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+    padding: 8px 12px !important;
+    border-bottom: 1px solid var(--card-border);
+    background: var(--bg);
+    width: 100%;
+    flex-shrink: 0;
+}
+.kpi-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    min-width: 0;
+    border-left: 3px solid var(--card-border);
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.kpi-card--aberto { border-left-color: var(--accent); }
+.kpi-card--atraso { border-left-color: var(--danger); }
+.kpi-card--todos { border-left-color: var(--warn); }
+.kpi-card--pago { border-left-color: var(--success); }
+.kpi-card--periodo { border-left-color: #a855f7; }
+.kpi-card.is-active { box-shadow: 0 0 0 1px var(--accent); border-color: var(--accent); }
+.kpi-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text2);
+}
+.kpi-val {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--text);
+    line-height: 1.15;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.kpi-sub { font-size: 9px; color: var(--text2); line-height: 1.2; }
+
+/* ── BUTTONS ── */
+.btn {
+    display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px;
+    border-radius: 10px; font-size: 12px; font-weight: 700; cursor: pointer;
+    transition: 0.2s; font-family: inherit; border: 1px solid transparent;
+}
+.btn-primary { background: var(--accent); color: var(--btn-text, #fff); }
+.btn-success { background: var(--success); color: var(--btn-text, #fff); }
+.btn-outline { background: transparent; border-color: var(--card-border); color: var(--text); }
+.btn-outline:hover { background: var(--card); border-color: var(--accent); }
+
+/* ── CONTENT ── */
+.tab-content { display: none; padding: 0 10px 8px; flex: 1; min-height: 0; }
+.tab-content.active {
+    display: flex;
+    flex-direction: column;
+}
+
+.glass-panel {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+/* ── TABLE ── */
+table { width: 100%; border-collapse: collapse; }
+thead th { 
+    padding: 8px 10px; text-align: left; font-size: 10px; font-weight: 800; 
+    text-transform: uppercase; letter-spacing: 1px; color: var(--text2);
+    border-bottom: 1px solid var(--card-border);
+    background: var(--bg);
+}
+tbody tr { border-bottom: 1px solid var(--card-border); transition: 0.2s; }
+tbody tr:hover { background: var(--accent-soft); }
+tbody td { padding: 8px 10px; font-size: 12px; font-weight: 500; vertical-align: middle; }
+
+/* CHECKBOX */
+input[type="checkbox"] {
+    appearance: none; width: 18px; height: 18px; border: 2px solid var(--card-border);
+    border-radius: 6px; cursor: pointer; position: relative;
+}
+input[type="checkbox"]:checked { background: var(--accent); border-color: var(--accent); }
+input[type="checkbox"]:checked::after {
+    content: "✓"; position: absolute; top: -1px; left: 3px; color: var(--btn-text, #fff); font-size: 12px; font-weight: 900;
+}
+
+/* ── FILTROS ── */
+.filters-section {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--card-border);
+    background: var(--card-bg);
+    flex-shrink: 0;
+}
+.filters-section-title { display: none; }
+.filters-bar {
+    display: grid !important;
+    grid-template-columns: 0.75fr 0.8fr 1fr 1fr 1.35fr auto auto !important;
+    gap: 6px !important;
+    align-items: end;
+    width: 100%;
+}
+.filter-btn-buscar,
+.filter-btn-limpar {
+    align-self: end;
+    height: 34px;
+    padding: 6px 14px;
+    font-size: 12px;
+    white-space: nowrap;
+}
+.btn-buscar { background: var(--accent); color: var(--btn-text, #fff); border: none; }
+.btn-buscar:hover { filter: brightness(1.08); }
+.list-summary {
+    padding: 5px 12px;
+    font-size: 11px;
+    color: var(--text2);
+    border-bottom: 1px solid var(--card-border);
+    background: var(--bg);
+    flex-shrink: 0;
+}
+.list-summary strong { color: var(--text); }
+.pagar-table-wrap {
+    flex: 1;
+    min-height: 120px;
+    width: 100%;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+}
+.pag-footer {
+    flex-shrink: 0;
+    padding: 8px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid var(--card-border);
+    gap: 8px;
+}
+.pag-footer .btn { padding: 6px 12px; font-size: 12px; }
+#cards_mobile_pagar { display: none; flex-direction: column; gap: 8px; padding: 10px 12px; }
+.filter-group { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.filter-group label { font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--text2); letter-spacing: 0.4px; }
+.form-control {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    color: var(--text); font-family: inherit; font-size: 12px;
+    outline: none; transition: 0.2s; width: 100%;
+    min-height: 34px;
+}
+.form-control:focus { border-color: var(--accent); }
+
+/* Remove setas de input number */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    appearance: none;
+    margin: 0;
+}
+input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+
+/* ── ANALYTICS ── */
+.analytics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.chart-card {
+    background: var(--card); border: 1px solid var(--card-border);
+    border-radius: 24px; padding: 24px; display: flex; flex-direction: column; gap: 16px;
+}
+.chart-title { font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: var(--accent); }
+
+/* ── BULK BAR ── */
+.bulk-bar {
+    position: fixed; bottom: -250px; left: 50%; transform: translateX(-50%);
+    background: var(--card-bg); color: var(--content-text); padding: 12px 24px;
+    border-radius: 40px; display: flex; align-items: center; gap: 20px;
+    z-index: 1000; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    transition: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    border: 1px solid var(--accent);
+}
+.bulk-bar.show { bottom: 32px; }
+
+/* BADGES */
+.badge { padding: 4px 8px; border-radius: 6px; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+.badge-aberto { background: rgba(0, 242, 254, 0.1); color: var(--accent); border: 1px solid var(--accent); }
+.badge-pago { background: rgba(0, 230, 118, 0.1); color: var(--success); border: 1px solid var(--success); }
+.badge-vencido { background: rgba(255, 75, 92, 0.1); color: var(--danger); border: 1px solid var(--danger); }
+
+/* ── MOBILE RESPONSIVENESS ── */
+@media (max-width: 900px) {
+    .kpi-row { grid-template-columns: repeat(5, minmax(0, 1fr)) !important; }
+    .kpi-val { font-size: 11px; }
+    .kpi-label { font-size: 9px; }
+    .kpi-card { padding: 5px 6px; }
+    .filters-bar {
+        grid-template-columns: 1fr 1fr !important;
+    }
+    .filter-group--busca { grid-column: 1 / -1; }
+    .filter-btn-buscar, .filter-btn-limpar { grid-column: span 1; }
+}
+
+@media (max-width: 768px) {
+    .toolbar { flex-direction: column; align-items: stretch; gap: 10px; height: auto; position: relative; }
+    .toolbar-title { text-align: center; margin-bottom: 5px; }
+    .tabs-container { margin-left: 0; justify-content: center; overflow-x: auto; }
+    
+    .kpi-val { font-size: 13px; }
+    
+    .analytics-grid { grid-template-columns: 1fr; }
+    
+    /* Table Responsive Trick */
+    #table_pagar { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    thead th:nth-child(4), thead th:nth-child(5) { display: none; } /* Ocultar Natureza e Doc no mobile */
+    tbody td:nth-child(4), tbody td:nth-child(5) { display: none; }
+    
+    .slide-panel { width: 100%; right: -100%; }
+    .slide-panel.open { right: 0; }
+    
+    .bulk-bar { width: 90%; flex-direction: column; border-radius: 20px; gap: 10px; padding: 16px; }
+}
+
+@media (max-width: 480px) {
+    .kpi-row { grid-template-columns: repeat(5, minmax(0, 1fr)) !important; }
+    .kpi-val { font-size: 10px; }
+    .toolbar-title { font-size: 14px; }
+    .btn { padding: 8px 12px; font-size: 11px; }
+}
+
+/* SLIDE PANEL */
+.slide-panel {
+    position: fixed; top: 0; right: -450px; width: 420px; height: 100vh;
+    background: var(--card-bg); border-left: 1px solid var(--card-border); z-index: 200;
+    transition: 0.4s; display: flex; flex-direction: column;
+}
+.slide-panel.open { right: 0; }
+.panel-head { padding: 24px; border-bottom: 1px solid var(--card-border); display: flex; align-items: center; justify-content: space-between; }
+.panel-body { padding: 24px; flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
+.panel-foot { padding: 20px 24px; border-top: 1px solid var(--card-border); display: flex; gap: 12px; }
+
+/* FIX SELECT OPTIONS BG */
+select option { background: var(--bg); color: var(--text); }
+
+/* ── DROPDOWN RELATÓRIOS ── */
+.rel-dropdown { position: relative; display: inline-flex; }
+.rel-menu {
+    display: none; position: absolute; top: calc(100% + 6px); right: 0;
+    background: var(--card-bg); border: 1px solid var(--card-border);
+    border-radius: 14px; min-width: 220px; z-index: 500;
+    box-shadow: 0 8px 32px rgba(0,0,0,.18); overflow: hidden;
+}
+.rel-menu.open { display: block; }
+.rel-menu-item {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 11px 16px; font-size: 13px; font-weight: 600;
+    color: var(--text); cursor: pointer; border: none; background: none;
+    width: 100%; text-align: left; font-family: inherit; transition: .15s;
+}
+.rel-menu-item:hover { background: var(--accent-soft); color: var(--accent); }
+.rel-menu-sep { height: 1px; background: var(--card-border); margin: 4px 0; }
+
+/* ── RECIBO (impressão / PDF) ── */
+#print_recibo_container { display: none; }
+.recibo-page {
+    width: 100%; max-width: 680px; margin: 0 auto 48px;
+    border: 1px solid #ccc; font-family: Arial, sans-serif; font-size: 12px;
+    color: #000; background: #fff; page-break-inside: avoid;
+}
+.recibo-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 16px 20px; border-bottom: 2px solid #000;
+}
+.recibo-empresa-nome { font-size: 15px; font-weight: 700; }
+.recibo-empresa-sub  { font-size: 10px; color: #555; }
+.recibo-titulo {
+    text-align: center; padding: 12px 20px 8px;
+    font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px;
+    border-bottom: 1px dashed #999;
+}
+.recibo-corpo { padding: 16px 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px 24px; }
+.recibo-campo { display: flex; flex-direction: column; gap: 2px; }
+.recibo-campo.full { grid-column: 1 / -1; }
+.recibo-campo label { font-size: 9px; font-weight: 700; text-transform: uppercase; color: #666; }
+.recibo-campo span  { font-size: 13px; font-weight: 600; border-bottom: 1px solid #ddd; padding-bottom: 3px; }
+.recibo-campo.destaque span { font-size: 17px; font-weight: 800; }
+.recibo-extenso { padding: 0 20px 12px; font-size: 11px; color: #555; font-style: italic; }
+.recibo-assinaturas {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
+    padding: 20px 20px 16px; border-top: 1px dashed #999;
+}
+.recibo-assina { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.recibo-assina-linha { width: 100%; border-top: 1px solid #000; margin-top: 28px; }
+.recibo-assina-label { font-size: 10px; color: #555; }
+.recibo-footer {
+    text-align: center; padding: 8px; background: #f5f5f5;
+    border-top: 1px solid #ddd; font-size: 9px; color: #888;
+}
+.report-subtitle { font-size: 12px; font-weight: 600; margin-top: 4px; color: #333; }
+.report-footer-meta { font-size: 11px; font-weight: 600; margin-right: 16px; }
+
+@media print {
+    body { background: #fff !important; color: #000 !important; font-family: Arial, sans-serif !important; }
+    .toolbar, .filters-section, .pagination, .tab-btn, .bulk-bar, .no-print, .actions-cell, .kpi-row, .list-summary { display: none !important; }
+    
+    /* Configuração para quando for imprimir a lista */
+    body.print-list #content_analise { display: none !important; }
+    body.print-list #content_list { display: block !important; }
+    
+    /* Configuração para quando for imprimir o dashboard */
+    body.print-dash #content_list { display: none !important; }
+    body.print-dash #content_analise { display: block !important; padding: 0; }
+    
+    .chart-card { border: 1px solid #ccc; background: #fff; break-inside: avoid; page-break-inside: avoid; }
+    .chart-title { color: #000 !important; }
+    
+    /* Estilização da Tabela para Impressão (Formato Relatório Clássico) */
+    #print_report_container { display: block !important; padding: 20mm; font-family: Arial, sans-serif !important; }
+    
+    .report-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 10px; font-size: 13px; font-weight: bold; }
+    .report-title-left { font-size: 16px; font-weight: bold; }
+    
+    .report-table { width: 100%; border-collapse: collapse; margin-top: 5px; font-size: 11px; }
+    .report-table th, .report-table td { padding: 4px 2px; text-align: left; border: none; }
+    .report-table th { font-weight: bold; padding-bottom: 6px; }
+    
+    /* Linhas tracejadas estilo matricial */
+    .border-dashed-top { border-top: 1px dashed #000 !important; }
+    .border-dashed-bottom { border-bottom: 1px dashed #000 !important; }
+    
+    .report-footer { margin-top: 20px; text-align: right; font-size: 16px; font-weight: bold; padding-top: 10px; }
+
+    body.print-recibo .toolbar,
+    body.print-recibo .kpi-row,
+    body.print-recibo .tab-content,
+    body.print-recibo .filters-section,
+    body.print-recibo #print_report_container,
+    body.print-recibo .bulk-bar { display: none !important; }
+    body.print-recibo #print_recibo_container { display: block !important; padding: 12mm; }
+
+    body.print-pagas .toolbar,
+    body.print-pagas .kpi-row,
+    body.print-pagas .tab-content,
+    body.print-pagas .filters-section,
+    body.print-pagas .bulk-bar { display: none !important; }
+    body.print-pagas #print_report_container { display: block !important; }
+    
+    /* Limpeza geral */
+    body.print-list #content_list, body.print-list #content_analise { display: none !important; }
+}
+
+/* Esconde cabeçalho de impressão na tela normal */
+#print_report_container { display: none; }
+
+/* ── MOBILE APP (iframe — somente Contas a Pagar) ── */
+.pagar-mob-filters-head { display: none; }
+
+html.sysrep-ms-embed.ms-page-contas-pagar body,
+html.ms-embedded-tech.ms-page-contas-pagar body {
+    overflow: hidden !important;
+    height: 100% !important;
+    min-height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+html.sysrep-ms-embed.ms-page-contas-pagar #content_list.tab-content.active,
+html.ms-embedded-tech.ms-page-contas-pagar #content_list.tab-content.active {
+    flex: 1 !important;
+    min-height: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+}
+
+html.sysrep-ms-embed.ms-page-contas-pagar .toolbar,
+html.ms-embedded-tech.ms-page-contas-pagar .toolbar {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+    padding: 10px 12px 8px !important;
+    align-items: stretch !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 120 !important;
+    background: var(--card-bg) !important;
+}
+html.sysrep-ms-embed.ms-page-contas-pagar .toolbar-title,
+html.ms-embedded-tech.ms-page-contas-pagar .toolbar-title {
+    grid-column: 1 / -1 !important;
+    text-align: center !important;
+    font-size: 13px !important;
+    letter-spacing: 0.6px !important;
+    margin: 0 !important;
+}
+html.sysrep-ms-embed.ms-page-contas-pagar .toolbar .toolbar-spacer,
+html.sysrep-ms-embed.ms-page-contas-pagar .toolbar .chooser-wrap,
+html.sysrep-ms-embed.ms-page-contas-pagar .toolbar .tabs-container,
+html.sysrep-ms-embed.ms-page-contas-pagar .toolbar #btn_incluir_conta,
+html.sysrep-ms-embed.ms-page-contas-pagar .toolbar #btn_export_csv,
+html.sysrep-ms-embed.ms-page-contas-pagar .bulk-bar,
+html.sysrep-ms-embed.ms-page-contas-pagar #content_analise,
+html.sysrep-ms-embed.ms-page-contas-pagar .pagar-table-wrap,
+html.sysrep-ms-embed.ms-page-contas-pagar .pag-footer,
+html.ms-embedded-tech.ms-page-contas-pagar .toolbar .toolbar-spacer,
+html.ms-embedded-tech.ms-page-contas-pagar .toolbar .chooser-wrap,
+html.ms-embedded-tech.ms-page-contas-pagar .toolbar .tabs-container,
+html.ms-embedded-tech.ms-page-contas-pagar .toolbar #btn_incluir_conta,
+html.ms-embedded-tech.ms-page-contas-pagar .toolbar #btn_export_csv,
+html.ms-embedded-tech.ms-page-contas-pagar .bulk-bar,
+html.ms-embedded-tech.ms-page-contas-pagar #content_analise,
+html.ms-embedded-tech.ms-page-contas-pagar .pagar-table-wrap,
+html.ms-embedded-tech.ms-page-contas-pagar .pag-footer { display: none !important; }
+
+html.sysrep-ms-embed.ms-page-contas-pagar .toolbar-pagar-actions,
+html.ms-embedded-tech.ms-page-contas-pagar .toolbar-pagar-actions {
+    display: grid !important;
+    grid-column: 1 / -1 !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    align-items: stretch !important;
+}
+html.sysrep-ms-embed.ms-page-contas-pagar .toolbar-pagar-actions #msEmbeddedPagarActions,
+html.ms-embedded-tech.ms-page-contas-pagar .toolbar-pagar-actions #msEmbeddedPagarActions {
+    display: contents !important;
+}
+html.sysrep-ms-embed.ms-page-contas-pagar .toolbar > #msEmbeddedPagarActions,
+html.ms-embedded-tech.ms-page-contas-pagar .toolbar > #msEmbeddedPagarActions {
+    display: grid !important;
+    grid-column: 1 / -1 !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+    width: 100% !important;
+}
+html.sysrep-ms-embed.ms-page-contas-pagar .toolbar-pagar-actions:empty,
+html.ms-embedded-tech.ms-page-contas-pagar .toolbar-pagar-actions:empty { display: none !important; }
+
+@media (max-width: 768px) {
+    html.sysrep-ms-embed.ms-page-contas-pagar .toolbar.toolbar-pagar,
+    html.ms-embedded-tech.ms-page-contas-pagar .toolbar.toolbar-pagar {
+        flex-direction: row !important;
+        display: grid !important;
+    }
+}
+html.sysrep-ms-embed.ms-page-contas-pagar .toolbar #rel-dropdown-pagar,
+html.sysrep-ms-embed.ms-page-contas-pagar .toolbar #btn_lancar_paga,
+html.ms-embedded-tech.ms-page-contas-pagar .toolbar #rel-dropdown-pagar,
+html.ms-embedded-tech.ms-page-contas-pagar .toolbar #btn_lancar_paga {
+    display: flex !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+}
+html.sysrep-ms-embed.ms-page-contas-pagar .toolbar #rel-dropdown-pagar .btn,
+html.sysrep-ms-embed.ms-page-contas-pagar .toolbar #btn_lancar_paga,
+html.ms-embedded-tech.ms-page-contas-pagar .toolbar #rel-dropdown-pagar .btn,
+html.ms-embedded-tech.ms-page-contas-pagar .toolbar #btn_lancar_paga {
+    width: 100% !important;
+    min-height: 42px !important;
+    justify-content: center !important;
+    align-items: center !important;
+    font-size: 11px !important;
+    border-radius: 10px !important;
+    white-space: nowrap !important;
+}
+html.sysrep-ms-embed.ms-page-contas-pagar .rel-menu,
+html.ms-embedded-tech.ms-page-contas-pagar .rel-menu {
+    left: 0 !important;
+    right: 0 !important;
+    min-width: 0 !important;
+}
+
+html.sysrep-ms-embed.ms-page-contas-pagar .glass-panel,
+html.ms-embedded-tech.ms-page-contas-pagar .glass-panel {
+    flex: 1 !important;
+    min-height: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background: var(--bg) !important;
+}
+
+html.sysrep-ms-embed.ms-page-contas-pagar .kpi-row,
+html.ms-embedded-tech.ms-page-contas-pagar .kpi-row {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    gap: 8px !important;
+    padding: 10px 12px !important;
+    flex-shrink: 0 !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scroll-snap-type: x proximity !important;
+}
+html.sysrep-ms-embed.ms-page-contas-pagar .kpi-row::-webkit-scrollbar,
+html.ms-embedded-tech.ms-page-contas-pagar .kpi-row::-webkit-scrollbar { height: 0; }
+html.sysrep-ms-embed.ms-page-contas-pagar .kpi-card,
+html.ms-embedded-tech.ms-page-contas-pagar .kpi-card {
+    flex: 0 0 auto !important;
+    width: min(34vw, 118px) !important;
+    min-width: 100px !important;
+    padding: 8px 10px !important;
+    border-radius: 10px !important;
+    scroll-snap-align: start !important;
+}
+html.sysrep-ms-embed.ms-page-contas-pagar .kpi-card--periodo,
+html.sysrep-ms-embed.ms-page-contas-pagar .kpi-card--todos,
+html.ms-embedded-tech.ms-page-contas-pagar .kpi-card--periodo,
+html.ms-embedded-tech.ms-page-contas-pagar .kpi-card--todos {
+    width: min(44vw, 150px) !important;
+    min-width: 128px !important;
+}
+html.sysrep-ms-embed.ms-page-contas-pagar .kpi-label,
+html.ms-embedded-tech.ms-page-contas-pagar .kpi-label {
+    font-size: 9px !important;
+    letter-spacing: 0.3px !important;
+}
+html.sysrep-ms-embed.ms-page-contas-pagar .kpi-val,
+html.ms-embedded-tech.ms-page-contas-pagar .kpi-val {
+    font-size: 13px !important;
+    white-space: nowrap !important;
+}
+html.sysrep-ms-embed.ms-page-contas-pagar .kpi-sub,
+html.ms-embedded-tech.ms-page-contas-pagar .kpi-sub {
+    font-size: 9px !important;
+    line-height: 1.25 !important;
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
+    overflow: hidden !important;
+}
+
+html.sysrep-ms-embed.ms-page-contas-pagar .filters-section,
+html.ms-embedded-tech.ms-page-contas-pagar .filters-section {
+    padding: 0 !important;
+    flex-shrink: 0 !important;
+    background: var(--card-bg) !important;
+    border-bottom: 1px solid var(--card-border) !important;
+}
+html.sysrep-ms-embed.ms-page-contas-pagar .pagar-mob-filters-head,
+html.ms-embedded-tech.ms-page-contas-pagar .pagar-mob-filters-head {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+    width: 100% !important;
+    padding: 10px 12px !important;
+    border: none !important;
+    background: var(--card-bg) !important;
+    color: var(--text) !important;
+    font: inherit !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    cursor: pointer !important;
+}
+html.sysrep-ms-embed.ms-page-contas-pagar .pagar-mob-filters-hint,
+html.ms-embedded-tech.ms-page-contas-pagar .pagar-mob-filters-hint {
+    flex: 1 !important;
+    text-align: right !important;
+    font-size: 10px !important;
+    font-weight: 600 !important;
+    color: var(--text2) !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+html.sysrep-ms-embed.ms-page-contas-pagar .filters-section.is-collapsed .filters-bar,
+html.ms-embedded-tech.ms-page-contas-pagar .filters-section.is-collapsed .filters-bar {
+    display: none !important;
+}
+html.sysrep-ms-embed.ms-page-contas-pagar .filters-section.is-collapsed .pagar-mob-filters-chevron,
+html.ms-embedded-tech.ms-page-contas-pagar .filters-section.is-collapsed .pagar-mob-filters-chevron {
+    transform: rotate(-90deg);
+}
+
+html.sysrep-ms-embed.ms-page-contas-pagar .filters-bar,
+html.ms-embedded-tech.ms-page-contas-pagar .filters-bar {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+    padding: 0 12px 10px !important;
+    align-items: end !important;
+}
+html.sysrep-ms-embed.ms-page-contas-pagar .filter-group--full,
+html.sysrep-ms-embed.ms-page-contas-pagar .filter-group--busca,
+html.ms-embedded-tech.ms-page-contas-pagar .filter-group--full,
+html.ms-embedded-tech.ms-page-contas-pagar .filter-group--busca {
+    grid-column: 1 / -1 !important;
+}
+html.sysrep-ms-embed.ms-page-contas-pagar .filter-group label,
+html.ms-embedded-tech.ms-page-contas-pagar .filter-group label {
+    font-size: 9px !important;
+}
+html.sysrep-ms-embed.ms-page-contas-pagar .form-control,
+html.ms-embedded-tech.ms-page-contas-pagar .form-control {
+    font-size: 13px !important;
+    min-height: 40px !important;
+    padding: 8px 10px !important;
+    border-radius: 10px !important;
+}
+html.sysrep-ms-embed.ms-page-contas-pagar .filter-btn-buscar,
+html.sysrep-ms-embed.ms-page-contas-pagar .filter-btn-limpar,
+html.ms-embedded-tech.ms-page-contas-pagar .filter-btn-buscar,
+html.ms-embedded-tech.ms-page-contas-pagar .filter-btn-limpar {
+    grid-column: span 1 !important;
+    width: 100% !important;
+    min-height: 42px !important;
+    justify-content: center !important;
+    border: none !important;
+    box-shadow: none !important;
+    outline: none !important;
+    font-size: 12px !important;
+    border-radius: 10px !important;
+}
+html.sysrep-ms-embed.ms-page-contas-pagar .btn-buscar,
+html.ms-embedded-tech.ms-page-contas-pagar .btn-buscar {
+    background: var(--accent) !important;
+    color: var(--btn-text, #fff) !important;
+}
+
+html.sysrep-ms-embed.ms-page-contas-pagar .list-summary,
+html.ms-embedded-tech.ms-page-contas-pagar .list-summary {
+    flex-shrink: 0 !important;
+    padding: 8px 12px !important;
+    font-size: 11px !important;
+    line-height: 1.35 !important;
+    background: var(--bg) !important;
+}
+
+html.sysrep-ms-embed.ms-page-contas-pagar #cards_mobile_pagar,
+html.ms-embedded-tech.ms-page-contas-pagar #cards_mobile_pagar {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding: 0 0 20px !important;
+    gap: 0 !important;
+    background: var(--card-bg) !important;
+    content-visibility: auto;
+}
+
+.pagar-mob-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px 10px;
+    align-items: start;
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--card-border);
+    border-left: 3px solid var(--card-border);
+    background: var(--card-bg);
+}
+.pagar-mob-row:active { background: var(--bg); }
+.pagar-mob-row__body { min-width: 0; grid-column: 1; }
+.pagar-mob-row__end {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    flex-shrink: 0;
+}
+.pagar-mob-row__title {
+    font-weight: 700;
+    font-size: 13px;
+    line-height: 1.3;
+    color: var(--content-text);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.pagar-mob-row__meta {
+    font-size: 10px;
+    color: var(--text2);
+    margin-top: 2px;
+    line-height: 1.25;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.pagar-mob-row__venc {
+    font-size: 10px;
+    color: var(--text2);
+    margin-top: 4px;
+}
+.pagar-mob-row__venc strong { color: var(--text); font-weight: 700; }
+.pagar-mob-row__valor {
+    font-size: 15px;
+    font-weight: 900;
+    white-space: nowrap;
+    line-height: 1.1;
+}
+.pagar-mob-row .badge {
+    font-size: 9px;
+    padding: 2px 7px;
+}
+.pagar-mob-row__actions {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 2px;
+}
+.pagar-mob-btn-estorno {
+    border: 1px solid var(--warn);
+    background: transparent;
+    color: var(--warn);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+}
+.pagar-mob-btn-estorno:active { opacity: 0.85; }
+.pagar-mob-btn-excluir {
+    border: 1px solid var(--danger);
+    background: transparent;
+    color: var(--danger);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+}
+.pagar-mob-btn-excluir:active { opacity: 0.85; }
+.pagar-mob-row__actions--duo {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+}
+.pagar-mob-empty {
+    text-align: center;
+    padding: 32px 16px;
+    color: var(--text2);
+    font-size: 13px;
+}
+
+html.sysrep-ms-embed.ms-page-contas-pagar .slide-panel,
+html.ms-embedded-tech.ms-page-contas-pagar .slide-panel {
+    width: 100% !important;
+    max-width: 100% !important;
+    right: -100% !important;
+}
+html.sysrep-ms-embed.ms-page-contas-pagar .slide-panel.open,
+html.ms-embedded-tech.ms-page-contas-pagar .slide-panel.open { right: 0 !important; }
+
+/* ── Seletor de colunas (padrão pedidos) ── */
+.chooser-wrap { position: relative; }
+.chooser-menu {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 500;
+    min-width: 260px;
+    max-height: 380px;
+    overflow-y: auto;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    box-shadow: 0 8px 28px rgba(0,0,0,.2);
+    padding: 6px 0;
+}
+.chooser-menu.show { display: block; }
+.chooser-menu-title {
+    padding: 8px 12px;
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--text2);
+    border-bottom: 1px solid var(--card-border);
+}
+.chooser-item-dynamic {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 12px;
+    font-size: 12px;
+}
+.chooser-item-dynamic label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    flex: 1;
+    color: var(--text);
+}
+.chooser-btns { display: flex; gap: 4px; }
+.chooser-btns button {
+    padding: 2px 8px;
+    border: 1px solid var(--card-border);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--text2);
+    cursor: pointer;
+    font-size: 11px;
+}
+</style>
+</head>
+<body data-page-version="contas-pagar-20260530-print">
+
+<div class="toolbar toolbar-pagar">
+    <div class="toolbar-title">Contas a Pagar</div>
+    
+    <div class="tabs-container">
+        <button class="tab-btn active" onclick="switchTab('list', this)">Lançamentos</button>
+        <button class="tab-btn" onclick="switchTab('analise', this)">Análise & ROI</button>
+    </div>
+
+    <div class="toolbar-spacer" style="flex:1"></div>
+    
+    <div class="chooser-wrap no-print" id="wrap_colunas_pagar">
+        <button type="button" class="btn btn-outline" id="btnPagarColChooser" onclick="togglePagarChooser(event)" title="Colunas da listagem">⚙️ Colunas</button>
+        <div id="pagarColChooser" class="chooser-menu">
+            <div class="chooser-menu-title">COLUNAS E ORDEM</div>
+            <div id="pagarColChooserList"></div>
+        </div>
+    </div>
+    <div class="toolbar-pagar-actions no-print" id="toolbar_pagar_actions">
+        <div class="rel-dropdown no-print" id="rel-dropdown-pagar">
+            <button type="button" class="btn btn-outline" id="btn_rel_menu" onclick="toggleRelMenuPagar()">🖨️ Relatórios ▾</button>
+            <div class="rel-menu" id="rel-menu-pagar">
+                <button type="button" class="rel-menu-item" onclick="imprimirRelatorioFiltrado(); fecharRelMenuPagar()">
+                    📋 Relatório do filtro
+                    <small style="color:var(--text2);font-size:10px;font-weight:400;margin-left:auto">todos os status</small>
+                </button>
+                <button type="button" class="rel-menu-item" onclick="imprimirContasPagas(); fecharRelMenuPagar()">
+                    ✅ Contas pagas
+                    <small style="color:var(--text2);font-size:10px;font-weight:400;margin-left:auto">todas liquidadas no filtro</small>
+                </button>
+                <div class="rel-menu-sep"></div>
+                <button type="button" class="rel-menu-item" onclick="exportarPDFContasPagas(); fecharRelMenuPagar()">
+                    📄 Exportar PDF
+                    <small style="color:var(--text2);font-size:10px;font-weight:400;margin-left:auto">contas pagas</small>
+                </button>
+                <button type="button" class="rel-menu-item" onclick="imprimirRecibosPagasFiltradas(); fecharRelMenuPagar()">
+                    🧾 Recibos (pagas)
+                    <small style="color:var(--text2);font-size:10px;font-weight:400;margin-left:auto">uma página por título</small>
+                </button>
+            </div>
+        </div>
+        <button type="button" class="btn btn-success" id="btn_lancar_paga" onclick="abrirLiquidado()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M12 5v14M5 12h14"/></svg>
+            Lançar Conta Paga
+        </button>
+    </div>
+    <button type="button" class="btn btn-outline no-print" id="btn_export_csv" onclick="exportar()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+        Exportar CSV
+    </button>
+    <button type="button" class="btn btn-primary" id="btn_incluir_conta" onclick="abrirNovo()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M12 5v14M5 12h14"/></svg>
+        Incluir Conta
+    </button>
+</div>
+
+<div id="print_recibo_container"></div>
+
+<!-- CONTAINER EXCLUSIVO PARA IMPRESSÃO DO RELATÓRIO CLÁSSICO -->
+<div id="print_report_container">
+    <div class="report-header">
+        <div class="report-title-left" style="display:flex;flex-direction:column;align-items:flex-start;gap:6px">
+            <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+                <img id="print_company_logo" alt="" style="display:none;max-height:52px;max-width:140px;object-fit:contain">
+                <span id="print_company_name">Minha Empresa</span>
+            </div>
+            <div id="print_report_title" class="report-subtitle">Relatório de Contas a Pagar</div>
+        </div>
+        <div style="text-align:right">
+            <span style="margin-right: 20px;">Período: <span id="print_periodo"></span></span>
+            <span>Emitido: <span id="print_emitido"></span></span>
+        </div>
+    </div>
+    
+    <table class="report-table">
+        <thead id="print_thead">
+            <tr class="border-dashed-top border-dashed-bottom">
+                <th>Vencimento</th>
+                <th>Favorecido / Fornecedor</th>
+                <th>Natureza / Categoria</th>
+                <th>Documento</th>
+                <th>Valor</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody id="print_tbody"></tbody>
+    </table>
+    
+    <div class="border-dashed-top report-footer">
+        <span class="report-footer-meta" id="print_qtd">0 título(s)</span>
+        <span>TOTAL: <span id="print_total">R$ 0,00</span></span>
+    </div>
+</div>
+
+<!-- TAB: LISTAGEM -->
+<div id="content_list" class="tab-content active">
+    <div class="glass-panel no-print">
+        <!-- Resumo financeiro (somente leitura) -->
+        <div class="kpi-row" aria-label="Resumo de contas a pagar">
+            <div class="kpi-card kpi-card--aberto" id="kpi_aberto">
+                <span class="kpi-label">Em aberto</span>
+                <span class="kpi-val" id="ins_aberto">R$ 0,00</span>
+                <span class="kpi-sub">A vencer</span>
+            </div>
+            <div class="kpi-card kpi-card--atraso" id="kpi_atraso">
+                <span class="kpi-label">Em atraso</span>
+                <span class="kpi-val" style="color:var(--danger)" id="ins_vencido">R$ 0,00</span>
+                <span class="kpi-sub" id="ins_vencido_qtd">0 títulos</span>
+            </div>
+            <div class="kpi-card kpi-card--pago" id="kpi_pago">
+                <span class="kpi-label">Pago hoje</span>
+                <span class="kpi-val" style="color:var(--success)" id="ins_pago">R$ 0,00</span>
+                <span class="kpi-sub">Liquidado no dia</span>
+            </div>
+            <div class="kpi-card kpi-card--periodo" id="kpi_periodo">
+                <span class="kpi-label">Total do período</span>
+                <span class="kpi-val" style="color:#a855f7" id="ins_periodo">R$ 0,00</span>
+                <span class="kpi-sub" id="ins_periodo_qtd">Venc. no intervalo</span>
+            </div>
+            <div class="kpi-card kpi-card--todos" id="kpi_resultado">
+                <span class="kpi-label">Resultado da busca</span>
+                <span class="kpi-val" style="color:var(--accent)" id="ins_resultado_val">—</span>
+                <span class="kpi-sub" id="ins_resultado_qtd">Use os filtros e clique em Buscar</span>
+            </div>
+        </div>
+
+        <div class="filters-section" id="filters_section_pagar">
+            <button type="button" class="pagar-mob-filters-head" id="btn_toggle_filters_pagar" onclick="togglePagarFiltersMobile()" aria-expanded="true">
+                <span class="pagar-mob-filters-title">Filtros</span>
+                <span class="pagar-mob-filters-hint" id="pagar_filters_hint"></span>
+                <span class="pagar-mob-filters-chevron" aria-hidden="true">▾</span>
+            </button>
+            <div class="filters-section-title">Filtros da listagem</div>
+            <div class="filters-bar" id="filters_bar_pagar">
+                <div class="filter-group">
+                    <label for="filter_status">Status</label>
+                    <select class="form-control" id="filter_status" autocomplete="off">
+                        <option value="T">Todos</option>
+                        <option value="ABERTA">Aberta</option>
+                        <option value="LIQUIDADO">Liquidado</option>
+                        <option value="EM ATRASO">Em atraso</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="filter_natureza">Natureza</label>
+                    <select class="form-control" id="filter_natureza" title="Filtra por categoria de despesa (id_despesas)" autocomplete="off">
+                        <option value="">Todas</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="f_dt_ini">Venc. de</label>
+                    <input type="date" class="form-control" id="f_dt_ini" autocomplete="off">
+                </div>
+                <div class="filter-group">
+                    <label for="f_dt_fim">Venc. até</label>
+                    <input type="date" class="form-control" id="f_dt_fim" autocomplete="off">
+                </div>
+                <div class="filter-group filter-group--full">
+                    <label for="filter_ordem">Ordenar</label>
+                    <select class="form-control" id="filter_ordem" autocomplete="off" onchange="onPagarOrdemChange()">
+                        <option value="venc_antigo">Vencimento (antigos no topo)</option>
+                        <option value="venc_recente">Vencimento (recentes no topo)</option>
+                        <option value="valor_maior">Maior valor</option>
+                        <option value="valor_menor">Menor valor</option>
+                    </select>
+                </div>
+                <div class="filter-group filter-group--busca">
+                    <label for="search_forn">Busca</label>
+                    <input type="text" class="form-control" id="search_forn" placeholder="Fornecedor, doc..." autocomplete="off"
+                           onkeydown="if(event.key==='Enter'){event.preventDefault();buscarPagar();}">
+                </div>
+                <button type="button" class="btn btn-buscar filter-btn-buscar" onclick="buscarPagar()">Buscar</button>
+                <button type="button" class="btn btn-outline filter-btn-limpar" onclick="limparFiltros()">Limpar</button>
+            </div>
+        </div>
+
+        <div class="list-summary" id="list_summary">Preencha os filtros e clique em <strong>Buscar</strong> para carregar os títulos.</div>
+        
+        <div class="pagar-table-wrap">
+        <table id="table_pagar">
+            <thead id="pagar_thead"></thead>
+            <tbody id="table_body"></tbody>
+        </table>
+        </div>
+
+        <div id="cards_mobile_pagar"></div>
+
+        <div class="pag-footer" id="pag_container">
+            <span id="pag_info" style="font-size:11px; color:var(--text2)"></span>
+            <div style="display:flex; gap:6px">
+                <button class="btn btn-outline" onclick="changePage(-1)" id="btn_prev">Anterior</button>
+                <button class="btn btn-outline" onclick="changePage(1)" id="btn_next">Próxima</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- TAB: DASHBOARD (ANÁLISE) -->
+<div id="content_analise" class="tab-content">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px" class="no-print">
+        <h2 style="margin:0; color:#fff; font-size:20px; font-weight:800">Dashboard Financeiro</h2>
+        <button type="button" class="btn btn-primary" onclick="imprimirTela()" style="background:var(--accent)">🖨️ Imprimir Dashboard</button>
+    </div>
+    
+    <div style="display:flex; flex-direction:column; gap:20px" id="print_area">
+        <div class="analytics-grid">
+            <div class="chart-card">
+                <div class="chart-title">Top 10 Contas a Pagar (Em Aberto)</div>
+                <div style="position: relative; height: 300px; width: 100%;">
+                    <canvas id="chart_top_abertas"></canvas>
+                </div>
+            </div>
+            <div class="chart-card">
+                <div class="chart-title">Top 10 Contas Pagas (Liquidadas)</div>
+                <div style="position: relative; height: 300px; width: 100%;">
+                    <canvas id="chart_top_pagas"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- BARRA DE AÇÕES EM LOTE -->
+<div class="bulk-bar" id="bulk_bar">
+    <span id="bulk_count" style="font-weight:800; font-size:14px">0 selecionados</span>
+    <button class="btn btn-primary" style="background:var(--success); border-color:var(--success); color:var(--btn-text, #fff)" onclick="abrirBaixaLote()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>
+        Liquidar em Lote
+    </button>
+    <button class="btn btn-outline" style="border:none" onclick="unselectAll()">Cancelar</button>
+</div>
+
+<!-- PANEL: LANÇAMENTO / PROVISIONAMENTO -->
+<div class="slide-panel" id="panel_form">
+    <div class="panel-head">
+        <h3 id="panel_title">Provisionar Conta</h3>
+        <button onclick="fecharPanel()" style="background:none; border:none; color:var(--text2); cursor:pointer">✕</button>
+    </div>
+    <div class="panel-body">
+        <input type="hidden" id="f_id">
+        <input type="hidden" id="f_status" value="ABERTA">
+        <input type="hidden" id="f_cod_fornecedor">
+        
+        <div class="form-group">
+            <label for="f_num">Nº do Título / NF</label>
+            <input type="text" id="f_num" class="form-control" maxlength="25" autocomplete="off"
+                   title="Grava na coluna numeronf. O código interno (numero) é gerado automaticamente pelo sistema.">
+            <small class="field-hint" style="font-size:10px;color:var(--text2)">Até 25 caracteres — gravado em <strong>numeronf</strong>. O <strong>número</strong> do título é sequencial (último + 1), gerado ao salvar.</small>
+            <small id="f_numero_interno_hint" class="field-hint" style="display:none;font-size:10px;color:var(--accent)"></small>
+        </div>
+        <div class="form-group">
+            <label>Favorecido / Fornecedor</label>
+            <input type="text" id="f_nome" class="form-control" placeholder="Busque ou digite..." list="list_fornecedores" onchange="vincularFornecedor()">
+            <datalist id="list_fornecedores"></datalist>
+        </div>
+        <div class="form-group">
+            <label for="f_natureza">Natureza</label>
+            <select id="f_natureza" class="form-control" autocomplete="off" title="Categoria de despesa (tabela despesas)"></select>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
+            <div class="form-group">
+                <label>Vencimento</label>
+                <input type="date" id="f_venc" class="form-control">
+            </div>
+            <div class="form-group">
+                <label>Valor (R$)</label>
+                <input type="number" step="0.01" id="f_valor" class="form-control">
+            </div>
+        </div>
+
+        <!-- Recorrência (Apenas no Provisionamento) -->
+        <div id="group_recorrencia" class="form-group" style="background:var(--accent-soft); padding:16px; border-radius:12px; border:1px solid var(--accent)">
+            <label style="color:var(--accent)">Repetir esta conta?</label>
+            <div style="display:flex; align-items:center; gap:12px; margin-top:8px">
+                <span>Provisionar por</span>
+                <input type="number" id="f_meses" class="form-control" style="width:70px" value="1" min="1">
+                <span>meses</span>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Observações</label>
+            <textarea id="f_obs" class="form-control" style="height:80px; resize:none"></textarea>
+        </div>
+    </div>
+    <div class="panel-foot">
+        <button class="btn btn-outline" style="flex:1" onclick="fecharPanel()">Sair</button>
+        <button class="btn btn-primary" style="flex:1" id="btn_save" onclick="salvar()">Confirmar</button>
+    </div>
+</div>
+
+<!-- MODAL MOTIVO EXCLUSÃO (após estorno) -->
+<div id="modal_excluir_pagar" class="no-print" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.8); z-index:2500; align-items:center; justify-content:center; backdrop-filter:blur(10px)">
+    <div class="glass-panel" style="width:min(400px,92vw); padding:24px; display:flex; flex-direction:column; gap:16px">
+        <h3 style="font-size:16px; font-weight:800; color:var(--text)">Excluir título</h3>
+        <p style="font-size:12px; color:var(--text2); line-height:1.4">Informe o motivo da exclusão. O texto será gravado em <strong>historico_rec</strong>.</p>
+        <div class="form-group">
+            <label for="excluir_motivo_pagar">Motivo (obrigatório)</label>
+            <textarea id="excluir_motivo_pagar" class="form-control" rows="3" maxlength="500" placeholder="Ex.: lançamento duplicado, estorno por erro de digitação..." autocomplete="off"></textarea>
+        </div>
+        <input type="hidden" id="excluir_id_pagar" value="">
+        <div style="display:flex; gap:12px">
+            <button type="button" class="btn btn-outline" style="flex:1" onclick="fecharModalExcluirPagar()">Cancelar</button>
+            <button type="button" class="btn btn-primary" style="flex:1; background:var(--danger); border-color:var(--danger)" onclick="confirmarExcluirPagar()">Excluir</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL BAIXA LOTE -->
+<div id="modal_lote" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.8); z-index:2000; align-items:center; justify-content:center; backdrop-filter:blur(10px)">
+    <div class="glass-panel" style="width:360px; padding:24px; display:flex; flex-direction:column; gap:20px">
+        <h3>Liquidação em Lote</h3>
+        <p id="lote_msg" style="font-size:13px; color:var(--text2)"></p>
+        <div class="form-group"><label>Data Pagto</label><input type="date" id="lote_data" class="form-control"></div>
+        <div class="form-group">
+            <label>Forma</label>
+            <select id="lote_forma" class="form-control">
+                <option value="PIX">PIX</option><option value="DINHEIRO">Dinheiro</option>
+                <option value="BOLETO">Boleto</option>
+            </select>
+        </div>
+        <div style="display:flex; gap:12px">
+            <button class="btn btn-outline" style="flex:1" onclick="document.getElementById('modal_lote').style.display='none'">Cancelar</button>
+            <button class="btn btn-primary" style="flex:1; background:var(--success)" onclick="confirmarLote()">Confirmar</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL LIQUIDAÇÃO INDIVIDUAL PREMIUM -->
+<div id="modal_pagamento" style="display:none; position:fixed; inset:0; background:rgba(15, 17, 26, 0.85); z-index:3000; align-items:center; justify-content:center; backdrop-filter:blur(15px)">
+    <div class="glass-panel" style="width:100%; max-width:460px; padding:20px; display:flex; flex-direction:column; gap:16px; position:relative; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5)">
+        <button onclick="fecharModalLiquidar()" style="position:absolute; top:15px; right:15px; background:none; border:none; color:var(--text2); cursor:pointer; font-size:18px">✕</button>
+        
+        <div style="padding-top:10px">
+            <h2 id="liq_title" style="font-size:18px; font-weight:800; color:#fff">Liquidar Conta</h2>
+            <p id="liq_fornecedor" style="color:var(--text2); font-size:13px; margin-top:2px">Fornecedor</p>
+        </div>
+
+        <!-- Visão Original -->
+        <div style="background:rgba(255,255,255,0.03); padding:8px 12px; border-radius:10px; border:1px solid var(--card-border); text-align:center">
+            <div style="font-size:10px; color:var(--text2); text-transform:uppercase; font-weight:800; letter-spacing:1px">Valor Original</div>
+            <div id="liq_valor_original" style="font-size:20px; font-weight:800; color:var(--text); margin-top:2px">R$ 0,00</div>
+        </div>
+
+        <input type="hidden" id="liq_id">
+        <input type="hidden" id="liq_valor_base">
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
+            <div class="form-group">
+                <label>Data</label>
+                <input type="date" id="liq_data_pagto" class="form-control">
+            </div>
+            <div class="form-group">
+                <label>Forma de Pagto.</label>
+                <select id="liq_forma" class="form-control" style="background-color:rgba(255,255,255,0.05); color:#fff">
+                    <option style="background:#1e293b; color:#fff" value="PIX">PIX</option>
+                    <option style="background:#1e293b; color:#fff" value="DINHEIRO">Dinheiro</option>
+                    <option style="background:#1e293b; color:#fff" value="BOLETO">Boleto</option>
+                    <option style="background:#1e293b; color:#fff" value="TRANSFERENCIA">Transferência</option>
+                    <option style="background:#1e293b; color:#fff" value="CARTAO">Cartão</option>
+                    <option style="background:#1e293b; color:#fff" value="CHEQUE">Cheque</option>
+                </select>
+            </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
+            <div class="form-group">
+                <label>Juros (%)</label>
+                <input type="number" step="0.01" id="liq_juros" class="form-control" placeholder="0.00" oninput="calcLiquidar()">
+            </div>
+            <div class="form-group">
+                <label>Acréscimos (R$)</label>
+                <input type="number" step="0.01" id="liq_acrescimo" class="form-control" placeholder="0.00" oninput="calcLiquidar()">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Histórico / Obs.</label>
+            <input type="text" id="liq_historico" class="form-control" value="PAGAMENTO EFETUADO">
+        </div>
+
+        <div style="background:rgba(0, 230, 118, 0.05); padding:16px; border-radius:12px; border:1px solid rgba(0, 230, 118, 0.2); display:flex; justify-content:space-between; align-items:center">
+            <div style="font-size:13px; font-weight:700; color:var(--text)">Total Pago</div>
+            <div style="display:flex; align-items:center; gap:6px">
+                <span style="font-size:14px; color:var(--text2)">R$</span>
+                <input type="number" step="0.01" id="liq_vlrpago" class="form-control" style="width:110px; font-size:16px; font-weight:800; color:var(--success); background:transparent; border:none; border-bottom:2px solid var(--success); border-radius:0; padding:4px 0; text-align:right">
+            </div>
+        </div>
+
+        <div style="display:flex; gap:12px; margin-top:4px" id="liq_actions">
+            <button class="btn btn-outline" style="flex:1" onclick="fecharModalLiquidar()">Cancelar</button>
+            <button class="btn btn-success" style="flex:1" onclick="salvarLiquidacao()">Confirmar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentPage = 1;
+let _globalContas = [];
+/** Títulos estornados nesta sessão — só estes podem ser excluídos (com motivo). */
+const _pagarIdsEstornados = new Set();
+let _listTotal = 0;
+let chartNatureza, chartEvolucao;
+
+function getToken() {
+    try {
+        if (window.parent && window.parent !== window) {
+            const pt = window.parent.sessionStorage?.getItem('token') || window.parent.localStorage?.getItem('token');
+            if (pt) return pt;
+        }
+    } catch (_) {}
+    return sessionStorage.getItem('token') || localStorage.getItem('token') || '';
+}
+
+function authHeaders(extra) {
+    const h = Object.assign({}, extra || {});
+    const t = getToken();
+    if (t) h.Authorization = 'Bearer ' + t;
+    return h;
+}
+
+function isTituloAberto(row) {
+    const st = String(row.status || '').toUpperCase();
+    return ['ABERTA', 'ABERTO', ''].includes(st) || row.status_display === 'EM ATRASO';
+}
+
+function isTituloLiquidado(row) {
+    return row.status_display === 'LIQUIDADO' || ['LIQUIDADO', 'PAGO', 'BAIXADO', 'QUITADO'].includes(String(row.status || '').toUpperCase());
+}
+
+function shouldUseMobileCards() {
+    return isMobilePagarEmbed() && window.innerWidth < 901;
+}
+
+function isPagarMobileLayout() {
+    const html = document.documentElement;
+    return html.classList.contains('ms-page-contas-pagar')
+        && (html.classList.contains('sysrep-ms-embed') || html.classList.contains('ms-embedded-tech'));
+}
+
+function togglePagarFiltersMobile() {
+    const sec = document.getElementById('filters_section_pagar');
+    const btn = document.getElementById('btn_toggle_filters_pagar');
+    if (!sec || !isPagarMobileLayout()) return;
+    const collapsed = sec.classList.toggle('is-collapsed');
+    if (btn) btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+}
+
+function updatePagarFiltersHint() {
+    const hint = document.getElementById('pagar_filters_hint');
+    if (!hint || !isPagarMobileLayout()) return;
+    const st = document.getElementById('filter_status');
+    const nat = document.getElementById('filter_natureza');
+    const ini = document.getElementById('f_dt_ini')?.value || '';
+    const fim = document.getElementById('f_dt_fim')?.value || '';
+    const br = (iso) => (iso && iso.length >= 10) ? iso.slice(8, 10) + '/' + iso.slice(5, 7) : '';
+    const stTxt = st && st.selectedOptions[0] ? st.selectedOptions[0].text : 'Todos';
+    const natTxt = nat && nat.value && nat.selectedOptions[0] ? nat.selectedOptions[0].text : 'Todas';
+    hint.textContent = `${stTxt} · ${natTxt} · ${br(ini)}–${br(fim)}`;
+}
+
+/** Mesma lógica de pedidos.html — período global em localStorage */
+const PAGAR_ORDEM_LS = 'sysrep_pagar_ordem';
+
+function getPagarOrdem() {
+    const el = document.getElementById('filter_ordem');
+    const v = el ? el.value : '';
+    const allowed = ['venc_antigo', 'venc_recente', 'valor_maior', 'valor_menor'];
+    if (allowed.includes(v)) return v;
+    return localStorage.getItem(PAGAR_ORDEM_LS) || 'venc_antigo';
+}
+
+function onPagarOrdemChange() {
+    const el = document.getElementById('filter_ordem');
+    if (el) localStorage.setItem(PAGAR_ORDEM_LS, el.value);
+    currentPage = 1;
+    buscarPagar();
+}
+
+function hojeIsoLocal() {
+    return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+}
+
+function isoDataLocal(d) {
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+/** Venc. de = 1º dia do mês atual · Venc. até = hoje (fuso São Paulo). */
+function applyPeriodoRecorrente() {
+    const ini = document.getElementById('f_dt_ini');
+    const fim = document.getElementById('f_dt_fim');
+    if (!ini || !fim) return;
+    const hoje = new Date();
+    const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+    ini.value = isoDataLocal(inicioMes);
+    fim.value = hojeIsoLocal();
+}
+
+function limparFiltros() {
+    document.getElementById('filter_status').value = 'T';
+    document.getElementById('search_forn').value = '';
+    document.getElementById('filter_natureza').value = '';
+    const ordEl = document.getElementById('filter_ordem');
+    if (ordEl) {
+        ordEl.value = 'venc_antigo';
+        localStorage.setItem(PAGAR_ORDEM_LS, 'venc_antigo');
+    }
+    applyPeriodoRecorrente();
+    updatePagarFiltersHint();
+    buscarPagar();
+}
+
+const fmtCur = v => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
+
+function brParaIso(br) {
+    const m = String(br || '').trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    return m ? `${m[3]}-${m[2]}-${m[1]}` : '';
+}
+
+function isoParaBr(iso) {
+    const m = String(iso || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return m ? `${m[3]}/${m[2]}/${m[1]}` : '';
+}
+
+function fmtDate(d) {
+    if (d == null || d === '') return '-';
+    const s = String(d).trim();
+    if (!s || s.startsWith('0000-00-00') || s === 'Invalid Date') return '-';
+    const br = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (br) return s;
+    const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (iso) return `${iso[3]}/${iso[2]}/${iso[1]}`;
+    return '-';
+}
+function getPagarVencimento(row) {
+    if (row.vencimento_br) return row.vencimento_br;
+    return row.vencimento ?? row.Vencimento ?? row.data_vencimento ?? null;
+}
+function displayVencimento(row) {
+    const br = row.vencimento_br;
+    if (br) return br;
+    return fmtDate(getPagarVencimento(row));
+}
+
+// ── Grid de colunas (preferencias_grid / pagar_lista) ───────────────────────
+const PAGAR_GRID_COL_DEFAULTS = [
+    { id: 1,  label: 'Vencimento',         field: 'vencimento',       visible: true,  width: 96 },
+    { id: 2,  label: 'Favorecido',         field: 'nome_fornecedor',  visible: true },
+    { id: 3,  label: 'Natureza',           field: 'nome_natureza',    visible: true },
+    { id: 4,  label: 'Despesa',            field: 'nome_despesa',     visible: false },
+    { id: 5,  label: 'Documento',          field: 'doc',              visible: true },
+    { id: 6,  label: 'Número',             field: 'numero',           visible: false },
+    { id: 17, label: 'Nº NF',              field: 'numeronf',         visible: false },
+    { id: 7,  label: 'Valor',              field: 'valor',            visible: true,  align: 'right' },
+    { id: 8,  label: 'Status',             field: 'status_display',   visible: true,  width: 110 },
+    { id: 9,  label: 'Data pagamento',     field: 'data_pagto',       visible: false },
+    { id: 10, label: 'Data lançamento',    field: 'data_lanc',        visible: false },
+    { id: 11, label: 'Tipo',               field: 'tipo',             visible: false },
+    { id: 12, label: 'Forma pagamento',    field: 'forma_foipagto',   visible: false },
+    { id: 13, label: 'Valor pago',         field: 'vlrpago',            visible: false, align: 'right' },
+    { id: 14, label: 'Juros %',            field: 'juros',            visible: false, align: 'right' },
+    { id: 15, label: 'Observações',        field: 'obs',              visible: false },
+    { id: 16, label: 'ID',                 field: 'id',               visible: false, width: 56 },
+];
+const PAGAR_GRID_PIN_IDS = [1, 7, 8];
+const PAGAR_GRID_LS_KEY = 'sysrep_pagar_grid_cols_v2';
+let _pagarCols = mergePagarGridConfig(null);
+let _pagarGridSaveTimer = null;
+
+function mergePagarGridConfig(saved) {
+    const defaults = PAGAR_GRID_COL_DEFAULTS;
+    const defById = new Map(defaults.map((c) => [c.id, { ...c }]));
+    const savedMap = new Map();
+    const savedIds = [];
+    if (Array.isArray(saved) && saved.length) {
+        for (const s of saved) {
+            const id = parseInt(String(s.id), 10);
+            if (!id || Number.isNaN(id) || !defById.has(id)) continue;
+            savedMap.set(id, s);
+            savedIds.push(id);
+        }
+    }
+    if (!savedIds.length) return JSON.parse(JSON.stringify(defaults));
+    const pinSet = new Set(PAGAR_GRID_PIN_IDS);
+    function coerceVisible(v, fallback) {
+        if (typeof v === 'boolean') return v;
+        if (v === 'S' || v === 's' || v === 'true' || v === 1 || v === '1') return true;
+        if (v === 'N' || v === 'n' || v === 'false' || v === 0 || v === '0') return false;
+        return fallback;
+    }
+    function buildCol(id) {
+        const def = defById.get(id);
+        const s = savedMap.get(id);
+        let visible = s ? coerceVisible(s.visible, def.visible) : def.visible;
+        if (pinSet.has(id)) visible = true;
+        return {
+            id: def.id,
+            label: def.label,
+            field: def.field,
+            visible,
+            width: s && s.width != null && s.width !== '' ? s.width : def.width,
+            align: (s && s.align) || def.align,
+        };
+    }
+    const ordered = [];
+    for (const id of savedIds) {
+        if (defById.has(id) && !ordered.includes(id)) ordered.push(id);
+    }
+    for (const c of defaults) {
+        if (!ordered.includes(c.id)) ordered.push(c.id);
+    }
+    return ordered.map((id) => buildCol(id));
+}
+
+function readPagarGridLayoutLs() {
+    try {
+        const raw = localStorage.getItem(PAGAR_GRID_LS_KEY);
+        if (!raw) return null;
+        const a = JSON.parse(raw);
+        return Array.isArray(a) && a.length ? a : null;
+    } catch (_) { return null; }
+}
+function writePagarGridLayoutLs() {
+    try { localStorage.setItem(PAGAR_GRID_LS_KEY, JSON.stringify(_pagarCols)); } catch (_) {}
+}
+
+function renderPagarColChooser() {
+    const list = document.getElementById('pagarColChooserList');
+    if (!list) return;
+    list.innerHTML = _pagarCols.map((c, idx) => `
+        <div class="chooser-item-dynamic">
+            <label><input type="checkbox" data-col-id="${c.id}" ${c.visible ? 'checked' : ''}><span>${c.label}</span></label>
+            <div class="chooser-btns">
+                <button type="button" data-idx="${idx}" data-col-move="-1" title="Subir">↑</button>
+                <button type="button" data-idx="${idx}" data-col-move="1" title="Descer">↓</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function renderPagarTableHeaders() {
+    const head = document.getElementById('pagar_thead');
+    if (!head) return;
+    let html = isMobilePagarEmbed() ? '<tr>' : '<tr><th style="width:40px" class="no-print"><input type="checkbox" id="check_all" onclick="toggleAll()"></th>';
+    _pagarCols.filter((c) => c.visible).forEach((c) => {
+        const style = `${c.width ? `width:${c.width}px;` : ''}${c.align ? `text-align:${c.align};` : ''}`;
+        html += `<th class="col-pg-${c.id}" style="${style}">${c.label}</th>`;
+    });
+    if (!isMobilePagarEmbed()) html += '<th style="width:100px" class="no-print">Ações</th></tr>';
+    else html += '</tr>';
+    head.innerHTML = html;
+}
+
+function pagarCellHtml(col, row) {
+    const stClass = row.status_display === 'LIQUIDADO' ? 'badge-pago' : (row.status_display === 'EM ATRASO' ? 'badge-vencido' : 'badge-aberto');
+    switch (col.field) {
+        case 'vencimento': return displayVencimento(row);
+        case 'numeronf': return row.numeronf || row.numero_nf || '-';
+        case 'nome_fornecedor': return `<div style="font-weight:700">${row.nome_fornecedor || '-'}</div>`;
+        case 'nome_natureza': return `<div style="font-size:12px">${row.nome_natureza || row.nome_despesa || '-'}</div>`;
+        case 'nome_despesa': return row.despesas || row.nome_despesa || '-';
+        case 'doc': return row.doc || row.numero || '-';
+        case 'numero': return row.numero || '-';
+        case 'valor': return `<span style="font-weight:800;color:var(--accent)">${fmtCur(row.valor)}</span>`;
+        case 'status_display': return `<span class="badge ${stClass}">${row.status_display || row.status || '-'}</span>`;
+        case 'data_pagto': return fmtDate(row.data_pagto);
+        case 'data_lanc': return fmtDate(row.data_lanc);
+        case 'tipo': return row.tipo || '-';
+        case 'forma_foipagto': return row.forma_foipagto || '-';
+        case 'vlrpago': return fmtCur(row.vlrpago);
+        case 'juros': return row.juros != null ? row.juros : '-';
+        case 'obs': return `<span title="${(row.obs || '').replace(/"/g, '&quot;')}">${(row.obs || '-').slice(0, 40)}</span>`;
+        case 'id': return row.id;
+        default: return row[col.field] != null ? String(row[col.field]) : '-';
+    }
+}
+
+function savePagarGridConfig() {
+    writePagarGridLayoutLs();
+    if (_pagarGridSaveTimer) clearTimeout(_pagarGridSaveTimer);
+    _pagarGridSaveTimer = setTimeout(() => {
+        fetch('/api/pagar/config/grid', {
+            method: 'POST',
+            headers: authHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ config: _pagarCols }),
+        }).catch((e) => console.warn('savePagarGridConfig', e));
+    }, 400);
+}
+
+function flushPagarGridConfigSave() {
+    writePagarGridLayoutLs();
+    if (_pagarGridSaveTimer) clearTimeout(_pagarGridSaveTimer);
+    fetch('/api/pagar/config/grid', {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ config: _pagarCols }),
+        keepalive: true,
+    }).catch(() => {});
+}
+
+async function loadPagarGridConfig() {
+    try {
+        const r = await fetch('/api/pagar/config/grid', { headers: authHeaders(), cache: 'no-store' });
+        let cfg = null;
+        if (r.ok) {
+            const data = await r.json();
+            cfg = data.config;
+            if (typeof cfg === 'string') {
+                try { cfg = JSON.parse(cfg); } catch (_) { cfg = null; }
+            }
+        }
+        if (Array.isArray(cfg) && cfg.length) {
+            _pagarCols = mergePagarGridConfig(cfg);
+            writePagarGridLayoutLs();
+        } else {
+            const ls = readPagarGridLayoutLs();
+            _pagarCols = mergePagarGridConfig(ls && ls.length ? ls : null);
+        }
+    } catch (_) {
+        const ls = readPagarGridLayoutLs();
+        _pagarCols = mergePagarGridConfig(ls && ls.length ? ls : null);
+    }
+    renderPagarTableHeaders();
+    renderPagarColChooser();
+}
+
+function togglePagarChooser(e) {
+    if (e) e.stopPropagation();
+    const el = document.getElementById('pagarColChooser');
+    if (!el) return;
+    if (el.classList.contains('show')) flushPagarGridConfigSave();
+    el.classList.toggle('show');
+}
+
+function togglePagarColPersist(id, show) {
+    if (PAGAR_GRID_PIN_IDS.includes(id) && !show) {
+        const cb = document.querySelector(`#pagarColChooserList input[data-col-id="${id}"]`);
+        if (cb) cb.checked = true;
+        return;
+    }
+    const col = _pagarCols.find((c) => c.id === id);
+    if (col) col.visible = show;
+    writePagarGridLayoutLs();
+    renderPagarTableHeaders();
+    savePagarGridConfig();
+    renderTable(_globalContas);
+}
+
+function movePagarCol(idx, dir) {
+    const newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= _pagarCols.length) return;
+    const t = _pagarCols[idx];
+    _pagarCols[idx] = _pagarCols[newIdx];
+    _pagarCols[newIdx] = t;
+    writePagarGridLayoutLs();
+    renderPagarTableHeaders();
+    renderPagarColChooser();
+    savePagarGridConfig();
+    renderTable(_globalContas);
+}
+
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('.chooser-wrap')) {
+        const el = document.getElementById('pagarColChooser');
+        if (el && el.classList.contains('show')) flushPagarGridConfigSave();
+        if (el) el.classList.remove('show');
+    }
+});
+
+function logoCabecalhoImpressaoEmpresaOuInstalacao() {
+    const emp = JSON.parse(sessionStorage.getItem('empresa') || '{}');
+    let pl = {};
+    try { pl = JSON.parse(sessionStorage.getItem('parametros_locais') || '{}'); } catch (_) {}
+    const empLogo = String(emp.logo_relatorio || '').trim();
+    if (empLogo) {
+        return {
+            razao: emp.Razao_empresa,
+            logo: empLogo,
+            tam: String(emp.logo_tamanho_relatorio || 'M').toUpperCase()
+        };
+    }
+    const plLogo = String(pl.logo_relatorio || '').trim();
+    if (plLogo) {
+        return {
+            razao: emp.Razao_empresa,
+            logo: plLogo,
+            tam: String(pl.logo_tamanho_relatorio || 'M').toUpperCase()
+        };
+    }
+    return { razao: emp.Razao_empresa, logo: '', tam: 'M' };
+}
+
+function aplicarCabecalhoImpressaoEmpresa(defaultTitulo) {
+    try {
+        const { razao, logo, tam } = logoCabecalhoImpressaoEmpresaOuInstalacao();
+        const nameEl = document.getElementById('print_company_name');
+        const img = document.getElementById('print_company_logo');
+        const dim = tam === 'P' ? { h: 40, w: 100 } : tam === 'G' ? { h: 72, w: 220 } : { h: 52, w: 140 };
+        if (nameEl) nameEl.textContent = razao || defaultTitulo || 'Relatório';
+        if (img) {
+            if (logo) {
+                img.src = logo.startsWith('http') ? logo : (window.location.origin + (logo.startsWith('/') ? logo : '/' + logo));
+                img.style.maxHeight = dim.h + 'px';
+                img.style.maxWidth = dim.w + 'px';
+                img.style.display = '';
+            } else {
+                img.style.display = 'none';
+                img.removeAttribute('src');
+            }
+        }
+    } catch (e) {
+        const nameEl = document.getElementById('print_company_name');
+        if (nameEl) nameEl.textContent = defaultTitulo || 'Relatório';
+    }
+}
+
+function isMobilePagarEmbed() {
+    const html = document.documentElement;
+    return html.classList.contains('sysrep-ms-embed') || html.classList.contains('ms-embedded-tech');
+}
+
+function periodoImpressaoTexto() {
+    const dtIni = document.getElementById('f_dt_ini')?.value || '';
+    const dtFim = document.getElementById('f_dt_fim')?.value || '';
+    const fDate = (d) => d ? d.split('-').reverse().join('/') : '';
+    return (dtIni || dtFim) ? `${fDate(dtIni)} à ${fDate(dtFim)}` : 'Geral (sem filtro de vencimento)';
+}
+
+function aplicarCabecalhoRelatorioPagar(titulo) {
+    document.getElementById('print_periodo').textContent = periodoImpressaoTexto();
+    document.getElementById('print_emitido').textContent = new Date().toLocaleString('pt-BR');
+    const titleEl = document.getElementById('print_report_title');
+    if (titleEl) titleEl.textContent = titulo || 'Relatório de Contas a Pagar';
+    aplicarCabecalhoImpressaoEmpresa(titulo || 'Relatório de Contas a Pagar');
+}
+
+function setPrintTheadPadrao() {
+    const thead = document.getElementById('print_thead');
+    if (!thead) return;
+    thead.innerHTML = `<tr class="border-dashed-top border-dashed-bottom">
+        <th>Vencimento</th>
+        <th>Favorecido / Fornecedor</th>
+        <th>Natureza / Categoria</th>
+        <th>Documento</th>
+        <th>Valor</th>
+        <th>Status</th>
+    </tr>`;
+}
+
+function setPrintTheadPagas() {
+    const thead = document.getElementById('print_thead');
+    if (!thead) return;
+    thead.innerHTML = `<tr class="border-dashed-top border-dashed-bottom">
+        <th>Data pagamento</th>
+        <th>Favorecido / Fornecedor</th>
+        <th>Natureza / Categoria</th>
+        <th>Documento</th>
+        <th>Valor pago</th>
+        <th>Forma</th>
+    </tr>`;
+}
+
+function docPagarLabel(c) {
+    return c.doc || c.numeronf || (c.numero != null ? String(c.numero) : '') || '-';
+}
+
+function naturezaPagarLabel(c) {
+    let nat = c.nome_natureza || c.nome_despesa || c.despesas || '-';
+    if (c.nome_despesa && c.nome_natureza && c.nome_despesa !== c.nome_natureza) {
+        nat = `${c.nome_natureza} / ${c.nome_despesa}`;
+    }
+    return nat;
+}
+
+function valorPagoPagar(c) {
+    const v = parseFloat(c.vlrpago);
+    if (!Number.isNaN(v) && v > 0) return v;
+    return parseFloat(c.valor) || 0;
+}
+
+/**
+ * Busca todos os títulos para impressão (pagina até trazer o total da API).
+ * @param {{ statusOverride?: string, filtroDataPagto?: boolean, ordemOverride?: string }} opts
+ */
+async function fetchPagarFiltrados(opts = {}) {
+    const status = opts.statusOverride != null ? opts.statusOverride : document.getElementById('filter_status').value;
+    const search = document.getElementById('search_forn').value;
+    const nat = document.getElementById('filter_natureza').value;
+    const dtIni = document.getElementById('f_dt_ini').value;
+    const dtFim = document.getElementById('f_dt_fim').value;
+    const ordem = opts.ordemOverride || getPagarOrdem();
+    const pageSize = 500;
+    const all = [];
+    let page = 1;
+    let totalApi = 0;
+
+    const filtroData = opts.filtroDataPagto ? '&filtro_data=pagto' : '';
+
+    while (page <= 200) {
+        const url = `/api/pagar?page=${page}&limit=${pageSize}&status=${encodeURIComponent(status)}&fornecedor=${encodeURIComponent(search)}&id_despesas=${nat}&dt_inicio=${encodeURIComponent(dtIni)}&dt_fim=${encodeURIComponent(dtFim)}&ordem=${encodeURIComponent(ordem)}${filtroData}`;
+        const r = await fetch(url, { headers: authHeaders(), cache: 'no-store' });
+        if (!r.ok) {
+            const errBody = await r.json().catch(() => ({}));
+            throw new Error(errBody.error || 'Falha ao carregar títulos');
+        }
+        const res = await r.json();
+        const chunk = res.data || [];
+        totalApi = parseInt(res.total, 10) || 0;
+        all.push(...chunk);
+        if (!chunk.length || all.length >= totalApi) break;
+        page += 1;
+    }
+    return all;
+}
+
+async function fetchPagarContasPagas() {
+    return fetchPagarFiltrados({
+        statusOverride: 'LIQUIDADO',
+        filtroDataPagto: false,
+    });
+}
+
+function preencherRodapeRelatorio(qtd, total) {
+    document.getElementById('print_qtd').textContent = `${qtd} título(s)`;
+    document.getElementById('print_total').textContent = fmtCur(total);
+}
+
+function dispararImpressao(classeBody) {
+    document.body.classList.remove('print-list', 'print-dash', 'print-recibo', 'print-pagas');
+    if (classeBody) document.body.classList.add(classeBody);
+    setTimeout(() => {
+        window.print();
+        setTimeout(() => document.body.classList.remove('print-list', 'print-dash', 'print-recibo', 'print-pagas'), 600);
+    }, 220);
+}
+
+async function imprimirRelatorioFiltrado() {
+    const isDash = document.getElementById('content_analise').classList.contains('active');
+    if (isDash) {
+        document.body.classList.add('print-dash');
+        window.print();
+        return;
+    }
+    setPrintTheadPadrao();
+    aplicarCabecalhoRelatorioPagar('Relatório de Contas a Pagar (filtro atual)');
+    document.getElementById('print_tbody').innerHTML = '<tr><td colspan="6">Carregando...</td></tr>';
+    try {
+        const allContas = await fetchPagarFiltrados();
+        const tbody = document.getElementById('print_tbody');
+        tbody.innerHTML = '';
+        let total = 0;
+        allContas.forEach((c) => {
+            total += parseFloat(c.valor || 0);
+            tbody.innerHTML += `<tr>
+                <td>${displayVencimento(c)}</td>
+                <td>${c.nome_fornecedor || c.cod_fornecedor || '-'}</td>
+                <td>${naturezaPagarLabel(c)}</td>
+                <td>${docPagarLabel(c)}</td>
+                <td>${fmtCur(c.valor)}</td>
+                <td>${c.status_display || c.status || '-'}</td>
+            </tr>`;
+        });
+        preencherRodapeRelatorio(allContas.length, total);
+        dispararImpressao('print-pagas');
+    } catch (e) {
+        console.error(e);
+        document.getElementById('print_tbody').innerHTML = '<tr><td colspan="6">Erro ao carregar relatório.</td></tr>';
+        alert(e.message || 'Erro ao imprimir');
+    }
+}
+
+async function imprimirContasPagas() {
+    setPrintTheadPagas();
+    aplicarCabecalhoRelatorioPagar('Relatório de Contas Pagas');
+    document.getElementById('print_tbody').innerHTML = '<tr><td colspan="6">Carregando contas pagas...</td></tr>';
+    try {
+        const pagas = await fetchPagarContasPagas();
+        if (!pagas.length) {
+            alert('Nenhuma conta paga encontrada com o período de vencimento e filtros informados.');
+            return;
+        }
+        const tbody = document.getElementById('print_tbody');
+        tbody.innerHTML = '';
+        let total = 0;
+        pagas.forEach((c) => {
+            const vp = valorPagoPagar(c);
+            total += vp;
+            tbody.innerHTML += `<tr>
+                <td>${fmtDate(c.data_pagto) || displayVencimento(c)}</td>
+                <td>${c.nome_fornecedor || '-'}</td>
+                <td>${naturezaPagarLabel(c)}</td>
+                <td>${docPagarLabel(c)}</td>
+                <td>${fmtCur(vp)}</td>
+                <td>${c.forma_foipagto || c.forma_pagto || '-'}</td>
+            </tr>`;
+        });
+        preencherRodapeRelatorio(pagas.length, total);
+        dispararImpressao('print-pagas');
+    } catch (e) {
+        console.error(e);
+        alert(e.message || 'Erro ao gerar relatório de contas pagas');
+    }
+}
+
+function exportarPDFContasPagas() {
+    imprimirContasPagas();
+}
+
+async function imprimirTela() {
+    await imprimirRelatorioFiltrado();
+}
+
+function toggleRelMenuPagar() {
+    document.getElementById('rel-menu-pagar')?.classList.toggle('open');
+}
+function fecharRelMenuPagar() {
+    document.getElementById('rel-menu-pagar')?.classList.remove('open');
+}
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('#rel-dropdown-pagar')) fecharRelMenuPagar();
+});
+
+function valorExtensoPagar(v) {
+    if (!v) return 'zero reais';
+    const inteiro = Math.floor(v);
+    const centavos = Math.round((v - inteiro) * 100);
+    const ext = (n) => {
+        if (n === 0) return '';
+        const u = ['', 'um', 'dois', 'três', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove', 'dez', 'onze', 'doze', 'treze', 'quatorze', 'quinze', 'dezesseis', 'dezessete', 'dezoito', 'dezenove'];
+        const d = ['', '', 'vinte', 'trinta', 'quarenta', 'cinquenta', 'sessenta', 'setenta', 'oitenta', 'noventa'];
+        const c = ['', 'cem', 'duzentos', 'trezentos', 'quatrocentos', 'quinhentos', 'seiscentos', 'setecentos', 'oitocentos', 'novecentos'];
+        if (n < 20) return u[n];
+        if (n < 100) return d[Math.floor(n / 10)] + (n % 10 ? ' e ' + u[n % 10] : '');
+        if (n === 100) return 'cem';
+        if (n < 1000) return c[Math.floor(n / 100)] + (n % 100 ? ' e ' + ext(n % 100) : '');
+        if (n < 1000000) return ext(Math.floor(n / 1000)) + ' mil' + (n % 1000 ? ' e ' + ext(n % 1000) : '');
+        return String(n);
+    };
+    let res = ext(inteiro) + (inteiro === 1 ? ' real' : ' reais');
+    if (centavos) res += ' e ' + ext(centavos) + (centavos === 1 ? ' centavo' : ' centavos');
+    return res.charAt(0).toUpperCase() + res.slice(1);
+}
+
+function _htmlReciboPagar(row) {
+    let emp = {};
+    try { emp = JSON.parse(sessionStorage.getItem('empresa') || localStorage.getItem('empresa') || '{}'); } catch (_) {}
+    const empNome = emp.Razao_empresa || emp.nome_empresa || document.getElementById('print_company_name')?.textContent || 'Empresa';
+    const empCnpj = emp.CNPJ_empresa || emp.cnpj || '';
+    const empEnd = [emp.Endereco_empresa, emp.Cidade_empresa, emp.UF_empresa].filter(Boolean).join(' — ');
+    const hoje = new Date().toLocaleDateString('pt-BR');
+    const valor = valorPagoPagar(row);
+    const numero = docPagarLabel(row);
+    const dataPag = fmtDate(row.data_pagto) || hoje;
+    return `
+    <div class="recibo-page">
+        <div class="recibo-header">
+            <div>
+                <div class="recibo-empresa-nome">${empNome}</div>
+                ${empCnpj ? `<div class="recibo-empresa-sub">CNPJ: ${empCnpj}</div>` : ''}
+                ${empEnd ? `<div class="recibo-empresa-sub">${empEnd}</div>` : ''}
+            </div>
+            <div style="text-align:right;font-size:11px;color:#666">
+                <div>Recibo nº <strong>${numero}</strong></div>
+                <div>Pago em: ${dataPag}</div>
+            </div>
+        </div>
+        <div class="recibo-titulo">Comprovante de Pagamento</div>
+        <div class="recibo-corpo">
+            <div class="recibo-campo full">
+                <label>Pago a (favorecido)</label>
+                <span>${row.nome_fornecedor || '—'}</span>
+            </div>
+            <div class="recibo-campo destaque">
+                <label>Valor pago (R$)</label>
+                <span>${fmtCur(valor)}</span>
+            </div>
+            <div class="recibo-campo">
+                <label>Vencimento</label>
+                <span>${displayVencimento(row)}</span>
+            </div>
+            <div class="recibo-campo">
+                <label>Forma</label>
+                <span>${row.forma_foipagto || row.forma_pagto || '—'}</span>
+            </div>
+            <div class="recibo-campo full">
+                <label>Natureza / referência</label>
+                <span>${naturezaPagarLabel(row)}</span>
+            </div>
+            ${row.obs ? `<div class="recibo-campo full"><label>Observações</label><span>${row.obs}</span></div>` : ''}
+        </div>
+        <div class="recibo-extenso">Por extenso: ${valorExtensoPagar(valor)}</div>
+        <div class="recibo-assinaturas">
+            <div class="recibo-assina">
+                <div class="recibo-assina-linha"></div>
+                <div class="recibo-assina-label">${empNome}</div>
+            </div>
+            <div class="recibo-assina">
+                <div class="recibo-assina-linha"></div>
+                <div class="recibo-assina-label">${row.nome_fornecedor || 'Favorecido'}</div>
+            </div>
+        </div>
+        <div class="recibo-footer">Emitido em ${hoje} · Contas a Pagar</div>
+    </div>`;
+}
+
+async function imprimirRecibosPagasFiltradas() {
+    try {
+        const pagas = await fetchPagarContasPagas();
+        if (!pagas.length) {
+            alert('Nenhuma conta paga no período para gerar recibos.');
+            return;
+        }
+        document.getElementById('print_recibo_container').innerHTML = pagas.map(_htmlReciboPagar).join('');
+        dispararImpressao('print-recibo');
+    } catch (e) {
+        alert(e.message || 'Erro ao gerar recibos');
+    }
+}
+
+async function switchTab(tabId, el) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    if (el) el.classList.add('active');
+    else document.querySelector(`.tab-btn[onclick*="'${tabId}'"]`)?.classList.add('active');
+    document.getElementById('content_' + tabId).classList.add('active');
+    if (tabId === 'analise') loadDashboard();
+}
+
+async function fetchData() {
+    try {
+        const status = document.getElementById('filter_status').value;
+        const search = document.getElementById('search_forn').value;
+        const nat = document.getElementById('filter_natureza').value;
+        const dIni = document.getElementById('f_dt_ini').value;
+        const dFim = document.getElementById('f_dt_fim').value;
+
+        if (!getToken()) {
+            console.warn('Sem token de autenticação');
+            _globalContas = [];
+            renderTable([]);
+            updatePagination(0, 50);
+            return;
+        }
+
+        const ordem = getPagarOrdem();
+        let url = `/api/pagar?page=${currentPage}&limit=50&status=${status}&fornecedor=${encodeURIComponent(search)}&id_despesas=${nat}&dt_inicio=${dIni}&dt_fim=${dFim}&ordem=${ordem}`;
+        const r = await fetch(url, { headers: authHeaders(), cache: 'no-store' });
+        if (!r.ok) {
+            const errBody = await r.json().catch(() => ({}));
+            throw new Error(errBody.error || 'Falha na resposta do servidor');
+        }
+        const res = await r.json();
+        _globalContas = res.data || [];
+        _listTotal = res.total || 0;
+        renderTable(_globalContas);
+        updatePagination(_listTotal, res.limit || 50);
+        atualizarResumoLista();
+        atualizarKpiPeriodo(res.periodo, dIni, dFim);
+        await fetchStats();
+        unselectAll();
+    } catch (e) {
+        console.error('fetchData Error:', e);
+        _globalContas = [];
+        renderTable([]);
+        updatePagination(0, 50);
+        const body = document.getElementById('table_body');
+        if (body) {
+            body.innerHTML = `<tr><td colspan="${pagarTableColspan()}" style="text-align:center;padding:24px;color:var(--danger)">Erro ao carregar: ${(e && e.message) || 'falha na API'}. Reinicie o servidor Node se acabou de atualizar o código.</td></tr>`;
+        }
+    }
+}
+
+function buscarPagar() {
+    updatePagarFiltersHint();
+    currentPage = 1;
+    fetchData();
+}
+
+function pagarPodeExcluirAposEstorno(id) {
+    const k = String(id);
+    return _pagarIdsEstornados.has(k) || _pagarIdsEstornados.has(Number(k));
+}
+
+function abrirModalExcluirPagar(id) {
+    if (!pagarPodeExcluirAposEstorno(id)) {
+        alert('Exclusão disponível somente após estornar o título liquidado.');
+        return;
+    }
+    const row = (_globalContas || []).find((c) => String(c.id) === String(id));
+    if (!row || !isTituloAberto(row)) {
+        alert('O título precisa estar em aberto (estorne antes de excluir).');
+        return;
+    }
+    document.getElementById('excluir_id_pagar').value = id;
+    const ta = document.getElementById('excluir_motivo_pagar');
+    if (ta) ta.value = '';
+    document.getElementById('modal_excluir_pagar').style.display = 'flex';
+    if (ta) setTimeout(() => ta.focus(), 80);
+}
+
+function fecharModalExcluirPagar() {
+    const m = document.getElementById('modal_excluir_pagar');
+    if (m) m.style.display = 'none';
+}
+
+async function confirmarExcluirPagar() {
+    const id = document.getElementById('excluir_id_pagar')?.value;
+    const motivo = (document.getElementById('excluir_motivo_pagar')?.value || '').trim();
+    if (!id) return;
+    if (!motivo) {
+        alert('Informe o motivo da exclusão.');
+        return;
+    }
+    try {
+        const r = await fetch(`/api/pagar/${id}`, {
+            method: 'DELETE',
+            headers: authHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ motivo })
+        });
+        const errBody = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(errBody.error || 'Falha ao excluir');
+        _pagarIdsEstornados.delete(String(id));
+        fecharModalExcluirPagar();
+        await fetchData();
+    } catch (e) {
+        console.error('excluir:', e);
+        alert((e && e.message) || 'Não foi possível excluir o título.');
+    }
+}
+
+function excluir(id) {
+    abrirModalExcluirPagar(id);
+}
+
+function pagarTableColspan() {
+    const extra = isMobilePagarEmbed() ? 0 : 2;
+    return _pagarCols.filter((c) => c.visible).length + extra;
+}
+
+function exportar() {
+    const vis = _pagarCols.filter((c) => c.visible);
+    let csv = vis.map((c) => c.label).join(';') + '\n';
+    (_globalContas || []).forEach((c) => {
+        csv += vis.map((col) => {
+            const v = col.field === 'vencimento' ? getPagarVencimento(c) : c[col.field];
+            if (col.field === 'valor' || col.field === 'vlrpago') return v;
+            if (col.field === 'vencimento') return displayVencimento(c);
+            if (col.field === 'data_pagto' || col.field === 'data_lanc') return fmtDate(v);
+            return v != null ? String(v).replace(/;/g, ',') : '';
+        }).join(';') + '\n';
+    });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute('download', 'contas_a_pagar.csv');
+    link.click();
+}
+
+function atualizarKpiPeriodo(periodo, dIni, dFim) {
+    const ip = document.getElementById('ins_periodo');
+    const ipq = document.getElementById('ins_periodo_qtd');
+    if (!periodo || !ip) return;
+    const total = parseFloat(periodo.total) || 0;
+    const q = parseInt(periodo.qtd, 10) || 0;
+    ip.textContent = fmtCur(total);
+    if (ipq) {
+        if (dIni && dFim) {
+            ipq.textContent = `${q} título(s) · ${fmtDate(dIni)} a ${fmtDate(dFim)}`;
+        } else {
+            ipq.textContent = q ? `${q} título(s) · todos os vencimentos` : 'Período: todos';
+        }
+    }
+}
+
+function atualizarResumoLista() {
+    const qtd = _listTotal || 0;
+    const pageVal = (_globalContas || []).reduce((s, r) => s + (parseFloat(r.valor) || 0), 0);
+    const sum = document.getElementById('list_summary');
+    if (sum) {
+        sum.innerHTML = qtd
+            ? `<strong>${qtd}</strong> título(s) no filtro · soma dos valores exibidos: <strong>${fmtCur(pageVal)}</strong>`
+            : 'Nenhum título encontrado. Ajuste os filtros e clique em <strong>Buscar</strong>.';
+    }
+    const rv = document.getElementById('ins_resultado_val');
+    const rq = document.getElementById('ins_resultado_qtd');
+    if (rv) rv.textContent = String(qtd);
+    if (rq) rq.textContent = qtd ? `${qtd} registro(s)` : 'Sem registros';
+}
+
+function renderTable(rows) {
+    const list = Array.isArray(rows) ? rows : [];
+    renderDesktopTable(list);
+    if (shouldUseMobileCards()) renderMobileCards(list);
+    else {
+        const mob = document.getElementById('cards_mobile_pagar');
+        if (mob) mob.innerHTML = '';
+    }
+}
+
+function renderDesktopTable(rows) {
+    const body = document.getElementById('table_body');
+    if (!body) return;
+    const list = Array.isArray(rows) ? rows : [];
+    const visCols = _pagarCols.filter((c) => c.visible);
+    const colspan = pagarTableColspan();
+    body.innerHTML = '';
+    if (!list.length) {
+        body.innerHTML = `<tr><td colspan="${colspan}" style="text-align:center;padding:40px;color:var(--text2)">Nenhum lançamento encontrado para os filtros atuais</td></tr>`;
+        return;
+    }
+    list.forEach(row => {
+        const aberto = isTituloAberto(row);
+        const tr = document.createElement('tr');
+        let html = isMobilePagarEmbed() ? '' : `<td>${aberto ? `<input type="checkbox" class="row-check" value="${row.id}" onchange="updateBulkBar()">` : ''}</td>`;
+        visCols.forEach((col) => {
+            const align = col.align ? ` style="text-align:${col.align}"` : '';
+            html += `<td class="col-pg-${col.id}"${align}>${pagarCellHtml(col, row)}</td>`;
+        });
+        if (!isMobilePagarEmbed()) {
+            const podeExcluir = aberto && pagarPodeExcluirAposEstorno(row.id);
+            html += `<td>
+                <div style="display:flex; gap:4px">
+                    ${isTituloLiquidado(row) ? `
+                        <button class="btn btn-outline" style="padding:4px 6px; color:var(--accent); border-color:var(--accent)" onclick="abrirModalLiquidar(${row.id}, true)" title="Detalhes">👁️</button>
+                        <button class="btn btn-outline" style="padding:4px 6px; color:var(--warn); border-color:var(--warn)" onclick="estornar(${row.id})" title="Estornar">↩️</button>
+                    ` : podeExcluir ? `
+                        <button class="btn btn-outline" style="padding:4px 6px; color:var(--danger); border-color:var(--danger)" onclick="excluir(${row.id})" title="Excluir (após estorno)">✕</button>
+                    ` : aberto ? `
+                        <button class="btn btn-outline" style="padding:4px 6px; color:var(--success); border-color:var(--success)" onclick="abrirModalLiquidar(${row.id})" title="Liquidar Conta">💵</button>
+                        <button class="btn btn-outline" style="padding:4px 6px" onclick="abrirEditar(${row.id})" title="Editar">✎</button>
+                    ` : `
+                        <button class="btn btn-outline" style="padding:4px 6px; color:var(--accent); border-color:var(--accent)" onclick="abrirModalLiquidar(${row.id}, true)" title="Detalhes">👁️</button>
+                    `}
+                </div>
+            </td>`;
+        }
+        tr.innerHTML = html;
+        body.appendChild(tr);
+    });
+}
+
+function renderMobileCards(rows) {
+    const container = document.getElementById('cards_mobile_pagar');
+    if (!container) return;
+    const list = Array.isArray(rows) ? rows : [];
+    if (!list.length) {
+        container.innerHTML = '<div class="pagar-mob-empty">Nenhum lançamento encontrado</div>';
+        return;
+    }
+    const COR = { 'ABERTA': 'var(--accent)', 'EM ATRASO': 'var(--danger)', 'LIQUIDADO': 'var(--success)' };
+    container.innerHTML = list.map(row => {
+        const disp = row.status_display || row.status;
+        const cor = COR[disp] || 'var(--text2)';
+        const stClass = disp === 'LIQUIDADO' ? 'badge-pago' : (disp === 'EM ATRASO' ? 'badge-vencido' : 'badge-aberto');
+        const natureza = row.nome_natureza || row.nome_despesa || '';
+        const doc = row.doc || row.numero;
+        const meta = [natureza, doc ? 'Doc: ' + doc : ''].filter(Boolean).join(' · ');
+        let btnAcoes = '';
+        if (isTituloLiquidado(row)) {
+            btnAcoes = `<div class="pagar-mob-row__actions"><button type="button" class="pagar-mob-btn-estorno" onclick="event.stopPropagation();estornar(${row.id})">↩ Estornar</button></div>`;
+        } else if (isTituloAberto(row) && pagarPodeExcluirAposEstorno(row.id)) {
+            btnAcoes = `<div class="pagar-mob-row__actions"><button type="button" class="pagar-mob-btn-excluir" onclick="event.stopPropagation();excluir(${row.id})">✕ Excluir</button></div>`;
+        }
+        return `
+        <article class="pagar-mob-row" style="border-left-color:${cor}">
+            <div class="pagar-mob-row__body">
+              <div class="pagar-mob-row__title">${row.nome_fornecedor || '—'}</div>
+              ${meta ? `<div class="pagar-mob-row__meta">${meta}</div>` : ''}
+              <div class="pagar-mob-row__venc">Venc. <strong>${displayVencimento(row)}</strong></div>
+            </div>
+            <div class="pagar-mob-row__end">
+              <span class="badge ${stClass}">${disp}</span>
+              <div class="pagar-mob-row__valor" style="color:${cor}">${fmtCur(row.valor)}</div>
+            </div>
+            ${btnAcoes}
+        </article>`;
+    }).join('');
+}
+
+function updatePagination(total, limit) {
+    document.getElementById('pag_info').textContent = `Total: ${total} títulos | Página ${currentPage}`;
+    document.getElementById('btn_prev').disabled = currentPage <= 1;
+    document.getElementById('btn_next').disabled = (currentPage * limit) >= total;
+}
+function changePage(d) { currentPage += d; fetchData(); }
+
+function toggleAll() {
+    const checkAll = document.getElementById('check_all');
+    if (!checkAll) return;
+    const main = checkAll.checked;
+    document.querySelectorAll('.row-check').forEach((c) => { c.checked = main; });
+    updateBulkBar();
+}
+
+function updateBulkBar() {
+    const checked = document.querySelectorAll('.row-check:checked');
+    const bar = document.getElementById('bulk_bar');
+    if (!bar) return;
+    if (checked.length > 0) {
+        bar.classList.add('show');
+        const bulkCount = document.getElementById('bulk_count');
+        if (bulkCount) bulkCount.textContent = `${checked.length} selecionados`;
+    } else {
+        bar.classList.remove('show');
+        const checkAll = document.getElementById('check_all');
+        if (checkAll) checkAll.checked = false;
+    }
+}
+
+function unselectAll() {
+    const checkAll = document.getElementById('check_all');
+    if (checkAll) checkAll.checked = false;
+    document.querySelectorAll('.row-check').forEach((c) => { c.checked = false; });
+    updateBulkBar();
+}
+
+async function fetchStats() {
+    const dIni = document.getElementById('f_dt_ini')?.value || '';
+    const dFim = document.getElementById('f_dt_fim')?.value || '';
+    let url = '/api/pagar/stats';
+    const q = [];
+    if (dIni) q.push(`dt_inicio=${encodeURIComponent(dIni)}`);
+    if (dFim) q.push(`dt_fim=${encodeURIComponent(dFim)}`);
+    if (q.length) url += '?' + q.join('&');
+    try {
+        const r = await fetch(url, { headers: authHeaders() });
+        if (!r.ok) return;
+        const s = await r.json();
+        document.getElementById('ins_aberto').textContent = fmtCur(s.total_pendente);
+        document.getElementById('ins_vencido').textContent = fmtCur(s.total_vencido);
+        document.getElementById('ins_vencido_qtd').textContent = `${s.qtd_vencidos || 0} títulos em atraso`;
+        document.getElementById('ins_pago').textContent = fmtCur(s.total_pago_hoje);
+        if (s.total_periodo != null || s.qtd_periodo != null) {
+            atualizarKpiPeriodo({ total: s.total_periodo, qtd: s.qtd_periodo }, dIni, dFim);
+        }
+    } catch (e) {
+        console.warn('fetchStats:', e);
+    }
+}
+
+function abrirNovo() {
+    resetForm();
+    document.getElementById('panel_title').textContent = 'Provisionar Conta';
+    document.getElementById('f_status').value = 'ABERTA';
+    document.getElementById('group_recorrencia').style.display = 'block';
+    document.getElementById('panel_form').classList.add('open');
+}
+
+function abrirLiquidado() {
+    // Agora "Lançar Conta Paga" apenas abre um painel para inclusão rápida e pagamento
+    resetForm();
+    document.getElementById('panel_title').textContent = 'Lançamento de Contas Pagas';
+    document.getElementById('f_status').value = 'LIQUIDADO';
+    document.getElementById('group_recorrencia').style.display = 'none';
+    document.getElementById('panel_form').classList.add('open');
+    // Para simplificar, vou permitir provisionar como LIQUIDADO e usar salvar() para contas sem ID.
+    // Assim que a API de POST for chamada, ela lida com o pagamento se status = LIQUIDADO.
+    // Idealmente Lançar Conta Paga usa o modal, mas como precisa do Fornecedor, deixamos o panel_form.
+    // Mas agora que tiramos os campos do panel_form, o POST de um LIQUIDADO precisará dos valores originais.
+    // Para resolver: Lançar Conta Paga provisiona primeiro, e abre o modal de liquidar na tela.
+}
+
+function resetForm() {
+    document.getElementById('f_id').value = '';
+    document.getElementById('f_cod_fornecedor').value = '';
+    document.getElementById('f_num').value = '';
+    const hintNum = document.getElementById('f_numero_interno_hint');
+    if (hintNum) { hintNum.style.display = 'none'; hintNum.textContent = ''; }
+    document.getElementById('f_nome').value = '';
+    document.getElementById('f_valor').value = '';
+    document.getElementById('f_venc').value = hojeIsoLocal();
+    document.getElementById('f_obs').value = '';
+    document.getElementById('f_meses').value = 1;
+}
+
+function calcLiquidar() {
+    const valorOriginal = parseFloat(document.getElementById('liq_valor_base').value) || 0;
+    const pctJuros = parseFloat(document.getElementById('liq_juros').value) || 0;
+    const acrescimo = parseFloat(document.getElementById('liq_acrescimo').value) || 0;
+    
+    let vlrJuros = 0;
+    if (pctJuros > 0) {
+        vlrJuros = valorOriginal * (pctJuros / 100);
+    }
+    
+    const vlrFinal = valorOriginal + vlrJuros + acrescimo;
+    document.getElementById('liq_vlrpago').value = vlrFinal > 0 ? vlrFinal.toFixed(2) : valorOriginal.toFixed(2);
+}
+
+function abrirModalLiquidar(id, isViewOnly = false) {
+    const conta = _globalContas.find(c => c.id == id);
+    if (!conta) return;
+
+    document.getElementById('liq_id').value = conta.id;
+    document.getElementById('liq_valor_base').value = conta.valor;
+    document.getElementById('liq_fornecedor').textContent = conta.nome_fornecedor || 'Desconhecido';
+    document.getElementById('liq_valor_original').textContent = fmtCur(conta.valor);
+    
+    const dp = conta.data_pagto ? String(conta.data_pagto).slice(0, 10) : '';
+    document.getElementById('liq_data_pagto').value = dp || hojeIsoLocal();
+    document.getElementById('liq_forma').value = conta.forma_foipagto || 'PIX';
+    document.getElementById('liq_juros').value = conta.juros || '';
+    document.getElementById('liq_acrescimo').value = conta.vlracressimo || '';
+    document.getElementById('liq_historico').value = conta.obs || 'PAGAMENTO EFETUADO';
+    
+    if (conta.vlrpago && conta.vlrpago > 0) {
+        document.getElementById('liq_vlrpago').value = conta.vlrpago;
+    } else {
+        calcLiquidar();
+    }
+
+    // Se for visualização
+    const inputs = document.querySelectorAll('#modal_pagamento input, #modal_pagamento select');
+    inputs.forEach(el => el.disabled = isViewOnly);
+    document.getElementById('liq_actions').style.display = isViewOnly ? 'none' : 'flex';
+    document.getElementById('liq_title').textContent = isViewOnly ? 'Recibo de Pagamento' : 'Liquidar Conta';
+
+    document.getElementById('modal_pagamento').style.display = 'flex';
+}
+
+function fecharModalLiquidar() {
+    document.getElementById('modal_pagamento').style.display = 'none';
+}
+
+async function salvarLiquidacao() {
+    const id = document.getElementById('liq_id').value;
+    const body = {
+        baixar: true,
+        status: 'LIQUIDADO',
+        data_pagto: document.getElementById('liq_data_pagto').value,
+        forma_foipagto: document.getElementById('liq_forma').value,
+        juros: document.getElementById('liq_juros').value || 0,
+        vlracressimo: document.getElementById('liq_acrescimo').value || 0,
+        vlrpago: document.getElementById('liq_vlrpago').value,
+        obs: document.getElementById('liq_historico').value
+    };
+
+    // Necessário mandar vlrjuros para a API se ela esperar
+    const valBase = parseFloat(document.getElementById('liq_valor_base').value) || 0;
+    const pctJuros = parseFloat(body.juros);
+    if (pctJuros > 0) {
+        body.vlrjuros = valBase * (pctJuros / 100);
+    } else {
+        body.vlrjuros = 0;
+    }
+    
+    await fetch(`/api/pagar/${id}`, {
+        method: 'PUT',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(body)
+    });
+    
+    fecharModalLiquidar();
+    fetchData();
+}
+
+async function estornar(id) {
+    if (!confirm('Deseja estornar este pagamento e voltar a conta para ABERTA?')) return;
+    try {
+        const r = await fetch(`/api/pagar/${id}`, {
+            method: 'PUT',
+            headers: authHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({
+                estornar: true,
+                status: 'ABERTA',
+                data_pagto: null,
+                vlrpago: 0,
+                forma_foipagto: null,
+                juros: 0,
+                vlrjuros: 0,
+                vlracressimo: 0,
+                baixar: false
+            })
+        });
+        const errBody = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(errBody.error || 'Falha ao estornar');
+        _pagarIdsEstornados.add(String(id));
+        await fetchData();
+    } catch (e) {
+        console.error('estornar:', e);
+        alert((e && e.message) || 'Não foi possível estornar o título.');
+    }
+}
+
+async function abrirEditar(id) {
+    resetForm();
+    const conta = _globalContas.find(c => c.id == id);
+    if (!conta) return;
+    
+    document.getElementById('panel_title').textContent = 'Editar Conta';
+    document.getElementById('f_id').value = conta.id;
+    document.getElementById('f_status').value = conta.status;
+    document.getElementById('f_num').value = conta.numeronf || '';
+    const hintNum = document.getElementById('f_numero_interno_hint');
+    if (hintNum && conta.numero != null && conta.numero !== '') {
+        hintNum.style.display = 'block';
+        hintNum.textContent = `Código interno do título (não editável): ${conta.numero}`;
+    }
+    document.getElementById('f_cod_fornecedor').value = conta.cod_fornecedor || '';
+    document.getElementById('f_nome').value = conta.nome_fornecedor || '';
+    document.getElementById('f_natureza').value = conta.id_despesas || '';
+    let vencIso = '';
+    if (conta.vencimento && /^\d{4}-\d{2}-\d{2}/.test(String(conta.vencimento))) {
+        vencIso = String(conta.vencimento).slice(0, 10);
+    } else if (conta.vencimento_br) {
+        vencIso = brParaIso(conta.vencimento_br);
+    }
+    document.getElementById('f_venc').value = vencIso;
+    document.getElementById('f_valor').value = conta.valor || '';
+    document.getElementById('f_obs').value = conta.obs || '';
+    
+    document.getElementById('group_recorrencia').style.display = 'none'; 
+    document.getElementById('panel_form').classList.add('open');
+}
+
+async function salvar() {
+    const id = document.getElementById('f_id').value;
+    const idDespesas = document.getElementById('f_natureza').value;
+    const selNat = document.getElementById('f_natureza');
+    const despesasNome = selNat?.selectedOptions?.[0]?.text?.trim() || '';
+    const numRaw = document.getElementById('f_num').value.trim();
+    const venc = document.getElementById('f_venc').value.trim();
+    const body = {
+        numeronf: numRaw ? numRaw.slice(0, 25) : null,
+        cod_fornecedor: document.getElementById('f_cod_fornecedor').value,
+        nome_fornecedor: document.getElementById('f_nome').value,
+        vencimento: venc,
+        valor: document.getElementById('f_valor').value,
+        id_despesas: idDespesas,
+        despesas: despesasNome && despesasNome !== 'Selecione...' ? despesasNome : null,
+        status: document.getElementById('f_status').value,
+        obs: document.getElementById('f_obs').value,
+        recorrencia: document.getElementById('f_meses').value
+    };
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(venc)) {
+        alert('Informe a data de vencimento válida (use o calendário do campo).');
+        return;
+    }
+    if (!body.valor || parseFloat(body.valor) <= 0) {
+        alert('Informe o valor da conta.');
+        return;
+    }
+    
+    const method = id ? 'PUT' : 'POST';
+    const url = id ? `/api/pagar/${id}` : '/api/pagar';
+    
+    const r = await fetch(url, {
+        method,
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(body)
+    });
+    if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        alert(err.error || 'Não foi possível gravar a conta. Verifique vencimento, valor e Nº do título (máx. 25 caracteres).');
+        return;
+    }
+    
+    fecharPanel();
+    fetchData();
+    loadLookups();
+}
+
+function abrirBaixaLote() {
+    const count = document.querySelectorAll('.row-check:checked').length;
+    document.getElementById('lote_msg').textContent = `Você está liquidando ${count} títulos de uma só vez.`;
+    document.getElementById('lote_data').value = hojeIsoLocal();
+    document.getElementById('modal_lote').style.display = 'flex';
+}
+
+async function confirmarLote() {
+    const ids = Array.from(document.querySelectorAll('.row-check:checked')).map(c => c.value);
+    await fetch('/api/pagar/lote/baixar', {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ ids, data_pagto: document.getElementById('lote_data').value, forma_foipagto: document.getElementById('lote_forma').value })
+    });
+    document.getElementById('modal_lote').style.display = 'none';
+    fetchData();
+}
+
+async function loadLookups() {
+    const fill = (id, data, label) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const opts = (data || []).map(i => {
+            const vid = i.id_despesas;
+            const vn = i.nome;
+            return `<option value="${vid}">${vn}</option>`;
+        }).join('');
+        el.innerHTML = `<option value="">${label}</option>` + opts;
+    };
+    try {
+        const r = await fetch('/api/lookups/despesas', { headers: authHeaders(), cache: 'no-store' });
+        if (!r.ok) {
+            console.warn('Lookups despesas HTTP', r.status, await r.text().catch(() => ''));
+            return;
+        }
+        const desps = await r.json();
+        if (!Array.isArray(desps) || !desps.length) {
+            console.warn('Nenhuma despesa cadastrada (excluido=N).');
+        }
+        fill('filter_natureza', desps, 'Todas');
+        fill('f_natureza', desps, 'Selecione...');
+    } catch (e) {
+        console.warn('loadLookups despesas (servidor offline?):', e);
+    }
+
+    const forns = await fetch('/api/fornecedores/lookup?todostipos=true', { headers: authHeaders() }).then(r => r.json());
+    const dl = document.getElementById('list_fornecedores');
+    dl.innerHTML = forns.map(f => `<option value="${f.nome}" data-id="${f.id}">${f.nome} (${f.id})</option>`).join('');
+}
+
+function vincularFornecedor() {
+    const val = document.getElementById('f_nome').value;
+    const opts = document.getElementById('list_fornecedores').childNodes;
+    document.getElementById('f_cod_fornecedor').value = '';
+    for (let i = 0; i < opts.length; i++) {
+        if (opts[i].value === val) {
+            document.getElementById('f_cod_fornecedor').value = opts[i].getAttribute('data-id');
+            break;
+        }
+    }
+}
+
+function fecharPanel() { document.getElementById('panel_form').classList.remove('open'); }
+
+let chartAbertas = null;
+let chartPagas = null;
+
+async function loadDashboard() {
+    try {
+        const r = await fetch('/api/pagar/dashboard', { headers: authHeaders() });
+        const res = await r.json();
+
+        // Top 10 Abertas
+        const lblAbertas = res.topAbertas.map(i => i.fornecedor || 'Desconhecido');
+        const dataAbertas = res.topAbertas.map(i => i.total);
+        
+        if (chartAbertas) chartAbertas.destroy();
+        chartAbertas = new Chart(document.getElementById('chart_top_abertas'), {
+            type: 'bar',
+            data: {
+                labels: lblAbertas,
+                datasets: [{ label: 'Valor (R$)', data: dataAbertas, backgroundColor: '#00f2fe', borderRadius: 4 }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { 
+                    x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#8b94a5' } },
+                    y: { grid: { display: false }, ticks: { color: '#8b94a5' } }
+                }
+            }
+        });
+
+        // Top 10 Pagas
+        const lblPagas = res.topPagas.map(i => i.fornecedor || 'Desconhecido');
+        const dataPagas = res.topPagas.map(i => i.total);
+        
+        if (chartPagas) chartPagas.destroy();
+        chartPagas = new Chart(document.getElementById('chart_top_pagas'), {
+            type: 'bar',
+            data: {
+                labels: lblPagas,
+                datasets: [{ label: 'Valor Pago (R$)', data: dataPagas, backgroundColor: '#00e676', borderRadius: 4 }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { 
+                    x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#8b94a5' } },
+                    y: { grid: { display: false }, ticks: { color: '#8b94a5' } }
+                }
+            }
+        });
+    } catch(e) {
+        console.error('Erro ao carregar dash:', e);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.documentElement.classList.add('ms-page-contas-pagar');
+    if (isMobilePagarEmbed()) {
+        const tabAnalise = document.querySelector('.tab-btn[onclick*="analise"]');
+        if (tabAnalise) tabAnalise.style.display = 'none';
+        const filterSec = document.getElementById('filters_section_pagar');
+        if (filterSec && isPagarMobileLayout()) {
+            filterSec.classList.add('is-collapsed');
+            const btn = document.getElementById('btn_toggle_filters_pagar');
+            if (btn) btn.setAttribute('aria-expanded', 'false');
+        }
+        updatePagarFiltersHint();
+    }
+    if (!document.querySelector('.btn-buscar')) {
+        alert('Esta tela está em cache antigo. Feche a aba, pressione Ctrl+F5 no Home e abra Contas a Pagar de novo.');
+        return;
+    }
+    if (window.parent) window.parent.postMessage({ type: 'acesso-rapido-visible', visible: false }, '*');
+    document.getElementById('filter_status').value = 'T';
+    document.getElementById('search_forn').value = '';
+    document.getElementById('filter_natureza').value = '';
+    const ordEl = document.getElementById('filter_ordem');
+    const savedOrdem = localStorage.getItem(PAGAR_ORDEM_LS) || 'venc_antigo';
+    if (ordEl) ordEl.value = ['venc_antigo', 'venc_recente', 'valor_maior', 'valor_menor'].includes(savedOrdem) ? savedOrdem : 'venc_antigo';
+    applyPeriodoRecorrente();
+    currentPage = 1;
+    const chooserList = document.getElementById('pagarColChooserList');
+    if (chooserList) {
+        chooserList.addEventListener('change', (ev) => {
+            const cb = ev.target.closest('input[data-col-id]');
+            if (!cb) return;
+            togglePagarColPersist(parseInt(cb.getAttribute('data-col-id'), 10), cb.checked);
+        });
+        chooserList.addEventListener('click', (ev) => {
+            const btn = ev.target.closest('button[data-col-move]');
+            if (!btn) return;
+            movePagarCol(parseInt(btn.getAttribute('data-idx'), 10), parseInt(btn.getAttribute('data-col-move'), 10));
+        });
+    }
+    loadPagarGridConfig()
+        .then(() => loadLookups())
+        .then(() => buscarPagar());
+    fetchStats();
+});
+
+let _resizeTimer;
+window.addEventListener('resize', () => {
+    clearTimeout(_resizeTimer);
+    _resizeTimer = setTimeout(() => renderTable(_globalContas), 150);
+});
+</script>
+</body>
+</html>

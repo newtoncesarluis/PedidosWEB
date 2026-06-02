@@ -1,0 +1,1506 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Teleatendimento | SysRepWeb</title>
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+:root {
+  --bg: var(--content-bg);
+  --card: var(--card-bg);
+  --border: var(--card-border);
+  --text: var(--content-text);
+  --text2: var(--text2);
+  --accent: var(--accent);
+  --accent-soft: var(--accent-soft, rgba(13,148,136,.12));
+  --accent-hover: var(--accent-hover);
+  --danger: #ef4444;
+  --warn: #f59e0b;
+  --success: #10b981;
+}
+body { font-family: var(--font,'Inter','Segoe UI',sans-serif); background:var(--bg); color:var(--text); min-height:100vh; }
+
+/* toolbar */
+.toolbar {
+  position:sticky; top:0; z-index:30; background:var(--card);
+  border-bottom:1px solid var(--border); padding:12px 18px;
+  display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+}
+.title { font-size:14px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+.tabs { display:flex; gap:4px; }
+.tab {
+  padding:7px 16px; border:1.5px solid var(--border); border-radius:12px;
+  background:var(--bg); color:var(--text2); font:inherit; font-size:12px; font-weight:700;
+  cursor:pointer;
+}
+.tab.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+.ml-auto { margin-left:auto; }
+
+/* inputs / btns */
+.input,.select,.textarea {
+  width:100%; padding:9px 12px; border:1.5px solid var(--border);
+  border-radius:12px; background:var(--card); color:var(--text);
+  font:inherit; outline:none;
+}
+.input:focus,.select:focus,.textarea:focus { border-color:var(--accent); box-shadow:0 0 0 4px var(--accent-soft); }
+.btn {
+  border:1.5px solid var(--border); background:var(--card); color:var(--text);
+  border-radius:12px; padding:9px 14px; font:inherit; font-size:12px;
+  font-weight:700; cursor:pointer; white-space:nowrap;
+}
+.btn:hover { filter:brightness(.97); }
+.btn-primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+.btn-primary:hover { background:var(--accent-hover); border-color:var(--accent-hover); }
+.btn-success { background:var(--success); color:#fff; border-color:var(--success); }
+.btn-danger  { background:var(--danger);  color:#fff; border-color:var(--danger); }
+.btn-warn    { background:var(--warn);    color:#fff; border-color:var(--warn); }
+.btn-lg { padding:13px 22px; font-size:14px; border-radius:16px; }
+.btn-block { width:100%; }
+
+/* views */
+.view { display:none; padding:16px; }
+.view.active { display:block; }
+
+/* ── CAMPANHAS ── */
+.camp-grid {
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:14px;
+}
+.camp-card {
+  background:var(--card); border:1px solid var(--border); border-radius:18px; padding:16px;
+  display:flex; flex-direction:column; gap:10px;
+}
+.camp-card-head { display:flex; justify-content:space-between; align-items:flex-start; gap:8px; }
+.camp-card-name { font-weight:800; font-size:15px; }
+.camp-card-desc { font-size:12px; color:var(--text2); margin-top:2px; }
+.status-pill {
+  display:inline-flex; align-items:center; padding:3px 10px;
+  border-radius:999px; font-size:11px; font-weight:700;
+}
+.status-ATIVA    { background:rgba(16,185,129,.15); color:var(--success); }
+.status-PAUSADA  { background:rgba(245,158,11,.15);  color:var(--warn); }
+.status-ENCERRADA{ background:rgba(239,68,68,.12);   color:var(--danger); }
+.camp-progress { display:flex; flex-direction:column; gap:4px; }
+.progress-bar-bg { background:var(--bg); border-radius:999px; height:6px; overflow:hidden; }
+.progress-bar { height:100%; border-radius:999px; background:var(--accent); transition:width .4s; }
+.progress-label { display:flex; justify-content:space-between; font-size:11px; color:var(--text2); }
+.camp-stats { display:flex; gap:10px; flex-wrap:wrap; }
+.camp-stat { text-align:center; }
+.camp-stat strong { display:block; font-size:18px; }
+.camp-stat small  { font-size:10px; color:var(--text2); text-transform:uppercase; }
+.camp-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:4px; }
+.camp-empty { text-align:center; color:var(--text2); padding:48px 0; }
+
+/* painel supervisor */
+.painel-grid {
+  display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px;
+}
+.kpi-card {
+  background:var(--card); border:1px solid var(--border); border-radius:18px;
+  padding:14px 16px;
+}
+.kpi-card label { display:block; font-size:10px; font-weight:800; text-transform:uppercase;
+  letter-spacing:.06em; color:var(--text2); margin-bottom:4px; }
+.kpi-card strong { font-size:28px; font-weight:800; }
+.kpi-card span { font-size:12px; color:var(--text2); margin-left:4px; }
+.operadores-table { width:100%; border-collapse:collapse; font-size:13px; }
+.operadores-table th { padding:8px 12px; text-align:left; border-bottom:1px solid var(--border);
+  font-size:11px; text-transform:uppercase; color:var(--text2); }
+.operadores-table td { padding:8px 12px; border-bottom:1px solid var(--border); }
+.badge-online { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--success); margin-right:5px; }
+
+/* ── ATENDIMENTO ── */
+.atend-layout {
+  display:grid; grid-template-columns:1fr 340px; gap:16px; align-items:start;
+}
+.atend-main { display:flex; flex-direction:column; gap:14px; }
+.atend-card {
+  background:var(--card); border:1px solid var(--border); border-radius:18px; padding:20px;
+}
+.atend-card h3 { font-size:13px; font-weight:800; text-transform:uppercase;
+  letter-spacing:.07em; margin-bottom:14px; color:var(--text2); }
+.campo-row  { display:flex; gap:10px; margin-bottom:10px; }
+.campo-row .campo { flex:1; }
+.campo label { display:block; font-size:11px; font-weight:700; color:var(--text2);
+  text-transform:uppercase; letter-spacing:.05em; margin-bottom:5px; }
+.campo-valor { font-size:15px; font-weight:700; }
+.campo-valor.telefone { font-size:20px; letter-spacing:.04em; color:var(--accent); }
+.script-box {
+  background:var(--bg); border:1px solid var(--border); border-radius:14px;
+  padding:14px; font-size:13px; line-height:1.6; color:var(--text2);
+  white-space:pre-wrap;
+}
+.resultado-grid {
+  display:grid; grid-template-columns:1fr 1fr; gap:10px;
+}
+.res-btn {
+  border:1.5px solid var(--border); background:var(--bg); color:var(--text);
+  border-radius:14px; padding:12px 10px; font:inherit; font-size:12px;
+  font-weight:700; cursor:pointer; text-align:center;
+}
+.res-btn:hover { border-color:var(--accent); color:var(--accent); }
+.res-btn.selected { background:var(--accent-soft); border-color:var(--accent); color:var(--accent); }
+.res-btn.res-interest.selected  { background:rgba(16,185,129,.15); border-color:var(--success); color:var(--success); }
+.res-btn.res-nointerest.selected{ background:rgba(239,68,68,.1);   border-color:var(--danger);  color:var(--danger); }
+.res-btn.res-absent.selected    { background:rgba(245,158,11,.12); border-color:var(--warn);    color:var(--warn); }
+.atend-sidebar { display:flex; flex-direction:column; gap:14px; }
+.historico-list { display:flex; flex-direction:column; gap:8px; max-height:300px; overflow-y:auto; }
+.hist-item { border:1px solid var(--border); border-radius:12px; background:var(--bg); padding:10px 12px; }
+.hist-item strong { display:block; font-size:12px; }
+.hist-item small  { color:var(--text2); font-size:11px; }
+.timer-display { font-size:32px; font-weight:800; letter-spacing:.05em; text-align:center; font-variant-numeric:tabular-nums; }
+.timer-label   { font-size:11px; text-align:center; color:var(--text2); text-transform:uppercase; letter-spacing:.05em; }
+.fila-summary  { background:var(--bg); border:1px solid var(--border); border-radius:14px; padding:12px; }
+.fila-row { display:flex; justify-content:space-between; font-size:13px; padding:4px 0; }
+.fila-row span:last-child { font-weight:700; }
+
+/* modal */
+.overlay {
+  display:none; position:fixed; inset:0; background:rgba(0,0,0,.5);
+  z-index:100; align-items:center; justify-content:center;
+}
+.overlay.open { display:flex; }
+.modal {
+  background:var(--card); border-radius:20px; padding:24px; width:100%;
+  max-width:560px; max-height:90vh; overflow-y:auto;
+  box-shadow:0 24px 64px rgba(0,0,0,.2);
+}
+.modal h2 { font-size:16px; font-weight:800; margin-bottom:18px; }
+.form-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.form-grid .span2 { grid-column:span 2; }
+.field { display:flex; flex-direction:column; gap:5px; }
+.field label { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--text2); }
+.modal-footer { display:flex; gap:10px; justify-content:flex-end; margin-top:18px; }
+
+/* fila list */
+.fila-table-wrap { overflow-x:auto; margin-top:14px; }
+.fila-table { width:100%; border-collapse:collapse; font-size:13px; }
+.fila-table th { padding:8px 12px; text-align:left; border-bottom:1px solid var(--border);
+  font-size:11px; text-transform:uppercase; color:var(--text2); }
+.fila-table td { padding:8px 12px; border-bottom:1px solid var(--border); }
+.status-fila { display:inline-flex; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; }
+.sf-PENDENTE  { background:rgba(245,158,11,.15); color:var(--warn); }
+.sf-CONCLUIDO { background:rgba(16,185,129,.15); color:var(--success); }
+.sf-EM_ATENDIMENTO { background:rgba(14,165,233,.15); color:#0ea5e9; }
+
+/* idle screen */
+.idle-screen { display:none; text-align:center; padding:60px 20px; }
+.idle-screen.active { display:block; }
+.idle-icon { font-size:64px; margin-bottom:16px; }
+.idle-msg  { font-size:18px; font-weight:800; margin-bottom:8px; }
+.idle-sub  { color:var(--text2); font-size:14px; margin-bottom:24px; }
+
+@media (max-width:900px) {
+  .atend-layout { grid-template-columns:1fr; }
+  .painel-grid  { grid-template-columns:1fr 1fr; }
+}
+@media (max-width:600px) {
+  .painel-grid { grid-template-columns:1fr; }
+  .resultado-grid { grid-template-columns:1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- Toolbar -->
+<div class="toolbar">
+  <span class="title">📞 Teleatendimento</span>
+  <div class="tabs">
+    <button class="tab active" onclick="showView('atendimento')">Atendimento</button>
+    <button class="tab" onclick="showView('campanhas')">Campanhas</button>
+    <button class="tab" id="tabPainel" style="display:none" onclick="showView('painel')">Painel ao Vivo</button>
+    <button class="tab" id="tabFila" style="display:none" onclick="showView('fila')">Fila</button>
+    <button class="tab" id="tabRelatorio" onclick="showView('relatorio')">Relatório</button>
+    <button class="tab" id="tabComparativo" onclick="showView('comparativo')">Comparativo</button>
+  </div>
+  <div class="ml-auto" style="display:flex;gap:8px;align-items:center">
+    <span id="waStatusBadge" title="Status WhatsApp" style="display:none;font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px;cursor:default"></span>
+    <button class="btn" id="btnPausa" style="display:none" onclick="togglePausa()">⏸ Pausar</button>
+    <select class="select" style="width:200px" id="selectCampanha" onchange="onCampanhaChange()">
+      <option value="">— Selecione a campanha —</option>
+    </select>
+    <button class="btn btn-primary" id="btnNovaCampanha" onclick="openModalCampanha()">+ Campanha</button>
+  </div>
+</div>
+
+<!-- ═══════════ VIEW: ATENDIMENTO ═══════════ -->
+<div class="view active" id="view-atendimento">
+
+  <!-- idle -->
+  <div class="idle-screen active" id="idleScreen">
+    <div class="idle-icon">☎️</div>
+    <div class="idle-msg">Pronto para atender</div>
+    <div class="idle-sub" id="idleMsg">Selecione uma campanha e clique em "Próxima Ligação"</div>
+    <button class="btn btn-primary btn-lg" id="btnProxima" onclick="proximaLigacao()">
+      Próxima Ligação
+    </button>
+  </div>
+
+  <!-- atendimento ativo -->
+  <div id="atendimentoAtivo" style="display:none">
+    <div class="atend-layout">
+      <div class="atend-main">
+
+        <!-- aviso DND -->
+        <div id="avisDnd" style="display:none;background:rgba(239,68,68,.1);border:1.5px solid #ef4444;border-radius:14px;padding:12px 16px;display:none;align-items:center;gap:10px">
+          <span style="font-size:20px">🔕</span>
+          <div>
+            <strong style="color:#ef4444;font-size:13px">Este cliente está marcado como NÃO LIGAR</strong>
+            <div style="font-size:12px;color:var(--text2);margin-top:2px">Verifique antes de prosseguir com a ligação.</div>
+          </div>
+        </div>
+
+        <!-- dados do cliente -->
+        <div class="atend-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+            <h3 style="margin:0">Contato</h3>
+            <div style="display:flex;gap:8px">
+              <span class="timer-label" style="text-align:right">Tempo de ligação</span>
+              <div>
+                <div class="timer-display" id="timerDisplay">00:00</div>
+              </div>
+            </div>
+          </div>
+          <div class="campo-row">
+            <div class="campo">
+              <label>Nome</label>
+              <div class="campo-valor" id="cNome">—</div>
+            </div>
+            <div class="campo">
+              <label>Empresa / CNPJ</label>
+              <div class="campo-valor" id="cEmpresa">—</div>
+            </div>
+          </div>
+          <div class="campo-row">
+            <div class="campo">
+              <label>Telefone</label>
+              <div class="campo-valor telefone" id="cTelefone">—</div>
+            </div>
+            <div class="campo">
+              <label>Cidade / UF</label>
+              <div class="campo-valor" id="cCidade">—</div>
+            </div>
+          </div>
+          <div class="campo-row" id="campoPedidos" style="display:none">
+            <div class="campo">
+              <label>Último pedido</label>
+              <div class="campo-valor" id="cUltimoPedido">—</div>
+            </div>
+            <div class="campo">
+              <label>Total no ano</label>
+              <div class="campo-valor" id="cTotalAno">—</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:4px">
+            <button class="btn" id="btnVerCliente" onclick="verCliente()" style="display:none">
+              Ver ficha completa
+            </button>
+            <button class="btn btn-success btn-lg" onclick="abrirPedido()" id="btnAbrirPedido" style="display:none">
+              + Pedido
+            </button>
+          </div>
+        </div>
+
+        <!-- script -->
+        <div class="atend-card" id="scriptCard" style="display:none">
+          <h3>Script de abordagem</h3>
+          <div class="script-box" id="scriptTexto"></div>
+        </div>
+
+        <!-- resultado -->
+        <div class="atend-card">
+          <h3>Resultado da chamada</h3>
+          <div class="resultado-grid">
+            <button class="res-btn res-interest" data-res="ATENDEU_INTERESSE" onclick="selecionarResultado(this)">
+              ✅ Atendeu — Interesse
+            </button>
+            <button class="res-btn res-nointerest" data-res="ATENDEU_SEM_INTERESSE" onclick="selecionarResultado(this)">
+              🚫 Atendeu — Sem interesse
+            </button>
+            <button class="res-btn res-absent" data-res="NAO_ATENDEU" onclick="selecionarResultado(this)">
+              📵 Não atendeu
+            </button>
+            <button class="res-btn res-absent" data-res="OCUPADO" onclick="selecionarResultado(this)">
+              🔄 Ocupado
+            </button>
+            <button class="res-btn res-absent" data-res="CAIXA_POSTAL" onclick="selecionarResultado(this)">
+              📬 Caixa postal
+            </button>
+            <button class="res-btn res-nointerest" data-res="NUMERO_ERRADO" onclick="selecionarResultado(this)">
+              ❌ Número errado
+            </button>
+          </div>
+
+          <!-- reagendar -->
+          <div id="reagendarBox" style="display:none;margin-top:12px">
+            <div class="campo">
+              <label>Reagendar para</label>
+              <input type="datetime-local" class="input" id="reagendarEm" style="margin-top:4px">
+            </div>
+          </div>
+
+          <div class="campo" style="margin-top:12px">
+            <label>Observação</label>
+            <textarea class="textarea" id="obsTextarea" rows="3" placeholder="Anote o que foi conversado..." autoComplete="off"></textarea>
+          </div>
+
+          <div id="acoesPosResultado" style="display:none;margin-top:10px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:14px">
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text2);margin-bottom:8px">Ações rápidas</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap" id="botoesAcoes"></div>
+          </div>
+
+          <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
+            <button class="res-btn res-absent" data-res="REAGENDAR" onclick="selecionarResultado(this)" style="flex:1">
+              📅 Reagendar
+            </button>
+            <button class="btn btn-primary btn-lg" style="flex:2" id="btnRegistrar"
+              onclick="registrarChamada()" disabled>
+              Registrar e Avançar
+            </button>
+          </div>
+        </div>
+
+      </div><!-- /atend-main -->
+
+      <!-- sidebar -->
+      <div class="atend-sidebar">
+
+        <!-- resumo da fila -->
+        <div class="atend-card">
+          <h3>Sua fila hoje</h3>
+          <div class="fila-summary">
+            <div class="fila-row"><span>Pendentes agora</span><span id="sPendentes">—</span></div>
+            <div class="fila-row"><span>Reagendados hoje</span><span id="sReagendadosHoje">—</span></div>
+            <div class="fila-row"><span>Ligações hoje</span><span id="sConcluidos">—</span></div>
+            <div class="fila-row"><span>Contatos</span><span id="sContatos">—</span></div>
+            <div class="fila-row"><span>Interesses</span><span id="sInteresses">—</span></div>
+          </div>
+          <button class="btn btn-block" style="margin-top:10px" onclick="atualizarResumoFila()">Atualizar</button>
+        </div>
+
+        <!-- histórico do cliente -->
+        <div class="atend-card" id="cardHistoricoCliente" style="display:none">
+          <h3>Histórico de chamadas</h3>
+          <div class="historico-list" id="historicoCliente"></div>
+        </div>
+
+      </div><!-- /sidebar -->
+    </div><!-- /layout -->
+  </div><!-- /atendimentoAtivo -->
+</div>
+
+<!-- ═══════════ VIEW: CAMPANHAS ═══════════ -->
+<div class="view" id="view-campanhas">
+  <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:14px">
+    <select class="select" style="width:160px" id="filtroStatusCamp" onchange="carregarCampanhas()">
+      <option value="">Todos status</option>
+      <option value="ATIVA" selected>Ativas</option>
+      <option value="PAUSADA">Pausadas</option>
+      <option value="ENCERRADA">Encerradas</option>
+    </select>
+  </div>
+  <div class="camp-grid" id="campGrid">
+    <div class="camp-empty">Carregando...</div>
+  </div>
+</div>
+
+<!-- ═══════════ VIEW: PAINEL AO VIVO ═══════════ -->
+<div class="view" id="view-painel">
+  <div class="painel-grid" id="painelKpis">
+    <div class="kpi-card"><label>Ligações hoje</label><strong id="kLigacoes">—</strong></div>
+    <div class="kpi-card"><label>Contatos</label><strong id="kContatos">—</strong><span id="kTaxaContato"></span></div>
+    <div class="kpi-card"><label>Interesses</label><strong id="kInteresse">—</strong></div>
+    <div class="kpi-card"><label>Pedidos gerados</label><strong id="kPedidos">—</strong></div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+    <div class="atend-card">
+      <h3>Operadores</h3>
+      <table class="operadores-table" id="painelOperadores">
+        <thead><tr>
+          <th>Operador</th><th>Ligações</th><th>Contatos</th><th>Interesses</th><th>Pedidos</th>
+        </tr></thead>
+        <tbody id="tbOperadores"></tbody>
+      </table>
+    </div>
+    <div class="atend-card">
+      <h3>Totais da campanha</h3>
+      <div class="fila-summary" id="painelTotais" style="margin:0"></div>
+      <button class="btn btn-danger" style="width:100%;margin-top:10px;font-size:11px"
+        onclick="limparTravados()">🔓 Liberar travados (+30min)</button>
+    </div>
+  </div>
+  <div class="atend-card">
+    <h3>Últimas ligações</h3>
+    <div class="fila-table-wrap">
+      <table class="fila-table">
+        <thead><tr><th>Hora</th><th>Operador</th><th>Contato</th><th>Resultado</th><th>Obs</th></tr></thead>
+        <tbody id="tbHistoricoLigacoes"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ VIEW: FILA ═══════════ -->
+<div class="view" id="view-fila">
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+    <select class="select" style="width:160px" id="filtroStatusFila" onchange="carregarFila()">
+      <option value="">Todos</option>
+      <option value="PENDENTE">Pendentes</option>
+      <option value="CONCLUIDO">Concluídos</option>
+      <option value="EM_ATENDIMENTO">Em atendimento</option>
+    </select>
+    <div class="ml-auto" style="display:flex;gap:8px">
+      <button class="btn" onclick="openModalFiltroClientes()">+ Adicionar por filtro</button>
+      <button class="btn btn-primary" onclick="carregarFila()">Atualizar</button>
+    </div>
+  </div>
+  <div class="fila-table-wrap">
+    <table class="fila-table">
+      <thead><tr>
+        <th>#</th><th>Nome</th><th>Telefone</th><th>Cidade</th><th>Tentativas</th>
+        <th>Status</th><th>Próx. contato</th><th></th>
+      </tr></thead>
+      <tbody id="tbFila"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══════════ VIEW: RELATÓRIO ═══════════ -->
+<div class="view" id="view-relatorio">
+  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px">
+    <div class="campo">
+      <label>De</label>
+      <input type="date" class="input" id="relDe" style="width:160px">
+    </div>
+    <div class="campo">
+      <label>Até</label>
+      <input type="date" class="input" id="relAte" style="width:160px">
+    </div>
+    <button class="btn btn-primary" onclick="carregarRelatorio()">Gerar</button>
+    <button class="btn" onclick="exportarCSV()" style="margin-left:4px">⬇ CSV</button>
+  </div>
+  <div class="fila-table-wrap">
+    <table class="fila-table" id="relTable">
+      <thead><tr>
+        <th>Data</th><th>Operador</th><th>Campanha</th><th>Ligações</th>
+        <th>Contatos</th><th>% Contato</th><th>Interesses</th><th>% Int.</th>
+        <th>Pedidos</th><th>Leads</th><th>Não atendeu</th><th>Dur. média (s)</th>
+      </tr></thead>
+      <tbody id="tbRelatorio"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══════════ VIEW: COMPARATIVO ═══════════ -->
+<div class="view" id="view-comparativo">
+  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px">
+    <div class="campo"><label>De</label><input type="date" class="input" id="cmpDe" style="width:160px"></div>
+    <div class="campo"><label>Até</label><input type="date" class="input" id="cmpAte" style="width:160px"></div>
+    <button class="btn btn-primary" onclick="carregarComparativo()">Gerar</button>
+  </div>
+  <div class="fila-table-wrap">
+    <table class="fila-table">
+      <thead><tr>
+        <th>Campanha</th><th>Status</th><th>Total fila</th><th>Concluídos</th>
+        <th>Ligações</th><th>Contatos</th><th>% Contato</th>
+        <th>Interesses</th><th>% Int.</th><th>Pedidos</th><th>Leads</th>
+        <th>Operadores</th><th>Dur. média</th>
+      </tr></thead>
+      <tbody id="tbComparativo"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══════════ MODAL: CAMPANHA ═══════════ -->
+<div class="overlay" id="modalCampanha">
+  <div class="modal">
+    <h2 id="modalCampanhaTitulo">Nova Campanha</h2>
+    <input type="hidden" id="mcId">
+    <div class="form-grid">
+      <div class="field span2">
+        <label>Nome *</label>
+        <input class="input" id="mcNome" placeholder="Ex: Clientes inativos Maio" autoComplete="off">
+      </div>
+      <div class="field">
+        <label>Data início</label>
+        <input type="date" class="input" id="mcInicio">
+      </div>
+      <div class="field">
+        <label>Data fim</label>
+        <input type="date" class="input" id="mcFim">
+      </div>
+      <div class="field">
+        <label>Meta ligações/dia</label>
+        <input type="number" class="input" id="mcMeta" value="50" min="0">
+      </div>
+      <div class="field">
+        <label>Máx. tentativas por contato</label>
+        <input type="number" class="input" id="mcMaxTent" value="3" min="1" max="10">
+      </div>
+      <div class="field">
+        <label>Horário início (opcional)</label>
+        <input type="time" class="input" id="mcHorarioInicio">
+      </div>
+      <div class="field">
+        <label>Horário fim (opcional)</label>
+        <input type="time" class="input" id="mcHorarioFim">
+      </div>
+      <div class="field">
+        <label>Status</label>
+        <select class="select" id="mcStatus">
+          <option value="ATIVA">Ativa</option>
+          <option value="PAUSADA">Pausada</option>
+          <option value="ENCERRADA">Encerrada</option>
+        </select>
+      </div>
+      <div class="field span2">
+        <label>Descrição</label>
+        <input class="input" id="mcDesc" placeholder="Objetivo desta campanha..." autoComplete="off">
+      </div>
+      <div class="field span2">
+        <label>Script de abordagem</label>
+        <textarea class="textarea" id="mcScript" rows="5"
+          placeholder="Bom dia, aqui é {nome_operador}. Falo com {nome_cliente} de {cidade}? Seu último pedido foi em {ultimo_pedido}."></textarea>
+        <small style="font-size:10px;color:var(--text2);margin-top:4px;display:block">
+          Variáveis: {nome_cliente} {nome_operador} {cidade} {uf} {ultimo_pedido} {total_ano} {tentativas}
+        </small>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modalCampanha')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarCampanha()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ MODAL: PAUSA ═══════════ -->
+<div class="overlay" id="modalPausa">
+  <div class="modal" style="max-width:380px">
+    <h2>Pausar atendimento</h2>
+    <div class="field">
+      <label>Motivo (opcional)</label>
+      <select class="select" id="pausaMotivo">
+        <option value="">— Selecionar —</option>
+        <option value="Intervalo">☕ Intervalo</option>
+        <option value="Almoço">🍽️ Almoço</option>
+        <option value="Reunião">📋 Reunião</option>
+        <option value="Técnico">🖥️ Problema técnico</option>
+        <option value="Banheiro">🚻 Banheiro</option>
+      </select>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modalPausa')">Cancelar</button>
+      <button class="btn btn-warn" onclick="confirmarPausa()">⏸ Pausar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ MODAL: FILTRO CLIENTES ═══════════ -->
+<div class="overlay" id="modalFiltro">
+  <div class="modal">
+    <h2>Adicionar clientes à fila</h2>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:16px">
+      Filtre os clientes cadastrados e adicione à fila da campanha selecionada.
+    </p>
+    <div class="form-grid">
+      <div class="field">
+        <label>Sem pedido há (dias)</label>
+        <input type="number" class="input" id="fSemPedido" placeholder="Ex: 60" min="0">
+      </div>
+      <div class="field">
+        <label>Limite de registros</label>
+        <input type="number" class="input" id="fLimite" value="200" min="1" max="2000">
+      </div>
+      <div class="field">
+        <label>Região</label>
+        <select class="select" id="fRegiao">
+          <option value="">Todas</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Segmento</label>
+        <select class="select" id="fSegmento">
+          <option value="">Todos</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modalFiltro')">Cancelar</button>
+      <button class="btn btn-primary" onclick="adicionarPorFiltro()">Adicionar à fila</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '/api/teleatendimento';
+let campanhaAtual = null;
+let filaAtual = null;
+let timerInterval = null;
+let timerSec = 0;
+let resultadoSelecionado = null;
+let horaInicio = null;
+let painelInterval = null;
+
+// ─── VIEWS ────────────────────────────────────────────────────────────────────
+const TAB_LABELS = {
+  atendimento:  'Atendimento',
+  campanhas:    'Campanhas',
+  painel:       'Painel ao Vivo',
+  fila:         'Fila',
+  relatorio:    'Relatório',
+  comparativo:  'Comparativo',
+};
+
+let _isSupervisor = false; // preenchido no init
+
+function showView(name) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-' + name).classList.add('active');
+  const label = TAB_LABELS[name] || '';
+  document.querySelectorAll('.tab').forEach(t => {
+    t.classList.toggle('active', t.textContent.trim() === label);
+  });
+  if (name !== 'painel') { clearInterval(painelInterval); painelInterval = null; }
+  if (name === 'campanhas')   carregarCampanhas();
+  if (name === 'painel')      iniciarPainel();
+  if (name === 'fila')        carregarFila();
+  if (name === 'relatorio')   preencherDataRelatorio();
+  if (name === 'comparativo') preencherDataComparativo();
+}
+
+// ─── CAMPANHA SELECT ──────────────────────────────────────────────────────────
+async function carregarSelectCampanhas() {
+  try {
+    const r = await fetch(API + '/campanhas');
+    const camps = await r.json();
+    if (!Array.isArray(camps)) return;
+    const sel = document.getElementById('selectCampanha');
+    const valAtual = sel.value;
+    sel.innerHTML = '<option value="">— Selecione a campanha —</option>';
+    camps.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c.id;
+      opt.textContent = c.nome + (c.status !== 'ATIVA' ? ' [' + c.status + ']' : '');
+      sel.appendChild(opt);
+    });
+    if (valAtual) sel.value = valAtual;
+  } catch (_) {}
+}
+
+function onCampanhaChange() {
+  const id = document.getElementById('selectCampanha').value;
+  campanhaAtual = id || null;
+  document.getElementById('tabPainel').style.display = id ? '' : 'none';
+  document.getElementById('tabFila').style.display   = id ? '' : 'none';
+  document.getElementById('btnPausa').style.display  = id ? '' : 'none';
+  document.getElementById('idleMsg').textContent =
+    id ? 'Clique em "Próxima Ligação" para começar' : 'Selecione uma campanha e clique em "Próxima Ligação"';
+  if (id) {
+    atualizarResumoFila();
+    // Verifica se operador já está pausado nesta campanha
+    fetch(API + '/status-operador?id_campanha=' + id)
+      .then(r => r.json())
+      .then(d => { _pausado = !!d.pausado; atualizarBtnPausa(); })
+      .catch(() => {});
+  }
+}
+
+// ─── CAMPANHAS VIEW ───────────────────────────────────────────────────────────
+async function carregarCampanhas() {
+  const status = document.getElementById('filtroStatusCamp').value;
+  const url = API + '/campanhas' + (status ? '?status=' + status : '');
+  const grid = document.getElementById('campGrid');
+  let camps;
+  try {
+    const r = await fetch(url);
+    camps = await r.json();
+    if (!Array.isArray(camps)) throw new Error(camps.error || 'Resposta inválida');
+  } catch (err) {
+    grid.innerHTML = `<div class="camp-empty" style="color:var(--danger)">Erro ao carregar campanhas: ${esc(err.message)}</div>`;
+    return;
+  }
+  if (!camps.length) {
+    grid.innerHTML = '<div class="camp-empty"><div style="font-size:40px;margin-bottom:10px">📋</div>Nenhuma campanha encontrada.<br><button class="btn btn-primary" style="margin-top:14px" onclick="openModalCampanha()">+ Nova Campanha</button></div>';
+    return;
+  }
+  grid.innerHTML = camps.map(c => {
+    const pct = c.total_fila > 0 ? Math.round(c.total_concluido * 100 / c.total_fila) : 0;
+    return `<div class="camp-card">
+      <div class="camp-card-head">
+        <div>
+          <div class="camp-card-name">${esc(c.nome)}</div>
+          ${c.descricao ? `<div class="camp-card-desc">${esc(c.descricao)}</div>` : ''}
+        </div>
+        <span class="status-pill status-${c.status}">${c.status}</span>
+      </div>
+      <div class="camp-progress">
+        <div class="progress-bar-bg"><div class="progress-bar" style="width:${pct}%"></div></div>
+        <div class="progress-label">
+          <span>${c.total_concluido}/${c.total_fila} concluídos</span>
+          <span>${pct}%</span>
+        </div>
+      </div>
+      <div class="camp-stats">
+        <div class="camp-stat"><strong>${c.ligacoes_hoje || 0}</strong><small>Ligações hoje</small></div>
+        <div class="camp-stat"><strong>${c.interesse_hoje || 0}</strong><small>Interesses hoje</small></div>
+        <div class="camp-stat"><strong>${c.meta_ligacoes_dia || 0}</strong><small>Meta/dia</small></div>
+      </div>
+      <div class="camp-actions">
+        <button class="btn" onclick="editarCampanha(${c.id})">Editar</button>
+        <button class="btn" onclick="verPainel(${c.id})">Painel</button>
+        <button class="btn" onclick="verFila(${c.id})">Ver fila</button>
+        <button class="btn btn-primary" onclick="selecionarCampanhaAtender(${c.id})">Atender</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function selecionarCampanhaAtender(id) {
+  document.getElementById('selectCampanha').value = id;
+  onCampanhaChange();
+  showView('atendimento');
+}
+
+function verPainel(id) {
+  document.getElementById('selectCampanha').value = id;
+  onCampanhaChange();
+  showView('painel');
+}
+
+function verFila(id) {
+  document.getElementById('selectCampanha').value = id;
+  onCampanhaChange();
+  showView('fila');
+}
+
+// ─── MODAL CAMPANHA ───────────────────────────────────────────────────────────
+function openModalCampanha(camp) {
+  document.getElementById('mcId').value          = camp?.id || '';
+  document.getElementById('modalCampanhaTitulo').textContent = camp ? 'Editar Campanha' : 'Nova Campanha';
+  document.getElementById('mcNome').value         = camp?.nome || '';
+  document.getElementById('mcDesc').value         = camp?.descricao || '';
+  document.getElementById('mcScript').value       = camp?.script_abordagem || '';
+  document.getElementById('mcInicio').value       = camp?.data_inicio?.slice(0,10) || '';
+  document.getElementById('mcFim').value          = camp?.data_fim?.slice(0,10) || '';
+  document.getElementById('mcMeta').value         = camp?.meta_ligacoes_dia || 50;
+  document.getElementById('mcMaxTent').value      = camp?.max_tentativas || 3;
+  document.getElementById('mcHorarioInicio').value= camp?.horario_inicio?.slice(0,5) || '';
+  document.getElementById('mcHorarioFim').value   = camp?.horario_fim?.slice(0,5) || '';
+  document.getElementById('mcStatus').value       = camp?.status || 'ATIVA';
+  document.getElementById('modalCampanha').classList.add('open');
+}
+
+async function editarCampanha(id) {
+  const r = await fetch(API + '/campanhas/' + id);
+  const camp = await r.json();
+  openModalCampanha(camp);
+}
+
+async function salvarCampanha() {
+  const id = document.getElementById('mcId').value;
+  const body = {
+    nome:              document.getElementById('mcNome').value.trim(),
+    descricao:         document.getElementById('mcDesc').value.trim(),
+    script_abordagem:  document.getElementById('mcScript').value.trim(),
+    data_inicio:       document.getElementById('mcInicio').value,
+    data_fim:          document.getElementById('mcFim').value,
+    meta_ligacoes_dia: document.getElementById('mcMeta').value,
+    max_tentativas:    document.getElementById('mcMaxTent').value || 3,
+    horario_inicio:    document.getElementById('mcHorarioInicio').value || null,
+    horario_fim:       document.getElementById('mcHorarioFim').value || null,
+    status:            document.getElementById('mcStatus').value,
+  };
+  if (!body.nome) { alert('Nome obrigatório'); return; }
+  const url    = id ? API + '/campanhas/' + id : API + '/campanhas';
+  const method = id ? 'PUT' : 'POST';
+  const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  if (r.ok) {
+    closeModal('modalCampanha');
+    carregarCampanhas();
+    carregarSelectCampanhas();
+  } else {
+    const err = await r.json();
+    alert('Erro: ' + err.error);
+  }
+}
+
+// ─── PRÓXIMA LIGAÇÃO ──────────────────────────────────────────────────────────
+async function proximaLigacao() {
+  if (!campanhaAtual) { alert('Selecione uma campanha primeiro'); return; }
+  if (_pausado) { alert('Você está pausado. Clique em "▶ Retomar" para continuar.'); return; }
+
+  const btnProx = document.getElementById('btnProxima');
+  btnProx.disabled = true;
+  btnProx.textContent = 'Buscando...';
+
+  try {
+    if (filaAtual) await liberarFila(filaAtual.id);
+
+    const r = await fetch(API + '/campanhas/' + campanhaAtual + '/proxima', { method: 'POST' });
+    const data = await r.json();
+
+    if (!r.ok) {
+      alert('Erro ao buscar próxima ligação: ' + (data.error || r.status));
+      return;
+    }
+
+    if (data.fim) {
+      document.getElementById('idleMsg').textContent = data.mensagem || 'Fila concluída!';
+      btnProx.textContent = 'Verificar novamente';
+      return;
+    }
+
+    filaAtual = data.fila;
+    resultadoSelecionado = null;
+    horaInicio = new Date();
+    iniciarTimer();
+    preencherDadosAtendimento(data.fila, data.script);
+    document.getElementById('idleScreen').classList.remove('active');
+    document.getElementById('atendimentoAtivo').style.display = '';
+    document.getElementById('btnRegistrar').disabled = true;
+    document.querySelectorAll('.res-btn').forEach(b => b.classList.remove('selected'));
+    document.getElementById('obsTextarea').value = '';
+    document.getElementById('reagendarBox').style.display = 'none';
+    document.getElementById('acoesPosResultado').style.display = 'none';
+    atualizarResumoFila();
+  } catch (err) {
+    alert('Erro de conexão: ' + err.message);
+  } finally {
+    btnProx.disabled = false;
+    if (!filaAtual) btnProx.textContent = 'Próxima Ligação';
+  }
+}
+
+function preencherDadosAtendimento(fila, script) {
+  const nome = fila.nome_prospect || fila.nome_cliente_cadastrado || '—';
+  const avisDnd = document.getElementById('avisDnd');
+  avisDnd.style.display = fila.dnd === 'S' ? 'flex' : 'none';
+  document.getElementById('cNome').textContent = nome;
+  document.getElementById('cEmpresa').textContent = fila.cnpj_cpf || '—';
+  document.getElementById('cTelefone').textContent = fila.telefone || fila.telefone_cadastrado || '—';
+  document.getElementById('cCidade').textContent =
+    [(fila.cidade || fila.cidade_cadastrada), (fila.uf || fila.uf_cadastrada)].filter(Boolean).join(' / ') || '—';
+
+  if (fila.id_cliente) {
+    const temPedidos = fila.ultimo_pedido;
+    document.getElementById('campoPedidos').style.display = temPedidos ? '' : 'none';
+    document.getElementById('cUltimoPedido').textContent =
+      temPedidos ? new Date(fila.ultimo_pedido).toLocaleDateString('pt-BR') : '—';
+    document.getElementById('cTotalAno').textContent =
+      fila.total_ano ? 'R$ ' + Number(fila.total_ano).toLocaleString('pt-BR', {minimumFractionDigits:2}) : '—';
+    document.getElementById('btnVerCliente').style.display = '';
+    document.getElementById('btnAbrirPedido').style.display = '';
+    document.getElementById('btnVerCliente').dataset.idCliente = fila.id_cliente;
+    document.getElementById('btnAbrirPedido').dataset.idCliente = fila.id_cliente;
+  } else {
+    document.getElementById('campoPedidos').style.display = 'none';
+    document.getElementById('btnVerCliente').style.display = 'none';
+    document.getElementById('btnAbrirPedido').style.display = 'none';
+  }
+
+  const scriptCard = document.getElementById('scriptCard');
+  if (script?.trim()) {
+    scriptCard.style.display = '';
+    document.getElementById('scriptTexto').textContent = script;
+  } else {
+    scriptCard.style.display = 'none';
+  }
+}
+
+// ─── TIMER ────────────────────────────────────────────────────────────────────
+function iniciarTimer() {
+  timerSec = 0;
+  clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
+    timerSec++;
+    const m = String(Math.floor(timerSec / 60)).padStart(2,'0');
+    const s = String(timerSec % 60).padStart(2,'0');
+    document.getElementById('timerDisplay').textContent = m + ':' + s;
+  }, 1000);
+}
+
+function pararTimer() {
+  clearInterval(timerInterval);
+  timerInterval = null;
+}
+
+// ─── RESULTADO ────────────────────────────────────────────────────────────────
+function selecionarResultado(btn) {
+  document.querySelectorAll('.res-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  resultadoSelecionado = btn.dataset.res;
+  document.getElementById('btnRegistrar').disabled = false;
+  document.getElementById('reagendarBox').style.display =
+    resultadoSelecionado === 'REAGENDAR' ? '' : 'none';
+  atualizarAcoesContextuais();
+}
+
+function atualizarAcoesContextuais() {
+  const box   = document.getElementById('acoesPosResultado');
+  const btns  = document.getElementById('botoesAcoes');
+  const temCliente = filaAtual?.id_cliente;
+  const acoes = [];
+
+  if (resultadoSelecionado === 'ATENDEU_INTERESSE') {
+    if (temCliente) {
+      acoes.push(`<button class="btn btn-success" onclick="abrirPedido()">🛒 Abrir Pedido</button>`);
+    }
+    acoes.push(`<button class="btn btn-primary" onclick="criarLeadAutomatico()">⭐ Criar Lead</button>`);
+    if (temCliente) {
+      acoes.push(`<button class="btn" onclick="enviarWhatsApp()">💬 WhatsApp</button>`);
+    }
+  } else if (resultadoSelecionado === 'REAGENDAR') {
+    if (temCliente) {
+      acoes.push(`<button class="btn" onclick="enviarWhatsApp()">💬 Confirmar por WhatsApp</button>`);
+    }
+  }
+
+  if (acoes.length) {
+    btns.innerHTML = acoes.join('');
+    box.style.display = '';
+  } else {
+    box.style.display = 'none';
+  }
+}
+
+// ─── REGISTRAR CHAMADA ────────────────────────────────────────────────────────
+async function registrarChamada() {
+  if (!resultadoSelecionado) { alert('Selecione o resultado da chamada'); return; }
+  if (resultadoSelecionado === 'REAGENDAR' && !document.getElementById('reagendarEm').value) {
+    alert('Informe a data/hora para reagendamento'); return;
+  }
+
+  const btnReg = document.getElementById('btnRegistrar');
+  btnReg.disabled = true;
+  btnReg.textContent = 'Registrando...';
+  pararTimer();
+
+  const agora = new Date();
+  const body = {
+    id_fila:          filaAtual.id,
+    id_campanha:      campanhaAtual,
+    id_cliente:       filaAtual.id_cliente || null,
+    resultado:        resultadoSelecionado,
+    observacao:       document.getElementById('obsTextarea').value.trim(),
+    duracao_seg:      timerSec,
+    data_hora_inicio: horaInicio.toISOString(),
+    data_hora_fim:    agora.toISOString(),
+    reagendar_em:     document.getElementById('reagendarEm').value || null,
+  };
+
+  try {
+    const r = await fetch(API + '/chamadas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      alert('Erro ao registrar: ' + (err.error || r.status));
+      iniciarTimer(); // retoma o timer se falhou
+      return;
+    }
+    filaAtual = null;
+    document.getElementById('atendimentoAtivo').style.display = 'none';
+    document.getElementById('idleScreen').classList.add('active');
+    document.getElementById('idleMsg').textContent = 'Resultado registrado. Clique para a próxima ligação.';
+    document.getElementById('timerDisplay').textContent = '00:00';
+    document.getElementById('btnProxima').textContent = 'Próxima Ligação';
+    atualizarResumoFila();
+  } catch (err) {
+    alert('Erro de conexão: ' + err.message);
+    iniciarTimer();
+  } finally {
+    btnReg.disabled = false;
+    btnReg.textContent = 'Registrar e Avançar';
+  }
+}
+
+async function liberarFila(id) {
+  await fetch(API + '/chamadas/liberar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id_fila: id }),
+  }).catch(() => {});
+}
+
+// ─── AÇÕES NO ATENDIMENTO ─────────────────────────────────────────────────────
+function verCliente() {
+  const id = document.getElementById('btnVerCliente').dataset.idCliente;
+  window.open('/pages/clientes.html?id=' + id, '_blank');
+}
+
+function abrirPedido() {
+  const id = document.getElementById('btnAbrirPedido').dataset.idCliente;
+  window.open('/pages/pedidos.html?novo=1&cliente_id=' + id + '&tele=1', '_blank');
+}
+
+// ─── RESUMO FILA ──────────────────────────────────────────────────────────────
+async function atualizarResumoFila() {
+  if (!campanhaAtual) return;
+  try {
+    const r = await fetch(API + '/painel/' + campanhaAtual);
+    const d = await r.json();
+    document.getElementById('sPendentes').textContent       = d.totais?.pendentes || 0;
+    document.getElementById('sReagendadosHoje').textContent = d.totais?.reagendados_hoje || 0;
+    document.getElementById('sConcluidos').textContent       = d.hoje?.ligacoes || 0;
+    document.getElementById('sContatos').textContent         = d.hoje?.contatos || 0;
+    document.getElementById('sInteresses').textContent       = d.hoje?.interesse || 0;
+  } catch (_) {}
+}
+
+// ─── PAINEL ───────────────────────────────────────────────────────────────────
+function iniciarPainel() {
+  if (!campanhaAtual) {
+    document.getElementById('tbOperadores').innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text2);padding:20px">Selecione uma campanha no topo da página</td></tr>';
+    return;
+  }
+  carregarPainel();
+  clearInterval(painelInterval);
+  painelInterval = setInterval(carregarPainel, 30000);
+}
+
+async function carregarPainel() {
+  if (!campanhaAtual) return;
+  let d;
+  try {
+    const r = await fetch(API + '/painel/' + campanhaAtual);
+    d = await r.json();
+    if (d.error) return;
+  } catch (_) { return; }
+
+  document.getElementById('kLigacoes').textContent = d.hoje?.ligacoes || 0;
+  document.getElementById('kContatos').textContent = d.hoje?.contatos || 0;
+  document.getElementById('kTaxaContato').textContent = d.hoje?.contatos
+    ? Math.round(d.hoje.contatos * 100 / d.hoje.ligacoes) + '%'
+    : '';
+  document.getElementById('kInteresse').textContent = d.hoje?.interesse || 0;
+  document.getElementById('kPedidos').textContent   = d.hoje?.pedidos || 0;
+
+  document.getElementById('tbOperadores').innerHTML = (d.operadores || []).map(o => {
+    const badge = o.pausado ? '⏸ ' : (o.em_ligacao ? '<span class="badge-online"></span>' : '');
+    const pausaInfo = o.pausado && o.pausa_total_seg
+      ? ` <span style="font-size:10px;color:var(--warn)">(pausa: ${Math.round(o.pausa_total_seg/60)}min)</span>` : '';
+    return `<tr>
+      <td>${badge}${esc(o.nome)}${pausaInfo}</td>
+      <td>${o.ligacoes}</td>
+      <td>${o.contatos}</td>
+      <td>${o.interesse}</td>
+      <td>${o.pedidos}</td>
+    </tr>`;
+  }).join('');
+
+  const t = d.totais || {};
+  document.getElementById('painelTotais').innerHTML = `
+    <div class="fila-row"><span>Total na fila</span><span>${t.total_fila || 0}</span></div>
+    <div class="fila-row"><span>Disponíveis agora</span><span>${t.pendentes || 0}</span></div>
+    <div class="fila-row"><span>Reagendados hoje</span><span style="color:var(--accent)">${t.reagendados_hoje || 0}</span></div>
+    <div class="fila-row"><span>Para o futuro</span><span>${t.reagendados_futuros || 0}</span></div>
+    <div class="fila-row"><span>Em atendimento</span><span>${t.em_atendimento || 0}</span></div>
+    <div class="fila-row"><span>Concluídos</span><span>${t.concluidos || 0}</span></div>
+  `;
+
+  const LABEL = {
+    ATENDEU_INTERESSE: '✅ Interesse',
+    ATENDEU_SEM_INTERESSE: '🚫 Sem interesse',
+    NAO_ATENDEU: '📵 Não atendeu',
+    OCUPADO: '🔄 Ocupado',
+    CAIXA_POSTAL: '📬 Caixa postal',
+    NUMERO_ERRADO: '❌ Nº errado',
+    REAGENDAR: '📅 Reagendar',
+  };
+  document.getElementById('tbHistoricoLigacoes').innerHTML = (d.historico || []).map(h => `
+    <tr>
+      <td>${new Date(h.data_hora_inicio).toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'})}</td>
+      <td>${esc(h.nome_operador)}</td>
+      <td>${esc(h.nome_contato || '—')}</td>
+      <td>${LABEL[h.resultado] || h.resultado}</td>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(h.observacao || '')}</td>
+    </tr>`).join('');
+}
+
+// ─── FILA ─────────────────────────────────────────────────────────────────────
+async function carregarFila() {
+  if (!campanhaAtual) {
+    document.getElementById('tbFila').innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text2);padding:30px">Selecione uma campanha no topo da página</td></tr>';
+    return;
+  }
+  const status = document.getElementById('filtroStatusFila').value;
+  const url = API + '/campanhas/' + campanhaAtual + '/fila' + (status ? '?status=' + status : '');
+  let rows;
+  try {
+    const r = await fetch(url);
+    rows = await r.json();
+    if (!Array.isArray(rows)) throw new Error(rows.error || 'Resposta inválida');
+  } catch (err) {
+    document.getElementById('tbFila').innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--danger);padding:20px">Erro: ${esc(err.message)}</td></tr>`;
+    return;
+  }
+  document.getElementById('tbFila').innerHTML = rows.map(f => `
+    <tr>
+      <td>${f.ordem}</td>
+      <td>${esc(f.nome_prospect || f.nome_cliente_cadastrado || '—')}</td>
+      <td>${esc(f.telefone || f.telefone_cadastrado || '—')}</td>
+      <td>${esc(f.cidade || '—')}</td>
+      <td>${f.tentativas}/${f.max_tentativas}</td>
+      <td><span class="status-fila sf-${f.status}">${f.status.replace('_',' ')}</span></td>
+      <td>${f.proximo_contato ? new Date(f.proximo_contato).toLocaleString('pt-BR') : '—'}</td>
+      <td><button class="btn" style="padding:4px 10px;font-size:11px"
+        onclick="removerDaFila(${f.id})">Remover</button></td>
+    </tr>`).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--text2);padding:20px">Nenhum registro</td></tr>';
+}
+
+async function removerDaFila(idFila) {
+  if (!confirm('Remover este registro da fila?')) return;
+  await fetch(API + '/campanhas/' + campanhaAtual + '/fila/' + idFila, { method: 'DELETE' });
+  carregarFila();
+}
+
+// ─── FILTRO CLIENTES ──────────────────────────────────────────────────────────
+async function openModalFiltroClientes() {
+  if (!campanhaAtual) { alert('Selecione uma campanha primeiro'); return; }
+  // carrega regiões e segmentos
+  try {
+    const [rr, sr] = await Promise.all([
+      fetch('/api/lookups/regioes').then(r => r.json()),
+      fetch('/api/lookups/categorias').then(r => r.json()),
+    ]);
+    const selReg = document.getElementById('fRegiao');
+    selReg.innerHTML = '<option value="">Todas</option>' +
+      (rr || []).map(r => `<option value="${r.id}">${esc(r.descricao || r.nome)}</option>`).join('');
+    const selSeg = document.getElementById('fSegmento');
+    selSeg.innerHTML = '<option value="">Todos</option>' +
+      (sr || []).map(s => `<option value="${s.descricao || s.nome}">${esc(s.descricao || s.nome)}</option>`).join('');
+  } catch (_) {}
+  document.getElementById('modalFiltro').classList.add('open');
+}
+
+async function adicionarPorFiltro() {
+  const body = {
+    sem_pedido_dias: document.getElementById('fSemPedido').value || null,
+    regiao_id:       document.getElementById('fRegiao').value || null,
+    segmento:        document.getElementById('fSegmento').value || null,
+    limite:          document.getElementById('fLimite').value || 200,
+  };
+  const r = await fetch(API + '/campanhas/' + campanhaAtual + '/fila/por-filtro', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const d = await r.json();
+  if (r.ok) {
+    closeModal('modalFiltro');
+    alert(d.inseridos + ' clientes adicionados à fila');
+    carregarFila();
+  } else {
+    alert('Erro: ' + d.error);
+  }
+}
+
+// ─── RELATÓRIO ────────────────────────────────────────────────────────────────
+function preencherDataRelatorio() {
+  const hoje = new Date().toISOString().slice(0,10);
+  const primDia = hoje.slice(0,8) + '01';
+  document.getElementById('relDe').value  = primDia;
+  document.getElementById('relAte').value = hoje;
+  carregarRelatorio();
+}
+
+async function carregarRelatorio() {
+  const id = campanhaAtual || '';
+  const de = document.getElementById('relDe').value;
+  const ate = document.getElementById('relAte').value;
+  const url = API + '/relatorio?' +
+    (id ? 'id_campanha=' + id + '&' : '') +
+    (de ? 'data_inicio=' + de + '&' : '') +
+    (ate ? 'data_fim=' + ate : '');
+  let rows;
+  try {
+    const r = await fetch(url);
+    rows = await r.json();
+    if (!Array.isArray(rows)) throw new Error(rows.error || 'Resposta inválida');
+  } catch (err) {
+    document.getElementById('tbRelatorio').innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--danger);padding:20px">Erro: ${esc(err.message)}</td></tr>`;
+    return;
+  }
+  document.getElementById('tbRelatorio').innerHTML = rows.map(row => `
+    <tr>
+      <td>${new Date(row.data + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
+      <td>${esc(row.operador)}</td>
+      <td>${esc(row.campanha || '—')}</td>
+      <td>${row.total_ligacoes}</td>
+      <td>${row.total_contatos}</td>
+      <td>${row.taxa_contato || 0}%</td>
+      <td>${row.total_interesse}</td>
+      <td>${row.taxa_interesse || 0}%</td>
+      <td>${row.pedidos_gerados}</td>
+      <td>${row.leads_gerados}</td>
+      <td>${row.nao_atendeu}</td>
+      <td>${row.duracao_media ? Math.round(row.duracao_media) : '—'}</td>
+    </tr>`).join('') || '<tr><td colspan="12" style="text-align:center;color:var(--text2);padding:20px">Sem dados</td></tr>';
+}
+
+// ─── AÇÕES CONTEXTUAIS ────────────────────────────────────────────────────────
+async function criarLeadAutomatico() {
+  if (!filaAtual) return;
+  const nome     = filaAtual.nome_prospect || filaAtual.nome_cliente_cadastrado || '';
+  const telefone = filaAtual.telefone || filaAtual.telefone_cadastrado || '';
+  const body = {
+    nome,
+    telefone,
+    whatsapp: telefone,
+    origem: 'Teleatendimento',
+    canal_atendimento: 'COMERCIAL',
+    status_funil: 'CONTATO',
+    prioridade: 'ALTA',
+    temperatura_lead: 'QUENTE',
+    observacoes: document.getElementById('obsTextarea').value.trim() || 'Lead gerado via teleatendimento',
+    convertido_cliente_id: filaAtual.id_cliente || null,
+  };
+  try {
+    const r = await fetch('/api/leads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (r.ok) {
+      alert('✅ Lead criado com sucesso! ID: ' + d.id);
+    } else {
+      alert('Erro ao criar lead: ' + (d.error || r.status));
+    }
+  } catch (err) {
+    alert('Erro de conexão: ' + err.message);
+  }
+}
+
+async function enviarWhatsApp() {
+  if (!filaAtual) return;
+  const tel = (filaAtual.telefone || filaAtual.telefone_cadastrado || '').replace(/\D/g,'');
+  if (!tel) { alert('Nenhum telefone disponível para este contato'); return; }
+  const obs = document.getElementById('obsTextarea').value.trim();
+  const nome = filaAtual.nome_prospect || filaAtual.nome_cliente_cadastrado || '';
+  const msg  = obs
+    ? `Olá ${nome ? nome.split(' ')[0] : ''}! Conforme nossa conversa: ${obs}`
+    : `Olá ${nome ? nome.split(' ')[0] : ''}! Obrigado pelo seu contato. Em breve entraremos em detalhes.`;
+
+  // Tenta enviar via Evolution API; cai no wa.me se não disponível
+  try {
+    const r = await fetch(API + '/whatsapp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ numero: tel, mensagem: msg }),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      alert('✅ Mensagem enviada via WhatsApp!');
+      return;
+    }
+    // Fallback: abre wa.me
+    const motivos = {
+      sem_instancia: 'Seu usuário não tem instância WhatsApp configurada.',
+      sem_config:    'Evolution API não está configurada no sistema.',
+      desconectado:  'WhatsApp desconectado. Reconecte em Configurações → WhatsApp.',
+    };
+    const aviso = motivos[d.motivo] || '';
+    if (aviso) console.info('[WA]', aviso);
+    window.open(d.wa_link || `https://wa.me/55${tel}?text=${encodeURIComponent(msg)}`, '_blank');
+  } catch {
+    window.open(`https://wa.me/55${tel}?text=${encodeURIComponent(msg)}`, '_blank');
+  }
+}
+
+// ─── UTILIDADES ───────────────────────────────────────────────────────────────
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+
+function esc(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// libera fila se usuário fechar/sair da aba com atendimento ativo
+window.addEventListener('beforeunload', () => {
+  if (filaAtual) {
+    navigator.sendBeacon(API + '/chamadas/liberar',
+      new Blob([JSON.stringify({ id_fila: filaAtual.id })], { type: 'application/json' }));
+  }
+  clearInterval(painelInterval);
+});
+
+// ─── EXPORTAR CSV ────────────────────────────────────────────────────────────
+function exportarCSV() {
+  const id  = campanhaAtual || '';
+  const de  = document.getElementById('relDe').value;
+  const ate = document.getElementById('relAte').value;
+  const url = API + '/relatorio?formato=csv' +
+    (id ? '&id_campanha=' + id : '') +
+    (de ? '&data_inicio=' + de : '') +
+    (ate ? '&data_fim=' + ate  : '');
+  window.open(url, '_blank');
+}
+
+// ─── COMPARATIVO ─────────────────────────────────────────────────────────────
+function preencherDataComparativo() {
+  const hoje    = new Date().toISOString().slice(0,10);
+  const primDia = hoje.slice(0,8) + '01';
+  document.getElementById('cmpDe').value  = primDia;
+  document.getElementById('cmpAte').value = hoje;
+  carregarComparativo();
+}
+
+async function carregarComparativo() {
+  const de  = document.getElementById('cmpDe').value;
+  const ate = document.getElementById('cmpAte').value;
+  const url = API + '/comparativo?' +
+    (de ? 'data_inicio=' + de + '&' : '') +
+    (ate ? 'data_fim=' + ate : '');
+  let rows;
+  try {
+    const r = await fetch(url);
+    rows = await r.json();
+    if (!Array.isArray(rows)) throw new Error(rows.error || 'Resposta inválida');
+  } catch (err) {
+    document.getElementById('tbComparativo').innerHTML =
+      `<tr><td colspan="13" style="text-align:center;color:var(--danger);padding:20px">${esc(err.message)}</td></tr>`;
+    return;
+  }
+  const STATUS_COLOR = { ATIVA:'var(--success)', PAUSADA:'var(--warn)', ENCERRADA:'var(--danger)' };
+  document.getElementById('tbComparativo').innerHTML = rows.map(r => `
+    <tr>
+      <td><strong>${esc(r.campanha)}</strong></td>
+      <td><span style="font-size:11px;font-weight:700;color:${STATUS_COLOR[r.status_campanha]||'var(--text2)'}">${r.status_campanha}</span></td>
+      <td>${r.total_fila}</td>
+      <td>${r.concluidos}</td>
+      <td>${r.total_ligacoes}</td>
+      <td>${r.contatos}</td>
+      <td><strong>${r.taxa_contato||0}%</strong></td>
+      <td>${r.interesses}</td>
+      <td><strong>${r.taxa_interesse||0}%</strong></td>
+      <td>${r.pedidos}</td>
+      <td>${r.leads}</td>
+      <td>${r.operadores_ativos}</td>
+      <td>${r.duracao_media ? Math.round(r.duracao_media)+'s' : '—'}</td>
+    </tr>`).join('') ||
+    '<tr><td colspan="13" style="text-align:center;color:var(--text2);padding:20px">Sem dados</td></tr>';
+}
+
+// ─── PAUSA DO OPERADOR ────────────────────────────────────────────────────────
+let _pausado = false;
+
+function togglePausa() {
+  if (_pausado) {
+    retomar();
+  } else {
+    document.getElementById('pausaMotivo').value = '';
+    document.getElementById('modalPausa').classList.add('open');
+  }
+}
+
+async function confirmarPausa() {
+  if (!campanhaAtual) { closeModal('modalPausa'); return; }
+  const motivo = document.getElementById('pausaMotivo').value;
+  try {
+    await fetch(API + '/pausar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id_campanha: campanhaAtual, motivo }),
+    });
+    _pausado = true;
+    atualizarBtnPausa();
+    closeModal('modalPausa');
+  } catch (err) { alert('Erro: ' + err.message); }
+}
+
+async function retomar() {
+  if (!campanhaAtual) return;
+  try {
+    await fetch(API + '/retomar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id_campanha: campanhaAtual }),
+    });
+    _pausado = false;
+    atualizarBtnPausa();
+  } catch (err) { alert('Erro: ' + err.message); }
+}
+
+function atualizarBtnPausa() {
+  const btn = document.getElementById('btnPausa');
+  if (!btn) return;
+  if (_pausado) {
+    btn.textContent = '▶ Retomar';
+    btn.style.background = 'rgba(245,158,11,.15)';
+    btn.style.color = 'var(--warn)';
+    btn.style.borderColor = 'var(--warn)';
+  } else {
+    btn.textContent = '⏸ Pausar';
+    btn.style.background = '';
+    btn.style.color = '';
+    btn.style.borderColor = '';
+  }
+}
+
+// ─── PERMISSÕES ───────────────────────────────────────────────────────────────
+async function verificarPermissoes() {
+  try {
+    const r = await fetch('/api/auth/me').catch(() => null);
+    if (!r || !r.ok) return;
+    const data = await r.json();
+    const u = data?.user ?? data; // /api/auth/me retorna { user: {...} }
+    _isSupervisor = u?.perfil == 1 || u?.role === 'admin'
+                 || u?.permissoes?.manutencaocadastros === 'S';
+  } catch (_) {}
+  const btnNova = document.getElementById('btnNovaCampanha');
+  if (btnNova) btnNova.style.display = _isSupervisor ? '' : 'none';
+}
+
+// ─── LIMPAR TRAVADOS (supervisor) ─────────────────────────────────────────────
+async function limparTravados() {
+  if (!confirm('Liberar registros presos em "Em Atendimento" há mais de 30 minutos?')) return;
+  try {
+    const r = await fetch(API + '/limpar-travados', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ minutos: 30 }),
+    });
+    const d = await r.json();
+    alert(`${d.liberados || 0} registro(s) liberado(s).`);
+    if (campanhaAtual) { carregarFila(); atualizarResumoFila(); }
+  } catch (err) { alert('Erro: ' + err.message); }
+}
+
+// ─── STATUS WHATSAPP ──────────────────────────────────────────────────────────
+async function verificarStatusWhatsApp() {
+  const badge = document.getElementById('waStatusBadge');
+  if (!badge) return;
+  try {
+    const r = await fetch('/api/whatsapp/status');
+    if (!r.ok) return;
+    const d = await r.json();
+    badge.style.display = '';
+    if (d.conectado) {
+      badge.textContent = '💬 WA Conectado';
+      badge.style.background = 'rgba(16,185,129,.15)';
+      badge.style.color = '#10b981';
+    } else {
+      badge.textContent = '💬 WA Desconectado';
+      badge.style.background = 'rgba(239,68,68,.1)';
+      badge.style.color = '#ef4444';
+      badge.title = 'Sem WhatsApp — mensagens usarão o link wa.me como fallback';
+    }
+  } catch (_) {}
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+carregarSelectCampanhas();
+verificarStatusWhatsApp();
+verificarPermissoes();
+</script>
+</body>
+</html>

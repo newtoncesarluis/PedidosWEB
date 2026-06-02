@@ -5,6 +5,12 @@
 const express = require('express');
 const router  = express.Router();
 const { getPool } = require('../config/database');
+const { resolveNaturezaLabelColumn, naturezaLabelColumnName } = require('../config/natureza-label');
+const {
+  resolveDespesasLabelColumn,
+  despesasLabelExpr,
+  despesasOrderExpr,
+} = require('../config/despesas-label');
 
 async function query(sql, params = []) {
   try {
@@ -65,7 +71,7 @@ router.get('/tabela-preco', async (req, res) => {
 // GET /api/lookups/fornecedores → tabela: fornecedores (ativos, para select)
 router.get('/fornecedores', async (req, res) => {
   const { q = '' } = req.query;
-  let sql = `SELECT id, nome FROM fornecedores WHERE status='A'`;
+  let sql = `SELECT id, nome FROM fornecedores WHERE status='A' AND COALESCE(tipo, 'FABRICA') = 'FABRICA'`;
   const params = [];
   if (q.trim()) { sql += ` AND nome LIKE ?`; params.push(`%${q.trim()}%`); }
   sql += ` ORDER BY nome LIMIT 200`;
@@ -81,13 +87,17 @@ router.get('/vendedores', async (req, res) => {
   res.json(rows);
 });
 
-// GET /api/lookups/regioes → tabela: regioes ou fallback de clientes
+// GET /api/lookups/regioes → tabela: regiao_rota → fallback: regioes → fallback: distinct de clientes
 router.get('/regioes', async (req, res) => {
-  let rows = await query(`SELECT id, descricao FROM regioes ORDER BY descricao`);
-  if (!rows || rows.length === 0) {
-    rows = await query(`SELECT DISTINCT regiao AS id, regiao AS descricao FROM clientes WHERE regiao IS NOT NULL AND regiao <> '' ORDER BY regiao`);
+  let rows = [];
+  try { rows = await query(`SELECT id, descricao FROM regiao_rota WHERE (status='A' OR status IS NULL) AND (excluido='N' OR excluido IS NULL) ORDER BY descricao`); } catch (_) {}
+  if (!rows?.length) {
+    try { rows = await query(`SELECT id, descricao FROM regioes ORDER BY descricao`); } catch (_) {}
   }
-  res.json(rows);
+  if (!rows?.length) {
+    try { rows = await query(`SELECT DISTINCT regiao AS id, regiao AS descricao FROM clientes WHERE regiao IS NOT NULL AND regiao <> '' ORDER BY regiao`); } catch (_) {}
+  }
+  res.json(rows || []);
 });
 
 // GET /api/lookups/produto-especifico → produtos ativos id_grupo=4
@@ -104,6 +114,40 @@ router.get('/transportadoras', async (req, res) => {
     `SELECT id, nome FROM transportadora WHERE (status='A' OR status IS NULL) AND (excluido='N' OR excluido IS NULL) ORDER BY nome`
   );
   res.json(rows);
+});
+
+// GET /api/lookups/natureza → tabela: natureza (legado: nome; novo: descricao)
+router.get('/natureza', async (req, res) => {
+  try {
+    const pool = getPool();
+    await resolveNaturezaLabelColumn(pool);
+    const label = naturezaLabelColumnName();
+    const rows = await query(
+      `SELECT id, \`${label}\` AS nome FROM natureza WHERE excluido='N' AND (status='A' OR status IS NULL) ORDER BY \`${label}\``
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/lookups/despesas — mesma SQL do legado (nome ou descricao conforme o banco)
+router.get('/despesas', async (req, res) => {
+  try {
+    const pool = getPool();
+    await resolveDespesasLabelColumn(pool);
+    const labelSql = despesasLabelExpr('d');
+    const orderSql = despesasOrderExpr('d');
+    const [rows] = await pool.query(
+      `SELECT d.id AS id_despesas, ${labelSql} AS nome
+       FROM despesas d
+       WHERE d.excluido = 'N'
+       ORDER BY ${orderSql}`
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;

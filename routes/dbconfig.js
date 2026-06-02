@@ -5,7 +5,7 @@ const path    = require('path');
 const { testConnection, createPool } = require('../config/database');
 
 const TECH_PASSWORD = 'kzf010557f';
-const ENV_PATH      = path.join(__dirname, '..', '.env');
+const ENV_PATH      = path.join(process.cwd(), '.env');
 
 // ── Atualiza variáveis no arquivo .env ───────────────────────────────────────
 function updateEnvFile(updates) {
@@ -66,6 +66,20 @@ async function isDatabaseConfigured() {
 
 // GET /api/dbconfig/status — informa se o banco está configurado e acessível
 router.get('/status', async (req, res) => {
+  // Modo bound: CHAVE_LICENCA amarra o processo a um tenant — DB vem da Oracle
+  const { getBoundChave } = require('../config/database');
+  if (getBoundChave()) {
+    return res.json({ configured: true, mode: 'bound' });
+  }
+
+  // No modo CUSTOMER_DB_FROM_LICENSE o banco operacional vem da licença, não do .env.
+  // Retorna "configured" para que o login.html não abra o modal de banco e deixe
+  // o fluxo de licença controlar o acesso.
+  const fromLicense = process.env.CUSTOMER_DB_FROM_LICENSE;
+  if (fromLicense === '1' || String(fromLicense).toLowerCase() === 'true' || String(fromLicense).toLowerCase() === 'yes') {
+    return res.json({ configured: true, mode: 'license' });
+  }
+
   const host = process.env.DB_HOST;
   const name = process.env.DB_NAME;
   const user = process.env.DB_USER;

@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gamificação — Ranking & Metas</title>
+<link rel="stylesheet" href="/assets/themes.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
+<style>
+  :root {
+    --gold:   #f59e0b;
+    --silver: #94a3b8;
+    --bronze: #cd7f32;
+    --elite:  #059669;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font, 'Inter', 'Segoe UI', sans-serif);
+    background: var(--content-bg, #f1f5f9);
+    color: var(--text, #1e293b);
+    min-height: 100vh;
+  }
+
+  /* ── Toolbar ── */
+  .toolbar {
+    position: sticky; top: 0; z-index: 100;
+    background: var(--glass-bg, rgba(255,255,255,.95));
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border, #e2e8f0);
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 20px; flex-wrap: wrap;
+  }
+  .toolbar h2 { font-size: 17px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+  .toolbar-spacer { flex: 1; }
+  .btn { cursor: pointer; border: none; border-radius: 7px; padding: 6px 14px; font-size: 13px; font-weight: 600; transition: opacity .15s; }
+  .btn:hover { opacity: .82; }
+  .btn-primary { background: var(--accent, #0d9488); color: #fff; }
+  .btn-ghost { background: var(--row-hover, rgba(0,0,0,.06)); color: var(--text, #1e293b); }
+  input[type=date], select.period-sel {
+    border: 1px solid var(--border, #e2e8f0);
+    background: var(--card-bg, #fff);
+    color: var(--text, #1e293b);
+    border-radius: 7px; padding: 5px 10px; font-size: 13px;
+  }
+  .period-label { font-size: 12px; color: var(--muted, #64748b); }
+
+  /* ── Tabs ── */
+  .tabs { display: flex; gap: 4px; padding: 12px 20px 0; border-bottom: 1px solid var(--border, #e2e8f0); background: var(--card-bg, #fff); }
+  .tab { padding: 8px 18px; font-size: 13px; font-weight: 600; cursor: pointer; border-radius: 8px 8px 0 0; border-bottom: 3px solid transparent; color: var(--muted, #64748b); transition: all .15s; }
+  .tab:hover { background: var(--row-hover, rgba(0,0,0,.05)); }
+  .tab.active { color: var(--accent, #0d9488); border-bottom-color: var(--accent, #0d9488); background: transparent; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* ── Layout ── */
+  .page { padding: 20px; max-width: 1200px; margin: 0 auto; }
+
+  /* ── KPI strip ── */
+  .kpi-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .kpi-card {
+    background: var(--card-bg, #fff); border-radius: 12px;
+    padding: 14px 16px; border: 1px solid var(--border, #e2e8f0);
+    transition: box-shadow .15s;
+  }
+  .kpi-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,.08); }
+  .kpi-label { font-size: 11px; font-weight: 600; color: var(--muted, #64748b); text-transform: uppercase; letter-spacing: .5px; }
+  .kpi-value { font-size: 22px; font-weight: 800; margin: 4px 0 2px; }
+  .kpi-sub { font-size: 11px; color: var(--muted, #64748b); }
+
+  /* ── Pódio ── */
+  .podio-wrap {
+    display: flex; justify-content: center; align-items: flex-end;
+    gap: 12px; margin-bottom: 28px; flex-wrap: wrap;
+  }
+  .podio-card {
+    background: var(--card-bg, #fff); border-radius: 16px;
+    border: 2px solid transparent; padding: 20px 24px;
+    text-align: center; transition: transform .2s, box-shadow .2s;
+    position: relative; width: 200px;
+  }
+  .podio-card:hover { transform: translateY(-4px); box-shadow: 0 12px 32px rgba(0,0,0,.12); }
+  .podio-card.p1 { border-color: var(--gold); transform: translateY(-20px); width: 220px; }
+  .podio-card.p1:hover { transform: translateY(-24px); }
+  .podio-card.p2 { border-color: var(--silver); }
+  .podio-card.p3 { border-color: var(--bronze); }
+  .podio-medal { font-size: 36px; display: block; margin-bottom: 8px; }
+  .podio-pos { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+  .podio-card.p1 .podio-pos { color: var(--gold); }
+  .podio-card.p2 .podio-pos { color: var(--silver); }
+  .podio-card.p3 .podio-pos { color: var(--bronze); }
+  .podio-nome { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+  .podio-fat { font-size: 13px; color: var(--muted, #64748b); margin-bottom: 8px; }
+  .podio-score-wrap { display: flex; align-items: center; justify-content: center; gap: 6px; margin-bottom: 8px; }
+  .podio-score { font-size: 20px; font-weight: 900; }
+  .podio-card.p1 .podio-score { color: var(--gold); }
+  .podio-card.p2 .podio-score { color: var(--silver); }
+  .podio-card.p3 .podio-score { color: var(--bronze); }
+  .podio-badges { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; min-height: 22px; }
+  .badge-sm { font-size: 14px; title: attr(data-tip); }
+
+  /* ── Score ring ── */
+  .score-ring { position: relative; width: 44px; height: 44px; flex-shrink: 0; }
+  .score-ring svg { transform: rotate(-90deg); }
+  .score-ring .ring-val { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; }
+
+  /* ── Ranking table ── */
+  .rank-table { background: var(--card-bg, #fff); border-radius: 14px; border: 1px solid var(--border, #e2e8f0); overflow: hidden; }
+  .rank-row { display: grid; align-items: center; grid-template-columns: 44px 1fr 110px 110px 110px 80px 130px 50px; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--border, #e2e8f0); font-size: 13px; transition: background .12s; }
+  .rank-row:last-child { border-bottom: none; }
+  .rank-row:hover { background: var(--row-hover, rgba(0,0,0,.04)); }
+  .rank-header { background: var(--row-hover, rgba(0,0,0,.04)); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--muted, #64748b); }
+  .rank-pos { font-size: 15px; font-weight: 800; text-align: center; }
+  .rank-pos.top1 { color: var(--gold); }
+  .rank-pos.top2 { color: var(--silver); }
+  .rank-pos.top3 { color: var(--bronze); }
+  .rep-info .rep-nome { font-weight: 600; font-size: 13px; }
+  .rep-info .rep-rota { font-size: 11px; color: var(--muted, #64748b); }
+  .num-cell { text-align: right; }
+  .crescimento { font-size: 12px; }
+  .crescimento.up   { color: #059669; }
+  .crescimento.down { color: #dc2626; }
+  .badges-cell { display: flex; gap: 3px; flex-wrap: wrap; }
+  .score-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
+
+  /* ── Metas ── */
+  .metas-grid { display: grid; gap: 14px; }
+  .meta-card {
+    background: var(--card-bg, #fff); border-radius: 14px;
+    border: 1px solid var(--border, #e2e8f0);
+    padding: 16px 20px; transition: box-shadow .15s;
+  }
+  .meta-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,.08); }
+  .meta-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+  .meta-nome { font-weight: 700; font-size: 15px; }
+  .meta-pct-big { font-size: 28px; font-weight: 900; }
+  .meta-pct-big.success   { color: #059669; }
+  .meta-pct-big.on-track  { color: #0ea5e9; }
+  .meta-pct-big.warning   { color: #f59e0b; }
+  .meta-pct-big.danger    { color: #dc2626; }
+  .meta-bar-wrap { position: relative; height: 10px; background: var(--border, #e2e8f0); border-radius: 99px; overflow: hidden; margin: 6px 0 10px; }
+  .meta-bar-fill { height: 100%; border-radius: 99px; transition: width 1s cubic-bezier(.4,0,.2,1); }
+  .meta-bar-proj { position: absolute; top: 0; height: 100%; border-radius: 99px; opacity: .35; transition: width 1s cubic-bezier(.4,0,.2,1); }
+  .meta-bar-fill.success  { background: #059669; }
+  .meta-bar-fill.on-track { background: #0ea5e9; }
+  .meta-bar-fill.warning  { background: #f59e0b; }
+  .meta-bar-fill.danger   { background: #dc2626; }
+  .meta-bar-proj.success  { background: #059669; }
+  .meta-bar-proj.on-track { background: #0ea5e9; }
+  .meta-bar-proj.warning  { background: #f59e0b; }
+  .meta-bar-proj.danger   { background: #dc2626; }
+  .meta-nums { display: flex; gap: 20px; font-size: 12px; flex-wrap: wrap; }
+  .meta-num-item .label { color: var(--muted, #64748b); display: block; font-size: 11px; }
+  .meta-num-item .val { font-weight: 700; }
+  .meta-badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
+  .meta-badge.success  { background: rgba(5,150,105,.12);  color: #059669; }
+  .meta-badge.on-track { background: rgba(14,165,233,.12); color: #0ea5e9; }
+  .meta-badge.warning  { background: rgba(245,158,11,.12); color: #d97706; }
+  .meta-badge.danger   { background: rgba(220,38,38,.12);  color: #dc2626; }
+  .meta-status-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .progress-legend { display: flex; gap: 12px; font-size: 11px; color: var(--muted, #64748b); margin-top: 4px; }
+  .progress-legend span { display: flex; align-items: center; gap: 4px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+  /* ── Conquistas ── */
+  .conquistas-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+  .conquista-card {
+    background: var(--card-bg, #fff); border-radius: 14px;
+    border: 1px solid var(--border, #e2e8f0); padding: 16px;
+    display: flex; gap: 14px; align-items: flex-start;
+    transition: box-shadow .15s;
+  }
+  .conquista-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,.08); }
+  .conquista-rep-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--border, #e2e8f0); }
+  .rep-avatar { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; color: #fff; flex-shrink: 0; }
+  .rep-nome-full { font-weight: 700; font-size: 14px; }
+  .rep-score-sm { font-size: 12px; color: var(--muted, #64748b); }
+  .conquistas-list { display: flex; flex-wrap: wrap; gap: 8px; }
+  .conquista-badge {
+    display: flex; align-items: center; gap: 6px;
+    padding: 5px 10px; border-radius: 20px; font-size: 12px; font-weight: 600;
+    border: 1px solid;
+  }
+  .sem-conquistas { font-size: 12px; color: var(--muted, #64748b); }
+
+  /* ── Loading ── */
+  .loading-overlay { text-align: center; padding: 60px 20px; color: var(--muted, #64748b); }
+  .spinner { width: 32px; height: 32px; border: 3px solid var(--border, #e2e8f0); border-top-color: var(--accent, #0d9488); border-radius: 50%; animation: spin .7s linear infinite; margin: 0 auto 12px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Empty ── */
+  .empty-state { text-align: center; padding: 60px 20px; }
+  .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+  .empty-state p { color: var(--muted, #64748b); font-size: 14px; }
+
+  /* ── Responsive ── */
+  @media (max-width: 860px) {
+    .rank-row { grid-template-columns: 36px 1fr 90px 80px; }
+    .rank-row > *:nth-child(5),
+    .rank-row > *:nth-child(6),
+    .rank-row > *:nth-child(7) { display: none; }
+  }
+  @media (max-width: 600px) {
+    .podio-card { width: 140px; padding: 14px 16px; }
+    .podio-card.p1 { width: 160px; }
+    .page { padding: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Toolbar -->
+<div class="toolbar">
+  <h2>🏆 Gamificação</h2>
+  <span class="period-label">De</span>
+  <input type="date" id="dtini" autocomplete="off">
+  <span class="period-label">Até</span>
+  <input type="date" id="dtfim" autocomplete="off">
+  <button class="btn btn-primary" onclick="carregar()">Atualizar</button>
+  <div class="toolbar-spacer"></div>
+  <span id="periodo-label" style="font-size:12px;color:var(--muted,#64748b)"></span>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('ranking')">🏆 Ranking</div>
+  <div class="tab" onclick="switchTab('metas')">🎯 Metas do Mês</div>
+  <div class="tab" onclick="switchTab('conquistas')">🏅 Conquistas</div>
+</div>
+
+<!-- Tab: Ranking -->
+<div id="tab-ranking" class="tab-content active">
+  <div class="page">
+    <div id="kpi-strip" class="kpi-strip"></div>
+    <div id="podio-wrap" class="podio-wrap"></div>
+    <div id="rank-table" class="rank-table">
+      <div class="loading-overlay"><div class="spinner"></div><p>Carregando ranking…</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- Tab: Metas -->
+<div id="tab-metas" class="tab-content">
+  <div class="page">
+    <div id="metas-header" style="display:flex;align-items:center;gap:16px;margin-bottom:16px;flex-wrap:wrap"></div>
+    <div id="metas-grid" class="metas-grid">
+      <div class="loading-overlay"><div class="spinner"></div><p>Carregando metas…</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- Tab: Conquistas -->
+<div id="tab-conquistas" class="tab-content">
+  <div class="page">
+    <div id="conquistas-grid" class="conquistas-grid">
+      <div class="loading-overlay" style="grid-column:1/-1"><div class="spinner"></div><p>Carregando conquistas…</p></div>
+    </div>
+  </div>
+</div>
+
+<script src="/assets/themes.js"></script>
+<script>
+// ── Estado ──────────────────────────────────────────────────────────────────
+let _dadosRanking = null;
+let _dadosMetas   = null;
+let _tabAtiva     = 'ranking';
+let _metasCarregadas     = false;
+let _conquistasCarregadas = false;
+
+// ── Init ────────────────────────────────────────────────────────────────────
+(function () {
+  const hoje = new Date();
+  const ini  = `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}-01`;
+  const fim  = hoje.toISOString().slice(0, 10);
+  document.getElementById('dtini').value = ini;
+  document.getElementById('dtfim').value = fim;
+  carregar();
+})();
+
+// ── Abas ────────────────────────────────────────────────────────────────────
+function switchTab(nome) {
+  _tabAtiva = nome;
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    const ids = ['ranking', 'metas', 'conquistas'];
+    t.classList.toggle('active', ids[i] === nome);
+  });
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.getElementById(`tab-${nome}`).classList.add('active');
+
+  if (nome === 'metas' && !_metasCarregadas) carregarMetas();
+  if (nome === 'conquistas' && _dadosRanking && !_conquistasCarregadas) renderConquistas(_dadosRanking);
+}
+
+// ── Carregar Ranking ─────────────────────────────────────────────────────────
+async function carregar() {
+  const di = document.getElementById('dtini').value;
+  const df = document.getElementById('dtfim').value;
+  _metasCarregadas = false;
+  _conquistasCarregadas = false;
+
+  document.getElementById('rank-table').innerHTML =
+    '<div class="loading-overlay"><div class="spinner"></div><p>Carregando ranking…</p></div>';
+
+  try {
+    const r = await fetch(`/api/gamificacao/ranking?dtini=${di}&dtfim=${df}`);
+    if (!r.ok) throw new Error(await r.text());
+    _dadosRanking = await r.json();
+    renderKPIs(_dadosRanking);
+    renderPodio(_dadosRanking);
+    renderRanking(_dadosRanking);
+    document.getElementById('periodo-label').textContent =
+      `${fmt(di)} → ${fmt(df)}`;
+
+    if (_tabAtiva === 'conquistas') renderConquistas(_dadosRanking);
+  } catch (e) {
+    document.getElementById('rank-table').innerHTML =
+      `<div class="loading-overlay"><p>Erro ao carregar: ${e.message}</p></div>`;
+  }
+}
+
+// ── Carregar Metas ───────────────────────────────────────────────────────────
+async function carregarMetas() {
+  document.getElementById('metas-grid').innerHTML =
+    '<div class="loading-overlay"><div class="spinner"></div><p>Carregando metas…</p></div>';
+  try {
+    const r = await fetch('/api/gamificacao/metas');
+    if (!r.ok) throw new Error(await r.text());
+    _dadosMetas = await r.json();
+    _metasCarregadas = true;
+    renderMetas(_dadosMetas);
+  } catch (e) {
+    document.getElementById('metas-grid').innerHTML =
+      `<div class="loading-overlay"><p>Erro ao carregar: ${e.message}</p></div>`;
+  }
+}
+
+// ── KPI Strip ────────────────────────────────────────────────────────────────
+function renderKPIs(d) {
+  const reps   = d.representantes;
+  const totalFat  = reps.reduce((s,r) => s + r.faturamento, 0);
+  const totalPed  = reps.reduce((s,r) => s + r.total_pedidos, 0);
+  const totalVis  = reps.reduce((s,r) => s + r.total_visitas, 0);
+  const avgScore  = reps.length ? Math.round(reps.reduce((s,r) => s + r.score, 0) / reps.length) : 0;
+  const comMeta   = reps.filter(r => r.meta_pct !== null && r.meta_pct >= 100).length;
+
+  document.getElementById('kpi-strip').innerHTML = `
+    <div class="kpi-card">
+      <div class="kpi-label">Representantes</div>
+      <div class="kpi-value">${reps.length}</div>
+      <div class="kpi-sub">no período</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Faturamento Total</div>
+      <div class="kpi-value" style="font-size:18px">${moeda(totalFat)}</div>
+      <div class="kpi-sub">${totalPed} pedidos</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Score Médio</div>
+      <div class="kpi-value" style="color:${corScore(avgScore)}">${avgScore}</div>
+      <div class="kpi-sub">0–100 pts</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Bateram a Meta</div>
+      <div class="kpi-value" style="color:#059669">${comMeta}</div>
+      <div class="kpi-sub">de ${reps.filter(r=>r.meta>0).length} com meta</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Visitas Totais</div>
+      <div class="kpi-value">${totalVis}</div>
+      <div class="kpi-sub">no período</div>
+    </div>
+  `;
+}
+
+// ── Pódio ────────────────────────────────────────────────────────────────────
+function renderPodio(d) {
+  const p = d.podio;
+  if (!p || !p.length) { document.getElementById('podio-wrap').innerHTML = ''; return; }
+
+  const ordem = p.length >= 3 ? [p[1], p[0], p[2]] : p; // 2º esq, 1º centro, 3º dir
+  const classes = p.length >= 3 ? ['p2','p1','p3'] : ['p1','p2','p3'];
+  const medals  = p.length >= 3 ? ['🥈','🥇','🥉'] : ['🥇','🥈','🥉'];
+  const labels  = p.length >= 3 ? ['2° Lugar','1° Lugar','3° Lugar'] : ['1° Lugar','2° Lugar','3° Lugar'];
+
+  document.getElementById('podio-wrap').innerHTML = ordem.map((r, i) => `
+    <div class="podio-card ${classes[i]}">
+      <span class="podio-medal">${medals[i]}</span>
+      <div class="podio-pos">${labels[i]}</div>
+      <div class="podio-nome">${primeiroNome(r.nome)}</div>
+      <div class="podio-fat">${moeda(r.faturamento)}</div>
+      <div class="podio-score-wrap">
+        <span class="podio-score">${r.score}</span>
+        <span style="font-size:11px;color:var(--muted,#64748b)">pts</span>
+      </div>
+      <div class="podio-badges">${(r.conquistas||[]).slice(0,5).map(c=>`<span class="badge-sm" title="${c.titulo}">${c.icone}</span>`).join('')}</div>
+    </div>
+  `).join('');
+}
+
+// ── Ranking Table ────────────────────────────────────────────────────────────
+function renderRanking(d) {
+  const reps = d.representantes;
+  if (!reps.length) {
+    document.getElementById('rank-table').innerHTML =
+      '<div class="empty-state"><div class="icon">📊</div><p>Nenhum dado para o período selecionado</p></div>';
+    return;
+  }
+
+  let html = `
+    <div class="rank-row rank-header">
+      <div>#</div>
+      <div>Representante</div>
+      <div class="num-cell">Faturamento</div>
+      <div class="num-cell">Pedidos</div>
+      <div class="num-cell">Positivação</div>
+      <div class="num-cell">Visitas</div>
+      <div>Score</div>
+      <div>Badges</div>
+    </div>
+  `;
+
+  reps.forEach((r, idx) => {
+    const pos    = idx + 1;
+    const cresc  = r.crescimento_pct !== null
+      ? `<span class="crescimento ${r.crescimento_pct >= 0 ? 'up' : 'down'}">${r.crescimento_pct >= 0 ? '▲' : '▼'}${Math.abs(r.crescimento_pct).toFixed(0)}%</span>`
+      : '';
+    const posClass = pos === 1 ? 'top1' : pos === 2 ? 'top2' : pos === 3 ? 'top3' : '';
+    const scoreChip = `<span class="score-chip" style="background:${corScore(r.score)}22;color:${corScore(r.score)}">${r.score} pts</span>`;
+    const metaBadge = r.meta_pct !== null
+      ? `<small style="font-size:10px;color:${r.meta_pct>=100?'#059669':'#f59e0b'}">${r.meta_pct.toFixed(0)}% meta</small>`
+      : '';
+    const badges = (r.conquistas || []).slice(0, 4).map(c =>
+      `<span title="${c.titulo}: ${c.desc}" style="font-size:16px;cursor:default">${c.icone}</span>`
+    ).join('');
+
+    html += `
+      <div class="rank-row">
+        <div class="rank-pos ${posClass}">${pos <= 3 ? ['🥇','🥈','🥉'][pos-1] : pos}</div>
+        <div class="rep-info">
+          <div class="rep-nome">${r.nome}</div>
+          <div class="rep-rota">${r.rota ? 'Rota '+r.rota : ''} ${cresc}</div>
+        </div>
+        <div class="num-cell">
+          <div style="font-weight:700">${moeda(r.faturamento)}</div>
+          ${metaBadge}
+        </div>
+        <div class="num-cell">${r.total_pedidos}</div>
+        <div class="num-cell">${r.positivacao_pct.toFixed(0)}%<br><span style="font-size:10px;color:var(--muted,#64748b)">${r.clientes_positivados}/${r.total_carteira}</span></div>
+        <div class="num-cell">${r.total_visitas}</div>
+        <div>${scoreChip}<br><span style="font-size:10px;color:var(--muted,#64748b)">${classeScore(r.score)}</span></div>
+        <div class="badges-cell">${badges || '—'}</div>
+      </div>
+    `;
+  });
+
+  document.getElementById('rank-table').innerHTML = html;
+}
+
+// ── Metas ────────────────────────────────────────────────────────────────────
+function renderMetas(d) {
+  const { metas, mes, dia_atual, dias_mes } = d;
+
+  document.getElementById('metas-header').innerHTML = `
+    <h3 style="font-size:16px;font-weight:700">📅 ${mes.charAt(0).toUpperCase()+mes.slice(1)}</h3>
+    <span style="font-size:12px;color:var(--muted,#64748b)">Dia ${dia_atual} de ${dias_mes}</span>
+    <div class="progress-legend">
+      <span><span class="dot" style="background:#e2e8f0"></span> Realizado</span>
+      <span><span class="dot" style="background:#94a3b8;opacity:.5"></span> Projeção</span>
+    </div>
+  `;
+
+  if (!metas.length) {
+    document.getElementById('metas-grid').innerHTML =
+      '<div class="empty-state" style="grid-column:1/-1"><div class="icon">🎯</div><p>Nenhum representante com meta cadastrada</p></div>';
+    return;
+  }
+
+  document.getElementById('metas-grid').innerHTML = metas.map(m => {
+    const pctReal = Math.min(100, m.pct);
+    const pctProj = Math.min(100, m.pct_projetado);
+    const statusLabel = { success:'✅ Meta batida!', 'on-track':'📈 No ritmo', warning:'⚠️ Atenção', danger:'🚨 Abaixo do esperado' }[m.status];
+
+    return `
+      <div class="meta-card">
+        <div class="meta-header">
+          <div>
+            <div class="meta-nome">${m.nome}</div>
+            <div style="font-size:12px;color:var(--muted,#64748b);margin-top:2px">
+              Meta: ${moeda(m.meta)}
+            </div>
+          </div>
+          <div style="text-align:right">
+            <div class="meta-pct-big ${m.status}">${m.pct.toFixed(1)}%</div>
+            <span class="meta-badge ${m.status}">${statusLabel}</span>
+          </div>
+        </div>
+        <div class="meta-bar-wrap">
+          <div class="meta-bar-proj ${m.status}" style="width:${pctProj}%"></div>
+          <div class="meta-bar-fill ${m.status}" style="width:${pctReal}%"></div>
+        </div>
+        <div class="meta-nums">
+          <div class="meta-num-item"><span class="label">Realizado</span><span class="val">${moeda(m.faturamento)}</span></div>
+          <div class="meta-num-item"><span class="label">Falta</span><span class="val" style="color:#dc2626">${moeda(m.faltam)}</span></div>
+          <div class="meta-num-item"><span class="label">Projeção (mês)</span><span class="val" style="color:${m.pct_projetado>=100?'#059669':'#f59e0b'}">${moeda(m.projetado)} (${m.pct_projetado.toFixed(0)}%)</span></div>
+          <div class="meta-num-item"><span class="label">Dias restantes</span><span class="val">${dias_mes - dia_atual}</span></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Animar barras após render
+  requestAnimationFrame(() => {
+    document.querySelectorAll('.meta-bar-fill, .meta-bar-proj').forEach(b => {
+      const w = b.style.width; b.style.width = '0';
+      requestAnimationFrame(() => { b.style.width = w; });
+    });
+  });
+}
+
+// ── Conquistas ───────────────────────────────────────────────────────────────
+function renderConquistas(d) {
+  _conquistasCarregadas = true;
+  const reps = d.representantes.filter(r => r.conquistas && r.conquistas.length > 0);
+
+  if (!reps.length) {
+    document.getElementById('conquistas-grid').innerHTML =
+      '<div class="empty-state" style="grid-column:1/-1"><div class="icon">🏅</div><p>Nenhuma conquista no período</p></div>';
+    return;
+  }
+
+  const avatarColors = ['#0d9488','#0ea5e9','#7c3aed','#d97706','#dc2626','#059669','#6366f1','#db2777'];
+
+  document.getElementById('conquistas-grid').innerHTML = reps.map((r, idx) => {
+    const cor = avatarColors[idx % avatarColors.length];
+    const initials = r.nome.split(' ').slice(0,2).map(n=>n[0]).join('').toUpperCase();
+    const badgesHtml = r.conquistas.map(c => `
+      <div class="conquista-badge" style="background:${c.cor}18;border-color:${c.cor}44;color:${c.cor}">
+        <span>${c.icone}</span>
+        <span>${c.titulo}</span>
+        <span style="font-size:10px;opacity:.8">· ${c.desc}</span>
+      </div>
+    `).join('');
+
+    return `
+      <div class="conquista-card" style="flex-direction:column">
+        <div class="conquista-rep-header">
+          <div class="rep-avatar" style="background:${cor}">${initials}</div>
+          <div>
+            <div class="rep-nome-full">${r.nome}</div>
+            <div class="rep-score-sm">Score: <strong style="color:${corScore(r.score)}">${r.score} pts</strong> · ${classeScore(r.score)}</div>
+          </div>
+        </div>
+        <div class="conquistas-list">${badgesHtml}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function moeda(v) {
+  return (v||0).toLocaleString('pt-BR', { style:'currency', currency:'BRL', minimumFractionDigits:0, maximumFractionDigits:0 });
+}
+function fmt(s) {
+  if (!s) return '';
+  const [y,m,d] = s.split('-');
+  return `${d}/${m}/${y}`;
+}
+function primeiroNome(n) { return (n||'').split(' ')[0]; }
+function corScore(s) {
+  if (s >= 75) return '#059669';
+  if (s >= 50) return '#0ea5e9';
+  if (s >= 25) return '#f59e0b';
+  return '#dc2626';
+}
+function classeScore(s) {
+  if (s >= 75) return 'Elite';
+  if (s >= 50) return 'Operacional';
+  if (s >= 25) return 'Expansão';
+  return 'Risco Comercial';
+}
+</script>
+</body>
+</html>

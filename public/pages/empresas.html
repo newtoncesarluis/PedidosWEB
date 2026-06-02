@@ -247,6 +247,26 @@ input:focus,select:focus,textarea:focus {
 .pw-toggle:hover { color:var(--text); }
 .pw-toggle svg { width:16px;height:16px; }
 
+/* Logo empresa (login / relatórios) */
+.logo-empresa-wrap {
+  grid-column:1/-1;
+  padding:12px;background:var(--input-bg);border:1px dashed var(--border);
+  border-radius:10px;
+}
+.logo-empresa-inner { display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap; }
+.logo-empresa-preview {
+  width:128px;height:80px;border:1px solid var(--border);border-radius:8px;
+  background:var(--card);display:flex;align-items:center;justify-content:center;
+  overflow:hidden;flex-shrink:0;
+}
+.logo-empresa-preview img {
+  max-width:100%;max-height:100%;object-fit:contain;display:none;
+}
+.logo-empresa-preview img.show { display:block; }
+.logo-empresa-preview .ph { font-size:11px;color:var(--text2);text-align:center;padding:8px;line-height:1.4; }
+.logo-empresa-actions { flex:1;min-width:200px;display:flex;flex-direction:column;gap:8px; }
+.logo-empresa-actions input[type=file] { font-size:12px; }
+
 /* ── RADIO SN ── */
 .sn-group { display:flex;gap:8px; }
 .sn-btn {
@@ -313,7 +333,12 @@ input:focus,select:focus,textarea:focus {
   .modal-backdrop { padding:0;align-items:flex-end; }
 }
 </style>
+<link rel="stylesheet" href="/assets/themes.css">
 <script src="/assets/themes.js"></script>
+
+<!-- ★ Card View -->
+<link rel="stylesheet" href="/assets/card-view.css">
+<script src="/assets/card-view.js"></script>
 </head>
 <body>
 <div id="_mobile_block" style="display:none;position:fixed;inset:0;z-index:99999;background:#1e2433;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:32px;text-align:center"><svg width="64" height="64" fill="none" stroke="#4361ee" stroke-width="1.5" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg><h2 style="color:#fff;font-size:20px;font-weight:700;margin:0">Use o computador</h2><p style="color:#aaa;font-size:14px;margin:0">Esta tela de configuração<br>não está disponível no celular.</p></div>
@@ -449,6 +474,30 @@ input:focus,select:focus,textarea:focus {
               <div class="form-group">
                 <label>Ins. Municipal</label>
                 <input type="text" id="f-ins_muncipal" placeholder="Inscrição municipal">
+              </div>
+              <div class="form-group logo-empresa-wrap">
+                <label>Logo (login e relatórios)</label>
+                <div class="logo-empresa-inner">
+                  <div class="logo-empresa-preview" id="wrap-empresa-logo-preview">
+                    <span class="ph" id="empresa-logo-ph">Sem logo</span>
+                    <img id="empresa-logo-preview" alt="">
+                  </div>
+                  <div class="logo-empresa-actions">
+                    <input type="file" id="f-logo-file" accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml" autocomplete="off">
+                    <button type="button" class="btn btn-ghost" id="btn-logo-remover" onclick="removerLogoEmpresa()" style="align-self:flex-start;padding:7px 12px;font-size:12px">
+                      Remover logo
+                    </button>
+                    <div class="form-group" style="margin:0;gap:6px">
+                      <label style="font-size:11px">Tamanho da logo nos relatórios</label>
+                      <select id="f-logo_tamanho_relatorio" autocomplete="off">
+                        <option value="P">Pequeno</option>
+                        <option value="M" selected>Médio</option>
+                        <option value="G">Grande</option>
+                      </select>
+                    </div>
+                    <p class="input-hint" style="margin:0">PNG, JPG, GIF, WebP ou SVG · até 5 MB. Login, impressão e PDF do pedido usam o tamanho escolhido.</p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -721,6 +770,13 @@ input:focus,select:focus,textarea:focus {
                   <option value="NAO">NÃO</option>
                 </select>
               </div>
+              <div class="form-group">
+                <label>Fluxo de Pedidos</label>
+                <select id="f-fluxo_pedidos">
+                  <option value="LIVRE">Livre (Orçamento ou Pedido direto)</option>
+                  <option value="ORCAMENTO">Orçamento → Pedido (fluxo obrigatório)</option>
+                </select>
+              </div>
             </div>
           </div>
         </details>
@@ -805,9 +861,112 @@ function confirmar(msg) {
 /* ─── ESTADO ─────────────────────────────────────────────────────────────── */
 let _editId   = null;
 let _empresas = [];
+let _pendingLogoFile = null;
+let _logoBlobUrl     = null;
+
+function absLogoEmpresa(url) {
+  if (!url || !String(url).trim()) return '';
+  const u = String(url).trim();
+  if (/^https?:\/\//i.test(u)) return u;
+  return window.location.origin + (u.startsWith('/') ? u : '/' + u);
+}
+
+function setEmpresaLogoPreview(pathOrNull) {
+  const img = document.getElementById('empresa-logo-preview');
+  const ph  = document.getElementById('empresa-logo-ph');
+  if (!img || !ph) return;
+  if (_logoBlobUrl) {
+    URL.revokeObjectURL(_logoBlobUrl);
+    _logoBlobUrl = null;
+  }
+  img.onerror = () => {
+    img.removeAttribute('src');
+    img.classList.remove('show');
+    ph.style.display = '';
+    ph.textContent = 'Logo indisponível — envie novamente';
+  };
+  if (pathOrNull) {
+    img.src = absLogoEmpresa(pathOrNull);
+    img.classList.add('show');
+    ph.style.display = 'none';
+    ph.textContent = 'Sem logo';
+  } else {
+    img.onerror = null;
+    img.removeAttribute('src');
+    img.classList.remove('show');
+    ph.style.display = '';
+    ph.textContent = 'Sem logo';
+  }
+}
+
+async function enviarLogoEmpresa(file, empresaId) {
+  const id = empresaId || _editId;
+  if (!id || !file) return;
+  const fd = new FormData();
+  fd.append('logo', file);
+  const r = await fetch(`/api/empresas/${id}/logo`, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + getToken() },
+    body: fd
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || d.message || r.statusText);
+  setEmpresaLogoPreview(d.logo_relatorio);
+}
+
+async function removerLogoEmpresa() {
+  if (!_editId) {
+    _pendingLogoFile = null;
+    const fi = document.getElementById('f-logo-file');
+    if (fi) fi.value = '';
+    setEmpresaLogoPreview(null);
+    return;
+  }
+  const ok = await confirmar('Remover a logo desta empresa?');
+  if (!ok) return;
+  try {
+    await api(`/api/empresas/${_editId}/logo`, { method: 'DELETE' });
+    setEmpresaLogoPreview(null);
+    const fi = document.getElementById('f-logo-file');
+    if (fi) fi.value = '';
+    toast('Logo removida.');
+  } catch (e) {
+    toast('Erro: ' + e.message, 'error');
+  }
+}
 
 /* ─── INIT ───────────────────────────────────────────────────────────────── */
-window.addEventListener('DOMContentLoaded', carregarEmpresas);
+window.addEventListener('DOMContentLoaded', () => {
+  carregarEmpresas();
+  const lf = document.getElementById('f-logo-file');
+  if (lf) {
+    lf.addEventListener('change', async (ev) => {
+      const f = ev.target.files && ev.target.files[0];
+      if (!f) return;
+      if (!_editId) {
+        _pendingLogoFile = f;
+        if (_logoBlobUrl) URL.revokeObjectURL(_logoBlobUrl);
+        _logoBlobUrl = URL.createObjectURL(f);
+        const img = document.getElementById('empresa-logo-preview');
+        const ph  = document.getElementById('empresa-logo-ph');
+        if (img && ph) {
+          img.src = _logoBlobUrl;
+          img.classList.add('show');
+          ph.style.display = 'none';
+        }
+        toast('Após criar a empresa, a logo será enviada automaticamente.');
+        return;
+      }
+      try {
+        await enviarLogoEmpresa(f);
+        toast('Logo atualizada!');
+        ev.target.value = '';
+      } catch (e) {
+        toast('Erro no upload: ' + e.message, 'error');
+      }
+    });
+  }
+});
 
 /* ─── LISTAGEM ───────────────────────────────────────────────────────────── */
 async function carregarEmpresas() {
@@ -821,10 +980,16 @@ async function carregarEmpresas() {
 
   try {
     const d = await api('/api/empresas');
-    _empresas = d.empresas || [];
+    if (!Array.isArray(d.empresas)) {
+      throw new Error(d.error || d.message || 'Resposta inválida da API');
+    }
+    _empresas = d.empresas;
     renderTabela(_empresas);
   } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="6" class="empty"><p>Erro: ${e.message}</p></td></tr>`;
+    _empresas = [];
+    renderTabela([]);
+    tbody.innerHTML = `<tr><td colspan="6" class="empty"><p>Erro: ${escHtml(e.message)}</p></td></tr>`;
+    toast('Erro ao carregar empresas: ' + e.message, 'error');
   }
 }
 
@@ -891,19 +1056,32 @@ function abrirModal(id = null) {
   _editId = id;
   limparForm();
   document.getElementById('modal-title').textContent = id ? 'Editar Empresa' : 'Nova Empresa';
-  document.getElementById('modal-sub').textContent   = id ? `ID: ${id}` : 'Preencha os dados da empresa';
+  document.getElementById('modal-sub').textContent   = id ? `Carregando ID ${id}…` : 'Preencha os dados da empresa';
   document.getElementById('modal').style.display = 'block';
-  document.getElementById('f-Razao_empresa').focus();
-  if (id) carregarEmpresa(id);
+  document.querySelector('#modal details')?.setAttribute('open', 'open');
+  if (id) {
+    carregarEmpresa(id);
+  } else {
+    document.getElementById('f-Razao_empresa').focus();
+  }
 }
 
 function fecharModal(e) {
   if (e && e.target !== document.getElementById('modal-backdrop')) return;
   document.getElementById('modal').style.display = 'none';
   _editId = null;
+  _pendingLogoFile = null;
+  const lfi = document.getElementById('f-logo-file');
+  if (lfi) lfi.value = '';
+  setEmpresaLogoPreview(null);
 }
 
 function limparForm() {
+  _pendingLogoFile = null;
+  const lfi = document.getElementById('f-logo-file');
+  if (lfi) lfi.value = '';
+  setEmpresaLogoPreview(null);
+
   const campos = [
     'Razao_empresa','nome_fantasia','cnpj','ins_estadual','ins_muncipal',
     'endereco','numero','bairro','cidade','cep','telefone','telefone2','fax','site',
@@ -919,16 +1097,28 @@ function limparForm() {
   document.getElementById('f-tipo_pessoa').value = 'JURIDICA';
   document.getElementById('f-uf').value          = '';
   document.getElementById('f-ativo').value        = 'SIM';
+  document.getElementById('f-fluxo_pedidos').value = 'LIVRE';
+  const lt = document.getElementById('f-logo_tamanho_relatorio');
+  if (lt) lt.value = 'M';
 
   ['gempresapermite_trocarbase','compartilhatudo','compartilhaproduto','compartilhacliente','muda_empresa'].forEach(k => {
     setSN(k, 'N');
   });
 }
 
+function normalizeAtivo(val) {
+  if (val == null || val === '') return 'SIM';
+  const u = String(val).toUpperCase().trim();
+  if (u === 'N' || u === 'NAO' || u === 'NÃO' || u === '0' || u === 'FALSE') return 'NAO';
+  return 'SIM';
+}
+
 async function carregarEmpresa(id) {
+  const sub = document.getElementById('modal-sub');
   try {
-    const d = await api(`/api/empresas/${id}`);
-    const e = d.empresa || d;
+    if (sub) sub.textContent = `Carregando ID ${id}…`;
+    const e = await api(`/api/empresas/${id}`);
+    if (!e || e.id_empresa == null) throw new Error('Empresa não encontrada');
 
     const strs = [
       'Razao_empresa','nome_fantasia','cnpj','ins_estadual','ins_muncipal',
@@ -936,14 +1126,26 @@ async function carregarEmpresa(id) {
       'responsavel','responsavel_cpf','responsavel_telefone','responsavel_email',
       'email','email_nf','email_nomeexibicao','email_smtp','email_username','email_password',
       'email_port','email_assinatura','email_emaildiretor',
-      'ipservidor','tipo_pessoa','uf','ativo'
+      'ipservidor','tipo_pessoa','uf','fluxo_pedidos'
     ];
-    strs.forEach(k => setValue('f-' + k, e[k]));
+    strs.forEach(k => setValue('f-' + k, empVal(e, k)));
+    setValue('f-ativo', normalizeAtivo(empVal(e, 'ativo')));
 
     ['gempresapermite_trocarbase','compartilhatudo','compartilhaproduto','compartilhacliente','muda_empresa'].forEach(k => {
-      setSN(k, e[k] || 'N');
+      setSN(k, empVal(e, k) || 'N');
     });
+
+    const lt = document.getElementById('f-logo_tamanho_relatorio');
+    if (lt) {
+      const t = String(empVal(e, 'logo_tamanho_relatorio') || 'M').toUpperCase();
+      lt.value = ['P', 'M', 'G'].includes(t) ? t : 'M';
+    }
+
+    setEmpresaLogoPreview(e.logo_relatorio || null);
+    if (sub) sub.textContent = `ID: ${id} — ${empVal(e, 'Razao_empresa') || 'Empresa'}`;
+    document.getElementById('f-Razao_empresa')?.focus();
   } catch (err) {
+    if (sub) sub.textContent = `Erro ao carregar ID ${id}`;
     toast('Erro ao carregar empresa: ' + err.message, 'error');
   }
 }
@@ -995,6 +1197,8 @@ async function salvar() {
     compartilhacliente:   v('f-compartilhacliente'),
     muda_empresa:         v('f-muda_empresa'),
     ativo:                v('f-ativo'),
+    logo_tamanho_relatorio: v('f-logo_tamanho_relatorio') || 'M',
+    fluxo_pedidos:        v('f-fluxo_pedidos') || 'LIVRE',
   };
 
   const btn = document.getElementById('btn-salvar');
@@ -1006,8 +1210,19 @@ async function salvar() {
       await api(`/api/empresas/${_editId}`, { method: 'PUT', body: payload });
       toast('Empresa atualizada com sucesso!');
     } else {
-      await api('/api/empresas', { method: 'POST', body: payload });
-      toast('Empresa criada com sucesso!');
+      const created = await api('/api/empresas', { method: 'POST', body: payload });
+      const newId = created && created.id;
+      if (newId && _pendingLogoFile) {
+        try {
+          await enviarLogoEmpresa(_pendingLogoFile, newId);
+          toast('Empresa criada e logo enviada!');
+        } catch (le) {
+          toast('Empresa criada, mas falha no envio da logo: ' + le.message, 'error');
+        }
+        _pendingLogoFile = null;
+      } else {
+        toast('Empresa criada com sucesso!');
+      }
     }
     fecharModal();
     carregarEmpresas();
@@ -1037,12 +1252,30 @@ async function excluir(id, nome) {
 
 /* ─── SIM/NÃO TOGGLE ─────────────────────────────────────────────────────── */
 function setSN(campo, val) {
-  document.getElementById('f-' + campo).value = val;
+  const el = document.getElementById('f-' + campo);
+  if (!el) return;
+  const norm = normalizeSN(val);
+  el.value = norm;
   const btnS = document.getElementById('sn-' + campo + '-S');
   const btnN = document.getElementById('sn-' + campo + '-N');
   if (!btnS || !btnN) return;
-  btnS.className = 'sn-btn' + (val === 'S' ? ' active-s' : '');
-  btnN.className = 'sn-btn' + (val === 'N' ? ' active-n' : '');
+  btnS.className = 'sn-btn' + (norm === 'S' ? ' active-s' : '');
+  btnN.className = 'sn-btn' + (norm === 'N' ? ' active-n' : '');
+}
+
+function normalizeSN(val) {
+  if (val == null || val === '') return 'N';
+  const u = String(val).toUpperCase().trim();
+  if (u === 'S' || u === 'SIM' || u === '1' || u === 'Y' || u === 'YES') return 'S';
+  return 'N';
+}
+
+function empVal(obj, key) {
+  if (!obj) return '';
+  if (obj[key] !== undefined && obj[key] !== null) return obj[key];
+  const lower = key.toLowerCase();
+  if (obj[lower] !== undefined && obj[lower] !== null) return obj[lower];
+  return '';
 }
 
 /* ─── HELPERS ────────────────────────────────────────────────────────────── */
@@ -1101,6 +1334,35 @@ function mascaraCpf(el) {
   else if (v.length > 3) v = v.replace(/^(\d{3})(\d{0,3})/,'$1.$2');
   el.value = v;
 }
+
+/* ★ Card View — padrão compartilhado */
+CardView.attach({
+  toolbar:   '.card-header > div:last-child',
+  tableWrap: '.table-wrap',
+  container: '.card',
+  wrap:      'renderTabela',
+  card: (e) => {
+    const cidUF = [e.cidade, e.uf].filter(Boolean).join(' / ');
+    const ativo = e.ativo === 'SIM' || e.ativo === 'S' || e.ativo === 1 || e.ativo === '1';
+    return {
+      title:    e.Razao_empresa,
+      subtitle: e.nome_fantasia,
+      avatar:   e.Razao_empresa,
+      badge:    ativo
+                  ? { label:'Ativo',   tone:'success' }
+                  : { label:'Inativo', tone:'neutral' },
+      rows: [
+        e.cnpj ? { icon:'doc', text: e.cnpj } : null,
+        cidUF  ? { icon:'map', text: cidUF }  : null
+      ].filter(Boolean),
+      onClick: () => editar(e.id_empresa),
+      actions: [
+        { label:'Editar',  icon:'edit',  onClick: () => editar(e.id_empresa) },
+        { label:'Excluir', icon:'trash', onClick: () => excluir(e.id_empresa, e.Razao_empresa) }
+      ]
+    };
+  }
+});
 </script>
 </body>
 </html>

@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<title>Conciliação de Comissões</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+:root {
+  --bg:     var(--content-bg);
+  --card:   var(--card-bg);
+  --border: var(--card-border);
+  --text:   var(--content-text);
+  --danger: #ef4444;
+  --success:#22c55e;
+  --warn:   #f59e0b;
+}
+body { font-family:var(--font,'Inter','Segoe UI',sans-serif); background:var(--bg); color:var(--text); min-height:100vh; }
+
+/* ── TOOLBAR ── */
+.toolbar { background:var(--card); border-bottom:1px solid var(--border); padding:12px 20px;
+  display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+  position:sticky; top:0; z-index:100; box-shadow:0 2px 8px rgba(0,0,0,.04); }
+.toolbar-title { font-size:13px; font-weight:800; letter-spacing:.7px; text-transform:uppercase; color:var(--text); white-space:nowrap; margin-right:4px; }
+
+.btn { display:inline-flex; align-items:center; gap:6px; padding:7px 14px;
+  border:none; border-radius:7px; font-size:12px; font-weight:700; cursor:pointer;
+  transition:.15s; font-family:inherit; white-space:nowrap; }
+.btn svg { width:14px; height:14px; flex-shrink:0; }
+.btn:disabled { opacity:.45; cursor:not-allowed; }
+.btn-primary { background:var(--accent); color:#fff; }
+.btn-primary:hover:not(:disabled) { background:var(--accent-hover); }
+.btn-outline { background:var(--card); color:var(--accent); border:1.5px solid var(--accent); }
+.btn-outline:hover { background:var(--accent-soft,#e0f2fe); }
+.btn-ghost  { background:var(--card); color:var(--text2); border:1.5px solid var(--border); }
+.btn-ghost:hover { background:var(--bg); }
+.btn-danger { background:var(--danger); color:#fff; }
+.btn-danger:hover:not(:disabled) { opacity:.85; }
+.btn-sm { padding:5px 10px; font-size:11px; }
+
+/* ── CONTENT ── */
+.content { padding:20px; }
+.section-title { font-size:13px; font-weight:700; color:var(--text2); text-transform:uppercase; letter-spacing:.5px; margin-bottom:12px; }
+
+/* ── FILTROS ── */
+.filtros { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:18px; }
+.filtros select, .filtros input {
+  height:34px; border:1.5px solid var(--border); border-radius:7px; padding:0 10px;
+  font-family:inherit; font-size:12px; background:var(--card); color:var(--text);
+  outline:none; min-width:160px;
+}
+.filtros select:focus, .filtros input:focus { border-color:var(--accent); }
+
+/* ── CARDS LIST ── */
+.cards-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:14px; }
+.card { background:var(--card); border:1.5px solid var(--border); border-radius:10px; padding:16px;
+  cursor:pointer; transition:.15s; }
+.card:hover { border-color:var(--accent); box-shadow:0 2px 12px rgba(14,165,233,.12); }
+.card-top { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; margin-bottom:8px; }
+.card-supplier { font-size:13px; font-weight:700; color:var(--text); }
+.card-ref { font-size:11px; font-weight:600; color:var(--text2); margin-top:2px; }
+.card-date { font-size:11px; color:var(--text2); white-space:nowrap; }
+.card-stats { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
+.stat-pill { font-size:11px; font-weight:700; padding:3px 8px; border-radius:20px; white-space:nowrap; }
+.pill-green  { background:#dcfce7; color:#15803d; }
+.pill-yellow { background:#fef9c3; color:#a16207; }
+.pill-red    { background:#fee2e2; color:#b91c1c; }
+.pill-gray   { background:var(--bg); color:var(--text2); border:1px solid var(--border); }
+.pill-violet { background:#ede9fe; color:#6d28d9; }
+.card-vlr { margin-top:10px; display:flex; gap:14px; flex-wrap:wrap; }
+.card-vlr span { font-size:11px; color:var(--text2); }
+.card-vlr strong { font-size:12px; font-weight:700; color:var(--text); }
+
+/* ── BADGE STATUS ── */
+.badge-status { display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:700;
+  padding:3px 8px; border-radius:20px; letter-spacing:.3px; text-transform:uppercase; }
+.bs-aberto  { background:#dbeafe; color:#1d4ed8; }
+.bs-fechado { background:#dcfce7; color:#15803d; }
+
+/* ── DETAIL VIEW ── */
+#viewDetalhe { display:none; }
+.detalhe-header { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:16px; }
+.detalhe-info { flex:1; }
+.detalhe-info h2 { font-size:15px; font-weight:800; color:var(--text); }
+.detalhe-info p  { font-size:12px; color:var(--text2); margin-top:2px; }
+.detalhe-actions { display:flex; gap:8px; flex-wrap:wrap; }
+
+/* ── RESUMO TOTAIS ── */
+.resumo-grid { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:18px; }
+.resumo-grid .resumo-card { flex:1; min-width:120px; }
+.resumo-card { background:var(--card); border:1.5px solid var(--border); border-radius:8px; padding:12px 14px; text-align:center; }
+.resumo-card .rval { font-size:18px; font-weight:800; color:var(--text); margin-bottom:2px; }
+.resumo-card .rlbl { font-size:11px; color:var(--text2); font-weight:600; }
+.resumo-card.green { border-color:#22c55e; }
+.resumo-card.green .rval { color:#15803d; }
+.resumo-card.yellow { border-color:#f59e0b; }
+.resumo-card.yellow .rval { color:#a16207; }
+.resumo-card.red { border-color:#ef4444; }
+.resumo-card.red .rval { color:#b91c1c; }
+
+/* ── TABELA ITENS ── */
+.table-wrap { overflow-x:auto; border:1.5px solid var(--border); border-radius:10px; }
+table { width:100%; border-collapse:collapse; font-size:12px; }
+thead th { background:var(--bg); color:var(--text2); font-weight:700; font-size:11px;
+  text-transform:uppercase; letter-spacing:.4px; padding:10px 12px;
+  border-bottom:1.5px solid var(--border); white-space:nowrap; }
+tbody tr { border-bottom:1px solid var(--border); transition:.1s; }
+tbody tr:last-child { border-bottom:none; }
+tbody tr:hover { background:var(--bg); }
+tbody td { padding:10px 12px; vertical-align:middle; }
+.td-mono { font-family:monospace; font-size:12px; }
+.td-num  { text-align:right; font-weight:600; }
+.td-diff-pos { color:#15803d; font-weight:700; }
+.td-diff-neg { color:#b91c1c; font-weight:700; }
+.status-badge { display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:700;
+  padding:3px 8px; border-radius:20px; text-transform:uppercase; letter-spacing:.3px; white-space:nowrap; }
+.sb-conferido    { background:#dcfce7; color:#15803d; }
+.sb-divergencia  { background:#fef9c3; color:#a16207; }
+.sb-nao_encontrado { background:#fee2e2; color:#b91c1c; }
+.sb-ignorado     { background:var(--bg); color:var(--text2); border:1px solid var(--border); }
+
+/* ── MODAIS ── */
+.overlay { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:500; display:none; align-items:center; justify-content:center; padding:16px; }
+.overlay.active { display:flex; }
+.modal { background:var(--card); border-radius:12px; padding:24px; width:100%; max-width:520px;
+  box-shadow:0 20px 60px rgba(0,0,0,.3); max-height:90vh; overflow-y:auto; }
+.modal-title { font-size:15px; font-weight:800; color:var(--text); margin-bottom:16px; }
+.form-group { margin-bottom:14px; }
+.form-group label { display:block; font-size:12px; font-weight:600; color:var(--text2); margin-bottom:5px; }
+.form-group input, .form-group select, .form-group textarea {
+  width:100%; height:36px; border:1.5px solid var(--border); border-radius:7px;
+  padding:0 10px; font-family:inherit; font-size:13px; background:var(--card); color:var(--text); outline:none; }
+.form-group textarea { height:auto; padding:8px 10px; resize:vertical; }
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color:var(--accent); }
+.modal-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:20px; }
+
+/* ── PREVIEW TABLE ── */
+.preview-table { width:100%; border-collapse:collapse; font-size:11px; margin-top:8px; }
+.preview-table th, .preview-table td { border:1px solid var(--border); padding:4px 6px; text-align:left; }
+.preview-table th { background:var(--bg); font-weight:700; }
+.preview-table .col-hl { background:rgba(14,165,233,.1); }
+
+/* ── EMPTY STATE ── */
+.empty { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:48px 20px; gap:12px; color:var(--text2); }
+.empty svg { width:48px; height:48px; opacity:.3; }
+.empty p { font-size:14px; font-weight:600; }
+
+/* ── LOADING ── */
+.spinner { width:20px; height:20px; border:2.5px solid var(--border); border-top-color:var(--accent);
+  border-radius:50%; animation:spin .7s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<!-- TOOLBAR -->
+<div class="toolbar">
+  <span class="toolbar-title">
+    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="display:inline;vertical-align:-2px;margin-right:5px">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+    </svg>
+    Conciliação de Comissões
+  </span>
+  <button class="btn btn-primary" onclick="abrirModalNova()">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+    Nova Conciliação
+  </button>
+  <a href="ajuda-comissoes.html#conciliacao" target="_blank" title="Ajuda — Conciliação com Fábrica" style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:50%;font-size:15px;font-weight:700;color:var(--accent);border:1.5px solid var(--accent);text-decoration:none;flex-shrink:0;margin-left:4px">?</a>
+  <div id="btnVoltarWrap" style="display:none">
+    <button class="btn btn-ghost" onclick="voltarLista()">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+      Voltar
+    </button>
+  </div>
+</div>
+
+<!-- LISTA -->
+<div class="content" id="viewLista">
+  <div class="filtros">
+    <select id="filtFornecedor" onchange="carregarLista()">
+      <option value="">Todos os fornecedores</option>
+    </select>
+    <select id="filtStatus" onchange="carregarLista()">
+      <option value="">Todos os status</option>
+      <option value="ABERTO">Aberto</option>
+      <option value="FECHADO">Fechado</option>
+    </select>
+    <button class="btn btn-ghost btn-sm" onclick="carregarLista()">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+      Atualizar
+    </button>
+  </div>
+  <div id="listContainer">
+    <div class="empty"><div class="spinner"></div></div>
+  </div>
+</div>
+
+<!-- DETALHE -->
+<div class="content" id="viewDetalhe">
+  <div class="detalhe-header">
+    <div class="detalhe-info">
+      <h2 id="dtNomeFornecedor">—</h2>
+      <p id="dtReferencia" style="color:var(--text2)">—</p>
+    </div>
+    <div class="detalhe-actions">
+      <span id="dtStatusBadge" class="badge-status bs-aberto">Aberto</span>
+      <button class="btn btn-outline btn-sm" id="btnImportar" onclick="abrirModalImportar()">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/></svg>
+        Importar Excel
+      </button>
+      <button class="btn btn-outline btn-sm" id="btnAdicionarItem" onclick="abrirModalAdicionarItem()">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        Adicionar Item
+      </button>
+      <button class="btn btn-sm" id="btnLiberar" style="display:none;background:#16a34a;color:#fff;border:1.5px solid #16a34a" onclick="liberarConferidos()">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Liberar Conferidos
+      </button>
+      <button class="btn btn-primary btn-sm" id="btnFechar" onclick="fecharConciliacao()">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+        Fechar Conciliação
+      </button>
+      <button class="btn btn-outline btn-sm" id="btnReabrir" style="display:none" onclick="reabrirConciliacao()">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        Reabrir
+      </button>
+      <button class="btn btn-danger btn-sm" onclick="excluirConciliacao()">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+        Excluir
+      </button>
+    </div>
+  </div>
+
+  <!-- Resumo -->
+  <div class="resumo-grid" id="resumoGrid"></div>
+
+  <!-- Tabela de itens -->
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>N° Fábrica</th>
+          <th>Parcela</th>
+          <th>N° Sistema</th>
+          <th style="text-align:right">Vlr. Fábrica</th>
+          <th style="text-align:right">Vlr. Sistema</th>
+          <th style="text-align:right">Diferença</th>
+          <th>Status</th>
+          <th>Obs</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="tbodyItens"></tbody>
+    </table>
+  </div>
+  <div id="itensEmpty" class="empty" style="display:none">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+    <p>Nenhum item. Importe um Excel ou adicione manualmente.</p>
+  </div>
+</div>
+
+<!-- MODAL NOVA CONCILIAÇÃO -->
+<div class="overlay" id="modalNova">
+  <div class="modal">
+    <div class="modal-title">Nova Conciliação</div>
+    <div class="form-group">
+      <label>Fornecedor (Fábrica) *</label>
+      <select id="nv_fornecedor" autocomplete="off">
+        <option value="">Selecione…</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Referência *
+        <span style="font-size:11px;font-weight:400;color:var(--text2);margin-left:4px">ex: "Extrato Mai/2026", "NFs 001-150"</span>
+      </label>
+      <input type="text" id="nv_referencia" placeholder="Ex: Extrato Maio 2026" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label>Observação</label>
+      <textarea id="nv_obs" rows="2" placeholder="Opcional…" autocomplete="off"></textarea>
+    </div>
+    <div id="nv_tipoInfo" style="font-size:11px;color:var(--text2);margin-bottom:12px;min-height:16px"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="fecharModal('modalNova')">Cancelar</button>
+      <button class="btn btn-primary" onclick="criarConciliacao()">Criar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL IMPORTAR EXCEL -->
+<div class="overlay" id="modalImportar">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-title">Importar Extrato da Fábrica</div>
+
+    <!-- Step 1: upload -->
+    <div id="impStep1">
+      <div class="form-group">
+        <label>Arquivo Excel (.xlsx / .xls)</label>
+        <input type="file" id="imp_arquivo" accept=".xlsx,.xls" onchange="previewExcel()" style="height:auto;padding:6px 10px">
+      </div>
+      <div id="imp_preview_wrap" style="display:none">
+        <p style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px">Prévia (primeiras 5 linhas):</p>
+        <div style="overflow-x:auto">
+          <table class="preview-table" id="imp_preview_table"></table>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:12px">
+          <div class="form-group" style="margin:0">
+            <label>Coluna N° Pedido
+              <span style="font-size:10px;font-weight:400">(0 = 1ª col.)</span>
+            </label>
+            <input type="number" id="imp_col_num" value="0" min="0" onchange="renderPreview()" style="height:34px">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label>Coluna Valor Comissão</label>
+            <input type="number" id="imp_col_vlr" value="1" min="0" onchange="renderPreview()" style="height:34px">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label>Linhas p/ pular (cabeçalho)</label>
+            <input type="number" id="imp_skip" value="1" min="0" onchange="renderPreview()" style="height:34px">
+          </div>
+        </div>
+        <div id="imp_tipo_info" style="margin-top:8px;font-size:11px;padding:8px 10px;background:var(--bg);border-radius:6px;color:var(--text2)"></div>
+      </div>
+    </div>
+
+    <!-- Step 2: resultado -->
+    <div id="impStep2" style="display:none;text-align:center;padding:20px 0">
+      <div id="impResultIcon" style="font-size:40px;margin-bottom:8px">✅</div>
+      <div id="impResultMsg" style="font-size:14px;font-weight:700;color:var(--text)"></div>
+      <div id="impResultSub" style="font-size:12px;color:var(--text2);margin-top:6px"></div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="fecharModal('modalImportar')">Fechar</button>
+      <button class="btn btn-primary" id="btnImportarOk" onclick="executarImportar()">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/></svg>
+        Importar
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL RESULTADO LIBERAÇÃO -->
+<div class="overlay" id="modalLiberar">
+  <div class="modal" style="max-width:420px;text-align:center">
+    <div style="font-size:48px;margin-bottom:12px">✅</div>
+    <div class="modal-title" style="text-align:center;font-size:17px">Comissões Liberadas!</div>
+    <div id="libResultMsg" style="font-size:14px;color:var(--text2);margin-bottom:8px"></div>
+    <div style="background:var(--bg);border-radius:8px;padding:12px 16px;margin:12px 0;font-size:12px;color:var(--text2);text-align:left;line-height:1.7">
+      <strong style="color:var(--text)">Próximo passo:</strong><br>
+      Acesse <strong>Gestão de Comissões</strong>, filtre pelo vendedor e clique em
+      <strong>"Baixar"</strong> para registrar o pagamento no financeiro e notificar o vendedor.
+    </div>
+    <div class="modal-actions" style="justify-content:center;gap:10px">
+      <button class="btn btn-ghost" onclick="fecharModal('modalLiberar')">Fechar</button>
+      <button class="btn btn-primary" onclick="fecharModal('modalLiberar');window.parent?.postMessage({type:'navigate',page:'/pages/comissoes.html'},'*') || (window.location.href='/pages/comissoes.html')">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 9l3 3m0 0l-3 3m3-3H8m13 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Ir para Gestão de Comissões
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL EDITAR ITEM -->
+<div class="overlay" id="modalItem">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-title">Ajustar Item</div>
+    <input type="hidden" id="ei_id">
+    <div class="form-group">
+      <label>N° Pedido Fábrica</label>
+      <input type="text" id="ei_num_fab" disabled style="opacity:.7">
+    </div>
+    <div class="form-group">
+      <label>Status</label>
+      <select id="ei_status">
+        <option value="CONFERIDO">✅ Conferido</option>
+        <option value="DIVERGENCIA">⚠️ Divergência</option>
+        <option value="NAO_ENCONTRADO">❌ Não encontrado</option>
+        <option value="IGNORADO">— Ignorado</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Observação</label>
+      <textarea id="ei_obs" rows="3" placeholder="Justificativa, NF correta, etc." autocomplete="off"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="fecharModal('modalItem')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarItem()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL ADICIONAR ITEM MANUAL -->
+<div class="overlay" id="modalAddItem">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-title">Adicionar Item Manual</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="form-group" style="margin-bottom:0">
+        <label>N° Pedido Fábrica</label>
+        <input type="text" id="add_num_fabrica" placeholder="Ex: 5404" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label>Vlr. Comissão Fábrica (R$)</label>
+        <input type="number" id="add_vlr_fabrica" placeholder="0.00" step="0.01" min="0" oninput="add_calcDiff()">
+      </div>
+    </div>
+    <div style="margin-top:12px">
+      <label style="display:block;font-size:12px;font-weight:600;color:var(--text2);margin-bottom:5px">N° Pedido Sistema</label>
+      <div style="display:flex;gap:6px">
+        <input type="text" id="add_num_sistema" placeholder="Digite o nº e clique Buscar" autocomplete="off" style="flex:1;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-family:inherit;font-size:13px;background:var(--card);color:var(--text);outline:none">
+        <button class="btn btn-outline btn-sm" onclick="add_buscarPedido()" style="height:36px;white-space:nowrap">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:13px;height:13px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          Buscar
+        </button>
+      </div>
+      <div id="add_pedido_info" style="display:none;margin-top:6px;padding:8px 10px;border-radius:7px;font-size:12px"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
+      <div class="form-group" style="margin-bottom:0">
+        <label>Vlr. Sistema (R$)</label>
+        <input type="number" id="add_vlr_sistema" placeholder="0.00" step="0.01" min="0" oninput="add_calcDiff()">
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label>Diferença</label>
+        <input type="text" id="add_diferenca" readonly style="height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-family:inherit;font-size:13px;background:var(--bg);color:var(--text);outline:none;font-weight:700;width:100%">
+      </div>
+    </div>
+    <div class="form-group" style="margin-top:12px">
+      <label>Observação</label>
+      <textarea id="add_obs" rows="2" placeholder="Opcional..." style="height:auto;padding:8px 10px;resize:vertical"></textarea>
+    </div>
+    <div id="add_status_info" style="display:none;margin-top:4px;font-size:12px;font-weight:700;padding:6px 10px;border-radius:7px"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="fecharModal('modalAddItem')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarItemManual()">Adicionar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── State ────────────────────────────────────────────────────────────────────
+let _conciliacaoAtual = null;
+let _itensAtuais      = [];
+let _excelData        = null;
+let _impFile          = null;
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  carregarFornecedores();
+  carregarLista();
+});
+
+// ─── Fornecedores ─────────────────────────────────────────────────────────────
+async function carregarFornecedores() {
+  try {
+    const d = await fetch('/api/fornecedores?somente_fabricas=true&limit=500').then(r => r.json());
+    const opts = (d.fornecedores || []).map(f =>
+      `<option value="${f.id}" data-tipo="${f.tipo_num_pedido||'SISTEMA'}">${f.nome}</option>`
+    ).join('');
+    document.getElementById('filtFornecedor').insertAdjacentHTML('beforeend', opts);
+    document.getElementById('nv_fornecedor').insertAdjacentHTML('beforeend', opts);
+  } catch (_) {}
+}
+
+function tipoLabel(tipo) {
+  if (tipo === 'NF')             return 'N° da NF';
+  if (tipo === 'PEDIDO_FABRICA') return 'N° Interno da Fábrica';
+  return 'N° do Sistema';
+}
+
+// ─── Lista ────────────────────────────────────────────────────────────────────
+async function carregarLista() {
+  const el = document.getElementById('listContainer');
+  el.innerHTML = '<div class="empty"><div class="spinner"></div></div>';
+  const params = new URLSearchParams();
+  const filt = document.getElementById('filtFornecedor').value;
+  const stat = document.getElementById('filtStatus').value;
+  if (filt) params.set('id_fornecedor', filt);
+  if (stat) params.set('status', stat);
+
+  try {
+    const d = await fetch('/api/conciliacao?' + params).then(r => r.json());
+    const lista = d.conciliacoes || [];
+    if (!lista.length) {
+      el.innerHTML = `<div class="empty">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+        <p>Nenhuma conciliação encontrada.</p>
+      </div>`;
+      return;
+    }
+    el.innerHTML = `<div class="cards-grid">${lista.map(renderCard).join('')}</div>`;
+  } catch (e) {
+    el.innerHTML = `<div class="empty"><p style="color:var(--danger)">Erro: ${e.message}</p></div>`;
+  }
+}
+
+function renderCard(c) {
+  const fechado = c.status === 'FECHADO';
+  const dt = new Date(c.dt_criacao).toLocaleDateString('pt-BR');
+  const vlFab = fmtMoeda(c.total_vlr_fabrica);
+  const vlSis = fmtMoeda(c.total_vlr_sistema);
+  const diff  = parseFloat(c.total_vlr_fabrica) - parseFloat(c.total_vlr_sistema);
+  const tipo  = tipoLabel(c.tipo_num_pedido);
+  return `<div class="card" onclick="abrirDetalhe(${c.id})">
+    <div class="card-top">
+      <div>
+        <div class="card-supplier">${c.nome_fornecedor || '—'}</div>
+        <div class="card-ref">${c.referencia}</div>
+        <div class="card-ref" style="margin-top:2px;font-size:10px">Chave: ${tipo}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+        <span class="badge-status ${fechado?'bs-fechado':'bs-aberto'}">${fechado?'Fechado':'Aberto'}</span>
+        <span class="card-date">${dt}</span>
+      </div>
+    </div>
+    <div class="card-stats">
+      <span class="stat-pill pill-gray">${c.total_itens} itens</span>
+      ${c.total_conferidos>0    ? `<span class="stat-pill pill-green">✓ ${c.total_conferidos}</span>`      : ''}
+      ${c.total_divergencias>0  ? `<span class="stat-pill pill-yellow">⚠ ${c.total_divergencias}</span>`  : ''}
+      ${c.total_nao_encontrados>0 ? `<span class="stat-pill pill-red">✗ ${c.total_nao_encontrados}</span>` : ''}
+    </div>
+    <div class="card-vlr">
+      <div><span>Fábrica </span><strong>${vlFab}</strong></div>
+      <div><span>Sistema </span><strong>${vlSis}</strong></div>
+      <div><span>Dif. </span><strong style="color:${Math.abs(diff)<0.01?'var(--success)':diff>0?'var(--warn)':'var(--danger)'}">${fmtMoeda(diff)}</strong></div>
+    </div>
+  </div>`;
+}
+
+// ─── Detalhe ──────────────────────────────────────────────────────────────────
+async function abrirDetalhe(id) {
+  document.getElementById('viewLista').style.display   = 'none';
+  document.getElementById('viewDetalhe').style.display = 'block';
+  document.getElementById('btnVoltarWrap').style.display = '';
+  document.getElementById('tbodyItens').innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px"><div class="spinner" style="margin:auto"></div></td></tr>';
+  document.getElementById('resumoGrid').innerHTML = '';
+  document.getElementById('itensEmpty').style.display = 'none';
+
+  try {
+    const resp = await fetch(`/api/conciliacao/${id}`);
+    const d = await resp.json();
+    if (!resp.ok || !d.conciliacao) {
+      alert('Erro ao carregar conciliação: ' + (d.error || 'Resposta inesperada do servidor'));
+      voltarLista();
+      return;
+    }
+    _conciliacaoAtual = d.conciliacao;
+    _itensAtuais      = d.itens || [];
+
+    // Header
+    document.getElementById('dtNomeFornecedor').textContent = d.conciliacao.nome_fornecedor || '—';
+    const dt = new Date(d.conciliacao.dt_criacao).toLocaleDateString('pt-BR');
+    const baseLabel = d.conciliacao.base_conciliacao === 'PEDIDO' ? 'Por Pedido' : 'Por Parcela';
+    document.getElementById('dtReferencia').textContent =
+      `${d.conciliacao.referencia} · Criada em ${dt} · Chave: ${tipoLabel(d.conciliacao.tipo_num_pedido)} · Base: ${baseLabel}`;
+
+    const fechado = d.conciliacao.status === 'FECHADO';
+    const badge = document.getElementById('dtStatusBadge');
+    badge.className = `badge-status ${fechado?'bs-fechado':'bs-aberto'}`;
+    badge.textContent = fechado ? 'Fechado' : 'Aberto';
+    const temConferidos = (d.itens || []).some(i => i.status === 'CONFERIDO');
+    document.getElementById('btnImportar').style.display      = fechado ? 'none' : '';
+    document.getElementById('btnAdicionarItem').style.display = fechado ? 'none' : '';
+    document.getElementById('btnLiberar').style.display       = (!fechado && temConferidos) ? '' : 'none';
+    document.getElementById('btnFechar').style.display        = fechado ? 'none' : '';
+    document.getElementById('btnReabrir').style.display       = fechado ? '' : 'none';
+
+    renderResumo(_itensAtuais);
+    renderTabela(_itensAtuais);
+  } catch (e) {
+    document.getElementById('tbodyItens').innerHTML =
+      `<tr><td colspan="9" style="color:var(--danger);padding:16px">Erro: ${e.message}</td></tr>`;
+  }
+}
+
+function renderResumo(itens) {
+  const total   = itens.length;
+  const conf    = itens.filter(i => i.status === 'CONFERIDO').length;
+  const lib     = itens.filter(i => i.status === 'LIBERADO').length;
+  const div     = itens.filter(i => i.status === 'DIVERGENCIA').length;
+  const naoEnc  = itens.filter(i => i.status === 'NAO_ENCONTRADO').length;
+  const vlrFab  = itens.reduce((s,i) => s + parseFloat(i.vlr_comissao_fabrica||0), 0);
+  const vlrSis  = itens.reduce((s,i) => s + parseFloat(i.vlr_sistema||0), 0);
+  const dif     = vlrFab - vlrSis;
+
+  document.getElementById('resumoGrid').innerHTML = `
+    <div class="resumo-card"><div class="rval">${total}</div><div class="rlbl">Total Itens</div></div>
+    <div class="resumo-card green"><div class="rval">${conf}</div><div class="rlbl">Conferidos</div></div>
+    ${lib > 0 ? `<div class="resumo-card green" style="border-color:#16a34a"><div class="rval" style="color:#15803d">${lib}</div><div class="rlbl">✅ Liberados</div></div>` : ''}
+    <div class="resumo-card yellow"><div class="rval">${div}</div><div class="rlbl">Divergências</div></div>
+    <div class="resumo-card red"><div class="rval">${naoEnc}</div><div class="rlbl">Não encontrados</div></div>
+    <div class="resumo-card"><div class="rval" style="font-size:14px">${fmtMoeda(vlrFab)}</div><div class="rlbl">Total Fábrica</div></div>
+    <div class="resumo-card"><div class="rval" style="font-size:14px">${fmtMoeda(vlrSis)}</div><div class="rlbl">Total Sistema</div></div>
+    <div class="resumo-card ${Math.abs(dif)<0.01?'green':dif>0?'yellow':'red'}">
+      <div class="rval" style="font-size:14px">${fmtMoeda(dif)}</div><div class="rlbl">Diferença</div>
+    </div>
+  `;
+}
+
+function renderTabela(itens) {
+  const tbody = document.getElementById('tbodyItens');
+  if (!itens.length) {
+    tbody.innerHTML = '';
+    document.getElementById('itensEmpty').style.display = 'flex';
+    return;
+  }
+  document.getElementById('itensEmpty').style.display = 'none';
+  tbody.innerHTML = itens.map((it, idx) => {
+    const diff    = parseFloat(it.diferenca||0);
+    const diffCls = Math.abs(diff)<0.01 ? '' : diff>0 ? 'td-diff-pos' : 'td-diff-neg';
+    const diffStr = Math.abs(diff)<0.01 ? '—' : (diff>0?'+':'')+fmtMoeda(diff);
+    const stBadge = statusBadge(it.status);
+    const numSis  = it.num_pedido_sistema || '<span style="color:var(--text2);font-style:italic">—</span>';
+    const fechado = _conciliacaoAtual?.status === 'FECHADO';
+    return `<tr>
+      <td class="td-mono" style="color:var(--text2)">${idx+1}</td>
+      <td class="td-mono"><strong>${it.num_pedido_fabrica||'—'}</strong></td>
+      <td class="td-mono" style="color:var(--text2)">${it.num_parcela||'—'}</td>
+      <td class="td-mono">${numSis}</td>
+      <td class="td-num">${fmtMoeda(it.vlr_comissao_fabrica)}</td>
+      <td class="td-num">${fmtMoeda(it.vlr_sistema)}</td>
+      <td class="td-num ${diffCls}">${diffStr}</td>
+      <td>${stBadge}</td>
+      <td style="font-size:11px;color:var(--text2);max-width:160px;word-break:break-word">${it.obs||''}</td>
+      <td>${fechado?'':`<button class="btn btn-ghost btn-sm" onclick="abrirModalItem(${it.id})">Ajustar</button>`}</td>
+    </tr>`;
+  }).join('');
+}
+
+function statusBadge(s) {
+  const map = {
+    'CONFERIDO':     '<span class="status-badge sb-conferido">✓ Conferido</span>',
+    'LIBERADO':      '<span class="status-badge" style="background:#dcfce7;color:#15803d;border:1.5px solid #16a34a">✅ Liberado</span>',
+    'DIVERGENCIA':   '<span class="status-badge sb-divergencia">⚠ Divergência</span>',
+    'NAO_ENCONTRADO':'<span class="status-badge sb-nao_encontrado">✗ Não encontrado</span>',
+    'IGNORADO':      '<span class="status-badge sb-ignorado">— Ignorado</span>',
+  };
+  return map[s] || `<span class="status-badge sb-ignorado">${s}</span>`;
+}
+
+function voltarLista() {
+  document.getElementById('viewDetalhe').style.display = 'none';
+  document.getElementById('viewLista').style.display   = '';
+  document.getElementById('btnVoltarWrap').style.display = 'none';
+  _conciliacaoAtual = null;
+  carregarLista();
+}
+
+// ─── Modal Nova ───────────────────────────────────────────────────────────────
+function abrirModalNova() {
+  document.getElementById('nv_fornecedor').value = '';
+  document.getElementById('nv_referencia').value = '';
+  document.getElementById('nv_obs').value        = '';
+  document.getElementById('nv_tipoInfo').textContent = '';
+  document.getElementById('nv_fornecedor').onchange = function() {
+    const opt = this.options[this.selectedIndex];
+    const tipo = opt?.dataset?.tipo || 'SISTEMA';
+    document.getElementById('nv_tipoInfo').textContent =
+      tipo ? `Chave de conciliação configurada: ${tipoLabel(tipo)}` : '';
+  };
+  abrirOverlay('modalNova');
+}
+
+async function criarConciliacao() {
+  const id_fornecedor = document.getElementById('nv_fornecedor').value;
+  const referencia    = document.getElementById('nv_referencia').value.trim();
+  const obs           = document.getElementById('nv_obs').value.trim();
+  if (!id_fornecedor) { alert('Selecione um fornecedor.'); return; }
+  if (!referencia)    { alert('Informe a referência.'); return; }
+
+  try {
+    const r = await fetch('/api/conciliacao', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json' },
+      body: JSON.stringify({ id_fornecedor, referencia, obs })
+    }).then(r => r.json());
+
+    if (!r.ok) { alert(r.error || 'Erro ao criar'); return; }
+    fecharModal('modalNova');
+    await abrirDetalhe(r.id);
+  } catch (e) { alert('Erro: ' + e.message); }
+}
+
+// ─── Modal Importar ───────────────────────────────────────────────────────────
+function abrirModalImportar() {
+  document.getElementById('imp_arquivo').value = '';
+  document.getElementById('imp_preview_wrap').style.display = 'none';
+  document.getElementById('impStep1').style.display = '';
+  document.getElementById('impStep2').style.display = 'none';
+  document.getElementById('btnImportarOk').style.display = '';
+  _excelData = null; _impFile = null;
+
+  if (_conciliacaoAtual) {
+    const tipo = _conciliacaoAtual.tipo_num_pedido || 'SISTEMA';
+    document.getElementById('imp_tipo_info').textContent =
+      `Chave de match configurada no fornecedor: ${tipoLabel(tipo)}`;
+  }
+  abrirOverlay('modalImportar');
+}
+
+async function previewExcel() {
+  const file = document.getElementById('imp_arquivo').files[0];
+  if (!file || !_conciliacaoAtual) return;
+  _impFile = file;
+
+  const fd = new FormData();
+  fd.append('arquivo', file);
+  try {
+    const d = await fetch(`/api/conciliacao/${_conciliacaoAtual.id}/preview`, { method:'POST', body:fd }).then(r => r.json());
+    _excelData = d.rows || [];
+    renderPreview();
+    document.getElementById('imp_preview_wrap').style.display = '';
+  } catch (e) { alert('Erro ao ler arquivo: ' + e.message); }
+}
+
+function renderPreview() {
+  if (!_excelData) return;
+  const colNum  = parseInt(document.getElementById('imp_col_num').value  || 0, 10);
+  const colVlr  = parseInt(document.getElementById('imp_col_vlr').value  || 1, 10);
+  const skip    = parseInt(document.getElementById('imp_skip').value     || 1, 10);
+  const maxCols = Math.max(..._excelData.map(r => r.length), 0);
+
+  const table = document.getElementById('imp_preview_table');
+  const header = Array.from({length:maxCols}, (_, i) =>
+    `<th class="${i===colNum||i===colVlr?'col-hl':''}">Col ${i}${i===colNum?' (N°)':i===colVlr?' (Vlr)':''}</th>`
+  ).join('');
+
+  const rows = _excelData.slice(0, 6).map((row, ri) => {
+    const tds = Array.from({length:maxCols}, (_, i) =>
+      `<td class="${(i===colNum||i===colVlr)?'col-hl':''}${ri<skip?' ':''}">
+        ${ri<skip?`<em style="color:var(--text2)">${row[i]??''}</em>`:String(row[i]??'')}
+      </td>`
+    ).join('');
+    return `<tr style="${ri<skip?'opacity:.5':''}"><td style="color:var(--text2);font-size:10px">${ri+1}</td>${tds}</tr>`;
+  }).join('');
+
+  table.innerHTML = `<thead><tr><th>L</th>${header}</tr></thead><tbody>${rows}</tbody>`;
+}
+
+async function executarImportar() {
+  if (!_impFile || !_conciliacaoAtual) { alert('Selecione um arquivo.'); return; }
+  const fd = new FormData();
+  fd.append('arquivo', _impFile);
+  fd.append('col_num',   document.getElementById('imp_col_num').value);
+  fd.append('col_vlr',   document.getElementById('imp_col_vlr').value);
+  fd.append('skip_rows', document.getElementById('imp_skip').value);
+
+  document.getElementById('btnImportarOk').disabled = true;
+  try {
+    const d = await fetch(`/api/conciliacao/${_conciliacaoAtual.id}/importar`, { method:'POST', body:fd }).then(r => r.json());
+    if (!d.ok) { alert(d.error || 'Erro na importação'); document.getElementById('btnImportarOk').disabled=false; return; }
+
+    document.getElementById('impStep1').style.display = 'none';
+    document.getElementById('impStep2').style.display = '';
+    document.getElementById('btnImportarOk').style.display = 'none';
+    document.getElementById('impResultIcon').textContent = '✅';
+    document.getElementById('impResultMsg').textContent  = `${d.total} linhas importadas com sucesso!`;
+    document.getElementById('impResultSub').innerHTML    =
+      `<span style="color:#15803d">✓ ${d.conferidos} conferidos</span> &nbsp;
+       <span style="color:#a16207">⚠ ${d.divergencias} divergências</span> &nbsp;
+       <span style="color:#b91c1c">✗ ${d.naoEncontrados} não encontrados</span>`;
+
+    // Refresh detalhe
+    await abrirDetalhe(_conciliacaoAtual.id);
+  } catch (e) {
+    alert('Erro: ' + e.message);
+    document.getElementById('btnImportarOk').disabled = false;
+  }
+}
+
+// ─── Modal Editar Item ────────────────────────────────────────────────────────
+function abrirModalItem(itemId) {
+  const it = _itensAtuais.find(i => i.id === itemId);
+  if (!it) return;
+  document.getElementById('ei_id').value        = it.id;
+  document.getElementById('ei_num_fab').value   = it.num_pedido_fabrica || '';
+  document.getElementById('ei_status').value    = it.status || 'NAO_ENCONTRADO';
+  document.getElementById('ei_obs').value       = it.obs || '';
+  abrirOverlay('modalItem');
+}
+
+async function salvarItem() {
+  const id     = document.getElementById('ei_id').value;
+  const status = document.getElementById('ei_status').value;
+  const obs    = document.getElementById('ei_obs').value.trim();
+  if (!_conciliacaoAtual) return;
+
+  try {
+    const r = await fetch(`/api/conciliacao/${_conciliacaoAtual.id}/item/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type':'application/json' },
+      body: JSON.stringify({ status, obs })
+    }).then(r => r.json());
+    if (!r.ok) { alert(r.error || 'Erro'); return; }
+    fecharModal('modalItem');
+    await abrirDetalhe(_conciliacaoAtual.id);
+  } catch (e) { alert('Erro: ' + e.message); }
+}
+
+// ─── Adicionar Item Manual ────────────────────────────────────────────────────
+let _addPedidoId = null;
+
+function abrirModalAdicionarItem() {
+  _addPedidoId = null;
+  document.getElementById('add_num_fabrica').value  = '';
+  document.getElementById('add_vlr_fabrica').value  = '';
+  document.getElementById('add_num_sistema').value  = '';
+  document.getElementById('add_vlr_sistema').value  = '';
+  document.getElementById('add_diferenca').value    = '';
+  document.getElementById('add_obs').value          = '';
+  document.getElementById('add_pedido_info').style.display  = 'none';
+  document.getElementById('add_status_info').style.display  = 'none';
+  abrirOverlay('modalAddItem');
+}
+
+let _addParcelas = [];
+
+async function add_buscarPedido() {
+  const num = document.getElementById('add_num_sistema').value.trim();
+  if (!num) { alert('Digite o N° do pedido no sistema.'); return; }
+  const info = document.getElementById('add_pedido_info');
+  info.style.cssText = 'display:block;background:var(--bg);border-radius:7px;padding:8px 10px;font-size:12px';
+  info.textContent = 'Buscando...';
+  _addPedidoId = null; _addParcelas = [];
+
+  // Remove dropdown de parcelas anterior
+  const oldWrap = document.getElementById('add_parcela_wrap');
+  if (oldWrap) oldWrap.remove();
+
+  try {
+    const r = await fetch(`/api/conciliacao/${_conciliacaoAtual.id}/buscar-pedido?numero=${encodeURIComponent(num)}`).then(r => r.json());
+    if (!r.ok || !r.pedido) {
+      info.style.background = '#fee2e2'; info.style.color = '#b91c1c';
+      info.textContent = '✗ Pedido não encontrado no sistema para este fornecedor.';
+      document.getElementById('add_vlr_sistema').value = '';
+      add_calcDiff(); return;
+    }
+    _addPedidoId  = r.pedido.id;
+    _addParcelas  = r.parcelas || [];
+    const baseCon = r.base_conciliacao || 'PARCELA';
+
+    info.style.background = '#dcfce7'; info.style.color = '#15803d';
+    info.textContent = `✓ Pedido #${r.pedido.numero} — ${r.pedido.cliente || ''}`;
+
+    if (baseCon === 'PARCELA' && _addParcelas.length > 0) {
+      // Mostra dropdown de parcelas
+      const opts = _addParcelas.map(p =>
+        `<option value="${p.id}" data-vlr="${p.vlr_pago}">Parcela ${p.num_parcela}/${p.qt_parcelas} — R$ ${parseFloat(p.vlr_pago).toFixed(2)}${p.vencimento ? ' — Venc: '+new Date(p.vencimento).toLocaleDateString('pt-BR') : ''}</option>`
+      ).join('');
+      const wrap = document.createElement('div');
+      wrap.id = 'add_parcela_wrap';
+      wrap.style.cssText = 'margin-top:10px';
+      wrap.innerHTML = `<label style="display:block;font-size:12px;font-weight:600;color:var(--text2);margin-bottom:5px">Parcela</label>
+        <select id="add_parcela_sel" onchange="add_selecionarParcela(this)" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-family:inherit;font-size:12px;background:var(--card);color:var(--text);outline:none">
+          <option value="">— Selecione a parcela —</option>${opts}
+        </select>`;
+      info.parentNode.insertBefore(wrap, info.nextSibling);
+      document.getElementById('add_vlr_sistema').value = '';
+    } else {
+      // Modo PEDIDO — preenche com total
+      document.getElementById('add_vlr_sistema').value = parseFloat(r.pedido.vlr_comissao_sistema || 0).toFixed(2);
+    }
+    add_calcDiff();
+  } catch(e) {
+    info.style.background = '#fee2e2'; info.textContent = 'Erro: ' + e.message;
+  }
+}
+
+function add_selecionarParcela(sel) {
+  const opt = sel.options[sel.selectedIndex];
+  if (!opt.value) { document.getElementById('add_vlr_sistema').value = ''; add_calcDiff(); return; }
+  document.getElementById('add_vlr_sistema').value = parseFloat(opt.dataset.vlr || 0).toFixed(2);
+  add_calcDiff();
+}
+
+function add_calcDiff() {
+  const fab = parseFloat(document.getElementById('add_vlr_fabrica').value) || 0;
+  const sis = parseFloat(document.getElementById('add_vlr_sistema').value) || 0;
+  const dif = fab - sis;
+  const el = document.getElementById('add_diferenca');
+  el.value = (dif >= 0 ? '+' : '') + 'R$ ' + dif.toFixed(2);
+  el.style.color = Math.abs(dif) < 0.01 ? '#15803d' : dif > 0 ? '#a16207' : '#b91c1c';
+
+  const si = document.getElementById('add_status_info');
+  if (fab > 0 || sis > 0) {
+    const status = Math.abs(dif) < 0.01 ? 'CONFERIDO' : (fab > 0 && sis === 0) ? 'NAO_ENCONTRADO' : 'DIVERGENCIA';
+    const map = { CONFERIDO: ['#dcfce7','#15803d','✓ Conferido'], DIVERGENCIA: ['#fef9c3','#a16207','⚠ Divergência'], NAO_ENCONTRADO: ['#fee2e2','#b91c1c','✗ Não encontrado'] };
+    const [bg, color, label] = map[status];
+    si.style.cssText = `display:block;background:${bg};color:${color};font-size:12px;font-weight:700;padding:6px 10px;border-radius:7px`;
+    si.textContent = 'Status: ' + label;
+  } else { si.style.display = 'none'; }
+}
+
+async function salvarItemManual() {
+  const numFabrica = document.getElementById('add_num_fabrica').value.trim();
+  const vlrFabrica = parseFloat(document.getElementById('add_vlr_fabrica').value) || 0;
+  const numSistema = document.getElementById('add_num_sistema').value.trim();
+  const vlrSistema = parseFloat(document.getElementById('add_vlr_sistema').value) || 0;
+  const obs        = document.getElementById('add_obs').value.trim();
+
+  if (!numFabrica) { alert('Informe o N° do pedido da fábrica.'); return; }
+
+  // Parcela selecionada (se modo PARCELA)
+  const selParc       = document.getElementById('add_parcela_sel');
+  const idPagtoComiss = selParc?.value ? parseInt(selParc.value) : null;
+  const numParc       = selParc?.value ? selParc.options[selParc.selectedIndex]?.text?.match(/^Parcela (\d+)/)?.[1] : null;
+
+  try {
+    const r = await fetch(`/api/conciliacao/${_conciliacaoAtual.id}/item`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        num_pedido_fabrica:  numFabrica,
+        num_parcela:         numParc,
+        vlr_comissao_fabrica: vlrFabrica,
+        num_pedido_sistema:  numSistema,
+        vlr_sistema:         vlrSistema,
+        id_pedido:           _addPedidoId,
+        id_pagtocomissao:    idPagtoComiss,
+        obs
+      })
+    }).then(r => r.json());
+
+    if (!r.ok) { alert(r.error || 'Erro ao adicionar item'); return; }
+    fecharModal('modalAddItem');
+    await abrirDetalhe(_conciliacaoAtual.id);
+  } catch (e) { alert('Erro: ' + e.message); }
+}
+
+// ─── Liberar Conferidos ───────────────────────────────────────────────────────
+async function liberarConferidos() {
+  if (!_conciliacaoAtual) return;
+  const conf = _itensAtuais.filter(i => i.status === 'CONFERIDO').length;
+  if (!conf) { alert('Nenhum item conferido para liberar.'); return; }
+  if (!confirm(`Liberar ${conf} pedido(s) conferido(s) para pagamento ao vendedor?\n\nIsso marcará as comissões como "Conferido" e ficará disponível no Baixar da Gestão de Comissões.`)) return;
+  try {
+    const d = await fetch(`/api/conciliacao/${_conciliacaoAtual.id}/liberar`, { method: 'POST' }).then(r => r.json());
+    if (!d.ok) { alert(d.error || 'Erro ao liberar'); return; }
+    document.getElementById('libResultMsg').innerHTML =
+      `<strong style="color:var(--text);font-size:16px">${d.parcelas} parcela(s)</strong> de <strong>${d.pedidos} pedido(s)</strong><br>marcadas como prontas para pagamento.`;
+    abrirOverlay('modalLiberar');
+    await abrirDetalhe(_conciliacaoAtual.id);
+  } catch (e) { alert('Erro: ' + e.message); }
+}
+
+// ─── Fechar / Reabrir / Excluir ───────────────────────────────────────────────
+async function fecharConciliacao() {
+  if (!_conciliacaoAtual) return;
+  if (!confirm('Fechar esta conciliação? Não será mais possível importar ou editar itens.')) return;
+  const r = await fetch(`/api/conciliacao/${_conciliacaoAtual.id}/fechar`, { method:'POST' }).then(r => r.json());
+  if (r.ok) await abrirDetalhe(_conciliacaoAtual.id);
+  else alert(r.error);
+}
+
+async function reabrirConciliacao() {
+  if (!_conciliacaoAtual) return;
+  const r = await fetch(`/api/conciliacao/${_conciliacaoAtual.id}/reabrir`, { method:'POST' }).then(r => r.json());
+  if (r.ok) await abrirDetalhe(_conciliacaoAtual.id);
+  else alert(r.error);
+}
+
+async function excluirConciliacao() {
+  if (!_conciliacaoAtual) return;
+  if (!confirm('Excluir esta conciliação e todos os seus itens? Essa ação é irreversível.')) return;
+  const r = await fetch(`/api/conciliacao/${_conciliacaoAtual.id}`, { method:'DELETE' }).then(r => r.json());
+  if (r.ok) voltarLista();
+  else alert(r.error);
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function fmtMoeda(v) {
+  const n = parseFloat(v) || 0;
+  return n.toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
+}
+
+function abrirOverlay(id) {
+  document.getElementById(id).classList.add('active');
+}
+function fecharModal(id) {
+  document.getElementById(id).classList.remove('active');
+}
+document.querySelectorAll('.overlay').forEach(el => {
+  el.addEventListener('click', e => { if (e.target === el) el.classList.remove('active'); });
+});
+</script>
+</body>
+</html>

@@ -488,7 +488,7 @@ async function listarAuxiliares(tipo, user, query = {}) {
   }
 
   const queries = {
-    'regioes':         `SELECT id, nome_regiao AS nome FROM regiao_rota WHERE status='A' AND excluido='N' ORDER BY nome_regiao`,
+    'regioes':         `SELECT id, CONCAT(descricao, IF(sigla IS NOT NULL AND sigla != '', CONCAT(' (', sigla, ')'), '')) AS nome FROM regiao_rota WHERE (status='A' OR status IS NULL) AND (excluido='N' OR excluido IS NULL) ORDER BY descricao`,
     'segmentos':       `SELECT id, descricao AS nome FROM categoria WHERE status='A' AND excluido='N' ORDER BY descricao`,
     'formas-pagto':    `SELECT id, descricao AS nome FROM forma_pagto WHERE status='S' AND excluido='N' ORDER BY descricao`,
     'tabelas-preco':   `SELECT id, descricao AS nome FROM tabela_preco WHERE status='N' AND excluido='N' ORDER BY descricao`,

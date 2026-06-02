@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pânico do Vendedor · PedidosWeb</title>
+<link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
+<script src="/vendor/leaflet/leaflet.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<script src="/assets/mobile-app.js"></script>
+<link rel="stylesheet" href="/assets/mobile-app.css">
+<style>
+:root{
+  --bg:var(--content-bg,#f1f5f9);
+  --card:var(--card-bg,#fff);
+  --border:var(--table-border,#e2e8f0);
+  --text:var(--content-text,#1e293b);
+  --text2:var(--text-muted,#64748b);
+  --accent:var(--accent,#0ea5e9);
+  --font:'Inter',system-ui,sans-serif;
+  --r:10px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text);padding:16px}
+
+/* ── Toolbar ─────────────────────────────────────────────────────────── */
+.toolbar{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:12px 16px;margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.toolbar-title{font-size:16px;font-weight:800;color:var(--text);letter-spacing:-.3px;display:flex;align-items:center;gap:8px;flex:1}
+.toolbar-title .emoji{font-size:18px}
+.toolbar-sub{font-size:11px;color:var(--text2);font-weight:400;display:block;margin-top:1px}
+.toolbar-controls{display:flex;gap:8px;align-items:center}
+select,input{padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);background:var(--card);color:var(--text);outline:none;transition:border-color .2s}
+select:focus,input:focus{border-color:var(--accent)}
+.btn-refresh{background:var(--accent);color:#fff;border:none;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);transition:background .2s;display:flex;align-items:center;gap:5px}
+.btn-refresh:hover{background:#0284c7}
+.btn-refresh:disabled{opacity:.6;cursor:not-allowed}
+
+/* ── KPI strip ──────────────────────────────────────────────────────── */
+.kpi-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.kpi-mini{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:10px 14px;display:flex;align-items:center;gap:12px}
+.kpi-icon{font-size:20px;line-height:1}
+.kpi-info{}
+.kpi-mini-label{font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;font-weight:600}
+.kpi-mini-value{font-size:24px;font-weight:800;letter-spacing:-1px;line-height:1.1}
+.kpi-mini-value.red{color:#ef4444}
+.kpi-mini-value.yellow{color:#f59e0b}
+.kpi-mini-value.green{color:#16a34a}
+
+/* ── Layout principal: painel | mapa | painel ───────────────────────── */
+.main-layout{display:grid;grid-template-columns:230px 1fr 230px;gap:12px;align-items:start}
+
+/* ── Painel lateral ─────────────────────────────────────────────────── */
+.panel{display:flex;flex-direction:column;gap:10px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+.card-head{padding:9px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:6px}
+.card-title{font-size:11px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.4px}
+.card-count{font-size:12px;font-weight:800;color:var(--accent);flex-shrink:0}
+.card-body{padding:10px 12px;max-height:200px;overflow-y:auto}
+.card-body.tall{max-height:370px}
+
+/* ── Alertas ────────────────────────────────────────────────────────── */
+.alerta{border-radius:7px;padding:9px 10px;font-size:11px;font-weight:600;margin-bottom:7px;display:flex;gap:7px;align-items:flex-start;border:1px solid transparent;line-height:1.45}
+.alerta:last-child{margin-bottom:0}
+.alerta.danger{background:#fee2e2;color:#991b1b;border-color:#fca5a5}
+.alerta.warn{background:#fef3c7;color:#92400e;border-color:#fde68a}
+.alerta.info{background:#e0f2fe;color:#0369a1;border-color:#bae6fd}
+.alerta.success{background:#d1fae5;color:#065f46;border-color:#a7f3d0}
+
+/* ── Lista clientes ─────────────────────────────────────────────────── */
+.cli-row{display:flex;align-items:center;gap:7px;padding:6px 0;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s;border-radius:4px;padding-left:2px}
+.cli-row:last-child{border-bottom:none}
+.cli-row:hover{background:rgba(14,165,233,.06)}
+.cli-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.cli-dot.critical{background:#ef4444}.cli-dot.danger{background:#f97316}.cli-dot.warn{background:#f59e0b}
+.cli-name{flex:1;font-size:11px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cli-days{font-size:10px;font-weight:700;min-width:32px;text-align:right;flex-shrink:0}
+.cli-days.critical{color:#ef4444}.cli-days.danger{color:#f97316}.cli-days.warn{color:#f59e0b}
+
+/* ── Lista cidades ──────────────────────────────────────────────────── */
+.city-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);font-size:11px}
+.city-row:last-child{border-bottom:none}
+.city-name{font-weight:600;color:var(--text)}
+.city-days{color:#f59e0b;font-size:10px;font-weight:700}
+
+/* ── Mapa ───────────────────────────────────────────────────────────── */
+.map-wrap{position:relative;border-radius:var(--r);overflow:hidden;border:1px solid var(--border);height:500px;box-shadow:0 2px 12px rgba(0,0,0,.08)}
+#map{height:100%;width:100%}
+
+/* Controles — chips discretos no canto superior esquerdo */
+.map-controls{position:absolute;top:10px;left:10px;z-index:1000;display:flex;gap:5px}
+.map-btn{background:rgba(255,255,255,.88);border:1px solid rgba(0,0,0,.12);border-radius:20px;padding:3px 9px;font-size:10px;font-weight:700;cursor:pointer;font-family:var(--font);color:#334155;transition:all .18s;display:flex;align-items:center;gap:4px;backdrop-filter:blur(6px)}
+.map-btn:hover{border-color:var(--accent);color:var(--accent)}
+.map-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+/* Legenda compacta */
+.legend{position:absolute;bottom:28px;right:10px;z-index:1000;background:rgba(255,255,255,.92);border-radius:8px;padding:8px 10px;font-size:10px;color:#1e293b;border:1px solid rgba(0,0,0,.1);box-shadow:0 2px 6px rgba(0,0,0,.1);backdrop-filter:blur(4px)}
+.legend-title{font-weight:700;font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px}
+.legend-row{display:flex;align-items:center;gap:5px;margin-bottom:4px;line-height:1}
+.legend-row:last-child{margin-bottom:0}
+.legend-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+
+/* Leaflet attribution — menor e discreto */
+.leaflet-control-attribution{font-size:9px !important;opacity:.55 !important}
+.leaflet-control-attribution a{color:#64748b}
+
+/* Estado vazio do mapa */
+.map-empty{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:500;text-align:center;pointer-events:none;background:rgba(255,255,255,.92);border-radius:12px;padding:18px 24px;border:1px solid #e2e8f0;box-shadow:0 2px 12px rgba(0,0,0,.08)}
+.map-empty-icon{font-size:28px;margin-bottom:6px}
+.map-empty-text{font-size:12px;font-weight:600;color:#1e293b;margin-bottom:3px}
+.map-empty-sub{font-size:11px;color:#64748b}
+
+/* ── Loading ────────────────────────────────────────────────────────── */
+.loading{display:flex;align-items:center;justify-content:center;height:50px;gap:7px;color:var(--text2);font-size:12px}
+.spinner{width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Responsivo ─────────────────────────────────────────────────────── */
+@media(max-width:1024px){
+  .main-layout{grid-template-columns:200px 1fr 200px}
+}
+@media(max-width:800px){
+  .main-layout{grid-template-columns:1fr}
+  .map-wrap{height:320px}
+  .card-body{max-height:160px}
+  .card-body.tall{max-height:160px}
+}
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <div class="toolbar-title">
+    <span class="emoji">🚨</span>
+    <div>
+      Pânico do Vendedor
+      <span class="toolbar-sub">Regiões descobertas, clientes inativos e quedas de faturamento</span>
+    </div>
+  </div>
+  <div class="toolbar-controls">
+    <select id="sel-vendedor"><option value="">Todos os vendedores</option></select>
+    <select id="sel-inatividade">
+      <option value="30">Inativos há 30 dias</option>
+      <option value="60">Inativos há 60 dias</option>
+      <option value="90" selected>Inativos há 90 dias</option>
+      <option value="180">Inativos há 180 dias</option>
+    </select>
+    <button class="btn-refresh" id="btn-refresh" onclick="loadData()">
+      <span id="btn-icon">🔄</span> Atualizar
+    </button>
+  </div>
+</div>
+
+<!-- KPI strip -->
+<div class="kpi-strip">
+  <div class="kpi-mini">
+    <div class="kpi-icon">🔴</div>
+    <div class="kpi-info">
+      <div class="kpi-mini-label">Clientes Inativos</div>
+      <div class="kpi-mini-value red" id="kpi-inativos">—</div>
+    </div>
+  </div>
+  <div class="kpi-mini">
+    <div class="kpi-icon">📍</div>
+    <div class="kpi-info">
+      <div class="kpi-mini-label">Cidades sem Visita</div>
+      <div class="kpi-mini-value yellow" id="kpi-sem-visita">—</div>
+    </div>
+  </div>
+  <div class="kpi-mini">
+    <div class="kpi-icon">✅</div>
+    <div class="kpi-info">
+      <div class="kpi-mini-label">Cidades Ativas</div>
+      <div class="kpi-mini-value green" id="kpi-ativas">—</div>
+    </div>
+  </div>
+</div>
+
+<!-- Layout 3 colunas -->
+<div class="main-layout">
+
+  <!-- PAINEL ESQUERDO: Alertas + Clientes -->
+  <div class="panel">
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">⚠️ Alertas</span>
+        <span class="card-count" id="alertas-count">—</span>
+      </div>
+      <div class="card-body" id="alertas-body">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">🔴 Sem Compra</span>
+        <span class="card-count" id="inativos-count">—</span>
+      </div>
+      <div class="card-body tall" id="inativos-body">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAPA central -->
+  <div class="map-wrap">
+    <div id="map"></div>
+    <div class="map-controls">
+      <button class="map-btn active" id="btn-layer-inativos" onclick="toggleLayer('inativos',this)">👤 Inativos</button>
+      <button class="map-btn active" id="btn-layer-heatmap"  onclick="toggleLayer('heatmap',this)">🌡 Heatmap</button>
+    </div>
+    <div class="legend">
+      <div class="legend-title">Legenda</div>
+      <div class="legend-row"><div class="legend-dot" style="background:#ef4444"></div> Crítico +180d</div>
+      <div class="legend-row"><div class="legend-dot" style="background:#f97316"></div> Inativo +90d</div>
+      <div class="legend-row"><div class="legend-dot" style="background:#f59e0b"></div> Atenção +60d</div>
+      <div class="legend-row"><div class="legend-dot" style="background:rgba(14,165,233,.5);border:1px solid #0ea5e9"></div> Faturamento</div>
+    </div>
+    <div class="map-empty" id="map-empty" style="display:none">
+      <div class="map-empty-icon">📍</div>
+      <div class="map-empty-text">Nenhum ponto no mapa</div>
+      <div class="map-empty-sub">Clientes sem coordenadas</div>
+    </div>
+  </div>
+
+  <!-- PAINEL DIREITO: Cidades sem visita -->
+  <div class="panel">
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">📍 Sem Visita</span>
+        <span class="card-count" id="sem-visita-count">—</span>
+      </div>
+      <div class="card-body tall" id="sem-visita-body">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+'use strict';
+
+const TOKEN = localStorage.getItem('token') || sessionStorage.getItem('token');
+const H = { 'Content-Type': 'application/json', ...(TOKEN ? { Authorization: 'Bearer ' + TOKEN } : {}) };
+
+// ── Mapa ──────────────────────────────────────────────────────────────────────
+const map = L.map('map', { zoomControl: true }).setView([-15.8, -47.9], 5);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+  attribution: '© <a href="https://www.openstreetmap.org/copyright">OSM</a> © <a href="https://carto.com/">CARTO</a>',
+  maxZoom: 18
+}).addTo(map);
+
+let _inativosLayer = L.layerGroup().addTo(map);
+let _heatmapLayer  = L.layerGroup().addTo(map);
+const _layers = { inativos: true, heatmap: true };
+
+function toggleLayer(name, btn) {
+  _layers[name] = !_layers[name];
+  btn.classList.toggle('active', _layers[name]);
+  const layer = name === 'inativos' ? _inativosLayer : _heatmapLayer;
+  if (_layers[name]) map.addLayer(layer); else map.removeLayer(layer);
+}
+
+function getMarkerColor(nivel) {
+  return nivel === 'critical' ? '#ef4444' : nivel === 'danger' ? '#f97316' : '#f59e0b';
+}
+
+function renderMapMarkers(inativos, heatmap) {
+  _inativosLayer.clearLayers();
+  _heatmapLayer.clearLayers();
+
+  inativos.forEach(c => {
+    if (!c.lat || !c.lng) return;
+    const cor = getMarkerColor(c.nivel);
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="width:11px;height:11px;border-radius:50%;background:${cor};border:2px solid #fff;box-shadow:0 0 6px ${cor};"></div>`,
+      iconSize: [11, 11], iconAnchor: [5, 5],
+    });
+    L.marker([c.lat, c.lng], { icon })
+      .bindPopup(`<div style="font-family:Inter,sans-serif;min-width:190px">
+        <strong style="font-size:13px">${c.nome}</strong><br>
+        <span style="font-size:11px;color:#64748b">${c.cidade}/${c.uf}</span>
+        <div style="margin-top:7px;font-size:12px">
+          <span style="color:${cor};font-weight:700">${c.dias_sem_compra || '?'}d sem compra</span><br>
+          Fat. 12m: <strong>R$ ${Number(c.faturamento_12m||0).toLocaleString('pt-BR',{maximumFractionDigits:0})}</strong>
+        </div>
+      </div>`)
+      .addTo(_inativosLayer);
+  });
+
+  if (heatmap.length) {
+    const maxFat = Math.max(...heatmap.map(h => h.faturamento || 0));
+    heatmap.forEach(c => {
+      if (!c.lat || !c.lng) return;
+      const ratio  = maxFat > 0 ? (c.faturamento || 0) / maxFat : 0;
+      const radius = 8000 + ratio * 40000;
+      const rv = Math.round(14 + ratio * 241);
+      const gv = Math.round(165 - ratio * 91);
+      const bv = Math.round(233 - ratio * 200);
+      L.circle([c.lat, c.lng], {
+        radius, color: `rgb(${rv},${gv},${bv})`, fillColor: `rgb(${rv},${gv},${bv})`, fillOpacity: 0.22, weight: 1,
+      }).bindPopup(`<div style="font-family:Inter,sans-serif">
+        <strong>${c.cidade}/${c.uf}</strong><br>
+        <span style="font-size:11px;color:#64748b">${c.clientes} clientes · ${c.pedidos} pedidos</span><br>
+        <strong>R$ ${Number(c.faturamento||0).toLocaleString('pt-BR',{maximumFractionDigits:0})}</strong>
+      </div>`).addTo(_heatmapLayer);
+    });
+  }
+
+  const allPoints = [...inativos.filter(c => c.lat && c.lng).map(c => [c.lat, c.lng]),
+                     ...heatmap.filter(c => c.lat && c.lng).map(c => [c.lat, c.lng])];
+  const emptyEl = document.getElementById('map-empty');
+  if (allPoints.length > 0) {
+    emptyEl.style.display = 'none';
+    try { map.fitBounds(L.latLngBounds(allPoints), { padding: [40, 40], maxZoom: 10 }); } catch {}
+  } else {
+    emptyEl.style.display = '';
+  }
+}
+
+// ── Renderização ──────────────────────────────────────────────────────────────
+function renderAlertas(alertas) {
+  document.getElementById('alertas-count').textContent = alertas.length || '0';
+  if (!alertas.length) {
+    document.getElementById('alertas-body').innerHTML =
+      '<div class="alerta success">✅ Nenhum alerta. Carteira em dia!</div>';
+    return;
+  }
+  document.getElementById('alertas-body').innerHTML = alertas.map(a =>
+    `<div class="alerta ${a.tipo||'info'}">${a.icone||'⚠️'} ${a.mensagem}</div>`
+  ).join('');
+}
+
+function renderInativos(inativos) {
+  document.getElementById('inativos-count').textContent = inativos.length || '0';
+  document.getElementById('kpi-inativos').textContent   = inativos.length || '0';
+  if (!inativos.length) {
+    document.getElementById('inativos-body').innerHTML =
+      '<p style="font-size:11px;color:var(--text2,#64748b)">Nenhum cliente inativo. 🎉</p>';
+    return;
+  }
+  document.getElementById('inativos-body').innerHTML =
+    inativos.slice(0, 25).map(c => {
+      const dias = c.dias_sem_compra >= 999 ? 'Nunca' : c.dias_sem_compra + 'd';
+      return `<div class="cli-row" onclick="zoomTo(${c.lat},${c.lng})">
+        <div class="cli-dot ${c.nivel}"></div>
+        <span class="cli-name" title="${c.nome}">${c.nome}</span>
+        <span class="cli-days ${c.nivel}">${dias}</span>
+      </div>`;
+    }).join('') +
+    (inativos.length > 25 ? `<p style="font-size:10px;color:var(--text2,#64748b);margin-top:6px;text-align:center">+${inativos.length-25} no mapa</p>` : '');
+}
+
+function renderSemVisita(semVisita) {
+  document.getElementById('kpi-sem-visita').textContent  = semVisita.length || '0';
+  document.getElementById('sem-visita-count').textContent = semVisita.length || '0';
+  if (!semVisita.length) {
+    document.getElementById('sem-visita-body').innerHTML =
+      '<p style="font-size:11px;color:var(--text2,#64748b)">Todas as cidades foram visitadas.</p>';
+    return;
+  }
+  document.getElementById('sem-visita-body').innerHTML = semVisita.map(sv => {
+    const loc  = sv.cidade + (sv.uf ? `/${sv.uf}` : '');
+    const dias = sv.dias_sem_visita ? `${sv.dias_sem_visita}d` : 'Nunca visitada';
+    return `<div class="city-row">
+      <span class="city-name">${loc}</span>
+      <span class="city-days">${dias}</span>
+    </div>`;
+  }).join('');
+}
+
+function zoomTo(lat, lng) {
+  if (!lat || !lng) return;
+  map.setView([lat, lng], 13);
+}
+
+// ── Carregar dados ────────────────────────────────────────────────────────────
+async function loadData() {
+  const btn = document.getElementById('btn-refresh');
+  btn.disabled = true;
+  document.getElementById('btn-icon').textContent = '⏳';
+  ['alertas-body','inativos-body','sem-visita-body'].forEach(id => {
+    document.getElementById(id).innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  });
+
+  try {
+    const vendedor = document.getElementById('sel-vendedor').value;
+    const dias     = document.getElementById('sel-inatividade').value;
+    const params   = new URLSearchParams({ dias_inatividade: dias, ...(vendedor ? { vendedor_id: vendedor } : {}) });
+    const r = await fetch(`/api/panico-vendedor/analise?${params}`, { headers: H, credentials: 'include' });
+    if (r.status === 401) { location.href = '/login.html'; return; }
+    const data = await r.json();
+
+    document.getElementById('kpi-ativas').textContent = data.totais?.cidades_ativas || 0;
+    renderAlertas(data.alertas || []);
+    renderInativos(data.clientes_inativos || []);
+    renderSemVisita(data.sem_visita || []);
+    renderMapMarkers(data.clientes_inativos || [], data.heatmap_cidades || []);
+  } catch (err) {
+    console.error('[panico-vendedor]', err);
+    document.getElementById('alertas-body').innerHTML =
+      '<div class="alerta danger">❌ Erro ao carregar. Verifique a conexão.</div>';
+  } finally {
+    btn.disabled = false;
+    document.getElementById('btn-icon').textContent = '🔄';
+  }
+}
+
+// ── Carregar vendedores ───────────────────────────────────────────────────────
+async function loadVendedores() {
+  try {
+    const r = await fetch('/api/vendedores', { headers: H, credentials: 'include' });
+    if (!r.ok) return;
+    const data = await r.json();
+    const sel = document.getElementById('sel-vendedor');
+    (data.vendedores || data || []).forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v.idusuario || v.id;
+      opt.textContent = v.nome || v.loginusu || v.nome_usuario;
+      sel.appendChild(opt);
+    });
+  } catch {}
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(() => map.invalidateSize(), 150);
+  loadVendedores();
+  loadData();
+});
+</script>
+</body>
+</html>

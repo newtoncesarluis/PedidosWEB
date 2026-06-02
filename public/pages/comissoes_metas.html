@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Metas, Campanhas e Fechamento · Comissões</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/themes.css">
+  <script src="/assets/themes.js"></script>
+  <style>
+    body { font-family:'Inter',sans-serif; background:var(--content-bg,#f1f5f9); color:var(--content-text,#1e293b); font-size:13px; }
+    .page-header { background:var(--card-bg,#fff); border-bottom:1px solid var(--card-border,#e2e8f0); padding:16px 24px; display:flex; align-items:center; justify-content:space-between; }
+    .page-header h4 { margin:0; font-weight:800; font-size:16px; color:var(--content-text,#1e293b); }
+    .tab-bar { background:var(--card-bg,#fff); border-bottom:1px solid var(--card-border,#e2e8f0); display:flex; gap:0; padding:0 24px; }
+    .tab-btn { padding:12px 20px; font-size:12px; font-weight:700; border:none; background:none; color:var(--text2,#64748b); border-bottom:3px solid transparent; cursor:pointer; text-transform:uppercase; letter-spacing:.04em; transition:all .15s; }
+    .tab-btn.active { color:#0d9488; border-bottom-color:#0d9488; }
+    .tab-btn:hover:not(.active) { color:var(--content-text,#1e293b); }
+    .tab-pane { display:none; padding:20px; }
+    .tab-pane.active { display:block; }
+    .card-section { background:var(--card-bg,#fff); border-radius:12px; border:1px solid var(--card-border,#e2e8f0); box-shadow:0 1px 4px rgba(0,0,0,.04); overflow:visible; }
+    .section-toolbar { padding:14px 18px; border-bottom:1px solid #e2e8f0; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+    .section-toolbar h6 { margin:0; font-weight:700; font-size:13px; flex:1; }
+    /* Botões */
+    .btn-teal { background:#0d9488; color:#fff; border:none; border-radius:8px; font-weight:700; font-size:11px; padding:6px 14px; text-transform:uppercase; letter-spacing:.04em; display:inline-flex; align-items:center; gap:6px; cursor:pointer; transition:background .15s; }
+    .btn-teal:hover { background:#0f766e; }
+    .btn-ghost { background:#f8fafc; color:#475569; border:1px solid #e2e8f0; border-radius:8px; font-weight:600; font-size:11px; padding:6px 12px; cursor:pointer; transition:background .15s; display:inline-flex; align-items:center; gap:5px; }
+    .btn-ghost:hover { background:#f1f5f9; }
+    .btn-danger-sm { background:#fee2e2; color:#dc2626; border:none; border-radius:6px; font-size:11px; font-weight:700; padding:4px 10px; cursor:pointer; }
+    .btn-danger-sm:hover { background:#fecaca; }
+    /* Tabela metas */
+    .table-metas { border-collapse:collapse; width:100%; font-size:12px; }
+    .table-metas th { background:var(--table-header-bg,#f8fafc); font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; color:var(--text2,#64748b); padding:10px 8px; border-bottom:1px solid var(--card-border,#e2e8f0); white-space:nowrap; }
+    .table-metas td { padding:6px 8px; border-bottom:1px solid var(--card-border,#f1f5f9); vertical-align:middle; }
+    .table-metas tr:hover td { background:var(--table-row-hover,#f8fafc); }
+    .meta-cell { position:relative; min-width:72px; }
+    .meta-input { width:70px; border:1px solid var(--input-border,#cbd5e1); border-radius:6px; padding:3px 5px; font-size:11px; text-align:right; background:var(--card-bg,#fff); color:var(--content-text,#1e293b); }
+    .meta-input:focus { border-color:#0d9488; outline:none; box-shadow:0 0 0 2px rgba(13,148,136,.15); }
+    .pct-bar { height:4px; border-radius:2px; background:var(--card-border,#e2e8f0); margin-top:3px; overflow:hidden; }
+    .pct-fill { height:100%; border-radius:2px; transition:width .3s; }
+    .table-scroll-wrap { overflow-x:auto; border-radius:0 0 12px 12px; }
+    /* Campanhas */
+    .camp-card { border:1px solid var(--card-border,#e2e8f0); border-radius:12px; padding:16px; background:var(--card-bg,#fff); margin-bottom:12px; }
+    .camp-card-header { display:flex; align-items:flex-start; gap:12px; }
+    .camp-badge { padding:3px 10px; border-radius:20px; font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; }
+    .badge-ativa { background:#d1fae5; color:#065f46; }
+    .badge-encerrada { background:#f1f5f9; color:#64748b; }
+    .badge-rascunho { background:#fef3c7; color:#92400e; }
+    .camp-progress { margin-top:12px; }
+    .camp-vend-row { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+    .camp-vend-name { width:140px; font-size:11px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .camp-bar-wrap { flex:1; background:#f1f5f9; border-radius:4px; height:8px; overflow:hidden; }
+    .camp-bar-fill { height:100%; border-radius:4px; background:#0d9488; transition:width .4s; }
+    .camp-bar-fill.atingido { background:#10b981; }
+    .camp-bar-pct { font-size:10px; font-weight:700; color:#64748b; width:38px; text-align:right; }
+    /* Fechamento */
+    .fech-status { padding:3px 10px; border-radius:20px; font-size:10px; font-weight:800; text-transform:uppercase; }
+    .fech-aberto   { background:#fef3c7; color:#92400e; }
+    .fech-fechado  { background:#dbeafe; color:#1e40af; }
+    .fech-pago     { background:#d1fae5; color:#065f46; }
+    /* Modal */
+    .modal-backdrop-custom { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); backdrop-filter:blur(2px); z-index:1040; align-items:center; justify-content:center; }
+    .modal-backdrop-custom.show { display:flex; }
+    .modal-box { background:var(--card-bg,#fff); border-radius:16px; box-shadow:0 20px 60px rgba(0,0,0,.18); max-width:560px; width:94%; max-height:90vh; overflow-y:auto; }
+    .modal-box-header { padding:18px 20px; border-bottom:1px solid var(--card-border,#e2e8f0); display:flex; align-items:center; gap:10px; }
+    .modal-box-header h6 { margin:0; font-weight:800; font-size:14px; flex:1; color:var(--content-text,#1e293b); }
+    .modal-box-body { padding:20px; }
+    .modal-box-footer { padding:14px 20px; border-top:1px solid var(--card-border,#e2e8f0); display:flex; gap:8px; justify-content:flex-end; }
+    .field-label { font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--text2,#64748b); display:block; margin-bottom:4px; }
+    .field-input { width:100%; border:1px solid var(--input-border,#cbd5e1); border-radius:8px; padding:7px 10px; font-size:13px; background:var(--card-bg,#fff); color:var(--content-text,#1e293b); }
+    .field-input:focus { border-color:#0d9488; outline:none; box-shadow:0 0 0 2px rgba(13,148,136,.15); }
+    .form-grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+    /* Toast */
+    #toast { position:fixed; bottom:24px; right:24px; z-index:9999; background:#1e293b; color:#fff; padding:10px 18px; border-radius:10px; font-size:12px; font-weight:600; transform:translateY(80px); opacity:0; transition:all .25s; pointer-events:none; }
+    #toast.show { transform:none; opacity:1; }
+    #toast.success { background:#0d9488; }
+    #toast.error { background:#dc2626; }
+    /* Loading */
+    #loading { position:fixed; inset:0; background:rgba(255,255,255,.7); backdrop-filter:blur(3px); z-index:9999; display:none; align-items:center; justify-content:center; }
+    /* Select vendedores campanha */
+    .vend-check-list { max-height:160px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:8px; padding:6px; }
+    .vend-check-item { display:flex; align-items:center; gap:8px; padding:4px 6px; border-radius:6px; cursor:pointer; }
+    .vend-check-item:hover { background:#f8fafc; }
+  </style>
+</head>
+<body>
+
+<div id="loading"><div class="spinner-border text-primary"></div></div>
+<div id="toast"></div>
+
+<!-- Cabeçalho -->
+<div class="page-header">
+  <div>
+    <h4><i class="fas fa-bullseye text-teal me-2" style="color:#0d9488"></i>Metas, Campanhas e Fechamento</h4>
+    <p class="text-muted small mb-0">Gestão completa de metas e fechamento mensal de comissões</p>
+  </div>
+  <a href="comissoes_dash.html" class="btn-ghost"><i class="fas fa-arrow-left"></i> Dashboard</a>
+</div>
+
+<!-- Abas -->
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('metas')"><i class="fas fa-chart-line me-1"></i>Metas Mensais</button>
+  <button class="tab-btn" onclick="switchTab('campanhas')"><i class="fas fa-trophy me-1"></i>Campanhas</button>
+  <button class="tab-btn" onclick="switchTab('fechamento')"><i class="fas fa-lock me-1"></i>Fechamento Mensal</button>
+</div>
+
+<div class="container-fluid" style="max-width:1400px">
+
+<!-- ════════ ABA METAS ════════ -->
+<div class="tab-pane active" id="tab-metas">
+  <div class="card-section">
+    <div class="section-toolbar">
+      <h6><i class="fas fa-bullseye me-2" style="color:#0d9488"></i>Metas por Vendedor</h6>
+      <div class="d-flex align-items-center gap-2">
+        <label class="field-label mb-0">Ano:</label>
+        <select id="metas_ano" class="field-input" style="width:90px" onchange="loadMetas()">
+        </select>
+      </div>
+      <button class="btn-ghost" onclick="loadMetas()"><i class="fas fa-sync-alt"></i> Atualizar</button>
+    </div>
+    <div class="table-scroll-wrap">
+      <table class="table-metas" id="metas_table">
+        <thead>
+          <tr>
+            <th style="min-width:150px; position:sticky; left:0; z-index:2; background:var(--table-header-bg,#f8fafc);">Vendedor</th>
+            <th style="position:sticky; left:150px; z-index:2; background:var(--table-header-bg,#f8fafc);">Tipo</th>
+            <th>Jan</th><th>Fev</th><th>Mar</th><th>Abr</th><th>Mai</th><th>Jun</th>
+            <th>Jul</th><th>Ago</th><th>Set</th><th>Out</th><th>Nov</th><th>Dez</th>
+          </tr>
+        </thead>
+        <tbody id="metas_body">
+          <tr><td colspan="14" class="text-center text-muted py-4">Carregando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div style="padding:12px 16px; background:var(--table-header-bg,#f8fafc); border-top:1px solid var(--card-border,#e2e8f0); border-radius:0 0 12px 12px; font-size:11px; color:var(--text2,#64748b);">
+      <i class="fas fa-info-circle me-1"></i> Clique no campo para editar. Linha superior = Meta de Vendas (R$) · Linha inferior = Meta de Comissão (R$). Barra colorida = realizado vs meta.
+    </div>
+  </div>
+</div>
+
+<!-- ════════ ABA CAMPANHAS ════════ -->
+<div class="tab-pane" id="tab-campanhas">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="d-flex gap-2">
+      <select id="camp_status_filter" class="field-input" style="width:140px" onchange="loadCampanhas()">
+        <option value="T">Todas</option>
+        <option value="ATIVA" selected>Ativas</option>
+        <option value="ENCERRADA">Encerradas</option>
+        <option value="RASCUNHO">Rascunho</option>
+      </select>
+    </div>
+    <button class="btn-teal" onclick="openCampanhaModal()"><i class="fas fa-plus"></i> Nova Campanha</button>
+  </div>
+  <div id="campanhas_list">
+    <p class="text-center text-muted py-5">Carregando...</p>
+  </div>
+</div>
+
+<!-- ════════ ABA FECHAMENTO ════════ -->
+<div class="tab-pane" id="tab-fechamento">
+  <div class="card-section">
+    <div class="section-toolbar">
+      <h6><i class="fas fa-lock me-2" style="color:#0d9488"></i>Fechamento Mensal</h6>
+      <div class="d-flex align-items-center gap-2">
+        <label class="field-label mb-0">Mês:</label>
+        <select id="fech_mes" class="field-input" style="width:110px">
+          <option value="1">Janeiro</option><option value="2">Fevereiro</option>
+          <option value="3">Março</option><option value="4">Abril</option>
+          <option value="5">Maio</option><option value="6">Junho</option>
+          <option value="7">Julho</option><option value="8">Agosto</option>
+          <option value="9">Setembro</option><option value="10">Outubro</option>
+          <option value="11">Novembro</option><option value="12">Dezembro</option>
+        </select>
+        <select id="fech_ano" class="field-input" style="width:90px"></select>
+      </div>
+      <button class="btn-ghost" onclick="loadFechamento()"><i class="fas fa-search"></i> Buscar</button>
+      <button class="btn-teal" onclick="calcularFechamento()"><i class="fas fa-calculator"></i> Calcular Todos</button>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="table-metas" id="fech_table">
+        <thead>
+          <tr>
+            <th>Vendedor</th>
+            <th class="text-end">Comissões</th>
+            <th class="text-end">Bônus</th>
+            <th class="text-end">Total</th>
+            <th>Status</th>
+            <th>Fechamento</th>
+            <th>Pagamento</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody id="fech_body">
+          <tr><td colspan="8" class="text-center text-muted py-4">Selecione mês/ano e clique em Buscar</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+</div><!-- /container -->
+
+<!-- ════════ MODAL CAMPANHA ════════ -->
+<div class="modal-backdrop-custom" id="modal_campanha">
+  <div class="modal-box">
+    <div class="modal-box-header">
+      <i class="fas fa-trophy" style="color:#0d9488"></i>
+      <h6 id="modal_camp_title">Nova Campanha</h6>
+      <button class="btn-ghost" style="padding:4px 8px" onclick="closeCampanhaModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-box-body">
+      <input type="hidden" id="camp_id">
+      <div class="form-grid-2 mb-3">
+        <div style="grid-column:1/-1">
+          <label class="field-label">Nome da Campanha *</label>
+          <input type="text" id="camp_nome" class="field-input" placeholder="Ex.: Meta de Julho — Fábrica X" autocomplete="off">
+        </div>
+        <div>
+          <label class="field-label">Data Início *</label>
+          <input type="date" id="camp_dt_inicio" class="field-input">
+        </div>
+        <div>
+          <label class="field-label">Data Fim *</label>
+          <input type="date" id="camp_dt_fim" class="field-input">
+        </div>
+        <div>
+          <label class="field-label">Base da Meta</label>
+          <select id="camp_tipo_meta" class="field-input">
+            <option value="VENDAS">Faturamento (Pedidos)</option>
+            <option value="COMISSAO">Valor de Comissão</option>
+          </select>
+        </div>
+        <div>
+          <label class="field-label">Valor Meta (R$) *</label>
+          <input type="number" id="camp_vlr_meta" class="field-input" step="0.01" min="0" placeholder="0,00">
+        </div>
+        <div>
+          <label class="field-label">Tipo de Bônus</label>
+          <select id="camp_tipo_bonus" class="field-input" onchange="toggleBonusLabel()">
+            <option value="PERCENTUAL">Percentual (%)</option>
+            <option value="FIXO">Valor Fixo (R$)</option>
+          </select>
+        </div>
+        <div>
+          <label class="field-label" id="camp_bonus_label">Bônus (%)</label>
+          <input type="number" id="camp_vlr_bonus" class="field-input" step="0.01" min="0" placeholder="0">
+        </div>
+        <div>
+          <label class="field-label">Status</label>
+          <select id="camp_status" class="field-input">
+            <option value="RASCUNHO">Rascunho</option>
+            <option value="ATIVA">Ativa</option>
+            <option value="ENCERRADA">Encerrada</option>
+          </select>
+        </div>
+        <div>
+          <label class="field-label">Fornecedor (opcional)</label>
+          <input type="text" id="camp_fornecedor" class="field-input" placeholder="Todos os fornecedores" autocomplete="off">
+        </div>
+      </div>
+      <div class="mb-3">
+        <label class="field-label">Participantes</label>
+        <div class="d-flex gap-3 mb-2">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px">
+            <input type="radio" name="para_todos" value="S" checked onchange="toggleVendedoresList()"> Todos os vendedores
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px">
+            <input type="radio" name="para_todos" value="N" onchange="toggleVendedoresList()"> Vendedores específicos
+          </label>
+        </div>
+        <div id="vend_list_wrap" style="display:none">
+          <div class="vend-check-list" id="camp_vend_list"></div>
+        </div>
+      </div>
+      <div>
+        <label class="field-label">Descrição / Regulamento</label>
+        <textarea id="camp_descricao" class="field-input" rows="3" placeholder="Descreva as regras da campanha..."></textarea>
+      </div>
+    </div>
+    <div class="modal-box-footer">
+      <button class="btn-ghost" onclick="closeCampanhaModal()">Cancelar</button>
+      <button class="btn-teal" onclick="saveCampanha()"><i class="fas fa-save"></i> Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ MODAL PROGRESSO CAMPANHA ════════ -->
+<div class="modal-backdrop-custom" id="modal_progresso">
+  <div class="modal-box">
+    <div class="modal-box-header">
+      <i class="fas fa-chart-bar" style="color:#0d9488"></i>
+      <h6 id="modal_prog_title">Progresso da Campanha</h6>
+      <button class="btn-ghost" style="padding:4px 8px" onclick="closeProgressoModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-box-body" id="modal_prog_body">
+      <p class="text-center text-muted">Carregando...</p>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ MODAL PAGAMENTO ════════ -->
+<div class="modal-backdrop-custom" id="modal_pagar">
+  <div class="modal-box" style="max-width:360px">
+    <div class="modal-box-header">
+      <i class="fas fa-money-bill-wave" style="color:#0d9488"></i>
+      <h6>Registrar Pagamento</h6>
+      <button class="btn-ghost" style="padding:4px 8px" onclick="document.getElementById('modal_pagar').classList.remove('show')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-box-body">
+      <input type="hidden" id="pagar_id">
+      <div class="mb-3">
+        <label class="field-label">Data do Pagamento</label>
+        <input type="date" id="pagar_data" class="field-input">
+      </div>
+      <div>
+        <label class="field-label">Observação</label>
+        <input type="text" id="pagar_obs" class="field-input" placeholder="Ex.: Transferência Bradesco">
+      </div>
+    </div>
+    <div class="modal-box-footer">
+      <button class="btn-ghost" onclick="document.getElementById('modal_pagar').classList.remove('show')">Cancelar</button>
+      <button class="btn-teal" onclick="confirmarPagamento()"><i class="fas fa-check"></i> Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const TOKEN = sessionStorage.getItem('token') || localStorage.getItem('token');
+if (!TOKEN) (window.top || window).location.href = '/login.html';
+
+const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+const MESES_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+let _vendedores = [];
+let _campanhasData = [];
+let _metasCache = {}; // { "idUser_mes_ano": meta }
+
+// ── Inicialização ──────────────────────────────────────────────────────────────
+(function init() {
+  const anoAtual = new Date().getFullYear();
+  // Preenche seletores de ano
+  ['metas_ano','fech_ano'].forEach(id => {
+    const sel = document.getElementById(id);
+    for (let a = anoAtual + 1; a >= anoAtual - 3; a--) {
+      const o = document.createElement('option');
+      o.value = a; o.textContent = a;
+      if (a === anoAtual) o.selected = true;
+      sel.appendChild(o);
+    }
+  });
+  // Mês atual no fechamento
+  document.getElementById('fech_mes').value = new Date().getMonth() + 1;
+  loadMetas();
+  loadCampanhas();
+})();
+
+// ── Abas ──────────────────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach((b,i) => {
+    const tabs = ['metas','campanhas','fechamento'];
+    b.classList.toggle('active', tabs[i] === name);
+  });
+  document.querySelectorAll('.tab-pane').forEach(p => {
+    p.classList.toggle('active', p.id === 'tab-' + name);
+  });
+}
+
+// ── Utilitários ───────────────────────────────────────────────────────────────
+function fmtCur(v) {
+  return parseFloat(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+}
+function loading(on) {
+  document.getElementById('loading').style.display = on ? 'flex' : 'none';
+}
+let _toastTimer;
+function toast(msg, type='success') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show ' + type;
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.className = '', 2800);
+}
+async function api(method, path, body) {
+  const opts = { method, headers:{ Authorization:'Bearer '+TOKEN } };
+  if (body) { opts.headers['Content-Type']='application/json'; opts.body=JSON.stringify(body); }
+  const r = await fetch('/api/comissoes' + path, opts);
+  if (r.status === 401) { window.location.href='/login.html'; return null; }
+  return r.json();
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// METAS
+// ══════════════════════════════════════════════════════════════════════════════
+async function loadMetas() {
+  const ano = document.getElementById('metas_ano').value;
+  const data = await api('GET', '/metas?ano=' + ano);
+  if (!data) return;
+  _vendedores = data.vendedores;
+  _metasCache = {};
+  for (const m of data.metas) {
+    _metasCache[`${m.id_usuario}_${m.mes}_${ano}`] = m;
+  }
+  renderMetasTable(data.vendedores, parseInt(ano));
+}
+
+function renderMetasTable(vendedores, ano) {
+  const tbody = document.getElementById('metas_body');
+  if (!vendedores.length) {
+    tbody.innerHTML = '<tr><td colspan="14" class="text-center text-muted py-4">Nenhum vendedor ativo.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = vendedores.map(v => `
+    <tr>
+      <td style="font-weight:600; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; position:sticky; left:0; background:var(--card-bg,#fff); z-index:1; border-right:1px solid var(--card-border,#e2e8f0);" title="${v.nome}">${v.nome}</td>
+      <td style="font-size:10px; color:var(--text2,#64748b); font-weight:700; white-space:nowrap; position:sticky; left:150px; background:var(--card-bg,#fff); z-index:1; border-right:1px solid var(--card-border,#e2e8f0);">
+        <div>Vendas</div>
+        <div style="margin-top:8px">Comis.</div>
+      </td>
+      ${MESES.map((_,i) => renderMetaCell(v.id, i+1, ano)).join('')}
+    </tr>
+  `).join('');
+}
+
+function renderMetaCell(idUsuario, mes, ano) {
+  const key = `${idUsuario}_${mes}_${ano}`;
+  const m = _metasCache[key] || {};
+  const vlrV = m.vlr_meta_vendas || 0;
+  const vlrC = m.vlr_meta_comissao || 0;
+  return `
+    <td class="meta-cell">
+      <input class="meta-input" type="text" value="${vlrV ? vlrV.toFixed(2).replace('.',',') : ''}"
+        placeholder="—" title="Meta Vendas ${MESES_FULL[mes-1]}"
+        onblur="saveMeta(${idUsuario},${mes},${ano},this,'vendas')"
+        onkeydown="if(event.key==='Enter')this.blur()">
+      <div class="pct-bar"><div class="pct-fill" style="width:0;background:#0d9488" id="pb_v_${key}"></div></div>
+      <div style="margin-top:8px">
+        <input class="meta-input" type="text" value="${vlrC ? vlrC.toFixed(2).replace('.',',') : ''}"
+          placeholder="—" title="Meta Comissão ${MESES_FULL[mes-1]}"
+          onblur="saveMeta(${idUsuario},${mes},${ano},this,'comissao')"
+          onkeydown="if(event.key==='Enter')this.blur()">
+        <div class="pct-bar"><div class="pct-fill" style="width:0;background:#8b5cf6" id="pb_c_${key}"></div></div>
+      </div>
+    </td>`;
+}
+
+async function saveMeta(idUsuario, mes, ano, inputEl, tipo) {
+  const raw = inputEl.value.replace(',','.').trim();
+  const val = parseFloat(raw) || 0;
+  const key = `${idUsuario}_${mes}_${ano}`;
+  const m = _metasCache[key] || {};
+
+  const body = {
+    id_usuario: idUsuario, mes, ano,
+    vlr_meta_vendas:   tipo === 'vendas'   ? val : (m.vlr_meta_vendas   || 0),
+    vlr_meta_comissao: tipo === 'comissao' ? val : (m.vlr_meta_comissao || 0),
+  };
+
+  inputEl.style.borderColor = '#cbd5e1';
+  const result = await api('POST', '/metas', body);
+  if (result?.ok) {
+    _metasCache[key] = result.meta;
+    inputEl.style.borderColor = '#10b981';
+    setTimeout(() => { inputEl.style.borderColor = '#cbd5e1'; }, 1000);
+  } else {
+    toast('Erro ao salvar meta', 'error');
+    inputEl.style.borderColor = '#dc2626';
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CAMPANHAS
+// ══════════════════════════════════════════════════════════════════════════════
+async function loadCampanhas() {
+  const status = document.getElementById('camp_status_filter').value;
+  const data = await api('GET', '/campanhas?status=' + status);
+  if (!data) return;
+  _campanhasData = data;
+  renderCampanhas(data);
+}
+
+function renderCampanhas(campanhas) {
+  const el = document.getElementById('campanhas_list');
+  if (!campanhas.length) {
+    el.innerHTML = '<div class="text-center text-muted py-5"><i class="fas fa-trophy fa-2x mb-3 d-block" style="opacity:.3"></i>Nenhuma campanha encontrada.</div>';
+    return;
+  }
+  el.innerHTML = campanhas.map(c => {
+    const badgeCls = { ATIVA:'badge-ativa', ENCERRADA:'badge-encerrada', RASCUNHO:'badge-rascunho' }[c.status] || '';
+    const dtIni = new Date(c.dt_inicio + 'T00:00:00').toLocaleDateString('pt-BR');
+    const dtFim = new Date(c.dt_fim + 'T00:00:00').toLocaleDateString('pt-BR');
+    const bonusDesc = c.tipo_bonus === 'PERCENTUAL'
+      ? `+${parseFloat(c.vlr_bonus).toFixed(2).replace('.',',')}%`
+      : fmtCur(c.vlr_bonus);
+    const tipoMetaLabel = c.tipo_meta === 'VENDAS' ? 'Faturamento' : 'Comissão';
+    const participantes = c.para_todos === 'S' ? 'Todos os vendedores' : `${(c.vendedores||[]).length} vendedor(es)`;
+    return `
+      <div class="camp-card">
+        <div class="camp-card-header">
+          <div style="flex:1">
+            <div class="d-flex align-items-center gap-2 mb-1">
+              <span style="font-weight:800;font-size:14px">${c.nome}</span>
+              <span class="camp-badge ${badgeCls}">${c.status}</span>
+            </div>
+            <div class="d-flex gap-3 flex-wrap" style="font-size:11px;color:#64748b">
+              <span><i class="fas fa-calendar me-1"></i>${dtIni} → ${dtFim}</span>
+              <span><i class="fas fa-target me-1"></i>Meta: ${fmtCur(c.vlr_meta)} (${tipoMetaLabel})</span>
+              <span><i class="fas fa-gift me-1"></i>Bônus: ${bonusDesc}</span>
+              ${c.nome_fornecedor ? `<span><i class="fas fa-industry me-1"></i>${c.nome_fornecedor}</span>` : ''}
+              <span><i class="fas fa-users me-1"></i>${participantes}</span>
+            </div>
+            ${c.descricao ? `<p style="font-size:11px;color:#94a3b8;margin:6px 0 0">${c.descricao}</p>` : ''}
+          </div>
+          <div class="d-flex gap-2">
+            <button class="btn-ghost" onclick="verProgressoCampanha(${c.id})" title="Ver progresso"><i class="fas fa-chart-bar"></i></button>
+            <button class="btn-ghost" onclick="editCampanha(${c.id})" title="Editar"><i class="fas fa-pen"></i></button>
+            <button class="btn-danger-sm" onclick="deleteCampanha(${c.id})" title="Excluir"><i class="fas fa-trash"></i></button>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function openCampanhaModal(campData) {
+  // Preenche lista de vendedores
+  const vList = document.getElementById('camp_vend_list');
+  vList.innerHTML = (_vendedores.length ? _vendedores : []).map(v => `
+    <label class="vend-check-item">
+      <input type="checkbox" class="camp-vend-check" value="${v.id}"> ${v.nome}
+    </label>`).join('');
+
+  if (campData) {
+    document.getElementById('modal_camp_title').textContent = 'Editar Campanha';
+    document.getElementById('camp_id').value = campData.id;
+    document.getElementById('camp_nome').value = campData.nome || '';
+    document.getElementById('camp_dt_inicio').value = campData.dt_inicio?.slice(0,10) || '';
+    document.getElementById('camp_dt_fim').value = campData.dt_fim?.slice(0,10) || '';
+    document.getElementById('camp_tipo_meta').value = campData.tipo_meta || 'VENDAS';
+    document.getElementById('camp_vlr_meta').value = campData.vlr_meta || '';
+    document.getElementById('camp_tipo_bonus').value = campData.tipo_bonus || 'PERCENTUAL';
+    document.getElementById('camp_vlr_bonus').value = campData.vlr_bonus || '';
+    document.getElementById('camp_status').value = campData.status || 'ATIVA';
+    document.getElementById('camp_fornecedor').value = campData.nome_fornecedor || '';
+    document.getElementById('camp_descricao').value = campData.descricao || '';
+    document.querySelector(`input[name="para_todos"][value="${campData.para_todos||'S'}"]`).checked = true;
+    toggleVendedoresList();
+    if (campData.para_todos === 'N') {
+      const ids = (campData.vendedores || []).map(v => String(v.id));
+      document.querySelectorAll('.camp-vend-check').forEach(cb => {
+        cb.checked = ids.includes(cb.value);
+      });
+    }
+  } else {
+    document.getElementById('modal_camp_title').textContent = 'Nova Campanha';
+    document.getElementById('camp_id').value = '';
+    ['camp_nome','camp_vlr_meta','camp_vlr_bonus','camp_fornecedor','camp_descricao'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('camp_tipo_meta').value = 'VENDAS';
+    document.getElementById('camp_tipo_bonus').value = 'PERCENTUAL';
+    document.getElementById('camp_status').value = 'ATIVA';
+    document.querySelector('input[name="para_todos"][value="S"]').checked = true;
+    toggleVendedoresList();
+    // Datas padrão: mês atual
+    const hoje = new Date();
+    const ini = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+    const fim = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
+    document.getElementById('camp_dt_inicio').value = ini.toISOString().slice(0,10);
+    document.getElementById('camp_dt_fim').value = fim.toISOString().slice(0,10);
+  }
+  toggleBonusLabel();
+  document.getElementById('modal_campanha').classList.add('show');
+}
+
+function closeCampanhaModal() {
+  document.getElementById('modal_campanha').classList.remove('show');
+}
+
+function editCampanha(id) {
+  const c = _campanhasData.find(x => x.id === id);
+  if (c) openCampanhaModal(c);
+}
+
+async function deleteCampanha(id) {
+  if (!confirm('Excluir esta campanha?')) return;
+  const r = await api('DELETE', '/campanhas/' + id);
+  if (r?.ok) { toast('Campanha excluída'); loadCampanhas(); }
+  else toast('Erro ao excluir', 'error');
+}
+
+function toggleVendedoresList() {
+  const paraT = document.querySelector('input[name="para_todos"]:checked')?.value;
+  document.getElementById('vend_list_wrap').style.display = paraT === 'N' ? '' : 'none';
+}
+
+function toggleBonusLabel() {
+  const tipo = document.getElementById('camp_tipo_bonus').value;
+  document.getElementById('camp_bonus_label').textContent = tipo === 'PERCENTUAL' ? 'Bônus (%)' : 'Bônus (R$)';
+}
+
+async function saveCampanha() {
+  const id = document.getElementById('camp_id').value;
+  const para_todos = document.querySelector('input[name="para_todos"]:checked')?.value || 'S';
+  const vendedores = para_todos === 'N'
+    ? [...document.querySelectorAll('.camp-vend-check:checked')].map(cb => parseInt(cb.value))
+    : [];
+  const body = {
+    nome:            document.getElementById('camp_nome').value.trim(),
+    dt_inicio:       document.getElementById('camp_dt_inicio').value,
+    dt_fim:          document.getElementById('camp_dt_fim').value,
+    tipo_meta:       document.getElementById('camp_tipo_meta').value,
+    vlr_meta:        parseFloat(document.getElementById('camp_vlr_meta').value) || 0,
+    tipo_bonus:      document.getElementById('camp_tipo_bonus').value,
+    vlr_bonus:       parseFloat(document.getElementById('camp_vlr_bonus').value) || 0,
+    status:          document.getElementById('camp_status').value,
+    nome_fornecedor: document.getElementById('camp_fornecedor').value.trim() || null,
+    descricao:       document.getElementById('camp_descricao').value.trim() || null,
+    para_todos,
+    vendedores,
+  };
+  if (!body.nome || !body.dt_inicio || !body.dt_fim) {
+    toast('Preencha nome, data início e data fim', 'error'); return;
+  }
+  loading(true);
+  const r = id
+    ? await api('PUT', '/campanhas/' + id, body)
+    : await api('POST', '/campanhas', body);
+  loading(false);
+  if (r?.ok || r?.id) {
+    toast(id ? 'Campanha atualizada' : 'Campanha criada');
+    closeCampanhaModal();
+    loadCampanhas();
+  } else {
+    toast(r?.error || 'Erro ao salvar', 'error');
+  }
+}
+
+async function verProgressoCampanha(id) {
+  document.getElementById('modal_prog_body').innerHTML = '<p class="text-center text-muted">Carregando...</p>';
+  document.getElementById('modal_progresso').classList.add('show');
+  const data = await api('GET', '/campanhas/' + id + '/progresso');
+  if (!data) return;
+  const { campanha: c, progresso: prog } = data;
+  const bonusDesc = c.tipo_bonus === 'PERCENTUAL'
+    ? `+${parseFloat(c.vlr_bonus).toFixed(2).replace('.',',')}%`
+    : fmtCur(c.vlr_bonus);
+  document.getElementById('modal_prog_title').textContent = c.nome;
+  document.getElementById('modal_prog_body').innerHTML = `
+    <div class="d-flex gap-3 mb-3 flex-wrap" style="font-size:11px;color:#64748b;background:#f8fafc;padding:10px 12px;border-radius:8px">
+      <span><strong>Meta:</strong> ${fmtCur(c.vlr_meta)} (${c.tipo_meta === 'VENDAS' ? 'Faturamento' : 'Comissão'})</span>
+      <span><strong>Bônus:</strong> ${bonusDesc} ao atingir</span>
+      <span><strong>Período:</strong> ${new Date(c.dt_inicio+'T00:00:00').toLocaleDateString('pt-BR')} → ${new Date(c.dt_fim+'T00:00:00').toLocaleDateString('pt-BR')}</span>
+    </div>
+    ${prog.map(v => `
+      <div class="camp-vend-row">
+        <div class="camp-vend-name" title="${v.nome}">${v.nome}</div>
+        <div class="camp-bar-wrap">
+          <div class="camp-bar-fill ${v.atingiu ? 'atingido' : ''}" style="width:${Math.min(100,v.pct)}%"></div>
+        </div>
+        <div class="camp-bar-pct">${v.pct}%</div>
+        <div style="font-size:11px;color:#475569;min-width:90px;text-align:right">${fmtCur(v.realizado)}</div>
+        ${v.atingiu ? `<span style="font-size:10px;background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:10px;font-weight:800">+${fmtCur(v.bonus)}</span>` : ''}
+      </div>`).join('')}
+    ${!prog.length ? '<p class="text-center text-muted">Nenhum vendedor participante.</p>' : ''}
+  `;
+}
+
+function closeProgressoModal() {
+  document.getElementById('modal_progresso').classList.remove('show');
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// FECHAMENTO MENSAL
+// ══════════════════════════════════════════════════════════════════════════════
+async function loadFechamento() {
+  const mes = document.getElementById('fech_mes').value;
+  const ano = document.getElementById('fech_ano').value;
+  const data = await api('GET', `/fechamento?mes=${mes}&ano=${ano}`);
+  if (!data) return;
+  renderFechamento(data);
+}
+
+function renderFechamento(data) {
+  const { fechamentos, vendedores } = data;
+  // Merge: vendedores sem fechamento aparecem como "--"
+  const fechMap = {};
+  for (const f of fechamentos) fechMap[f.id_usuario] = f;
+
+  const tbody = document.getElementById('fech_body');
+  if (!vendedores.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">Nenhum vendedor ativo.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = vendedores.map(v => {
+    const f = fechMap[v.id];
+    if (!f) return `
+      <tr>
+        <td style="font-weight:600">${v.nome}</td>
+        <td class="text-end text-muted">—</td>
+        <td class="text-end text-muted">—</td>
+        <td class="text-end text-muted">—</td>
+        <td><span class="fech-status fech-aberto">Não calculado</span></td>
+        <td class="text-muted">—</td>
+        <td class="text-muted">—</td>
+        <td>
+          <button class="btn-ghost" onclick="calcularUm(${v.id})"><i class="fas fa-calculator"></i> Calcular</button>
+        </td>
+      </tr>`;
+    const statusCls = { ABERTO:'fech-aberto', FECHADO:'fech-fechado', PAGO:'fech-pago' }[f.status] || '';
+    const dtFech = f.data_fechamento ? new Date(f.data_fechamento).toLocaleDateString('pt-BR') : '—';
+    const dtPag  = f.data_pagamento  ? new Date(f.data_pagamento  + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
+    return `
+      <tr>
+        <td style="font-weight:600">${v.nome}</td>
+        <td class="text-end" style="color:#0d9488;font-weight:700">${fmtCur(f.vlr_comissoes)}</td>
+        <td class="text-end" style="color:#8b5cf6;font-weight:700">${fmtCur(f.vlr_bonus)}</td>
+        <td class="text-end" style="font-weight:800;font-size:14px">${fmtCur(f.vlr_total)}</td>
+        <td><span class="fech-status ${statusCls}">${f.status}</span></td>
+        <td style="font-size:11px;color:#64748b">${dtFech}</td>
+        <td style="font-size:11px;color:#64748b">${dtPag}</td>
+        <td>
+          <div class="d-flex gap-1 flex-wrap">
+            ${f.status === 'ABERTO' ? `
+              <button class="btn-ghost" onclick="calcularUm(${v.id})" title="Recalcular"><i class="fas fa-sync-alt"></i></button>
+              <button class="btn-teal" style="padding:4px 10px" onclick="fecharFechamento(${f.id})"><i class="fas fa-lock"></i> Fechar</button>
+            ` : ''}
+            ${f.status === 'FECHADO' ? `
+              <button class="btn-teal" style="padding:4px 10px;background:#10b981" onclick="openPagarModal(${f.id})"><i class="fas fa-money-bill-wave"></i> Pagar</button>
+              <button class="btn-ghost" onclick="reabrirFechamento(${f.id})"><i class="fas fa-lock-open"></i> Reabrir</button>
+            ` : ''}
+            ${f.status === 'PAGO' ? `<span style="font-size:11px;color:#10b981;font-weight:700"><i class="fas fa-check-circle me-1"></i>Pago em ${dtPag}</span>` : ''}
+          </div>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+async function calcularTodos() {
+  const mes = document.getElementById('fech_mes').value;
+  const ano = document.getElementById('fech_ano').value;
+  if (!confirm(`Calcular fechamento de ${MESES_FULL[mes-1]} de ${ano} para todos os vendedores?`)) return;
+  loading(true);
+  const r = await api('POST', '/fechamento/calcular', { mes: parseInt(mes), ano: parseInt(ano) });
+  loading(false);
+  if (r?.ok) { toast('Fechamento calculado'); loadFechamento(); }
+  else toast(r?.error || 'Erro ao calcular', 'error');
+}
+
+async function calcularFechamento() { calcularTodos(); }
+
+async function calcularUm(idUsuario) {
+  const mes = document.getElementById('fech_mes').value;
+  const ano = document.getElementById('fech_ano').value;
+  loading(true);
+  const r = await api('POST', '/fechamento/calcular', { mes: parseInt(mes), ano: parseInt(ano), id_usuario: idUsuario });
+  loading(false);
+  if (r?.ok) { toast('Calculado'); loadFechamento(); }
+  else toast(r?.error || 'Erro', 'error');
+}
+
+async function fecharFechamento(id) {
+  if (!confirm('Fechar este período? O vendedor não poderá mais receber comissões adicionais neste mês.')) return;
+  loading(true);
+  const r = await api('POST', '/fechamento/' + id + '/fechar');
+  loading(false);
+  if (r?.ok) { toast('Período fechado'); loadFechamento(); }
+  else toast(r?.error || 'Erro', 'error');
+}
+
+async function reabrirFechamento(id) {
+  if (!confirm('Reabrir este fechamento?')) return;
+  loading(true);
+  const r = await api('POST', '/fechamento/' + id + '/reabrir');
+  loading(false);
+  if (r?.ok) { toast('Fechamento reaberto'); loadFechamento(); }
+  else toast(r?.error || 'Erro', 'error');
+}
+
+function openPagarModal(id) {
+  document.getElementById('pagar_id').value = id;
+  document.getElementById('pagar_data').value = new Date().toISOString().slice(0,10);
+  document.getElementById('pagar_obs').value = '';
+  document.getElementById('modal_pagar').classList.add('show');
+}
+
+async function confirmarPagamento() {
+  const id = document.getElementById('pagar_id').value;
+  const data_pagamento = document.getElementById('pagar_data').value;
+  const obs = document.getElementById('pagar_obs').value;
+  if (!data_pagamento) { toast('Informe a data de pagamento', 'error'); return; }
+  loading(true);
+  const r = await api('POST', '/fechamento/' + id + '/pagar', { data_pagamento, obs });
+  loading(false);
+  if (r?.ok) {
+    toast('Pagamento registrado');
+    document.getElementById('modal_pagar').classList.remove('show');
+    loadFechamento();
+  } else toast(r?.error || 'Erro', 'error');
+}
+
+// Fecha modais clicando fora
+document.querySelectorAll('.modal-backdrop-custom').forEach(el => {
+  el.addEventListener('click', e => { if (e.target === el) el.classList.remove('show'); });
+});
+</script>
+</body>
+</html>

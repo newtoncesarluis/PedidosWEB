@@ -132,7 +132,7 @@ async function listar(filters, config, user) {
       c.venda_suspensa, c.regiao,
       c.latitude, c.longitude,
       u.nomeusu AS nome_vendedor,
-      rr.nome_regiao
+      rr.descricao AS nome_regiao
       ${distanceCol}
     FROM clientes c
     LEFT JOIN usuarios u ON u.idusuario = c.cod_vendedor AND u.excluido = 'N'
@@ -197,7 +197,7 @@ async function buscarPorId(id, pool) {
     [rows] = await pool.query(
       `SELECT c.*,
         u.nomeusu AS nome_vendedor,
-        rr.nome_regiao
+        rr.descricao AS nome_regiao
        FROM clientes c
        LEFT JOIN usuarios u ON u.idusuario = c.cod_vendedor AND u.excluido = 'N'
        LEFT JOIN regiao_rota rr ON rr.id = c.regiao AND rr.excluido = 'N'
@@ -405,7 +405,7 @@ async function inativarCliente(id, conn) {
  */
 async function verificarHistoricoCompras(id, pool) {
   const [rows] = await pool.query(
-    `SELECT COUNT(*) AS total FROM pedidos WHERE id_cliente = ? LIMIT 1`,
+    `SELECT COUNT(*) AS total FROM pedidos WHERE cod_cliente = ? LIMIT 1`,
     [id]
   ).catch(() => [[{ total: 0 }]]);
   return (rows[0]?.total || 0) > 0;
@@ -416,7 +416,7 @@ async function verificarHistoricoCompras(id, pool) {
  */
 async function verificarPedidosAtivos(id, pool) {
   const [rows] = await pool.query(
-    `SELECT COUNT(*) AS total FROM pedidos WHERE id_cliente = ? AND excluido = 'N' LIMIT 1`,
+    `SELECT COUNT(*) AS total FROM pedidos WHERE cod_cliente = ? AND excluido = 'N' LIMIT 1`,
     [id]
   ).catch(() => [[{ total: 0 }]]);
   return (rows[0]?.total || 0) > 0;
@@ -462,11 +462,11 @@ async function atualizarUltimaCompra(pool) {
   await pool.query(`
     UPDATE clientes c
     INNER JOIN (
-      SELECT id_cliente, MAX(dtpedido) AS ultima
+      SELECT cod_cliente, MAX(dtpedido) AS ultima
       FROM pedidos
       WHERE excluido = 'N'
-      GROUP BY id_cliente
-    ) p ON p.id_cliente = c.id
+      GROUP BY cod_cliente
+    ) p ON p.cod_cliente = c.id
     SET c.dtultimacompra = p.ultima
     WHERE c.excluido = 'N'
   `).catch(() => {});

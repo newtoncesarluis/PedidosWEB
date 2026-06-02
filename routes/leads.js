@@ -104,7 +104,12 @@ const REQUIRED_COLUMNS = {
   valor_estimado: "ALTER TABLE leads ADD COLUMN valor_estimado DECIMAL(14,2) NOT NULL DEFAULT 0 AFTER motivo_perda",
   tags: "ALTER TABLE leads ADD COLUMN tags VARCHAR(255) NOT NULL DEFAULT '' AFTER valor_estimado",
   data_ultimo_contato: "ALTER TABLE leads ADD COLUMN data_ultimo_contato DATETIME NULL AFTER observacoes",
-  convertido_pedido_id: "ALTER TABLE leads ADD COLUMN convertido_pedido_id INT NULL AFTER convertido_cliente_id"
+  convertido_pedido_id: "ALTER TABLE leads ADD COLUMN convertido_pedido_id INT NULL AFTER convertido_cliente_id",
+  endereco: "ALTER TABLE leads ADD COLUMN endereco VARCHAR(255) NOT NULL DEFAULT '' AFTER uf",
+  cep: "ALTER TABLE leads ADD COLUMN cep VARCHAR(20) NOT NULL DEFAULT '' AFTER endereco",
+  bairro: "ALTER TABLE leads ADD COLUMN bairro VARCHAR(100) NOT NULL DEFAULT '' AFTER cep",
+  latitude: "ALTER TABLE leads ADD COLUMN latitude VARCHAR(50) DEFAULT NULL AFTER bairro",
+  longitude: "ALTER TABLE leads ADD COLUMN longitude VARCHAR(50) DEFAULT NULL AFTER latitude",
 };
 
 async function ensureColumns(pool) {
@@ -117,12 +122,35 @@ async function ensureColumns(pool) {
   }
 }
 
+const CREATE_CAPTURAS_SQL = `
+  CREATE TABLE IF NOT EXISTS lead_capturas (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    id_empresa INT NOT NULL DEFAULT 1,
+    id_usuario INT NOT NULL DEFAULT 0,
+    id_vendedor INT NULL,
+    token VARCHAR(64) NOT NULL UNIQUE,
+    titulo VARCHAR(150) NOT NULL DEFAULT 'Fale Conosco',
+    subtitulo VARCHAR(255) NOT NULL DEFAULT '',
+    campos JSON NOT NULL,
+    origem VARCHAR(60) NOT NULL DEFAULT 'Formulário Web',
+    campanha VARCHAR(120) NOT NULL DEFAULT '',
+    msg_sucesso VARCHAR(500) NOT NULL DEFAULT 'Obrigado! Entraremos em contato em breve.',
+    ativo CHAR(1) NOT NULL DEFAULT 'S',
+    total_leads INT NOT NULL DEFAULT 0,
+    dtcadastro DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    excluido CHAR(1) NOT NULL DEFAULT 'N',
+    INDEX idx_cap_token (token),
+    INDEX idx_cap_empresa (id_empresa)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+`;
+
 async function ensureTable() {
   const pool = getPool();
   try { await pool.query(CREATE_TABLE_SQL); } catch (_) {}
   try { await ensureColumns(pool); } catch (_) {}
   try { await pool.query(CREATE_HISTORY_TABLE_SQL); } catch (_) {}
   try { await pool.query(CREATE_TAREFAS_TABLE_SQL); } catch (_) {}
+  try { await pool.query(CREATE_CAPTURAS_SQL); } catch (_) {}
 }
 
 function normalizeStatus(value) {
@@ -187,6 +215,11 @@ function buildPayload(body, user) {
     facebook: cleanString(body.facebook, 120),
     cidade: cleanString(body.cidade, 100),
     uf: cleanString(body.uf, 2).toUpperCase(),
+    endereco: cleanString(body.endereco, 255),
+    cep: cleanString(body.cep, 20),
+    bairro: cleanString(body.bairro, 100),
+    latitude: cleanString(body.latitude, 50),
+    longitude: cleanString(body.longitude, 50),
     segmento: cleanString(body.segmento, 120),
     cargo: cleanString(body.cargo, 100),
     origem: cleanString(body.origem || 'Manual', 60) || 'Manual',
@@ -443,6 +476,111 @@ router.get('/dashboard', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// FORMULÁRIOS DE CAPTURA WEB
+// ─────────────────────────────────────────────────────────────────────────────
+
+function genCapturaToken() {
+  try { return require('crypto').randomBytes(20).toString('hex'); }
+  catch (_) { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
+}
+
+// GET /api/leads/capturas — lista formulários da empresa
+router.get('/capturas', async (req, res) => {
+  await ensureTable();
+  try {
+    const pool = getPool();
+    const idEmpresa = parseInt(req.user?.id_empresa || 1, 10);
+    const [rows] = await pool.query(
+      `SELECT id, token, titulo, subtitulo, campos, origem, campanha,
+              msg_sucesso, ativo, total_leads, dtcadastro
+       FROM lead_capturas
+       WHERE id_empresa=? AND excluido='N'
+       ORDER BY id DESC`,
+      [idEmpresa]
+    );
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/leads/capturas — cria novo formulário
+router.post('/capturas', async (req, res) => {
+  await ensureTable();
+  try {
+    const pool = getPool();
+    const idEmpresa = parseInt(req.user?.id_empresa || 1, 10);
+    const idUsuario = parseInt(req.user?.idusuario || req.user?.id || 0, 10);
+    const b = req.body;
+
+    const campos = Array.isArray(b.campos) && b.campos.length
+      ? b.campos
+      : ['nome', 'email', 'telefone'];
+
+    const token = genCapturaToken();
+    const [result] = await pool.query(
+      `INSERT INTO lead_capturas
+         (id_empresa, id_usuario, id_vendedor, token, titulo, subtitulo, campos,
+          origem, campanha, msg_sucesso, ativo)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'S')`,
+      [
+        idEmpresa, idUsuario,
+        b.id_vendedor ? parseInt(b.id_vendedor, 10) : null,
+        token,
+        String(b.titulo || 'Fale Conosco').slice(0, 150),
+        String(b.subtitulo || '').slice(0, 255),
+        JSON.stringify(campos),
+        String(b.origem || 'Formulário Web').slice(0, 60),
+        String(b.campanha || '').slice(0, 120),
+        String(b.msg_sucesso || 'Obrigado! Entraremos em contato em breve.').slice(0, 500),
+      ]
+    );
+    res.status(201).json({ ok: true, id: result.insertId, token });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// PATCH /api/leads/capturas/:id — atualiza ou ativa/desativa
+router.patch('/capturas/:id', async (req, res) => {
+  await ensureTable();
+  try {
+    const pool = getPool();
+    const idEmpresa = parseInt(req.user?.id_empresa || 1, 10);
+    const b = req.body;
+    const sets = [], vals = [];
+
+    if (b.titulo !== undefined)     { sets.push('titulo=?');      vals.push(String(b.titulo).slice(0, 150)); }
+    if (b.subtitulo !== undefined)  { sets.push('subtitulo=?');   vals.push(String(b.subtitulo).slice(0, 255)); }
+    if (b.campos !== undefined)     { sets.push('campos=?');      vals.push(JSON.stringify(b.campos)); }
+    if (b.origem !== undefined)     { sets.push('origem=?');      vals.push(String(b.origem).slice(0, 60)); }
+    if (b.campanha !== undefined)   { sets.push('campanha=?');    vals.push(String(b.campanha).slice(0, 120)); }
+    if (b.msg_sucesso !== undefined){ sets.push('msg_sucesso=?'); vals.push(String(b.msg_sucesso).slice(0, 500)); }
+    if (b.ativo !== undefined)      { sets.push('ativo=?');       vals.push(b.ativo === 'S' ? 'S' : 'N'); }
+    if (b.id_vendedor !== undefined){ sets.push('id_vendedor=?'); vals.push(b.id_vendedor ? parseInt(b.id_vendedor, 10) : null); }
+
+    if (!sets.length) return res.status(400).json({ error: 'Nenhum campo para atualizar' });
+
+    vals.push(parseInt(req.params.id, 10), idEmpresa);
+    await pool.query(
+      `UPDATE lead_capturas SET ${sets.join(', ')} WHERE id=? AND id_empresa=? AND excluido='N'`,
+      vals
+    );
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE /api/leads/capturas/:id — soft delete
+router.delete('/capturas/:id', async (req, res) => {
+  await ensureTable();
+  try {
+    const pool = getPool();
+    const idEmpresa = parseInt(req.user?.id_empresa || 1, 10);
+    await pool.query(
+      `UPDATE lead_capturas SET excluido='S' WHERE id=? AND id_empresa=?`,
+      [parseInt(req.params.id, 10), idEmpresa]
+    );
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 router.get('/:id', async (req, res) => {
   await ensureTable();
   try {
@@ -507,14 +645,15 @@ router.post('/', async (req, res) => {
     const [result] = await pool.query(
       `INSERT INTO leads (
         id_empresa, id_usuario, id_vendedor, nome, empresa, telefone, whatsapp, email, instagram, facebook,
-        cidade, uf, segmento, cargo, origem, campanha, anuncio, interesse, produto_interesse, score,
+        cidade, uf, endereco, cep, bairro, latitude, longitude, segmento, cargo, origem, campanha, anuncio, interesse, produto_interesse, score,
         temperatura_lead, prioridade, canal_atendimento, status_funil, motivo_perda, valor_estimado, tags,
         observacoes, data_ultimo_contato, data_proximo_contato
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         payload.id_empresa, payload.id_usuario, payload.id_vendedor, payload.nome, payload.empresa,
         payload.telefone, payload.whatsapp, payload.email, payload.instagram, payload.facebook,
-        payload.cidade, payload.uf, payload.segmento, payload.cargo, payload.origem, payload.campanha,
+        payload.cidade, payload.uf, payload.endereco, payload.cep, payload.bairro, payload.latitude || null, payload.longitude || null,
+        payload.segmento, payload.cargo, payload.origem, payload.campanha,
         payload.anuncio, payload.interesse, payload.produto_interesse, payload.score, payload.temperatura_lead,
         payload.prioridade, payload.canal_atendimento, payload.status_funil, payload.motivo_perda, payload.valor_estimado,
         payload.tags, payload.observacoes, payload.data_ultimo_contato, payload.data_proximo_contato
@@ -545,14 +684,17 @@ router.put('/:id', async (req, res) => {
     await pool.query(
       `UPDATE leads
        SET id_vendedor = ?, nome = ?, empresa = ?, telefone = ?, whatsapp = ?, email = ?, instagram = ?, facebook = ?,
-           cidade = ?, uf = ?, segmento = ?, cargo = ?, origem = ?, campanha = ?, anuncio = ?, interesse = ?,
+           cidade = ?, uf = ?, endereco = ?, cep = ?, bairro = ?, latitude = ?, longitude = ?,
+           segmento = ?, cargo = ?, origem = ?, campanha = ?, anuncio = ?, interesse = ?,
            produto_interesse = ?, score = ?, temperatura_lead = ?, prioridade = ?, canal_atendimento = ?,
            status_funil = ?, motivo_perda = ?, valor_estimado = ?, tags = ?, observacoes = ?,
            data_ultimo_contato = ?, data_proximo_contato = ?
        WHERE id = ?`,
       [
         payload.id_vendedor, payload.nome, payload.empresa, payload.telefone, payload.whatsapp, payload.email,
-        payload.instagram, payload.facebook, payload.cidade, payload.uf, payload.segmento, payload.cargo,
+        payload.instagram, payload.facebook, payload.cidade, payload.uf, payload.endereco, payload.cep, payload.bairro,
+        payload.latitude || null, payload.longitude || null,
+        payload.segmento, payload.cargo,
         payload.origem, payload.campanha, payload.anuncio, payload.interesse, payload.produto_interesse,
         payload.score, payload.temperatura_lead, payload.prioridade, payload.canal_atendimento, payload.status_funil,
         payload.motivo_perda, payload.valor_estimado, payload.tags, payload.observacoes,
@@ -589,18 +731,23 @@ router.post('/:id/converter', async (req, res) => {
 
     const [result] = await pool.query(
       `INSERT INTO clientes (
-        nome, apelido, contato, foneprincipal, email, cidade, uf,
+        nome, apelido, contato, foneprincipal, email, endereco, cidade, uf, cep,
+        latitude, longitude,
         tipo_pessoa, tipo_cliente, cod_vendedor, status, obsgerais,
         id_empresa, excluido, dtcadastro
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'N', CURDATE())`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'N', CURDATE())`,
       [
         nomeCliente,
         lead.empresa ? contato : '',
         contato,
         lead.whatsapp || lead.telefone || '',
         lead.email || '',
+        lead.endereco || '',
         lead.cidade || '',
         lead.uf || '',
+        lead.cep || '',
+        lead.latitude || null,
+        lead.longitude || null,
         lead.empresa ? 'J' : 'F',
         'LEAD',
         lead.id_vendedor || parseInt(user.idusuario || user.id || 0, 10) || null,

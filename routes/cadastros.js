@@ -1,6 +1,62 @@
 const express = require('express');
 const router  = express.Router();
 const { getPool } = require('../config/database');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const {
+  EMP_LOGO_BASE: _empLogoBase,
+  webPathEmpresaLogo,
+  tryUnlinkLogoFile,
+  sanitizeEmpresaRow,
+} = require('../services/empresa-logo');
+
+/** Legado Delphi: excluido pode ser NULL ou vazio em registros ativos. */
+const EMPRESA_NAO_EXCLUIDA = `COALESCE(NULLIF(TRIM(excluido), ''), 'N') = 'N'`;
+const E_EMPRESA_NAO_EXCLUIDA = `COALESCE(NULLIF(TRIM(e.excluido), ''), 'N') = 'N'`;
+
+// ─── Logo da empresa (relatórios / login) ───────────────────────────────────
+const _empLogoStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(_empLogoBase, String(req.params.id));
+    fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname || '') || '.png';
+    const base = path.basename(file.originalname || 'logo', ext).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40);
+    cb(null, `logo_${Date.now()}_${base}${ext}`);
+  }
+});
+const uploadEmpresaLogo = multer({
+  storage: _empLogoStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const name = file.originalname || '';
+    const ok = /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(name);
+    cb(ok ? null : new Error('Use imagem JPG, PNG, GIF, WebP ou SVG'), ok);
+  }
+});
+
+let _empresaLogoColEnsured = false;
+async function ensureEmpresaLogoColumn(pool) {
+  if (_empresaLogoColEnsured) return;
+  await pool.query(
+    `ALTER TABLE empresa ADD COLUMN logo_relatorio VARCHAR(512) NULL DEFAULT NULL`
+  ).catch(() => {});
+  await pool.query(
+    `ALTER TABLE empresa ADD COLUMN logo_tamanho_relatorio VARCHAR(1) NULL DEFAULT 'M'`
+  ).catch(() => {});
+  await pool.query(
+    `ALTER TABLE empresa ADD COLUMN fluxo_pedidos VARCHAR(20) NOT NULL DEFAULT 'LIVRE'`
+  ).catch(() => {});
+  _empresaLogoColEnsured = true;
+}
+
+function normLogoTamanho(v) {
+  const c = String(v || 'M').toUpperCase();
+  return ['P', 'M', 'G'].includes(c) ? c : 'M';
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PERFIS  (tabela: perfil)
@@ -41,7 +97,8 @@ router.post('/perfis', async (req, res) => {
       incluir_hoteis, alterar_hoteis, excluir_hoteis,
       p_vender, p_comprar, acessogerenciais, manutencaocadastros,
       acessartodosclientes, mudarempresa, alterarbase,
-      acesso_financeiro, acessoperfil
+      acesso_financeiro, acessoperfil,
+      p_alterarcomissao, alterar_emb, alterardatapedido, trocarvendedorpedido, alteraprecovenda
     } = req.body;
     const [r] = await pool.query(
       `INSERT INTO perfil (descricao,
@@ -61,8 +118,10 @@ router.post('/perfis', async (req, res) => {
         incluir_hoteis, alterar_hoteis, excluir_hoteis,
         p_vender,p_comprar,acessogerenciais,manutencaocadastros,
         acessartodosclientes,mudarempresa,alterarbase,
-        acesso_financeiro,acessoperfil,excluido)
-       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'N')`,
+        acesso_financeiro,acessoperfil,
+        p_alterarcomissao,alterar_emb,alterardatapedido,trocarvendedorpedido,alteraprecovenda,
+        excluido)
+       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'N')`,
       [descricao||null,
        n(incluir_pedvendas),n(alterar_pedvendas),n(excluir_pedvendas),
        n(incluir_clientes),n(alterar_clientes),n(exclui_clientes),
@@ -80,7 +139,8 @@ router.post('/perfis', async (req, res) => {
        n(incluir_hoteis),n(alterar_hoteis),n(excluir_hoteis),
        n(p_vender),n(p_comprar),n(acessogerenciais),n(manutencaocadastros),
        n(acessartodosclientes),n(mudarempresa),n(alterarbase),
-       n(acesso_financeiro),n(acessoperfil)]
+       n(acesso_financeiro),n(acessoperfil),
+       n(p_alterarcomissao??'S'),n(alterar_emb??'S'),n(alterardatapedido??'S'),n(trocarvendedorpedido??'S'),n(alteraprecovenda??'S')]
     );
     res.status(201).json({ ok:true, id:r.insertId });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -117,7 +177,8 @@ router.put('/perfis/:id', async (req, res) => {
       incluir_hoteis, alterar_hoteis, excluir_hoteis,
       p_vender, p_comprar, acessogerenciais, manutencaocadastros,
       acessartodosclientes, mudarempresa, alterarbase,
-      acesso_financeiro, acessoperfil
+      acesso_financeiro, acessoperfil,
+      p_alterarcomissao, alterar_emb, alterardatapedido, trocarvendedorpedido, alteraprecovenda
     } = req.body;
     await pool.query(
       `UPDATE perfil SET descricao=?,
@@ -137,7 +198,8 @@ router.put('/perfis/:id', async (req, res) => {
         incluir_hoteis=?, alterar_hoteis=?, excluir_hoteis=?,
         p_vender=?,p_comprar=?,acessogerenciais=?,manutencaocadastros=?,
         acessartodosclientes=?,mudarempresa=?,alterarbase=?,
-        acesso_financeiro=?,acessoperfil=?
+        acesso_financeiro=?,acessoperfil=?,
+        p_alterarcomissao=?,alterar_emb=?,alterardatapedido=?,trocarvendedorpedido=?,alteraprecovenda=?
        WHERE id=?`,
       [descricao||null,
        n(incluir_pedvendas),n(alterar_pedvendas),n(excluir_pedvendas),
@@ -156,7 +218,9 @@ router.put('/perfis/:id', async (req, res) => {
        n(incluir_hoteis),n(alterar_hoteis),n(excluir_hoteis),
        n(p_vender),n(p_comprar),n(acessogerenciais),n(manutencaocadastros),
        n(acessartodosclientes),n(mudarempresa),n(alterarbase),
-       n(acesso_financeiro),n(acessoperfil),req.params.id]
+       n(acesso_financeiro),n(acessoperfil),
+       n(p_alterarcomissao??'S'),n(alterar_emb??'S'),n(alterardatapedido??'S'),n(trocarvendedorpedido??'S'),n(alteraprecovenda??'S'),
+       req.params.id]
     );
     res.json({ ok:true });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -298,12 +362,8 @@ router.delete('/grupos/:id', async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // USUÁRIOS  (tabela: usuarios)
 // ─────────────────────────────────────────────────────────────────────────────
-const multer = require('multer');
-const path   = require('path');
-const fs     = require('fs');
-
 // ─── Multer: upload de avatar do usuário ───────────────────────────────────────
-const _uploadsBaseUsr = path.join(__dirname, '..', 'public', 'uploads', 'usuarios');
+const _uploadsBaseUsr = path.join(process.cwd(), 'public', 'uploads', 'usuarios');
 
 const storageUsr = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -319,7 +379,9 @@ const storageUsr = multer.diskStorage({
 });
 const uploadUsr = multer({ storage: storageUsr });
 
+let _usuarioColsOk = false;
 async function ensureUsuarioColumns(pool) {
+  if (_usuarioColsOk) return;
   const cols = [
     ['apelido', 'VARCHAR(100)'],
     ['cpf', 'VARCHAR(20)'],
@@ -343,14 +405,70 @@ async function ensureUsuarioColumns(pool) {
     ['id_fornecedor', 'INT'],
     ['id_regiao', 'INT'],
     ['obs_gerais', 'TEXT'],
+    ['comissao_vista', 'DECIMAL(15,3) DEFAULT 0'],
+    ['comissao_prazo', 'DECIMAL(15,3) DEFAULT 0'],
+    ['vlr_meta', 'DECIMAL(15,3) DEFAULT 0'],
+    ['tipo_usuario', "VARCHAR(20) NOT NULL DEFAULT 'REPRESENTANTE'"],
+    ['comissao_preposto_pct', 'DECIMAL(5,2) NOT NULL DEFAULT 6.00'],
+    ['id_gerente', 'INT DEFAULT NULL'],
     ['excluido', "VARCHAR(1) DEFAULT 'N'"],
-    ['SITUACAO', "VARCHAR(20) DEFAULT 'ATIVO'"]
+    ['SITUACAO', "VARCHAR(20) DEFAULT 'ATIVO'"],
+    // Permissões individuais (usadas em _updateUsuarioOpcional)
+    ['acessartodosclientes',       "VARCHAR(1) DEFAULT 'N'"],
+    ['incluir_pedvendas',          "VARCHAR(1) DEFAULT 'N'"],
+    ['alterar_pedvendas',          "VARCHAR(1) DEFAULT 'N'"],
+    ['excluir_pedvendas',          "VARCHAR(1) DEFAULT 'N'"],
+    ['incluir_clientes',           "VARCHAR(1) DEFAULT 'N'"],
+    ['alterar_clientes',           "VARCHAR(1) DEFAULT 'N'"],
+    ['exclui_clientes',            "VARCHAR(1) DEFAULT 'N'"],
+    ['incluir_fornecedor',         "VARCHAR(1) DEFAULT 'N'"],
+    ['alterar_fornecedor',         "VARCHAR(1) DEFAULT 'N'"],
+    ['excluir_fornecedor',         "VARCHAR(1) DEFAULT 'N'"],
+    ['incluir_produtos',           "VARCHAR(1) DEFAULT 'N'"],
+    ['alterar_produtos',           "VARCHAR(1) DEFAULT 'N'"],
+    ['excluir_produtos',           "VARCHAR(1) DEFAULT 'N'"],
+    ['p_vender',                   "VARCHAR(1) DEFAULT 'S'"],
+    ['p_comprar',                  "VARCHAR(1) DEFAULT 'N'"],
+    ['acessogerenciais',           "VARCHAR(1) DEFAULT 'N'"],
+    ['manutencaocadastros',        "VARCHAR(1) DEFAULT 'N'"],
+    ['mudarempresa',               "VARCHAR(1) DEFAULT 'N'"],
+    ['alterarbase',                "VARCHAR(1) DEFAULT 'N'"],
+    ['acesso_financeiro',          "VARCHAR(1) DEFAULT 'N'"],
+    ['acessoperfil',               "VARCHAR(1) DEFAULT 'N'"],
+    ['incluir_formas_pagamento',   "VARCHAR(1) DEFAULT 'N'"],
+    ['alterar_formas_pagamento',   "VARCHAR(1) DEFAULT 'N'"],
+    ['excluir_formas_pagamento',   "VARCHAR(1) DEFAULT 'N'"],
+    ['incluir_bancos',             "VARCHAR(1) DEFAULT 'N'"],
+    ['alterar_bancos',             "VARCHAR(1) DEFAULT 'N'"],
+    ['excluir_bancos',             "VARCHAR(1) DEFAULT 'N'"],
+    ['incluir_despesas',           "VARCHAR(1) DEFAULT 'N'"],
+    ['alterar_despesas',           "VARCHAR(1) DEFAULT 'N'"],
+    ['excluir_despesas',           "VARCHAR(1) DEFAULT 'N'"],
+    ['incluir_segmentos',          "VARCHAR(1) DEFAULT 'N'"],
+    ['alterar_segmentos',          "VARCHAR(1) DEFAULT 'N'"],
+    ['excluir_segmentos',          "VARCHAR(1) DEFAULT 'N'"],
+    ['incluir_regioes',            "VARCHAR(1) DEFAULT 'N'"],
+    ['alterar_regioes',            "VARCHAR(1) DEFAULT 'N'"],
+    ['excluir_regioes',            "VARCHAR(1) DEFAULT 'N'"],
+    ['incluir_natureza',           "VARCHAR(1) DEFAULT 'N'"],
+    ['alterar_natureza',           "VARCHAR(1) DEFAULT 'N'"],
+    ['excluir_natureza',           "VARCHAR(1) DEFAULT 'N'"],
   ];
   for (const [col, type] of cols) {
-    await pool.query(`ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS ${col} ${type}`).catch(() => {
-       return pool.query(`ALTER TABLE usuarios ADD COLUMN ${col} ${type}`).catch(() => {});
-    });
+    await pool.query(`ALTER TABLE usuarios ADD COLUMN ${col} ${type}`).catch(() => {});
   }
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS preposto_comissao_fornecedor (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      id_usuario INT NOT NULL,
+      id_fornecedor INT NOT NULL,
+      pct_comissao DECIMAL(5,2) NOT NULL DEFAULT 0,
+      oculta VARCHAR(1) NOT NULL DEFAULT 'N',
+      UNIQUE KEY uk_prep_forn (id_usuario, id_fornecedor)
+    )
+  `).catch(() => {});
+  await pool.query(`ALTER TABLE preposto_comissao_fornecedor ADD COLUMN oculta VARCHAR(1) NOT NULL DEFAULT 'N'`).catch(() => {});
+  _usuarioColsOk = true;
 }
 router.get('/usuarios', async (req, res) => {
   try {
@@ -377,9 +495,9 @@ router.get('/usuarios/:id/empresas', async (req, res) => {
       `SELECT e.id_empresa, e.Razao_empresa, e.nome_fantasia,
               IF(ue.id IS NOT NULL, 1, 0) AS vinculado
        FROM empresa e
-       LEFT JOIN usuario_empresa ue
-         ON ue.id_empresa = e.id_empresa AND ue.idusuario = ?
-       WHERE e.excluido = 'N'
+       LEFT JOIN usuario_empresas ue
+         ON ue.cod_empresa = e.id_empresa AND ue.id_usuario = ?
+       WHERE ${E_EMPRESA_NAO_EXCLUIDA}
        ORDER BY e.Razao_empresa`,
       [req.params.id || 0]
     );
@@ -426,6 +544,22 @@ router.get('/usuarios/:id/fornecedores', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// GET /api/usuarios/smtp — retorna config SMTP do usuário logado (deve vir ANTES de /:id)
+router.get('/usuarios/smtp', async (req, res) => {
+  try {
+    const pool = getPool();
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Não autenticado' });
+    const [[row]] = await pool.query(
+      `SELECT emailpedsmtp, emailpedporta, emailpedemail, emailpednome,
+              emailpedassinatura, emailpedemaildiretor
+       FROM usuarios WHERE idusuario=? AND COALESCE(excluido,'N')='N' LIMIT 1`,
+      [userId]
+    );
+    res.json({ ok: true, smtp: row || {} });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 router.get('/usuarios/:id', async (req, res) => {
   try {
     const pool = getPool();
@@ -460,9 +594,76 @@ router.post('/usuarios', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// PUT /api/usuarios/smtp — salva config SMTP do usuário logado (deve vir ANTES de /:id)
+router.put('/usuarios/smtp', async (req, res) => {
+  try {
+    const pool = getPool();
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Não autenticado' });
+    const { emailpedsmtp, emailpedporta, emailpedemail, emailpedsenha, emailpednome, emailpedassinatura, emailpedemaildiretor } = req.body;
+    await pool.query(
+      `UPDATE usuarios SET emailpedsmtp=?, emailpedporta=?, emailpedemail=?, emailpedsenha=?,
+       emailpednome=?, emailpedassinatura=?, emailpedemaildiretor=?
+       WHERE idusuario=? AND COALESCE(excluido,'N')='N'`,
+      [emailpedsmtp||null, emailpedporta||null, emailpedemail||null, emailpedsenha||null,
+       emailpednome||null, emailpedassinatura||null, emailpedemaildiretor||null, userId]
+    );
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/usuarios/smtp/test — testa SMTP sem salvar (deve vir ANTES de /:id/*)
+router.post('/usuarios/smtp/test', async (req, res) => {
+  try {
+    const { emailpedsmtp, emailpedporta, emailpedemail, emailpedsenha, emailpednome } = req.body;
+    if (!emailpedsmtp || !emailpedemail || !emailpedsenha)
+      return res.status(400).json({ error: 'Preencha servidor, usuário e senha antes de testar.' });
+    const nodemailer = require('nodemailer');
+    const transporter = nodemailer.createTransport({
+      host: emailpedsmtp,
+      port: parseInt(emailpedporta) || 587,
+      secure: parseInt(emailpedporta) === 465,
+      auth: { user: emailpedemail, pass: emailpedsenha },
+      tls: { rejectUnauthorized: false },
+    });
+    await transporter.sendMail({
+      from: `"${emailpednome || 'SysRepWeb'}" <${emailpedemail}>`,
+      to: emailpedemail,
+      subject: 'Teste de SMTP — SysRepWeb',
+      html: '<p style="font-family:Arial">Configuração de e-mail funcionando corretamente! ✓</p>',
+    });
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/usuarios/smtp/assinatura — upload imagem de assinatura
+const multerSmtp = require('multer');
+const fsSmtp = require('fs');
+const pathSmtp = require('path');
+const storageSmtp = multerSmtp.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = pathSmtp.join(process.cwd(), 'public/uploads/assinaturas');
+    fsSmtp.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const ext = pathSmtp.extname(file.originalname) || '.png';
+    cb(null, `assin_${req.user?.id || 'usr'}_${Date.now()}${ext}`);
+  },
+});
+const uploadSmtp = multerSmtp({ storage: storageSmtp, limits: { fileSize: 2 * 1024 * 1024 } });
+router.post('/usuarios/smtp/assinatura', uploadSmtp.single('arquivo'), (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
+    const url = `/uploads/assinaturas/${req.file.filename}`;
+    res.json({ ok: true, url });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 router.put('/usuarios/:id', async (req, res) => {
   try {
     const pool = getPool();
+    await ensureUsuarioColumns(pool);
     const { nomeusu, loginusu, senhausu, SITUACAO, idperfil, email } = req.body;
     const base = [`nomeusu=?`,`loginusu=?`,`SITUACAO=?`,`idperfil=?`,`email=?`];
     const vals = [nomeusu||null, loginusu||null, SITUACAO||'ATIVO', idperfil||null, email||null];
@@ -518,11 +719,18 @@ async function _updateUsuarioOpcional(pool, id, body) {
     id_fornecedor: body.id_fornecedor||null,
     id_regiao: body.id_regiao||null,
     obs_gerais: body.obs_gerais||null,
-    email_smtp: body.email_smtp||null,
-    email_port: body.email_port||null,
-    email_username: body.email_username||null,
-    email_password: body.email_password||null,
-    email_nome_exibicao: body.email_nome_exibicao||null,
+    comissao_vista: body.comissao_vista||0,
+    comissao_prazo: body.comissao_prazo||0,
+    vlr_meta: body.vlr_meta||0,
+    tipo_usuario: body.tipo_usuario||'REPRESENTANTE',
+    comissao_preposto_pct: parseFloat(body.comissao_preposto_pct)||6,
+    emailpedsmtp: body.emailpedsmtp||null,
+    emailpedporta: body.emailpedporta||null,
+    emailpedemail: body.emailpedemail||null,
+    emailpedsenha: body.emailpedsenha||null,
+    emailpednome: body.emailpednome||null,
+    emailpedemaildiretor: body.emailpedemaildiretor||null,
+    emailpedassinatura: body.emailpedassinatura||null,
     incluir_pedvendas: n(body.incluir_pedvendas),
     alterar_pedvendas: n(body.alterar_pedvendas),
     excluir_pedvendas: n(body.excluir_pedvendas),
@@ -586,10 +794,10 @@ router.post('/usuarios/:id/empresas', async (req, res) => {
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
-      await conn.query(`DELETE FROM usuario_empresa WHERE idusuario=?`, [req.params.id]);
+      await conn.query(`DELETE FROM usuario_empresas WHERE id_usuario=?`, [req.params.id]);
       if (id_empresas.length > 0) {
         await conn.query(
-          `INSERT INTO usuario_empresa (idusuario,id_empresa) VALUES ?`,
+          `INSERT INTO usuario_empresas (id_usuario,cod_empresa) VALUES ?`,
           [id_empresas.map(e => [req.params.id, e])]
         );
       }
@@ -655,70 +863,234 @@ router.post('/usuarios/:id/fornecedores', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// COMISSÕES DO PREPOSTO POR FORNECEDOR
+// ─────────────────────────────────────────────────────────────────────────────
+
+router.get('/usuarios/:id/comissoes-fornecedor', async (req, res) => {
+  try {
+    const pool = getPool();
+    await ensureUsuarioColumns(pool);
+    const [rows] = await pool.query(
+      `SELECT f.id, f.nome,
+              COALESCE(pc.pct_comissao, 0) AS pct_comissao,
+              COALESCE(pc.oculta, 'N') AS oculta
+       FROM fornecedores f
+       LEFT JOIN preposto_comissao_fornecedor pc
+         ON pc.id_fornecedor = f.id AND pc.id_usuario = ?
+       WHERE f.excluido = 'N'
+       ORDER BY f.nome`,
+      [req.params.id]
+    );
+    res.json({ fornecedores: rows });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/usuarios/:id/comissoes-fornecedor/clonar-de/:origem_id', async (req, res) => {
+  try {
+    const pool = getPool();
+    const idDestino = parseInt(req.params.id);
+    const idOrigem  = parseInt(req.params.origem_id);
+    if (idDestino === idOrigem) return res.status(400).json({ error: 'Origem e destino iguais' });
+    const [configs] = await pool.query(
+      `SELECT id_fornecedor, pct_comissao, oculta FROM preposto_comissao_fornecedor WHERE id_usuario = ?`,
+      [idOrigem]
+    );
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      await conn.query(`DELETE FROM preposto_comissao_fornecedor WHERE id_usuario = ?`, [idDestino]);
+      if (configs.length) {
+        const rows = configs.map(c => [idDestino, c.id_fornecedor, parseFloat(c.pct_comissao), c.oculta || 'N']);
+        await conn.query(
+          `INSERT INTO preposto_comissao_fornecedor (id_usuario, id_fornecedor, pct_comissao, oculta) VALUES ?`,
+          [rows]
+        );
+      }
+      await conn.commit();
+      res.json({ ok: true, copiadas: configs.length });
+    } catch(e) { await conn.rollback(); throw e; }
+    finally { conn.release(); }
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/usuarios/:id/comissoes-fornecedor', async (req, res) => {
+  try {
+    const pool = getPool();
+    const { comissoes } = req.body; // [{id_fornecedor, pct_comissao}]
+    if (!Array.isArray(comissoes)) return res.status(400).json({ error: 'comissoes deve ser array' });
+    const idUsuario = parseInt(req.params.id);
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      await conn.query(`DELETE FROM preposto_comissao_fornecedor WHERE id_usuario = ?`, [idUsuario]);
+      const validas = comissoes.filter(c => c.id_fornecedor && (parseFloat(c.pct_comissao) > 0 || c.oculta === 'S'));
+      if (validas.length) {
+        const rows = validas.map(c => [idUsuario, parseInt(c.id_fornecedor), parseFloat(c.pct_comissao) || 0, c.oculta === 'S' ? 'S' : 'N']);
+        await conn.query(
+          `INSERT INTO preposto_comissao_fornecedor (id_usuario, id_fornecedor, pct_comissao, oculta) VALUES ?`,
+          [rows]
+        );
+      }
+      await conn.commit();
+      res.json({ ok: true, salvas: validas.length });
+    } catch(e) { await conn.rollback(); throw e; }
+    finally { conn.release(); }
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // EMPRESAS
 // ─────────────────────────────────────────────────────────────────────────────
+
 router.get('/empresas', async (req, res) => {
   try {
     const pool = getPool();
-    const [rows] = await pool.query(`SELECT * FROM empresa WHERE excluido='N' ORDER BY Razao_empresa`);
-    res.json({ empresas: rows });
+    await ensureEmpresaLogoColumn(pool);
+    const [rows] = await pool.query(
+      `SELECT * FROM empresa WHERE ${EMPRESA_NAO_EXCLUIDA} ORDER BY Razao_empresa`
+    );
+    const empresas = [];
+    for (const row of rows) {
+      try {
+        empresas.push(await sanitizeEmpresaRow(pool, row));
+      } catch (rowErr) {
+        console.error('[empresas] sanitize id=', row?.id_empresa, rowErr.message);
+        empresas.push(row);
+      }
+    }
+    res.json({ empresas });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 router.get('/empresas/:id', async (req, res) => {
   try {
     const pool = getPool();
-    const [rows] = await pool.query(`SELECT * FROM empresa WHERE id_empresa=? AND excluido='N' LIMIT 1`, [req.params.id]);
+    await ensureEmpresaLogoColumn(pool);
+    const [rows] = await pool.query(
+      `SELECT * FROM empresa WHERE id_empresa=? AND ${EMPRESA_NAO_EXCLUIDA} LIMIT 1`,
+      [req.params.id]
+    );
     if (!rows[0]) return res.status(404).json({ error:'Empresa não encontrada' });
-    res.json(rows[0]);
+    res.json(await sanitizeEmpresaRow(pool, rows[0]));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/empresas/:id/logo — upload da imagem (login + relatórios)
+router.post('/empresas/:id/logo', uploadEmpresaLogo.single('logo'), async (req, res) => {
+  try {
+    const pool = getPool();
+    await ensureEmpresaLogoColumn(pool);
+    if (!req.file) return res.status(400).json({ error: 'Arquivo não enviado (campo logo)' });
+    const id = req.params.id;
+    const [[emp]] = await pool.query(
+      `SELECT id_empresa, logo_relatorio FROM empresa WHERE id_empresa=? AND ${EMPRESA_NAO_EXCLUIDA} LIMIT 1`,
+      [id]
+    );
+    if (!emp) {
+      try { fs.unlinkSync(req.file.path); } catch (_) {}
+      return res.status(404).json({ error: 'Empresa não encontrada' });
+    }
+    const webPath = webPathEmpresaLogo(id, req.file.filename);
+    if (emp.logo_relatorio) tryUnlinkLogoFile(emp.logo_relatorio);
+    await pool.query(`UPDATE empresa SET logo_relatorio=? WHERE id_empresa=? AND ${EMPRESA_NAO_EXCLUIDA}`, [webPath, id]);
+    res.json({ ok: true, logo_relatorio: webPath });
+  } catch (err) {
+    if (req.file?.path) { try { fs.unlinkSync(req.file.path); } catch (_) {} }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/empresas/:id/logo — remove logo
+router.delete('/empresas/:id/logo', async (req, res) => {
+  try {
+    const pool = getPool();
+    await ensureEmpresaLogoColumn(pool);
+    const id = req.params.id;
+    const [[emp]] = await pool.query(
+      `SELECT logo_relatorio FROM empresa WHERE id_empresa=? AND ${EMPRESA_NAO_EXCLUIDA} LIMIT 1`,
+      [id]
+    );
+    if (!emp) return res.status(404).json({ error: 'Empresa não encontrada' });
+    if (emp.logo_relatorio) tryUnlinkLogoFile(emp.logo_relatorio);
+    await pool.query(`UPDATE empresa SET logo_relatorio=NULL WHERE id_empresa=? AND ${EMPRESA_NAO_EXCLUIDA}`, [id]);
+    res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 router.post('/empresas', async (req, res) => {
   try {
     const pool = getPool();
+    await ensureEmpresaLogoColumn(pool);
     const b = req.body;
     if (!b.Razao_empresa) return res.status(400).json({ error:'Razao_empresa obrigatório' });
-    const [r] = await pool.query(
-      `INSERT INTO empresa (
-        Razao_empresa, nome_fantasia, cnpj, ins_estadual, ins_muncipal,
-        tipo_pessoa, endereco, numero, bairro, cidade, uf, cep,
-        telefone, telefone2, fax, site, email, email_nf,
-        responsavel, responsavel_cpf, responsavel_telefone, responsavel_email,
-        ipservidor,
-        email_nomeexibicao, email_smtp, email_username, email_password,
-        email_port, email_assinatura, email_emaildiretor,
-        compartilhatudo, compartilhaproduto, compartilhacliente,
-        compartilhafornecedor, muda_empresa, gempresapermite_trocarbase,
-        ativo, excluido
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'SIM','N')`,
-      [
-        b.Razao_empresa, b.nome_fantasia||null, b.cnpj||null,
-        b.ins_estadual||null, b.ins_muncipal||null,
-        b.tipo_pessoa||'JURIDICA',
-        b.endereco||null, b.numero||null, b.bairro||null,
-        b.cidade||null, b.uf||null, b.cep||null,
-        b.telefone||null, b.telefone2||null, b.fax||null,
-        b.site||null, b.email||null, b.email_nf||null,
-        b.responsavel||null, b.responsavel_cpf||null,
-        b.responsavel_telefone||null, b.responsavel_email||null,
-        b.ipservidor||null,
-        b.email_nomeexibicao||null, b.email_smtp||null,
-        b.email_username||null, b.email_password||null,
-        b.email_port||null, b.email_assinatura||null, b.email_emaildiretor||null,
-        b.compartilhatudo||'S', b.compartilhaproduto||'S',
-        b.compartilhacliente||'S', b.compartilhafornecedor||'S',
-        b.muda_empresa||'N', b.gempresapermite_trocarbase||'N',
-        b.ativo||'SIM'
-      ]
-    );
-    res.status(201).json({ ok:true, id:r.insertId });
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      let newId = parseInt(b.id_empresa, 10);
+      if (!Number.isInteger(newId) || newId < 1) newId = null;
+
+      if (newId == null) {
+        const [[seq]] = await conn.query(
+          `SELECT COALESCE(MAX(id_empresa), 0) + 1 AS nextId FROM empresa`
+        );
+        newId = Number(seq?.nextId || 1);
+      }
+
+      await conn.query(
+        `INSERT INTO empresa (
+          id_empresa,
+          Razao_empresa, nome_fantasia, cnpj, ins_estadual, ins_muncipal,
+          tipo_pessoa, endereco, numero, bairro, cidade, uf, cep,
+          telefone, telefone2, fax, site, email, email_nf,
+          responsavel, responsavel_cpf, responsavel_telefone, responsavel_email,
+          ipservidor,
+          email_nomeexibicao, email_smtp, email_username, email_password,
+          email_port, email_assinatura, email_emaildiretor,
+          compartilhatudo, compartilhaproduto, compartilhacliente,
+          compartilhafornecedor, muda_empresa, gempresapermite_trocarbase,
+          logo_tamanho_relatorio, fluxo_pedidos,
+          ativo, excluido
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'N')`,
+        [
+          newId,
+          b.Razao_empresa, b.nome_fantasia||null, b.cnpj||null,
+          b.ins_estadual||null, b.ins_muncipal||null,
+          b.tipo_pessoa||'JURIDICA',
+          b.endereco||null, b.numero||null, b.bairro||null,
+          b.cidade||null, b.uf||null, b.cep||null,
+          b.telefone||null, b.telefone2||null, b.fax||null,
+          b.site||null, b.email||null, b.email_nf||null,
+          b.responsavel||null, b.responsavel_cpf||null,
+          b.responsavel_telefone||null, b.responsavel_email||null,
+          b.ipservidor||null,
+          b.email_nomeexibicao||null, b.email_smtp||null,
+          b.email_username||null, b.email_password||null,
+          b.email_port||null, b.email_assinatura||null, b.email_emaildiretor||null,
+          b.compartilhatudo||'S', b.compartilhaproduto||'S',
+          b.compartilhacliente||'S', b.compartilhafornecedor||'S',
+          b.muda_empresa||'N', b.gempresapermite_trocarbase||'N',
+          normLogoTamanho(b.logo_tamanho_relatorio),
+          b.fluxo_pedidos||'LIVRE',
+          b.ativo||'SIM'
+        ]
+      );
+
+      await conn.commit();
+      res.status(201).json({ ok:true, id:newId });
+    } catch (e) {
+      await conn.rollback();
+      throw e;
+    } finally {
+      conn.release();
+    }
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 router.put('/empresas/:id', async (req, res) => {
   try {
     const pool = getPool();
+    await ensureEmpresaLogoColumn(pool);
     const b = req.body;
     await pool.query(
       `UPDATE empresa SET Razao_empresa=?, nome_fantasia=?, cnpj=?, ins_estadual=?, ins_muncipal=?,
@@ -728,8 +1100,9 @@ router.put('/empresas/:id', async (req, res) => {
         ipservidor=?, email_nomeexibicao=?, email_smtp=?, email_username=?, email_password=?,
         email_port=?, email_assinatura=?, email_emaildiretor=?,
         compartilhatudo=?, compartilhaproduto=?, compartilhacliente=?,
-        compartilhafornecedor=?, muda_empresa=?, gempresapermite_trocarbase=?, ativo=?
-       WHERE id_empresa=? AND excluido='N'`,
+        compartilhafornecedor=?, muda_empresa=?, gempresapermite_trocarbase=?, ativo=?,
+        logo_tamanho_relatorio=?, fluxo_pedidos=?
+       WHERE id_empresa=? AND ${EMPRESA_NAO_EXCLUIDA}`,
       [
         b.Razao_empresa||null, b.nome_fantasia||null, b.cnpj||null, b.ins_estadual||null, b.ins_muncipal||null,
         b.tipo_pessoa||'JURIDICA', b.endereco||null, b.numero||null, b.bairro||null,
@@ -739,7 +1112,10 @@ router.put('/empresas/:id', async (req, res) => {
         b.email_nomeexibicao||null, b.email_smtp||null, b.email_username||null, b.email_password||null,
         b.email_port||null, b.email_assinatura||null, b.email_emaildiretor||null,
         b.compartilhatudo||'S', b.compartilhaproduto||'S', b.compartilhacliente||'S', b.compartilhafornecedor||'S',
-        b.muda_empresa||'N', b.gempresapermite_trocarbase||'N', b.ativo||'SIM', req.params.id
+        b.muda_empresa||'N', b.gempresapermite_trocarbase||'N', b.ativo||'SIM',
+        normLogoTamanho(b.logo_tamanho_relatorio),
+        b.fluxo_pedidos||'LIVRE',
+        req.params.id
       ]
     );
     res.json({ ok:true });
@@ -749,14 +1125,42 @@ router.put('/empresas/:id', async (req, res) => {
 router.delete('/empresas/:id', async (req, res) => {
   try {
     const pool = getPool();
-    await pool.query(`UPDATE empresa SET excluido='S' WHERE id_empresa=? AND excluido='N'`, [req.params.id]);
+    await pool.query(`UPDATE empresa SET excluido='S' WHERE id_empresa=? AND ${EMPRESA_NAO_EXCLUIDA}`, [req.params.id]);
     res.json({ ok:true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FORMAS DE PAGAMENTO (tabela: forma_pagto)
+// Legado Delphi/Web costuma usar prazopadrao; a API/UI usam prazo_padrao.
+// Sem ADD COLUMN (MySQL antigo): usa ALTER ADD e ignora erro de duplicidade.
 // ─────────────────────────────────────────────────────────────────────────────
+async function formaPagtoColumns(pool) {
+  let rows = [];
+  try {
+    const [r] = await pool.query(
+      `SELECT LOWER(TRIM(\`COLUMN_NAME\`)) AS n FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
+      ['forma_pagto']
+    );
+    rows = r || [];
+  } catch (_) {
+    rows = [];
+  }
+  return new Set(rows.map(x => String(x.n)));
+}
+
+function formaPagtoMergedPrazo(row, cols) {
+  const o = { ...row };
+  if (cols.has('prazo_padrao') && cols.has('prazopadrao')) {
+    const pn = String(o.prazo_padrao ?? '').trim();
+    const po = String(o.prazopadrao ?? '').trim();
+    o.prazo_padrao = pn || po || null;
+  } else if (!cols.has('prazo_padrao') && cols.has('prazopadrao')) {
+    o.prazo_padrao = o.prazopadrao != null && String(o.prazopadrao).trim() !== '' ? String(o.prazopadrao).trim() : null;
+  }
+  return o;
+}
+
 async function ensureFormaPagtoTable(pool) {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS forma_pagto (
@@ -767,41 +1171,91 @@ async function ensureFormaPagtoTable(pool) {
       dt_cadastro DATETIME DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3
   `).catch(() => {});
-  
-  // Colunas opcionais do novo padrão que podem não existir no legado
-  const optionalCols = [
-    ['tipo_pagto', 'VARCHAR(30) DEFAULT NULL'],
-    ['prazo_padrao', 'VARCHAR(100) DEFAULT NULL'],
-    ['recebimento_auto', 'CHAR(1) DEFAULT \'N\''],
-    ['permite_troco', 'CHAR(1) DEFAULT \'N\''],
-    ['tipo_percentual', 'VARCHAR(20) DEFAULT NULL'],
-    ['percentual', 'DECIMAL(10,2) DEFAULT 0.00']
+
+  const adds = [
+    ['tipo_pagto', `ALTER TABLE forma_pagto ADD COLUMN tipo_pagto VARCHAR(30) DEFAULT NULL`],
+    ['prazo_padrao', `ALTER TABLE forma_pagto ADD COLUMN prazo_padrao VARCHAR(100) DEFAULT NULL`],
+    ['prazopadrao', `ALTER TABLE forma_pagto ADD COLUMN prazopadrao VARCHAR(100) DEFAULT NULL`],
+    ['recebimento_auto', `ALTER TABLE forma_pagto ADD COLUMN recebimento_auto CHAR(1) DEFAULT 'N'`],
+    ['permite_troco', `ALTER TABLE forma_pagto ADD COLUMN permite_troco CHAR(1) DEFAULT 'N'`],
+    ['tipo_percentual', `ALTER TABLE forma_pagto ADD COLUMN tipo_percentual VARCHAR(20) DEFAULT NULL`],
+    ['percentual', `ALTER TABLE forma_pagto ADD COLUMN percentual DECIMAL(10,2) DEFAULT 0.00`]
   ];
-  for (const [col, type] of optionalCols) {
-    await pool.query(`ALTER TABLE forma_pagto ADD COLUMN IF NOT EXISTS ${col} ${type}`).catch(() => {});
+  for (const [, sql] of adds) {
+    await pool.query(sql).catch(() => {});
   }
+
+  const c = await formaPagtoColumns(pool);
+  if (c.has('prazo_padrao') && c.has('prazopadrao')) {
+    await pool.query(
+      `UPDATE forma_pagto SET prazo_padrao = prazopadrao
+       WHERE (prazo_padrao IS NULL OR TRIM(prazo_padrao) = '')
+         AND prazopadrao IS NOT NULL AND TRIM(prazopadrao) <> ''`
+    ).catch(() => {});
+  }
+}
+
+function normFormaPagtoPct(v) {
+  if (v === undefined || v === null || v === '') return 0;
+  const n = Number(String(v).replace(',', '.'));
+  return Number.isFinite(n) ? n : 0;
 }
 
 router.get('/formas-pagamento', async (req, res) => {
   try {
     const pool = getPool();
     await ensureFormaPagtoTable(pool);
+    const c = await formaPagtoColumns(pool);
     const [rows] = await pool.query(`SELECT * FROM forma_pagto WHERE excluido='N' ORDER BY descricao`);
-    res.json({ formas: rows });
+    const formas = rows.map(r => formaPagtoMergedPrazo(r, c));
+    res.json({ formas });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 router.post('/formas-pagamento', async (req, res) => {
   try {
     const pool = getPool();
+    await ensureFormaPagtoTable(pool);
+    const c = await formaPagtoColumns(pool);
     const n = v => (v === 'S' || v === true) ? 'S' : 'N';
     const { descricao, tipo_pagto, prazo_padrao, recebimento_auto, permite_troco, tipo_percentual, percentual, status } = req.body;
     if (!descricao) return res.status(400).json({ error: 'Descrição é obrigatória' });
-    
+
+    const prazoValRaw = prazo_padrao != null && String(prazo_padrao).trim() !== '' ? String(prazo_padrao).trim() : null;
+    const pct = normFormaPagtoPct(percentual);
+
+    const cols = ['descricao'];
+    const ph = ['?'];
+    const vals = [descricao];
+
+    if (c.has('tipo_pagto')) {
+      cols.push('tipo_pagto'); ph.push('?'); vals.push(tipo_pagto || null);
+    }
+    if (c.has('prazo_padrao')) {
+      cols.push('prazo_padrao'); ph.push('?'); vals.push(prazoValRaw);
+    }
+    if (c.has('prazopadrao')) {
+      cols.push('prazopadrao'); ph.push('?'); vals.push(prazoValRaw);
+    }
+    if (c.has('recebimento_auto')) {
+      cols.push('recebimento_auto'); ph.push('?'); vals.push(n(recebimento_auto));
+    }
+    if (c.has('permite_troco')) {
+      cols.push('permite_troco'); ph.push('?'); vals.push(n(permite_troco));
+    }
+    if (c.has('tipo_percentual')) {
+      cols.push('tipo_percentual'); ph.push('?'); vals.push(tipo_percentual || null);
+    }
+    if (c.has('percentual')) {
+      cols.push('percentual'); ph.push('?'); vals.push(pct);
+    }
+    cols.push('status', 'excluido');
+    ph.push('?', '?');
+    vals.push(status || 'S', 'N');
+
     const [r] = await pool.query(
-      `INSERT INTO forma_pagto (descricao, tipo_pagto, prazo_padrao, recebimento_auto, permite_troco, tipo_percentual, percentual, status, excluido)
-       VALUES (?,?,?,?,?,?,?,?,'N')`,
-      [descricao, tipo_pagto || null, prazo_padrao || null, n(recebimento_auto), n(permite_troco), tipo_percentual || null, percentual || 0, status || 'S']
+      `INSERT INTO forma_pagto (${cols.join(', ')}) VALUES (${ph.join(', ')})`,
+      vals
     );
     res.status(201).json({ ok: true, id: r.insertId });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -810,12 +1264,27 @@ router.post('/formas-pagamento', async (req, res) => {
 router.put('/formas-pagamento/:id', async (req, res) => {
   try {
     const pool = getPool();
+    await ensureFormaPagtoTable(pool);
+    const c = await formaPagtoColumns(pool);
     const n = v => (v === 'S' || v === true) ? 'S' : 'N';
     const { descricao, tipo_pagto, prazo_padrao, recebimento_auto, permite_troco, tipo_percentual, percentual, status } = req.body;
-    await pool.query(
-      `UPDATE forma_pagto SET descricao=?, tipo_pagto=?, prazo_padrao=?, recebimento_auto=?, permite_troco=?, tipo_percentual=?, percentual=?, status=? WHERE id=?`,
-      [descricao, tipo_pagto || null, prazo_padrao || null, n(recebimento_auto), n(permite_troco), tipo_percentual || null, percentual || 0, status || 'S', req.params.id]
-    );
+    const prazoValRaw = prazo_padrao != null && String(prazo_padrao).trim() !== '' ? String(prazo_padrao).trim() : null;
+    const pct = normFormaPagtoPct(percentual);
+
+    const parts = [];
+    const vals = [];
+    parts.push('descricao=?'); vals.push(descricao);
+    if (c.has('tipo_pagto')) { parts.push('tipo_pagto=?'); vals.push(tipo_pagto || null); }
+    if (c.has('prazo_padrao')) { parts.push('prazo_padrao=?'); vals.push(prazoValRaw); }
+    if (c.has('prazopadrao')) { parts.push('prazopadrao=?'); vals.push(prazoValRaw); }
+    if (c.has('recebimento_auto')) { parts.push('recebimento_auto=?'); vals.push(n(recebimento_auto)); }
+    if (c.has('permite_troco')) { parts.push('permite_troco=?'); vals.push(n(permite_troco)); }
+    if (c.has('tipo_percentual')) { parts.push('tipo_percentual=?'); vals.push(tipo_percentual || null); }
+    if (c.has('percentual')) { parts.push('percentual=?'); vals.push(pct); }
+    parts.push('status=?'); vals.push(status || 'S');
+    vals.push(req.params.id);
+
+    await pool.query(`UPDATE forma_pagto SET ${parts.join(', ')} WHERE id=?`, vals);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -823,6 +1292,7 @@ router.put('/formas-pagamento/:id', async (req, res) => {
 router.delete('/formas-pagamento/:id', async (req, res) => {
   try {
     const pool = getPool();
+    await ensureFormaPagtoTable(pool);
     await pool.query(`UPDATE forma_pagto SET excluido='S' WHERE id=?`, [req.params.id]);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -894,20 +1364,45 @@ router.delete('/bancos/:id', async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // DESPESAS
 // ─────────────────────────────────────────────────────────────────────────────
+async function addColIfMissing(pool, table, col, def) {
+  try {
+    const [rows] = await pool.query(
+      `SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?`,
+      [table, col]
+    );
+    if (!rows.length) await pool.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${col}\` ${def}`);
+  } catch (_) {}
+}
+
+async function ensurePlanoContasTable(pool) {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS plano_contas (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      numero VARCHAR(20),
+      descricao VARCHAR(100) NOT NULL,
+      excluido CHAR(1) DEFAULT 'N'
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8
+  `).catch(() => {});
+}
+
 async function ensureDespesasTable(pool) {
+  await ensurePlanoContasTable(pool);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS despesas (
       id INT AUTO_INCREMENT PRIMARY KEY,
-      descricao VARCHAR(100) NOT NULL,
+      nome VARCHAR(100) NOT NULL,
+      tipo VARCHAR(20) DEFAULT 'FIXA',
       id_planoconta INT DEFAULT NULL,
       status CHAR(1) DEFAULT 'A',
       excluido CHAR(1) DEFAULT 'N',
       dt_cadastro DATETIME DEFAULT CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8
   `).catch(() => {});
-  // Garantir que a coluna excluido exista em bancos legados
-  await pool.query(`ALTER TABLE despesas ADD COLUMN IF NOT EXISTS excluido CHAR(1) DEFAULT 'N'`).catch(() => {});
-  await pool.query(`ALTER TABLE despesas ADD COLUMN IF NOT EXISTS id_planoconta INT DEFAULT NULL`).catch(() => {});
+  await addColIfMissing(pool, 'despesas', 'nome', `VARCHAR(100) NOT NULL DEFAULT ''`);
+  await addColIfMissing(pool, 'despesas', 'excluido',     `CHAR(1) DEFAULT 'N'`);
+  await addColIfMissing(pool, 'despesas', 'id_planoconta', `INT DEFAULT NULL`);
+  await addColIfMissing(pool, 'despesas', 'tipo',          `VARCHAR(20) DEFAULT 'FIXA'`);
+  await addColIfMissing(pool, 'despesas', 'status',        `CHAR(1) DEFAULT 'A'`);
 }
 
 router.get('/despesas', async (req, res) => {
@@ -922,9 +1417,13 @@ router.get('/despesas', async (req, res) => {
 router.post('/despesas', async (req, res) => {
   try {
     const pool = getPool();
-    const { descricao, id_planoconta, status } = req.body;
+    await ensureDespesasTable(pool);
+    const { descricao, tipo, id_planoconta, status } = req.body;
     if (!descricao) return res.status(400).json({ error: 'Descrição é obrigatória' });
-    const [r] = await pool.query(`INSERT INTO despesas (descricao, id_planoconta, status, excluido) VALUES (?,?,?,'N')`, [descricao, id_planoconta || null, status || 'A']);
+    const [r] = await pool.query(
+      `INSERT INTO despesas (descricao, tipo, id_planoconta, status, excluido) VALUES (?,?,?,?,'N')`,
+      [descricao, tipo || 'FIXA', id_planoconta || null, status || 'A']
+    );
     res.status(201).json({ ok: true, id: r.insertId });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -932,8 +1431,11 @@ router.post('/despesas', async (req, res) => {
 router.put('/despesas/:id', async (req, res) => {
   try {
     const pool = getPool();
-    const { descricao, id_planoconta, status } = req.body;
-    await pool.query(`UPDATE despesas SET descricao=?, id_planoconta=?, status=? WHERE id=?`, [descricao, id_planoconta || null, status || 'A', req.params.id]);
+    const { descricao, tipo, id_planoconta, status } = req.body;
+    await pool.query(
+      `UPDATE despesas SET descricao=?, tipo=?, id_planoconta=?, status=? WHERE id=?`,
+      [descricao, tipo || 'FIXA', id_planoconta || null, status || 'A', req.params.id]
+    );
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -1135,7 +1637,7 @@ async function ensureFestasCidadesTable(pool) {
     ['uf', 'VARCHAR(2)']
   ];
   for (const [col, type] of cols) {
-    await pool.query(`ALTER TABLE festas_cidades ADD COLUMN IF NOT EXISTS ${col} ${type}`).catch(() => {});
+    await pool.query(`ALTER TABLE festas_cidades ADD COLUMN ${col} ${type}`).catch(() => {});
   }
 }
 
@@ -1192,6 +1694,7 @@ router.delete('/eventos-cidades/:id', async (req, res) => {
 router.get('/plano-contas', async (req, res) => {
   try {
     const pool = getPool();
+    await ensurePlanoContasTable(pool);
     const [rows] = await pool.query(`SELECT id, numero, descricao FROM plano_contas WHERE excluido='N' ORDER BY numero`);
     res.json({ plano_contas: rows });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -1209,10 +1712,15 @@ async function ensurePerfilPermissions(pool) {
     ['incluir_tipo_frete', 'CHAR(1) DEFAULT \'N\''], ['alterar_tipo_frete', 'CHAR(1) DEFAULT \'N\''], ['excluir_tipo_frete', 'CHAR(1) DEFAULT \'N\''],
     ['incluir_locais_armazenamento', 'CHAR(1) DEFAULT \'N\''], ['alterar_locais_armazenamento', 'CHAR(1) DEFAULT \'N\''], ['excluir_locais_armazenamento', 'CHAR(1) DEFAULT \'N\''],
     ['incluir_motivo_visitas', 'CHAR(1) DEFAULT \'N\''], ['alterar_motivo_visitas', 'CHAR(1) DEFAULT \'N\''], ['excluir_motivo_visitas', 'CHAR(1) DEFAULT \'N\''],
-    ['incluir_hoteis', 'CHAR(1) DEFAULT \'N\''], ['alterar_hoteis', 'CHAR(1) DEFAULT \'N\''], ['excluir_hoteis', 'CHAR(1) DEFAULT \'N\'']
+    ['incluir_hoteis', 'CHAR(1) DEFAULT \'N\''], ['alterar_hoteis', 'CHAR(1) DEFAULT \'N\''], ['excluir_hoteis', 'CHAR(1) DEFAULT \'N\''],
+    ['p_alterarcomissao', 'CHAR(1) DEFAULT \'S\''],
+    ['alterar_emb',       'CHAR(1) DEFAULT \'S\''],
+    ['alterardatapedido', 'CHAR(1) DEFAULT \'S\''],
+    ['trocarvendedorpedido', 'CHAR(1) DEFAULT \'S\''],
+    ['alteraprecovenda',  'CHAR(1) DEFAULT \'S\'']
   ];
   for (const [col, type] of cols) {
-    await pool.query(`ALTER TABLE perfil ADD COLUMN IF NOT EXISTS ${col} ${type}`).catch(async () => {
+    await pool.query(`ALTER TABLE perfil ADD COLUMN ${col} ${type}`).catch(async () => {
       try { await pool.query(`ALTER TABLE perfil ADD COLUMN ${col} ${type}`); } catch(e){}
     });
   }

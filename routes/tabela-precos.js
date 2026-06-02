@@ -342,9 +342,11 @@ router.get('/vlr-venda/:tabelaId/:produtoId', async (req, res) => {
       [tabelaId, produtoId]
     );
     if (row[0]) return res.json({ valor: row[0].valor_tabela });
-    
-    // Fallback para preço base do produto
-    const [prod] = await pool.query(`SELECT vlr_venda FROM produto WHERE id = ? LIMIT 1`, [produtoId]);
+
+    // Fallback para preço base do produto (detecta nome correto da tabela)
+    const [tbRows] = await pool.query(`SHOW TABLES LIKE 'produto'`);
+    const tb = tbRows.length ? 'produto' : 'produtos';
+    const [prod] = await pool.query(`SELECT vlr_venda FROM ${tb} WHERE id = ? LIMIT 1`, [produtoId]);
     res.json({ valor: prod[0]?.vlr_venda || 0, is_fallback: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

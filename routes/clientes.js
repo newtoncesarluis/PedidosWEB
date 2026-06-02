@@ -27,10 +27,30 @@ router.get('/', async (req, res) => {
     const pool   = getPool();
     const { q = '', status = 'A', limit = 100, offset = 0,
             tipo_cliente = '', cidade = '', sem_compra_dias = '', suspensa = '',
-            lat, lng, raio = 50 } = req.query;
+            id_regiao = '', lat, lng, raio = 50 } = req.query;
 
     let where = [`(c.excluido = 'N' OR c.excluido IS NULL OR c.excluido = '')`];
     const vals = [];
+
+    // ── Filtro de visibilidade por perfil ─────────────────────────────────────
+    const userId  = req.user?.id;
+    const perm    = req.user?.permissoes || {};
+    const isAdmin = req.user?.perfil == 1;
+    const acessaTodos   = isAdmin ? 'S' : (perm.acessartodosclientes || '');
+    const eGerente      = !isAdmin && perm.gerentecomercial === 'S';
+
+    if (!isAdmin && acessaTodos === 'N') {
+      if (eGerente) {
+        // Gerente vê os próprios clientes + clientes da equipe subordinada
+        where.push(`(c.cod_vendedor = ? OR c.cod_vendedor IN (SELECT idusuario FROM usuarios WHERE id_gerente = ? AND excluido = 'N'))`);
+        vals.push(userId, userId);
+      } else {
+        // Vendedor padrão: só seus clientes (ou sem vínculo)
+        where.push(`(c.cod_vendedor IS NULL OR c.cod_vendedor = '' OR c.cod_vendedor = ?)`);
+        vals.push(userId);
+      }
+    }
+    // acessaTodos = 'S' ou '' → sem filtro adicional
 
     if (status === 'A') { where.push(`(c.status = 'A' OR c.status IS NULL OR c.status = '')`); }
     else if (status === 'I') { where.push(`c.status = 'I'`); }
@@ -60,6 +80,11 @@ router.get('/', async (req, res) => {
 
     if (suspensa === 'S') {
       where.push(`c.venda_suspensa = 'S'`);
+    }
+
+    if (id_regiao && parseInt(id_regiao) > 0) {
+      where.push(`c.regiao = ?`);
+      vals.push(parseInt(id_regiao));
     }
 
     let distanceCol = "";
@@ -206,6 +231,60 @@ router.get('/notificacoes', async (req, res) => {
   }
 });
 
+// ─── GET /api/clientes/aniversariantes ───────────────────────────────────────
+router.get('/aniversariantes', async (req, res) => {
+  try {
+    const pool = getPool();
+    const dias = Math.min(Math.max(parseInt(req.query.dias || 30, 10), 1), 90);
+    const hoje = new Date();
+    const fim = new Date(hoje);
+    fim.setDate(hoje.getDate() + dias);
+
+    const mesH = hoje.getMonth() + 1, diaH = hoje.getDate();
+    const mesF = fim.getMonth() + 1, diaF = fim.getDate();
+
+    let sql, vals;
+    if (mesH === mesF) {
+      sql  = `SELECT id, nome, apelido, dtnascimento, foneprincipal AS celular, cidade, uf
+              FROM clientes
+              WHERE (excluido='N' OR excluido IS NULL OR excluido='')
+                AND dtnascimento IS NOT NULL
+                AND MONTH(dtnascimento)=? AND DAY(dtnascimento) BETWEEN ? AND ?
+              ORDER BY DAY(dtnascimento) LIMIT 100`;
+      vals = [mesH, diaH, diaF];
+    } else {
+      sql  = `SELECT id, nome, apelido, dtnascimento, foneprincipal AS celular, cidade, uf
+              FROM clientes
+              WHERE (excluido='N' OR excluido IS NULL OR excluido='')
+                AND dtnascimento IS NOT NULL
+                AND ((MONTH(dtnascimento)=? AND DAY(dtnascimento)>=?)
+                  OR (MONTH(dtnascimento)=? AND DAY(dtnascimento)<=?))
+              ORDER BY MONTH(dtnascimento), DAY(dtnascimento) LIMIT 100`;
+      vals = [mesH, diaH, mesF, diaF];
+    }
+
+    const [rows] = await pool.query(sql, vals);
+    const hoje_mes = mesH, hoje_dia = diaH;
+    const result = rows.map(r => {
+      const dt = r.dtnascimento ? new Date(r.dtnascimento) : null;
+      const mes = dt ? dt.getUTCMonth() + 1 : null;
+      const dia = dt ? dt.getUTCDate() : null;
+      const hoje_aniver = mes === hoje_mes && dia === hoje_dia;
+      const dias_faltam = (() => {
+        if (!dt) return null;
+        const thisYear = hoje.getFullYear();
+        let aniver = new Date(thisYear, mes - 1, dia);
+        if (aniver < hoje) aniver = new Date(thisYear + 1, mes - 1, dia);
+        return Math.round((aniver - hoje) / 86400000);
+      })();
+      return { ...r, hoje_aniver, dias_faltam };
+    });
+    res.json({ clientes: result, total: result.length, dias });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── GET /api/clientes/:id ────────────────────────────────────────────────────
 router.get('/:id', async (req, res) => {
   try {
@@ -239,14 +318,16 @@ router.post('/', async (req, res) => {
     if (!body.nome?.trim()) return res.status(400).json({ error: 'Nome obrigatório' });
 
     const campos = [
-      'tipo_pessoa','nome','apelido','cpf','rg','sexo','dtnascimento',
+      'tipo_pessoa','tipo_cadastro','codigo_cliente',
+      'nome','apelido','cpf','rg','sexo','dtnascimento',
       'cep','endereco','numero_end','bairro','cidade','uf','complemento',
-      'foneprincipal','fonesecundario','contato','email',
+      'foneprincipal','fonesecundario','celularcomprador','contato','email',
       'tipo_cliente','segmento','cod_segmento','zonavenda',
       'conceitocliente','diapgt','cod_vendedor',
       'credito','desconto','status','obsendereco','obsgerais',
-      'venda_suspensa','skype','site','instagram','facebook','linkedin',
+      'venda_suspensa','skype','site','instragam','facebook','linkedin',
       'cobrast','icms','ipi','regiao',
+      'formapagto','condicaopagto','prazopagto',
       'endereco_faturamento','bairro_faturamento','cidade_faturamento',
       'cep_faturamento','uf_faturamento',
       'telefone1_faturamento','telefone2_faturamento',
@@ -254,7 +335,12 @@ router.post('/', async (req, res) => {
       'clienteprincipal','cod_clienteprincipal','nomeclienteprincipal',
       'lembrete','possuilembrete',
       'id_ramoatividades','ramoatividades',
-      'tipodocumento','id_empresa'
+      'tipodocumento','id_empresa',
+      'latitude','longitude',
+      'data_situacaocnpj','data_abertura','porte','tipo_cnpj','natureza',
+      'capital_social','atividadeprincipal','atividadesecundaria','quadrosocios',
+      'numsocios','numalteracoes','dt_ultialteracoes','rj_comercial',
+      'numerosulframa','imprimirsuframaped','descontoIPIsuframaped','calcularipiimpressao'
     ].filter(c => body[c] !== undefined);
 
     if (campos.length === 0) return res.status(400).json({ error: 'Nenhum campo enviado' });
@@ -307,14 +393,16 @@ router.put('/:id', async (req, res) => {
     if (!body.nome?.trim()) return res.status(400).json({ error: 'Nome obrigatório' });
 
     const campos = [
-      'tipo_pessoa','nome','apelido','cpf','rg','sexo','dtnascimento',
+      'tipo_pessoa','tipo_cadastro','codigo_cliente',
+      'nome','apelido','cpf','rg','sexo','dtnascimento',
       'cep','endereco','numero_end','bairro','cidade','uf','complemento',
-      'foneprincipal','fonesecundario','contato','email',
+      'foneprincipal','fonesecundario','celularcomprador','contato','email',
       'tipo_cliente','segmento','cod_segmento','zonavenda',
       'conceitocliente','diapgt','cod_vendedor',
       'credito','desconto','status','obsendereco','obsgerais',
-      'venda_suspensa','skype','site','instagram','facebook','linkedin',
+      'venda_suspensa','skype','site','instragam','facebook','linkedin',
       'cobrast','icms','ipi','regiao',
+      'formapagto','condicaopagto','prazopagto',
       'endereco_faturamento','bairro_faturamento','cidade_faturamento',
       'cep_faturamento','uf_faturamento',
       'telefone1_faturamento','telefone2_faturamento',
@@ -322,7 +410,12 @@ router.put('/:id', async (req, res) => {
       'clienteprincipal','cod_clienteprincipal','nomeclienteprincipal',
       'lembrete','possuilembrete',
       'id_ramoatividades','ramoatividades',
-      'tipodocumento','id_empresa'
+      'tipodocumento','id_empresa',
+      'latitude','longitude',
+      'data_situacaocnpj','data_abertura','porte','tipo_cnpj','natureza',
+      'capital_social','atividadeprincipal','atividadesecundaria','quadrosocios',
+      'numsocios','numalteracoes','dt_ultialteracoes','rj_comercial',
+      'numerosulframa','imprimirsuframaped','descontoIPIsuframaped','calcularipiimpressao'
     ].filter(c => body[c] !== undefined);
 
     if (campos.length === 0) return res.status(400).json({ error: 'Nenhum campo para atualizar' });
@@ -387,6 +480,47 @@ router.get('/:id/financeiro', async (req, res) => {
       INNER JOIN pedidos p ON r.numero = p.numero
       WHERE p.cod_cliente = ? AND (p.excluido = 'N' OR p.excluido IS NULL)
       ORDER BY r.vencimento DESC
+      LIMIT 50
+    `, [req.params.id]);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── PATCH /api/clientes/:id — atualiza campos pontuais (dnd, etc.) ───────────
+const PATCH_CAMPOS_PERMITIDOS = new Set(['dnd', 'venda_suspensa']);
+router.patch('/:id', async (req, res) => {
+  try {
+    const pool = getPool();
+    const campos = Object.keys(req.body).filter(k => PATCH_CAMPOS_PERMITIDOS.has(k));
+    if (!campos.length) return res.status(400).json({ error: 'Nenhum campo permitido informado' });
+    const sets = campos.map(k => `\`${k}\` = ?`).join(', ');
+    const vals = campos.map(k => req.body[k]);
+    await pool.query(
+      `UPDATE clientes SET ${sets}, dtalterado = NOW() WHERE id = ?`,
+      [...vals, req.params.id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── GET /api/clientes/:id/ligacoes ──────────────────────────────────────────
+router.get('/:id/ligacoes', async (req, res) => {
+  try {
+    const pool = getPool();
+    const [rows] = await pool.query(`
+      SELECT ch.id, ch.data_hora_inicio, ch.data_hora_fim, ch.duracao_seg,
+             ch.resultado, ch.observacao, ch.id_pedido, ch.id_lead,
+             tc.nome AS nome_campanha,
+             u.nomeusu AS nome_operador
+      FROM tele_chamadas ch
+      LEFT JOIN tele_campanhas tc ON tc.id = ch.id_campanha
+      LEFT JOIN usuarios u ON u.idusuario = ch.id_operador
+      WHERE ch.id_cliente = ?
+      ORDER BY ch.data_hora_inicio DESC
       LIMIT 50
     `, [req.params.id]);
     res.json(rows);

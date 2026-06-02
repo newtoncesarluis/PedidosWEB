@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Clientes Inativos / Mapa / Rota</title>
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<style>
+  :root { --bg:var(--content-bg); --card:var(--card-bg); --border:var(--card-border); --text:var(--content-text); --text2:var(--text2); --accent:var(--accent); --accent-soft:var(--accent-soft); --success:#059669; --warn:#d97706; --danger:#dc2626; --shadow:0 10px 30px rgba(0,0,0,.08); }
+  *{box-sizing:border-box} body{margin:0;font-family:var(--font);background:var(--bg);color:var(--text)}
+  .page{min-height:100vh;display:flex;flex-direction:column}
+  .toolbar{position:sticky;top:0;z-index:20;background:var(--card);border-bottom:1px solid var(--border);padding:14px 18px;display:flex;flex-wrap:wrap;align-items:end;gap:12px}
+  .title-wrap{min-width:260px;margin-right:auto}.eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--text2);font-weight:800} h1{margin:3px 0 0;font-size:22px;line-height:1.1}.subtitle{margin-top:6px;font-size:12px;color:var(--text2)}
+  .filter{display:flex;flex-direction:column;gap:5px;min-width:140px}.filter label{font-size:10px;text-transform:uppercase;color:var(--text2);font-weight:800;letter-spacing:.7px}
+  .filter input,.filter select{height:36px;border:1.5px solid var(--border);border-radius:10px;padding:0 10px;background:var(--bg);color:var(--text);font:inherit;outline:none}
+  .filter input:focus,.filter select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .btn{height:36px;border:none;border-radius:10px;padding:0 14px;font:inherit;font-weight:700;cursor:pointer}
+  .btn-primary{background:var(--accent);color:var(--btn-text,#fff)}
+  .btn-secondary{background:var(--bg);color:var(--text);border:1.5px solid var(--border)}
+  .content{padding:18px;display:grid;gap:16px}
+  .grid{display:grid;grid-template-columns:1.2fr .8fr;gap:16px;align-items:start}
+  .panel{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:14px 16px;box-shadow:var(--shadow)}
+  .panel h2{margin:0 0 4px;font-size:15px}
+  .panel-sub{font-size:12px;color:var(--text2);margin-bottom:14px}
+  .insights{display:grid;gap:10px}
+  .insight{border:1px solid var(--border);border-left-width:4px;border-radius:8px;padding:12px 12px 12px 14px;background:var(--bg)}
+  .insight[data-tipo="ok"]{border-left-color:var(--success)}.insight[data-tipo="alerta"]{border-left-color:var(--warn)}.insight[data-tipo="risco"]{border-left-color:var(--danger)}.insight[data-tipo="oportunidade"]{border-left-color:var(--accent)}
+  .insight-title{font-size:13px;font-weight:800;margin-bottom:4px}
+  .insight-msg{font-size:12px;color:var(--text2);line-height:1.5}
+  .list{display:grid;gap:10px}
+  .item{border:1px solid var(--border);border-radius:8px;padding:12px;background:var(--bg);display:grid;gap:6px}
+  .item-top{display:flex;gap:10px;align-items:flex-start}
+  .sel{display:flex;align-items:center;gap:8px}
+  .sel input{width:16px;height:16px;accent-color:var(--accent);margin-top:2px}
+  .badge{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;background:var(--accent-soft);color:var(--accent);padding:2px 8px;border-radius:999px}
+  .name{font-size:13px;font-weight:800}
+  .meta{font-size:11px;color:var(--text2)}
+  .row{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{font-size:11px;border:1px solid var(--border);border-radius:999px;padding:4px 8px;color:var(--text2);background:var(--card)}
+  .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+  .btn-sm{height:30px;border-radius:9px;padding:0 10px;font-size:12px}
+  #map{height:520px;border-radius:8px;border:1px solid var(--border);overflow:hidden}
+  .placeholder,.loading,.error{padding:16px;border-radius:8px;background:var(--card);border:1px solid var(--border);font-size:13px}
+  .placeholder{background:rgba(148,163,184,.05);border-style:dashed;color:var(--text2)}
+  .error{color:var(--danger)}
+  .bulkbar{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--border);background:var(--bg);border-radius:10px;padding:10px 12px;margin-bottom:10px}
+  .bulk-left{display:flex;align-items:center;gap:10px;min-width:0}
+  .bulk-title{font-size:12px;font-weight:900;letter-spacing:.2px}
+  .bulk-sub{font-size:11px;color:var(--text2)}
+  .bulk-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+  .btn:disabled{opacity:.55;cursor:not-allowed}
+  .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;z-index:9999;padding:18px}
+  .modal{width:min(680px, 100%);background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);overflow:hidden}
+  .modal-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border-bottom:1px solid var(--border)}
+  .modal-title{font-size:14px;font-weight:900}
+  .modal-body{padding:14px;display:grid;gap:12px}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .form-grid .filter{min-width:0}
+  .modal-foot{display:flex;justify-content:flex-end;gap:8px;padding:12px 14px;border-top:1px solid var(--border);background:rgba(148,163,184,.05)}
+  .hint{font-size:11px;color:var(--text2);line-height:1.4}
+  .seg{display:flex;align-items:center;border:1.5px solid var(--border);border-radius:10px;overflow:hidden;background:var(--bg)}
+  .seg button{height:36px;border:none;background:transparent;color:var(--text2);font:inherit;font-weight:900;padding:0 10px;cursor:pointer;white-space:nowrap}
+  .seg button + button{border-left:1.5px solid var(--border)}
+  .seg button.active{background:var(--accent-soft);color:var(--accent)}
+  .mini{min-width:110px}
+  @media (max-width:980px){.grid{grid-template-columns:1fr} #map{height:420px}}
+  @media (max-width:720px){.form-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="toolbar">
+    <div class="title-wrap">
+      <div class="eyebrow">Comercial</div>
+      <h1>Clientes Inativos / Mapa / Rota</h1>
+      <div class="subtitle">Recuperacao de carteira: lista, segmentacao, mapa, rota e acao rapida de visita.</div>
+    </div>
+    <div class="filter"><label for="dias">Sem compra ha</label><input id="dias" type="number" min="0" step="1" value="90"></div>
+    <div class="filter"><label for="agrupamento">Agrupar por</label><select id="agrupamento"><option value="cidade">Cidade/UF</option><option value="uf">UF</option></select></div>
+    <div class="filter"><label for="cidade">Cidade</label><input id="cidade" type="text" placeholder="Todas"></div>
+    <div class="filter"><label for="uf">UF</label><input id="uf" type="text" maxlength="2" placeholder="Todas"></div>
+    <div class="filter" id="vendorFilter" style="display:none"><label for="idVendedor">Vendedor</label><select id="idVendedor"><option value="">Todos</option></select></div>
+    <div class="filter mini">
+      <label>Faixa</label>
+      <div class="seg" id="segFaixa">
+        <button type="button" data-v="" class="active">Todas</button>
+        <button type="button" data-v="a">A</button>
+        <button type="button" data-v="b">B</button>
+        <button type="button" data-v="c">C</button>
+      </div>
+    </div>
+    <div class="filter"><label for="minValor12m">Min 12m (R$)</label><input id="minValor12m" type="number" min="0" step="1" value="0"></div>
+    <div class="filter"><label for="minPedidos12m">Min pedidos 12m</label><input id="minPedidos12m" type="number" min="0" step="1" value="0"></div>
+    <div class="filter">
+      <label for="ordenar">Ordenar</label>
+      <select id="ordenar">
+        <option value="dias">Dias sem compra</option>
+        <option value="score">Prioridade (score)</option>
+        <option value="valor12m">Valor 12m</option>
+      </select>
+    </div>
+    <button class="btn btn-primary" id="btnAplicar">Atualizar</button>
+    <button class="btn btn-secondary" id="btnGeo">Minha localizacao</button>
+  </div>
+
+  <div class="content">
+    <div id="stateBox" class="loading">Carregando clientes inativos...</div>
+    <div id="dashboard" style="display:none" class="grid">
+      <div class="panel">
+        <h2>Lista</h2>
+        <div class="panel-sub" id="listSub">Clientes sem compra no periodo selecionado.</div>
+        <div class="insights" id="insightsList" style="margin-bottom:12px"></div>
+        <div class="bulkbar" id="riskBox" style="margin-bottom:12px;display:none">
+          <div class="bulk-left" style="min-width:0">
+            <div style="min-width:0">
+              <div class="bulk-title">Carteira em risco (Top 10)</div>
+              <div class="bulk-sub">Clique para localizar, selecionar e sugerir acao.</div>
+            </div>
+          </div>
+          <div class="bulk-actions" id="riskChips"></div>
+        </div>
+        <div class="list" id="clientesList"></div>
+        <div class="row" style="justify-content:space-between;margin-top:12px">
+          <button class="btn btn-secondary btn-sm" id="btnPrev">Anterior</button>
+          <div class="meta" id="pageInfo"></div>
+          <button class="btn btn-secondary btn-sm" id="btnNext">Proxima</button>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Mapa</h2>
+        <div class="panel-sub" id="mapSub">Clique em Localizar para centralizar e destacar no mapa.</div>
+        <div class="bulkbar" id="bulkBar" style="display:none">
+          <div class="bulk-left">
+            <div>
+              <div class="bulk-title" id="bulkTitle">Selecionados: 0</div>
+              <div class="bulk-sub" id="bulkSub">Use para rota e acao rapida.</div>
+            </div>
+          </div>
+        <div class="bulk-actions">
+          <button class="btn btn-secondary btn-sm" id="btnClearSel">Limpar</button>
+          <button class="btn btn-secondary btn-sm" id="btnRotaSel">Rota (selecionados)</button>
+          <button class="btn btn-secondary btn-sm" id="btnCalendarSel">Calendar (.ics)</button>
+          <button class="btn btn-primary btn-sm" id="btnVisitaSel">Agendar (selecionados)</button>
+        </div>
+      </div>
+        <div id="map"></div>
+        <div class="placeholder" style="margin-top:12px">
+          Proximas acoes: rota com clientes selecionados, agendar visita e abrir evento no Google Calendar.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const integer = v => Number(v || 0).toLocaleString('pt-BR');
+function token(){ return localStorage.getItem('token') || sessionStorage.getItem('token') || ''; }
+async function api(url){
+  const r = await fetch(url, { headers:{ Authorization:'Bearer ' + token() } });
+  if(!r.ok) throw new Error('Falha ao carregar dados');
+  return r.json();
+}
+async function apiJson(url, method, body){
+  const r = await fetch(url, {
+    method,
+    headers:{
+      'Content-Type':'application/json',
+      Authorization:'Bearer ' + token(),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await r.json().catch(()=> ({}));
+  if(!r.ok || data?.ok === false) throw new Error(data?.error || 'Falha na operacao');
+  return data;
+}
+
+let _page = 1;
+let _limit = 50;
+let _map = null;
+let _markers = new Map();
+let _myPos = null;
+let _clientesById = new Map();
+let _selected = new Set();
+let _motivos = [];
+let _faixa = '';
+
+function initMap(){
+  if (_map) return;
+  _map = L.map('map', { zoomControl:true }).setView([-23.55, -46.63], 11);
+  const tiles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap'
+  });
+  tiles.on('tileerror', () => {
+    const el = document.getElementById('mapSub');
+    if (el) el.textContent = 'Mapa: erro ao carregar tiles (verifique conexao/firewall).';
+  });
+  tiles.addTo(_map);
+}
+
+function fixMapSize(){
+  if (!_map) return;
+  // Leaflet precisa recalcular quando o container muda (ex: display none -> block)
+  setTimeout(() => {
+    try { _map.invalidateSize(true); } catch {}
+  }, 60);
+}
+
+function buildQuery(){
+  const qs = new URLSearchParams();
+  const dias = document.getElementById('dias').value;
+  const agrupamento = document.getElementById('agrupamento').value;
+  const cidade = document.getElementById('cidade').value.trim();
+  const uf = document.getElementById('uf').value.trim();
+  const idVendedor = document.getElementById('idVendedor')?.value?.trim();
+  const minValor12m = document.getElementById('minValor12m')?.value;
+  const minPedidos12m = document.getElementById('minPedidos12m')?.value;
+  const ordenar = document.getElementById('ordenar')?.value;
+  if (dias) qs.set('dias', dias);
+  if (agrupamento) qs.set('agrupamento', agrupamento);
+  if (cidade) qs.set('cidade', cidade);
+  if (uf) qs.set('uf', uf);
+  if (idVendedor) qs.set('id_vendedor', idVendedor);
+  if (_faixa) qs.set('faixa', _faixa);
+  if (minValor12m && Number(minValor12m) > 0) qs.set('min_valor_12m', String(minValor12m));
+  if (minPedidos12m && Number(minPedidos12m) > 0) qs.set('min_pedidos_12m', String(minPedidos12m));
+  if (ordenar) qs.set('ordenar', ordenar);
+  qs.set('page', String(_page));
+  qs.set('limit', String(_limit));
+  return qs.toString();
+}
+
+function renderInsights(rows){
+  const box = document.getElementById('insightsList');
+  if(!rows?.length){ box.innerHTML = '<div class="placeholder">Nenhum insight disponivel.</div>'; return; }
+  box.innerHTML = rows.map(r => `<div class="insight" data-tipo="${r.tipo}"><div class="insight-title">${r.titulo}</div><div class="insight-msg">${r.mensagem}</div></div>`).join('');
+}
+function renderResumoFaixas(data){
+  const f = data?.agregacoes?.faixas_inatividade || {};
+  const dias = Number(data?.filtros?.dias || 90);
+  const a = Number(f[`f_${dias}_179`] || 0);
+  const b = Number(f.f_180_364 || 0);
+  const c = Number(f.f_365_plus || 0);
+  const txt = `Faixas: A(${dias}-179): ${integer(a)} • B(180-364): ${integer(b)} • C(365+): ${integer(c)}`;
+  const el = document.getElementById('mapSub');
+  if (el) el.textContent = txt;
+}
+
+function fmtDate(v){ if(!v) return '--'; try{ return new Date(v).toLocaleDateString('pt-BR'); }catch{ return String(v); } }
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function addrOf(c){
+  const parts = [];
+  if (c?.endereco) parts.push(c.endereco);
+  if (c?.bairro) parts.push(c.bairro);
+  const cityUf = [c?.cidade, c?.uf].filter(Boolean).join(' / ');
+  if (cityUf) parts.push(cityUf);
+  if (c?.cep) parts.push('CEP ' + c.cep);
+  return parts.join(' - ');
+}
+function fmtMoney(v){
+  const n = Number(v || 0);
+  try { return n.toLocaleString('pt-BR', { style:'currency', currency:'BRL' }); }
+  catch { return 'R$ ' + n.toFixed(2); }
+}
+function buildAcoes(c){
+  const dias = Number(c?.dias_sem_compra || 0);
+  const valor12 = Number(c?.valor_12m || 0);
+  const ped12 = Number(c?.pedidos_12m || 0);
+  const visitas60 = Number(c?.visitas_60d || 0);
+  const valor90 = Number(c?.valor_90d || 0);
+  const a = [];
+  if (dias >= 365) a.push('Reativacao: ligacao + oferta de retorno');
+  else if (dias >= 180) a.push('Recuperacao: agendar visita com proposta objetiva');
+  else if (dias >= 90) a.push('Contato rapido: confirmar necessidade e estoque');
+  if (valor12 >= 5000) a.push('Cliente com historico forte (priorizar)');
+  if (ped12 >= 6) a.push('Cliente recorrente (retomar mix habitual)');
+  if (valor12 >= 1000 && valor90 <= (valor12/12)) a.push('Queda recente (90d baixo vs 12m)');
+  if (visitas60 >= 2 && dias >= 90) a.push('Ja houve visitas recentes (rever abordagem)');
+  if ((c?.ranking_produtos || []).length) a.push('Oferecer top produtos do cliente (ranking 180d)');
+  if (!Number(c?.latitude || 0) || !Number(c?.longitude || 0)) a.push('Sem geo: revisar endereco/CEP para geocodificar');
+  return a.slice(0, 3);
+}
+
+function renderRiskBox(rows){
+  const box = document.getElementById('riskBox');
+  const chips = document.getElementById('riskChips');
+  const top = (rows || []).slice().sort((a,b)=> Number(b.score||0) - Number(a.score||0)).slice(0,10);
+  if (!top.length) { box.style.display='none'; return; }
+  box.style.display='';
+  chips.innerHTML = top.map(c => {
+    const label = `${(c.apelido || c.nome || ('#'+c.id_cliente)).slice(0,18)} (${Math.round(Number(c.score||0))})`;
+    return `<button class="btn btn-secondary btn-sm" title="${esc(c.nome || '')}" onclick="selectAndLocate(${c.id_cliente});return false;">${esc(label)}</button>`;
+  }).join('');
+}
+
+function selectAndLocate(idCliente){
+  const key = String(idCliente);
+  _selected.add(key);
+  // marca checkbox se existir
+  const item = document.querySelector(`.item[data-id="${CSS.escape(key)}"]`);
+  const cb = item?.querySelector('input[type="checkbox"]');
+  if (cb) cb.checked = true;
+  updateBulkBar();
+  locateClient(Number(idCliente));
+}
+
+function toggleSelect(id, checked){
+  const key = String(id);
+  if (checked) _selected.add(key);
+  else _selected.delete(key);
+  updateBulkBar();
+}
+
+function updateBulkBar(){
+  const bar = document.getElementById('bulkBar');
+  const n = _selected.size;
+  if (!n) { bar.style.display = 'none'; return; }
+  bar.style.display = '';
+  document.getElementById('bulkTitle').textContent = `Selecionados: ${n}`;
+  const geoCount = [..._selected].filter(id => {
+    const c = _clientesById.get(String(id));
+    const lat = Number(c?.latitude || 0);
+    const lng = Number(c?.longitude || 0);
+    return !!lat && !!lng;
+  }).length;
+  document.getElementById('bulkSub').textContent = `${geoCount} com geolocalizacao (lat/long).`;
+  document.getElementById('btnRotaSel').disabled = geoCount < 1;
+}
+
+function clearSelection(){
+  _selected.clear();
+  document.querySelectorAll('#clientesList input[type="checkbox"]').forEach(cb => { cb.checked = false; });
+  updateBulkBar();
+}
+
+function renderList(data){
+  const list = document.getElementById('clientesList');
+  const total = Number(data.filtros?.total || 0);
+  const dias = Number(data.filtros?.dias || 0);
+  const faixa = String(data.filtros?.faixa || '');
+  const ordenar = String(data.filtros?.ordenar || 'dias');
+  document.getElementById('listSub').textContent = `Clientes sem compra ha ${dias} dias ou mais (total: ${integer(total)}).`;
+  document.getElementById('pageInfo').textContent = `Pagina ${_page}`;
+  // sincroniza UI com o que o backend devolveu
+  _faixa = faixa;
+  const seg = document.getElementById('segFaixa');
+  if (seg) {
+    seg.querySelectorAll('button').forEach(b => b.classList.toggle('active', (b.getAttribute('data-v')||'') === _faixa));
+    if (![...seg.querySelectorAll('button')].some(b => b.classList.contains('active'))) {
+      seg.querySelector('button[data-v=""]')?.classList.add('active');
+    }
+  }
+  const ordSel = document.getElementById('ordenar');
+  if (ordSel && ordenar) ordSel.value = ordenar;
+
+  const rows = data.clientes || [];
+  _clientesById = new Map(rows.map(r => [String(r.id_cliente), r]));
+  _selected = new Set([..._selected].filter(id => _clientesById.has(String(id))));
+  updateBulkBar();
+  if (!rows.length) { list.innerHTML = '<div class="placeholder">Nenhum cliente encontrado no filtro atual.</div>'; return; }
+
+  list.innerHTML = rows.map(c => {
+    const ult = c.ultima_compra ? fmtDate(c.ultima_compra) : 'Sem compra';
+    const diasSem = c.ultima_compra ? `${integer(c.dias_sem_compra)} dias` : 'Sem historico';
+    const loc = `${c.cidade || 'Sem cidade'} / ${c.uf || '--'}`;
+    const lat = Number(c.latitude || 0);
+    const lng = Number(c.longitude || 0);
+    const hasGeo = !!lat && !!lng;
+    const lastProds = (c.ultimos_produtos || []).slice(0,3).map(p => p.desc_prod).join(', ');
+    const rankProds = (c.ranking_produtos || []).slice(0,3).map(p => p.desc_prod).join(', ');
+    const checked = _selected.has(String(c.id_cliente)) ? 'checked' : '';
+    const ultVlr = c.vlr_ult_pedido != null ? fmtMoney(c.vlr_ult_pedido) : '—';
+    const v12 = c.valor_12m != null ? fmtMoney(c.valor_12m) : '—';
+    const p12 = c.pedidos_12m != null ? integer(c.pedidos_12m) : '—';
+    const ultVis = c.ultima_visita ? fmtDate(c.ultima_visita) : '—';
+    const acoes = buildAcoes(c);
+    return `
+      <div class="item" data-id="${c.id_cliente}">
+        <div class="item-top">
+          <div class="sel">
+            <input type="checkbox" ${checked} onclick="toggleSelect(${c.id_cliente}, this.checked);event.stopPropagation();">
+            <span class="badge">${diasSem}</span>
+          </div>
+          <div style="min-width:0;flex:1">
+            <div class="name">${c.nome || ('Cliente #' + c.id_cliente)}</div>
+            <div class="meta">${loc} • ultima compra: ${ult} • ultimo pedido: ${c.numero_pedido || '--'}</div>
+          </div>
+        </div>
+        <div class="row">
+          <span class="chip">Ultimos produtos: ${lastProds || '—'}</span>
+          <span class="chip">Ranking 180d: ${rankProds || '—'}</span>
+          <span class="chip">Ult pedido: ${ultVlr}</span>
+          <span class="chip">12m: ${v12} (${p12} pedidos)</span>
+          <span class="chip">Ult visita: ${ultVis}</span>
+        </div>
+        ${acoes.length ? `<div class="row">${acoes.map(x => `<span class="chip">${esc(x)}</span>`).join('')}</div>` : ''}
+        <div class="actions">
+          <button class="btn btn-secondary btn-sm" onclick="locateClient(${c.id_cliente});return false;" ${hasGeo ? '' : 'disabled'}>Localizar</button>
+          <button class="btn btn-secondary btn-sm" onclick="openDirections(${c.id_cliente});return false;" ${hasGeo ? '' : 'disabled'}>Rota</button>
+          <button class="btn btn-secondary btn-sm" onclick="openGoogleCalendar(${c.id_cliente});return false;">Google Calendar</button>
+          <button class="btn btn-primary btn-sm" onclick="agendarVisita(${c.id_cliente});return false;">Agendar visita</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Markers no mapa
+  initMap();
+  fixMapSize();
+  _markers.forEach(m => _map.removeLayer(m));
+  _markers.clear();
+  rows.forEach(c => {
+    const lat = Number(c.latitude || 0);
+    const lng = Number(c.longitude || 0);
+    if (!lat || !lng) return;
+    const marker = L.marker([lat,lng]).addTo(_map);
+    marker.bindPopup(`<div style="font-weight:800">${c.nome || ('Cliente #' + c.id_cliente)}</div><div style="font-size:12px;opacity:.75">${c.cidade || ''} / ${c.uf || ''}<br>Ultima compra: ${c.ultima_compra ? fmtDate(c.ultima_compra) : '—'}</div>`);
+    _markers.set(String(c.id_cliente), marker);
+  });
+}
+
+function locateClient(id){
+  const marker = _markers.get(String(id));
+  if (!marker) return;
+  const latlng = marker.getLatLng();
+  _map.setView([latlng.lat, latlng.lng], 14);
+  marker.openPopup();
+}
+
+function openDirections(id){
+  const marker = _markers.get(String(id));
+  if (!marker) return;
+  const latlng = marker.getLatLng();
+  const dest = `${latlng.lat},${latlng.lng}`;
+  if (_myPos) {
+    const origin = `${_myPos.lat},${_myPos.lng}`;
+    window.open(`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(dest)}&travelmode=driving`, '_blank');
+  } else {
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest)}&travelmode=driving`, '_blank');
+  }
+}
+
+async function agendarVisita(idCliente){
+  const c = _clientesById.get(String(idCliente));
+  if (!c) return;
+  openAgendarModal(c);
+}
+
+async function getMyLocation(){
+  if (!navigator.geolocation) throw new Error('Geolocalizacao indisponivel');
+  return new Promise((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      (err) => reject(err),
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 }
+    );
+  });
+}
+
+async function fillVendorFilter(){
+  try{
+    const data = await api('/api/pedidos/lookup/vendedores');
+    const list = data.vendedores || [];
+    document.getElementById('idVendedor').innerHTML = '<option value="">Todos</option>' + list.map(v => `<option value="${v.id}">${v.nome || v.nome_vendedor}</option>`).join('');
+    if (list.length > 1) document.getElementById('vendorFilter').style.display = '';
+  }catch(_){}
+}
+
+async function fillMotivos(){
+  try{
+    const rows = await api('/api/visitas/motivos');
+    _motivos = Array.isArray(rows) ? rows : [];
+    const sel = document.getElementById('m_motivo');
+    if (sel) {
+      sel.innerHTML = '<option value="">Selecione</option>' + _motivos.map(m => `<option value="${m.id}">${esc(m.descricao)}</option>`).join('');
+      const rot = _motivos.find(m => String(m.descricao||'').toLowerCase().includes('rotina'));
+      if (rot) sel.value = String(rot.id);
+    }
+  }catch(_){
+    _motivos = [];
+    const sel = document.getElementById('m_motivo');
+    if (sel) sel.innerHTML = '<option value="">Selecione</option>';
+  }
+}
+
+function openDirectionsSelected(){
+  const ids = [..._selected];
+  const pts = ids.map(id => {
+    const c = _clientesById.get(String(id));
+    const lat = Number(c?.latitude || 0), lng = Number(c?.longitude || 0);
+    if (!lat || !lng) return null;
+    return `${lat},${lng}`;
+  }).filter(Boolean);
+
+  if (!pts.length) return;
+  if (pts.length === 1) { openDirections(Number(ids[0])); return; }
+
+  const maxStops = 10; // origem + destino + ate 8 waypoints
+  const trimmed = pts.slice(0, maxStops);
+
+  const origin = _myPos ? `${_myPos.lat},${_myPos.lng}` : trimmed[0];
+  const destination = trimmed[trimmed.length - 1];
+  const waypoints = trimmed.slice(1, -1).join('|');
+
+  const url = new URL('https://www.google.com/maps/dir/');
+  url.searchParams.set('api', '1');
+  url.searchParams.set('origin', origin);
+  url.searchParams.set('destination', destination);
+  if (waypoints) url.searchParams.set('waypoints', waypoints);
+  url.searchParams.set('travelmode', 'driving');
+  window.open(url.toString(), '_blank');
+}
+
+function pad2(n){ return String(n).padStart(2,'0'); }
+function icsEscape(s){
+  return String(s||'').replace(/\\/g,'\\\\').replace(/\n/g,'\\n').replace(/,/g,'\\,').replace(/;/g,'\\;');
+}
+function toIcsUtc(dateStr, timeStr){
+  // Converte data/hora local para UTC (formato YYYYMMDDTHHMMSSZ)
+  const [y,m,d] = String(dateStr||'').split('-').map(n=>parseInt(n,10));
+  const [hh,mm] = String(timeStr||'08:00').split(':').map(n=>parseInt(n,10));
+  const dt = new Date(y, (m||1)-1, d||1, hh||0, mm||0, 0);
+  const u = new Date(dt.getTime() - (dt.getTimezoneOffset()*60000));
+  return `${u.getUTCFullYear()}${pad2(u.getUTCMonth()+1)}${pad2(u.getUTCDate())}T${pad2(u.getUTCHours())}${pad2(u.getUTCMinutes())}00Z`;
+}
+function downloadIcsForSelected(){
+  const date = document.getElementById('m_data')?.value || defaultVisitaDate();
+  const time = document.getElementById('m_hora')?.value || '08:00';
+  const dtStart = toIcsUtc(date, time);
+  // +45min
+  const [hh, mm] = (time||'08:00').split(':').map(n=>parseInt(n,10)||0);
+  const endDt = new Date(new Date(date + 'T' + pad2(hh) + ':' + pad2(mm) + ':00').getTime() + 45*60000);
+  const endDate = endDt.toISOString().slice(0,10);
+  const endTime = endDt.toTimeString().slice(0,5);
+  const dtEnd = toIcsUtc(endDate, endTime);
+
+  const ids = [..._selected].slice(0, 50); // evita arquivo gigante
+  const evs = ids.map(id => _clientesById.get(String(id))).filter(Boolean);
+  if (!evs.length) return alert('Selecione pelo menos 1 cliente.');
+
+  const now = new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d+Z$/,'Z');
+  const lines = [];
+  lines.push('BEGIN:VCALENDAR');
+  lines.push('VERSION:2.0');
+  lines.push('PRODID:-//SysRepWeb//ClientesInativos//PT-BR');
+  lines.push('CALSCALE:GREGORIAN');
+  lines.push('METHOD:PUBLISH');
+
+  evs.forEach(c => {
+    const uid = `sysrepweb-${c.id_cliente}-${Date.now()}@local`;
+    const summary = `Visita - ${c.nome || ('Cliente #' + c.id_cliente)}`;
+    const location = addrOf(c);
+    const desc = [
+      `Cliente: ${c.nome || ('#' + c.id_cliente)}`,
+      `Ultima compra: ${c.ultima_compra ? fmtDate(c.ultima_compra) : 'Sem compra'}`,
+      c.numero_pedido ? `Ultimo pedido: ${c.numero_pedido}` : '',
+    ].filter(Boolean).join('\\n');
+
+    lines.push('BEGIN:VEVENT');
+    lines.push(`UID:${icsEscape(uid)}`);
+    lines.push(`DTSTAMP:${now}`);
+    lines.push(`DTSTART:${dtStart}`);
+    lines.push(`DTEND:${dtEnd}`);
+    lines.push(`SUMMARY:${icsEscape(summary)}`);
+    if (location) lines.push(`LOCATION:${icsEscape(location)}`);
+    lines.push(`DESCRIPTION:${icsEscape(desc)}`);
+    lines.push('END:VEVENT');
+  });
+
+  lines.push('END:VCALENDAR');
+  const blob = new Blob([lines.join('\\r\\n')], { type:'text/calendar;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `visitas_clientes_inativos_${date.replace(/-/g,'')}.ics`;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+
+async function agendarVisitasSelecionados(){
+  const ids = [..._selected].slice(0, 50);
+  const list = ids.map(id => _clientesById.get(String(id))).filter(Boolean);
+  if (!list.length) return alert('Selecione pelo menos 1 cliente.');
+
+  const dataVisita = document.getElementById('m_data')?.value || defaultVisitaDate();
+  const horaVisita = document.getElementById('m_hora')?.value || '08:00';
+  const idVendedor = document.getElementById('m_vendedor')?.value || (document.getElementById('idVendedor')?.value || null);
+  const idMotivo = document.getElementById('m_motivo')?.value || null;
+  if (!idMotivo) return alert('Selecione o motivo (abra Agendar visita de um cliente e escolha o motivo).');
+
+  if (!confirm(`Agendar ${list.length} visitas para ${dataVisita} ${horaVisita}?`)) return;
+
+  let ok = 0, fail = 0;
+  for (const c of list) {
+    try{
+      const payload = {
+        id_cliente: String(c.id_cliente),
+        id_vendedor: idVendedor,
+        id_motivo: idMotivo,
+        data_visita: dataVisita,
+        hora_visita: horaVisita.length === 5 ? `${horaVisita}:00` : horaVisita,
+        status: 'ABERTA',
+        obs: 'Gerado pela rotina: Clientes Inativos',
+        origem: 'WEB',
+      };
+      await apiJson('/api/visitas', 'POST', payload);
+      ok++;
+    }catch(_){
+      fail++;
+    }
+  }
+  alert(`Concluido. Sucesso: ${ok}. Falhas: ${fail}.`);
+}
+
+function defaultVisitaDate(){
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0,10);
+}
+
+function openAgendarModal(cliente){
+  const back = document.getElementById('modalBack');
+  document.getElementById('m_sub').textContent = `${cliente.nome || ('Cliente #' + cliente.id_cliente)} • ${addrOf(cliente) || ''}`;
+  document.getElementById('m_id_cliente').value = String(cliente.id_cliente);
+  document.getElementById('m_data').value = defaultVisitaDate();
+  document.getElementById('m_hora').value = '08:00';
+  const vend = document.getElementById('idVendedor')?.value || '';
+  document.getElementById('m_vendedor').value = vend;
+  document.getElementById('m_obs').value = '';
+  back.style.display = 'flex';
+}
+
+function closeAgendarModal(){
+  document.getElementById('modalBack').style.display = 'none';
+}
+
+function toCalDateTime(dateStr, timeStr){
+  const t = (timeStr || '08:00').slice(0,5).replace(':','') + '00';
+  const d = String(dateStr||'').replace(/-/g,'');
+  return `${d}T${t}`;
+}
+
+function openGoogleCalendar(idCliente){
+  const c = _clientesById.get(String(idCliente));
+  if (!c) return;
+  const date = document.getElementById('m_data')?.value || defaultVisitaDate();
+  const time = document.getElementById('m_hora')?.value || '08:00';
+  const start = toCalDateTime(date, time);
+  const end = (() => {
+    const [hh, mm] = (time || '08:00').split(':').map(n => parseInt(n,10)||0);
+    const dt = new Date();
+    dt.setHours(hh, mm, 0, 0);
+    dt.setMinutes(dt.getMinutes() + 45);
+    const hh2 = String(dt.getHours()).padStart(2,'0');
+    const mm2 = String(dt.getMinutes()).padStart(2,'0');
+    return toCalDateTime(date, `${hh2}:${mm2}`);
+  })();
+
+  const details = [
+    `Cliente: ${c.nome || ('#' + c.id_cliente)}`,
+    `Ultima compra: ${c.ultima_compra ? fmtDate(c.ultima_compra) : 'Sem compra'}`,
+    c.numero_pedido ? `Ultimo pedido: ${c.numero_pedido}` : '',
+    (c.ultimos_produtos?.length ? `Ultimos produtos: ${c.ultimos_produtos.slice(0,5).map(p=>p.desc_prod).join(', ')}` : ''),
+    (c.ranking_produtos?.length ? `Ranking 180d: ${c.ranking_produtos.slice(0,8).map(p=>p.desc_prod).join(', ')}` : ''),
+  ].filter(Boolean).join('\\n');
+
+  const location = addrOf(c);
+  const text = `Visita - ${c.nome || ('Cliente #' + c.id_cliente)}`;
+
+  const url = new URL('https://calendar.google.com/calendar/render');
+  url.searchParams.set('action', 'TEMPLATE');
+  url.searchParams.set('text', text);
+  url.searchParams.set('details', details);
+  if (location) url.searchParams.set('location', location);
+  url.searchParams.set('dates', `${start}/${end}`);
+  window.open(url.toString(), '_blank');
+}
+
+async function salvarVisita(){
+  const idCliente = document.getElementById('m_id_cliente').value;
+  const dataVisita = document.getElementById('m_data').value;
+  const horaVisita = document.getElementById('m_hora').value || '08:00';
+  const idVendedor = document.getElementById('m_vendedor').value || null;
+  const idMotivo = document.getElementById('m_motivo').value || null;
+  const obs = document.getElementById('m_obs').value.trim();
+
+  if (!idCliente) return alert('Cliente invalido.');
+  if (!dataVisita) return alert('Informe a data da visita.');
+  if (!idMotivo) return alert('Selecione o motivo.');
+
+  try{
+    const payload = {
+      id_cliente: idCliente,
+      id_vendedor: idVendedor,
+      id_motivo: idMotivo,
+      data_visita: dataVisita,
+      hora_visita: horaVisita.length === 5 ? `${horaVisita}:00` : horaVisita,
+      status: 'ABERTA',
+      obs,
+      origem: 'WEB',
+    };
+    await apiJson('/api/visitas', 'POST', payload);
+    closeAgendarModal();
+    alert('Visita agendada com sucesso.');
+  }catch(e){
+    alert(e.message || 'Nao foi possivel agendar.');
+  }
+}
+
+async function load(){
+  const state = document.getElementById('stateBox');
+  const dash = document.getElementById('dashboard');
+  state.className='loading';
+  state.textContent='Carregando clientes inativos...';
+  state.style.display='';
+  dash.style.display='none';
+  try{
+    const data = await api('/api/analytics/comercial/clientes-inativos?' + buildQuery());
+    renderInsights(data.insights || []);
+    renderResumoFaixas(data);
+    renderList(data);
+    renderRiskBox(data.clientes || []);
+    dash.style.display='';
+    fixMapSize();
+    state.style.display='none';
+  }catch(err){
+    state.className='error';
+    state.textContent = err.message || 'Erro ao carregar';
+  }
+}
+
+document.getElementById('btnAplicar').addEventListener('click', ()=>{ _page=1; load(); });
+document.getElementById('btnPrev').addEventListener('click', ()=>{ if(_page>1){ _page--; load(); } });
+document.getElementById('btnNext').addEventListener('click', ()=>{ _page++; load(); });
+document.getElementById('btnGeo').addEventListener('click', async ()=>{ try{ _myPos = await getMyLocation(); initMap(); _map.setView([_myPos.lat,_myPos.lng], 13); L.circleMarker([_myPos.lat,_myPos.lng], { radius:8, color:'#2563eb', fillColor:'#2563eb', fillOpacity:.3 }).addTo(_map).bindPopup('Voce esta aqui').openPopup(); }catch(e){ alert('Nao foi possivel obter sua localizacao.'); } });
+document.getElementById('btnClearSel').addEventListener('click', (e)=>{ e.preventDefault(); clearSelection(); });
+document.getElementById('btnRotaSel').addEventListener('click', (e)=>{ e.preventDefault(); openDirectionsSelected(); });
+document.getElementById('btnCalendarSel').addEventListener('click', (e)=>{ e.preventDefault(); downloadIcsForSelected(); });
+document.getElementById('btnVisitaSel').addEventListener('click', (e)=>{ e.preventDefault(); agendarVisitasSelecionados(); });
+// filtros rapidos
+document.getElementById('ordenar').addEventListener('change', ()=>{ _page=1; load(); });
+document.getElementById('minValor12m').addEventListener('change', ()=>{ _page=1; load(); });
+document.getElementById('minPedidos12m').addEventListener('change', ()=>{ _page=1; load(); });
+(function bindSegFaixa(){
+  const seg = document.getElementById('segFaixa');
+  if (!seg) return;
+  seg.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', ()=>{
+      seg.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      _faixa = btn.getAttribute('data-v') || '';
+      _page = 1;
+      load();
+    });
+  });
+})();
+
+window.addEventListener('DOMContentLoaded', ()=>{
+  const urlDias = new URLSearchParams(location.search).get('dias');
+  if (urlDias && Number(urlDias) > 0) {
+    const el = document.getElementById('dias');
+    if (el) el.value = String(Number(urlDias));
+  }
+  fillVendorFilter();
+  fillMotivos().finally(load);
+});
+window.addEventListener('resize', ()=>fixMapSize());
+window.addEventListener('message',(ev)=>{ if(ev.data && ev.data.type==='theme-changed') document.documentElement.setAttribute('data-theme', ev.data.theme); if(ev.data && ev.data.type==='font-pref-changed'){ window.SysFont?.apply(ev.data.familyId, ev.data.sizeId); window.SysVisual?.apply(ev.data.accentId, ev.data.compact); }});
+</script>
+
+<!-- Modal: Agendar visita -->
+<div class="modal-backdrop" id="modalBack" onclick="if(event.target===this) closeAgendarModal();">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Agendar visita">
+    <div class="modal-head">
+      <div style="min-width:0">
+        <div class="modal-title">Agendar visita</div>
+        <div class="hint" id="m_sub" style="margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="closeAgendarModal();return false;">Fechar</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="m_id_cliente">
+      <div class="form-grid">
+        <div class="filter"><label for="m_data">Data</label><input id="m_data" type="date"></div>
+        <div class="filter"><label for="m_hora">Hora</label><input id="m_hora" type="time"></div>
+        <div class="filter"><label for="m_vendedor">Vendedor</label><select id="m_vendedor"><option value="">(automatico)</option></select></div>
+        <div class="filter"><label for="m_motivo">Motivo</label><select id="m_motivo"><option value="">Selecione</option></select></div>
+      </div>
+      <div class="filter" style="min-width:0">
+        <label for="m_obs">Observacao</label>
+        <input id="m_obs" type="text" placeholder="Ex: reativacao de carteira, oferta, visita de rotina...">
+      </div>
+      <div class="hint">Dica: abra o Google Calendar com o evento ja preenchido e/ou salve a visita no sistema.</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary btn-sm" onclick="openGoogleCalendar(document.getElementById('m_id_cliente').value);return false;">Abrir Google Calendar</button>
+      <button class="btn btn-primary btn-sm" onclick="salvarVisita();return false;">Salvar visita</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Replica a lista de vendedores dentro do modal, reaproveitando o select principal.
+(function syncVendedoresToModal(){
+  const src = document.getElementById('idVendedor');
+  const dst = document.getElementById('m_vendedor');
+  if (!src || !dst) return;
+  const copy = () => {
+    const cur = dst.value;
+    const opts = [...src.querySelectorAll('option')].map(o => ({ v:o.value, t:o.textContent }));
+    dst.innerHTML = '<option value="">(automatico)</option>' + opts.filter(o => o.v).map(o => `<option value="${esc(o.v)}">${esc(o.t)}</option>`).join('');
+    if (cur) dst.value = cur;
+  };
+  copy();
+  const obs = new MutationObserver(()=>copy());
+  obs.observe(src, { childList:true, subtree:true });
+})();
+</script>
+</body>
+</html>

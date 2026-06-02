@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Relatório de Rotas</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:var(--content-bg);--card:var(--card-bg);--border:var(--card-border);--text:var(--content-text);--text2:var(--text2);--accent:var(--accent);--accent-hover:var(--accent-hover);--input-bg:var(--card-bg)}
+body{font-family:var(--font,'Inter',sans-serif);background:var(--bg);color:var(--text);min-height:100vh}
+.toolbar{background:var(--card);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;position:sticky;top:0;z-index:100;box-shadow:0 4px 12px rgba(0,0,0,.04)}
+.toolbar-title{font-size:13px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;white-space:nowrap}
+.sep{width:1px;height:28px;background:var(--border);flex-shrink:0}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;transition:.15s;font-family:inherit;white-space:nowrap}
+.btn svg{width:14px;height:14px;flex-shrink:0}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-primary{background:var(--accent);color:#fff;border:1.5px solid var(--accent)}
+.btn-primary:hover:not(:disabled){background:var(--accent-hover)}
+.btn-outline{background:var(--card);color:var(--accent);border:1.5px solid var(--accent)}
+.btn-sm{padding:5px 10px;font-size:11px}
+input,select{font-family:inherit;font-size:13px;background:var(--input-bg);color:var(--text);border:1.5px solid var(--border);border-radius:8px;padding:7px 11px;transition:.15s;outline:none}
+input:focus,select:focus{border-color:var(--accent)}
+.content{padding:24px;max-width:1400px;margin:0 auto}
+
+/* STATS */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:24px}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 18px}
+.stat-card .label{font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.6px}
+.stat-card .value{font-size:28px;font-weight:800;margin-top:4px}
+.stat-card .sub{font-size:11px;color:var(--text2);margin-top:2px}
+
+/* TABLE */
+.table-wrap{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:24px}
+.table-header{padding:16px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:8px}
+.table-header h2{font-size:14px;font-weight:700}
+table{width:100%;border-collapse:collapse}
+th{font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;padding:10px 14px;text-align:left;border-bottom:1px solid var(--border)}
+td{font-size:13px;padding:11px 14px;border-bottom:1px solid var(--border);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(14,165,233,.04)}
+.text-right{text-align:right}
+.text-center{text-align:center}
+
+/* PROGRESS */
+.mini-bar{background:var(--border);border-radius:3px;height:5px;overflow:hidden;min-width:60px}
+.mini-fill{height:100%;background:var(--accent);border-radius:3px}
+
+/* MAP CALOR */
+#mapaCalor{height:500px;border-radius:14px;overflow:hidden;border:1px solid var(--border)}
+
+/* EMPTY / LOADER */
+.empty{text-align:center;padding:48px;color:var(--text2)}
+.loader{display:flex;align-items:center;justify-content:center;padding:32px}
+.spin{width:24px;height:24px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* TABS */
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:24px}
+.tab{padding:10px 18px;cursor:pointer;border:none;background:transparent;font-size:13px;font-weight:600;color:var(--text2);border-bottom:2px solid transparent;font-family:inherit;transition:.15s}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+
+@media print{
+  .toolbar,.tabs{display:none!important}
+  .content{padding:12px}
+}
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <span class="toolbar-title">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;vertical-align:-3px;margin-right:4px">
+      <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+    </svg>
+    Relatório de Rotas
+  </span>
+  <div class="sep"></div>
+  <!-- Filtros -->
+  <select id="selVendedor" style="min-width:160px" onchange="carregar()"><option value="">Todos os vendedores</option></select>
+  <input type="date" id="dtInicio" onchange="carregar()" title="Data inicial">
+  <span style="font-size:12px;color:var(--text2)">até</span>
+  <input type="date" id="dtFim" onchange="carregar()" title="Data final">
+  <button class="btn btn-outline btn-sm" onclick="filtrarMes()">Mês Atual</button>
+  <button class="btn btn-primary btn-sm" onclick="carregar()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    Filtrar
+  </button>
+  <div style="flex:1"></div>
+  <button class="btn btn-outline btn-sm" onclick="window.print()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+    Imprimir
+  </button>
+  <a href="/pages/rotas-vendedor.html" class="btn btn-outline btn-sm">← Voltar às Rotas</a>
+</div>
+
+<div class="content">
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('produtividade',this)">Produtividade</button>
+    <button class="tab" onclick="showTab('rotas',this)">Rotas por Período</button>
+    <button class="tab" onclick="showTab('mapa',this)">Mapa de Calor</button>
+  </div>
+
+  <!-- ABA PRODUTIVIDADE -->
+  <div id="tabProdutividade">
+    <div class="stats-grid" id="statsGerais">
+      <div class="stat-card"><div class="label">Total de Rotas</div><div class="value" id="stTotal">—</div><div class="sub">no período</div></div>
+      <div class="stat-card"><div class="label">Clientes Atendidos</div><div class="value" id="stVisitados" style="color:#22c55e">—</div><div class="sub">visitados + pedidos</div></div>
+      <div class="stat-card"><div class="label">Pedidos Realizados</div><div class="value" id="stPedidos" style="color:#0d9488">—</div><div class="sub">via rota</div></div>
+      <div class="stat-card"><div class="label">Não Encontrados</div><div class="value" id="stNaoEnc" style="color:#ef4444">—</div><div class="sub">na visita</div></div>
+      <div class="stat-card"><div class="label">Taxa de Conversão</div><div class="value" id="stTaxa" style="color:var(--accent)">—</div><div class="sub">visitados / total</div></div>
+    </div>
+
+    <div class="table-wrap">
+      <div class="table-header">
+        <h2>Produtividade por Vendedor</h2>
+        <span id="lblTotal" style="font-size:12px;color:var(--text2)"></span>
+      </div>
+      <div id="tabelaProdutividade"><div class="loader"><div class="spin"></div></div></div>
+    </div>
+  </div>
+
+  <!-- ABA ROTAS -->
+  <div id="tabRotas" style="display:none">
+    <div class="table-wrap">
+      <div class="table-header">
+        <h2>Rotas no Período</h2>
+        <span id="lblRotasTotal" style="font-size:12px;color:var(--text2)"></span>
+      </div>
+      <div id="tabelaRotas"><div class="loader"><div class="spin"></div></div></div>
+    </div>
+  </div>
+
+  <!-- ABA MAPA DE CALOR -->
+  <div id="tabMapa" style="display:none">
+    <div style="margin-bottom:12px;font-size:12px;color:var(--text2);display:flex;gap:16px;flex-wrap:wrap">
+      <span><span style="display:inline-block;width:12px;height:12px;background:#ef4444;border-radius:50%;vertical-align:-2px"></span> Alta frequência</span>
+      <span><span style="display:inline-block;width:12px;height:12px;background:#f59e0b;border-radius:50%;vertical-align:-2px"></span> Média frequência</span>
+      <span><span style="display:inline-block;width:12px;height:12px;background:#22c55e;border-radius:50%;vertical-align:-2px"></span> Visitas realizadas</span>
+      <span><span style="display:inline-block;width:12px;height:12px;background:#3b82f6;border-radius:50%;vertical-align:-2px"></span> Poucas visitas</span>
+    </div>
+    <div id="mapaCalor"></div>
+    <p style="font-size:11px;color:var(--text2);margin-top:8px">
+      Tamanho do círculo = frequência de visitas · Cor = conversão (verde = pedidos, azul = só visitas, laranja/vermelho = sem conversão)
+    </p>
+  </div>
+</div>
+
+<script>
+function token(){ return localStorage.getItem('token')||sessionStorage.getItem('token')||''; }
+async function api(url, opts={}){
+  const r=await fetch(url,{headers:{Authorization:'Bearer '+token(),...(opts.headers||{})}, ...opts});
+  if(!r.ok){const t=await r.text();throw new Error(t);}
+  return r.json();
+}
+function fmt(d){ return d?new Date(d.toString().substring(0,10)+'T12:00:00').toLocaleDateString('pt-BR'):'—'; }
+
+let mapaCalorInst=null, marcadoresCalor=[];
+const STATUS_CLASS={PENDENTE:'badge-pendente',EM_ANDAMENTO:'badge-em-andamento',CONCLUIDA:'badge-concluida',CANCELADA:'badge-cancelada'};
+const STATUS_LABEL={PENDENTE:'Pendente',EM_ANDAMENTO:'Em Andamento',CONCLUIDA:'Concluída',CANCELADA:'Cancelada'};
+
+function filtrarMes(){
+  const hoje=new Date();
+  const ini=new Date(hoje.getFullYear(),hoje.getMonth(),1);
+  const fim=new Date(hoje.getFullYear(),hoje.getMonth()+1,0);
+  document.getElementById('dtInicio').value=ini.toISOString().substring(0,10);
+  document.getElementById('dtFim').value=fim.toISOString().substring(0,10);
+  carregar();
+}
+
+function showTab(tab, btn){
+  ['produtividade','rotas','mapa'].forEach(t=>{
+    document.getElementById('tab'+capitalize(t)).style.display=t===tab?'block':'none';
+  });
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  if(tab==='mapa') carregarMapaCalor();
+  if(tab==='rotas') carregarListaRotas();
+}
+function capitalize(s){ return s.charAt(0).toUpperCase()+s.slice(1); }
+
+async function carregar(){
+  await Promise.all([carregarProdutividade()]);
+}
+
+async function carregarProdutividade(){
+  document.getElementById('tabelaProdutividade').innerHTML='<div class="loader"><div class="spin"></div></div>';
+  const params=buildParams();
+  try{
+    const d=await api('/api/regiao-rota/rotas-vendedor/relatorio-produtividade?'+params);
+    const rows=d.relatorio||[];
+    document.getElementById('lblTotal').textContent=rows.length+' vendedor(es)';
+
+    // Totais gerais
+    const tot={rotas:0,clientes:0,visitados:0,pedidos:0,naoEnc:0};
+    rows.forEach(r=>{
+      tot.rotas+=parseInt(r.total_rotas)||0;
+      tot.clientes+=parseInt(r.total_clientes)||0;
+      tot.visitados+=parseInt(r.total_visitados)||0;
+      tot.pedidos+=parseInt(r.total_pedidos)||0;
+      tot.naoEnc+=parseInt(r.total_nao_enc)||0;
+    });
+    const taxa=tot.clientes>0?Math.round(tot.visitados/tot.clientes*100):0;
+    document.getElementById('stTotal').textContent=tot.rotas;
+    document.getElementById('stVisitados').textContent=tot.visitados;
+    document.getElementById('stPedidos').textContent=tot.pedidos;
+    document.getElementById('stNaoEnc').textContent=tot.naoEnc;
+    document.getElementById('stTaxa').textContent=taxa+'%';
+
+    if(!rows.length){
+      document.getElementById('tabelaProdutividade').innerHTML='<div class="empty"><p>Nenhum dado para o período.</p></div>';
+      return;
+    }
+    const html=`<table>
+      <thead><tr>
+        <th>Vendedor</th>
+        <th class="text-center">Rotas</th>
+        <th class="text-center">Clientes</th>
+        <th class="text-center" style="color:#22c55e">Visitados</th>
+        <th class="text-center" style="color:#0d9488">Pedidos</th>
+        <th class="text-center" style="color:#ef4444">Não Enc.</th>
+        <th class="text-center" style="color:#f59e0b">Reagend.</th>
+        <th>Conversão</th>
+      </tr></thead>
+      <tbody>${rows.map(r=>{
+        const pct=parseFloat(r.taxa_conversao)||0;
+        return `<tr>
+          <td><strong>${r.vendedor}</strong></td>
+          <td class="text-center">${r.total_rotas}</td>
+          <td class="text-center">${r.total_clientes}</td>
+          <td class="text-center" style="color:#22c55e;font-weight:700">${r.total_visitados||0}</td>
+          <td class="text-center" style="color:#0d9488;font-weight:700">${r.total_pedidos||0}</td>
+          <td class="text-center" style="color:#ef4444">${r.total_nao_enc||0}</td>
+          <td class="text-center" style="color:#f59e0b">${r.total_reagendados||0}</td>
+          <td style="min-width:120px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <div class="mini-bar" style="flex:1"><div class="mini-fill" style="width:${pct}%"></div></div>
+              <span style="font-size:12px;font-weight:800;color:var(--accent);white-space:nowrap">${pct}%</span>
+            </div>
+          </td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>`;
+    document.getElementById('tabelaProdutividade').innerHTML=html;
+  }catch(e){
+    document.getElementById('tabelaProdutividade').innerHTML=`<div class="empty"><p>${e.message}</p></div>`;
+  }
+}
+
+async function carregarListaRotas(){
+  document.getElementById('tabelaRotas').innerHTML='<div class="loader"><div class="spin"></div></div>';
+  const params=buildParams();
+  try{
+    const d=await api('/api/regiao-rota/rotas-vendedor/lista?'+params+'&limit=200');
+    const rows=d.rotas||[];
+    document.getElementById('lblRotasTotal').textContent=rows.length+' rota(s)';
+    if(!rows.length){
+      document.getElementById('tabelaRotas').innerHTML='<div class="empty"><p>Nenhuma rota encontrada.</p></div>';
+      return;
+    }
+    const badgeCss={PENDENTE:'background:#fef3c7;color:#92400e',EM_ANDAMENTO:'background:#dbeafe;color:#1e40af',CONCLUIDA:'background:#dcfce7;color:#15803d',CANCELADA:'background:#f1f5f9;color:#475569'};
+    const html=`<table>
+      <thead><tr>
+        <th>Rota</th><th>Vendedor</th><th>Data</th><th>Status</th>
+        <th class="text-center">Clientes</th><th class="text-center">Visit.</th><th class="text-center">Pedidos</th><th>Progresso</th>
+      </tr></thead>
+      <tbody>${rows.map(r=>{
+        const tot=parseInt(r.total_clientes)||0;
+        const vis=parseInt(r.total_visitados)||0;
+        const pct=tot>0?Math.round(vis/tot*100):0;
+        const bc=badgeCss[r.status]||badgeCss.PENDENTE;
+        return `<tr>
+          <td><strong>${r.descricao}</strong>${r.nome_regiao?`<br><small style="color:var(--text2)">${r.nome_regiao}</small>`:''}</td>
+          <td>${r.nome_vendedor||'—'}</td>
+          <td>${fmt(r.data_prevista)}</td>
+          <td><span style="display:inline-block;padding:3px 8px;border-radius:20px;font-size:10px;font-weight:700;${bc}">${STATUS_LABEL[r.status]||r.status}</span></td>
+          <td class="text-center">${tot}</td>
+          <td class="text-center" style="color:#22c55e;font-weight:700">${vis}</td>
+          <td class="text-center" style="color:#0d9488;font-weight:700">${r.total_pedidos||0}</td>
+          <td style="min-width:100px">
+            <div style="display:flex;align-items:center;gap:6px">
+              <div class="mini-bar" style="flex:1"><div class="mini-fill" style="width:${pct}%"></div></div>
+              <span style="font-size:11px;font-weight:700;color:var(--text2)">${pct}%</span>
+            </div>
+          </td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>`;
+    document.getElementById('tabelaRotas').innerHTML=html;
+  }catch(e){
+    document.getElementById('tabelaRotas').innerHTML=`<div class="empty"><p>${e.message}</p></div>`;
+  }
+}
+
+async function carregarMapaCalor(){
+  if(!mapaCalorInst){
+    mapaCalorInst=L.map('mapaCalor',{center:[-14.235,-51.9253],zoom:5});
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:19}).addTo(mapaCalorInst);
+  }
+  marcadoresCalor.forEach(m=>m.remove()); marcadoresCalor=[];
+  const params=buildParams();
+  try{
+    const d=await api('/api/regiao-rota/rotas-vendedor/mapa-calor?'+params);
+    const pontos=d.pontos||[];
+    if(!pontos.length) return;
+    const maxVisitas=Math.max(...pontos.map(p=>p.total_visitas||1));
+    pontos.forEach(p=>{
+      const visitas=parseInt(p.total_visitas)||1;
+      const realizadas=parseInt(p.visitas_realizadas)||0;
+      const pedidos=parseInt(p.pedidos_realizados)||0;
+      const ratio=realizadas/visitas;
+      const pctFreq=visitas/maxVisitas;
+      const raio=8+Math.round(pctFreq*24); // 8px a 32px
+      // Cor: verde se pedidos > 50%, azul se visitado, laranja se < 30%, vermelho se 0
+      let cor=ratio===0?'#ef4444':ratio<0.3?'#f59e0b':pedidos>0?'#0d9488':'#3b82f6';
+      const icon=L.divIcon({
+        html:`<div style="width:${raio*2}px;height:${raio*2}px;background:${cor};border-radius:50%;opacity:.7;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.2)"></div>`,
+        iconSize:[raio*2,raio*2],iconAnchor:[raio,raio],className:''
+      });
+      const popup=`<strong>${p.nome}</strong><br>${p.cidade||''}${p.uf?'/'+p.uf:''}<br>
+        Visitas: <strong>${visitas}</strong><br>
+        Realizadas: <strong>${realizadas}</strong><br>
+        Pedidos: <strong>${pedidos}</strong><br>
+        ${p.ultimo_checkin?'Último check-in: '+new Date(p.ultimo_checkin).toLocaleDateString('pt-BR'):''}`;
+      const mk=L.marker([parseFloat(p.latitude),parseFloat(p.longitude)],{icon}).addTo(mapaCalorInst);
+      mk.bindPopup(popup,{maxWidth:200});
+      marcadoresCalor.push(mk);
+    });
+    if(marcadoresCalor.length>0){
+      const grp=L.featureGroup(marcadoresCalor);
+      mapaCalorInst.fitBounds(grp.getBounds().pad(.1));
+    }
+    setTimeout(()=>mapaCalorInst.invalidateSize(),300);
+  }catch(_){}
+}
+
+function buildParams(){
+  const iv=document.getElementById('selVendedor').value;
+  const di=document.getElementById('dtInicio').value;
+  const df=document.getElementById('dtFim').value;
+  const params=new URLSearchParams();
+  if(iv) params.set('id_usuario',iv);
+  if(di) params.set('data_inicio',di);
+  if(df) params.set('data_fim',df);
+  return params;
+}
+
+async function carregarVendedores(){
+  try{
+    const d=await api('/api/vendedores');
+    const sel=document.getElementById('selVendedor');
+    (d.vendedores||[]).forEach(v=>{
+      const o=document.createElement('option');
+      o.value=v.id; o.textContent=v.nome;
+      sel.appendChild(o);
+    });
+  }catch(_){}
+}
+
+// Inicia com mês atual
+filtrarMes();
+carregarVendedores();
+</script>
+</body>
+</html>

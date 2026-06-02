@@ -5,7 +5,7 @@ const path = require('path');
 const { getPool, createPool } = require('../config/database');
 const { logError } = require('../config/logger');
 
-const ENV_PATH = path.join(__dirname, '..', '.env');
+const ENV_PATH = path.join(process.cwd(), '.env');
 
 /**
  * Verifica se as colunas enviadas no body existem na tabela 'sistemas'.
@@ -72,11 +72,11 @@ router.get('/sistema', async (req, res) => {
 router.post('/sistema', async (req, res) => {
   try {
     const pool = getPool();
-    const { senha_admin, ...body } = req.body;
-
-    if (senha_admin !== 'kzf010557f') {
-      return res.status(401).json({ error: 'Senha administrativa inválida' });
+    if (req.user?.perfil != 1) {
+      return res.status(403).json({ error: 'Acesso restrito a administradores' });
     }
+
+    const { senha_admin, ...body } = req.body;
 
     // Garante que todas as colunas enviadas existam na tabela
     await ensureSistemasColumns(pool, body);
@@ -359,6 +359,22 @@ router.post('/api', async (req, res) => {
     }
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/config/run-migrations — força verificação e criação de campos faltantes
+// Requer perfil administrador (perfil == 1)
+router.post('/run-migrations', async (req, res) => {
+  if (req.user?.perfil != 1) {
+    return res.status(403).json({ error: 'Apenas administradores podem executar migrações.' });
+  }
+  try {
+    const { getPool } = require('../config/database');
+    const { runMigrations } = require('../config/schema-migrations');
+    const resultado = await runMigrations(getPool());
+    res.json(resultado);
+  } catch (err) {
+    res.status(500).json({ ok: false, adicionadas: [], erros: [err.message] });
   }
 });
 

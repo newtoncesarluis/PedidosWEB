@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Relatorios Padrao</title>
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<script src="/assets/mobile-app.js"></script>
+<link rel="stylesheet" href="/assets/mobile-app.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<style>
+  :root { --bg:var(--content-bg); --card:var(--card-bg); --border:var(--card-border); --text:var(--content-text); --text2:var(--text2); --accent:var(--accent); --accent-soft:var(--accent-soft); --success:#059669; --warn:#d97706; --danger:#dc2626; --shadow:0 10px 30px rgba(0,0,0,.08); }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:var(--font);background:var(--bg);color:var(--text)}
+  .page{min-height:100vh;display:flex;flex-direction:column}
+  .toolbar{position:sticky;top:0;z-index:20;background:var(--card);border-bottom:1px solid var(--border);padding:14px 18px;display:flex;flex-wrap:wrap;align-items:end;gap:12px}
+  .title-wrap{min-width:260px;margin-right:auto}
+  .eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--text2);font-weight:800}
+  h1{margin:3px 0 0;font-size:22px;line-height:1.1}
+  .subtitle{margin-top:6px;font-size:12px;color:var(--text2)}
+  .filter{display:flex;flex-direction:column;gap:5px;min-width:150px}
+  .filter label{font-size:10px;text-transform:uppercase;color:var(--text2);font-weight:800;letter-spacing:.7px}
+  .filter input,.filter select{height:36px;border:1.5px solid var(--border);border-radius:10px;padding:0 10px;background:var(--bg);color:var(--text);font:inherit;outline:none}
+  .filter input:focus,.filter select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .btn{height:36px;border:none;border-radius:10px;padding:0 14px;font:inherit;font-weight:800;cursor:pointer}
+  .btn-primary{background:var(--accent);color:var(--btn-text,#fff)}
+  .btn-secondary{background:var(--bg);color:var(--text);border:1.5px solid var(--border)}
+  .grow{min-width:220px;flex:1 1 240px}
+
+  .content{padding:18px;display:grid;gap:16px}
+  .layout{display:grid;grid-template-columns:360px 1fr;gap:16px;align-items:start}
+  .panel{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:14px 16px;box-shadow:var(--shadow)}
+  .panel h2{margin:0 0 6px;font-size:15px}
+  .panel-sub{font-size:12px;color:var(--text2);margin-bottom:12px}
+
+  .search{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+  .search input{flex:1}
+  .list{display:grid;gap:8px;max-height:70vh;overflow:auto;padding-right:6px}
+  .rep{border:1px solid var(--border);border-radius:8px;background:var(--bg);padding:10px 10px;cursor:pointer;transition:transform .05s, border-color .1s}
+  .rep:hover{border-color:var(--accent);transform:translateY(-1px)}
+  .rep.active{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .rep-title{font-size:13px;font-weight:900}
+  .rep-cat{font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.7px;color:var(--text2);margin-top:4px}
+  .rep-desc{font-size:12px;color:var(--text2);margin-top:6px;line-height:1.35}
+
+  .viz{display:grid;gap:12px}
+  .viz-top{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;justify-content:space-between}
+  .viz-title{font-size:15px;font-weight:900}
+  .viz-meta{display:grid;gap:4px}
+  .viz-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:end;justify-content:flex-end}
+  .mode{display:flex;border:1.5px solid var(--border);border-radius:10px;overflow:hidden;background:var(--bg)}
+  .mode button{height:34px;border:none;background:transparent;color:var(--text2);font:inherit;font-weight:900;padding:0 10px;cursor:pointer}
+  .mode button + button{border-left:1.5px solid var(--border)}
+  .mode button.active{background:var(--accent-soft);color:var(--accent)}
+  .chart-type{min-width:150px}
+  .viz-actions .btn{height:34px}
+
+  .canvas-wrap{border:1px solid var(--border);border-radius:8px;background:var(--bg);padding:12px}
+  canvas{width:100%;height:340px}
+  .table{border:1px solid var(--border);border-radius:8px;overflow:hidden}
+  table{width:100%;border-collapse:collapse}
+  thead th{background:rgba(148,163,184,.08);padding:10px 12px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--text2)}
+  tbody td{padding:10px 12px;border-top:1px solid var(--border);font-size:12px}
+  tbody tr:hover{background:var(--accent-soft)}
+  .table-tools{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+  .table-actions,.table-pager{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .table-pager{justify-content:flex-end}
+  .pager-text{font-size:12px;color:var(--text2);font-weight:700}
+  .btn[disabled]{opacity:.55;cursor:not-allowed}
+  .muted{color:var(--text2)}
+  .pill{display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:999px;padding:3px 8px;font-size:11px;color:var(--text2);background:var(--card)}
+  .placeholder,.loading,.error{padding:16px;border-radius:8px;background:var(--card);border:1px solid var(--border);font-size:13px}
+  .placeholder{background:rgba(148,163,184,.05);border-style:dashed;color:var(--text2)}
+  .error{color:var(--danger)}
+
+  @media (max-width:1040px){.layout{grid-template-columns:1fr} .list{max-height:none} canvas{height:300px}}
+
+  /* ── MOBILE (iframe sysrep-ms-embed) ── */
+  html.sysrep-ms-embed .toolbar { gap:8px !important; padding:10px 12px !important; }
+  html.sysrep-ms-embed .title-wrap { min-width:0 !important; }
+  html.sysrep-ms-embed h1 { font-size:16px !important; }
+  html.sysrep-ms-embed .subtitle { display:none !important; }
+  html.sysrep-ms-embed .filter { min-width:0 !important; }
+  html.sysrep-ms-embed .content { padding:10px !important; padding-bottom:80px !important; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="toolbar">
+    <div class="title-wrap">
+      <div class="eyebrow">Comercial</div>
+      <h1>Relatorios Padrao</h1>
+      <div class="subtitle">Lista de relatorios e graficos padrao, com drilldown (detalhes) quando aplicavel.</div>
+    </div>
+    <div class="filter"><label for="anoIni">Ano inicial</label><input id="anoIni" type="number" min="2000" step="1"></div>
+    <div class="filter"><label for="anoFim">Ano final</label><input id="anoFim" type="number" min="2000" step="1"></div>
+    <div class="filter"><label for="dtInicio">Data inicial (opcional)</label><input id="dtInicio" type="date"></div>
+    <div class="filter"><label for="dtFim">Data final (opcional)</label><input id="dtFim" type="date"></div>
+    <div class="filter grow"><label for="idCliente">Cliente (detalhe)</label><select id="idCliente"><option value="">Selecione</option></select></div>
+    <div class="filter"><label for="idVendedor">Vendedor (detalhe)</label><select id="idVendedor"><option value="">Todos</option></select></div>
+    <div class="filter grow"><label for="idFornecedor">Fabrica (detalhe)</label><select id="idFornecedor"><option value="">Selecione</option></select></div>
+    <button class="btn btn-primary" id="btnAtualizar">Atualizar</button>
+  </div>
+
+  <div class="content">
+    <div id="stateBox" class="loading">Carregando catalogo...</div>
+    <div id="dash" class="layout" style="display:none">
+      <div class="panel">
+        <h2>Relatorios</h2>
+        <div class="panel-sub">Selecione um relatorio para ver grafico, lista e detalhes.</div>
+        <div class="search">
+          <input id="q" class="filter" style="min-width:0" placeholder="Buscar relatorio..." oninput="renderCatalog()">
+          <span class="pill" id="countPill">0</span>
+        </div>
+        <div class="list" id="catalog"></div>
+      </div>
+
+      <div class="panel viz">
+        <div class="viz-top">
+          <div class="viz-meta">
+            <div class="viz-title" id="vizTitle">—</div>
+            <div class="muted" id="vizSub">Selecione um relatorio para visualizar os dados.</div>
+          </div>
+          <div class="viz-actions">
+            <div class="filter chart-type">
+              <label for="chartType">Tipo de grafico</label>
+              <select id="chartType">
+                <option value="line">Linha</option>
+                <option value="bar">Barra</option>
+                <option value="pie">Pizza</option>
+                <option value="doughnut">Rosca</option>
+              </select>
+            </div>
+            <div class="mode" id="mode">
+              <button type="button" data-m="grafico" class="active">Grafico</button>
+              <button type="button" data-m="lista">Lista</button>
+            </div>
+            <button class="btn btn-secondary" id="btnDetalhes">Ver detalhes na lista</button>
+          </div>
+        </div>
+
+        <div id="vizBody">
+          <div class="canvas-wrap" id="chartWrap"><canvas id="chart"></canvas></div>
+          <div class="table" id="tableWrap" style="display:none">
+            <div class="table-tools">
+              <div class="table-actions">
+                <button class="btn btn-secondary" id="btnExportExcel" type="button">Exportar Excel</button>
+                <button class="btn btn-secondary" id="btnExportPdf" type="button">Exportar PDF</button>
+              </div>
+              <div class="table-pager">
+                <button class="btn btn-secondary" id="btnPrevPage" type="button">Anterior</button>
+                <span class="pager-text" id="pagerInfo">Pagina 0 de 0</span>
+                <button class="btn btn-secondary" id="btnNextPage" type="button">Proxima</button>
+              </div>
+            </div>
+            <table>
+              <thead><tr id="thead"></tr></thead>
+              <tbody id="tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="placeholder" id="hintBox">Selecione um relatorio na lista.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function token(){ return localStorage.getItem('token') || sessionStorage.getItem('token') || ''; }
+async function api(url){
+  const r = await fetch(url, { headers:{ Authorization:'Bearer ' + token() } });
+  const d = await r.json().catch(()=> ({}));
+  if(!r.ok) throw new Error(d?.error || 'Falha ao carregar');
+  return d;
+}
+const integer = v => Number(v||0).toLocaleString('pt-BR');
+const money = v => Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;');
+const COLUMN_LABELS = {
+  ano: 'Ano',
+  nome_fornecedor: 'Fabrica',
+  nome_cliente: 'Cliente',
+  nome_vendedor: 'Vendedor',
+  desc_prod: 'Produto',
+  situacao: 'Situacao',
+  valor_total: 'Valor total',
+  ticket_medio: 'Ticket medio',
+  quantidade_total: 'Quantidade',
+  total_pedidos: 'Pedidos',
+  id_fornecedor: 'Cod. fabrica',
+  id_cliente: 'Cod. cliente',
+  id_vendedor: 'Cod. vendedor',
+  id_produto: 'Cod. produto',
+};
+const NUMERIC_INTEGER_COLUMNS = new Set(['ano', 'quantidade_total', 'total_pedidos', 'id_fornecedor', 'id_cliente', 'id_vendedor', 'id_produto']);
+const NUMERIC_MONEY_COLUMNS = new Set(['valor_total', 'ticket_medio']);
+
+let _catalog = [];
+let _active = null;
+let _mode = 'grafico';
+let _chart = null;
+let _lastData = null;
+let _chartType = 'line';
+let _tablePage = 1;
+const _tablePageSize = 25;
+const _reportFromUrl = new URLSearchParams(window.location.search).get('report') || '';
+
+function byId(id){ return document.getElementById(id); }
+
+const REPORT_DESCRIPTIONS = {
+  vendas_fornecedor_ano: 'Comparativo anual do faturamento por fabrica.',
+  vendas_produtos_ano: 'Evolucao anual dos produtos com maior volume de vendas.',
+  vendas_clientes_ano: 'Comparativo anual dos clientes com maior faturamento.',
+  vendas_vendedor_ano: 'Comparativo anual do faturamento por vendedor.',
+  pedidos_por_situacao: 'Resumo da carteira por situacao do pedido no periodo filtrado.',
+  top_clientes_periodo: 'Ranking dos clientes com maior faturamento no periodo selecionado.',
+  produtos_por_cliente: 'Lista dos produtos vendidos para o cliente selecionado.',
+  produtos_por_vendedor: 'Lista dos produtos vendidos pelo vendedor selecionado.',
+  produtos_por_fornecedor: 'Lista dos produtos vinculados a vendas da fabrica selecionada.',
+};
+
+function setMode(m){
+  _mode = m;
+  document.querySelectorAll('#mode button').forEach(b => b.classList.toggle('active', b.getAttribute('data-m')===m));
+  byId('chartWrap').style.display = m==='grafico' ? '' : 'none';
+  byId('tableWrap').style.display = m==='lista' ? '' : 'none';
+  byId('btnDetalhes').textContent = m === 'lista' ? 'Voltar ao grafico' : 'Ver detalhes na lista';
+}
+
+function getFilters(){
+  return {
+    ano_ini: byId('anoIni').value || '',
+    ano_fim: byId('anoFim').value || '',
+    dt_inicio: byId('dtInicio').value || '',
+    dt_fim: byId('dtFim').value || '',
+    id_cliente: byId('idCliente').value || '',
+    id_vendedor: byId('idVendedor').value || '',
+    id_fornecedor: byId('idFornecedor').value || '',
+  };
+}
+
+function renderCatalog(){
+  const q = (byId('q').value || '').trim().toLowerCase();
+  const box = byId('catalog');
+  const list = _catalog.filter(r => !q || (r.titulo||'').toLowerCase().includes(q) || (r.categoria||'').toLowerCase().includes(q));
+  byId('countPill').textContent = String(list.length);
+  box.innerHTML = list.map(r => `
+    <div class="rep ${_active?.id===r.id ? 'active':''}" onclick="selectReport('${r.id}')">
+      <div class="rep-title">${esc(r.titulo)}</div>
+      <div class="rep-cat">${esc(r.categoria||'')}</div>
+      <div class="rep-desc muted">${esc(r.descricao || REPORT_DESCRIPTIONS[r.id] || 'Relatorio padrao com grafico e lista.')}</div>
+    </div>
+  `).join('') || '<div class="placeholder">Nenhum relatorio encontrado.</div>';
+}
+
+function buildQuery(params){
+  const qs = new URLSearchParams();
+  Object.entries(params||{}).forEach(([k,v])=>{ if(v!=='' && v!=null) qs.set(k,String(v)); });
+  return qs.toString();
+}
+
+function inferTableColumns(rows){
+  if (!rows?.length) return [];
+  const keys = Object.keys(rows[0]);
+  const prefer = ['ano','situacao','nome_vendedor','nome_fornecedor','nome_cliente','desc_prod','valor_total','ticket_medio','quantidade_total','total_pedidos'];
+  const ordered = [...prefer.filter(k=>keys.includes(k)), ...keys.filter(k=>!prefer.includes(k))];
+  return ordered.slice(0, 10);
+}
+
+function formatColumnLabel(col){
+  return COLUMN_LABELS[col] || col.replace(/_/g, ' ');
+}
+
+function formatCellValue(col, value){
+  if (value == null || value === '') return '-';
+  if (NUMERIC_MONEY_COLUMNS.has(col)) return money(value);
+  if (NUMERIC_INTEGER_COLUMNS.has(col)) return integer(value);
+  return String(value);
+}
+
+function getTableRows(){
+  return Array.isArray(_lastData?.rows) ? _lastData.rows : [];
+}
+
+function getPagedRows(rows){
+  const totalRows = rows.length;
+  const totalPages = Math.max(1, Math.ceil(totalRows / _tablePageSize));
+  _tablePage = Math.min(Math.max(_tablePage, 1), totalPages);
+  const start = (_tablePage - 1) * _tablePageSize;
+  return {
+    rows: rows.slice(start, start + _tablePageSize),
+    totalRows,
+    totalPages,
+    start,
+  };
+}
+
+function renderPager(totalRows, totalPages, start){
+  byId('pagerInfo').textContent = totalRows ? `Pagina ${_tablePage} de ${totalPages} | ${start + 1}-${Math.min(start + _tablePageSize, totalRows)} de ${totalRows}` : 'Sem registros';
+  byId('btnPrevPage').disabled = !totalRows || _tablePage <= 1;
+  byId('btnNextPage').disabled = !totalRows || _tablePage >= totalPages;
+  byId('btnExportExcel').disabled = !totalRows;
+  byId('btnExportPdf').disabled = !totalRows;
+}
+
+function renderTable(rows){
+  const cols = inferTableColumns(rows);
+  const paged = getPagedRows(rows || []);
+  byId('thead').innerHTML = cols.map(c => `<th>${esc(formatColumnLabel(c))}</th>`).join('');
+  byId('tbody').innerHTML = paged.rows.map(r => `
+    <tr>${cols.map(c => `<td>${esc(formatCellValue(c, r[c]))}</td>`).join('')}</tr>
+  `).join('') || `<tr><td colspan="${cols.length||1}" class="muted">Sem dados</td></tr>`;
+  renderPager(paged.totalRows, paged.totalPages, paged.start);
+}
+
+function colorFor(i){
+  const pal = ['#2563eb','#16a34a','#f59e0b','#dc2626','#7c3aed','#0891b2','#db2777','#334155','#0ea5e9','#22c55e'];
+  return pal[i % pal.length];
+}
+
+function reportDefaultChartType(report){
+  if (!report?.id) return 'line';
+  if (report.id.startsWith('produtos_por_')) return 'bar';
+  if (['pedidos_por_situacao', 'top_clientes_periodo'].includes(report.id)) return 'bar';
+  return 'line';
+}
+
+function reportSupportsCircular(rows){
+  return Array.isArray(rows) && rows.length > 0;
+}
+
+function buildSeriesRows(rows){
+  const byAno = {};
+  rows.forEach(r => {
+    const ano = String(r.ano ?? '');
+    const name = r.nome_vendedor || r.nome_fornecedor || r.nome_cliente || r.desc_prod || r.situacao || r.id_fornecedor || r.id_cliente || r.id_vendedor || r.id_produto || 'Serie';
+    const val = Number(r.valor_total || 0);
+    if (!byAno[name]) byAno[name] = {};
+    byAno[name][ano] = (byAno[name][ano] || 0) + val;
+  });
+  const anos = [...new Set(rows.map(r => String(r.ano ?? '')))].filter(Boolean).sort();
+  const seriesNames = Object.keys(byAno).slice(0, 12);
+  return {
+    labels: anos,
+    datasets: seriesNames.map((name, idx) => ({
+      label: String(name).slice(0, 28),
+      data: anos.map(a => Number(byAno[name][a] || 0)),
+      borderColor: colorFor(idx),
+      backgroundColor: colorFor(idx) + '66',
+      tension: .25,
+      fill: false,
+    })),
+  };
+}
+
+function buildRankingRows(rows){
+  const top = [...rows]
+    .sort((a, b) => Number(b.valor_total || 0) - Number(a.valor_total || 0))
+    .slice(0, 15);
+  return {
+    labels: top.map(r => String(r.situacao || r.nome_vendedor || r.desc_prod || r.nome_fornecedor || r.nome_cliente || r.id_produto || 'Item').slice(0, 28)),
+    datasets: [{
+      label: 'Valor total',
+      data: top.map(r => Number(r.valor_total || 0)),
+      backgroundColor: top.map((_, idx) => colorFor(idx) + 'cc'),
+      borderColor: top.map((_, idx) => colorFor(idx)),
+      borderWidth: 1.5,
+    }],
+  };
+}
+
+function buildCircularRows(rows){
+  const totals = {};
+  rows.forEach(r => {
+    const name = r.situacao || r.nome_vendedor || r.nome_fornecedor || r.nome_cliente || r.desc_prod || r.id_fornecedor || r.id_cliente || r.id_vendedor || r.id_produto || 'Serie';
+    totals[name] = (totals[name] || 0) + Number(r.valor_total || 0);
+  });
+  const top = Object.entries(totals)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 12);
+  return {
+    labels: top.map(([name]) => String(name).slice(0, 28)),
+    datasets: [{
+      label: 'Valor total',
+      data: top.map(([, value]) => value),
+      backgroundColor: top.map((_, idx) => colorFor(idx) + 'cc'),
+      borderColor: top.map((_, idx) => colorFor(idx)),
+      borderWidth: 1.5,
+    }],
+  };
+}
+
+function isTimeSeriesReport(report, rows){
+  if (report?.id?.startsWith('produtos_por_')) return false;
+  return Array.isArray(rows) && rows.some(r => r.ano != null && r.ano !== '');
+}
+
+function renderChart(report, rows){
+  const ctx = byId('chart');
+  if (_chart) { _chart.destroy(); _chart = null; }
+  if (!rows?.length) { return; }
+  const type = _chartType;
+  const isCircular = type === 'pie' || type === 'doughnut';
+  const isTimeSeries = isTimeSeriesReport(report, rows);
+  const data = isCircular
+    ? buildCircularRows(rows)
+    : (isTimeSeries ? buildSeriesRows(rows) : buildRankingRows(rows));
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'bottom' },
+      tooltip: { callbacks: { label: (it)=> `${it.label || it.dataset.label}: ${money(isCircular ? it.parsed : it.parsed.y)}` } }
+    }
+  };
+
+  if (!isCircular) {
+    options.scales = { y: { ticks: { callback: (v)=> money(v) } } };
+  }
+
+  _chart = new Chart(ctx, {
+    type,
+    data,
+    options
+  });
+}
+
+function reportNeeds(report){
+  if (!report?.id) return null;
+  if (report.id === 'produtos_por_cliente') return { key:'id_cliente', label:'cliente' };
+  if (report.id === 'produtos_por_fornecedor') return { key:'id_fornecedor', label:'fabrica' };
+  return null;
+}
+
+function setHint(message){
+  const hint = byId('hintBox');
+  hint.textContent = message;
+  hint.style.display = '';
+}
+
+function buildExportFilename(ext){
+  const slug = String(_active?.id || 'relatorio').replace(/[^a-z0-9_-]+/gi, '-').toLowerCase();
+  const date = new Date().toISOString().slice(0, 10);
+  return `${slug}_${date}.${ext}`;
+}
+
+function getExportColumns(rows){
+  return inferTableColumns(rows);
+}
+
+function getFilterSummary(){
+  const f = getFilters();
+  const parts = [];
+  if (f.ano_ini || f.ano_fim) parts.push(`Anos: ${f.ano_ini || '-'} a ${f.ano_fim || '-'}`);
+  if (f.dt_inicio || f.dt_fim) parts.push(`Datas: ${f.dt_inicio || '-'} a ${f.dt_fim || '-'}`);
+  if (f.id_cliente) parts.push(`Cliente: ${byId('idCliente').selectedOptions[0]?.textContent || f.id_cliente}`);
+  if (f.id_vendedor) parts.push(`Vendedor: ${byId('idVendedor').selectedOptions[0]?.textContent || f.id_vendedor}`);
+  if (f.id_fornecedor) parts.push(`Fabrica: ${byId('idFornecedor').selectedOptions[0]?.textContent || f.id_fornecedor}`);
+  return parts.join(' | ') || 'Sem filtros especificos';
+}
+
+function downloadBlob(content, mimeType, filename){
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+
+function exportTableExcel(){
+  const rows = getTableRows();
+  if (!rows.length) return;
+  const cols = getExportColumns(rows);
+  const title = esc(_active?.titulo || 'Relatorio');
+  const filters = esc(getFilterSummary());
+  const header = cols.map(c => `<th>${esc(formatColumnLabel(c))}</th>`).join('');
+  const body = rows.map(r => `<tr>${cols.map(c => `<td>${esc(formatCellValue(c, r[c]))}</td>`).join('')}</tr>`).join('');
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:Arial,sans-serif;padding:16px}h1{font-size:20px;margin:0 0 6px}p{color:#475569;font-size:12px;margin:0 0 14px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #cbd5e1;padding:8px 10px;font-size:12px;text-align:left}th{background:#e2e8f0}</style></head><body><h1>${title}</h1><p>${filters}</p><table><thead><tr>${header}</tr></thead><tbody>${body}</tbody></table></body></html>`;
+  downloadBlob('\ufeff' + html, 'application/vnd.ms-excel;charset=utf-8', buildExportFilename('xls'));
+}
+
+function exportTablePdf(){
+  const rows = getTableRows();
+  if (!rows.length) return;
+  const cols = getExportColumns(rows);
+  const title = esc(_active?.titulo || 'Relatorio');
+  const filters = esc(getFilterSummary());
+  const header = cols.map(c => `<th>${esc(formatColumnLabel(c))}</th>`).join('');
+  const body = rows.map(r => `<tr>${cols.map(c => `<td>${esc(formatCellValue(c, r[c]))}</td>`).join('')}</tr>`).join('');
+  const win = window.open('', '_blank', 'width=1200,height=800');
+  if (!win) return;
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#0f172a}h1{font-size:22px;margin:0 0 8px}p{font-size:12px;color:#475569;margin:0 0 16px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #cbd5e1;padding:7px 9px;font-size:11px;text-align:left;vertical-align:top}th{background:#e2e8f0}@media print{body{padding:0}button{display:none}}</style></head><body><h1>${title}</h1><p>${filters}</p><table><thead><tr>${header}</tr></thead><tbody>${body}</tbody></table><script>window.onload=function(){setTimeout(function(){window.print();},150);};<\/script></body></html>`);
+  win.document.close();
+}
+
+function fillSelect(id, items, placeholder){
+  byId(id).innerHTML = `<option value="">${esc(placeholder)}</option>` + (items || []).map(item => `
+    <option value="${esc(item.id)}">${esc(item.nome || item.nome_vendedor || item.nome_cliente || ('#' + item.id))}</option>
+  `).join('');
+}
+
+async function loadLookups(){
+  try {
+    const data = await api('/api/pedidos/lookups');
+    fillSelect('idCliente', data.clientes || [], 'Selecione');
+    fillSelect('idVendedor', data.vendedores || [], 'Todos');
+    fillSelect('idFornecedor', data.fornecedores || [], 'Selecione');
+  } catch (_) {
+    // Tela continua funcional para relatorios agregados mesmo sem lookups.
+  }
+}
+
+async function selectReport(id){
+  const r = _catalog.find(x => x.id === id);
+  if (!r) return;
+  const reportChanged = _active?.id !== r.id;
+  _active = r;
+  if (reportChanged && !byId('chartType').dataset.userPicked) {
+    _chartType = reportDefaultChartType(r);
+  }
+  byId('chartType').value = _chartType;
+  renderCatalog();
+  byId('vizTitle').textContent = r.titulo;
+  byId('vizSub').textContent = r.descricao || REPORT_DESCRIPTIONS[r.id] || 'Relatorio padrao.';
+  _tablePage = 1;
+
+  const f = getFilters();
+  const need = reportNeeds(r);
+  if (need && !f[need.key]) {
+    renderTable([]);
+    if (_chart) { _chart.destroy(); _chart = null; }
+    setMode(_mode);
+    setHint(`Selecione um ${need.label} no topo para carregar este detalhe.`);
+    return;
+  }
+
+  const params = { ...(r.defaults||{}), ...f };
+  const url = r.endpoint + '?' + buildQuery(params);
+  try {
+    const data = await api(url);
+    _lastData = data;
+
+    const rows = data.rows || [];
+    renderTable(rows);
+    renderChart(r, rows);
+    if (!rows.length) setHint('Nenhum dado encontrado para os filtros informados.');
+    else byId('hintBox').style.display = 'none';
+    setMode(_mode);
+  } catch (e) {
+    if (_chart) { _chart.destroy(); _chart = null; }
+    renderTable([]);
+    setMode(_mode);
+    setHint(e.message || 'Erro ao carregar relatorio');
+  }
+}
+
+function openDetalhes(){
+  setMode(_mode === 'grafico' ? 'lista' : 'grafico');
+  if (_mode === 'lista') byId('tableWrap').scrollIntoView({ behavior:'smooth', block:'nearest' });
+  else byId('chartWrap').scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+
+async function loadCatalog(){
+  const state = byId('stateBox');
+  const dash = byId('dash');
+  state.className = 'loading';
+  state.textContent = 'Carregando catalogo...';
+  state.style.display = '';
+  dash.style.display = 'none';
+  try{
+    const nowY = new Date().getFullYear();
+    if (!byId('anoFim').value) byId('anoFim').value = String(nowY);
+    if (!byId('anoIni').value) byId('anoIni').value = String(nowY - 4);
+
+    const cat = await api('/api/analytics/comercial/relatorios-padrao/catalogo?' + buildQuery(getFilters()));
+    _catalog = cat.relatorios || [];
+    renderCatalog();
+    dash.style.display = '';
+    state.style.display = 'none';
+    const initialId = (_reportFromUrl && _catalog.some(r => r.id === _reportFromUrl)) ? _reportFromUrl : (_active?.id || _catalog[0]?.id);
+    if (initialId) selectReport(initialId);
+  }catch(e){
+    state.className = 'error';
+    state.textContent = e.message || 'Erro ao carregar';
+  }
+}
+
+byId('btnAtualizar').addEventListener('click', ()=>{
+  // recarrega o catalogo para puxar defaults de ano
+  loadCatalog();
+});
+byId('btnDetalhes').addEventListener('click', ()=>openDetalhes());
+byId('chartType').addEventListener('change', ()=>{
+  _chartType = byId('chartType').value || 'line';
+  byId('chartType').dataset.userPicked = '1';
+  if (_active && _lastData?.rows?.length) renderChart(_active, _lastData.rows);
+});
+document.querySelectorAll('#mode button').forEach(b => b.addEventListener('click', ()=> setMode(b.getAttribute('data-m'))));
+byId('btnPrevPage').addEventListener('click', ()=>{
+  if (_tablePage > 1) {
+    _tablePage--;
+    renderTable(getTableRows());
+  }
+});
+byId('btnNextPage').addEventListener('click', ()=>{
+  _tablePage++;
+  renderTable(getTableRows());
+});
+byId('btnExportExcel').addEventListener('click', ()=> exportTableExcel());
+byId('btnExportPdf').addEventListener('click', ()=> exportTablePdf());
+
+window.addEventListener('message',(ev)=>{
+  if(ev.data && ev.data.type==='theme-changed') document.documentElement.setAttribute('data-theme', ev.data.theme);
+  if(ev.data && ev.data.type==='font-pref-changed'){
+    window.SysFont?.apply(ev.data.familyId, ev.data.sizeId);
+    window.SysVisual?.apply(ev.data.accentId, ev.data.compact);
+  }
+});
+
+loadLookups().finally(loadCatalog);
+</script>
+</body>
+</html>

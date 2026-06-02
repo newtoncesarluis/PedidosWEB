@@ -89,8 +89,8 @@ async function salvarSocios(idCliente, socios, conn) {
     else if (cols.has('cargo'))   dados.cargo        = sv(socio.cargo);
     if (cols.has('nascimento'))   dados.nascimento   = socio.dtnascimento || null;
     else if (cols.has('dtnascimento')) dados.dtnascimento = socio.dtnascimento || null;
-    if (cols.has('percentual'))   dados.percentual   = socio.participacao || null;
-    else if (cols.has('participacao')) dados.participacao = socio.participacao || null;
+    if (cols.has('percentual'))   dados.percentual   = socio.participacao != null ? socio.participacao : 0;
+    else if (cols.has('participacao')) dados.participacao = socio.participacao ?? null;
     if (cols.has('nome'))  dados.nome  = sv(socio.nome);
     if (cols.has('cpf'))   dados.cpf   = sv(socio.cpf);
     if (cols.has('rg'))    dados.rg    = sv(socio.rg || '');

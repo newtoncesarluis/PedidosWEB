@@ -66,7 +66,7 @@ router.get('/:id', async (req, res) => {
     if (!rows.length) return res.status(404).json({ error: 'Grade não encontrada' });
     const grade = rows[0];
     const [itens] = await pool.query(
-      `SELECT id, nome, sequencial FROM descricao_grades
+      `SELECT id, nome, sequencial, COALESCE(qtd_minima,0) AS qtd_minima FROM descricao_grades
        WHERE id_grade = ? AND (excluido='N' OR excluido IS NULL OR excluido='')
        ORDER BY sequencial, nome`,
       [req.params.id]
@@ -99,8 +99,8 @@ router.post('/', async (req, res) => {
       const item = itens[i];
       if (!item.nome?.trim()) continue;
       await conn.query(
-        `INSERT INTO descricao_grades (id_grade, nome, sequencial, excluido) VALUES (?, ?, ?, 'N')`,
-        [gradeId, item.nome.toUpperCase().trim(), i + 1]
+        `INSERT INTO descricao_grades (id_grade, nome, sequencial, excluido, qtd_minima) VALUES (?, ?, ?, 'N', ?)`,
+        [gradeId, item.nome.toUpperCase().trim(), i + 1, parseInt(item.qtd_minima) || 0]
       );
     }
 
@@ -152,6 +152,14 @@ router.put('/:id', async (req, res) => {
       }
     }
 
+    // Atualizar qtd_minima dos itens existentes
+    for (const item of itens.filter(i => i.id)) {
+      await conn.query(
+        `UPDATE descricao_grades SET qtd_minima=? WHERE id=?`,
+        [parseInt(item.qtd_minima) || 0, item.id]
+      );
+    }
+
     // Inserir itens novos (sem id)
     const novos = itens.filter(i => !i.id && i.nome?.trim());
     if (novos.length) {
@@ -163,8 +171,8 @@ router.put('/:id', async (req, res) => {
       for (const item of novos) {
         seq++;
         await conn.query(
-          `INSERT INTO descricao_grades (id_grade, nome, sequencial, excluido) VALUES (?, ?, ?, 'N')`,
-          [req.params.id, item.nome.toUpperCase().trim(), seq]
+          `INSERT INTO descricao_grades (id_grade, nome, sequencial, excluido, qtd_minima) VALUES (?, ?, ?, 'N', ?)`,
+          [req.params.id, item.nome.toUpperCase().trim(), seq, parseInt(item.qtd_minima) || 0]
         );
       }
     }

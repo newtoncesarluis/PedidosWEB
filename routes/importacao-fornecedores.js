@@ -2,6 +2,39 @@ const express = require('express');
 const router = express.Router();
 const { getPool } = require('../config/database');
 
+const CAMPOS_DATA = new Set([
+  'dt_cadastro', 'dt_atualizacao', 'dt_validade', 'dt_vencimento',
+  'data_cadastro', 'data_atualizacao', 'data_nascimento', 'dt_nascimento',
+  'dtcadastro', 'dtalterado',
+]);
+const _MESES = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+function normalizarData(val) {
+  if (!val) return null;
+  const s = String(val).trim();
+  if (!s) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const ano = new Date().getFullYear();
+  const m1 = s.match(/^(?:[A-Za-z]{3}\s+)?([A-Za-z]{3})\s+(\d{1,2})(?:\s+(\d{4}))?$/);
+  if (m1) {
+    const mi = _MESES.indexOf(m1[1].toLowerCase());
+    if (mi >= 0) {
+      const y  = m1[3] ? parseInt(m1[3]) : ano;
+      const mm = String(mi + 1).padStart(2, '0');
+      const dd = String(parseInt(m1[2])).padStart(2, '0');
+      return `${y}-${mm}-${dd}`;
+    }
+  }
+  const m2 = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (m2) {
+    return `${m2[3]}-${m2[2].padStart(2,'0')}-${m2[1].padStart(2,'0')}`;
+  }
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+  return null;
+}
+
 const CAMPOS_NUMERICOS = new Set(['desconto1', 'desconto2', 'desconto3', 'desconto4', 'desconto5', 'desconto6']);
 
 const DEFAULT_CAMPOS = [
@@ -146,13 +179,20 @@ router.post('/importar-linha', async (req, res) => {
     const dados = {};
     for (const [campo, valor] of Object.entries(campos)) {
       if (camposValidos.includes(campo) && colunasReais.has(campo)) {
-        dados[campo] = valor == null ? '' : String(valor);
+        dados[campo] = valor == null ? '' : String(valor).toUpperCase();
       }
     }
 
     for (const cn of CAMPOS_NUMERICOS) {
       if (Object.prototype.hasOwnProperty.call(dados, cn) && dados[cn] === '') {
         dados[cn] = '0';
+      }
+    }
+    for (const cd of CAMPOS_DATA) {
+      if (Object.prototype.hasOwnProperty.call(dados, cd)) {
+        const norm = normalizarData(dados[cd]);
+        if (norm) dados[cd] = norm;
+        else delete dados[cd];
       }
     }
 
@@ -179,8 +219,8 @@ router.post('/importar-linha', async (req, res) => {
     if (!dados.status) dados.status = 'A';
     dados.excluido = 'N';
     if (!dados.dt_cadastro && colunasReais.has('dt_cadastro')) {
-      const [[d]] = await conn.query('SELECT CURDATE() AS hoje');
-      dados.dt_cadastro = d?.hoje ? String(d.hoje).slice(0, 10) : new Date().toISOString().slice(0, 10);
+      const _h = new Date();
+      dados.dt_cadastro = `${_h.getFullYear()}-${String(_h.getMonth()+1).padStart(2,'0')}-${String(_h.getDate()).padStart(2,'0')}`;
     }
 
     const insertCols = Object.keys(dados).filter(c => colunasReais.has(c));

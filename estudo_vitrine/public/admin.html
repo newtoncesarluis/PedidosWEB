@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Estudo Vitrine Digital</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;background:#f6f7f9;color:#172033}.top{height:58px;background:#fff;border-bottom:1px solid #dde3ec;display:flex;align-items:center;justify-content:space-between;padding:0 22px;position:sticky;top:0;z-index:2}.brand{font-weight:800}.brand span{color:#059669}.wrap{max-width:1180px;margin:0 auto;padding:20px}.grid{display:grid;grid-template-columns:340px 1fr;gap:16px}.panel{background:#fff;border:1px solid #dde3ec;border-radius:8px;overflow:hidden}.panel h2{font-size:15px;margin:0;padding:14px 16px;border-bottom:1px solid #edf1f6}.body{padding:16px}.muted{color:#64748b;font-size:13px}.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.select,.input{height:38px;border:1px solid #cfd8e3;border-radius:7px;padding:0 10px;background:#fff;min-width:0}.select{width:100%}.btn{height:38px;border:1px solid #0f766e;background:#0f766e;color:#fff;border-radius:7px;padding:0 13px;font-weight:700;cursor:pointer}.btn.secondary{background:#fff;color:#172033;border-color:#cfd8e3}.btn:disabled{opacity:.6;cursor:not-allowed}.linkbox{margin-top:12px;display:none}.linkbox.open{display:block}.linkline{display:flex;gap:8px}.linkline input{flex:1;font-family:Consolas,monospace;font-size:12px}.tabs{display:flex;gap:6px;border-bottom:1px solid #dde3ec;padding:8px;background:#fbfcfe}.tab{border:1px solid transparent;background:transparent;border-radius:7px;height:32px;padding:0 10px;cursor:pointer;font-weight:700;color:#475569}.tab.active{background:#fff;border-color:#cfd8e3;color:#0f766e}.tablewrap{overflow:auto}.tbl{width:100%;border-collapse:collapse;font-size:13px}.tbl th,.tbl td{padding:10px 12px;border-bottom:1px solid #edf1f6;text-align:left;white-space:nowrap}.tbl th{font-size:11px;text-transform:uppercase;color:#64748b;background:#fbfcfe}.pill{display:inline-flex;align-items:center;height:22px;border-radius:999px;background:#ecfdf5;color:#047857;font-size:11px;font-weight:800;padding:0 8px}.num{text-align:right}.empty{padding:24px;text-align:center;color:#64748b}.cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:16px}.card{background:#fff;border:1px solid #dde3ec;border-radius:8px;padding:12px}.card b{display:block;font-size:20px}.card span{font-size:12px;color:#64748b}@media(max-width:900px){.grid{grid-template-columns:1fr}.cards{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="brand">Estudo <span>Vitrine Digital</span></div>
+  <a class="btn secondary" href="/vitrine/demo-loja-centro" target="_blank" rel="noopener">Abrir link seed</a>
+</div>
+<main class="wrap">
+  <div class="cards">
+    <div class="card"><b id="mClientes">0</b><span>Clientes</span></div>
+    <div class="card"><b id="mProdutos">0</b><span>Produtos com preco</span></div>
+    <div class="card"><b id="mTabelas">0</b><span>Tabelas</span></div>
+    <div class="card"><b id="mPedidos">0</b><span>Pedidos recebidos</span></div>
+  </div>
+
+  <div class="grid">
+    <section class="panel">
+      <h2>Gerar vitrine para cliente</h2>
+      <div class="body">
+        <p class="muted">Escolha um cliente. O link abre somente os produtos que possuem preco na tabela vinculada a ele.</p>
+        <select id="clientes" class="select"></select>
+        <div class="row" style="margin-top:12px">
+          <button id="gerar" class="btn">Gerar link</button>
+          <button id="refresh" class="btn secondary">Atualizar pedidos</button>
+        </div>
+        <div id="linkbox" class="linkbox">
+          <div class="muted" style="margin-bottom:6px">Link gerado:</div>
+          <div class="linkline">
+            <input id="link" class="input" readonly>
+            <button id="copiar" class="btn secondary">Copiar</button>
+          </div>
+          <div class="row" style="margin-top:8px">
+            <a id="abrir" class="btn" href="#" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center">Abrir vitrine</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="tabs">
+        <button class="tab active" data-tab="pedidos">Pedidos</button>
+        <button class="tab" data-tab="produtos">Produtos</button>
+        <button class="tab" data-tab="clientesTab">Clientes</button>
+        <button class="tab" data-tab="tabelas">Tabelas</button>
+      </div>
+      <div id="content" class="tablewrap"></div>
+    </section>
+  </div>
+</main>
+
+<script>
+const state = { clientes: [], produtos: [], tabelas: [], pedidos: [], tab: 'pedidos' };
+const money = v => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+async function api(url, opts) {
+  const r = await fetch(url, opts);
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.erro || d.error || 'Erro ' + r.status);
+  return d;
+}
+
+function table(headers, rows) {
+  if (!rows.length) return '<div class="empty">Nenhum registro.</div>';
+  return '<table class="tbl"><thead><tr>' + headers.map(h => '<th>' + h + '</th>').join('') + '</tr></thead><tbody>' + rows.join('') + '</tbody></table>';
+}
+
+function render() {
+  document.getElementById('mClientes').textContent = state.clientes.length;
+  document.getElementById('mProdutos').textContent = state.produtos.length;
+  document.getElementById('mTabelas').textContent = state.tabelas.length;
+  document.getElementById('mPedidos').textContent = state.pedidos.length;
+
+  const csel = document.getElementById('clientes');
+  csel.innerHTML = state.clientes.map(c => `<option value="${c.id}">${esc(c.nome)} - ${esc(c.cpf || '')}</option>`).join('');
+
+  const content = document.getElementById('content');
+  if (state.tab === 'pedidos') {
+    content.innerHTML = table(['Numero','Cliente','Fornecedor','Status','Itens','Total','Data'], state.pedidos.map(p =>
+      `<tr><td><b>${esc(p.numero)}</b></td><td>${esc(p.nome_cliente)}</td><td>${esc(p.nome_fornecedor || '-')}</td><td><span class="pill">${esc(p.situacao_pedido)}</span></td><td>${p.itens}</td><td class="num">${money(p.vlrtotalpedido)}</td><td>${esc(p.dtcadastro || '')}</td></tr>`
+    ));
+  } else if (state.tab === 'produtos') {
+    content.innerHTML = table(['Codigo','Produto','Grupo','Fornecedor','Un','Preco'], state.produtos.map(p =>
+      `<tr><td>${p.id}</td><td>${esc(p.descricao)}</td><td>${esc(p.nome_grupo || '-')}</td><td>${esc(p.fornecedor || '-')}</td><td>${esc(p.unidade || 'UN')}</td><td class="num">${money(p.preco)}</td></tr>`
+    ));
+  } else if (state.tab === 'clientesTab') {
+    content.innerHTML = table(['Codigo','Cliente','Documento','Telefone','Email'], state.clientes.map(c =>
+      `<tr><td>${c.id}</td><td>${esc(c.nome)}</td><td>${esc(c.cpf || '')}</td><td>${esc(c.telefone || '')}</td><td>${esc(c.email || '')}</td></tr>`
+    ));
+  } else {
+    content.innerHTML = table(['Codigo','Tabela','Ativa','Itens'], state.tabelas.map(t =>
+      `<tr><td>${t.id}</td><td>${esc(t.descricao)}</td><td>${esc(t.Tabela_Ativa)}</td><td>${t.itens}</td></tr>`
+    ));
+  }
+}
+
+async function load() {
+  const [clientes, produtos, tabelas, pedidos] = await Promise.all([
+    api('/api/demo/clientes'),
+    api('/api/demo/produtos'),
+    api('/api/demo/tabelas'),
+    api('/api/demo/pedidos')
+  ]);
+  Object.assign(state, { clientes, produtos, tabelas, pedidos });
+  render();
+}
+
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b === btn));
+    state.tab = btn.dataset.tab;
+    render();
+  });
+});
+
+document.getElementById('gerar').addEventListener('click', async () => {
+  const btn = document.getElementById('gerar');
+  btn.disabled = true;
+  try {
+    const d = await api('/api/vitrine/gerar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id_cliente: document.getElementById('clientes').value, dias_validade: 60 })
+    });
+    const abs = location.origin + d.link;
+    document.getElementById('link').value = abs;
+    document.getElementById('abrir').href = abs;
+    document.getElementById('linkbox').classList.add('open');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+document.getElementById('copiar').addEventListener('click', async () => {
+  const value = document.getElementById('link').value;
+  if (navigator.clipboard) await navigator.clipboard.writeText(value);
+});
+document.getElementById('refresh').addEventListener('click', load);
+
+load().catch(err => {
+  document.getElementById('content').innerHTML = '<div class="empty">' + esc(err.message) + '</div>';
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,2685 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Importação de Preços — SysRepWeb</title>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <link rel="stylesheet" href="/assets/themes.css">
+  <script src="/assets/themes.js"></script>
+  <style>
+    /* Página alinhada ao SysRepWeb — usa variáveis de themes.css */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font) !important;
+      font-size: var(--base-font-size, 14px) !important;
+      background: var(--content-bg, var(--bg, #f8fafc)) !important;
+      color: var(--content-text, #1e293b) !important;
+      min-height: 100vh;
+      padding: 16px;
+      line-height: 1.45;
+      -webkit-font-smoothing: antialiased;
+    }
+    body::before { display: none !important; }
+    .wrapper {
+      position: relative; z-index: 1; width: 100%; max-width: 1900px; margin: 0 auto;
+      --font-body: var(--font, Inter, system-ui, sans-serif);
+      --muted: var(--text2, #64748b);
+      --border: var(--input-border, #e5e7eb);
+      --text: var(--content-text, #1e293b);
+      --surface: var(--glass-bg, #fff);
+      --accent2: var(--accent-hover, var(--accent, #0d9488));
+      --green: var(--success, #22c55e);
+      --red: var(--danger, #ef4444);
+      --yellow: var(--warn, #eab308);
+      --row-even: color-mix(in srgb, var(--content-text) 3%, transparent);
+      --row-hover: color-mix(in srgb, var(--accent) 10%, transparent);
+      --shadow-sm: var(--shadow-sm, 0 1px 4px rgba(0,0,0,.08));
+      --shadow-md: var(--shadow-md, 0 4px 16px rgba(0,0,0,.1));
+    }
+
+    .imp-header { margin-bottom: 14px; }
+    .imp-h1 {
+      font-size: 15px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase;
+      color: var(--content-text);
+    }
+    .imp-crumb { font-size: 11px; font-weight: 600; color: var(--text2, #64748b); margin-top: 4px; }
+
+    .imp-toolbar {
+      display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 16px;
+      padding: 12px 16px;
+      background: var(--glass-bg, #fff);
+      border: 1px solid var(--input-border, #e5e7eb);
+      border-radius: var(--radius-md, 10px);
+      margin-bottom: 8px;
+      box-shadow: var(--shadow-sm, 0 1px 4px rgba(0,0,0,.06));
+    }
+    .imp-field { display: flex; flex-direction: column; gap: 6px; min-width: 200px; flex: 1; max-width: 380px; }
+    .imp-field--file { flex: 1 1 320px; min-width: 200px; max-width: none; }
+    .imp-file-row {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px;
+    }
+    .imp-file-inline {
+      margin: 0;
+      font-family: var(--font-body);
+      font-size: 12px;
+      line-height: 1.35;
+      color: var(--muted);
+      flex: 1 1 220px;
+      min-width: 180px;
+    }
+    .imp-file-inline strong { color: var(--text); font-weight: 700; }
+
+    .imp-menu-actions {
+      flex-shrink: 0;
+      align-self: flex-end;
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .imp-btn-menu {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 14px;
+      font-size: 12px;
+      font-weight: 700;
+      font-family: var(--font-body);
+      text-decoration: none;
+      border-radius: 7px;
+      background: color-mix(in srgb, var(--accent-hover, var(--accent)) 10%, transparent);
+      border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+      color: var(--accent2, var(--accent));
+      transition: .15s;
+      white-space: nowrap;
+    }
+    .imp-btn-menu:hover { filter: brightness(1.06); border-color: var(--accent); }
+    .tp-import-wrap {
+      width: 100%; margin: 10px 0 12px;
+      padding: 12px 16px; border-radius: var(--radius-md, 10px);
+      border: 1px dashed color-mix(in srgb, var(--accent) 35%, var(--input-border));
+      background: color-mix(in srgb, var(--accent) 5%, transparent);
+    }
+    .tp-vinculo-msg { font-size: 13px; font-weight: 700; color: var(--content-text); margin-bottom: 10px; line-height: 1.35; }
+    .tp-vinculo-msg.tp-vinculo-loading { color: var(--text2); font-weight: 600; }
+    .tp-import-wrap .tp-chk-label { font-size: 14px !important; font-weight: 600; color: var(--content-text); line-height: 1.35; align-items: flex-start; gap: 10px !important; }
+    .tp-import-wrap .tp-chk-label input { width: 20px !important; height: 20px !important; margin-top: 2px; flex-shrink: 0; }
+    .tp-import-hint { font-size: 13px; color: var(--text2); margin-top: 10px; line-height: 1.45; font-weight: 500; }
+    .tp-row {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 10px;
+    }
+    .tp-row select {
+      font-size: 14px; padding: 8px 10px; border-radius: 7px; border: 1px solid var(--input-border);
+      background: var(--glass-bg); color: var(--content-text); max-width: min(260px, 100%);
+      font-family: var(--font-body);
+    }
+    .tp-row .tp-remove {
+      padding: 6px 12px; font-size: 13px; font-weight: 700; border-radius: 7px; cursor: pointer;
+      border: 1px solid var(--input-border); background: transparent; color: var(--text2);
+    }
+    .tp-row .tp-remove:hover { border-color: var(--danger); color: var(--danger); }
+    .btn-tp-add {
+      margin-top: 10px; padding: 8px 14px; font-size: 14px; font-weight: 800; border-radius: 7px;
+      border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent);
+      color: var(--accent); cursor: pointer; font-family: var(--font-body);
+    }
+    .btn-tp-add:hover { filter: brightness(1.05); }
+    .imp-label { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text2, #64748b); letter-spacing: 0.04em; }
+    .imp-label .req { color: var(--danger, #ef4444); }
+    .imp-forn-wrap { display: flex; align-items: stretch; gap: 8px; }
+    .imp-icon-btn {
+      padding: 8px 12px; font-size: 14px; border-radius: 7px;
+      background: var(--glass-bg, #fff); color: var(--content-text);
+      border: 1.5px solid var(--input-border, #e5e7eb); cursor: pointer; font-weight: 600;
+      transition: .15s; font-family: var(--font-body);
+    }
+    .imp-icon-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    .btn-file {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 8px 14px; font-size: 12px; font-weight: 700; font-family: var(--font-body);
+      background: var(--accent); color: var(--btn-text, #fff);
+      border: 1.5px solid var(--accent); border-radius: 7px; cursor: pointer;
+      transition: .15s; white-space: nowrap;
+    }
+    .btn-file:hover { filter: brightness(1.06); }
+    .btn-file.bloqueada { opacity: .45; pointer-events: none; }
+    .file-hint { font-size: 11px; color: var(--muted); white-space: nowrap; }
+
+    .forn-sel-wrap { position: relative; flex: 1; min-width: 0; }
+    .forn-sel-wrap::after { content:'▾'; position:absolute; right:.75rem; top:50%; transform:translateY(-50%); color:var(--muted); pointer-events:none; }
+    .forn-select { width:100%; padding:.65rem 2rem .65rem .75rem; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-md); color:var(--text); font-family:var(--font-body); font-size:13px; outline:none; appearance:none; transition:border-color .15s, box-shadow .15s; }
+    .forn-select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
+    .btn-sm { padding:.68rem .92rem; background:transparent; border:1px solid var(--border); border-radius:var(--radius-md); color:var(--muted); font-family:var(--font-body); font-size:.9rem; font-weight:600; cursor:pointer; transition:all .15s; }
+    .btn-sm:hover { border-color:var(--accent2); color:var(--accent2); }
+    .forn-loading { font-family:'Space Mono',monospace; font-size:.68rem; color:var(--muted); display:none; }
+    .forn-loading.visible { display:block; }
+
+    /* Alerta fornecedor obrigatório */
+    .alert-forn { display:none; background:rgba(255,125,125,.08); border:1px solid rgba(255,125,125,.3); border-radius:8px; padding:.65rem 1rem; font-family:'Space Mono',monospace; font-size:.72rem; color:var(--red); margin-bottom:1rem; }
+    .alert-forn.visible { display:flex; align-items:center; gap:.6rem; }
+
+    /* Zona de arrasto — compacta (instruções na barra de arquivo) */
+    .drop-zone {
+      border: 2px dashed color-mix(in srgb, var(--accent) 28%, var(--input-border));
+      border-radius: var(--radius-md);
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      background: var(--surface);
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 8px;
+      cursor: default;
+      box-shadow: var(--shadow-sm);
+      min-height: 48px;
+      transition: border-color .2s, background .2s;
+    }
+    .drop-zone .drop-inner {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 10px 14px;
+    }
+    .drop-zone .drop-icon-wrap {
+      width: auto;
+      height: auto;
+      border-radius: 0;
+      background: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      line-height: 1;
+      animation: none;
+    }
+    .drop-zone .drop-title { font-family: var(--font-body); font-size: 12px; font-weight: 700; color: var(--text); }
+    .drop-zone .drop-sub { display: none; }
+    .drop-zone.dragover {
+      border-color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 7%, transparent);
+    }
+    .drop-zone input[type="file"] { display:none; }
+    .quick-guide {
+      margin: 0 0 10px;
+      padding: 10px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.45;
+      font-family: var(--font-body);
+      color: var(--muted);
+      border: 1px solid color-mix(in srgb, var(--content-text) 8%, transparent);
+      border-radius: var(--radius-md);
+      background: color-mix(in srgb, var(--content-text) 3%, transparent);
+    }
+    .quick-guide strong { color: var(--text); font-size: 14px; }
+
+    /* Bars */
+    .sheet-bar { display:flex; gap:.5rem; flex-wrap:wrap; margin-bottom:.7rem; align-items:center; }
+    .sheet-bar label { color:var(--muted); font-family:var(--font-body); font-size:.88rem; letter-spacing:.01em; font-weight:600; }
+    .sheet-btn { padding:.52rem 1rem; border-radius:999px; border:1px solid var(--border); background:var(--surface); color:var(--muted); font-family:var(--font-body); font-size:.9rem; font-weight:600; cursor:pointer; transition:all .15s; }
+    .sheet-btn:hover { border-color:var(--accent2); color:var(--accent2); }
+    .sheet-btn.active { background:var(--accent); border-color:var(--accent); color:#ffffff; font-weight:700; }
+
+    /* Map counter (inline no toolbar) — legível */
+    .map-counter { font-family: var(--font-body); font-size: 13px; color: var(--muted); white-space: nowrap; }
+    .map-counter span { color: var(--accent); font-weight: 800; }
+    .map-counter .unmapped { color: var(--yellow); font-weight: 700; }
+    .map-critical { font-size: 13px; font-weight: 700; color: var(--red); }
+    .btn-limpar-map { padding: 6px 10px; background: transparent; border: 1px solid var(--border); border-radius: 7px; color: var(--muted); font-family: var(--font-body); font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s; white-space: nowrap; }
+    .btn-limpar-map:hover { border-color: var(--red); color: var(--red); }
+    .btn-map-ess { padding: 8px 12px; background: rgba(15,117,184,.08); border: 1px solid rgba(15,117,184,.3); border-radius: 8px; color: var(--accent2); font-size: 13px; font-weight: 800; cursor: pointer; white-space: nowrap; font-family: var(--font-body); }
+    .btn-map-ess:hover { background: rgba(15,117,184,.16); }
+    .map-sep { width:1px; height:18px; background:var(--border); flex-shrink:0; }
+
+    /* Rodapé de dados */
+    .data-footer { font-family:'Space Mono',monospace; font-size:.58rem; color:var(--muted); padding:.3rem .1rem; display:flex; gap:1.2rem; flex-wrap:wrap; }
+    .data-footer strong { color:var(--muted2,#888898); }
+
+    /* Toolbar de dados (filtrar / mapear / importar) */
+    #output .toolbar { display:flex; gap:.75rem; margin-bottom:.95rem; align-items:center; flex-wrap:wrap; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-md); padding:.9rem .95rem; box-shadow:var(--shadow-sm); }
+    .form-health { padding: 8px 14px; border: 1px solid var(--border); border-radius: 999px; font-size: 13px; font-weight: 800; color: var(--muted); background: var(--surface); white-space: nowrap; font-family: var(--font-body); }
+    .form-health.ok { border-color:rgba(31,159,103,.35); background:rgba(31,159,103,.08); color:var(--green); }
+    .form-health.warn { border-color:rgba(214,79,79,.3); background:rgba(214,79,79,.08); color:var(--red); }
+    .search-wrap { position:relative; flex:1; min-width:160px; }
+    .search-wrap svg { position:absolute; left:.85rem; top:50%; transform:translateY(-50%); color:var(--muted); width:16px; height:16px; }
+    .search-input { width:100%; padding:.8rem .9rem .8rem 2.5rem; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-md); color:var(--text); font-family:var(--font-body); font-size:1rem; outline:none; transition:border-color .15s, box-shadow .15s; }
+    .search-input:focus { border-color:var(--accent2); box-shadow:0 0 0 3px rgba(31,143,208,.14); }
+    .search-input::placeholder { color:var(--muted); }
+    .btn-export { padding: 10px 14px; background: transparent; border: 1px solid var(--border); border-radius: var(--radius-md); color: var(--muted); font-family: var(--font-body); font-size: 14px; font-weight: 800; cursor: pointer; transition: all .15s; white-space: nowrap; }
+    .btn-export:hover { border-color:var(--accent2); color:var(--accent2); transform:translateY(-1px); }
+
+    /* Botão VERIFICAR / IMPORTAR */
+    .btn-verificar { padding: 10px 16px; background: rgba(31,143,208,.11); border: 1px solid rgba(31,143,208,.35); border-radius: var(--radius-md); color: var(--accent2); font-family: var(--font-body); font-size: 14px; font-weight: 800; cursor: pointer; transition: all .15s; white-space: nowrap; }
+    .btn-verificar:hover { background: rgba(31,143,208,.2); transform: translateY(-1px); box-shadow: 0 8px 18px rgba(31,143,208,.16); }
+    .btn-importar { padding: 10px 16px; background: rgba(31,143,57,.12); border: 1px solid rgba(31,143,57,.35); border-radius: var(--radius-md); color: var(--accent); font-family: var(--font-body); font-size: 14px; font-weight: 800; cursor: pointer; transition: all .15s; white-space: nowrap; display: none; }
+    .btn-importar:hover { background:rgba(103,184,31,.2); transform:translateY(-1px); box-shadow:0 8px 18px rgba(103,184,31,.16); }
+    .btn-importar.visible { display:block; }
+    /* Campo descrição do lote */
+    .desc-wrap { display:none; align-items:center; gap:.4rem; flex-shrink:0; }
+    .desc-wrap.visible { display:flex; }
+    .desc-label { font-family:var(--font-body); font-size:.85rem; color:var(--muted); white-space:nowrap; font-weight:600; }
+    .desc-input { padding:.76rem .85rem; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-md); color:var(--text); font-family:var(--font-body); font-size:.95rem; outline:none; transition:border-color .15s; min-width:320px; }
+    .desc-input:focus { border-color:var(--accent); }
+    .desc-input::placeholder { color:var(--muted); }
+    .input-invalid { border-color:var(--red)!important; box-shadow:0 0 0 3px rgba(214,79,79,.12); }
+    .import-options { display:none; align-items:center; gap:.45rem; padding:.62rem .75rem; border:1px solid var(--border); border-radius:var(--radius-md); background:var(--row-even); }
+    .import-options.visible { display:flex; }
+    .skip-new-label { display:inline-flex; align-items:center; gap:.45rem; font-family:var(--font-body); font-size:.9rem; color:var(--muted); cursor:pointer; user-select:none; white-space:nowrap; font-weight:600; }
+    .skip-new-label input { width:18px; height:18px; accent-color:var(--accent2); cursor:pointer; }
+
+    /* Progress bar */
+    .progress-wrap { display:none; flex-direction:column; gap:.4rem; margin-bottom:.7rem; padding:.7rem 1rem; background:var(--surface); border:1px solid var(--border); border-radius:8px; }
+    .progress-wrap.visible { display:flex; }
+    .progress-label { font-family: var(--font-body); font-size: 12px; font-weight: 600; color: var(--muted); display: flex; justify-content: space-between; }
+    .progress-label span { color:var(--accent); }
+    .progress-track { height:4px; background:var(--border); border-radius:4px; overflow:hidden; }
+    .progress-fill { height:100%; background:var(--accent); border-radius:4px; transition:width .3s; width:0%; }
+
+    /* Table */
+    .table-container { border:1px solid var(--border); border-radius:var(--radius-lg); overflow:auto; max-height:calc(100vh - 155px); background:var(--surface); box-shadow:var(--shadow-md); }
+    table { width:100%; border-collapse:collapse; }
+    thead { position:sticky; top:0; z-index:10; background: color-mix(in srgb, var(--content-text) 4%, var(--glass-bg)); }
+
+    th { padding:0; border-bottom:1px solid var(--border); white-space:nowrap; vertical-align:top; }
+    .th-inner { display:flex; flex-direction:column; min-width:220px; }
+    .th-original { padding:.7rem .9rem .5rem; font-family:var(--font-body); font-size:.9rem; letter-spacing:.01em; color:var(--muted); border-bottom:1px solid rgba(148,163,184,.35); cursor:pointer; user-select:none; display:flex; align-items:center; gap:.3rem; transition:color .15s; font-weight:700; }
+    .th-original:hover { color:var(--text); }
+    .th-original.sorted-asc::after  { content:' ↑'; color:var(--accent); }
+    .th-original.sorted-desc::after { content:' ↓'; color:var(--accent); }
+    .map-select-wrap { position:relative; background:rgba(31,143,208,.06); }
+    .map-select-wrap::after { content:'▾'; position:absolute; right:.4rem; top:50%; transform:translateY(-50%); color:var(--muted); pointer-events:none; font-size:.6rem; }
+    .map-select { width:100%; padding:.58rem 1.3rem .58rem .7rem; background:transparent; border:none; color:var(--text); font-family:var(--font-body); font-size:.88rem; outline:none; cursor:pointer; appearance:none; }
+    .map-select option { background:#ffffff; color:var(--text); }
+    .map-select-wrap.mapped   { background:rgba(181,255,71,.06); border-top:1px solid rgba(181,255,71,.15); }
+    .map-select-wrap.mapped .map-select { color:var(--accent); }
+    .map-select-wrap.unmapped .map-select { color:var(--muted); }
+
+    /* Colunas de status — fixas no início */
+    th.th-status { min-width:110px; }
+    th.th-num    { width:44px; vertical-align:middle; }
+    th.th-num .th-inner-num { padding:.55rem; font-family:'Space Mono',monospace; font-size:.6rem; color:var(--muted); text-align:center; }
+    th { border-right: 1px solid color-mix(in srgb, var(--content-text) 10%, transparent); }
+    th:last-child { border-right:none; }
+
+    /* Botão ocultar coluna */
+    .th-hide-btn { background:none; border:none; color:var(--muted); cursor:pointer; font-size:.7rem; padding:0 2px; opacity:0; transition:opacity .15s,color .15s; line-height:1; margin-left:auto; flex-shrink:0; }
+    .th-original:hover .th-hide-btn { opacity:1; }
+    .th-hide-btn:hover { color:var(--red); }
+
+    /* Botão restaurar colunas ocultas */
+    .btn-show-hidden { padding: 6px 10px; background: transparent; border: 1px solid rgba(255,125,125,.3); border-radius: 7px; color: var(--red); font-family: var(--font-body); font-size: 13px; font-weight: 700; cursor: pointer; transition: all .15s; white-space: nowrap; display: none; }
+    .btn-show-hidden.visible { display:inline-flex; align-items:center; gap:.3rem; }
+    .btn-show-hidden:hover { background:rgba(255,125,125,.08); }
+
+    /* Botão Nova Importação (overlay + topbar) */
+    .btn-nova { padding:.74rem 1.05rem; background:rgba(15,117,184,.1); border:1px solid rgba(15,117,184,.35); border-radius:var(--radius-md); color:var(--accent2); font-family:var(--font-body); font-size:.92rem; font-weight:700; cursor:pointer; transition:all .15s; white-space:nowrap; }
+    .btn-nova:hover { background:rgba(71,200,255,.18); }
+    .btn-nova-overlay { margin-top:1rem; padding:.55rem 1.4rem; background:rgba(71,200,255,.1); border:1px solid rgba(71,200,255,.35); border-radius:8px; color:var(--accent2); font-family:'Space Mono',monospace; font-size:.75rem; font-weight:700; cursor:pointer; transition:all .15s; }
+    .btn-nova-overlay:hover { background:rgba(71,200,255,.2); }
+
+    td { padding:.78rem .9rem; border-bottom:1px solid rgba(148,163,184,.35); border-right:1px solid rgba(148,163,184,.2); font-family:var(--font-body); font-size:.95rem; color:var(--text); white-space:normal; line-height:1.4; max-width:540px; overflow-wrap:anywhere; vertical-align:middle; user-select:text; }
+    td:last-child { border-right:none; }
+    tr:nth-child(even) td { background:var(--row-even); }
+    tr:hover td { background:var(--row-hover); color:var(--text); }
+    .row-num { color:var(--muted); font-size:.85rem; text-align:center; user-select:none; font-weight:600; }
+
+    td.currency     { color:var(--green); text-align:right; font-variant-numeric:tabular-nums; }
+    td.currency-neg { color:var(--red);   text-align:right; font-variant-numeric:tabular-nums; }
+
+    /* ── Badges de status ─────────────────────────────────────────── */
+    .badge { display:inline-flex; align-items:center; gap:.35rem; padding:.3rem .72rem; border-radius:999px; font-family:var(--font-body); font-size:.84rem; font-weight:700; border:1px solid; white-space:nowrap; }
+
+    /* status_cadastro */
+    .badge-cad-s { color:var(--green);  border-color:rgba(125,255,179,.35); background:rgba(125,255,179,.08); }
+    .badge-cad-n { color:var(--red);    border-color:rgba(255,125,125,.35); background:rgba(255,125,125,.08); }
+
+    /* status */
+    .badge-a  { color:var(--accent2); border-color:rgba(71,200,255,.35); background:rgba(71,200,255,.08); }  /* Atualizar */
+    .badge-sa { color:var(--muted);   border-color:rgba(100,100,118,.35); background:rgba(100,100,118,.05); } /* Sem Alteração */
+    .badge-sc { color:var(--yellow);  border-color:rgba(255,212,71,.35);  background:rgba(255,212,71,.08); }  /* Sem Cadastro */
+
+    /* status_importacao */
+    .badge-aguard  { color:var(--muted);   border-color:rgba(100,100,118,.3);  background:transparent; }
+    .badge-ok      { color:var(--green);   border-color:rgba(125,255,179,.35); background:rgba(125,255,179,.08); }
+    .badge-erro    { color:var(--red);     border-color:rgba(255,125,125,.35); background:rgba(255,125,125,.08); }
+    .badge-import  { color:var(--accent);  border-color:rgba(181,255,71,.35);  background:rgba(181,255,71,.08); }
+
+    /* Animação pulsante para "verificando" e "importando" */
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+    .pulsing { animation:pulse 1.2s ease-in-out infinite; }
+
+    /* Dot animado */
+    .dot { width:7px; height:7px; border-radius:50%; display:inline-block; flex-shrink:0; }
+    .dot-green  { background:var(--green);  box-shadow:0 0 5px var(--green); }
+    .dot-red    { background:var(--red);    box-shadow:0 0 5px var(--red); }
+    .dot-yellow { background:var(--yellow); box-shadow:0 0 5px var(--yellow); }
+    .dot-blue   { background:var(--accent2);box-shadow:0 0 5px var(--accent2); }
+    .dot-muted  { background:var(--muted); }
+    .dot-accent { background:var(--accent); box-shadow:0 0 5px var(--accent); }
+    @keyframes dotPulse { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.5);opacity:.6} }
+    .dot.pulsing { animation:dotPulse 1s ease-in-out infinite; }
+
+    .state-msg { padding:3rem; text-align:center; color:var(--muted); font-family:'Space Mono',monospace; font-size:.76rem; }
+    @keyframes rowIn { from{opacity:0;transform:translateX(-5px)} to{opacity:1;transform:translateX(0)} }
+    tbody tr { animation:rowIn .2s ease both; }
+    mark { background:rgba(181,255,71,.2); color:var(--accent); border-radius:2px; padding:0 2px; }
+
+    .drop-zone.bloqueada { opacity:.4; cursor:not-allowed; pointer-events:none; }
+    .drop-zone.bloqueada label { cursor:not-allowed; }
+    /* Toast */
+    .toast { position:fixed; bottom:1.5rem; right:1.5rem; padding:.6rem 1.1rem; border-radius:8px; font-family:'Space Mono',monospace; font-size:.7rem; z-index:200; opacity:0; transform:translateY(8px); transition:all .2s; pointer-events:none; }
+    .toast.show { opacity:1; transform:translateY(0); }
+    .toast.ok   { background:rgba(125,255,179,.12); border:1px solid rgba(125,255,179,.3); color:var(--green); }
+    .toast.warn { background:rgba(255,212,71,.12);  border:1px solid rgba(255,212,71,.3);  color:var(--yellow); }
+    .toast.erro { background:rgba(255,125,125,.12); border:1px solid rgba(255,125,125,.3); color:var(--red); }
+
+    /* ── Painel de Explicação de Erros ────────────────────────────────────── */
+    .error-explanation-panel {
+      display: none;
+      margin-bottom: .85rem;
+      background: var(--surface);
+      border: 1px solid rgba(214,79,79,.25);
+      border-radius: var(--radius-lg);
+      padding: 1rem 1.2rem;
+      box-shadow: var(--shadow-sm);
+    }
+    .error-explanation-panel.visible { display: block; }
+    .error-panel-header {
+      display: flex;
+      align-items: center;
+      gap: .6rem;
+      margin-bottom: .8rem;
+      padding-bottom: .6rem;
+      border-bottom: 1px solid rgba(214,79,79,.15);
+    }
+    .error-panel-icon {
+      font-size: 1.3rem;
+      flex-shrink: 0;
+    }
+    .error-panel-title {
+      font-size: .95rem;
+      font-weight: 700;
+      color: var(--red);
+    }
+    .error-panel-subtitle {
+      font-size: .78rem;
+      color: var(--muted);
+      margin-left: auto;
+    }
+    .error-list {
+      display: flex;
+      flex-direction: column;
+      gap: .5rem;
+      max-height: 280px;
+      overflow-y: auto;
+    }
+    .error-item {
+      display: flex;
+      gap: .7rem;
+      padding: .65rem .8rem;
+      background: var(--row-even);
+      border-radius: 8px;
+      border-left: 3px solid var(--red);
+      font-size: .85rem;
+      line-height: 1.5;
+    }
+    .error-item-num {
+      font-family: 'Space Mono', monospace;
+      font-size: .72rem;
+      color: var(--muted);
+      flex-shrink: 0;
+      min-width: 36px;
+      padding-top: .15rem;
+    }
+    .error-item-content { flex: 1; min-width: 0; }
+    .error-item-product {
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: .2rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .error-item-tech {
+      font-family: 'Space Mono', monospace;
+      font-size: .68rem;
+      color: var(--muted);
+      background: rgba(0,0,0,.04);
+      padding: .2rem .5rem;
+      border-radius: 4px;
+      word-break: break-all;
+      margin-bottom: .3rem;
+    }
+    .error-item-friendly {
+      display: flex;
+      align-items: flex-start;
+      gap: .35rem;
+      color: var(--text);
+      font-size: .82rem;
+    }
+    .error-item-friendly-icon {
+      flex-shrink: 0;
+      font-size: .9rem;
+      margin-top: .05rem;
+    }
+    .error-item-close {
+      flex-shrink: 0;
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: .85rem;
+      padding: .1rem;
+      transition: color .15s;
+    }
+    .error-item-close:hover { color: var(--red); }
+    .error-panel-actions {
+      display: flex;
+      gap: .5rem;
+      margin-top: .8rem;
+      padding-top: .6rem;
+      border-top: 1px solid rgba(214,79,79,.1);
+    }
+    .btn-error-action {
+      padding: .5rem .85rem;
+      border-radius: 8px;
+      font-size: .82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .15s;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--muted);
+    }
+    .btn-error-action:hover { border-color: var(--accent2); color: var(--accent2); }
+    .btn-error-action.primary {
+      background: rgba(31,143,57,.08);
+      border-color: rgba(31,143,57,.3);
+      color: var(--accent);
+    }
+    .btn-error-action.primary:hover {
+      background: rgba(31,143,57,.16);
+    }
+
+    /* ── Overlay de bloqueio durante importação ── */
+    .import-overlay { display:none; position:fixed; inset:0; background:rgba(15,23,42,.55); z-index:9999; align-items:center; justify-content:center; }
+    .import-overlay.visible { display:flex; }
+    .import-card { background:var(--glass-bg, #ffffff) !important; border:1px solid rgba(181,255,71,.25); border-radius:18px; padding:2.4rem 2.8rem; text-align:center; min-width:320px; max-width:440px; width:90%; box-shadow: 0 0 60px rgba(181,255,71,.08); }
+    .import-spinner { width:54px; height:54px; border:3px solid var(--border); border-top-color:var(--accent); border-radius:50%; margin:0 auto 1.3rem; animation:spinAnim .7s linear infinite; }
+    @keyframes spinAnim { to { transform:rotate(360deg); } }
+    .import-card h3 { font-size:1.15rem; font-weight:800; margin-bottom:.5rem; letter-spacing:-.01em; }
+    .import-card h3 span { color:var(--accent); }
+
+    /* Texto animado "Aguarde o fim da importação....." */
+    .import-aguarde { font-family:'Space Mono',monospace; font-size:.75rem; color:var(--muted); margin-bottom:1.3rem; min-height:1.2em; }
+    .import-aguarde .dots { display:inline-block; overflow:hidden; vertical-align:bottom; animation:dotsAnim 1.8s steps(6,end) infinite; width:0; }
+    @keyframes dotsAnim { 0%{width:0} 20%{width:.5em} 40%{width:1em} 60%{width:1.5em} 80%{width:2em} 100%{width:2.5em} }
+
+    .import-prog-track { height:6px; background:var(--border); border-radius:4px; overflow:hidden; margin-bottom:.6rem; }
+    .import-prog-fill { height:100%; background:linear-gradient(90deg,var(--accent),var(--accent2)); border-radius:4px; transition:width .3s ease; width:0%; }
+    .import-prog-lbl { font-family:'Space Mono',monospace; font-size:.63rem; color:var(--muted); display:flex; justify-content:space-between; margin-bottom:.2rem; }
+    .import-prog-lbl .pct { color:var(--accent); font-weight:700; }
+    .import-sub { font-family:'Space Mono',monospace; font-size:.63rem; color:var(--muted); margin-bottom:1.2rem; }
+    .import-stats { display:flex; gap:1.2rem; justify-content:center; margin-top:1.2rem; padding-top:1.1rem; border-top:1px solid var(--border); flex-wrap:wrap; }
+    .import-stat .val { font-size:1.6rem; font-weight:800; line-height:1; }
+    .import-stat .lbl { font-family:'Space Mono',monospace; font-size:.58rem; color:var(--muted); margin-top:.18rem; letter-spacing:.06em; }
+    .import-stat.clickable { cursor:pointer; border-radius:10px; padding:.35rem .55rem; transition:all .15s; }
+    .import-stat.clickable:hover { background:var(--row-hover); }
+    .import-stat.clickable.disabled { opacity:.45; cursor:not-allowed; pointer-events:none; }
+    .btn-det { margin-top:.6rem; padding:.45rem .9rem; background:transparent; border:1px solid var(--border); border-radius:8px; color:var(--muted); font-family:var(--font-body); font-size:.78rem; font-weight:700; cursor:pointer; transition:all .15s; display:none; }
+    .btn-det.visible { display:inline-flex; align-items:center; gap:.35rem; }
+    .btn-det:hover { border-color:var(--accent2); color:var(--accent2); }
+
+    /* Concluído */
+    .import-card.concluido .import-spinner { border-top-color:var(--green); animation:none; }
+    .import-card.concluido h3 span { color:var(--green); }
+
+    /* Modal de detalhes da importação */
+    .det-modal-overlay { display:none; position:fixed; inset:0; background:rgba(15,23,42,.55); z-index:10001; align-items:center; justify-content:center; }
+    .det-modal-overlay.visible { display:flex; }
+    .det-modal { width:min(900px,95vw); max-height:88vh; overflow:hidden; background:var(--surface); border:1px solid var(--border); border-radius:14px; box-shadow:0 20px 50px rgba(0,0,0,.25); display:flex; flex-direction:column; }
+    .det-head { display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:.9rem 1rem; border-bottom:1px solid var(--border); background:var(--row-even); }
+    .det-title { font-family:var(--font-body); font-size:.95rem; font-weight:800; color:var(--text); }
+    .det-close { border:1px solid var(--border); background:transparent; color:var(--muted); border-radius:8px; padding:.35rem .65rem; cursor:pointer; font-weight:700; }
+    .det-close:hover { border-color:var(--red); color:var(--red); }
+    .det-tabs { display:flex; gap:.45rem; padding:.7rem 1rem; border-bottom:1px solid var(--border); }
+    .det-tab { border:1px solid var(--border); background:var(--surface); color:var(--muted); border-radius:999px; padding:.38rem .8rem; font-size:.78rem; cursor:pointer; }
+    .det-tab.active { border-color:var(--accent2); color:var(--accent2); background:rgba(15,117,184,.08); }
+    .det-body { padding:.8rem 1rem 1rem; overflow:auto; }
+    .det-empty { color:var(--muted); font-size:.85rem; padding:1rem 0; }
+    .det-table { width:100%; border-collapse:collapse; }
+    .det-table th, .det-table td { text-align:left; padding:.58rem .65rem; border-bottom:1px solid var(--border); font-size:.82rem; }
+    .det-table th { color:var(--muted); font-weight:800; background:var(--row-even); position:sticky; top:0; }
+    .det-table td { color:var(--text); }
+
+    /* Modal de confirmação */
+    .confirm-overlay { display:none; position:fixed; top:0; right:0; bottom:0; left:0; width:100%; height:100%; background:rgba(10,15,30,.78) !important; z-index:10002; align-items:center; justify-content:center; padding:16px; box-sizing:border-box; }
+    .confirm-overlay.visible { display:flex; }
+    .confirm-box { width:min(580px,100%); background:var(--glass-bg, #ffffff) !important; border:1px solid var(--border); border-radius:16px; box-shadow:0 24px 60px rgba(0,0,0,.35); padding:1.5rem; }
+    .confirm-box h4 { margin-bottom:.75rem; font-size:1.05rem; font-weight:800; }
+    .confirm-grid { display:grid; grid-template-columns:1fr 1fr; gap:.55rem 1rem; margin:.65rem 0 1rem; background:color-mix(in srgb,var(--content-text) 3%,transparent); border:1px solid var(--border); border-radius:10px; padding:.75rem .9rem; }
+    .confirm-item { font-size:.86rem; color:var(--muted); }
+    .confirm-item strong { color:var(--text); display:block; margin-top:2px; font-size:.9rem; }
+    .confirm-actions { display:flex; justify-content:flex-end; gap:.6rem; }
+    .btn-confirm, .btn-cancel { padding:.6rem 1.1rem; border-radius:8px; font-weight:700; cursor:pointer; border:1px solid var(--border); font-family:var(--font-body); font-size:.9rem; }
+    .btn-cancel { background:transparent; color:var(--muted); }
+    .btn-confirm { background:rgba(31,143,57,.14); color:var(--accent); border-color:rgba(31,143,57,.4); }
+    .btn-confirm:hover { background:rgba(31,143,57,.24); }
+    @media (max-width:480px) { .confirm-grid { grid-template-columns:1fr; } }
+
+    /* ── Paginação ───────────────────────────────────────────────── */
+    .pagination {
+      display:none; align-items:center; gap:.7rem; margin-top:.85rem;
+      flex-wrap:wrap; font-family:var(--font-body);
+      position:sticky; bottom:0; z-index:8; background:rgba(255,255,255,.96);
+      border:1px solid var(--border); border-radius:var(--radius-lg); padding:.7rem .85rem;
+      box-shadow:0 -6px 20px rgba(15,23,42,.05);
+    }
+    .pagination.visible { display:flex; }
+    .pg-info { font-size:.92rem; color:var(--muted); white-space:nowrap; margin-right:.25rem; font-weight:600; }
+    .pg-info strong { color:var(--text); }
+    .pg-buttons { display:flex; gap:.3rem; flex-wrap:wrap; }
+    .pg-btn {
+      min-width:36px; height:34px; padding:0 .65rem;
+      background:var(--surface); border:1px solid var(--border);
+      border-radius:10px; color:var(--muted); font-family:var(--font-body);
+      font-size:.95rem; cursor:pointer; transition:all .12s; font-weight:700;
+      display:inline-flex; align-items:center; justify-content:center;
+    }
+    .pg-btn:hover:not(:disabled) { border-color:var(--accent2); color:var(--accent2); }
+    .pg-btn.active { background:var(--accent); border-color:var(--accent); color:#ffffff; font-weight:700; cursor:default; }
+    .pg-btn:disabled { opacity:.3; cursor:not-allowed; }
+    .pg-ellipsis { display:inline-flex; align-items:center; height:34px; padding:0 .2rem; color:var(--muted); font-size:.76rem; }
+    .pg-size {
+      margin-left:auto; background:var(--surface); border:1px solid var(--border);
+      border-radius:10px; color:var(--muted); font-family:var(--font-body);
+      font-size:.92rem; padding:.48rem .66rem; cursor:pointer; outline:none;
+      transition:border-color .15s;
+    }
+    .pg-size:hover { border-color:var(--border2,#33333d); }
+
+    /* ── Animação leitura de arquivo ─────────────────────────────── */
+    .drop-zone.lendo { pointer-events:none; }
+    .drop-zone.lendo .drop-icon-wrap { animation: none; }
+    .drop-zone.lendo::before {
+      content:''; position:absolute; inset:0; z-index:2;
+      background:rgba(255,255,255,.88); border-radius:10px;
+      display:flex; align-items:center; justify-content:center;
+    }
+    .drop-zone .read-overlay {
+      display:none; position:absolute; inset:0; z-index:3;
+      align-items:center; justify-content:center; flex-direction:column; gap:.9rem;
+      border-radius:10px;
+    }
+    .drop-zone.lendo .read-overlay { display:flex; }
+    .read-spinner {
+      width:44px; height:44px; border:3px solid var(--border);
+      border-top-color:var(--accent); border-radius:50%;
+      animation:spinAnim .7s linear infinite;
+    }
+    .read-label { font-family:'Space Mono',monospace; font-size:.72rem; color:var(--accent); letter-spacing:.04em; }
+    .read-sublabel { font-family:'Space Mono',monospace; font-size:.62rem; color:var(--muted); }
+
+    /* ── Cards de status ─────────────────────────────────────────── */
+    .status-cards { display:none; gap:.65rem; flex-wrap:wrap; margin-bottom:.9rem; }
+    .status-cards.visible { display:flex; }
+    .sc-card {
+      display:flex; flex-direction:column; gap:.28rem;
+      padding:.65rem 1rem .6rem; border-radius:10px;
+      border:1px solid var(--border); background:var(--surface);
+      cursor:pointer; transition:all .15s; min-width:110px; position:relative;
+      user-select:none;
+    }
+    .sc-card:hover { border-color:var(--accent2); transform:translateY(-2px); box-shadow:0 10px 24px rgba(15,23,42,.08); }
+    .sc-card.active { box-shadow:0 0 0 2px currentColor; }
+    .sc-card .sc-val { font-size:1.5rem; font-weight:800; line-height:1; }
+    .sc-card .sc-lbl { font-family:'Space Mono',monospace; font-size:.58rem; color:var(--muted); letter-spacing:.06em; text-transform:uppercase; }
+    .sc-card .sc-bar { height:2px; border-radius:2px; margin-top:.3rem; background:currentColor; opacity:.3; transition:opacity .15s; }
+    .sc-card.active .sc-bar { opacity:1; }
+
+    .sc-todos  { color:var(--text); }
+    .sc-cads   { color:var(--green); border-color:rgba(125,255,179,.2); }
+    .sc-cads.active  { background:rgba(125,255,179,.06); }
+    .sc-ncads  { color:var(--red); border-color:rgba(255,125,125,.2); }
+    .sc-ncads.active { background:rgba(255,125,125,.06); }
+    .sc-atu    { color:var(--accent2); border-color:rgba(71,200,255,.2); }
+    .sc-atu.active   { background:rgba(71,200,255,.06); }
+    .sc-novo   { color:var(--yellow); border-color:rgba(255,212,71,.2); }
+    .sc-novo.active  { background:rgba(255,212,71,.06); }
+    .sc-sa     { color:var(--muted); }
+
+    /* Scrollbar moderna */
+    ::-webkit-scrollbar { width:10px; height:10px; }
+    ::-webkit-scrollbar-track { background:rgba(148,163,184,.15); border-radius:8px; }
+    ::-webkit-scrollbar-thumb { background:rgba(100,116,139,.5); border-radius:8px; border:2px solid rgba(148,163,184,.15); }
+    ::-webkit-scrollbar-thumb:hover { background:rgba(71,85,105,.65); }
+
+    /* Foco acessível unificado */
+    button:focus-visible,
+    select:focus-visible,
+    input:focus-visible,
+    a:focus-visible {
+      outline:none;
+      box-shadow:0 0 0 3px rgba(31,143,208,.18);
+      border-color:var(--accent2);
+    }
+
+    @media (max-width: 900px) {
+      body { padding:.7rem; }
+      .wrapper { width:100%; }
+      .imp-toolbar { padding: 10px 12px; }
+      .toolbar { padding:.75rem; }
+      .desc-input { min-width:100%; }
+      .search-wrap { min-width:100%; }
+      .table-container { max-height:calc(100vh - 260px); }
+    }
+
+    /* Responsivo - Tablet */
+    @media (max-width: 768px) {
+      body { padding:.65rem; }
+      .imp-toolbar { flex-direction: column; align-items: stretch; }
+      .imp-field { max-width: none; width: 100%; }
+      .forn-sel-wrap { min-width:100%; max-width:none; }
+      .forn-badge { width:100%; justify-content:flex-start; }
+      .file-hint { display:none; }
+      .btn-file { width:100%; justify-content:center; }
+      .quick-guide { font-size:10px; }
+
+      .toolbar { gap:.6rem; }
+      #mapBar { width:100%; flex-wrap:wrap; }
+      .map-sep { display:none; }
+      .btn-export, .btn-verificar, .btn-importar { width:100%; justify-content:center; }
+      .desc-wrap, .import-options { width:100%; }
+      .desc-wrap { flex-wrap:wrap; }
+      .desc-label { width:100%; }
+      .desc-input { width:100%; }
+      .form-health { width:100%; text-align:center; }
+
+      .status-cards { gap:.5rem; }
+      .sc-card { min-width:calc(50% - .5rem); flex:1; }
+
+      .table-container { max-height:calc(100vh - 310px); border-radius:14px; }
+      .th-inner { min-width:180px; }
+      td { max-width:320px; }
+
+      .pagination { position:static; width:100%; justify-content:space-between; }
+      .pg-size { margin-left:0; width:100%; }
+      .pg-buttons { width:100%; }
+    }
+
+    /* Responsivo - Celular */
+    @media (max-width: 480px) {
+      body { padding:.55rem; }
+      .imp-h1 { font-size: 13px; }
+
+      .sheet-bar { gap:.35rem; }
+      .sheet-btn { padding:.48rem .85rem; }
+
+      .sc-card { min-width:100%; }
+      .table-container { max-height:calc(100vh - 340px); }
+      td { font-size:.92rem; padding:.7rem .75rem; }
+      .th-original { font-size:.86rem; }
+
+      .import-card { padding:1.4rem 1.2rem; min-width:auto; }
+      .import-stats { gap:.6rem; }
+      .import-stat .val { font-size:1.35rem; }
+
+      .det-modal { width:96vw; max-height:86vh; }
+      .det-tabs { flex-wrap:wrap; }
+      .det-tab { flex:1; }
+
+      .confirm-grid { grid-template-columns:1fr; }
+      .confirm-actions { flex-direction:column; }
+      .btn-confirm, .btn-cancel { width:100%; }
+    }
+
+    /* ── Barra de Etapas ────────────────────────────────────────────────────── */
+    .steps-bar {
+      display:flex; align-items:center;
+      padding:10px 16px; background:var(--glass-bg,#fff);
+      border:1px solid var(--input-border,#e5e7eb);
+      border-radius:var(--radius-md,10px); margin-bottom:8px;
+      box-shadow:var(--shadow-sm); overflow-x:auto; gap:0;
+    }
+    .step-item {
+      display:flex; align-items:center; gap:7px;
+      padding:5px 10px; border-radius:8px;
+      white-space:nowrap; flex-shrink:0; transition:.15s;
+    }
+    .step-num {
+      width:22px; height:22px; border-radius:50%;
+      display:flex; align-items:center; justify-content:center;
+      font-size:11px; font-weight:800;
+      background:color-mix(in srgb,var(--content-text) 12%,transparent);
+      color:var(--text2,#64748b); transition:.2s; flex-shrink:0;
+    }
+    .step-text { font-size:12px; font-weight:700; color:var(--text2,#64748b); }
+    .step-item.done .step-num { background:var(--success,#22c55e); color:#fff; }
+    .step-item.done .step-text { color:var(--success,#22c55e); }
+    .step-item.active .step-num { background:var(--accent2,var(--accent)); color:#fff; box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent); }
+    .step-item.active .step-text { color:var(--content-text); font-weight:800; }
+    .step-conn { flex:1; min-width:16px; height:2px; background:color-mix(in srgb,var(--content-text) 12%,transparent); margin:0 2px; transition:.3s; }
+    .step-conn.done { background:var(--success,#22c55e); }
+
+    /* ── Cards guia visual (Mercos-like) ────────────────────────────────────── */
+    .step-guide {
+      display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:8px;
+    }
+    .sg-card {
+      display:flex; align-items:center; gap:10px;
+      padding:10px 12px; border-radius:var(--radius-md,10px);
+      border:1px solid var(--input-border,#e5e7eb);
+      background:var(--glass-bg,#fff); box-shadow:var(--shadow-sm); transition:.15s;
+    }
+    .sg-card.active {
+      border-color:color-mix(in srgb,var(--accent) 50%,var(--input-border));
+      background:color-mix(in srgb,var(--accent) 6%,var(--glass-bg,#fff));
+    }
+    .sg-card.done { opacity:.72; }
+    .sg-num {
+      width:28px; height:28px; border-radius:50%; flex-shrink:0;
+      display:flex; align-items:center; justify-content:center;
+      font-size:12px; font-weight:900;
+      background:color-mix(in srgb,var(--content-text) 10%,transparent);
+      color:var(--text2,#64748b); transition:.2s;
+    }
+    .sg-card.active .sg-num { background:var(--accent2,var(--accent)); color:#fff; }
+    .sg-card.done .sg-num { background:var(--success,#22c55e); color:#fff; font-size:14px; }
+    .sg-info { flex:1; min-width:0; }
+    .sg-title { font-size:12px; font-weight:800; color:var(--content-text); }
+    .sg-sub { font-size:10px; color:var(--text2,#64748b); margin-top:2px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+    /* Botão modelo Excel */
+    .btn-modelo {
+      display:inline-flex; align-items:center; gap:5px;
+      padding:8px 12px; font-size:12px; font-weight:700;
+      border-radius:7px; border:1px solid var(--input-border,#e5e7eb);
+      background:var(--glass-bg,#fff); color:var(--text2,#64748b);
+      cursor:pointer; font-family:var(--font-body); transition:.15s; white-space:nowrap;
+    }
+    .btn-modelo:hover { border-color:var(--accent); color:var(--accent); }
+
+    @media (max-width:900px) { .step-guide { grid-template-columns:repeat(2,1fr); } }
+    @media (max-width:480px) { .step-guide { grid-template-columns:1fr; } .steps-bar { display:none; } }
+  </style>
+</head>
+<body>
+<div class="wrapper">
+
+  <header class="imp-header">
+    <h1 class="imp-h1">Importação de Produtos / Preços</h1>
+    <p class="imp-crumb">Cadastros › Produtos · planilha Excel → banco de dados</p>
+  </header>
+
+  <!-- Barra de etapas -->
+  <div class="steps-bar" id="stepsBar">
+    <div class="step-item active" id="step1"><span class="step-num">1</span><span class="step-text">Fornecedor</span></div>
+    <div class="step-conn" id="conn1"></div>
+    <div class="step-item" id="step2"><span class="step-num">2</span><span class="step-text">Arquivo</span></div>
+    <div class="step-conn" id="conn2"></div>
+    <div class="step-item" id="step3"><span class="step-num">3</span><span class="step-text">Mapeamento</span></div>
+    <div class="step-conn" id="conn3"></div>
+    <div class="step-item" id="step4"><span class="step-num">4</span><span class="step-text">Importar</span></div>
+  </div>
+
+  <div class="imp-toolbar">
+    <div class="imp-field">
+      <label class="imp-label" for="fornecedorSelect">Fornecedor <span class="req">*</span></label>
+      <div class="imp-forn-wrap">
+        <div class="forn-sel-wrap" style="flex:1">
+          <select class="forn-select" id="fornecedorSelect" onchange="selecionarFornecedor()" autocomplete="off">
+            <option value="">-- Selecione um fornecedor --</option>
+          </select>
+        </div>
+        <button type="button" class="imp-icon-btn" onclick="carregarFornecedores()" title="Recarregar fornecedores">↺</button>
+      </div>
+    </div>
+    <span class="forn-loading" id="fornLoading">carregando…</span>
+    <div class="imp-field imp-field--file">
+      <label class="imp-label" for="fileInput">Arquivo da planilha</label>
+      <div class="imp-file-row">
+        <label for="fileInput" class="btn-file" id="fileBtnLabel">Selecionar arquivo</label>
+        <p class="imp-file-inline">
+          <strong>Arraste o arquivo Excel aqui.</strong>
+          Solte o ficheiro na faixa tracejada abaixo ou use o botão. Formatos: .xlsx, .xls ou .csv.
+        </p>
+      </div>
+    </div>
+    <div class="imp-menu-actions">
+      <button type="button" class="btn-modelo" onclick="downloadModelo()" title="Baixar planilha modelo com os campos configurados">⬇ Modelo Excel</button>
+      <a href="/pages/importacao-menu.html" class="imp-btn-menu">← Menu</a>
+    </div>
+  </div>
+
+  <!-- Alerta fornecedor obrigatório -->
+  <div class="alert-forn" id="alertForn">
+    <span>⚠</span> Selecione um fornecedor antes de importar.
+  </div>
+
+  <!-- Drop strip (só para arrastar) -->
+  <div class="drop-zone" id="dropZone">
+    <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" autocomplete="off"/>
+    <div class="drop-inner">
+      <div class="drop-icon-wrap" aria-hidden="true">📋</div>
+      <div class="drop-title">Solte o Excel <strong>aqui</strong></div>
+    </div>
+    <!-- Overlay de leitura -->
+    <div class="read-overlay">
+      <div class="read-spinner"></div>
+      <span class="read-label" id="readLabel">Lendo arquivo...</span>
+      <span class="read-sublabel" id="readSublabel">Aguarde</span>
+    </div>
+  </div>
+  <!-- Cards de guia visual (estilo Mercos) -->
+  <div class="step-guide">
+    <div class="sg-card active" id="sg1">
+      <div class="sg-num" id="sgn1">1</div>
+      <div class="sg-info">
+        <div class="sg-title">Fornecedor</div>
+        <div class="sg-sub" id="sgs1">Selecione o fornecedor</div>
+      </div>
+    </div>
+    <div class="sg-card" id="sg2">
+      <div class="sg-num" id="sgn2">2</div>
+      <div class="sg-info">
+        <div class="sg-title">Arquivo</div>
+        <div class="sg-sub" id="sgs2">Arraste ou selecione .xlsx/.csv</div>
+      </div>
+    </div>
+    <div class="sg-card" id="sg3">
+      <div class="sg-num" id="sgn3">3</div>
+      <div class="sg-info">
+        <div class="sg-title">Mapeamento</div>
+        <div class="sg-sub" id="sgs3">Associe colunas aos campos</div>
+      </div>
+    </div>
+    <div class="sg-card" id="sg4">
+      <div class="sg-num" id="sgn4">4</div>
+      <div class="sg-info">
+        <div class="sg-title">Importar</div>
+        <div class="sg-sub" id="sgs4">Valide e salve no banco</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Preços por tabela — FORA de #output para aparecer antes de importar o Excel -->
+  <div id="wrapTabelaPrecoImport" class="tp-import-wrap" style="display:none;">
+    <p class="tp-vinculo-msg" id="tabelaPrecoVinculoMsg" aria-live="polite"></p>
+    <label class="skip-new-label tp-chk-label" title="Preços não atualizam a ficha do produto; apenas tabela_preco_itens. Cadastro novo: preços do produto ficam zerados.">
+      <input type="checkbox" id="chkModoTabelaPreco" autoComplete="off" onchange="onChkModoTabelaPrecoChange()"/>
+      Gravar preços nas tabelas vinculadas a este fornecedor (não atualiza preços no cadastro do produto)
+    </label>
+    <div id="tabelaPrecoRows"></div>
+    <button type="button" class="btn-tp-add" id="btnAddTabelaPrecoRow" onclick="addTabelaPrecoRow()">+ Coluna de preço para outra tabela</button>
+    <p class="tp-import-hint" id="tabelaPrecoHint"></p>
+  </div>
+
+  <!-- Output -->
+  <div id="output" style="display:none; margin-top:.4rem;">
+    <div class="sheet-bar" id="sheetBar"></div>
+    <!-- Painel de Explicação de Erros -->
+    <div class="error-explanation-panel" id="errorPanel">
+      <div class="error-panel-header">
+        <span class="error-panel-icon">⚠</span>
+        <span class="error-panel-title">Erros na Importação</span>
+        <span class="error-panel-subtitle" id="errorPanelCount">0 erros</span>
+      </div>
+      <div class="error-list" id="errorList"></div>
+      <div class="error-panel-actions">
+        <button class="btn-error-action primary" onclick="exportarErrosCSV()">⬇ Baixar lista de erros</button>
+        <button class="btn-error-action" onclick="fecharPainelErros()">Fechar painel</button>
+      </div>
+    </div>
+    <!-- Cards de status (aparecem após verificação) -->
+    <div class="status-cards" id="statusCards"></div>
+    <!-- currency-bar oculto — detecção mantida, seletor não exibido -->
+    <div id="currencyBar" style="display:none;"></div>
+    <!-- statsBar oculto — info vai para o rodapé -->
+    <div id="statsBar" style="display:none;"></div>
+
+    <!-- Progress -->
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-label">
+        <span id="progressLabel">Verificando...</span>
+        <span id="progressPct">0%</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+    </div>
+
+    <!-- Toolbar unificado: [filtro] | [mapeamento] | [ações] -->
+    <div class="toolbar">
+      <!-- 1. Filtrar dados -->
+      <div class="search-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="searchInput" class="search-input" placeholder="Filtrar dados..."/>
+      </div>
+      <!-- 2. Mapeamento inline -->
+      <div id="mapBar" style="display:none; align-items:center; gap:.5rem; flex-shrink:0;">
+        <div class="map-sep"></div>
+        <span class="map-counter" id="mapCounter"></span>
+        <span class="map-critical" id="mapCritical"></span>
+        <button class="btn-map-ess" onclick="mapearEssenciais()" title="Mapear campos obrigatórios automaticamente">⚡ Essenciais</button>
+        <button class="btn-limpar-map" onclick="limparMapeamento()">✕ Limpar</button>
+        <button class="btn-show-hidden" id="btnShowHidden" onclick="restaurarColunas()">↩ Restaurar ocultas</button>
+        <div class="map-sep"></div>
+      </div>
+      <!-- 3. Ações -->
+      <button class="btn-export"    onclick="exportCSV()">⬇ CSV</button>
+      <button class="btn-verificar" id="btnVerificar" onclick="verificarLote()">🔍 Validar Dados</button>
+      <div class="desc-wrap" id="descWrap">
+        <span class="desc-label">DESCRIÇÃO</span>
+        <input type="text" id="descricaoInput" class="desc-input" placeholder="Descrição do lote de atualização..." title="Obrigatório para salvar a atualização"/>
+      </div>
+      <div class="import-options" id="importOptions">
+        <label class="skip-new-label" title="Quando marcado, não grava produtos com status Sem Cadastro">
+          <input type="checkbox" id="skipSemCadastro"/>
+          Não gravar itens sem cadastro
+        </label>
+      </div>
+      <button class="btn-importar"  id="btnImportar"  onclick="importarLote()">💾 Salvar Produtos</button>
+      <span class="form-health warn" id="formHealth">⚠ Ajustes pendentes</span>
+    </div>
+
+    <div class="table-container">
+      <table id="dataTable">
+        <thead id="tableHead"></thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+    <div class="pagination" id="pagination"></div>
+    <div class="data-footer" id="dataFooter"></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<!-- Overlay de importação -->
+<div class="import-overlay" id="importOverlay">
+  <div class="import-card" id="importCard">
+    <div class="import-spinner" id="importSpinner"></div>
+    <h3>Importando<span id="overlayTituloSpan">...</span></h3>
+    <div class="import-aguarde">Aguarde o fim da importação<span class="dots">.....</span></div>
+    <div class="import-prog-track"><div class="import-prog-fill" id="overlayFill"></div></div>
+    <div class="import-prog-lbl">
+      <span id="overlayLinhas">0 de 0</span>
+      <span class="pct" id="overlayPct">0%</span>
+    </div>
+    <div class="import-sub" id="overlayLabel">Preparando...</div>
+    <div class="import-stats">
+      <div class="import-stat clickable disabled" id="cardDetSucesso" onclick="abrirDetalhesImportacao('sucesso')">
+        <div class="val" id="statOk"  style="color:var(--green)">0</div><div class="lbl">INSERIDOS</div>
+      </div>
+      <div class="import-stat"><div class="val" id="statUpd" style="color:var(--accent2)">0</div><div class="lbl">ATUALIZADOS</div></div>
+      <div class="import-stat clickable disabled" id="cardDetErro" onclick="abrirDetalhesImportacao('erro')">
+        <div class="val" id="statErr" style="color:var(--red)">0</div><div class="lbl">ERROS</div>
+      </div>
+    </div>
+    <button class="btn-det" id="btnVerDetalhes" onclick="abrirDetalhesImportacao('sucesso')">📋 Ver itens importados</button>
+    <!-- Botões de ação pós-importação -->
+    <div style="display:flex;gap:.6rem;margin-top:1rem;justify-content:center;">
+      <!-- Botão Fechar e Analisar Erros — visível só após conclusão -->
+      <button class="btn-nova-overlay" id="btnFecharAnalise" onclick="fecharEAnalisarErros()" style="display:none;">
+        🔍 Fechar e Analisar Erros
+      </button>
+      <!-- Botão Nova Importação — visível só após conclusão -->
+      <button class="btn-nova-overlay" id="btnNovaImportacao" onclick="novaImportacao()" style="display:none;">
+        📂 Nova Importação
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="confirm-overlay" id="confirmOverlay">
+  <div class="confirm-box">
+    <h4>Confirmar salvamento</h4>
+    <div class="confirm-grid" id="confirmGrid"></div>
+    <div class="confirm-actions">
+      <button class="btn-cancel" onclick="resolverConfirmacao(false)">Cancelar</button>
+      <button class="btn-confirm" onclick="resolverConfirmacao(true)">Confirmar e salvar</button>
+    </div>
+  </div>
+</div>
+
+<div class="det-modal-overlay" id="detModalOverlay">
+  <div class="det-modal">
+    <div class="det-head">
+      <div class="det-title" id="detModalTitle">Detalhes da importação</div>
+      <button class="det-close" onclick="fecharDetalhesImportacao()">✕ Fechar</button>
+    </div>
+    <div class="det-tabs">
+      <button class="det-tab active" id="detTabSucesso" onclick="trocarTabDetalhes('sucesso')">Sucesso</button>
+      <button class="det-tab" id="detTabErro" onclick="trocarTabDetalhes('erro')">Erros</button>
+    </div>
+    <div class="det-body" id="detModalBody"></div>
+  </div>
+</div>
+
+<script>
+  const _token = sessionStorage.getItem('token') || localStorage.getItem('token') || '';
+  if (!_token) {
+    try { window.top.location.href = '/login.html?_=' + Date.now(); } catch (_) { window.location.href = '/login.html?_=' + Date.now(); }
+  }
+  let _userImport = {};
+  try { _userImport = JSON.parse(sessionStorage.getItem('user') || localStorage.getItem('user') || '{}'); } catch (_) {}
+
+  function apiGet(url) {
+    return fetch(url, { headers: { 'Authorization': 'Bearer ' + _token } });
+  }
+  function apiPost(url, body) {
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _token },
+      body: JSON.stringify(body)
+    });
+  }
+  async function apiHandle401(r) {
+    if (r.status === 401) {
+      try { window.top.location.href = '/login.html?_=' + Date.now(); } catch (_) { window.location.href = '/login.html?_=' + Date.now(); }
+      return true;
+    }
+    return false;
+  }
+
+  // ── Estado ─────────────────────────────────────────────────────────────────
+  let allRows      = [];
+  let headers      = [];
+  let sortCol      = -1;
+  let sortAsc      = true;
+  let workbook     = null;
+  let currencyCols = new Set();
+  let currentLocale   = 'pt-BR';
+  let currentCurrency = 'BRL';
+  let colMapping   = {};   // { colIdx: { nome_campo, apelido } }
+  let camposImportacao = [];
+  let statusRows   = {};   // { rowIdx: { status_cadastro, status, status_importacao, cod_produto, msg } }
+  let verificado   = false;
+
+  const CURRENCIES   = [{code:'BRL',locale:'pt-BR',label:'R$ BRL'},{code:'USD',locale:'en-US',label:'$ USD'},{code:'EUR',locale:'de-DE',label:'€ EUR'}];
+  const MONEY_KEYWORDS = ['valor','value','price','preco','preço','custo','cost','total','subtotal','receita','revenue','despesa','expense','salario','salary','wage','pagamento','payment','fee','taxa','tarifa','lucro','profit','discount','desconto','amount','montante','saldo','balance','venda','sale','compra','purchase','comissao','commission'];
+
+  let fornecedorSelecionado = { id: null, nome: null, descontos: null, precoprincipal: '' };
+  let importPrecoCtx = null;
+  let tabelaPrecoMapeamentos = [];
+  let filtroCardAtivo = null;
+  let currentPage = 1;
+  let pageSize    = 50;
+  let hiddenCols  = new Set();
+  let detalhesImportacao = { sucesso: [], erro: [] };
+  let isImportando = false;
+  let confirmResolver = null;
+
+  const PREF_KEYS = {
+    pageSize: 'excel_reader_pageSize',
+    skipSemCadastro: 'excel_reader_skipSemCadastro',
+    filtro: 'excel_reader_filtro'
+  };
+
+  const dropZone    = document.getElementById('dropZone');
+  const fileInput   = document.getElementById('fileInput');
+  const output      = document.getElementById('output');
+  const sheetBar    = document.getElementById('sheetBar');
+  const statsBar    = document.getElementById('statsBar');
+  const currencyBar = document.getElementById('currencyBar');
+  const tableHead    = document.getElementById('tableHead');
+  const tableBody    = document.getElementById('tableBody');
+  const searchInput  = document.getElementById('searchInput');
+  const fileBtnLabel = document.getElementById('fileBtnLabel');
+
+  // ── Fornecedor ─────────────────────────────────────────────────────────────
+  async function carregarFornecedores() {
+    const sel     = document.getElementById('fornecedorSelect');
+    const loading = document.getElementById('fornLoading');
+    loading.classList.add('visible');
+    sel.disabled = true;
+
+    try {
+      const r = await apiGet('/api/importacao-precos/fornecedores');
+      if (await apiHandle401(r)) return;
+      const d = await r.json();
+      sel.innerHTML = '<option value="">-- Selecione um fornecedor --</option>';
+      if (d.ok && d.fornecedores && d.fornecedores.length > 0) {
+        d.fornecedores.forEach(f => {
+          const o = document.createElement('option');
+          o.value = f.id;
+          o.textContent = f.nome;
+          o.dataset.nome = f.nome;
+          o.dataset.precoprincipal = f.precoprincipal ?? '';
+          o.dataset.d1 = f.desconto1 ?? 0;
+          o.dataset.d2 = f.desconto2 ?? 0;
+          o.dataset.d3 = f.desconto3 ?? 0;
+          o.dataset.d4 = f.desconto4 ?? 0;
+          o.dataset.d5 = f.desconto5 ?? 0;
+          o.dataset.d6 = f.desconto6 ?? 0;
+          sel.appendChild(o);
+        });
+      } else {
+        const o = document.createElement('option');
+        o.disabled = true;
+        o.textContent = d.msg || 'Nenhum fornecedor encontrado.';
+        sel.appendChild(o);
+        showToast('Fornecedores: ' + (d.msg || 'Nenhum encontrado.'), 'warn');
+      }
+    } catch(e) {
+      showToast('Erro ao carregar fornecedores: ' + e.message, 'erro');
+      sel.innerHTML = '<option value="">-- Erro ao carregar --</option>';
+    }
+
+    loading.classList.remove('visible');
+    sel.disabled = false;
+  }
+
+  async function selecionarFornecedor() {
+    const sel  = document.getElementById('fornecedorSelect');
+    const opt  = sel.options[sel.selectedIndex];
+    if (!sel.value) {
+      fornecedorSelecionado = { id: null, nome: null, descontos: null, precoprincipal: '' };
+      importPrecoCtx = null;
+      tabelaPrecoMapeamentos = [];
+      const wrap = document.getElementById('wrapTabelaPrecoImport');
+      if (wrap) wrap.style.display = 'none';
+      const msgVin = document.getElementById('tabelaPrecoVinculoMsg');
+      if (msgVin) { msgVin.textContent = ''; msgVin.classList.remove('tp-vinculo-loading'); }
+      const chk = document.getElementById('chkModoTabelaPreco');
+      if (chk) chk.checked = false;
+      dropZone.classList.add('bloqueada');
+      fileBtnLabel.classList.add('bloqueada');
+      atualizarEstadoFormulario();
+      return;
+    }
+    fornecedorSelecionado = {
+      id: sel.value, nome: opt.dataset.nome,
+      precoprincipal: (opt.dataset.precoprincipal || '').toUpperCase(),
+      descontos: {
+        d1: parseFloat(opt.dataset.d1 || 0),
+        d2: parseFloat(opt.dataset.d2 || 0),
+        d3: parseFloat(opt.dataset.d3 || 0),
+        d4: parseFloat(opt.dataset.d4 || 0),
+        d5: parseFloat(opt.dataset.d5 || 0),
+        d6: parseFloat(opt.dataset.d6 || 0),
+      }
+    };
+    dropZone.classList.remove('bloqueada');
+    fileBtnLabel.classList.remove('bloqueada');
+    document.getElementById('alertForn').classList.remove('visible');
+    resetarStatus();
+    tabelaPrecoMapeamentos = [];
+    await carregarImportPrecoContext();
+    atualizarEstadoFormulario();
+  }
+
+  async function carregarImportPrecoContext() {
+    const wrap = document.getElementById('wrapTabelaPrecoImport');
+    const hint = document.getElementById('tabelaPrecoHint');
+    const msgEl = document.getElementById('tabelaPrecoVinculoMsg');
+    const rowsHost = document.getElementById('tabelaPrecoRows');
+    const chk = document.getElementById('chkModoTabelaPreco');
+    const btnAdd = document.getElementById('btnAddTabelaPrecoRow');
+    if (!wrap) return;
+
+    function setPainelPrecoAtivo(ativo, limparLinhas) {
+      if (chk) {
+        chk.disabled = !ativo;
+        chk.closest('label') && (chk.closest('label').style.opacity = ativo ? '1' : '0.5');
+      }
+      if (btnAdd) btnAdd.style.display = ativo ? '' : 'none';
+      if (limparLinhas && rowsHost) rowsHost.innerHTML = '';
+      if (!ativo && hint) hint.textContent = '';
+      if (!ativo && chk) chk.checked = false;
+      tabelaPrecoMapeamentos = [];
+    }
+
+    if (!fornecedorSelecionado.id) {
+      wrap.style.display = 'none';
+      if (msgEl) { msgEl.textContent = ''; msgEl.classList.remove('tp-vinculo-loading'); }
+      setPainelPrecoAtivo(false, true);
+      return;
+    }
+
+    wrap.style.display = 'block';
+    if (msgEl) {
+      msgEl.classList.add('tp-vinculo-loading');
+      msgEl.textContent = 'Carregando tabelas de preço deste fornecedor…';
+    }
+    setPainelPrecoAtivo(false, true);
+
+    try {
+      const r = await apiGet('/api/importacao-precos/import-preco-context?fornecedor_id=' + encodeURIComponent(fornecedorSelecionado.id));
+      if (await apiHandle401(r)) return;
+      const d = await r.json();
+
+      if (msgEl) msgEl.classList.remove('tp-vinculo-loading');
+
+      if (!d.ok) {
+        importPrecoCtx = null;
+        if (msgEl) msgEl.textContent = 'Erro ao buscar vínculos: ' + (d.msg || 'resposta inválida');
+        setPainelPrecoAtivo(false, true);
+        return;
+      }
+
+      importPrecoCtx = d;
+
+      if (!d.possui_vinculo || !Array.isArray(d.tabelas_vinculadas) || d.tabelas_vinculadas.length === 0) {
+        if (msgEl) {
+          msgEl.textContent =
+            'Nenhuma tabela de preço ativa está vinculada a este fornecedor no sistema. ' +
+            'Vincule pelo cadastro de fornecedor (lista de tabelas de preço / “tabelas-preco”).';
+        }
+        setPainelPrecoAtivo(false, true);
+        return;
+      }
+
+      if (msgEl) {
+        msgEl.innerHTML =
+          '<strong>' + d.tabelas_vinculadas.length + '</strong> tabela(s) de preço vinculada(s)' +
+          (d.tabelas_vinculadas.length <= 8
+            ? ': ' +
+              d.tabelas_vinculadas.map((t) => escHtml(String(t.descricao || t.id))).join(', ')
+            : '');
+      }
+
+      setPainelPrecoAtivo(true, true);
+      let h = 'Após importar o arquivo, escolha a(s) coluna(s) da planilha com preço para cada tabela. Desconto é opcional (marque «desc. %» para percentual; desmarque para valor em R$).';
+      if (d.tabela_padrao_auto) {
+        h +=
+          ' Tabela padrão «' +
+          escHtml(String(d.tabela_padrao_auto.descricao)) +
+          '»: novos produtos podem ser incluídos automaticamente usando o preço da coluna base (preço principal do fornecedor), se não estiver já mapeada.';
+      }
+      if (hint) hint.textContent = h;
+      seedTabelaPrecoRowsFromVinculos();
+    } catch (e) {
+      importPrecoCtx = null;
+      if (msgEl) {
+        msgEl.classList.remove('tp-vinculo-loading');
+        msgEl.textContent = 'Não foi possível carregar tabelas: ' + (e.message || 'falha de rede');
+      }
+      setPainelPrecoAtivo(false, true);
+    }
+    atualizarEstadoFormulario();
+  }
+
+  function modoTabelaPrecoAtivo() {
+    const chk = document.getElementById('chkModoTabelaPreco');
+    return !!(chk && chk.checked && importPrecoCtx && importPrecoCtx.possui_vinculo);
+  }
+
+  function onChkModoTabelaPrecoChange() {
+    const chk = document.getElementById('chkModoTabelaPreco');
+    if (chk && chk.checked && importPrecoCtx && importPrecoCtx.possui_vinculo && !tabelaPrecoMapeamentos.length) {
+      seedTabelaPrecoRowsFromVinculos();
+    }
+    atualizarEstadoFormulario();
+  }
+
+  /** Uma linha de mapeamento por tabela vinculada ao fornecedor. */
+  function seedTabelaPrecoRowsFromVinculos() {
+    const tabs = importPrecoCtx && importPrecoCtx.tabelas_vinculadas ? importPrecoCtx.tabelas_vinculadas : [];
+    if (!tabs.length) {
+      tabelaPrecoMapeamentos = [];
+      renderTabelaPrecoRows();
+      return;
+    }
+    tabelaPrecoMapeamentos = tabs.map((t) => ({
+      id_tabela: String(t.id),
+      colPreco: -1,
+      colDesconto: -1,
+      descontoPercentual: true
+    }));
+    renderTabelaPrecoRows();
+    atualizarEstadoFormulario();
+  }
+
+  /** Próxima tabela ainda sem linha de mapeamento (ou a última, se todas já tiverem linha). */
+  function getProximaTabelaId() {
+    const tabs = importPrecoCtx && importPrecoCtx.tabelas_vinculadas ? importPrecoCtx.tabelas_vinculadas : [];
+    if (!tabs.length) return '';
+    const used = new Set(tabelaPrecoMapeamentos.map((m) => String(m.id_tabela)));
+    const livre = tabs.find((t) => !used.has(String(t.id)));
+    return String((livre || tabs[tabs.length - 1]).id);
+  }
+
+  function calcPrecoFinalTabelaLinha(brutoRaw, descRaw, descontoEhPercentual) {
+    let b = parseFloat(String(brutoRaw ?? '').replace(',', '.'));
+    if (isNaN(b) || b <= 0) return null;
+    const ds = String(descRaw ?? '').trim();
+    if (!ds) return { valor: Number(b.toFixed(2)), tipo_desconto: 'R', vlr_desconto: 0 };
+    const d = parseFloat(ds.replace(',', '.'));
+    if (isNaN(d) || d <= 0) return { valor: Number(b.toFixed(2)), tipo_desconto: 'R', vlr_desconto: 0 };
+    if (descontoEhPercentual) {
+      const f = b * (1 - d / 100);
+      if (f <= 0) return null;
+      return { valor: Number(f.toFixed(2)), tipo_desconto: 'P', vlr_desconto: d };
+    }
+    const f = b - d;
+    if (f <= 0) return null;
+    return { valor: Number(f.toFixed(2)), tipo_desconto: 'R', vlr_desconto: d };
+  }
+
+  function renderTabelaPrecoRows() {
+    const host = document.getElementById('tabelaPrecoRows');
+    if (!host) return;
+    const tabs = importPrecoCtx && importPrecoCtx.tabelas_vinculadas ? importPrecoCtx.tabelas_vinculadas : [];
+    if (!tabs.length) { host.innerHTML = ''; return; }
+    const noHead = !headers || !headers.length;
+    const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    let html = '';
+    tabelaPrecoMapeamentos.forEach((m, idx) => {
+      const optsTab = tabs.map((t) =>
+        '<option value="' + t.id + '"' + (String(m.id_tabela) === String(t.id) ? ' selected' : '') + '>' + esc(String(t.descricao || '').slice(0, 50)) + '</option>'
+      ).join('');
+      const optsCol =
+        '<option value="-1">— coluna preço —</option>' +
+        headers.map((h, i) =>
+          '<option value="' + i + '"' + (m.colPreco === i ? ' selected' : '') + '>' + esc(String(h).slice(0, 45)) + '</option>'
+        ).join('');
+      const optsDesc =
+        '<option value="-1"' + (m.colDesconto < 0 ? ' selected' : '') + '>— sem desconto —</option>' +
+        headers.map((h, i) =>
+          '<option value="' + i + '"' + (m.colDesconto === i ? ' selected' : '') + '>Desc: ' + esc(String(h).slice(0, 40)) + '</option>'
+        ).join('');
+      html +=
+        '<div class="tp-row" data-i="' + idx + '">' +
+        '<select class="tp-sel-tab" data-i="' + idx + '"' + (noHead ? ' disabled' : '') + '>' + optsTab + '</select>' +
+        '<select class="tp-sel-preco" data-i="' + idx + '"' + (noHead ? ' disabled' : '') + '>' + optsCol + '</select>' +
+        '<select class="tp-sel-desc" data-i="' + idx + '"' + (noHead ? ' disabled' : '') + '>' + optsDesc + '</select>' +
+        '<label style="font-size:13px;display:inline-flex;align-items:center;gap:6px;color:var(--text2);font-weight:600;">' +
+        '<input type="checkbox" class="tp-chk-pct" data-i="' + idx + '"' + (m.descontoPercentual !== false ? ' checked' : '') + '/> desc. %' +
+        '</label>' +
+        '<button type="button" class="tp-remove" onclick="removeTabelaPrecoRow(' + idx + ')">✕</button>' +
+        '</div>';
+    });
+    host.innerHTML = html;
+    host.querySelectorAll('.tp-sel-tab').forEach((el) => el.addEventListener('change', syncTabelaPrecoRowFromDom));
+    host.querySelectorAll('.tp-sel-preco').forEach((el) => el.addEventListener('change', syncTabelaPrecoRowFromDom));
+    host.querySelectorAll('.tp-sel-desc').forEach((el) => el.addEventListener('change', syncTabelaPrecoRowFromDom));
+    host.querySelectorAll('.tp-chk-pct').forEach((el) => el.addEventListener('change', syncTabelaPrecoRowFromDom));
+  }
+
+  function syncTabelaPrecoRowFromDom() {
+    const host = document.getElementById('tabelaPrecoRows');
+    if (!host) return;
+    host.querySelectorAll('.tp-row').forEach((row) => {
+      const idx = parseInt(row.dataset.i, 10);
+      if (isNaN(idx) || !tabelaPrecoMapeamentos[idx]) return;
+      const tab = row.querySelector('.tp-sel-tab');
+      const pr = row.querySelector('.tp-sel-preco');
+      const ds = row.querySelector('.tp-sel-desc');
+      const pct = row.querySelector('.tp-chk-pct');
+      if (tab) tabelaPrecoMapeamentos[idx].id_tabela = tab.value;
+      if (pr) tabelaPrecoMapeamentos[idx].colPreco = parseInt(pr.value, 10);
+      if (ds) tabelaPrecoMapeamentos[idx].colDesconto = parseInt(ds.value, 10);
+      if (pct) tabelaPrecoMapeamentos[idx].descontoPercentual = !!pct.checked;
+    });
+    atualizarEstadoFormulario();
+  }
+
+  function addTabelaPrecoRow() {
+    const tabs = importPrecoCtx && importPrecoCtx.tabelas_vinculadas ? importPrecoCtx.tabelas_vinculadas : [];
+    if (!tabs.length) return;
+    if (!tabelaPrecoMapeamentos.length) {
+      seedTabelaPrecoRowsFromVinculos();
+      return;
+    }
+    tabelaPrecoMapeamentos.push({
+      id_tabela: getProximaTabelaId(),
+      colPreco: -1,
+      colDesconto: -1,
+      descontoPercentual: true
+    });
+    renderTabelaPrecoRows();
+    atualizarEstadoFormulario();
+  }
+
+  function removeTabelaPrecoRow(idx) {
+    tabelaPrecoMapeamentos.splice(idx, 1);
+    if (!tabelaPrecoMapeamentos.length) seedTabelaPrecoRowsFromVinculos();
+    else renderTabelaPrecoRows();
+    atualizarEstadoFormulario();
+  }
+
+  function tabelasPrecoDuplicadasNoMapeamento() {
+    const ids = tabelaPrecoMapeamentos
+      .filter((m) => parseInt(String(m.id_tabela), 10) > 0 && m.colPreco >= 0)
+      .map((m) => String(m.id_tabela));
+    return ids.length !== new Set(ids).size;
+  }
+
+  function buildTabelaPrecosUpdatesForRow(row) {
+    syncTabelaPrecoRowFromDom();
+    const out = [];
+    if (!modoTabelaPrecoAtivo()) return out;
+    for (const m of tabelaPrecoMapeamentos) {
+      const idt = parseInt(String(m.id_tabela || ''), 10);
+      const cp = parseInt(String(m.colPreco), 10);
+      if (!idt || cp < 0) continue;
+      const descCell = m.colDesconto >= 0 ? row[m.colDesconto] : '';
+      const r = calcPrecoFinalTabelaLinha(row[cp], descCell, m.descontoPercentual !== false);
+      if (!r) continue;
+      out.push({
+        id_tabela: idt,
+        valor_final: r.valor,
+        tipo_desconto: r.tipo_desconto,
+        vlr_desconto: r.vlr_desconto
+      });
+    }
+    const map = new Map();
+    for (const u of out) map.set(u.id_tabela, u);
+    return [...map.values()];
+  }
+
+  function getPrecoReferenciaImportacao(row) {
+    const idx = getVlrBaseColIdx();
+    if (idx < 0) return '';
+    const vlrBase = row[idx];
+    const vlrBaseStr = String(vlrBase ?? '').replace(',', '.');
+    if (vlrBaseStr === '' || !(parseFloat(vlrBaseStr) > 0)) return '';
+    if (fornecedorSelecionado.descontos) {
+      const calc = calcDescontoCascata(vlrBase);
+      if (calc !== null) return calc.toFixed(2);
+    }
+    return parseFloat(vlrBaseStr).toFixed(2);
+  }
+
+  function checarFornecedor() {
+    if (!fornecedorSelecionado.id) {
+      document.getElementById('alertForn').classList.add('visible');
+      document.getElementById('fornecedorSelect').focus();
+      return false;
+    }
+    return true;
+  }
+
+  // ── Campos de importação ───────────────────────────────────────────────────
+  async function carregarCamposImportacao() {
+    try {
+      const r = await apiGet('/api/importacao-precos/campos-importacao?tabela=produto&filtro=ativos');
+      if (await apiHandle401(r)) return;
+      const d = await r.json();
+      if (d.ok) camposImportacao = d.campos;
+    } catch(e) {}
+  }
+
+  function autoMapear() {
+    colMapping = {};
+    headers.forEach((h, i) => {
+      const hNorm = h.toLowerCase().trim().replace(/[\s_\-]/g,'');
+      const match = camposImportacao.find(c => {
+        const nome  = c.nome_campo.toLowerCase().replace(/[\s_\-]/g,'');
+        const apel  = c.apelido.toLowerCase().replace(/[\s_\-]/g,'');
+        return nome === hNorm || apel === hNorm;
+      });
+      if (match) colMapping[i] = { nome_campo: match.nome_campo, apelido: match.apelido };
+    });
+  }
+
+  function atualizarMapBar() {
+    const visivel = headers.length - hiddenCols.size;
+    const mapeados = Object.keys(colMapping).filter(i => !hiddenCols.has(parseInt(i))).length;
+    const nao = visivel - mapeados;
+    document.getElementById('mapBar').style.display = visivel > 0 ? 'flex' : 'none';
+    document.getElementById('mapCounter').innerHTML =
+      `<span>${mapeados}</span> de <span>${visivel}</span> mapeadas` +
+      (nao > 0 ? ` · <span class="unmapped">${nao} sem vínculo</span>` : ' · <span style="color:var(--green)">✔ todas vinculadas</span>');
+    const faltando = camposCriticosFaltando();
+    document.getElementById('mapCritical').textContent = faltando.length ? `Críticos: ${faltando.join(', ')}` : '';
+    atualizarEstadoFormulario();
+  }
+
+  function limparMapeamento() { colMapping={}; renderHead(); atualizarMapBar(); showToast('Mapeamento limpo.','warn'); }
+
+  function onMapChange(colIdx, select) {
+    const val = select.value;
+    if (!val) { delete colMapping[colIdx]; select.closest('.map-select-wrap').className='map-select-wrap unmapped'; }
+    else {
+      const c = camposImportacao.find(c => c.nome_campo===val);
+      colMapping[colIdx] = { nome_campo:val, apelido: c?c.apelido:val };
+      select.closest('.map-select-wrap').className='map-select-wrap mapped';
+    }
+    atualizarMapBar();
+    resetarStatus();
+  }
+
+  function camposCriticosFaltando() {
+    const mappedFields = Object.values(colMapping).map(v => v.nome_campo);
+    const faltando = [];
+    if (!mappedFields.includes('cod_fabricante')) faltando.push('cod_fabricante');
+    if (!mappedFields.includes('descricao') && !mappedFields.includes('desc_produto') && !mappedFields.includes('produto')) faltando.push('descricao');
+    if (modoTabelaPrecoAtivo()) {
+      const mapsOk = tabelaPrecoMapeamentos.some(m => parseInt(String(m.id_tabela), 10) > 0 && m.colPreco >= 0);
+      const temPadrao = importPrecoCtx && importPrecoCtx.tabela_padrao_auto;
+      const baseIdx = typeof getVlrBaseColIdx === 'function' ? getVlrBaseColIdx() : -1;
+      if (!mapsOk) {
+        if (temPadrao) {
+          if (baseIdx < 0) faltando.push('coluna preço base (tabela padrão)');
+        } else {
+          faltando.push('preço por tabela');
+        }
+      }
+      if (tabelasPrecoDuplicadasNoMapeamento()) {
+        faltando.push('tabelas duplicadas (cada linha deve ser uma tabela diferente)');
+      }
+    }
+    return faltando;
+  }
+
+  function atualizarEstadoFormulario() {
+    const health = document.getElementById('formHealth');
+    const descricaoInput = document.getElementById('descricaoInput');
+    const faltando = [];
+    if (!fornecedorSelecionado.id) faltando.push('fornecedor');
+    if (!allRows.length) faltando.push('arquivo');
+    if (camposCriticosFaltando().length) faltando.push('mapeamento');
+    if (verificado && !descricaoInput.value.trim()) faltando.push('descrição');
+    descricaoInput.classList.toggle('input-invalid', verificado && !descricaoInput.value.trim());
+    if (!faltando.length) {
+      health.className = 'form-health ok';
+      health.textContent = '✅ Pronto para salvar';
+    } else {
+      health.className = 'form-health warn';
+      health.textContent = `⚠ Faltam: ${faltando.join(', ')}`;
+    }
+    atualizarEtapas();
+  }
+
+  function mapearEssenciais() {
+    if (!headers.length || !camposImportacao.length) return;
+    const essenciais = ['cod_fabricante', 'descricao', 'desc_produto', 'produto'];
+    headers.forEach((h, i) => {
+      if (colMapping[i]) return;
+      const hNorm = String(h).toLowerCase().replace(/[\s_\-]/g, '');
+      const match = camposImportacao.find(c => {
+        const nome = c.nome_campo.toLowerCase().replace(/[\s_\-]/g, '');
+        const ape = c.apelido.toLowerCase().replace(/[\s_\-]/g, '');
+        return essenciais.includes(c.nome_campo) && (hNorm.includes(nome) || hNorm.includes(ape) || nome.includes(hNorm));
+      });
+      if (match) colMapping[i] = { nome_campo: match.nome_campo, apelido: match.apelido };
+    });
+    renderHead();
+    atualizarMapBar();
+    showToast('Campos essenciais mapeados.', 'ok');
+  }
+
+  // ── Status das linhas ──────────────────────────────────────────────────────
+  function resetarStatus() {
+    statusRows = {};
+    verificado = false;
+    filtroCardAtivo = null;
+    currentPage = 1;
+    document.getElementById('btnImportar').classList.remove('visible');
+    document.getElementById('descWrap').classList.remove('visible');
+      document.getElementById('importOptions').classList.remove('visible');
+    document.getElementById('statusCards').classList.remove('visible');
+    document.getElementById('statusCards').innerHTML = '';
+    document.getElementById('pagination').classList.remove('visible');
+    atualizarEstadoFormulario();
+    if (headers.length > 0) renderRows(getFiltered());
+  }
+
+  function setProgresso(label, pct) {
+    const wrap = document.getElementById('progressWrap');
+    wrap.classList.add('visible');
+    document.getElementById('progressLabel').textContent = label;
+    document.getElementById('progressPct').textContent   = pct + '%';
+    document.getElementById('progressFill').style.width  = pct + '%';
+    if (pct >= 100) setTimeout(() => wrap.classList.remove('visible'), 1200);
+  }
+
+  // ── Verificar lote ─────────────────────────────────────────────────────────
+  async function verificarLote() {
+    if (!checarFornecedor()) return;
+    if (!allRows.length) { showToast('Importe um arquivo primeiro.','warn'); return; }
+
+    const cfEntry = Object.entries(colMapping).find(([,v]) => v.nome_campo === 'cod_fabricante');
+    if (!cfEntry) { showToast('Mapeie a coluna cod_fabricante antes de verificar.','warn'); return; }
+    const cfIdx = parseInt(cfEntry[0]);
+
+    // Mostra alguns exemplos no console para debug
+    console.log('=== VERIFICAR LOTE ===');
+    console.log('Fornecedor ID:', fornecedorSelecionado.id);
+    console.log('cfIdx (coluna cod_fabricante):', cfIdx);
+    console.log('Primeiros 3 valores de cod_fabricante:', allRows.slice(0,3).map(r => String(r[cfIdx] ?? '').trim()));
+
+    allRows.forEach((_,i) => {
+      statusRows[i] = { status_cadastro:'?', status:'?', status_importacao:'verificando', cod_produto:'', msg:'' };
+    });
+    renderRows(getFiltered());
+    setProgresso('Verificando no banco...', 10);
+
+    const rows = allRows.map((row, i) => ({ idx: i, cod_fabricante: String(row[cfIdx] ?? '').trim() }));
+
+    const fd = { cod_fornecedor: fornecedorSelecionado.id, rows };
+
+    try {
+      const r = await apiPost('/api/importacao-precos/verificar-lote', fd);
+      if (await apiHandle401(r)) return;
+      const text = await r.text();
+      console.log('Resposta bruta do PHP:', text);
+      const d = JSON.parse(text);
+
+      setProgresso('Verificando...', 80);
+
+      if (!d.ok) { showToast('Erro: '+d.msg,'erro'); setProgresso('Erro',100); return; }
+
+      console.log('Resultado (primeiros 3):', d.resultado.slice(0,3));
+
+      d.resultado.forEach(res => {
+        statusRows[res.idx] = {
+          status_cadastro:   res.status_cadastro,
+          status:            res.status,
+          status_importacao: 'aguardando',
+          cod_produto:       res.cod_produto,
+          msg:               res.msg
+        };
+      });
+
+      verificado = true;
+      if (!document.getElementById('descricaoInput').value.trim()) {
+        const dataBr = new Date().toLocaleDateString('pt-BR');
+        document.getElementById('descricaoInput').value = `${fornecedorSelecionado.nome || 'Fornecedor'} - ${dataBr}`;
+      }
+      renderRows(getFiltered());
+      renderStatusCards();
+      setProgresso('Verificação concluída!', 100);
+      document.getElementById('btnImportar').classList.add('visible');
+      document.getElementById('descWrap').classList.add('visible');
+      document.getElementById('importOptions').classList.add('visible');
+
+      const total = d.resultado.length;
+      const cads  = d.resultado.filter(r => r.status_cadastro === 'S').length;
+      const novos = d.resultado.filter(r => r.status === 'SC').length;
+      showToast(`✔ ${total} verificados · ${cads} cadastrados · ${novos} novos`, 'ok');
+      atualizarEstadoFormulario();
+
+    } catch(e) {
+      showToast('Erro na verificação: '+e.message,'erro');
+      console.error('Erro verificarLote:', e);
+      setProgresso('Erro',100);
+    }
+  }
+
+  // ── Importar lote ──────────────────────────────────────────────────────────
+  async function importarLote() {
+    if (isImportando) return;
+    if (!checarFornecedor()) return;
+    if (!verificado) { showToast('Verifique os dados antes de importar.','warn'); return; }
+
+    const descricao = document.getElementById('descricaoInput').value.trim();
+    const skipSemCadastro = document.getElementById('skipSemCadastro').checked;
+    if (!descricao) {
+      showToast('Preencha a Descrição do lote antes de salvar.', 'warn');
+      document.getElementById('descricaoInput').focus();
+      return;
+    }
+
+    const totalSemCadastro = Object.values(statusRows).filter(st => st.status === 'SC').length;
+    const totalParaGravar = skipSemCadastro ? (allRows.length - totalSemCadastro) : allRows.length;
+    const confirmado = await abrirConfirmacaoImportacao({
+      fornecedor: fornecedorSelecionado.nome,
+      descricao,
+      totalLinhas: allRows.length,
+      totalParaGravar,
+      novosIgnorados: skipSemCadastro ? totalSemCadastro : 0
+    });
+    if (!confirmado) return;
+    isImportando = true;
+
+    // ── Cria registro em atualizacaopreco ────────────────────────────────────
+    let idAtualizacao = null;
+    try {
+      const rAtu = await apiPost('/api/importacao-precos/salvar-atualizacao-preco', {
+        descricao,
+        id_usuario: String(_userImport.id != null ? _userImport.id : '1')
+      });
+      if (await apiHandle401(rAtu)) { isImportando = false; return; }
+      const dAtu = await rAtu.json();
+      if (!dAtu.ok) { showToast('Erro ao criar lote: ' + dAtu.msg, 'warn'); isImportando = false; return; }
+      idAtualizacao = dAtu.id;
+    } catch(e) {
+      showToast('Erro ao criar lote: ' + e.message, 'warn');
+      isImportando = false;
+      return;
+    }
+
+    const overlay = document.getElementById('importOverlay');
+    const card    = document.getElementById('importCard');
+    const spinner = document.getElementById('importSpinner');
+
+    // Reseta overlay para estado inicial
+    card.classList.remove('concluido');
+    detalhesImportacao = { sucesso: [], erro: [] };
+    document.getElementById('btnNovaImportacao').style.display = 'none';
+    document.getElementById('btnVerDetalhes').classList.remove('visible');
+    document.getElementById('overlayTituloSpan').textContent = '...';
+    document.getElementById('overlayFill').style.width = '0%';
+    document.getElementById('overlayPct').textContent  = '0%';
+    document.getElementById('overlayLinhas').textContent = '0 de ' + allRows.length;
+    document.getElementById('overlayLabel').textContent  = 'Preparando...';
+    document.getElementById('statOk').textContent  = '0';
+    document.getElementById('statUpd').textContent = '0';
+    document.getElementById('statErr').textContent = '0';
+
+    card.style.setProperty('background', 'var(--glass-bg, #ffffff)', 'important');
+    card.style.setProperty('opacity', '1', 'important');
+    overlay.classList.add('visible');
+    await new Promise(r => setTimeout(r, 80));
+
+    const total = allRows.length;
+    let inserts = 0, updates = 0, erros = 0, ignorados = 0;
+
+    function atualizarOverlay(i) {
+      const pct = Math.round(((i+1)/total)*100);
+      document.getElementById('overlayLabel').textContent   = `Processando linha ${i+1} de ${total}...`;
+      document.getElementById('overlayLinhas').textContent  = `${i+1} de ${total}`;
+      document.getElementById('overlayPct').textContent     = pct + '%';
+      document.getElementById('overlayFill').style.width    = pct + '%';
+      document.getElementById('statOk').textContent         = inserts;
+      document.getElementById('statUpd').textContent        = updates;
+      document.getElementById('statErr').textContent        = erros;
+    }
+
+    for (let i = 0; i < allRows.length; i++) {
+      const row = allRows[i];
+      const st  = statusRows[i] || {};
+      const resumoItem = getResumoItemImportacao(row);
+
+      if (skipSemCadastro && st.status === 'SC') {
+        statusRows[i].status_importacao = 'ignorado';
+        ignorados++;
+        atualizarLinhaStatus(i);
+        atualizarOverlay(i);
+        if (i % 5 === 0) await new Promise(r => setTimeout(r, 0));
+        continue;
+      }
+
+      if (!statusRows[i]) statusRows[i] = {};
+      statusRows[i].status_importacao = 'importando';
+      atualizarLinhaStatus(i);
+      atualizarOverlay(i);
+
+      syncTabelaPrecoRowFromDom();
+      const modoTab = modoTabelaPrecoAtivo();
+      const campos = {};
+      Object.entries(colMapping).forEach(([ci, map]) => {
+        campos[map.nome_campo] = String(row[parseInt(ci)] ?? '');
+      });
+
+      if (!modoTab) {
+        const vlrBaseIdx = getVlrBaseColIdx();
+        if (vlrBaseIdx >= 0) {
+          const vlrBase = row[vlrBaseIdx];
+          const vlrBaseStr = String(vlrBase ?? '').replace(',', '.');
+          if (vlrBaseStr !== '' && parseFloat(vlrBaseStr) > 0) {
+            campos['vlr_venda'] = vlrBaseStr;
+          }
+          if (fornecedorSelecionado.descontos) {
+            const calc = calcDescontoCascata(vlrBase);
+            if (calc !== null) campos['vlrcustofinalVenda'] = calc.toFixed(2);
+          }
+        }
+      }
+
+      const tabela_precos_updates = modoTab ? buildTabelaPrecosUpdatesForRow(row) : [];
+      const preco_referencia_import = modoTab ? getPrecoReferenciaImportacao(row) : '';
+
+      try {
+        const r = await apiPost('/api/importacao-precos/importar-linha', {
+          cod_fornecedor: String(fornecedorSelecionado.id),
+          status_cadastro: st.status_cadastro || 'N',
+          cod_produto: String(st.cod_produto || ''),
+          campos,
+          modo_tabela_preco: modoTab,
+          tabela_precos_updates,
+          preco_referencia_import
+        });
+        if (await apiHandle401(r)) {
+          statusRows[i].status_importacao = 'erro';
+          statusRows[i].msg = 'Sessão expirada';
+          isImportando = false;
+          return;
+        }
+        const d = await r.json();
+        if (d.ok) {
+          statusRows[i].status_importacao = 'importado';
+          detalhesImportacao.sucesso.push(resumoItem);
+          if (d.operacao === 'UPDATE') updates++; else inserts++;
+        } else {
+          statusRows[i].status_importacao = 'erro';
+          statusRows[i].msg = d.msg;
+          detalhesImportacao.erro.push({ ...resumoItem, msg: d.msg || 'Erro desconhecido' });
+          erros++;
+        }
+      } catch(e) {
+        statusRows[i].status_importacao = 'erro';
+        statusRows[i].msg = e.message;
+        detalhesImportacao.erro.push({ ...resumoItem, msg: e.message || 'Falha de comunicação' });
+        erros++;
+      }
+
+      atualizarLinhaStatus(i);
+      if (i % 5 === 0) await new Promise(r => setTimeout(r, 0));
+    }
+
+    // ── Concluído ──────────────────────────────────────────────────────────
+    card.classList.add('concluido');
+    spinner.style.borderTopColor = erros > 0 ? 'var(--yellow)' : 'var(--green)';
+    document.getElementById('overlayTituloSpan').textContent = '';
+    document.querySelector('#importCard h3').innerHTML =
+      erros > 0
+        ? `Concluído com <span style="color:var(--yellow)">avisos</span>`
+        : `Concluído <span style="color:var(--green)">✔</span>`;
+    document.getElementById('overlayLabel').textContent  = 'Importação finalizada!';
+    document.getElementById('overlayFill').style.width   = '100%';
+    document.getElementById('overlayPct').textContent    = '100%';
+    document.getElementById('statOk').textContent        = inserts;
+    document.getElementById('statUpd').textContent       = updates;
+    document.getElementById('statErr').textContent       = erros;
+    atualizarAcessoDetalhes();
+    // Exibe botões de ação pós-importação
+    document.getElementById('btnFecharAnalise').style.display = 'block';
+    document.getElementById('btnNovaImportacao').style.display = 'block';
+
+    // Se houver erros, mostra o painel de explicação
+    if (detalhesImportacao.erro.length > 0) {
+      mostrarPainelErros(detalhesImportacao.erro);
+    }
+
+    showToast(`💾 ${inserts} inseridos · ${updates} atualizados · ${ignorados} ignorados · ${erros} erros`, erros > 0 ? 'warn' : 'ok');
+    document.getElementById('btnImportar').classList.remove('visible');
+    document.getElementById('descWrap').classList.remove('visible');
+    document.getElementById('importOptions').classList.remove('visible');
+    atualizarEstadoFormulario();
+    isImportando = false;
+  }
+
+  // Atualiza só as células de status de uma linha sem re-renderizar tudo
+  function atualizarLinhaStatus(rowIdx) {
+    const tr = document.querySelector(`tr[data-row="${rowIdx}"]`);
+    if (!tr) return;
+    const st = statusRows[rowIdx] || {};
+    const tdCad   = tr.querySelector('.td-status-cad');
+    const tdSt    = tr.querySelector('.td-status');
+    const tdImp   = tr.querySelector('.td-status-imp');
+    if (tdCad) tdCad.innerHTML = badgeCadastro(st.status_cadastro);
+    if (tdSt)  tdSt.innerHTML  = badgeStatus(st.status);
+    if (tdImp) tdImp.innerHTML = badgeImportacao(st.status_importacao, st.msg);
+  }
+
+  // ── Badge helpers ──────────────────────────────────────────────────────────
+  function badgeCadastro(v) {
+    if (!v || v==='?') return `<span class="badge badge-aguard pulsing"><span class="dot dot-muted pulsing"></span>...</span>`;
+    if (v==='S') return `<span class="badge badge-cad-s"><span class="dot dot-green"></span>Cadastrado</span>`;
+    return             `<span class="badge badge-cad-n"><span class="dot dot-red"></span>Não cadastrado</span>`;
+  }
+
+  function badgeStatus(v) {
+    if (!v || v==='?') return `<span class="badge badge-aguard pulsing"><span class="dot dot-muted pulsing"></span>...</span>`;
+    if (v==='A')  return `<span class="badge badge-a" title="Produto será atualizado"><span class="dot dot-blue"></span>Atualizar</span>`;
+    if (v==='SA') return `<span class="badge badge-sa" title="Sem alteração prevista"><span class="dot dot-muted"></span>Sem alteração</span>`;
+    return              `<span class="badge badge-sc" title="Produto não cadastrado — será inserido"><span class="dot dot-yellow"></span>Sem cadastro</span>`;
+  }
+
+  function badgeImportacao(v, msg) {
+    if (!v || v==='aguardando') return `<span class="badge badge-aguard"><span class="dot dot-muted"></span>Aguardando</span>`;
+    if (v==='verificando')      return `<span class="badge badge-aguard pulsing"><span class="dot dot-blue pulsing"></span>Verificando...</span>`;
+    if (v==='importando')       return `<span class="badge badge-aguard pulsing"><span class="dot dot-accent pulsing"></span>Importando...</span>`;
+    if (v==='importado')        return `<span class="badge badge-ok"><span class="dot dot-green"></span>Importado ✔</span>`;
+    if (v==='ignorado')         return `<span class="badge badge-sa" title="Ignorado por configuração do usuário"><span class="dot dot-muted"></span>Ignorado</span>`;
+    if (v==='erro')             return `<span class="badge badge-erro" title="${escHtml(msg||'')}"><span class="dot dot-red"></span>Erro ✕</span>`;
+    return '';
+  }
+
+  // ── Drag & drop ────────────────────────────────────────────────────────────
+  dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.add('dragover');});
+  dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('dragover'));
+  dropZone.addEventListener('drop',e=>{
+    e.preventDefault(); dropZone.classList.remove('dragover');
+    if (!checarFornecedor()) return;
+    const f=e.dataTransfer.files[0]; if(f) readFile(f);
+  });
+  fileInput.addEventListener('change',e=>{
+    if (!checarFornecedor()) { fileInput.value=''; return; }
+    if(e.target.files[0]) readFile(e.target.files[0]);
+  });
+  searchInput.addEventListener('input',()=>{
+    currentPage=1;
+    try { localStorage.setItem(PREF_KEYS.filtro, searchInput.value || ''); } catch(e) {}
+    renderRows(getFiltered());
+  });
+
+  // Bloqueia botão de arquivo se fornecedor não selecionado
+  fileBtnLabel.addEventListener('click', e => {
+    if (!checarFornecedor()) e.preventDefault();
+  });
+
+  function readFile(file) {
+    const dz = document.getElementById('dropZone');
+    document.getElementById('readLabel').textContent = 'Lendo: ' + file.name;
+    document.getElementById('readSublabel').textContent = (file.size > 1024*1024 ? (file.size/1024/1024).toFixed(1) + ' MB' : (file.size/1024).toFixed(0) + ' KB');
+    dz.classList.add('lendo');
+
+    const reader = new FileReader();
+    reader.onprogress = e => {
+      if (e.lengthComputable) {
+        const pct = Math.round((e.loaded / e.total) * 100);
+        document.getElementById('readSublabel').textContent = 'Carregando... ' + pct + '%';
+      }
+    };
+    reader.onload = e => {
+      document.getElementById('readSublabel').textContent = 'Processando planilha...';
+      // Adia para o spinner ser visível antes do parse pesado
+      setTimeout(() => {
+        const data = new Uint8Array(e.target.result);
+        workbook = XLSX.read(data, {type:'array', cellNF:true});
+        dz.classList.remove('lendo');
+        buildSheetBar();
+        loadSheet(workbook.SheetNames[0]);
+      }, 30);
+    };
+    reader.onerror = () => {
+      dz.classList.remove('lendo');
+      showToast('Erro ao ler o arquivo.', 'erro');
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  function buildSheetBar() {
+    sheetBar.innerHTML = '<label>ABAS:</label>';
+    workbook.SheetNames.forEach((name,i)=>{
+      const btn=document.createElement('button'); btn.className='sheet-btn'+(i===0?' active':''); btn.textContent=name;
+      btn.onclick=()=>{document.querySelectorAll('.sheet-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');loadSheet(name);};
+      sheetBar.appendChild(btn);
+    });
+  }
+
+  // ── Currency detection ─────────────────────────────────────────────────────
+  function detectCurrencyCols(sheetName,headers,rows) {
+    const sheet=workbook.Sheets[sheetName]; const detected=new Set();
+    headers.forEach((header,ci)=>{
+      const h=header.toLowerCase().replace(/[_\-\s]/g,'');
+      const keywordHit=MONEY_KEYWORDS.some(kw=>h.includes(kw));
+      let formatHit=false;
+      const range=XLSX.utils.decode_range(sheet['!ref']||'A1');
+      for(let ri=range.s.r+1;ri<=Math.min(range.s.r+6,range.e.r);ri++){
+        const cell=sheet[XLSX.utils.encode_cell({r:ri,c:ci+range.s.c})];
+        if(cell&&cell.z&&(/[$€£¥]|"r\$"/.test(cell.z.toLowerCase())||cell.z.toLowerCase().includes('currency'))){formatHit=true;break;}
+      }
+      const nonEmpty=rows.map(r=>r[ci]).filter(v=>v!==''&&v!==null&&v!==undefined);
+      const numRatio=nonEmpty.length>0?nonEmpty.filter(v=>!isNaN(parseFloat(v))&&isFinite(v)).length/nonEmpty.length:0;
+      if(formatHit||keywordHit||(keywordHit&&numRatio>=.6))detected.add(ci);
+    });
+    return detected;
+  }
+
+  function buildCurrencyBar(count) {
+    currencyBar.innerHTML='<label>MOEDA:</label>';
+    CURRENCIES.forEach(c=>{
+      const btn=document.createElement('button'); btn.className='currency-btn'+(c.code===currentCurrency?' active':''); btn.textContent=c.label;
+      btn.onclick=()=>{currentLocale=c.locale;currentCurrency=c.code;document.querySelectorAll('.currency-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderHead();renderRows(getFiltered());};
+      currencyBar.appendChild(btn);
+    });
+    const info=document.createElement('span'); info.className='detected-info'; info.innerHTML=`<span>${count}</span> col. monetária${count!==1?'s':''} detectada${count!==1?'s':''}`;
+    currencyBar.appendChild(info); currencyBar.style.display='none';
+  }
+
+  function formatCurrency(val) {
+    const n=parseFloat(val); if(isNaN(n))return escHtml(String(val));
+    return new Intl.NumberFormat(currentLocale,{minimumFractionDigits:2,maximumFractionDigits:2}).format(n);
+  }
+
+  // ── Load sheet ─────────────────────────────────────────────────────────────
+  function loadSheet(sheetName) {
+    const sheet=workbook.Sheets[sheetName];
+    const json=XLSX.utils.sheet_to_json(sheet,{header:1,defval:''});
+    if(!json.length){tableBody.innerHTML='<tr><td class="state-msg">Planilha vazia</td></tr>';return;}
+    headers=json[0].map(h=>String(h));
+    allRows=json.slice(1).filter(r=>r.some(c=>c!==''));
+    sortCol=-1;sortAsc=true;searchInput.value='';hiddenCols=new Set();
+    currencyCols=detectCurrencyCols(sheetName,headers,allRows);
+    buildCurrencyBar(currencyCols.size);
+    autoMapear();
+    resetarStatus();
+    renderHead(); renderRows(allRows); renderStats(allRows); atualizarMapBar();
+    renderTabelaPrecoRows();
+    output.style.display='block';
+    output.scrollIntoView({behavior:'smooth',block:'start'});
+  }
+
+  // ── Cálculo de custo final com descontos em cascata (Delphi-compatible) ───
+  // Retorna o índice da coluna que serve de BASE para vlr_venda/vlrcustofinalVenda.
+  // Segue a lógica do Delphi: precoprincipal do fornecedor → preco{A-F/PROMO}.
+  // Se não houver mapeamento para esse campo, tenta vlr_venda como fallback.
+  const _PRECO_MAP = { 'A':'precoa','B':'precob','C':'precoc','D':'precod','E':'precoe','F':'precof','PROMO':'precopromo' };
+  function getVlrBaseColIdx() {
+    const pp     = fornecedorSelecionado.precoprincipal || '';
+    const alvo   = _PRECO_MAP[pp] || 'vlr_venda';
+    const entry  = Object.entries(colMapping).find(([,v]) => v.nome_campo === alvo);
+    if (entry) return parseInt(entry[0]);
+    // fallback: coluna mapeada como vlr_venda
+    const fb = Object.entries(colMapping).find(([,v]) => v.nome_campo === 'vlr_venda');
+    return fb ? parseInt(fb[0]) : -1;
+  }
+  // Mantido para compatibilidade interna
+  function getVlrVendaColIdx() { return getVlrBaseColIdx(); }
+
+  function calcDescontoCascata(vlrVenda) {
+    const d = fornecedorSelecionado.descontos;
+    if (!d) return null;
+    let v = parseFloat(String(vlrVenda).replace(',', '.'));
+    if (isNaN(v) || v <= 0) return null;
+    // Aplica cada desconto sobre o resultado anterior, arredondando 2 casas (igual ao Delphi FormatCurr)
+    v = parseFloat((v - (v * d.d1) / 100).toFixed(2));
+    v = parseFloat((v - (v * d.d2) / 100).toFixed(2));
+    v = parseFloat((v - (v * d.d3) / 100).toFixed(2));
+    v = parseFloat((v - (v * d.d4) / 100).toFixed(2));
+    v = parseFloat((v - (v * d.d5) / 100).toFixed(2));
+    v = parseFloat((v - (v * d.d6) / 100).toFixed(2));
+    return v;
+  }
+
+  function getResumoItemImportacao(row) {
+    const getMapped = (campo) => {
+      const e = Object.entries(colMapping).find(([,v]) => v.nome_campo === campo);
+      return e ? String(row[parseInt(e[0])] ?? '').trim() : '';
+    };
+    const codFabricante = getMapped('cod_fabricante') || String(row[0] ?? '').trim();
+    const descricao = getMapped('descricao')
+      || getMapped('desc_produto')
+      || getMapped('produto')
+      || getMapped('nome')
+      || String(row.find(v => /[a-zA-ZÀ-ÿ]/.test(String(v ?? ''))) ?? '').trim();
+    return {
+      cod_fabricante: codFabricante || '(sem código)',
+      descricao: descricao || '(sem descrição)'
+    };
+  }
+
+  function atualizarAcessoDetalhes() {
+    const ok = detalhesImportacao.sucesso.length;
+    const err = detalhesImportacao.erro.length;
+    document.getElementById('cardDetSucesso').classList.toggle('disabled', ok === 0);
+    document.getElementById('cardDetErro').classList.toggle('disabled', err === 0);
+    document.getElementById('btnVerDetalhes').classList.toggle('visible', ok > 0 || err > 0);
+  }
+
+  function trocarTabDetalhes(tipo) {
+    document.getElementById('detTabSucesso').classList.toggle('active', tipo === 'sucesso');
+    document.getElementById('detTabErro').classList.toggle('active', tipo === 'erro');
+    const dados = tipo === 'erro' ? detalhesImportacao.erro : detalhesImportacao.sucesso;
+    const body = document.getElementById('detModalBody');
+    document.getElementById('detModalTitle').textContent = tipo === 'erro'
+      ? `Itens com erro (${dados.length})`
+      : `Itens importados com sucesso (${dados.length})`;
+    if (!dados.length) {
+      body.innerHTML = `<div class="det-empty">Nenhum item nesta categoria.</div>`;
+      return;
+    }
+    body.innerHTML = `
+      <table class="det-table">
+        <thead><tr><th>#</th><th>Cod. Fabricante</th><th>Descrição do Produto</th>${tipo === 'erro' ? '<th>Erro</th>' : ''}</tr></thead>
+        <tbody>
+          ${dados.map((it, idx) => `
+            <tr>
+              <td>${idx + 1}</td>
+              <td>${escHtml(it.cod_fabricante)}</td>
+              <td>${escHtml(it.descricao)}</td>
+              ${tipo === 'erro' ? `<td>${escHtml(it.msg || '-')}</td>` : ''}
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  function abrirDetalhesImportacao(tipo = 'sucesso') {
+    if (tipo === 'sucesso' && detalhesImportacao.sucesso.length === 0) return;
+    if (tipo === 'erro' && detalhesImportacao.erro.length === 0) return;
+    document.getElementById('detModalOverlay').classList.add('visible');
+    trocarTabDetalhes(tipo);
+  }
+
+  function fecharDetalhesImportacao() {
+    document.getElementById('detModalOverlay').classList.remove('visible');
+  }
+
+  function abrirConfirmacaoImportacao(info) {
+    const grid = document.getElementById('confirmGrid');
+    grid.innerHTML = `
+      <div class="confirm-item">Fornecedor: <strong>${escHtml(info.fornecedor || '-')}</strong></div>
+      <div class="confirm-item">Descrição: <strong>${escHtml(info.descricao || '-')}</strong></div>
+      <div class="confirm-item">Linhas no arquivo: <strong>${info.totalLinhas}</strong></div>
+      <div class="confirm-item">Itens para gravar: <strong>${info.totalParaGravar}</strong></div>
+      <div class="confirm-item">Ignorados sem cadastro: <strong>${info.novosIgnorados}</strong></div>
+      <div class="confirm-item">Status: <strong>${info.totalParaGravar > 0 ? 'Pronto para salvar' : 'Sem itens para salvar'}</strong></div>
+    `;
+    const _co = document.getElementById('confirmOverlay');
+    _co.style.setProperty('background', 'rgba(10,15,30,.78)', 'important');
+    _co.classList.add('visible');
+    return new Promise(resolve => { confirmResolver = resolve; });
+  }
+
+  function resolverConfirmacao(ok) {
+    document.getElementById('confirmOverlay').classList.remove('visible');
+    if (confirmResolver) confirmResolver(ok);
+    confirmResolver = null;
+  }
+
+  function deveExibirColCusto() {
+    return fornecedorSelecionado.descontos !== null;
+  }
+
+  function hideCol(idx) {
+    hiddenCols.add(idx);
+    document.getElementById('btnShowHidden').classList.add('visible');
+    currentPage = 1;
+    renderHead(); renderRows(getFiltered()); atualizarMapBar();
+  }
+
+  function restaurarColunas() {
+    hiddenCols = new Set();
+    document.getElementById('btnShowHidden').classList.remove('visible');
+    currentPage = 1;
+    renderHead(); renderRows(getFiltered()); atualizarMapBar();
+  }
+
+  // ── Render head ────────────────────────────────────────────────────────────
+  function renderHead() {
+    const tr=document.createElement('tr');
+    // # 
+    const thN=document.createElement('th'); thN.className='th-num'; thN.innerHTML='<div class="th-inner-num">#</div>'; tr.appendChild(thN);
+
+    // Colunas de status fixas
+    ['STATUS CADASTRO','STATUS','STATUS IMPORTAÇÃO'].forEach(label=>{
+      const th=document.createElement('th'); th.className='th-status';
+      th.innerHTML=`<div class="th-inner"><div class="th-original" style="cursor:default;color:var(--accent2)">${label}</div><div style="height:4px"></div></div>`;
+      tr.appendChild(th);
+    });
+
+    // Colunas do Excel com combobox (pula ocultas)
+    headers.forEach((h,i)=>{
+      if(hiddenCols.has(i)) return;
+      const th=document.createElement('th');
+      const mapeado=colMapping[i];
+      const inner=document.createElement('div'); inner.className='th-inner';
+      const orig=document.createElement('div'); orig.className='th-original';
+      // Label + botão ocultar
+      const lbl=document.createElement('span'); lbl.textContent=h; lbl.style.flex='1';
+      if(sortCol===i)orig.classList.add(sortAsc?'sorted-asc':'sorted-desc');
+      orig.onclick=(e)=>{ if(!e.target.classList.contains('th-hide-btn')) toggleSort(i); };
+      const hideBtn=document.createElement('button'); hideBtn.className='th-hide-btn'; hideBtn.title='Ocultar coluna'; hideBtn.textContent='×';
+      hideBtn.onclick=(e)=>{ e.stopPropagation(); hideCol(i); };
+      orig.appendChild(lbl); orig.appendChild(hideBtn);
+      inner.appendChild(orig);
+      const sw=document.createElement('div'); sw.className='map-select-wrap '+(mapeado?'mapped':'unmapped');
+      const sel=document.createElement('select'); sel.className='map-select'; sel.title='Vincular ao campo do banco';
+      const o0=document.createElement('option'); o0.value=''; o0.textContent='— sem vínculo —'; sel.appendChild(o0);
+      camposImportacao.forEach(c=>{
+        const opt=document.createElement('option'); opt.value=c.nome_campo; opt.textContent=c.apelido;
+        if(mapeado&&mapeado.nome_campo===c.nome_campo)opt.selected=true;
+        sel.appendChild(opt);
+      });
+      sel.onchange=()=>onMapChange(i,sel);
+      sw.appendChild(sel); inner.appendChild(sw); th.appendChild(inner); tr.appendChild(th);
+    });
+
+    // Coluna calculada vlrcustofinalVenda
+    if (deveExibirColCusto()) {
+      const d    = fornecedorSelecionado.descontos;
+      const pp   = fornecedorSelecionado.precoprincipal || '';
+      const base = pp ? `BASE: PRECO ${pp}` : 'BASE: VLR VENDA';
+      const descs = [d.d1,d.d2,d.d3,d.d4,d.d5,d.d6].filter(x=>x>0).join(' › ');
+      const th = document.createElement('th');
+      th.innerHTML = `<div class="th-inner">
+        <div class="th-original" style="color:var(--green);cursor:default">
+          VLR CUSTO FINAL
+          <span style="font-size:.5rem;opacity:.65;margin-left:.3rem">(calc)</span>
+        </div>
+        <div style="padding:.25rem .55rem;font-family:'Space Mono',monospace;font-size:.58rem;color:var(--muted)">
+          ${base}${descs ? ' · desc: ' + descs + '%' : ''}
+        </div>
+      </div>`;
+      tr.appendChild(th);
+    }
+
+    tableHead.innerHTML=''; tableHead.appendChild(tr);
+  }
+
+  // ── Render rows ────────────────────────────────────────────────────────────
+  function renderRows(rows) {
+    const q=searchInput.value.trim().toLowerCase();
+    tableBody.innerHTML='';
+    if(!rows.length){
+      tableBody.innerHTML='<tr><td colspan="999" class="state-msg">Nenhum resultado.</td></tr>';
+      renderPagination(0); return;
+    }
+
+    const totalFiltered = rows.length;
+    const totalPages    = Math.ceil(totalFiltered / pageSize);
+    if (currentPage > totalPages) currentPage = totalPages;
+    const start    = (currentPage - 1) * pageSize;
+    const end      = Math.min(start + pageSize, totalFiltered);
+    const pageRows = rows.slice(start, end);
+
+    pageRows.forEach((row, displayIdx) => {
+      const origIdx=allRows.indexOf(row);
+      const st=statusRows[origIdx]||{};
+      const tr=document.createElement('tr');
+      tr.dataset.row=origIdx;
+      tr.style.animationDelay=Math.min(displayIdx*.012,.25)+'s';
+
+      // # (posição global no filtro)
+      const tdN=document.createElement('td'); tdN.className='row-num'; tdN.textContent=start+displayIdx+1; tr.appendChild(tdN);
+
+      // Status cadastro
+      const tdCad=document.createElement('td'); tdCad.className='td-status-cad'; tdCad.style.minWidth='130px';
+      tdCad.innerHTML=badgeCadastro(st.status_cadastro); tr.appendChild(tdCad);
+
+      // Status
+      const tdSt=document.createElement('td'); tdSt.className='td-status'; tdSt.style.minWidth='130px';
+      tdSt.innerHTML=badgeStatus(st.status); tr.appendChild(tdSt);
+
+      // Status importação
+      const tdImp=document.createElement('td'); tdImp.className='td-status-imp'; tdImp.style.minWidth='130px';
+      tdImp.innerHTML=badgeImportacao(st.status_importacao,st.msg); tr.appendChild(tdImp);
+
+      // Colunas do Excel (pula ocultas)
+      headers.forEach((_,ci)=>{
+        if(hiddenCols.has(ci)) return;
+        const td=document.createElement('td');
+        const raw=row[ci]!==undefined?row[ci]:'';
+        const isMoney=currencyCols.has(ci); const n=parseFloat(raw);
+        if(isMoney&&!isNaN(n)&&raw!==''){
+          const fmt=formatCurrency(raw);
+          td.classList.add(n<0?'currency-neg':'currency'); td.title=String(raw);
+          td.innerHTML=(q&&fmt.toLowerCase().includes(q))?highlight(fmt,q):fmt;
+        } else {
+          const val=String(raw); td.title=val;
+          td.innerHTML=q?highlight(val,q):escHtml(val);
+        }
+        tr.appendChild(td);
+      });
+
+      // Coluna calculada vlrcustofinalVenda
+      if (deveExibirColCusto()) {
+        const calc = calcDescontoCascata(row[getVlrVendaColIdx()]);
+        const tdCalc = document.createElement('td');
+        tdCalc.style.minWidth = '130px';
+        if (calc !== null) {
+          tdCalc.classList.add('currency');
+          tdCalc.title = 'vlrcustofinalVenda = ' + calc.toFixed(2);
+          tdCalc.textContent = new Intl.NumberFormat('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(calc);
+        } else {
+          tdCalc.innerHTML = '<span style="color:var(--muted);font-size:.62rem">—</span>';
+        }
+        tr.appendChild(tdCalc);
+      }
+
+      tableBody.appendChild(tr);
+    });
+
+    renderPagination(totalFiltered);
+  }
+
+  // ── Paginação ──────────────────────────────────────────────────────────────
+  function renderPagination(total) {
+    const pg = document.getElementById('pagination');
+    if (total === 0) { pg.classList.remove('visible'); pg.innerHTML=''; return; }
+
+    const totalPages = Math.ceil(total / pageSize);
+    const start = (currentPage - 1) * pageSize + 1;
+    const end   = Math.min(currentPage * pageSize, total);
+
+    const pageNums = getPagRange(currentPage, totalPages);
+
+    let btns = '';
+    let last = 0;
+    pageNums.forEach(p => {
+      if (p - last > 1) btns += `<span class="pg-ellipsis">…</span>`;
+      btns += `<button class="pg-btn${p===currentPage?' active':''}" onclick="goToPage(${p})"${p===currentPage?' disabled':''}>${p}</button>`;
+      last = p;
+    });
+
+    pg.innerHTML = `
+      <span class="pg-info">Exibindo <strong>${start}–${end}</strong> de <strong>${total}</strong></span>
+      <div class="pg-buttons">
+        <button class="pg-btn" onclick="goToPage(1)" title="Primeira" ${currentPage===1?'disabled':''}>«</button>
+        <button class="pg-btn" onclick="goToPage(${currentPage-1})" title="Anterior" ${currentPage===1?'disabled':''}>‹</button>
+        ${btns}
+        <button class="pg-btn" onclick="goToPage(${currentPage+1})" title="Próxima" ${currentPage===totalPages?'disabled':''}>›</button>
+        <button class="pg-btn" onclick="goToPage(${totalPages})" title="Última" ${currentPage===totalPages?'disabled':''}>»</button>
+      </div>
+      <select class="pg-size" onchange="setPageSize(+this.value)" title="Itens por página">
+        ${[50,100,200,500].map(n=>`<option value="${n}"${n===pageSize?' selected':''}>${n} / pág.</option>`).join('')}
+      </select>`;
+    pg.classList.add('visible');
+  }
+
+  function getPagRange(cur, total) {
+    if (total <= 7) return Array.from({length:total},(_,i)=>i+1);
+    if (cur <= 4)          return [1,2,3,4,5,total];
+    if (cur >= total - 3)  return [1,total-4,total-3,total-2,total-1,total];
+    return [1, cur-1, cur, cur+1, total];
+  }
+
+  function goToPage(p) {
+    const filtered = getFiltered();
+    const totalPages = Math.ceil(filtered.length / pageSize);
+    currentPage = Math.max(1, Math.min(p, totalPages || 1));
+    renderRows(filtered);
+  }
+
+  function setPageSize(n) {
+    pageSize    = n;
+    currentPage = 1;
+    try { localStorage.setItem(PREF_KEYS.pageSize, String(pageSize)); } catch(e) {}
+    renderRows(getFiltered());
+  }
+
+  function renderStats(rows) {
+    const footer = document.getElementById('dataFooter');
+    if (!footer) return;
+    const abas = workbook.SheetNames.length;
+    footer.innerHTML =
+      `<strong>${rows.length}</strong> linhas &nbsp;·&nbsp; ` +
+      `<strong>${headers.length}</strong> colunas &nbsp;·&nbsp; ` +
+      `<strong>${abas}</strong> ${abas===1?'aba':'abas'}` +
+      (currencyCols.size>0 ? ` &nbsp;·&nbsp; <strong>${currencyCols.size}</strong> col. monetária${currencyCols.size!==1?'s':''}` : '');
+  }
+
+  // ── Cards de status ────────────────────────────────────────────────────────
+  function renderStatusCards() {
+    const vals = Object.values(statusRows);
+    const total = allRows.length;
+    const cads  = vals.filter(s => s.status_cadastro === 'S').length;
+    const ncads = vals.filter(s => s.status_cadastro === 'N').length;
+    const atu   = vals.filter(s => s.status === 'A').length;
+    const novo  = vals.filter(s => s.status === 'SC').length;
+    const sa    = vals.filter(s => s.status === 'SA').length;
+
+    const cards = [
+      { id:'todos',     val:total, lbl:'Todos',           cls:'sc-todos' },
+      { id:'cad-s',     val:cads,  lbl:'Cadastrado',      cls:'sc-cads'  },
+      { id:'cad-n',     val:ncads, lbl:'Nao Cadastrado',  cls:'sc-ncads' },
+      { id:'status-a',  val:atu,   lbl:'Atualizar',       cls:'sc-atu'   },
+      { id:'status-sc', val:novo,  lbl:'Sem Cadastro',    cls:'sc-novo'  },
+    ];
+    if (sa > 0) cards.push({ id:'status-sa', val:sa, lbl:'Sem Alteracao', cls:'sc-sa' });
+
+    const container = document.getElementById('statusCards');
+    container.innerHTML = '';
+    cards.forEach(c => {
+      const div = document.createElement('div');
+      div.className = 'sc-card ' + c.cls + (filtroCardAtivo === c.id ? ' active' : '');
+      div.innerHTML = `<div class="sc-val">${c.val}</div><div class="sc-lbl">${c.lbl}</div><div class="sc-bar"></div>`;
+      div.onclick = () => setFiltroCard(c.id);
+      container.appendChild(div);
+    });
+    container.classList.add('visible');
+  }
+
+  function setFiltroCard(id) {
+    filtroCardAtivo = (filtroCardAtivo === id) ? null : id;
+    currentPage = 1;
+    renderStatusCards();
+    renderRows(getFiltered());
+  }
+
+  function getFiltered() {
+    const q=searchInput.value.trim().toLowerCase();
+    let base=q?allRows.filter(r=>r.some(c=>String(c).toLowerCase().includes(q))):allRows;
+    if (filtroCardAtivo && filtroCardAtivo !== 'todos') {
+      base = base.filter(r => {
+        const origIdx = allRows.indexOf(r);
+        const st = statusRows[origIdx] || {};
+        if (filtroCardAtivo === 'cad-s')  return st.status_cadastro === 'S';
+        if (filtroCardAtivo === 'cad-n')  return st.status_cadastro === 'N';
+        if (filtroCardAtivo === 'status-a')  return st.status === 'A';
+        if (filtroCardAtivo === 'status-sc') return st.status === 'SC';
+        if (filtroCardAtivo === 'status-sa') return st.status === 'SA';
+        if (filtroCardAtivo === 'status-erro') return st.status_importacao === 'erro';
+        return true;
+      });
+    }
+    return getSorted(base);
+  }
+  function getSorted(rows) {
+    if(sortCol<0)return rows;
+    return [...rows].sort((a,b)=>{
+      const va=a[sortCol]??'';const vb=b[sortCol]??'';
+      const na=Number(va);const nb=Number(vb);
+      const cmp=(!isNaN(na)&&!isNaN(nb))?na-nb:String(va).localeCompare(String(vb));
+      return sortAsc?cmp:-cmp;
+    });
+  }
+  function toggleSort(col){sortAsc=sortCol===col?!sortAsc:true;sortCol=col;currentPage=1;renderHead();renderRows(getFiltered());}
+
+  function exportCSV(){
+    const rows=getFiltered();
+    const cabs=headers.map((h,i)=>colMapping[i]?colMapping[i].apelido:h);
+    const lines=[cabs.join(','),...rows.map(r=>cabs.map((_,i)=>`"${String(r[i]??'').replace(/"/g,'""')}"`).join(','))];
+    const blob=new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8;'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='dados_exportados.csv';a.click();
+  }
+
+  // ── Baixar modelo Excel com os campos configurados ───────────────────────────
+  function downloadModelo() {
+    const campos = camposImportacao.length ? camposImportacao : [
+      { apelido:'Cód. Fabricante', nome_campo:'cod_fabricante' },
+      { apelido:'Descrição',       nome_campo:'descricao' },
+      { apelido:'Unidade',         nome_campo:'unidade' },
+      { apelido:'Preço Venda',     nome_campo:'vlr_venda' },
+      { apelido:'IPI %',           nome_campo:'ipi' },
+      { apelido:'Embalagem Master',nome_campo:'embalagemmaster' },
+      { apelido:'Múltiplo de Venda',nome_campo:'multiplo_venda' },
+    ];
+    const headerRow = campos.map(c => c.apelido || c.nome_campo);
+    const exRow     = campos.map(c => {
+      const ex = { cod_fabricante:'ABC123', descricao:'PRODUTO EXEMPLO', unidade:'UN',
+                   vlr_venda:'49.90', ipi:'0', embalagemmaster:'12', multiplo_venda:'1' };
+      return ex[c.nome_campo] ?? '';
+    });
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([headerRow, exRow]);
+    const colWidths = headerRow.map(h => ({ wch: Math.max(h.length + 4, 14) }));
+    ws['!cols'] = colWidths;
+    XLSX.utils.book_append_sheet(wb, ws, 'Produtos');
+    XLSX.writeFile(wb, 'modelo_importacao_produtos.xlsx');
+    showToast('Modelo baixado!', 'ok');
+  }
+
+  // ── Atualizar barra de etapas e cards visuais ─────────────────────────────
+  function atualizarEtapas() {
+    const temForn    = !!fornecedorSelecionado.id;
+    const temArquivo = allRows.length > 0;
+    const temMapa    = temArquivo && camposCriticosFaltando().length === 0;
+    const prontoImp  = temMapa && verificado;
+
+    const steps = [
+      { id:'step1', conn:'conn1', sg:'sg1', sgn:'sgn1', sgs:'sgs1', done: temForn,    active: !temForn,                  sub: temForn ? (fornecedorSelecionado.nome || 'Selecionado') : 'Selecione o fornecedor' },
+      { id:'step2', conn:'conn2', sg:'sg2', sgn:'sgn2', sgs:'sgs2', done: temArquivo, active: temForn && !temArquivo,     sub: temArquivo ? (allRows.length + ' linhas carregadas') : 'Arraste ou selecione .xlsx/.csv' },
+      { id:'step3', conn:'conn3', sg:'sg3', sgn:'sgn3', sgs:'sgs3', done: temMapa,    active: temArquivo && !temMapa,     sub: temMapa ? 'Mapeamento ok' : 'Associe colunas aos campos' },
+      { id:'step4', conn:null,    sg:'sg4', sgn:'sgn4', sgs:'sgs4', done: prontoImp,  active: temMapa && !prontoImp,      sub: prontoImp ? 'Pronto para salvar' : 'Valide e salve no banco' },
+    ];
+    steps.forEach(s => {
+      const el  = document.getElementById(s.id);
+      const sg  = document.getElementById(s.sg);
+      const sgn = document.getElementById(s.sgn);
+      const sgs = document.getElementById(s.sgs);
+      if (el) { el.className = 'step-item' + (s.done ? ' done' : s.active ? ' active' : ''); }
+      if (s.conn) { const c = document.getElementById(s.conn); if (c) c.className = 'step-conn' + (s.done ? ' done' : ''); }
+      if (sg)  sg.className  = 'sg-card' + (s.done ? ' done' : s.active ? ' active' : '');
+      if (sgn) sgn.textContent = s.done ? '✓' : (steps.indexOf(s) + 1);
+      if (sgs) sgs.textContent = s.sub;
+    });
+  }
+
+  function showToast(msg,tipo='ok'){const t=document.getElementById('toast');t.textContent=msg;t.className='toast show '+tipo;setTimeout(()=>t.classList.remove('show'),3000);}
+  function highlight(text,q){const safe=escHtml(String(text));const re=new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi');return safe.replace(re,m=>`<mark>${m}</mark>`);}
+  function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+  // ── Fechar overlay e analisar erros — filtra tabela para mostrar apenas erros ──
+  function fecharEAnalisarErros() {
+    // Fecha overlay
+    document.getElementById('importOverlay').classList.remove('visible');
+    fecharDetalhesImportacao();
+    document.getElementById('btnNovaImportacao').style.display = 'none';
+    document.getElementById('btnFecharAnalise').style.display = 'none';
+    // Rola até a tabela
+    document.getElementById('output').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Se houver erros, filtra para mostrar apenas os itens com erro
+    if (detalhesImportacao.erro.length > 0) {
+      showToast(`🔍 Filtrando ${detalhesImportacao.erro.length} erro(s) na tabela.`, 'ok');
+      // Define filtro para mostrar apenas linhas com status_importacao = 'erro'
+      filtroCardAtivo = 'status-erro';
+      currentPage = 1;
+      renderRows(getFiltered());
+      renderStatusCards();
+    } else {
+      showToast('✅ Importação concluída sem erros!', 'ok');
+    }
+  }
+
+  // ── Nova Importação — limpa tudo sem recarregar a página ──────────────────
+  function novaImportacao() {
+    // Fecha overlay
+    document.getElementById('importOverlay').classList.remove('visible');
+    fecharDetalhesImportacao();
+    document.getElementById('btnNovaImportacao').style.display = 'none';
+    // Limpa estado de dados
+    allRows = []; headers = []; colMapping = {}; statusRows = {};
+    hiddenCols = new Set(); sortCol = -1; sortAsc = true;
+    verificado = false; filtroCardAtivo = null; currentPage = 1;
+    // Reseta UI
+    tableHead.innerHTML = ''; tableBody.innerHTML = '';
+    document.getElementById('searchInput').value = '';
+    document.getElementById('output').style.display = 'none';
+    document.getElementById('sheetBar').innerHTML = '';
+    document.getElementById('statusCards').classList.remove('visible');
+    document.getElementById('statusCards').innerHTML = '';
+    document.getElementById('pagination').classList.remove('visible');
+    document.getElementById('btnImportar').classList.remove('visible');
+    document.getElementById('descWrap').classList.remove('visible');
+    document.getElementById('importOptions').classList.remove('visible');
+    // mantém preferência do usuário (não resetar)
+    document.getElementById('descricaoInput').value = '';
+    document.getElementById('mapBar').style.display = 'none';
+    document.getElementById('btnShowHidden').classList.remove('visible');
+    document.getElementById('progressWrap').style.display = 'none';
+    document.getElementById('dataFooter').innerHTML = '';
+    detalhesImportacao = { sucesso: [], erro: [] };
+    isImportando = false;
+    tabelaPrecoMapeamentos = [];
+    if (fornecedorSelecionado.id) {
+      carregarImportPrecoContext();
+    } else {
+      document.getElementById('wrapTabelaPrecoImport').style.display = 'none';
+    }
+    atualizarAcessoDetalhes();
+    atualizarEstadoFormulario();
+    // Reseta input de arquivo para permitir selecionar o mesmo arquivo
+    document.getElementById('fileInput').value = '';
+    showToast('Pronto para nova importação.', 'ok');
+  }
+
+  // ── Tradutor de Erros (Técnico → Amigável) ──────────────────────────────
+  function traduzirErro(msgErro) {
+    if (!msgErro) return { icone: '❓', amigavel: 'Ocorreu um erro desconhecido.' };
+    const msg = String(msgErro).toLowerCase();
+    if (msg.includes('duplicate') || msg.includes('duplicado') || msg.includes('unique')) 
+      return { icone: '🔄', amigavel: 'Este produto já está cadastrado com o mesmo código. Verifique duplicidade.' };
+    if (msg.includes('foreign key') || msg.includes('cannot add') || msg.includes('constraint fails'))
+      return { icone: '🔗', amigavel: 'Não foi possível vincular ao fornecedor. Verifique se ele está ativo.' };
+    if (msg.includes('not null') || msg.includes('campo obrigatório'))
+      return { icone: '📝', amigavel: 'Alguma informação obrigatória está faltando na planilha.' };
+    if (msg.includes('data truncation') || msg.includes('incorrect') || msg.includes('wrong value') || msg.includes('invalid'))
+      return { icone: '🔢', amigavel: 'Formato do dado incorreto. Verifique valores e tamanhos dos campos.' };
+    if (msg.includes('connection') || msg.includes('timeout') || msg.includes('network') || msg.includes('failed to fetch'))
+      return { icone: '🌐', amigavel: 'Problema de comunicação com o servidor. Verifique sua internet.' };
+    if (msg.includes('access denied') || msg.includes('permission'))
+      return { icone: '🔒', amigavel: 'Sem permissão para esta operação. Contate o administrador.' };
+    if (msg.includes('too long') || msg.includes('exceeds'))
+      return { icone: '📏', amigavel: 'Algum texto está muito longo. Reduza o tamanho na planilha.' };
+    return { icone: '⚠️', amigavel: 'Erro não identificado. Tente novamente ou contate o suporte.' };
+  }
+
+  // ── Painel de Erros ──────────────────────────────────────────────────────
+  function mostrarPainelErros(erros) {
+    const panel = document.getElementById('errorPanel');
+    const list = document.getElementById('errorList');
+    const count = document.getElementById('errorPanelCount');
+    if (!erros || erros.length === 0) { panel.classList.remove('visible'); return; }
+    count.textContent = `${erros.length} erro${erros.length > 1 ? 's' : ''}`;
+    list.innerHTML = erros.map((erro, idx) => {
+      const t = traduzirErro(erro.msg);
+      return `<div class="error-item">
+        <span class="error-item-num">#${idx + 1}</span>
+        <div class="error-item-content">
+          <div class="error-item-product">${escHtml(erro.cod_fabricante)} — ${escHtml(erro.descricao)}</div>
+          <div class="error-item-tech">${escHtml(erro.msg || 'Erro desconhecido')}</div>
+          <div class="error-item-friendly"><span class="error-item-friendly-icon">${t.icone}</span><span>${t.amigavel}</span></div>
+        </div>
+      </div>`;
+    }).join('');
+    panel.classList.add('visible');
+    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function fecharPainelErros() { document.getElementById('errorPanel').classList.remove('visible'); }
+
+  function exportarErrosCSV() {
+    if (!detalhesImportacao.erro.length) { showToast('Não há erros para exportar.', 'warn'); return; }
+    const lines = ['Linha;Cod. Fabricante;Descrição;Erro Técnico;Explicação'];
+    detalhesImportacao.erro.forEach((erro, idx) => {
+      const t = traduzirErro(erro.msg);
+      lines.push(['"'+(idx+1)+'"','"'+(erro.cod_fabricante||'').replace(/"/g,'""')+'"','"'+(erro.descricao||'').replace(/"/g,'""')+'"','"'+(erro.msg||'').replace(/"/g,'""')+'"','"'+t.amigavel.replace(/"/g,'""')+'"'].join(';'));
+    });
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'erros_importacao.csv'; a.click();
+    showToast('Lista de erros exportada!', 'ok');
+  }
+
+  async function init(){
+    // Preferências do usuário
+    try {
+      const ps = parseInt(localStorage.getItem(PREF_KEYS.pageSize) || '', 10);
+      if (!isNaN(ps) && ps > 0) pageSize = ps;
+      const skip = localStorage.getItem(PREF_KEYS.skipSemCadastro);
+      if (skip !== null) document.getElementById('skipSemCadastro').checked = (skip === '1');
+      const f = localStorage.getItem(PREF_KEYS.filtro);
+      if (f) searchInput.value = f;
+    } catch(e) {}
+
+    dropZone.classList.add('bloqueada');
+    fileBtnLabel.classList.add('bloqueada');
+    await Promise.all([carregarFornecedores(), carregarCamposImportacao()]);
+    document.getElementById('descricaoInput').addEventListener('input', atualizarEstadoFormulario);
+    document.getElementById('skipSemCadastro').addEventListener('change', (e) => {
+      try { localStorage.setItem(PREF_KEYS.skipSemCadastro, e.target.checked ? '1' : '0'); } catch(err) {}
+    });
+    document.getElementById('confirmOverlay').addEventListener('click', (e) => { if (e.target.id === 'confirmOverlay') resolverConfirmacao(false); });
+    const detOverlay = document.getElementById('detModalOverlay');
+    detOverlay.addEventListener('click', (e) => { if (e.target === detOverlay) fecharDetalhesImportacao(); });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { fecharDetalhesImportacao(); resolverConfirmacao(false); }
+      if (e.ctrlKey && e.key === 'Enter') { e.preventDefault(); verificarLote(); }
+      if (e.ctrlKey && (e.key === 's' || e.key === 'S')) { e.preventDefault(); importarLote(); }
+    });
+    atualizarAcessoDetalhes();
+    atualizarEstadoFormulario();
+    // aplica filtro salvo (se houver)
+    if (searchInput.value) renderRows(getFiltered());
+  }
+
+  // Garante que o DOM está pronto antes de iniciar
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Comissões · Flow CRM</title>
+
+<!-- Integração com Temas do Sistema -->
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<!-- Fontes e Ícones -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<link rel="stylesheet" href="/assets/ajuda-tour.css">
+<script src="/assets/ajuda-tour.js"></script>
+<script src="/assets/ajuda-tours.js"></script>
+
+<style>
+/* ── DESIGN SYSTEM "FLOW CRM" (Sincronizado) ──────────────────────────────── */
+:root {
+  --bg: var(--content-bg, #f4f7fa);
+  --card: var(--card-bg, #ffffff);
+  --border: var(--table-border, #e2e8f0);
+  --text: var(--content-text, #1e293b);
+  --text2: var(--text-muted, #64748b);
+  --accent: var(--accent, #0ea5e9);
+  --accent-soft: rgba(14, 165, 233, 0.15);
+  --accent-hover: #0284c7;
+  --danger: #ef4444;
+  --success: #22c55e;
+  --warn: #f59e0b;
+  --font: var(--font, 'Inter', 'Roboto', system-ui, sans-serif);
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 15px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Toolbar & Metrics Header */
+.header-compact {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 28px; background: var(--card); border-bottom: 1px solid var(--border);
+  gap: 20px;
+}
+.title-section { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.discreet-title { font-size: 14px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.7; }
+.btn-refresh-discreet {
+  background: none; border: 1px solid var(--border); color: var(--text2);
+  width: 32px; height: 32px; border-radius: 8px; cursor: pointer; transition: 0.2s;
+  display: flex; align-items: center; justify-content: center; font-size: 13px;
+}
+.btn-refresh-discreet:hover { background: var(--border); color: var(--text); }
+
+.metrics-wrap {
+  display: flex; gap: 12px; flex: 1; justify-content: flex-end;
+}
+.metric-card {
+  min-width: 200px; max-width: 240px; cursor: pointer;
+  background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 10px;
+  padding: 10px 16px; display: flex; align-items: center; gap: 12px;
+  transition: all 0.3s ease;
+}
+.metric-card:hover { 
+  transform: translateY(-2px); 
+  background: var(--card);
+  box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+  border-color: var(--accent);
+}
+.mc-icon {
+  width: 34px; height: 34px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; flex-shrink: 0;
+  background: var(--accent-soft); color: var(--accent);
+}
+.mc-content { display: flex; flex-direction: column; }
+.mc-label { font-size: 9px; font-weight: 700; text-transform: uppercase; color: var(--text2); letter-spacing: 0.5px; margin-bottom: -2px; }
+.mc-val { font-size: 16px; font-weight: 800; color: var(--text); }
+
+/* Cores Compactas */
+.card-pendente .mc-icon { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+.card-pendente .mc-val { color: #f59e0b; }
+.card-pago .mc-icon { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+.card-pago .mc-val { color: #10b981; }
+.card-info .mc-icon { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+.card-info .mc-val { color: #3b82f6; }
+
+/* Filters */
+.filter-bar {
+  background: var(--card); padding: 12px 28px;
+  display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+}
+.f-group { display: flex; flex-direction: column; gap: 4px; }
+.f-group label { font-size: 10px; font-weight: 800; color: var(--text2); text-transform: uppercase; }
+.f-input {
+  height: 36px; padding: 0 12px; border: 1px solid #cbd5e1; border-radius: 8px;
+  background: #fff; color: var(--text); font-size: 13px; font-weight: 500; outline: none;
+  transition: all 0.2s;
+}
+.f-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.2); }
+
+/* Table */
+.table-wrap { padding: 0 28px 40px; margin-top: 20px; }
+.base-table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.04); }
+.base-table th {
+  padding: 14px 18px; background: #f8fafc; font-size: 11px; font-weight: 800;
+  color: var(--text2); text-transform: uppercase; border-bottom: 2px solid var(--border); text-align: left;
+}
+.base-table td { padding: 14px 18px; border-bottom: 1px solid var(--border); font-size: 14px; }
+.base-table tr:hover { background: var(--accent-soft); }
+
+/* Badges */
+.badge {
+  padding: 4px 10px; border-radius: 20px; font-size: 10px; font-weight: 800;
+  text-transform: uppercase; color: #fff; display: inline-flex; align-items: center;
+}
+.bg-pendente { background: var(--warn); }
+.bg-pago { background: var(--success); }
+
+/* Mini Button */
+.btn-mini {
+  width: 28px; height: 28px; border-radius: 8px; border: none;
+  background: var(--accent-soft); color: var(--accent);
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: 0.2s;
+}
+.btn-mini:hover { background: var(--success); color: #fff; transform: scale(1.1); }
+
+/* Estilo das Linhas Selecionadas */
+.row-selected {
+  background-color: rgba(34, 197, 94, 0.08) !important;
+  transition: background 0.2s;
+}
+.row-selected td { border-bottom-color: rgba(34, 197, 94, 0.2) !important; }
+
+/* Checkout Bar Moderno */
+.bulk-bar {
+  position: fixed; bottom: -100px; left: 50%; transform: translateX(-50%);
+  background: #0f172a; color: #fff; padding: 12px 32px; border-radius: 50px;
+  display: flex; align-items: center; gap: 24px; z-index: 5000;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.4); 
+  transition: 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.bulk-bar.show { bottom: 30px; }
+.bulk-info { display: flex; flex-direction: column; line-height: 1.2; }
+.bulk-info span { font-size: 10px; text-transform: uppercase; opacity: 0.6; font-weight: 700; letter-spacing: 1px; }
+.bulk-info b { font-size: 18px; color: #10b981; }
+
+.btn-checkout {
+  background: #10b981; color: #fff; border: none; padding: 10px 24px;
+  border-radius: 30px; font-weight: 800; font-size: 12px; cursor: pointer;
+  display: flex; align-items: center; gap: 8px; transition: 0.3s;
+}
+.btn-checkout:hover { transform: scale(1.05); background: #059669; }
+
+/* Custom Checkbox */
+.td-check { width: 40px; text-align: center; }
+.custom-check {
+  width: 18px; height: 18px; border-radius: 4px; border: 2px solid var(--border);
+  cursor: pointer; transition: 0.2s;
+}
+
+.btn {
+  height: 36px; padding: 0 18px; border-radius: 8px; border: none;
+  font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.025em;
+  cursor: pointer; transition: all 0.25s;
+  display: inline-flex; align-items: center; gap: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+.btn-primary { 
+  background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%); 
+  color: #fff; 
+}
+.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3); opacity: 0.95; }
+.btn-success { 
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); 
+  color: #fff; 
+}
+.btn-success:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3); opacity: 0.95; }
+
+/* Estilos de Impressão (Recibo) */
+@media print {
+  body * { visibility: hidden; }
+  #printArea, #printArea * { visibility: visible; }
+  #printArea { position: absolute; left: 0; top: 0; width: 100%; padding: 20px; }
+  .no-print { display: none !important; }
+}
+
+#printArea { display: none; font-family: 'Courier New', monospace; color: #000; }
+.recibo-header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
+.recibo-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+.recibo-table th, .recibo-table td { border: 1px solid #000; padding: 8px; text-align: left; font-size: 12px; }
+.recibo-footer { margin-top: 50px; display: flex; justify-content: space-between; }
+.assinatura { border-top: 1px solid #000; width: 250px; text-align: center; padding-top: 5px; font-size: 12px; }
+
+/* Utilities */
+.text-right { text-align: right !important; }
+.text-bold { font-weight: 700; }
+.text-accent { color: var(--accent); }
+</style>
+</head>
+<body data-tour-default="comissoes-baixa">
+
+<!-- Header Compacto Diamond Flow -->
+<div class="header-compact">
+  <div class="title-section">
+    <span class="discreet-title">Gestão de Comissões</span>
+    <button class="btn-refresh-discreet" onclick="loadData()" title="Atualizar dados">
+      <i class="fas fa-sync-alt"></i>
+    </button>
+    
+    <div style="width:1px; height:20px; background:var(--border); margin: 0 10px"></div>
+    
+    <a href="comissoes_conferencia.html" class="btn btn-sm btn-outline-primary" style="font-size: 10px; border-radius: 20px; border: 1px solid var(--accent); color: var(--accent); text-decoration: none; padding: 4px 12px; font-weight: 700">
+      <i class="fas fa-user-circle"></i> PORTAL DO VENDEDOR
+    </a>
+    <button type="button" class="btn-sysrep-tour" onclick="SysRepTour.start('comissoes-baixa')" title="Tour — Baixa de comissões" style="margin-left:6px">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+      Tour
+    </button>
+    <a href="ajuda-comissoes.html#gestor" target="_blank" title="Ajuda — Gestão de Comissões" style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:50%;font-size:13px;font-weight:700;color:var(--accent);border:1.5px solid var(--accent);text-decoration:none;flex-shrink:0;margin-left:6px">?</a>
+  </div>
+
+  <div class="metrics-wrap" id="metricsGrid">
+    <div class="metric-card card-pendente" onclick="filterByStatus('P')">
+      <div class="mc-icon"><i class="fas fa-clock"></i></div>
+      <div class="mc-content">
+        <div class="mc-label">Pendente</div>
+        <div class="mc-val" id="stat-pendente">R$ 0,00</div>
+      </div>
+    </div>
+  
+    <div class="metric-card card-pago" onclick="filterByStatus('Q')">
+      <div class="mc-icon"><i class="fas fa-check-double"></i></div>
+      <div class="mc-content">
+        <div class="mc-label">Pago</div>
+        <div class="mc-val" id="stat-pago">R$ 0,00</div>
+      </div>
+    </div>
+  
+    <div class="metric-card card-info" onclick="filterByStatus('T')">
+      <div class="mc-icon"><i class="fas fa-layer-group"></i></div>
+      <div class="mc-content">
+        <div class="mc-label">Total</div>
+        <div class="mc-val" id="stat-qtd">0</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="filter-bar">
+  <div class="f-group">
+    <label>Vendedor</label>
+    <select id="f_vendedor" class="f-input" style="width:200px">
+      <option value="">Todos os Vendedores</option>
+    </select>
+  </div>
+  <div class="f-group">
+    <label>Início</label>
+    <input type="date" id="f_dt_ini" class="f-input">
+  </div>
+  <div class="f-group">
+    <label>Fim</label>
+    <input type="date" id="f_dt_fim" class="f-input">
+  </div>
+  <div class="f-group">
+    <label>Status</label>
+    <select id="f_status" class="f-input">
+      <option value="T">Todos</option>
+      <option value="P" selected>Pendente</option>
+      <option value="Q">Pago / Quitado</option>
+    </select>
+  </div>
+  <button class="btn btn-primary" onclick="loadData()">Filtrar</button>
+</div>
+
+<div class="table-wrap">
+  <table class="base-table">
+    <thead>
+      <tr>
+        <th style="width:40px"><input type="checkbox" id="checkAll" onclick="toggleAll()"></th>
+        <th>Vendedor</th>
+        <th>Cliente / Fábrica</th>
+        <th>Pedido / Parcela</th>
+        <th class="text-center">Origem</th>
+        <th class="text-center">%</th>
+        <th class="text-right">Total Venda</th>
+        <th class="text-right">Vlr Parcela</th>
+        <th class="text-right">Comissão (R$)</th>
+        <th>Status</th>
+        <th style="width:80px; text-align:center">Ações</th>
+      </tr>
+    </thead>
+    <tbody id="comissaoTable">
+      <tr><td colspan="11" style="text-align:center; padding:60px; color:var(--text2); opacity:0.5">
+        <i class="fas fa-mouse-pointer" style="font-size:24px; display:block; margin-bottom:10px"></i>
+        Selecione as comissões na lateral para iniciar o checkout em lote.
+      </td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="bulk-bar" id="bulkBar">
+  <div class="bulk-info">
+    <span>Selecionados</span>
+    <b id="selectedCount">0</b>
+  </div>
+  <div class="bulk-info">
+    <span>Total para Baixa</span>
+    <b id="selectedTotal">R$ 0,00</b>
+  </div>
+  <button class="btn-checkout" onclick="processarBaixa()">
+    <i class="fas fa-hand-holding-usd"></i> EFETIVAR PAGAMENTO
+  </button>
+  <button class="btn btn-sm btn-link text-white" onclick="clearSelection()" style="font-size: 10px; opacity: 0.6; text-decoration:none">Cancelar</button>
+</div>
+
+<!-- Área de Impressão Oculta -->
+<div id="printArea">
+  <div class="recibo-header">
+    <h2 id="rec_empresa">RECIBO DE PAGAMENTO DE COMISSÃO</h2>
+    <p>Data de Emissão: <span id="rec_data_emissao"></span></p>
+  </div>
+  <p>Recebi da empresa <strong id="rec_empresa_nome">SysRepWeb</strong>, a importância referente ao pagamento das comissões das vendas relacionadas abaixo:</p>
+  
+  <table class="recibo-table">
+    <thead>
+      <tr>
+        <th>Data Ped.</th>
+        <th>Pedido</th>
+        <th>Cliente</th>
+        <th style="text-align:right">Valor Venda</th>
+        <th style="text-align:right">Comissão</th>
+      </tr>
+    </thead>
+    <tbody id="reciboBody"></tbody>
+    <tfoot>
+      <tr>
+        <th colspan="4" style="text-align:right">TOTAL A RECEBER:</th>
+        <th id="rec_total" style="text-align:right">R$ 0,00</th>
+      </tr>
+    </tfoot>
+  </table>
+
+  <div class="recibo-footer">
+    <div class="assinatura">
+      <strong id="rec_vendedor_nome">VENDEDOR</strong><br>Assinatura
+    </div>
+    <div class="assinatura">
+      <strong>FINANCEIRO</strong><br>Carimbo / Visto
+    </div>
+  </div>
+</div>
+
+<script>
+let _items = [];
+let _selected = new Set();
+
+async function init() {
+  try {
+    const data = await fetch('/api/comissoes/admin/vendedores').then(r => r.json());
+    const select = document.getElementById('f_vendedor');
+    data.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v.id;
+      opt.textContent = v.nome;
+      select.appendChild(opt);
+    });
+  } catch(e) {}
+  loadData();
+}
+
+async function loadData() {
+  const v = document.getElementById('f_vendedor').value;
+  const s = document.getElementById('f_status').value;
+  const di = document.getElementById('f_dt_ini').value;
+  const df = document.getElementById('f_dt_fim').value;
+
+  const url = `/api/comissoes/admin/extrato?id_vendedor=${v}&status=${s}&dt_ini=${di}&dt_fim=${df}`;
+  
+  try {
+    const res = await fetch(url);
+    const result = await res.json();
+    
+    _items = result.data || [];
+    renderTable();
+    renderStats(result.stats);
+    updateBulk();
+  } catch(e) {
+    console.error(e);
+    Swal.fire('Erro', 'Falha ao carregar comissões', 'error');
+  }
+}
+
+// Filtro rápido pelos cards
+function filterByStatus(s) {
+  document.getElementById('f_status').value = s;
+  loadData();
+}
+
+function renderStats(stats) {
+  if(!stats) return;
+  document.getElementById('stat-pendente').textContent = fmtCur(stats.pendente);
+  document.getElementById('stat-pago').textContent = fmtCur(stats.pago);
+  document.getElementById('stat-qtd').textContent = stats.qtd || 0;
+}
+
+function renderTable() {
+  const tbody = document.getElementById('comissaoTable');
+  tbody.innerHTML = '';
+  
+  if(_items.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center; padding:40px; color:#94a3b8">Nenhuma comissão encontrada para os filtros aplicados.</td></tr>';
+    return;
+  }
+
+  _items.forEach(item => {
+    const isSelected = _selected.has(item.id);
+    const tr = document.createElement('tr');
+    if(isSelected) tr.classList.add('row-selected');
+    
+    tr.innerHTML = `
+      <td class="td-check"><input type="checkbox" class="custom-check" ${isSelected ? 'checked' : ''} onchange="toggleItem(${item.id}, this)"></td>
+      <td class="text-bold">${item.nome_vendedor}</td>
+      <td>
+        <div class="text-bold">${item.nome_cliente}</div>
+        <div style="font-size:11px; color:var(--text2)">${item.nome_fornecedor}</div>
+      </td>
+      <td>
+        <div>Ped. #${item.numero}</div>
+        <div style="font-size:11px; color:var(--text2)">Parc. ${item.parcela}/${item.qt_parcelas}</div>
+      </td>
+      <td class="text-center">
+        <span style="background: var(--accent-soft); color: var(--accent); padding: 4px 10px; border-radius: 6px; font-size: 10px; font-weight: 800; border: 1px solid var(--accent); display: inline-flex; align-items: center; gap: 5px;">
+          <i class="fas ${item.label_origem === 'FÁBRICA' ? 'fa-industry' : item.label_origem === 'PRODUTO' ? 'fa-box' : 'fa-user-tie'}"></i>
+          ${item.label_origem}
+        </span>
+      </td>
+      <td class="text-center fw-bold" style="color: var(--text)">${parseFloat(item.comissao).toFixed(1)}%</td>
+      <td class="text-right fw-bold" style="color: var(--text2)">${fmtCur(item.vlr_total_pedido)}</td>
+      <td class="text-right">
+        <div style="font-size: 11px; color: var(--text2)">Venc: ${fmtDt(item.vencimento)}</div>
+        <div class="fw-bold" style="color: var(--text)">${fmtCur(item.valor_parcela)}</div>
+      </td>
+      <td class="text-right text-bold text-accent" style="font-size: 18px">${fmtCur(item.vlr_comissao)}</td>
+      <td>
+        <span class="badge ${item.status_comissao === 'R' ? 'bg-pago' : item.status_comissao === 'C' ? '' : 'bg-pendente'}"
+              style="${item.status_comissao === 'C' ? 'background:#3b82f6' : ''}">
+          ${item.status_comissao === 'R' ? 'Pago' : item.status_comissao === 'C' ? 'Conferido' : 'Pendente'}
+        </span>
+      </td>
+      <td style="text-align:center">
+        ${item.status_comissao === 'P' ? `
+          <button class="btn-mini" onclick="baixarUma('${item.id}')" title="Quitar esta comissão">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </button>
+        ` : '—'}
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function toggleItem(id, el) {
+  if (_selected.has(id)) {
+    _selected.delete(id);
+    if(el) el.closest('tr').classList.remove('row-selected');
+  } else {
+    _selected.add(id);
+    if(el) el.closest('tr').classList.add('row-selected');
+  }
+  updateBulk();
+}
+
+function clearSelection() {
+  _selected.clear();
+  document.getElementById('checkAll').checked = false;
+  renderTable();
+  updateBulk();
+}
+
+function toggleAll() {
+  const master = document.getElementById('checkAll').checked;
+  if(master) {
+    _items.filter(i => i.status_comissao === 'P').forEach(i => _selected.add(i.id));
+  } else {
+    _selected.clear();
+  }
+  renderTable();
+  updateBulk();
+}
+
+function updateBulk() {
+  const bar = document.getElementById('bulkBar');
+  const count = _selected.size;
+  
+  if(count > 0) {
+    bar.classList.add('show');
+    document.getElementById('selectedCount').textContent = count;
+    
+    let total = 0;
+    _items.forEach(i => {
+      if(_selected.has(i.id)) total += parseFloat(i.vlr_comissao || 0);
+    });
+    document.getElementById('selectedTotal').textContent = fmtCur(total);
+  } else {
+    bar.classList.remove('show');
+  }
+}
+
+async function processarBaixa() {
+  if (_selected.size === 0) return;
+
+  const ids = Array.from(_selected);
+  const total = ids.reduce((sum, id) => {
+    const item = _items.find(d => d.id == id);
+    return sum + (item ? parseFloat(item.vlr_comissao) : 0);
+  }, 0);
+
+  Swal.fire({
+    title: 'Confirmar Liquidação em Lote',
+    html: `
+        <hr>
+        <div class="mb-2 small fw-bold">Autorização:</div>
+        <input type="password" id="swal_senha" class="form-control mb-3" placeholder="Sua senha">
+        
+        <div class="form-check form-switch mb-3">
+          <input class="form-check-input" type="checkbox" id="swal_aceite" checked>
+          <label class="form-check-label small fw-bold" for="swal_aceite">Exigir aceite formal do vendedor</label>
+        </div>
+        
+        <div class="small text-muted" style="font-size: 11px">Se desmarcado, a comissão será liquidada imediatamente como <b>PAGA (R)</b>.</div>
+    `,
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#10b981',
+    confirmButtonText: '<i class="fas fa-check"></i> CONFIRMAR E BAIXAR',
+    cancelButtonText: 'CANCELAR',
+    preConfirm: () => {
+      const senha = document.getElementById('swal_senha').value;
+      const exigirAceite = document.getElementById('swal_aceite').checked;
+      if (!senha) return Swal.showValidationMessage('A senha é obrigatória');
+      return { senha, exigirAceite };
+    }
+  }).then(async (result) => {
+    if (result.isConfirmed) {
+      executarBaixa(ids, result.value.senha, result.value.exigirAceite);
+    }
+  });
+}
+
+async function baixarUma(id) {
+  const item = _items.find(d => d.id == id);
+  const vlr = item ? parseFloat(item.vlr_comissao) : 0;
+
+  Swal.fire({
+    title: 'Baixar Comissão?',
+    html: `
+      <div class="mb-3 text-start">
+        <div class="mb-2">Confirmar o recebimento de <b>${fmtCur(vlr)}</b>?</div>
+        <input type="password" id="swal_senha_un" class="form-control mb-3" placeholder="Sua senha">
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" id="swal_aceite_un" checked>
+          <label class="form-check-label small fw-bold" for="swal_aceite_un">Exigir aceite formal</label>
+        </div>
+      </div>
+    `,
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonText: 'SIM, BAIXAR',
+    cancelButtonText: 'NÃO',
+    confirmButtonColor: 'var(--accent)',
+    preConfirm: () => {
+      const senha = document.getElementById('swal_senha_un').value;
+      const exigirAceite = document.getElementById('swal_aceite_un').checked;
+      if (!senha) return Swal.showValidationMessage('A senha é obrigatória');
+      return { senha, exigirAceite };
+    }
+  }).then((result) => {
+    if (result.isConfirmed) {
+      executarBaixa([id], result.value.senha, result.value.exigirAceite);
+    }
+  });
+}
+
+async function executarBaixa(ids, senha, exigirAceite) {
+  try {
+    const res = await fetch('/api/comissoes/baixar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, senha, exigirAceite })
+    });
+
+    const data = await res.json();
+    if(res.ok) {
+      const itensBaixados = _items.filter(it => ids.includes(it.id) || ids.includes(String(it.id)));
+      _selected.clear();
+      await loadData();
+      
+      Swal.fire({
+        title: 'Sucesso!',
+        text: data.message || 'Comissões processadas com sucesso.',
+        icon: 'success',
+        showCancelButton: true,
+        confirmButtonText: '🖨️ Imprimir Recibo',
+        cancelButtonText: 'Fechar',
+        confirmButtonColor: 'var(--accent)',
+        footer: `
+          <div class="d-flex gap-2 justify-content-center w-100">
+            <button class="btn btn-sm btn-success" onclick="shareWpp('${ids}')" style="font-size:10px">
+              <i class="fab fa-whatsapp"></i> ENVIAR WHATSAPP
+            </button>
+            <button class="btn btn-sm btn-primary" onclick="shareEmail('${ids}')" style="font-size:10px">
+              <i class="fas fa-envelope"></i> ENVIAR E-MAIL
+            </button>
+          </div>
+        `
+      }).then((result) => {
+        if (result.isConfirmed) {
+          gerarRecibo(ids, itensBaixados);
+        }
+      });
+    } else {
+      throw new Error(data.error || 'Falha na comunicação com o servidor');
+    }
+  } catch (err) {
+    Swal.fire('Erro', err.message, 'error');
+  }
+}
+
+function gerarRecibo(ids, itensBackup) {
+  const itensParaRecibo = (itensBackup && itensBackup.length)
+    ? itensBackup
+    : _items.filter(it => ids.includes(String(it.id)) || ids.includes(it.id));
+  if(!itensParaRecibo.length) return;
+
+  const tbody = document.getElementById('reciboBody');
+  tbody.innerHTML = '';
+  let total = 0;
+
+  itensParaRecibo.forEach(it => {
+    total += parseFloat(it.vlr_comissao || 0);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${fmtDt(it.data_pedido)}</td>
+      <td>#${it.numero}</td>
+      <td>${it.nome_cliente}</td>
+      <td style="text-align:right">${fmtCur(it.valor_parcela)}</td>
+      <td style="text-align:right">${fmtCur(it.vlr_comissao)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('rec_total').textContent = fmtCur(total);
+  document.getElementById('rec_vendedor_nome').textContent = itensParaRecibo[0].nome_vendedor.toUpperCase();
+  document.getElementById('rec_data_emissao').textContent = new Date().toLocaleDateString('pt-BR');
+  
+  window.print();
+}
+
+function fmtCur(v) {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
+}
+
+function fmtDt(d) {
+  if(!d) return '-';
+  const parts = d.split('T')[0].split('-');
+  return `${parts[2]}/${parts[1]}/${parts[0]}`;
+}
+
+function shareWpp(ids) {
+  const idsArr = ids.split(',');
+  const total = idsArr.reduce((sum, id) => {
+    const item = _items.find(d => d.id == id);
+    return sum + (item ? parseFloat(item.vlr_comissao) : 0);
+  }, 0);
+  const vendor = _items.find(i => idsArr.includes(String(i.id)))?.nome_vendedor || 'Vendedor';
+  
+  const text = `*EXTRATO DE COMISSÃO - ${vendor}*\n\nOlá! Seu extrato foi liberado para conferência.\n*Total:* ${fmtCur(total)}\n*Itens:* ${idsArr.length}\n\nClique no link abaixo para conferir e dar seu aceite:\nhttps://${window.location.host}/pages/comissoes_conferencia.html`;
+  
+  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`);
+}
+
+function shareEmail(ids) {
+  const idsArr = ids.split(',');
+  const total = idsArr.reduce((sum, id) => {
+    const item = _items.find(d => d.id == id);
+    return sum + (item ? parseFloat(item.vlr_comissao) : 0);
+  }, 0);
+  const vendor = _items.find(i => idsArr.includes(String(i.id)))?.nome_vendedor || 'Vendedor';
+  const subject = `Extrato de Comissão - ${vendor}`;
+  const body = `Olá ${vendor},\n\nSeu extrato de comissão no valor de ${fmtCur(total)} foi processado e está disponível para sua conferência e aceite formal.\n\nPor favor, acesse o link abaixo para validar:\nhttps://${window.location.host}/pages/comissoes_conferencia.html\n\nAtenciosamente,\nFinanceiro`;
+  
+  window.open(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
+}
+
+init();
+</script>
+
+</body>
+</html>

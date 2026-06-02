@@ -1,0 +1,3535 @@
+/**
+ * SysRepWeb — modo “app” (mobile-shell / Mercos-like)
+ * Ativado por mobile-app.js → classe html.sysrep-ms-embed
+ */
+
+/* ── Base ─────────────────────────────────────────────────── */
+html.sysrep-ms-embed {
+  -webkit-text-size-adjust: 100%;
+}
+
+html.sysrep-ms-embed body {
+  -webkit-overflow-scrolling: touch;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+/* Transições globais suaves (touch-friendly) */
+html.sysrep-ms-embed .btn,
+html.sysrep-ms-embed button,
+html.sysrep-ms-embed select {
+  transition: background .15s, transform .1s, box-shadow .15s, border-color .15s !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+@media (max-width: 899px) {
+  html.sysrep-ms-embed .btn:active,
+  html.sysrep-ms-embed button:active {
+    transform: scale(.97) !important;
+  }
+}
+
+/* Inputs touch-friendly */
+html.sysrep-ms-embed input,
+html.sysrep-ms-embed select,
+html.sysrep-ms-embed textarea {
+  font-size: max(var(--base-font-size, 13px), 14px) !important;
+}
+
+/* Scrollbar sutil global */
+html.sysrep-ms-embed ::-webkit-scrollbar { width: 3px; height: 3px; }
+html.sysrep-ms-embed ::-webkit-scrollbar-thumb { background: rgba(148,163,184,.3); border-radius: 4px; }
+
+/* Toolbars mais compactas (páginas /pages/*) */
+html.sysrep-ms-embed .toolbar-bar {
+  padding: 10px 12px !important;
+  gap: 8px !important;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06) !important;
+}
+
+html.sysrep-ms-embed .subbar {
+  padding: 8px 10px !important;
+  gap: 8px !important;
+}
+
+html.sysrep-ms-embed .content-area {
+  padding: 10px 12px !important;
+}
+
+/* Clientes: faixa de insights (Total/Ativos/…) some — filtros ficam na lista e na busca (não aplicar em Pedidos, que também usa #toolbar) */
+html.sysrep-ms-embed body:has(#btnNovoCliente) #toolbar > div:first-child:has(.ins-card) {
+  display: none !important;
+}
+
+/* Visitas: chips em carrossel horizontal (não esconder) */
+html.sysrep-ms-embed .toolbar-bar:not(#toolbar) {
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 10px !important;
+}
+
+html.sysrep-ms-embed .toolbar-bar:not(#toolbar) > div:first-child {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  overflow-x: auto !important;
+  gap: 6px !important;
+  padding-bottom: 2px !important;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+html.sysrep-ms-embed .toolbar-bar:not(#toolbar) > div:first-child::-webkit-scrollbar {
+  display: none;
+}
+
+html.sysrep-ms-embed .toolbar-bar:not(#toolbar) .ins-card {
+  flex-shrink: 0 !important;
+}
+
+/* ── Clientes ─────────────────────────────────────────────── */
+@media (max-width: 899px) {
+  html.sysrep-ms-embed body:has(#btnNovoCliente) #toolbar .view-toggle {
+    display: none !important;
+  }
+}
+
+html.sysrep-ms-embed #notifWrap {
+  display: none !important;
+}
+
+/* Clientes: remover botões grandes (usar ações flutuantes) */
+html.sysrep-ms-embed #toolbar #btnNovoCliente {
+  display: none !important;
+}
+html.sysrep-ms-embed #toolbar button[onclick="filtrarPertoDeMim()"] {
+  display: none !important;
+}
+
+html.sysrep-ms-embed #btnGeocode,
+html.sysrep-ms-embed #btnMapaPerto {
+  display: none !important;
+}
+
+html.sysrep-ms-embed #subbar #btnExportCSV,
+html.sysrep-ms-embed #subbar #btnFiltroAvancado {
+  display: none !important;
+}
+
+html.sysrep-ms-embed #subbar {
+  flex-wrap: wrap !important;
+}
+
+html.sysrep-ms-embed #subbar #inputBusca {
+  flex: 1 1 100%;
+  min-width: 0 !important;
+  width: 100% !important;
+  max-width: none !important;
+}
+
+html.sysrep-ms-embed #subbar .icon-btn[onclick*="carregar"] {
+  flex-shrink: 0;
+}
+
+/* Clientes (embed): tabela simplificada — NÃO usar #tableWrap genérico (Pedidos/Fornecedores usam o mesmo id) */
+html.sysrep-ms-embed body:has(#btnNovoCliente) #tableWrap table thead th:nth-child(1),
+html.sysrep-ms-embed body:has(#btnNovoCliente) #tableWrap table tbody td:nth-child(1),
+html.sysrep-ms-embed body:has(#btnNovoCliente) #tableWrap table thead th:nth-child(2),
+html.sysrep-ms-embed body:has(#btnNovoCliente) #tableWrap table tbody td:nth-child(2),
+html.sysrep-ms-embed body:has(#btnNovoCliente) #tableWrap table thead th:nth-child(3),
+html.sysrep-ms-embed body:has(#btnNovoCliente) #tableWrap table tbody td:nth-child(3),
+html.sysrep-ms-embed body:has(#btnNovoCliente) #tableWrap table thead th:nth-child(5),
+html.sysrep-ms-embed body:has(#btnNovoCliente) #tableWrap table tbody td:nth-child(5),
+html.sysrep-ms-embed body:has(#btnNovoCliente) #tableWrap table thead th:nth-child(8),
+html.sysrep-ms-embed body:has(#btnNovoCliente) #tableWrap table tbody td:nth-child(8),
+html.sysrep-ms-embed body:has(#btnNovoCliente) #tableWrap table thead th:nth-child(10),
+html.sysrep-ms-embed body:has(#btnNovoCliente) #tableWrap table tbody td:nth-child(10) {
+  display: none !important;
+}
+
+html.sysrep-ms-embed body:has(#btnNovoCliente) #tableWrap table tbody td {
+  padding: 12px 10px !important;
+  font-size: 14px !important;
+  border-bottom-color: rgba(148, 163, 184, .12) !important;
+}
+html.sysrep-ms-embed body:has(#btnNovoCliente) #tableWrap table tbody tr:active {
+  background: var(--accent-soft, rgba(67,97,238,.06)) !important;
+}
+
+html.sysrep-ms-embed body:has(#btnNovoCliente) #tableWrap table thead th {
+  padding: 8px 10px !important;
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.05em !important;
+  color: var(--text2, #64748b) !important;
+}
+
+/* Cards em coluna única só em telas estreitas; desktop no iframe = vários por linha */
+@media (max-width: 899px) {
+  html.sysrep-ms-embed .cards-grid {
+    grid-template-columns: 1fr !important;
+    padding: 8px !important;
+    gap: 10px !important;
+  }
+}
+
+html.sysrep-ms-embed .cli-card {
+  border-radius: 18px !important;
+  padding: 14px 16px !important;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05) !important;
+  border: 1px solid var(--card-border, #e2e8f0) !important;
+  transition: transform .15s, box-shadow .18s !important;
+}
+html.sysrep-ms-embed .cli-card:active {
+  transform: scale(.985) !important;
+}
+html.sysrep-ms-embed .cli-card-head {
+  gap: 12px !important;
+}
+html.sysrep-ms-embed .cli-card-title {
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.02em !important;
+}
+html.sysrep-ms-embed .cli-card-foot {
+  border-radius: 12px !important;
+  padding: 8px 10px !important;
+}
+
+html.sysrep-ms-embed #modalVitrine {
+  z-index: 500000 !important;
+  -webkit-overflow-scrolling: touch;
+  align-items: flex-end !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  background: rgba(15, 23, 42, 0.55) !important;
+}
+html.sysrep-ms-embed #modalVitrine .vitrine-panel {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-height: 220px !important;
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border-radius: 20px 20px 0 0 !important;
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.35) !important;
+  position: relative !important;
+  z-index: 1 !important;
+}
+html[data-theme="dark"].sysrep-ms-embed #modalVitrine .vitrine-panel,
+html[data-theme="charcoal"].sysrep-ms-embed #modalVitrine .vitrine-panel {
+  background: #1e293b !important;
+  color: #f1f5f9 !important;
+}
+
+html.sysrep-ms-embed .pagination {
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 8px !important;
+  padding: 12px 14px !important;
+  background: var(--card-bg, #fff) !important;
+  border-top: 1px solid var(--card-border, #e2e8f0) !important;
+}
+
+html.sysrep-ms-embed .pagination label {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+}
+
+/* FAB / bulk — acima da bottom bar do shell (~60px + safe area) */
+html.sysrep-ms-embed .btn-new-float {
+  bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important;
+  right: 16px !important;
+  width: 54px !important;
+  height: 54px !important;
+  border-radius: 16px !important;
+  box-shadow: 0 6px 20px rgba(67, 97, 238, .3) !important;
+}
+
+html.sysrep-ms-embed .btn-near-float {
+  position: fixed;
+  bottom: calc(136px + env(safe-area-inset-bottom, 0px)) !important;
+  right: 18px !important;
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: 14px !important;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 22px rgba(37, 99, 235, 0.28);
+  z-index: 901;
+  cursor: pointer;
+  font-size: 0; /* garante que nunca apareça texto */
+  line-height: 0;
+}
+html.sysrep-ms-embed .btn-near-float svg { width: 20px !important; height: 20px !important; }
+html.sysrep-ms-embed .btn-near-float:active { transform: scale(0.98); }
+
+html.sysrep-ms-embed .bulk-bar.show {
+  bottom: calc(72px + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+html.sysrep-ms-embed .bulk-bar {
+  left: 12px !important;
+  right: 12px !important;
+  transform: none !important;
+  max-width: none !important;
+  flex-wrap: wrap !important;
+  justify-content: center !important;
+}
+
+/* ── Pedidos (embed): layout empilhado só em telas estreitas; desktop ≥900px usa uma linha (pedidos.html) ── */
+@media (max-width: 899px) {
+  html.sysrep-ms-embed .list-insights {
+    display: none !important;
+  }
+  html.sysrep-ms-embed #btnColChooser,
+  html.sysrep-ms-embed #btnExportCsv,
+  html.sysrep-ms-embed #btnViewKanban {
+    display: none !important;
+  }
+  html.sysrep-ms-embed #toolbar .chooser-wrap {
+    display: none !important;
+  }
+  html.sysrep-ms-embed #toolbar .toolbar-filter-group:has(#f_ordem) {
+    display: none !important;
+  }
+  html.sysrep-ms-embed #toolbar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  html.sysrep-ms-embed #toolbar .toolbar-title {
+    display: none !important;
+  }
+  html.sysrep-ms-embed #toolbar .search-box {
+    width: 100% !important;
+    max-width: none !important;
+  }
+  /* flex:1 na row esticava a toolbar no eixo vertical (faixa vazia entre busca e KPI) */
+  html.sysrep-ms-embed #listSection #toolbar .toolbar-pedidos-row {
+    display: grid !important;
+    grid-template-columns: 1fr auto !important;
+    grid-template-areas:
+      "period filtros"
+      "search search" !important;
+    width: 100% !important;
+    align-items: center !important;
+    gap: 6px 10px !important;
+    flex: none !important;
+    flex-grow: 0 !important;
+    min-height: 0 !important;
+  }
+  html.sysrep-ms-embed #listSection #toolbar .toolbar-period-wrap {
+    grid-area: period !important;
+    max-width: none !important;
+  }
+  html.sysrep-ms-embed #listSection #toolbar .search-box {
+    grid-area: search !important;
+  }
+  html.sysrep-ms-embed #listSection #toolbar #btnFiltros {
+    grid-area: filtros !important;
+    justify-self: end !important;
+  }
+  html.sysrep-ms-embed #listSection > .main-content {
+    min-height: 0 !important;
+  }
+  html.sysrep-ms-embed #listSection #toolbar .view-toggle {
+    display: none !important;
+  }
+
+  /* Lista Pedidos: meta + toolbar um pouco mais compactos */
+  html.sysrep-ms-embed #listSection #pedidosTopMeta.pedidos-top-meta {
+    padding: 4px 10px 6px !important;
+    gap: 6px 8px !important;
+  }
+
+  /* Tours grandes somem no mobile — offline real fica na faixa Mercos (ícones) */
+  html.sysrep-ms-embed #listSection #toolbar .btn-sysrep-tour,
+  html.sysrep-ms-embed #listSection #toolbar #btnNovoPedido,
+  html.sysrep-ms-embed #listSection #toolbar #btnColChooser,
+  html.sysrep-ms-embed #listSection #toolbar #btnExportCsv,
+  html.sysrep-ms-embed #listSection #toolbar #btnSairPedidosLista,
+  html.sysrep-ms-embed #listSection #toolbar .toolbar-filter-group:has(#f_ordem),
+  html.sysrep-ms-embed #listSection #toolbar .chooser-wrap {
+    display: none !important;
+  }
+
+  html.sysrep-ms-embed #listSection #pedidosTopMeta .pm-prep-offline-btn {
+    min-height: 28px !important;
+    padding: 0 8px !important;
+    font-size: 10px !important;
+    opacity: .88;
+    border-radius: 8px !important;
+  }
+  html.sysrep-ms-embed #listSection #pedidosTopMeta .pm-prep-offline-btn .pm-prep-label {
+    font-size: 10px !important;
+  }
+  html.sysrep-ms-embed #listSection #pedidosTopMeta .pm-help-offline-btn {
+    width: 26px !important;
+    min-width: 26px !important;
+    height: 26px !important;
+    font-size: 11px !important;
+    opacity: .75;
+  }
+  html.sysrep-ms-embed #listSection #pedidosTopMeta .pm-sync-btn:not(.pm-prep-offline-btn):not(.pm-help-offline-btn) {
+    width: 28px !important;
+    height: 28px !important;
+    min-width: 28px !important;
+    opacity: .85;
+  }
+  html.sysrep-ms-embed #listSection #pedidosTopMeta .pm-legend {
+    display: none !important;
+  }
+  html.sysrep-ms-embed #listSection .metrics-wrap {
+    display: block !important;
+    padding: 6px 12px 0 !important;
+  }
+  html.sysrep-ms-embed #listSection .filter-strip {
+    display: flex !important;
+    gap: 8px !important;
+    overflow-x: auto !important;
+    scrollbar-width: none !important;
+    padding-bottom: 4px !important;
+  }
+  html.sysrep-ms-embed #listSection .fs-item {
+    flex: 0 0 auto !important;
+    min-width: 118px !important;
+    padding: 8px 10px !important;
+    border-radius: 12px !important;
+  }
+
+  /*
+   * Rodapé de paginação fixo: duas linhas claras (info + controles) para ocupar menos altura
+   * e não cobrir os cards. FAB escondido — «Novo pedido» fica no mobile-shell (evita sobreposição).
+   */
+  html.sysrep-ms-embed #listSection .pagination-footer {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    justify-content: center !important;
+    gap: 4px !important;
+    padding: 5px 10px calc(5px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  html.sysrep-ms-embed #listSection .pagination-footer .pag-info-text {
+    text-align: center !important;
+    width: 100% !important;
+    line-height: 1.25 !important;
+  }
+  html.sysrep-ms-embed #listSection .pagination-footer .pag-controls {
+    width: 100% !important;
+    min-width: 0 !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    flex-wrap: nowrap !important;
+    gap: 6px !important;
+  }
+  html.sysrep-ms-embed #listSection .pagination-footer .pag-select {
+    flex-shrink: 0 !important;
+    max-width: 42vw !important;
+  }
+  html.sysrep-ms-embed #listSection .pagination-footer .pag-numbers {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    justify-content: flex-end !important;
+  }
+  html.sysrep-ms-embed #fabNovo.btn-new-float {
+    display: none !important;
+  }
+}
+
+html.sysrep-ms-embed #listSection #toolbar .toolbar-period-wrap {
+  flex: 0 1 auto !important;
+  max-width: min(200px, 42vw) !important;
+  min-width: 0 !important;
+  background: var(--bg, rgba(148, 163, 184, 0.12));
+  border: 1px solid var(--border, rgba(148, 163, 184, 0.35));
+  border-radius: 10px !important;
+  padding: 4px 8px !important;
+  gap: 6px !important;
+}
+
+/* Grid mobile (≤899): período ocupa a linha — precisa poder crescer (regra acima limitava a 200px) */
+@media (max-width: 899px) {
+  html.sysrep-ms-embed #listSection #toolbar .toolbar-period-wrap {
+    max-width: none !important;
+  }
+}
+
+html.sysrep-ms-embed #listSection #toolbar .toolbar-period-wrap .toolbar-label {
+  flex-shrink: 0;
+}
+
+html.sysrep-ms-embed #listSection #toolbar .toolbar-period-select {
+  width: auto !important;
+  max-width: 152px !important;
+  min-width: 0 !important;
+  flex: 0 1 auto !important;
+  border: none !important;
+  background: transparent !important;
+  font: inherit !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+}
+
+html.sysrep-ms-embed #listSection #toolbar #btnFiltros {
+  position: relative !important;
+  flex-shrink: 0 !important;
+  align-self: center !important;
+  padding: 8px 10px !important;
+  min-width: 44px !important;
+  min-height: 44px !important;
+  border-radius: 12px !important;
+  border: 1px solid var(--border, rgba(148, 163, 184, 0.35)) !important;
+  background: var(--card-bg, var(--bg, #fff)) !important;
+  color: var(--text2, #64748b) !important;
+  box-shadow: none !important;
+  gap: 0 !important;
+}
+
+html.sysrep-ms-embed #listSection #toolbar #btnFiltros .filter-badge-count {
+  position: absolute !important;
+  top: 4px !important;
+  right: 4px !important;
+  min-width: 16px !important;
+  height: 16px !important;
+  padding: 0 4px !important;
+  font-size: 10px !important;
+  line-height: 16px !important;
+}
+
+html.sysrep-ms-embed #listSection #toolbar #btnFiltros .btn-filtros-text {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+html.sysrep-ms-embed #listSection #toolbar #btnFiltros svg {
+  margin: 0 !important;
+}
+
+/* Input de busca moderno no embed */
+html.sysrep-ms-embed #listSection .input-search {
+  border-radius: 14px !important;
+  min-height: 44px !important;
+  padding: 10px 12px 10px 38px !important;
+  border: 1.5px solid var(--card-border, #e2e8f0) !important;
+  background: var(--content-bg, #f1f5f9) !important;
+  font-size: max(var(--base-font-size, 13px), 16px) !important;
+}
+html.sysrep-ms-embed #listSection .input-search:focus {
+  background: var(--card-bg, #fff) !important;
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 4px var(--accent-soft) !important;
+}
+
+/* Novo pedido fica no mobile-shell; evita duplicar no iframe */
+html.sysrep-ms-embed #listSection #btnNovoPedido {
+  display: none !important;
+}
+
+/*
+ * Quick view no iframe mobile: painel em tela cheia com fade (sem slide/transform).
+ * backdrop-filter no overlay costuma “grudar” blur no Chrome dentro de iframe.
+ */
+html.sysrep-ms-embed #qvOverlay {
+  z-index: 199900 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background: rgba(15, 23, 42, 0.5) !important;
+}
+html.sysrep-ms-embed #quickViewPanel {
+  width: 100vw !important;
+  max-width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  min-height: 100dvh !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  margin: 0 !important;
+  border-left: none !important;
+  transform: none !important;
+  /* Sem fade: durante opacity<1 o toque pode “passar” e bater no overlay (fecha o QV). */
+  transition: none !important;
+  z-index: 200000 !important;
+  box-shadow: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  -webkit-overflow-scrolling: touch;
+}
+html.sysrep-ms-embed #quickViewPanel.open {
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
+html.sysrep-ms-embed #quickViewPanel .qv-body {
+  min-height: 0 !important;
+}
+
+/* Bloco Mercos (pedidos.html) */
+.pedidos-mercos-ui {
+  display: none;
+}
+html.sysrep-ms-embed #pedidosMobileMercos.pedidos-mercos-ui {
+  display: block;
+  padding: 8px 12px 6px;
+  background: var(--content-bg, #f1f5f9);
+}
+
+html.sysrep-ms-embed .pm-legend-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+
+html.sysrep-ms-embed .pm-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text2, #64748b);
+  margin-bottom: 0;
+  padding: 6px 0 4px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+html.sysrep-ms-embed .pm-leg {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, .06);
+}
+html.sysrep-ms-embed .pm-ic {
+  width: 10px;
+  height: 10px;
+  display: inline-block;
+  border-radius: 2px;
+}
+html.sysrep-ms-embed .pm-ic-orc {
+  background: #facc15;
+  clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+  border-radius: 0;
+}
+html.sysrep-ms-embed .pm-ic-ped {
+  background: #3b82f6;
+  border-radius: 3px;
+}
+html.sysrep-ms-embed .pm-ic-ok {
+  background: #22c55e;
+  border-radius: 50%;
+}
+html.sysrep-ms-embed .pm-ic-pend {
+  background: #f97316;
+  border-radius: 50%;
+}
+
+/* Botão Sincronizar discreto (estilo Mercos) */
+html.sysrep-ms-embed .pm-sync-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid var(--card-border, #e2e8f0);
+  border-radius: 10px;
+  background: var(--card-bg, #fff);
+  color: var(--text2, #64748b);
+  font-size: 10px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+  -webkit-tap-highlight-color: transparent;
+  margin-top: 0;
+  flex-shrink: 0;
+}
+html.sysrep-ms-embed .pm-sync-btn:active {
+  background: var(--accent-soft, rgba(67,97,238,.08));
+  color: var(--accent, #4361ee);
+}
+html.sysrep-ms-embed .pm-sync-btn svg {
+  flex-shrink: 0;
+  transition: transform .4s ease;
+}
+html.sysrep-ms-embed .pm-sync-btn.pm-sync-spinning svg {
+  animation: pmSyncSpin .6s linear;
+}
+@keyframes pmSyncSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+html.sysrep-ms-embed .pm-sync-ts {
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text2, #64748b);
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+html.sysrep-ms-embed .pm-conn-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+html.sysrep-ms-embed .pm-conn-pill.conn-online  { background: #dcfce7; color: #166534; }
+html.sysrep-ms-embed .pm-conn-pill.conn-offline { background: #fee2e2; color: #991b1b; }
+
+@media (max-width: 899px) {
+  html.sysrep-ms-embed .cards-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+    padding: 8px 12px 16px !important;
+    background: var(--content-bg, #f1f5f9);
+  }
+}
+@media (min-width: 900px) {
+  html.sysrep-ms-embed #listSection .cards-grid {
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)) !important;
+    gap: 16px 20px !important;
+    padding: 12px 20px 24px !important;
+    align-items: start;
+  }
+}
+
+html.sysrep-ms-embed .pm-card {
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--card-border, #e2e8f0);
+  border-radius: 20px;
+  padding: 16px 18px 14px;
+  box-shadow: 0 2px 14px rgba(15, 23, 42, 0.08), 0 1px 3px rgba(15, 23, 42, 0.04);
+  cursor: pointer;
+  transition: transform .15s, box-shadow .2s, border-color .18s;
+  touch-action: manipulation;
+  position: relative;
+  overflow: hidden;
+}
+html.sysrep-ms-embed .pm-card::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 4px;
+  height: 100%;
+  background: var(--accent, #4361ee);
+  opacity: 0.2;
+  transition: opacity .18s;
+}
+/* Stripe colorida por status — sempre visível em baixa opacidade */
+html.sysrep-ms-embed .pm-card:has(.pm-dot--ok)::after    { background: #16a34a; }
+html.sysrep-ms-embed .pm-card:has(.pm-dot--pend)::after  { background: #ea580c; }
+html.sysrep-ms-embed .pm-card:has(.pm-dot--cancel)::after { background: #dc2626; }
+html.sysrep-ms-embed .pm-card:has(.pm-dot--sent)::after  { background: #2563eb; }
+html.sysrep-ms-embed .pm-card:has(.pm-dot--orca)::after  { background: #d97706; }
+html.sysrep-ms-embed .pm-card:active {
+  transform: scale(.985);
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.1);
+}
+html.sysrep-ms-embed .pm-card.row-selected::after,
+html.sysrep-ms-embed .pm-card.active::after {
+  opacity: 1;
+}
+html.sysrep-ms-embed .pm-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+html.sysrep-ms-embed .pm-card-head-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+html.sysrep-ms-embed .pm-check {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  background: rgba(148, 163, 184, .12);
+  color: transparent;
+  font-weight: 900;
+  font-size: 12px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid rgba(148, 163, 184, .2);
+  transition: background .15s, color .15s, border-color .15s;
+}
+html.sysrep-ms-embed .pm-card.row-selected .pm-check,
+html.sysrep-ms-embed .pm-card.active .pm-check {
+  background: rgba(22, 163, 74, .18);
+  color: #16a34a;
+  border-color: rgba(22, 163, 74, .3);
+}
+html.sysrep-ms-embed .pm-pedido-id {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--content-text, #0f172a);
+  letter-spacing: -0.03em;
+}
+html.sysrep-ms-embed .pm-card-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text2, #64748b);
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, .08);
+}
+html.sysrep-ms-embed .pm-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+html.sysrep-ms-embed .pm-dot--orca  { background: #d97706; }
+html.sysrep-ms-embed .pm-dot--pend  { background: #ea580c; }
+html.sysrep-ms-embed .pm-dot--ok    { background: #16a34a; }
+html.sysrep-ms-embed .pm-dot--sent  { background: #2563eb; }
+html.sysrep-ms-embed .pm-dot--cancel { background: #dc2626; }
+
+/* Badge com fundo colorido por status */
+html.sysrep-ms-embed .pm-card-status:has(.pm-dot--ok) {
+  background: rgba(22, 163, 74, .12); color: #15803d;
+}
+html.sysrep-ms-embed .pm-card-status:has(.pm-dot--pend) {
+  background: rgba(234, 88, 12, .12); color: #c2410c;
+}
+html.sysrep-ms-embed .pm-card-status:has(.pm-dot--cancel) {
+  background: rgba(220, 38, 38, .12); color: #b91c1c;
+}
+html.sysrep-ms-embed .pm-card-status:has(.pm-dot--sent) {
+  background: rgba(37, 99, 235, .12); color: #1d4ed8;
+}
+html.sysrep-ms-embed .pm-card-status:has(.pm-dot--orca) {
+  background: rgba(217, 119, 6, .12); color: #92400e;
+}
+
+html.sysrep-ms-embed .pm-card-body {
+  margin-bottom: 12px;
+}
+html.sysrep-ms-embed .pm-client {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--content-text, #0f172a);
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+html.sysrep-ms-embed .pm-sub {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text2, #64748b);
+  font-weight: 500;
+}
+
+html.sysrep-ms-embed .pm-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(148, 163, 184, .12);
+}
+html.sysrep-ms-embed .pm-money {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+html.sysrep-ms-embed .pm-bubble-dollar {
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  background: linear-gradient(135deg, rgba(34,197,94,.15), rgba(34,197,94,.08));
+  color: #16a34a;
+  font-size: 15px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+html.sysrep-ms-embed .pm-money strong {
+  font-size: 17px;
+  font-weight: 900;
+  color: #10b981;
+  letter-spacing: -0.02em;
+}
+html.sysrep-ms-embed .pm-emit {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text2, #94a3b8);
+  text-align: right;
+  line-height: 1.3;
+  max-width: 52%;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+}
+html.sysrep-ms-embed .pm-emit-sub {
+  display: block;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text2, #94a3b8);
+  text-transform: none;
+  letter-spacing: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  margin-top: 2px;
+  opacity: 0.8;
+}
+
+/* Detalhes dentro do card (qtd, peso, parcelas, vendedor) */
+html.sysrep-ms-embed .pm-card-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 12px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  background: rgba(148, 163, 184, .05);
+  border-radius: 12px;
+}
+html.sysrep-ms-embed .pm-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+html.sysrep-ms-embed .pm-detail-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text2, #94a3b8);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+html.sysrep-ms-embed .pm-detail strong {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--content-text, #0f172a);
+  letter-spacing: -0.01em;
+}
+
+/* ── Visitas ─────────────────────────────────────────────── */
+html.sysrep-ms-embed .date-filter {
+  margin-left: 0 !important;
+  flex-wrap: wrap !important;
+  width: 100%;
+}
+
+html.sysrep-ms-embed .search-input {
+  flex: 1 1 100%;
+  width: 100% !important;
+  max-width: none !important;
+}
+
+html.sysrep-ms-embed .subbar .vendedor-sel {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* ── Mapa de clientes (mobile) ──────────────────────────── */
+html.sysrep-ms-embed .topbar {
+  display: none !important;
+}
+
+/* ── Mapa: Layout principal mobile ─────────────────────── */
+html.sysrep-ms-embed .main-layout {
+  flex-direction: column !important;
+  height: 100vh !important;
+  margin-top: 0 !important;
+}
+
+html.sysrep-ms-embed .map-container {
+  flex: 1 !important;
+  order: 1 !important;
+  position: relative !important;
+}
+
+/* ── Sidebar → Bottom Sheet ────────────────────────────── */
+html.sysrep-ms-embed .sidebar {
+  position: fixed !important;
+  left: 0 !important; right: 0 !important;
+  bottom: 0 !important;
+  top: auto !important;
+  width: 100% !important;
+  height: auto !important;
+  max-height: 70vh !important;
+  border-right: none !important;
+  border-radius: 24px 24px 0 0 !important;
+  box-shadow: 0 -8px 40px rgba(0,0,0,0.15) !important;
+  z-index: 1200 !important;
+  transform: translateY(0) !important;
+  transition: transform 0.35s cubic-bezier(0.32,0.72,0,1), max-height 0.35s ease !important;
+  display: flex !important;
+  flex-direction: column !important;
+  background: var(--card-bg, #fff) !important;
+  overflow: hidden !important;
+}
+
+html.sysrep-ms-embed .sidebar::before {
+  content: '' !important;
+  display: block !important;
+  width: 40px !important;
+  height: 5px !important;
+  border-radius: 3px !important;
+  background: var(--table-border, #d1d5db) !important;
+  margin: 10px auto 4px !important;
+  flex-shrink: 0 !important;
+  opacity: 0.6 !important;
+}
+
+html.sysrep-ms-embed .sidebar.collapsed {
+  transform: translateY(calc(100% - 64px)) !important;
+  max-height: 64px !important;
+  overflow: hidden !important;
+  box-shadow: 0 -4px 20px rgba(0,0,0,0.1) !important;
+}
+
+html.sysrep-ms-embed .sidebar-header {
+  padding: 8px 16px 10px !important;
+  border-bottom: 1px solid var(--table-border, #e2e8f0) !important;
+  cursor: pointer !important;
+  flex-shrink: 0 !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+html.sysrep-ms-embed .sidebar-title {
+  font-size: 15px !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.02em !important;
+}
+
+html.sysrep-ms-embed .sidebar-subtitle {
+  font-size: 11px !important;
+}
+
+/* ── Mapa: Controles (filtros) ─────────────────────────── */
+html.sysrep-ms-embed .controls {
+  padding: 12px 16px !important;
+  gap: 10px !important;
+  border-bottom: 1px solid var(--table-border, #e2e8f0) !important;
+  flex-shrink: 0 !important;
+}
+
+html.sysrep-ms-embed .controls .control-group {
+  gap: 8px !important;
+}
+
+html.sysrep-ms-embed .controls .btn-primary {
+  min-height: 42px !important;
+  border-radius: 12px !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+}
+
+html.sysrep-ms-embed .controls .control-input {
+  min-height: 40px !important;
+  border-radius: 10px !important;
+  font-size: 14px !important;
+  padding: 8px 12px !important;
+}
+
+html.sysrep-ms-embed .controls .control-select {
+  min-height: 40px !important;
+  border-radius: 10px !important;
+  font-size: 14px !important;
+  padding: 8px 12px !important;
+}
+
+html.sysrep-ms-embed .controls .control-label {
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.8px !important;
+}
+
+/* ── Client list inside bottom sheet ───────────────────── */
+html.sysrep-ms-embed .client-list {
+  flex: 1 !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  overscroll-behavior: contain !important;
+  padding: 8px 12px 24px !important;
+}
+
+html.sysrep-ms-embed .client-item {
+  border-radius: 16px !important;
+  padding: 14px !important;
+  margin-bottom: 8px !important;
+  background: var(--content-bg, #f1f5f9) !important;
+  border: 1.5px solid transparent !important;
+  transition: transform 0.15s ease, border-color 0.2s ease, box-shadow 0.2s ease !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+html.sysrep-ms-embed .client-item:active {
+  transform: scale(0.98) !important;
+}
+
+html.sysrep-ms-embed .client-item.active {
+  border-color: var(--accent, #0ea5e9) !important;
+  background: rgba(14, 165, 233, 0.08) !important;
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.12) !important;
+}
+
+html.sysrep-ms-embed .client-name {
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  line-height: 1.3 !important;
+  letter-spacing: -0.01em !important;
+}
+
+html.sysrep-ms-embed .client-distance {
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  padding: 3px 8px !important;
+  border-radius: 8px !important;
+  flex-shrink: 0 !important;
+}
+
+html.sysrep-ms-embed .client-address {
+  font-size: 11px !important;
+  line-height: 1.4 !important;
+  margin-top: 2px !important;
+}
+
+html.sysrep-ms-embed .client-meta {
+  margin-top: 8px !important;
+  gap: 6px !important;
+}
+
+html.sysrep-ms-embed .client-meta span {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  padding: 3px 8px !important;
+  border-radius: 6px !important;
+  background: var(--card-bg, #fff) !important;
+  border: 1px solid var(--table-border, #e2e8f0) !important;
+}
+
+/* ── Mapa: floating controls (direita) ─────────────────── */
+html.sysrep-ms-embed .map-controls {
+  top: 12px !important;
+  right: 12px !important;
+  gap: 6px !important;
+}
+
+html.sysrep-ms-embed .map-ctrl-btn {
+  width: 42px !important; height: 42px !important;
+  border-radius: 14px !important;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.12) !important;
+  background: var(--card-bg, #fff) !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+html.sysrep-ms-embed .map-ctrl-btn:active {
+  transform: scale(0.92) !important;
+}
+
+html.sysrep-ms-embed .map-ctrl-btn svg {
+  width: 18px !important; height: 18px !important;
+}
+
+/* ── Info bar (bottom floating pill) ───────────────────── */
+html.sysrep-ms-embed .info-bar {
+  bottom: auto !important;
+  top: 12px !important;
+  left: 12px !important;
+  right: auto !important;
+  transform: none !important;
+  border-radius: 14px !important;
+  padding: 8px 14px !important;
+  gap: 12px !important;
+  font-size: 11px !important;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.12) !important;
+  background: rgba(var(--card-bg-rgb, 255 255 255) / 0.92) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+}
+
+/* ── Route panel mobile ────────────────────────────────── */
+html.sysrep-ms-embed .route-panel {
+  bottom: auto !important;
+  top: 60px !important;
+  left: 12px !important;
+  right: 12px !important;
+  min-width: 0 !important;
+  border-radius: 18px !important;
+  padding: 16px !important;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.14) !important;
+}
+
+html.sysrep-ms-embed .route-panel h4 {
+  font-size: 14px !important;
+}
+
+html.sysrep-ms-embed .route-stat-value {
+  font-size: 18px !important;
+}
+
+/* ── Toast mobile ──────────────────────────────────────── */
+html.sysrep-ms-embed .toast-container {
+  top: 12px !important;
+  right: 12px !important;
+  left: 12px !important;
+}
+
+html.sysrep-ms-embed .toast {
+  min-width: 0 !important;
+  font-size: 12px !important;
+  padding: 10px 14px !important;
+  border-radius: 14px !important;
+}
+
+/* ── Leaflet overrides para mobile ─────────────────────── */
+html.sysrep-ms-embed .leaflet-control-zoom {
+  display: none !important;
+}
+
+html.sysrep-ms-embed .leaflet-popup-content-wrapper {
+  border-radius: 18px !important;
+}
+
+html.sysrep-ms-embed .leaflet-popup-content {
+  width: 240px !important;
+}
+
+html.sysrep-ms-embed .popup-header {
+  padding: 12px 14px !important;
+}
+
+html.sysrep-ms-embed .popup-header h4 {
+  font-size: 13px !important;
+}
+
+html.sysrep-ms-embed .popup-body {
+  padding: 12px 14px !important;
+}
+
+html.sysrep-ms-embed .popup-btn {
+  min-height: 36px !important;
+  border-radius: 10px !important;
+  font-size: 11px !important;
+}
+
+html.sysrep-ms-embed .popup-btn-visit {
+  background: #10b981 !important;
+  color: #fff !important;
+  border: none !important;
+  font-weight: 700 !important;
+  margin-top: 4px !important;
+}
+
+/* ── Loading overlay ───────────────────────────────────── */
+html.sysrep-ms-embed .loading-overlay {
+  border-radius: 0 !important;
+  background: rgba(var(--card-bg-rgb, 255 255 255) / 0.85) !important;
+  backdrop-filter: blur(6px) !important;
+}
+
+/* ── FAB "Minha Localização" ───────────────────────────── */
+html.sysrep-ms-embed .ms-map-fab {
+  position: absolute !important;
+  bottom: 68px !important;
+  left: 14px !important;
+  z-index: 1100 !important;
+  width: 50px !important; height: 50px !important;
+  border-radius: 16px !important;
+  border: none !important;
+  cursor: pointer !important;
+  display: flex !important; align-items: center !important; justify-content: center !important;
+  background: linear-gradient(135deg, var(--accent, #0ea5e9), #0284c7) !important;
+  color: #fff !important;
+  box-shadow: 0 4px 16px rgba(14, 165, 233, 0.35) !important;
+  -webkit-tap-highlight-color: transparent !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+}
+html.sysrep-ms-embed .ms-map-fab:active {
+  transform: scale(0.9) !important;
+  box-shadow: 0 2px 8px rgba(14, 165, 233, 0.3) !important;
+}
+html.sysrep-ms-embed .ms-map-fab svg {
+  width: 22px !important; height: 22px !important;
+}
+
+/* ── Comercial: dashboards / relatórios ────────────────── */
+html.sysrep-ms-embed .page .toolbar {
+  padding: 12px 14px !important;
+  gap: 10px !important;
+  background: var(--card-bg, #fff) !important;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06) !important;
+}
+
+html.sysrep-ms-embed .page .toolbar h1 {
+  font-size: 18px !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.03em !important;
+}
+
+html.sysrep-ms-embed .page .toolbar .eyebrow {
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  color: var(--accent, #4361ee) !important;
+}
+
+html.sysrep-ms-embed .page .title-wrap {
+  min-width: 0 !important;
+  margin-right: 0 !important;
+  flex: 1 1 100%;
+}
+
+html.sysrep-ms-embed .page .toolbar .filter {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+}
+
+html.sysrep-ms-embed .page .toolbar .filter input,
+html.sysrep-ms-embed .page .toolbar .filter select {
+  border-radius: 12px !important;
+  min-height: 40px !important;
+}
+
+html.sysrep-ms-embed .page .toolbar .btn {
+  border-radius: 12px !important;
+  min-height: 40px !important;
+  font-weight: 800 !important;
+  padding: 0 16px !important;
+}
+
+html.sysrep-ms-embed .page .layout {
+  grid-template-columns: 1fr !important;
+}
+
+html.sysrep-ms-embed .page .content {
+  padding: 12px !important;
+  gap: 14px !important;
+}
+
+html.sysrep-ms-embed .page .panel {
+  border-radius: 16px !important;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05) !important;
+  padding: 14px 16px !important;
+}
+
+html.sysrep-ms-embed .page .panel h2 {
+  font-size: 16px !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.02em !important;
+}
+
+html.sysrep-ms-embed .page .rep {
+  border-radius: 14px !important;
+  padding: 12px 14px !important;
+  transition: transform .12s, border-color .15s !important;
+}
+html.sysrep-ms-embed .page .rep:active {
+  transform: scale(.98) !important;
+}
+html.sysrep-ms-embed .page .rep.active {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px var(--accent-soft) !important;
+}
+html.sysrep-ms-embed .page .rep-title {
+  font-size: 14px !important;
+  font-weight: 800 !important;
+}
+
+html.sysrep-ms-embed .page .canvas-wrap {
+  border-radius: 14px !important;
+  padding: 12px !important;
+}
+
+html.sysrep-ms-embed .page .table {
+  border-radius: 14px !important;
+  overflow: hidden !important;
+}
+
+html.sysrep-ms-embed .page .list {
+  max-height: none !important;
+  gap: 8px !important;
+}
+
+html.sysrep-ms-embed .page canvas {
+  height: 260px !important;
+}
+
+html.sysrep-ms-embed .page .mode {
+  border-radius: 12px !important;
+}
+html.sysrep-ms-embed .page .mode button {
+  font-size: 12px !important;
+  padding: 0 12px !important;
+  min-height: 36px !important;
+}
+html.sysrep-ms-embed .page .search input {
+  border-radius: 12px !important;
+  min-height: 40px !important;
+}
+
+html.sysrep-ms-embed #formSection {
+  background: var(--content-bg, #f1f5f9) !important;
+  min-height: 100dvh !important;
+  padding: 0 0 calc(88px + env(safe-area-inset-bottom, 0px)) !important;
+  /* Espaço extra no cálculo da altura da aba Itens (barra inferior / safe area) */
+  --pedido-tab-itens-gap: 108px;
+}
+
+html.sysrep-ms-embed #formSection .form-actions-bar {
+  padding: 8px 12px !important;
+  gap: 8px !important;
+  align-items: center !important;
+  flex-wrap: wrap !important;
+  background: var(--card-bg, #fff) !important;
+  border-bottom: 1px solid var(--card-border, #e2e8f0) !important;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04) !important;
+}
+
+html.sysrep-ms-embed #formSection .form-actions-left {
+  width: auto !important;
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  gap: 8px !important;
+  align-items: center !important;
+  flex-direction: row !important;
+  flex-wrap: wrap !important;
+}
+
+html.sysrep-ms-embed #formSection .form-actions-left .form-pedido-hero-row {
+  min-width: 0 !important;
+  flex: 1 1 200px !important;
+}
+
+html.sysrep-ms-embed #formSection .form-actions-right {
+  width: auto !important;
+  flex: 0 0 auto !important;
+  justify-content: flex-end !important;
+  gap: 6px !important;
+  flex-wrap: wrap !important;
+  margin-left: auto !important;
+  align-items: center !important;
+}
+
+/* Cabeçalho do pedido: telas ≤520px — regras adicionais (header principal já em @media 899px acima) */
+@media (max-width: 520px) {
+  html.sysrep-ms-embed #formSection .form-pedido-hero-title {
+    font-size: 15px !important;
+  }
+}
+
+html.sysrep-ms-embed #heroClienteName {
+  font-size: 16px !important;
+  line-height: 1.3 !important;
+  letter-spacing: -0.02em !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: unset !important;
+}
+
+html.sysrep-ms-embed #formSection .form-pedido-chrome {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+}
+
+html.sysrep-ms-embed #formSection #painelAvisoCritico.form-pedido-alert--inline {
+  max-width: none !important;
+  width: auto !important;
+  padding: 0 !important;
+  border: none !important;
+}
+
+html.sysrep-ms-embed #formSection #btnVoltarPedido {
+  display: none !important;
+}
+
+html.sysrep-ms-embed #formSection #btnExcluir.btn-pedido-compact,
+html.sysrep-ms-embed #formSection #btnCancelar {
+  flex: 0 0 auto !important;
+  box-sizing: border-box !important;
+}
+
+html.sysrep-ms-embed #formSection #btnSalvar.btn-pedido-compact {
+  box-sizing: border-box !important;
+}
+
+html.sysrep-ms-embed #formSection #heroBadgeStatus,
+html.sysrep-ms-embed #formSection #heroBadgeTotal,
+html.sysrep-ms-embed #formSection #heroBadgeItens {
+  border-radius: 999px !important;
+  min-height: 28px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+}
+
+html.sysrep-ms-embed #formSection .form-pedido-chrome .form-pedido-tabs-wrap.tabs-bar-wrap {
+  background: var(--card) !important;
+  border-top: 1px solid var(--border) !important;
+  border-bottom: 0 !important;
+  padding: 0 !important;
+}
+
+html.sysrep-ms-embed #formSection .form-pedido-chrome .tabs-bar {
+  position: relative !important;
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  gap: 0 !important;
+  padding: 0 4px !important;
+  margin: 0 !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  justify-content: space-between !important;
+}
+
+html.sysrep-ms-embed #formSection .form-pedido-chrome #tabsBar::after {
+  content: "" !important;
+  position: absolute !important;
+  left: 0 !important;
+  bottom: 0 !important;
+  height: 3px !important;
+  width: var(--tab-ind-w, 0px) !important;
+  background: var(--accent) !important;
+  border-radius: 2px 2px 0 0 !important;
+  transform: translateX(var(--tab-ind-x, 0px)) !important;
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), width 0.3s cubic-bezier(0.22, 1, 0.36, 1) !important;
+  pointer-events: none !important;
+  z-index: 2 !important;
+}
+
+html.sysrep-ms-embed #formSection .form-pedido-chrome .tabs-bar::-webkit-scrollbar {
+  display: none !important;
+}
+
+html.sysrep-ms-embed #formSection .form-pedido-chrome .tabs-bar .tab-btn {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  flex: 1 1 0 !important;
+  min-width: 0 !important;
+  justify-content: center !important;
+  min-height: 0 !important;
+  padding: 12px 2px 11px !important;
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: var(--text2) !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  text-align: center !important;
+  line-height: 1.2 !important;
+  gap: 4px !important;
+  box-shadow: none !important;
+  transition: color 0.18s ease, font-weight 0.18s ease, transform 0.12s ease !important;
+}
+
+@media (min-width: 380px) {
+  html.sysrep-ms-embed #formSection .form-pedido-chrome .tabs-bar .tab-btn {
+    font-size: 12px !important;
+  }
+}
+
+html.sysrep-ms-embed #formSection .form-pedido-chrome .tabs-bar .tab-btn[data-tab-target="tab-itens"] {
+  padding-right: 20px !important;
+}
+
+html.sysrep-ms-embed #formSection .form-pedido-chrome .tabs-bar .tab-btn:focus {
+  outline: none !important;
+}
+
+html.sysrep-ms-embed #formSection .form-pedido-chrome .tabs-bar .tab-btn:focus-visible {
+  outline: 2px solid var(--accent) !important;
+  outline-offset: 3px !important;
+  border-radius: 8px !important;
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+html.sysrep-ms-embed #formSection .form-pedido-chrome .tabs-bar .tab-btn:active {
+  transform: scale(0.98) !important;
+}
+
+html.sysrep-ms-embed #formSection .form-pedido-chrome .tabs-bar .tab-btn.active {
+  background: transparent !important;
+  color: var(--accent) !important;
+  font-weight: 800 !important;
+  box-shadow: none !important;
+}
+
+html.sysrep-ms-embed #formSection .form-pedido-chrome .tabs-bar .tab-btn svg {
+  display: none !important;
+}
+
+@media (min-width: 480px) {
+  html.sysrep-ms-embed #formSection .form-pedido-chrome .tabs-bar .tab-btn svg {
+    display: inline-block !important;
+    width: 13px !important;
+    height: 13px !important;
+    flex-shrink: 0 !important;
+  }
+}
+
+html.sysrep-ms-embed #formSection > div[style*="padding: 0 28px"] {
+  padding: 0 12px !important;
+}
+
+html.sysrep-ms-embed #formSection .form-card {
+  margin-top: 10px !important;
+  border-radius: 20px !important;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06) !important;
+  overflow: hidden !important;
+  border: 1px solid var(--card-border, #e2e8f0) !important;
+}
+
+/* Aba Dados: só empilha em telas estreitas; largura ok → usa grid do pedidos.html */
+@media (max-width: 639px) {
+  html.sysrep-ms-embed #tab-principal .form-group--pedido-numero {
+    display: none !important;
+  }
+  html.sysrep-ms-embed #tab-principal .form-pedido-dados-linha {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 6px !important;
+  }
+  html.sysrep-ms-embed #tab-principal .form-pedido-dados-linha3 {
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+  html.sysrep-ms-embed #tab-principal .form-pedido-dados-linha3 .form-pedido-fg-situacao,
+  html.sysrep-ms-embed #tab-principal .form-pedido-dados-linha3 .form-pedido-fg-tpdoc {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+  }
+  html.sysrep-ms-embed #tab-principal .form-pedido-dados-linha3 .input-field {
+    max-width: none !important;
+    width: 100% !important;
+  }
+}
+
+html.sysrep-ms-embed #formSection .tab-panel {
+  padding: 14px 14px !important;
+}
+
+html.sysrep-ms-embed #formSection .form-grid-4 {
+  grid-template-columns: 1fr !important;
+  gap: 10px !important;
+}
+
+html.sysrep-ms-embed #formSection .form-group.col2 {
+  grid-column: auto !important;
+}
+
+html.sysrep-ms-embed #formSection .form-group label {
+  font-size: calc(var(--base-font-size, 13px) * 0.85) !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+  color: var(--text2, #64748b) !important;
+}
+
+html.sysrep-ms-embed #formSection .input-field {
+  min-height: 40px !important;
+  border-radius: 10px !important;
+  font-size: 14px !important;
+  padding: 8px 10px !important;
+  background: var(--input-bg, var(--card-bg, var(--bg2))) !important;
+  background-color: var(--input-bg, var(--card-bg, var(--bg2))) !important;
+  color: var(--text, var(--content-text)) !important;
+  border-color: var(--border) !important;
+}
+
+html.sysrep-ms-embed #formSection .input-field:-webkit-autofill,
+html.sysrep-ms-embed #formSection .input-field:-webkit-autofill:hover,
+html.sysrep-ms-embed #formSection .input-field:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--text, var(--content-text)) !important;
+  caret-color: var(--text, var(--content-text)) !important;
+  -webkit-box-shadow: 0 0 0 1000px var(--input-bg, var(--card-bg, var(--bg2))) inset !important;
+  transition: background-color 9999s ease-out;
+}
+
+html.sysrep-ms-embed #formSection textarea.input-field {
+  min-height: 120px !important;
+}
+
+html.sysrep-ms-embed #formSection .input-with-action .input-field {
+  padding-right: 44px !important;
+}
+
+html.sysrep-ms-embed #formSection .btn-input-action {
+  width: 34px !important;
+  height: 34px !important;
+  right: 6px !important;
+  border-radius: 10px !important;
+}
+
+html.sysrep-ms-embed #clientQuickActions,
+html.sysrep-ms-embed #fornQuickActions {
+  gap: 6px !important;
+}
+
+html.sysrep-ms-embed #clientQuickActions .btn,
+html.sysrep-ms-embed #fornQuickActions .btn {
+  min-height: 32px !important;
+  padding: 0 10px !important;
+  border-radius: 10px !important;
+  font-size: 11px !important;
+}
+
+/* Aba Itens — alinhada à versão normal: aviso em cima (se visível), ferramentas + Adicionar na mesma linha */
+html.sysrep-ms-embed #tab-itens .itens-toolbar {
+  padding: 10px 12px !important;
+  gap: 10px !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  background: var(--card-bg, #fff) !important;
+  border-bottom: 1px solid var(--card-border, #e2e8f0) !important;
+}
+
+html.sysrep-ms-embed #tab-itens .itens-toolbar-aviso {
+  flex: 1 1 100% !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  order: -1 !important;
+}
+
+html.sysrep-ms-embed #tab-itens .itens-toolbar-actions {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 6px !important;
+  flex-wrap: wrap !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  margin-left: 0 !important;
+  min-width: 0 !important;
+}
+
+html.sysrep-ms-embed #tab-itens .itens-toolbar-tools {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  flex-wrap: nowrap !important;
+  gap: 4px !important;
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  scrollbar-width: none !important;
+}
+
+html.sysrep-ms-embed #tab-itens .itens-toolbar-tools::-webkit-scrollbar {
+  display: none !important;
+}
+
+html.sysrep-ms-embed #tab-itens .itens-add-btn.itens-add-btn--toolbar-end {
+  flex-shrink: 0 !important;
+  margin-left: auto !important;
+}
+
+html.sysrep-ms-embed #tab-itens .itens-tool-btn {
+  min-height: 30px !important;
+  padding: 0 7px !important;
+  border-radius: 8px !important;
+  font-size: 10px !important;
+  gap: 3px !important;
+  flex-shrink: 0 !important;
+}
+html.sysrep-ms-embed #tab-itens .itens-tool-btn svg {
+  width: 12px !important;
+  height: 12px !important;
+}
+
+html.sysrep-ms-embed #tab-itens .itens-add-btn {
+  min-height: 34px !important;
+  padding: 0 10px !important;
+  border-radius: 10px !important;
+  font-size: 11px !important;
+  box-shadow: 0 4px 12px rgba(67, 97, 238, 0.15) !important;
+}
+html.sysrep-ms-embed #tab-itens .itens-add-btn .itens-add-label-full { display: none !important; }
+html.sysrep-ms-embed #tab-itens .itens-add-btn .itens-add-label-short { display: inline !important; }
+
+html.sysrep-ms-embed #painel_desconto_wrapper > div,
+html.sysrep-ms-embed #painel_acrescimo_wrapper > div {
+  padding: 8px 10px !important;
+}
+html.sysrep-ms-embed #painel_desconto_wrapper input,
+html.sysrep-ms-embed #painel_acrescimo_wrapper input,
+html.sysrep-ms-embed #painel_desconto_wrapper select,
+html.sysrep-ms-embed #painel_acrescimo_wrapper select {
+  font-size: 11px !important;
+}
+html.sysrep-ms-embed #desconto_cascata_grid {
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)) !important;
+  gap: 4px !important;
+}
+
+html.sysrep-ms-embed #tab-itens .itens-wrap {
+  background: var(--card-bg, #fff) !important;
+}
+
+/* Rodapé da aba Itens: paginação + totais empilham em telas estreitas */
+@media (max-width: 560px) {
+  html.sysrep-ms-embed #tab-itens .itens-footer {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+    padding: 10px 12px !important;
+  }
+  html.sysrep-ms-embed #tab-itens #itens-pag-ctrl {
+    flex-wrap: wrap !important;
+    justify-content: flex-start !important;
+    width: 100% !important;
+    gap: 8px !important;
+  }
+  html.sysrep-ms-embed #tab-itens .itens-totais-grid {
+    width: 100% !important;
+    justify-content: space-between !important;
+  }
+}
+
+html.sysrep-ms-embed #itensList {
+  height: auto !important;
+  min-height: 240px !important;
+  max-height: none !important;
+}
+
+html.sysrep-ms-embed #totalsBar {
+  left: 10px !important;
+  right: 10px !important;
+  bottom: calc(72px + env(safe-area-inset-bottom, 0px)) !important;
+  border: 1px solid var(--card-border, #e2e8f0) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12) !important;
+  padding: 10px 12px !important;
+  z-index: 48 !important;
+}
+
+html.sysrep-ms-embed #tab-logistica,
+html.sysrep-ms-embed #tab-financeiro,
+html.sysrep-ms-embed #tab-obs {
+  background: var(--card-bg, #fff) !important;
+}
+
+html.sysrep-ms-embed #tab-logistica .form-group,
+html.sysrep-ms-embed #tab-financeiro .form-group,
+html.sysrep-ms-embed #tab-obs .form-group {
+  padding: 10px 0 !important;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12) !important;
+}
+
+html.sysrep-ms-embed #tab-logistica .form-group:last-child,
+html.sysrep-ms-embed #tab-financeiro .form-group:last-child,
+html.sysrep-ms-embed #tab-obs .form-group:last-child {
+  border-bottom: 0 !important;
+}
+
+html.sysrep-ms-embed #tab-logistica .input-field,
+html.sysrep-ms-embed #tab-financeiro .input-field {
+  background-color: var(--input-bg, var(--card-bg, var(--bg2))) !important;
+  color: var(--text, var(--content-text)) !important;
+  border-color: var(--border) !important;
+}
+
+html.sysrep-ms-embed #tab-logistica #results_transp,
+html.sysrep-ms-embed #tab-financeiro datalist {
+  font-size: 14px !important;
+}
+
+html.sysrep-ms-embed #tab-financeiro .finance-summary,
+html.sysrep-ms-embed #tab-financeiro .fin-cards,
+html.sysrep-ms-embed #tab-financeiro .parcela-box {
+  border-radius: 16px !important;
+}
+
+html.sysrep-ms-embed #tab-financeiro #parcelasList {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+  margin-top: 10px !important;
+}
+
+/* Pagamento: título Parcelas + Recalcular alinhados (mesma linha) */
+html.sysrep-ms-embed #tab-financeiro .subrec-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+  flex-wrap: nowrap !important;
+  min-width: 0 !important;
+}
+
+html.sysrep-ms-embed #tab-financeiro .subrec-header .subrec-title {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  font-size: calc(var(--base-font-size, 13px) * 0.95) !important;
+}
+
+html.sysrep-ms-embed #tab-financeiro .subrec-header #btnRecalcularParcelas {
+  flex-shrink: 0 !important;
+  min-height: 36px !important;
+  white-space: nowrap !important;
+}
+
+/* Rodapé resumo (Subtotal / Frete / Total) — responsivo, igual conceito à versão normal */
+html.sysrep-ms-embed #tab-financeiro #resumoFinanceiro.fin-resumo-row {
+  margin-top: 16px !important;
+  padding-top: 12px !important;
+  border-top: 1px solid rgba(148, 163, 184, 0.28) !important;
+  gap: 8px !important;
+}
+
+html.sysrep-ms-embed #tab-financeiro #resumoFinanceiro.fin-resumo-row > .fin-resumo-cell {
+  min-width: 0 !important;
+}
+
+@media (max-width: 520px) {
+  html.sysrep-ms-embed #tab-financeiro #resumoFinanceiro.fin-resumo-row {
+    flex-direction: column !important;
+  }
+  html.sysrep-ms-embed #tab-financeiro #resumoFinanceiro.fin-resumo-row > .fin-resumo-cell {
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    max-width: none !important;
+  }
+}
+
+html.sysrep-ms-embed #tab-financeiro .parcela-card,
+html.sysrep-ms-embed #tab-financeiro .parcela-item {
+  border-radius: 14px !important;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06) !important;
+}
+
+html.sysrep-ms-embed #tab-financeiro button,
+html.sysrep-ms-embed #tab-logistica button {
+  min-height: 40px !important;
+  border-radius: 12px !important;
+}
+
+html.sysrep-ms-embed #tab-obs textarea.input-field {
+  min-height: 180px !important;
+  line-height: 1.45 !important;
+}
+
+/*
+ * Rodapé de paginação fixo no embed: o iframe do mobile-shell já termina ACIMA da nav
+ * (ms-frame-wrap { bottom: var(--ms-nav-h) }). bottom: 56px empurrava a barra para cima
+ * e cobria os cards — usar bottom: 0; safe-area só no padding.
+ */
+html.sysrep-ms-embed #listSection .pagination-footer,
+html.sysrep-ms-embed .pagination-footer {
+  position: fixed !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  z-index: 40 !important;
+  margin: 0 !important;
+  padding: 6px 12px calc(6px + env(safe-area-inset-bottom, 0px)) !important;
+  border: none !important;
+  border-top: 1px solid var(--card-border, #e2e8f0) !important;
+  border-radius: 0 !important;
+  background: var(--bg, var(--card-bg, #fff)) !important;
+  backdrop-filter: none !important;
+  box-shadow: 0 -2px 12px rgba(15, 23, 42, 0.06) !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* Desktop no iframe (≥900px): rodapé de pedidos no fluxo — compacto como a lista standalone */
+@media (min-width: 900px) {
+  html.sysrep-ms-embed #listSection .pagination-footer {
+    position: static !important;
+    left: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    z-index: auto !important;
+    box-shadow: none !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+    padding: 5px 12px !important;
+    background: var(--bg, var(--content-bg, #f8fafc)) !important;
+    border-top: 1px solid var(--card-border, #e2e8f0) !important;
+  }
+  html.sysrep-ms-embed #listSection .pagination-footer .pag-info-text {
+    font-size: 10px !important;
+    font-weight: 600 !important;
+    width: auto !important;
+    text-align: left !important;
+  }
+  html.sysrep-ms-embed #listSection .pagination-footer .pag-controls {
+    width: auto !important;
+    min-width: 0 !important;
+    justify-content: flex-end !important;
+    gap: 6px !important;
+    flex-wrap: nowrap !important;
+  }
+  html.sysrep-ms-embed #listSection .pagination-footer .pag-select {
+    min-height: 24px !important;
+    height: auto !important;
+    padding: 2px 7px !important;
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    border-radius: 6px !important;
+    border-width: 1px !important;
+    max-width: none !important;
+  }
+  html.sysrep-ms-embed #listSection .pagination-footer .pag-numbers {
+    gap: 2px !important;
+    flex: none !important;
+  }
+  html.sysrep-ms-embed #listSection .pagination-footer .pag-num {
+    min-width: 24px !important;
+    height: 24px !important;
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    border-radius: 6px !important;
+    border-width: 1px !important;
+    padding: 0 !important;
+  }
+  html.sysrep-ms-embed #listSection .main-content {
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+}
+
+/*
+ * Mobile no iframe (≤899px): paginação NO FLUXO (não fixed).
+ * O bloco "fixed" acima vem antes na cascata mas seria reaplicado; esta regra vem DEPOIS e corrige
+ * a sobreposição sobre a lista (nav do shell já está fora do iframe).
+ */
+@media (max-width: 899px) {
+  html.sysrep-ms-embed #listSection .pagination-footer,
+  html.sysrep-ms-embed .pagination-footer {
+    position: static !important;
+    left: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    z-index: auto !important;
+    box-shadow: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  html.sysrep-ms-embed #listSection .main-content {
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+}
+
+html.sysrep-ms-embed .pag-info-text {
+  font-size: 11px !important;
+  color: var(--text2, #64748b) !important;
+  font-weight: 700 !important;
+}
+
+html.sysrep-ms-embed .pag-controls {
+  width: 100% !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+}
+
+html.sysrep-ms-embed .pag-select {
+  min-height: 38px !important;
+  border-radius: 12px !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  border: 1.5px solid var(--card-border, #e2e8f0) !important;
+}
+
+html.sysrep-ms-embed .pag-numbers {
+  display: flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  overflow-x: auto !important;
+  scrollbar-width: none !important;
+}
+
+html.sysrep-ms-embed .pag-numbers::-webkit-scrollbar {
+  display: none !important;
+}
+
+html.sysrep-ms-embed .pag-num {
+  min-width: 36px !important;
+  height: 36px !important;
+  border-radius: 12px !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  border: 1.5px solid var(--card-border, #e2e8f0) !important;
+}
+html.sysrep-ms-embed .pag-num.active {
+  box-shadow: 0 2px 8px rgba(67, 97, 238, .25) !important;
+}
+
+html.sysrep-ms-embed .empty-state {
+  margin: 16px !important;
+  border-radius: 22px !important;
+  background: var(--card-bg, #fff) !important;
+  border: 1px solid var(--card-border, #e2e8f0) !important;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05) !important;
+  padding: 40px 24px !important;
+}
+
+html.sysrep-ms-embed .empty-state svg {
+  width: 52px !important;
+  height: 52px !important;
+  color: var(--text2, #94a3b8) !important;
+  opacity: .5 !important;
+}
+
+html.sysrep-ms-embed .empty-state-title {
+  font-size: 16px !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.02em !important;
+}
+
+html.sysrep-ms-embed .empty-state-actions {
+  width: 100% !important;
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 10px !important;
+  margin-top: 8px !important;
+}
+
+html.sysrep-ms-embed .empty-state-actions .btn {
+  min-height: 44px !important;
+  border-radius: 14px !important;
+  font-weight: 700 !important;
+  font-size: 13px !important;
+}
+
+html.sysrep-ms-embed .it-action-btn,
+html.sysrep-ms-embed .btn-acoes {
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+html.sysrep-ms-embed .pm-card,
+html.sysrep-ms-embed .metric-card,
+html.sysrep-ms-embed .form-card {
+  transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+}
+
+html.sysrep-ms-embed .pm-card:active,
+html.sysrep-ms-embed .metric-card:active,
+html.sysrep-ms-embed .form-card:active {
+  transform: scale(0.992) !important;
+}
+
+/* Aba Itens: tabela compacta (igual desktop) — scroll horizontal em telas estreitas */
+html.sysrep-ms-embed #itensList .itens-table-scroll {
+  padding: 0 8px 8px;
+  margin: 0;
+}
+html.sysrep-ms-embed #itensList .itens-table.itens-table--compact {
+  min-width: 520px;
+}
+html.sysrep-ms-embed #itensList .itens-table.itens-table--compact thead th {
+  padding: 5px 6px;
+  font-size: calc(var(--base-font-size, 13px) * 0.68);
+}
+html.sysrep-ms-embed #itensList .itens-table.itens-table--compact tbody td {
+  padding: 4px 6px;
+}
+html.sysrep-ms-embed #itensList .itens-table.itens-table--compact .it-img {
+  width: 26px;
+  height: 26px;
+}
+html.sysrep-ms-embed #itensList .it-foto-ph {
+  width: 26px;
+  height: 26px;
+  font-size: calc(var(--base-font-size, 13px) * 0.95);
+}
+html.sysrep-ms-embed #itensList .itens-table.itens-table--compact .it-action-btn {
+  width: 30px;
+  height: 30px;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   CONTAS A RECEBER / CONTAS A PAGAR  (embed)
+   Identificados por body:has(.insights-row)
+══════════════════════════════════════════════════════════════════════════ */
+html.sysrep-ms-embed body:has(.insights-row) {
+  overflow-x: hidden;
+}
+
+/* Toolbar: compacta, sem botões de ação desktop */
+html.sysrep-ms-embed body:has(.insights-row) .toolbar {
+  flex-wrap: wrap !important;
+  padding: 10px 12px !important;
+  gap: 8px !important;
+  position: sticky !important;
+  top: 0 !important;
+}
+html.sysrep-ms-embed body:has(.insights-row) .toolbar-title {
+  font-size: 13px !important;
+  letter-spacing: 0.5px !important;
+  flex: 1 1 auto !important;
+}
+
+/* Esconde botões de impressão/exportação */
+html.sysrep-ms-embed body:has(.insights-row) .toolbar .btn-outline {
+  display: none !important;
+}
+
+/* Tabs: scroll horizontal, sem quebra */
+html.sysrep-ms-embed body:has(.insights-row) .tabs-container {
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  scrollbar-width: none !important;
+  flex-wrap: nowrap !important;
+  margin-left: 0 !important;
+  flex: 1 1 100% !important;
+  order: 10 !important;
+}
+html.sysrep-ms-embed body:has(.insights-row) .tabs-container::-webkit-scrollbar {
+  display: none !important;
+}
+html.sysrep-ms-embed body:has(.insights-row) .tab-btn {
+  flex-shrink: 0 !important;
+  padding: 7px 14px !important;
+  font-size: 12px !important;
+  white-space: nowrap !important;
+}
+
+/* KPI cards: 3 colunas lado a lado */
+html.sysrep-ms-embed body:has(.insights-row) .insights-row {
+  grid-template-columns: repeat(3, 1fr) !important;
+  gap: 8px !important;
+  padding: 10px 12px !important;
+}
+html.sysrep-ms-embed body:has(.insights-row) .ins-card {
+  border-radius: 10px !important;
+  padding: 10px 12px !important;
+  gap: 3px !important;
+}
+html.sysrep-ms-embed body:has(.insights-row) .ins-val {
+  font-size: 15px !important;
+  font-weight: 900 !important;
+}
+html.sysrep-ms-embed body:has(.insights-row) .ins-label {
+  font-size: 9px !important;
+}
+html.sysrep-ms-embed body:has(.insights-row) .ins-sub {
+  font-size: 9px !important;
+}
+
+/* Filtros: busca inteira + 4 colunas abaixo */
+html.sysrep-ms-embed body:has(.insights-row) .filters-grid {
+  grid-template-columns: repeat(4, 1fr) !important;
+  padding: 8px 12px !important;
+  gap: 6px !important;
+}
+html.sysrep-ms-embed body:has(.insights-row) .filter-group label {
+  font-size: 9px !important;
+}
+html.sysrep-ms-embed body:has(.insights-row) .form-control {
+  padding: 7px 10px !important;
+  font-size: 12px !important;
+  border-radius: 8px !important;
+}
+
+/* Conteúdo das abas */
+html.sysrep-ms-embed body:has(.insights-row) .tab-content {
+  padding: 0 10px 80px !important;
+}
+
+/* Tabela: scroll horizontal */
+html.sysrep-ms-embed body:has(.insights-row) .glass-panel {
+  border-radius: 14px !important;
+  overflow-x: auto !important;
+}
+html.sysrep-ms-embed body:has(.insights-row) table {
+  min-width: 560px;
+}
+html.sysrep-ms-embed body:has(.insights-row) thead th {
+  padding: 10px 10px !important;
+  font-size: 9px !important;
+  white-space: nowrap !important;
+}
+html.sysrep-ms-embed body:has(.insights-row) tbody td {
+  padding: 10px 10px !important;
+  font-size: 12px !important;
+}
+
+/* Gráficos: coluna única */
+html.sysrep-ms-embed body:has(.insights-row) .analytics-grid {
+  grid-template-columns: 1fr !important;
+}
+html.sysrep-ms-embed body:has(.insights-row) .chart-card {
+  border-radius: 14px !important;
+  padding: 14px !important;
+}
+
+/* Bulk bar: sobre nav do shell */
+html.sysrep-ms-embed body:has(.insights-row) .bulk-bar.show {
+  bottom: calc(72px + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+/* Slide panel: largura total no mobile */
+html.sysrep-ms-embed body:has(.insights-row) .slide-panel {
+  width: 100% !important;
+  right: -100% !important;
+}
+html.sysrep-ms-embed body:has(.insights-row) .slide-panel.open {
+  right: 0 !important;
+}
+
+/* Mobile view legada (#mob-view) — só páginas que ainda têm o bloco no HTML */
+html.sysrep-ms-embed body:has(#mob-view):not(:has(.kpi-row)) {
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+html.sysrep-ms-embed body:has(#mob-view):not(:has(.kpi-row)) #mob-view {
+  flex: 1 !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+html.sysrep-ms-embed body:has(#mob-view):not(:has(.kpi-row)) #mob-view .mob-list {
+  flex: 1 !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════════
+   COMISSÕES DASHBOARD  (embed — Bootstrap page)
+   Identificado por body:has(.filter-glass)
+══════════════════════════════════════════════════════════════════════════ */
+html.sysrep-ms-embed body:has(.filter-glass) {
+  overflow-x: hidden !important;
+}
+html.sysrep-ms-embed body:has(.filter-glass) .container-fluid,
+html.sysrep-ms-embed body:has(.filter-glass) .container {
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+}
+
+/* Barra de filtros: coluna única compacta */
+html.sysrep-ms-embed body:has(.filter-glass) .filter-glass {
+  padding: 10px 12px !important;
+  border-radius: 10px !important;
+  margin-bottom: 10px !important;
+}
+html.sysrep-ms-embed body:has(.filter-glass) .filter-glass .row {
+  row-gap: 8px !important;
+}
+html.sysrep-ms-embed body:has(.filter-glass) .form-modern {
+  font-size: 12px !important;
+  padding: 6px 8px !important;
+}
+html.sysrep-ms-embed body:has(.filter-glass) .filter-label {
+  font-size: 9px !important;
+  margin-bottom: 2px !important;
+}
+
+/* KPI grid: 2 colunas */
+html.sysrep-ms-embed body:has(.filter-glass) .kpi-grid {
+  grid-template-columns: 1fr 1fr !important;
+  gap: 8px !important;
+  margin-bottom: 10px !important;
+}
+html.sysrep-ms-embed body:has(.filter-glass) .kpi-card {
+  padding: 12px !important;
+  min-height: 90px !important;
+  border-radius: 12px !important;
+}
+html.sysrep-ms-embed body:has(.filter-glass) .kpi-val {
+  font-size: 16px !important;
+}
+html.sysrep-ms-embed body:has(.filter-glass) .kpi-tit {
+  font-size: 9px !important;
+}
+
+/* Tabs: scroll horizontal */
+html.sysrep-ms-embed body:has(.filter-glass) .nav-modern {
+  overflow-x: auto !important;
+  flex-wrap: nowrap !important;
+  scrollbar-width: none !important;
+}
+html.sysrep-ms-embed body:has(.filter-glass) .nav-modern::-webkit-scrollbar {
+  display: none !important;
+}
+html.sysrep-ms-embed body:has(.filter-glass) .nav-modern .nav-link {
+  white-space: nowrap !important;
+  padding: 8px 14px !important;
+  font-size: 12px !important;
+  flex-shrink: 0 !important;
+}
+
+/* Tabela DataTables: scroll horizontal */
+html.sysrep-ms-embed body:has(.filter-glass) .dataTables_wrapper {
+  overflow-x: auto !important;
+}
+html.sysrep-ms-embed body:has(.filter-glass) table.dataTable {
+  min-width: 480px !important;
+}
+html.sysrep-ms-embed body:has(.filter-glass) table.dataTable td,
+html.sysrep-ms-embed body:has(.filter-glass) table.dataTable th {
+  font-size: 11px !important;
+  padding: 6px 8px !important;
+  white-space: nowrap !important;
+}
+
+/* Gráficos: coluna única */
+html.sysrep-ms-embed body:has(.filter-glass) .row.g-4 {
+  row-gap: 10px !important;
+}
+html.sysrep-ms-embed body:has(.filter-glass) canvas {
+  max-width: 100% !important;
+  height: 200px !important;
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════════
+   RELATÓRIOS PADRÃO  (embed)
+   Identificado por body:has(.rep-title)
+══════════════════════════════════════════════════════════════════════════ */
+
+/* Toolbar: esconde título grande, mostra filtros compactos */
+html.sysrep-ms-embed body:has(.rep-title) .toolbar {
+  padding: 8px 10px !important;
+  gap: 6px !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+}
+html.sysrep-ms-embed body:has(.rep-title) .toolbar .title-wrap {
+  display: none !important;
+}
+html.sysrep-ms-embed body:has(.rep-title) .filter {
+  flex: 1 1 calc(50% - 6px) !important;
+  min-width: 0 !important;
+  gap: 2px !important;
+}
+html.sysrep-ms-embed body:has(.rep-title) .filter.grow {
+  flex: 1 1 calc(100% - 6px) !important;
+}
+html.sysrep-ms-embed body:has(.rep-title) .filter label {
+  font-size: 9px !important;
+  letter-spacing: 0 !important;
+}
+html.sysrep-ms-embed body:has(.rep-title) .filter input,
+html.sysrep-ms-embed body:has(.rep-title) .filter select {
+  height: 30px !important;
+  font-size: 12px !important;
+  padding: 0 8px !important;
+  border-radius: 7px !important;
+}
+html.sysrep-ms-embed body:has(.rep-title) .toolbar .btn {
+  flex: 1 1 100% !important;
+  height: 36px !important;
+  border-radius: 10px !important;
+  font-size: 12px !important;
+  margin-top: 2px !important;
+}
+
+/* Layout: lista acima, viz abaixo */
+html.sysrep-ms-embed body:has(.rep-title) .layout {
+  grid-template-columns: 1fr !important;
+}
+html.sysrep-ms-embed body:has(.rep-title) .list {
+  max-height: 45vh !important;
+  overflow-y: auto !important;
+}
+html.sysrep-ms-embed body:has(.rep-title) .content {
+  padding: 10px !important;
+}
+html.sysrep-ms-embed body:has(.rep-title) .panel {
+  border-radius: 12px !important;
+  padding: 10px 12px !important;
+}
+html.sysrep-ms-embed body:has(.rep-title) .rep {
+  padding: 8px 10px !important;
+  border-radius: 8px !important;
+}
+html.sysrep-ms-embed body:has(.rep-title) .rep-title {
+  font-size: 12px !important;
+}
+html.sysrep-ms-embed body:has(.rep-title) .rep-desc {
+  font-size: 11px !important;
+}
+
+/* Viz: adaptar para mobile */
+html.sysrep-ms-embed body:has(.rep-title) .viz-top {
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 8px !important;
+}
+html.sysrep-ms-embed body:has(.rep-title) .viz-actions {
+  justify-content: flex-start !important;
+  flex-wrap: wrap !important;
+}
+html.sysrep-ms-embed body:has(.rep-title) canvas {
+  height: 220px !important;
+  max-width: 100% !important;
+}
+html.sysrep-ms-embed body:has(.rep-title) .table {
+  overflow-x: auto !important;
+}
+html.sysrep-ms-embed body:has(.rep-title) table {
+  min-width: 400px !important;
+}
+html.sysrep-ms-embed body:has(.rep-title) tbody td,
+html.sysrep-ms-embed body:has(.rep-title) thead th {
+  font-size: 11px !important;
+  padding: 7px 8px !important;
+  white-space: nowrap !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   TOAST — mover acima do bottom nav do shell (60px)
+══════════════════════════════════════════════════════════════════════════ */
+html.sysrep-ms-embed #toast-container {
+  bottom: 76px !important;
+  right: 12px !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   FAB — ajustar posição acima do bottom nav
+══════════════════════════════════════════════════════════════════════════ */
+html.sysrep-ms-embed .btn-new-float,
+html.sysrep-ms-embed .ms-fab {
+  bottom: 80px !important;
+  right: 16px !important;
+  box-shadow: 0 4px 20px rgba(0,0,0,.28) !important;
+}
+
+/* FAB genérico para páginas que não têm o btn-new-float do pedidos */
+html.sysrep-ms-embed .ms-fab {
+  position: fixed !important;
+  width: 54px !important;
+  height: 54px !important;
+  border-radius: 50% !important;
+  background: var(--accent, #0ea5e9) !important;
+  color: #fff !important;
+  border: none !important;
+  display: none !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 26px !important;
+  cursor: pointer !important;
+  z-index: 900 !important;
+  transition: transform .15s, background .15s !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+html.sysrep-ms-embed .ms-fab:active { transform: scale(.93) !important; }
+
+/* Mostra o FAB genérico somente no mobile embed */
+html.sysrep-ms-embed .ms-fab { display: flex !important; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SWIPE-TO-REVEAL — estrutura de card deslizável
+══════════════════════════════════════════════════════════════════════════ */
+html.sysrep-ms-embed .swipe-wrap {
+  position: relative !important;
+  overflow: hidden !important;
+  border-radius: 12px !important;
+}
+html.sysrep-ms-embed .swipe-inner {
+  will-change: transform;
+  border-radius: 12px;
+}
+html.sysrep-ms-embed .swipe-action {
+  position: absolute !important;
+  top: 0 !important; right: 0 !important; bottom: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 20px !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  color: #fff !important;
+  cursor: pointer !important;
+  border: none !important;
+  white-space: nowrap !important;
+  font-family: inherit !important;
+  gap: 6px !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   PEDIDOS MOBILE REDESIGN v2
+   Escopo: html.sysrep-ms-embed, zero impacto no desktop.
+══════════════════════════════════════════════════════════════════════════ */
+
+/* ── A. Meta Info — esconder verbosidade, manter só essencial ──────── */
+@media (max-width: 899px) {
+  /* Seção pedidosTopMeta: compacta, sem fundo pesado */
+  html.sysrep-ms-embed #listSection #pedidosTopMeta.pedidos-top-meta {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 4px !important;
+    padding: 4px 12px 6px !important;
+    background: transparent !important;
+    border-bottom: none !important;
+    margin: 0 !important;
+  }
+  /* Esconder view-hint ("Visualização em cards") */
+  html.sysrep-ms-embed #listSection #pedidosTopMeta #viewHint {
+    display: none !important;
+  }
+  /* Esconder active-filters (chips de período/datas verbosos) */
+  html.sysrep-ms-embed #listSection #pedidosTopMeta #activeFilters {
+    display: none !important;
+  }
+  /* Compactar list-insights-main (resultados/selecionados em uma linha) */
+  html.sysrep-ms-embed #listSection #pedidosTopMeta .list-insights-main {
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    gap: 8px !important;
+    padding: 0 !important;
+    width: auto !important;
+    order: 0 !important;
+    align-items: center !important;
+  }
+  html.sysrep-ms-embed #listSection #pedidosTopMeta .list-kpis {
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 4px !important;
+    flex-wrap: nowrap !important;
+  }
+  /* Ocultar a seção de resultados e selecionados inteira no mobile */
+  html.sysrep-ms-embed #listSection #pedidosTopMeta .list-kpis {
+    display: none !important;
+  }
+  
+  /* Ajustar o botão e texto de sync quando movidos para a toolbar */
+  html.sysrep-ms-embed #listSection #toolbar .toolbar-novo-wrap {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+  }
+  html.sysrep-ms-embed #listSection #toolbar .pm-sync-ts {
+    display: none !important;
+  }
+  html.sysrep-ms-embed #listSection #toolbar .pm-sync-btn {
+    width: 24px !important;
+    height: 24px !important;
+    margin-right: 4px !important;
+    background: transparent !important;
+    border: none !important;
+    color: var(--text2) !important;
+  }
+  html.sysrep-ms-embed #listSection #pedidosTopMeta #pedidosMobileMercos {
+    order: 1 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  html.sysrep-ms-embed #listSection #pedidosTopMeta .pm-legend-row {
+    gap: 6px !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+  }
+  html.sysrep-ms-embed #listSection #pedidosTopMeta .pm-legend {
+    gap: 6px !important;
+    margin: 0 !important;
+  }
+  html.sysrep-ms-embed #listSection #pedidosTopMeta .pm-leg {
+    font-size: 9px !important;
+    padding: 2px 5px !important;
+  }
+  html.sysrep-ms-embed #listSection #pedidosTopMeta .pm-sync-ts {
+    font-size: 9px !important;
+  }
+  html.sysrep-ms-embed #listSection #pedidosTopMeta .pm-sync-btn {
+    width: 24px !important;
+    height: 24px !important;
+  }
+}
+
+/* ── A1. KPI Strip como pills compactas ────────────────────────────── */
+@media (max-width: 899px) {
+  /* Mostrar metrics-wrap no mobile */
+  html.sysrep-ms-embed #listSection .metrics-wrap {
+    display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  html.sysrep-ms-embed #listSection .filter-strip {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+    gap: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+    border: none !important;
+    border-bottom: none !important;
+    margin: 0 !important;
+  }
+  html.sysrep-ms-embed #listSection .filter-strip::-webkit-scrollbar {
+    display: none !important;
+  }
+  html.sysrep-ms-embed #listSection .fs-item {
+    flex-shrink: 0 !important;
+    min-width: 0 !important;
+    width: auto !important;
+    padding: 8px 14px 10px !important;
+    border-right: none !important;
+    border-radius: 14px !important;
+    margin: 6px 0 6px 8px !important;
+    background: var(--card-bg, var(--card, #fff)) !important;
+    border: 1.5px solid var(--card-border, var(--border, #e2e8f0)) !important;
+    box-shadow: 0 1px 4px rgba(15,23,42,.06) !important;
+    overflow: hidden !important;
+    transition: transform .12s, border-color .15s !important;
+  }
+  html.sysrep-ms-embed #listSection .fs-item:first-child { margin-left: 12px !important; }
+  html.sysrep-ms-embed #listSection .fs-item:last-child { margin-right: 12px !important; }
+  html.sysrep-ms-embed #listSection .fs-item:active { transform: scale(.97) !important; }
+  html.sysrep-ms-embed #listSection .fs-item.active {
+    border-color: var(--fs-clr, var(--accent)) !important;
+    background: var(--fs-soft, var(--accent-soft)) !important;
+    box-shadow: 0 2px 8px rgba(67,97,238,.15) !important;
+  }
+  html.sysrep-ms-embed #listSection .fs-item::before { display: none !important; }
+  html.sysrep-ms-embed #listSection .fs-label { font-size: 9px !important; margin-bottom: 3px !important; gap: 4px !important; }
+  html.sysrep-ms-embed #listSection .fs-label svg { width: 10px !important; height: 10px !important; }
+  html.sysrep-ms-embed #listSection .fs-val { font-size: 16px !important; font-weight: 900 !important; letter-spacing: -0.5px !important; margin-bottom: 2px !important; }
+  html.sysrep-ms-embed #listSection .fs-count { font-size: 10px !important; gap: 4px !important; }
+  html.sysrep-ms-embed #listSection .fs-count-badge { font-size: 9px !important; padding: 0 5px !important; min-width: 18px !important; }
+  html.sysrep-ms-embed #listSection .fs-bar { height: 2px !important; bottom: 0 !important; left: 6px !important; right: 6px !important; border-radius: 2px !important; }
+}
+
+/* ── A2. Cards de pedido refinados ────────────────────────────────────── */
+@media (max-width: 899px) {
+  /* Cards grid: margens menores */
+  html.sysrep-ms-embed #listSection #cardsGrid.cards-grid {
+    margin: 0 !important;
+    padding: 8px 10px 80px !important;
+    gap: 10px !important;
+  }
+  html.sysrep-ms-embed .pm-card { border-radius: 16px !important; padding: 14px 16px 12px !important; box-shadow: 0 2px 10px rgba(15,23,42,.06) !important; }
+  html.sysrep-ms-embed .pm-card::after { width: 3px !important; border-radius: 0 3px 3px 0 !important; }
+  html.sysrep-ms-embed .pm-card-head { margin-bottom: 8px !important; gap: 8px !important; }
+  html.sysrep-ms-embed .pm-pedido-id { font-size: 13px !important; font-weight: 800 !important; color: var(--text2,#64748b) !important; }
+  html.sysrep-ms-embed .pm-card-status { font-size: 10px !important; padding: 3px 8px !important; border-radius: 8px !important; }
+  html.sysrep-ms-embed .pm-card-body { margin-bottom: 8px !important; }
+  html.sysrep-ms-embed .pm-client { font-size: 15px !important; font-weight: 800 !important; letter-spacing: -0.02em !important; }
+  html.sysrep-ms-embed .pm-sub { font-size: 11px !important; margin-top: 2px !important; }
+  html.sysrep-ms-embed .pm-card-details { grid-template-columns: repeat(auto-fill,minmax(80px,1fr)) !important; gap: 4px 10px !important; padding: 8px 10px !important; border-radius: 10px !important; margin-bottom: 10px !important; }
+  html.sysrep-ms-embed .pm-detail-label { font-size: 9px !important; }
+  html.sysrep-ms-embed .pm-detail strong { font-size: 12px !important; }
+  html.sysrep-ms-embed .pm-card-foot { padding-top: 10px !important; gap: 8px !important; }
+  html.sysrep-ms-embed .pm-bubble-dollar { width: 30px !important; height: 30px !important; border-radius: 9px !important; font-size: 13px !important; }
+  html.sysrep-ms-embed .pm-money strong { font-size: 16px !important; font-weight: 900 !important; }
+  html.sysrep-ms-embed .pm-emit { font-size: 9px !important; max-width: 45% !important; }
+  html.sysrep-ms-embed .pm-check { width: 20px !important; height: 20px !important; border-radius: 6px !important; font-size: 11px !important; }
+}
+
+/* ── A3. Toolbar mobile ──────────────────────────────────────────────── */
+@media (max-width: 899px) {
+  html.sysrep-ms-embed #listSection #toolbar.toolbar-bar {
+    background: var(--card-bg, var(--card, #fff)) !important;
+    border-bottom: 1px solid var(--card-border, var(--border, #e2e8f0)) !important;
+    box-shadow: none !important;
+    padding: 8px 12px !important;
+  }
+  /* Toolbar-pedidos-row: busca + período na MESMA linha */
+  html.sysrep-ms-embed #listSection #toolbar .toolbar-pedidos-row {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    gap: 8px !important;
+    align-items: center !important;
+  }
+  html.sysrep-ms-embed #listSection #toolbar .search-box {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+  }
+  /* Ocultar a div original na toolbar no mobile e estilizá-la no rodapé */
+  html.sysrep-ms-embed #listSection #toolbar .toolbar-period-wrap {
+    display: none !important;
+  }
+  html.sysrep-ms-embed #listSection .pagination-footer .toolbar-period-wrap {
+    display: flex !important;
+    margin-left: 10px !important;
+  }
+  html.sysrep-ms-embed #listSection .pagination-footer .toolbar-period-wrap select {
+    background: transparent !important;
+    border: none !important;
+    color: var(--accent) !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    padding: 0 4px !important;
+    height: auto !important;
+  }
+  html.sysrep-ms-embed #listSection #toolbar .tb-sep { display: none !important; }
+  html.sysrep-ms-embed #listSection .input-search {
+    border-radius: 12px !important;
+    min-height: 42px !important;
+    font-size: 14px !important;
+    background: var(--content-bg, var(--bg, #f1f5f9)) !important;
+  }
+}
+
+/* ── B. FORM — Header redesenhado mobile ─────────────────────────────── */
+@media (max-width: 899px) {
+  html.sysrep-ms-embed #formSection .form-pedido-chrome {
+    box-shadow: none !important;
+    background: var(--card-bg, #fff) !important;
+  }
+
+  html.sysrep-ms-embed #formSection .form-pedido-header.form-actions-bar {
+    flex-direction: column-reverse !important;
+    align-items: stretch !important;
+    padding: 10px 14px !important;
+    gap: 6px !important;
+    background: var(--card-bg, #fff) !important;
+    border-bottom: 1px solid var(--card-border, #e2e8f0) !important;
+    box-shadow: none !important;
+  }
+
+  html.sysrep-ms-embed #formSection .form-actions-left {
+    width: 100% !important;
+    flex: 0 0 auto !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 2px !important;
+  }
+
+  html.sysrep-ms-embed #formSection .form-actions-left .form-pedido-hero-row {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 4px !important;
+    flex: 0 0 auto !important;
+    min-height: 0 !important;
+  }
+
+  html.sysrep-ms-embed #formSection .form-pedido-title-block {
+    max-width: none !important;
+    width: 100% !important;
+  }
+
+  html.sysrep-ms-embed #formSection .form-pedido-hero-title {
+    font-size: 16px !important;
+    font-weight: 800 !important;
+    max-width: none !important;
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: unset !important;
+    line-height: 1.3 !important;
+    letter-spacing: -0.02em !important;
+  }
+
+  html.sysrep-ms-embed #formSection .form-pedido-badges-inline {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    margin-left: 0 !important;
+  }
+
+  html.sysrep-ms-embed #formSection .form-pedido-badges-inline .badge-status {
+    font-size: 11px !important;
+    padding: 4px 10px !important;
+    min-height: 26px !important;
+    border-radius: 8px !important;
+    font-weight: 700 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+  }
+
+  html.sysrep-ms-embed #formSection .form-pedido-badges-inline #heroBadgeTotal {
+    font-size: 14px !important;
+    font-weight: 900 !important;
+    padding: 5px 12px !important;
+    letter-spacing: -0.02em !important;
+    background: rgba(16, 185, 129, .1) !important;
+    color: #059669 !important;
+    border: 1px solid rgba(16, 185, 129, .25) !important;
+  }
+
+  html.sysrep-ms-embed #formSection #painelAvisoCritico.form-pedido-alert--inline {
+    max-width: none !important;
+    width: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    font-size: 10px !important;
+    flex: 0 0 auto !important;
+  }
+
+  html.sysrep-ms-embed #formSection .form-actions-right {
+    width: 100% !important;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    gap: 10px !important;
+    margin-left: 0 !important;
+    justify-content: flex-end !important;
+    align-items: center !important;
+  }
+
+  html.sysrep-ms-embed #formSection #btnCancelar,
+  html.sysrep-ms-embed #formSection #btnVoltarPedido {
+    display: none !important;
+  }
+
+  /* Botões Salvar / Excluir — fonte única (shell não injeta duplicatas) */
+  html.sysrep-ms-embed #formSection #btnExcluir.btn-pedido-compact {
+    flex: 0 0 44px !important;
+    width: 44px !important;
+    min-width: 44px !important;
+    max-width: 44px !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    padding: 0 !important;
+    border-radius: 10px !important;
+    font-size: 0 !important;
+    font-weight: 700 !important;
+    background: #fef2f2 !important;
+    color: #dc2626 !important;
+    border: none !important;
+    box-shadow: none !important;
+    justify-content: center !important;
+  }
+
+  html.sysrep-ms-embed #formSection #btnExcluir.btn-pedido-compact .btn-label {
+    display: none !important;
+  }
+
+  html.sysrep-ms-embed #formSection #btnExcluir.btn-pedido-compact svg {
+    width: 18px !important;
+    height: 18px !important;
+  }
+
+  html.sysrep-ms-embed #formSection #btnSalvar.btn-pedido-compact {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    min-width: auto !important;
+    max-width: none !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    padding: 0 16px !important;
+    border-radius: 10px !important;
+    font-size: 13px !important;
+    font-weight: 800 !important;
+    border: none !important;
+    background: #2563eb !important;
+    color: #fff !important;
+    box-shadow: 0 2px 8px rgba(37, 99, 235, .18) !important;
+    justify-content: center !important;
+    gap: 8px !important;
+  }
+
+  html.sysrep-ms-embed #formSection #btnSalvar.btn-pedido-compact svg {
+    width: 16px !important;
+    height: 16px !important;
+  }
+}
+
+/* ── B1b. Modal lookup responsivo no mobile ─────────────────────────── */
+@media (max-width: 899px) {
+  html.sysrep-ms-embed .modal-hist { padding: 0 !important; }
+  html.sysrep-ms-embed .modal-hist-content {
+    max-width: 100% !important;
+    height: 100dvh !important;
+    border-radius: 0 !important;
+    border: none !important;
+  }
+  html.sysrep-ms-embed .modal-hist-header { padding: 12px 14px !important; }
+  html.sysrep-ms-embed .modal-hist-filters { padding: 10px 14px !important; }
+  html.sysrep-ms-embed .hist-list { padding: 8px 10px !important; }
+  html.sysrep-ms-embed .hist-item {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    padding: 10px 12px !important;
+  }
+  html.sysrep-ms-embed .hist-info { flex: 1 1 0% !important; min-width: 0 !important; }
+  html.sysrep-ms-embed .hist-title {
+    font-size: 13px !important;
+    word-break: break-word !important;
+    white-space: normal !important;
+  }
+}
+
+/* Pesquisa avançada de produtos — desktop mantém tabela original */
+.bus-prod-table .bus-prod-cod-mob,
+.bus-prod-table .bus-prod-unit-stock,
+.bus-prod-table .pm-bubble-dollar { display: none; }
+.bus-prod-table .bus-prod-cod-desk { font-weight: 700; color: var(--accent); }
+.bus-prod-table .bus-prod-price-val { font-weight: 800; color: var(--success); }
+.bus-prod-table .bus-prod-price-src {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  margin-top: 2px;
+  color: var(--text2);
+}
+.bus-prod-table .bus-prod-price-src--tab { color: var(--accent); }
+.bus-prod-table .bus-prod-est--zero .bus-prod-stock-only { color: #b91c1c; font-weight: 700; }
+.bus-prod-table .bus-prod-foto { width: 56px; text-align: center; padding: 4px 6px; vertical-align: middle; cursor: pointer; touch-action: manipulation; }
+.bus-prod-table .bus-prod-thumb-img,
+.bus-prod-table .bus-prod-thumb-ph { width: 44px; height: 44px; object-fit: contain; border-radius: 8px; border: 1px solid var(--border); background: #fff; display: inline-block; vertical-align: middle; }
+.bus-prod-table .bus-prod-thumb-ph { display: inline-flex; align-items: center; justify-content: center; font-size: 18px; color: var(--text2); }
+.bus-prod-table .bus-prod-info .bus-prod-name { font-weight: 700; }
+.bus-prod-table .bus-prod-info .bus-prod-grupo { font-size: 10px; color: var(--text2); }
+.bus-prod-table .bus-prod-action { text-align: center; }
+
+/* ── B1b2. Pesquisa avançada de produtos — cards estilo Mercos ─────── */
+@media (max-width: 899px) {
+  html.sysrep-ms-embed #modalListItems.bus-prod-list,
+  html.sysrep-ms-embed #modalListItems:has(.bus-prod-table) {
+    padding: 0 !important;
+    background: var(--card-bg, #fff) !important;
+  }
+
+  html.sysrep-ms-embed #modalListItems .bus-prod-wrap {
+    margin: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    overflow: visible !important;
+  }
+
+  html.sysrep-ms-embed .bus-prod-table,
+  html.sysrep-ms-embed .bus-prod-table thead,
+  html.sysrep-ms-embed .bus-prod-table tbody {
+    display: block !important;
+    width: 100% !important;
+  }
+
+  html.sysrep-ms-embed .bus-prod-table thead {
+    display: none !important;
+  }
+
+  html.sysrep-ms-embed .bus-prod-table .bus-prod-row {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 76px !important;
+    grid-template-rows: auto auto auto auto !important;
+    grid-template-areas:
+      "info foto"
+      "cod  foto"
+      "price foto"
+      "meta foto" !important;
+    gap: 4px 12px !important;
+    align-items: start !important;
+    padding: 14px 14px 12px !important;
+    margin: 0 !important;
+    border: none !important;
+    border-bottom: 1px solid var(--card-border, #e8edf3) !important;
+    border-radius: 0 !important;
+    background: var(--card-bg, #fff) !important;
+    box-shadow: none !important;
+    cursor: pointer !important;
+    touch-action: manipulation !important;
+    transition: background .15s ease, color .15s ease, border-radius .15s ease !important;
+  }
+
+  html.sysrep-ms-embed .bus-prod-table .bus-prod-row:not(:has(.bus-prod-foto)) {
+    grid-template-columns: 1fr !important;
+    grid-template-areas:
+      "info"
+      "cod"
+      "price"
+      "meta" !important;
+  }
+
+  html.sysrep-ms-embed .bus-prod-table .bus-prod-row td {
+    display: block !important;
+    padding: 0 !important;
+    border: none !important;
+    background: transparent !important;
+    text-align: left !important;
+    vertical-align: top !important;
+    width: auto !important;
+    min-width: 0 !important;
+  }
+
+  html.sysrep-ms-embed .bus-prod-table .bus-prod-info {
+    grid-area: info !important;
+  }
+
+  html.sysrep-ms-embed .bus-prod-table .bus-prod-name {
+    font-size: 15px !important;
+    font-weight: 800 !important;
+    line-height: 1.28 !important;
+    color: var(--content-text, #1e293b) !important;
+    letter-spacing: -0.01em !important;
+    word-break: break-word !important;
+    white-space: normal !important;
+  }
+
+  html.sysrep-ms-embed .bus-prod-table .bus-prod-grupo {
+    display: none !important;
+  }
+
+  html.sysrep-ms-embed .bus-prod-table .bus-prod-cod-mob {
+    display: block !important;
+  }
+
+  html.sysrep-ms-embed .bus-prod-table .bus-prod-cod-desk {
+    display: none !important;
+  }
+
+  html.sysrep-ms-embed .bus-prod-table .bus-prod-unit-stock {
+    display: inline !important;
+  }
+
+  html.sysrep-ms-embed .bus-prod-table .bus-prod-stock-only {
+    display: none !important;
+  }
+
+  html.sysrep-ms-embed .bus-prod-table .bus-prod-cod {
+    grid-area: cod !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    color: var(--text2, #64748b) !important;
+    line-height: 1.2 !important;
+  }
+
+  html.sysrep-ms-embed .bus-prod-table .bus-prod-price {
+    grid-area: price !important;
+    margin-top: 2px !important;
+  }
+
+  html.sysrep-ms-embed .bus-prod-table .bus-prod-price-line {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+  }
+
+  html.sysrep-ms-embed .bus-prod-table .pm-bubble-dollar {
+    width: 28px !important;
+    height: 28px !important;
+    border-radius: 50% !important;
+    background: rgba(148, 163, 184, .14) !important;
+    color: var(--text2, #64748b) !important;
+    font-size: 12px !important;
+    font-weight: 800 !important;
+    flex-shrink: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  html.sysrep-ms-embed .bus-prod-table .bus-prod-price-val {
+    font-size: 15px !important;
+    font-weight: 800 !important;
+    color: var(--content-text, #1e293b) !important;
+    letter-spacing: -0.02em !important;
+  }
+
+  html.sysrep-ms-embed .bus-prod-table .bus-prod-price-src {
+    display: none !important;
+  }
+
+  html.sysrep-ms-embed .bus-prod-table .bus-prod-est {
+    grid-area: meta !important;
+    margin-top: 2px !important;
+  }
+
+  html.sysrep-ms-embed .bus-prod-table .bus-prod-unit-stock {
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    color: var(--text2, #64748b) !important;
+    letter-spacing: 0.01em !important;
+  }
+
+  html.sysrep-ms-embed .bus-prod-table .bus-prod-est--zero .bus-prod-unit-stock {
+    color: #b91c1c !important;
+  }
+
+  html.sysrep-ms-embed .bus-prod-table .bus-prod-foto {
+    grid-area: foto !important;
+    align-self: center !important;
+    justify-self: end !important;
+    width: 76px !important;
+    cursor: pointer !important;
+    touch-action: manipulation !important;
+  }
+
+  html.sysrep-ms-embed .bus-prod-table .bus-prod-thumb-img,
+  html.sysrep-ms-embed .bus-prod-table .bus-prod-thumb-ph {
+    width: 76px !important;
+    height: 76px !important;
+    object-fit: contain !important;
+    border-radius: 8px !important;
+    border: 1px solid var(--card-border, #e2e8f0) !important;
+    background: #fff !important;
+    display: block !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    transform: none !important;
+  }
+
+  html.sysrep-ms-embed .bus-prod-table .bus-prod-thumb-ph {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 24px !important;
+    color: var(--text2, #94a3b8) !important;
+  }
+
+  html.sysrep-ms-embed .bus-prod-table .bus-prod-action {
+    display: none !important;
+  }
+
+  /* Item selecionado — destaque roxo Mercos */
+  html.sysrep-ms-embed .bus-prod-table .bus-prod-row.row-selected {
+    background: #4f2d74 !important;
+    border-bottom-color: #4f2d74 !important;
+    border-radius: 10px !important;
+    margin: 6px 8px !important;
+    padding: 14px 14px 12px !important;
+    box-shadow: 0 4px 14px rgba(79, 45, 116, .22) !important;
+  }
+
+  html.sysrep-ms-embed .bus-prod-table .bus-prod-row.row-selected .bus-prod-name,
+  html.sysrep-ms-embed .bus-prod-table .bus-prod-row.row-selected .bus-prod-cod,
+  html.sysrep-ms-embed .bus-prod-table .bus-prod-row.row-selected .bus-prod-price-val,
+  html.sysrep-ms-embed .bus-prod-table .bus-prod-row.row-selected .bus-prod-unit-stock {
+    color: #fff !important;
+  }
+
+  html.sysrep-ms-embed .bus-prod-table .bus-prod-row.row-selected .pm-bubble-dollar {
+    background: rgba(255, 255, 255, .18) !important;
+    color: #fff !important;
+  }
+
+  html.sysrep-ms-embed .bus-prod-table .bus-prod-row.row-selected .bus-prod-thumb-img,
+  html.sysrep-ms-embed .bus-prod-table .bus-prod-row.row-selected .bus-prod-thumb-ph {
+    border-color: rgba(255, 255, 255, .28) !important;
+    background: rgba(255, 255, 255, .08) !important;
+  }
+
+  html.sysrep-ms-embed .bus-prod-table .bus-prod-row.row-selected .bus-prod-est--zero .bus-prod-unit-stock {
+    color: #fecaca !important;
+  }
+}
+
+/* ── B1c. Drawer subrec fullscreen no mobile ────────────────────────── */
+@media (max-width: 899px) {
+  html.sysrep-ms-embed #subrecForm {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    right: -110vw;
+    border-radius: 0 !important;
+  }
+  html.sysrep-ms-embed #subrecForm.open {
+    right: 0 !important;
+  }
+}
+
+/* ── B2. Itens como cards (≤520px) ───────────────────────────────────── */
+@media (max-width: 520px) {
+  html.sysrep-ms-embed #itensList .itens-table.itens-table--compact { min-width: 0 !important; }
+  html.sysrep-ms-embed #itensList .itens-table.itens-table--compact thead { display: none !important; }
+  html.sysrep-ms-embed #itensList .itens-table.itens-table--compact tbody tr { display: flex !important; flex-wrap: wrap !important; align-items: center !important; gap: 4px 8px !important; padding: 10px 12px !important; border-bottom: 1px solid var(--card-border,#e2e8f0) !important; border-left: 3px solid var(--accent,#4361ee) !important; position: relative !important; }
+  html.sysrep-ms-embed #itensList .itens-table.itens-table--compact tbody td { display: inline-flex !important; padding: 0 !important; border: none !important; align-items: center !important; }
+  html.sysrep-ms-embed #itensList .itens-table--compact td.td-desc { flex: 1 1 100% !important; order: -1 !important; min-width: 0 !important; }
+  html.sysrep-ms-embed #itensList .itens-table--compact .it-desc { white-space: normal !important; max-width: 100% !important; font-size: 13px !important; font-weight: 700 !important; }
+  html.sysrep-ms-embed #itensList .itens-table--compact .it-total { font-size: 15px !important; font-weight: 900 !important; color: var(--accent) !important; margin-left: auto !important; }
+  html.sysrep-ms-embed #itensList .itens-table--compact .it-td-pct { font-size: 11px !important; background: rgba(239,68,68,.08) !important; padding: 2px 6px !important; border-radius: 6px !important; }
+}
+
+/* ── C. TABLET PAISAGEM (900-1199px) ─────────────────────────────────── */
+@media (min-width: 900px) and (max-width: 1199px) {
+  html.sysrep-ms-embed #formSection > div[style*="padding: 0 28px"] { padding: 0 16px !important; }
+  html.sysrep-ms-embed #tab-principal .form-pedido-dados-linha1 { grid-template-columns: repeat(auto-fit,minmax(130px,1fr)) !important; gap: 10px !important; }
+  html.sysrep-ms-embed #itensList .itens-table.itens-table--compact thead th { padding: 5px 6px !important; font-size: 9px !important; }
+  html.sysrep-ms-embed #itensList .itens-table.itens-table--compact tbody td { padding: 4px 6px !important; font-size: 12px !important; }
+}
+
+/* ── D. COMMAND PALETTE ──────────────────────────────────────────────── */
+.cmd-palette-overlay {
+  position: fixed; inset: 0;
+  background: rgba(15,23,42,.55);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  z-index: 300000;
+  display: none; align-items: flex-start; justify-content: center;
+  padding: 12vh 16px 16px;
+}
+.cmd-palette-overlay.show { display: flex; }
+.cmd-palette-card {
+  background: var(--card-bg, var(--card, #fff));
+  border: 1px solid var(--card-border, var(--border, #e2e8f0));
+  border-radius: 18px; width: 100%; max-width: 480px; max-height: 60vh;
+  overflow: hidden;
+  box-shadow: 0 24px 64px rgba(0,0,0,.28);
+  display: flex; flex-direction: column;
+  animation: cmdPaletteIn .2s ease;
+}
+@keyframes cmdPaletteIn { from { opacity:0; transform:translateY(-12px) scale(.97); } to { opacity:1; transform:none; } }
+.cmd-palette-input-wrap {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--card-border, var(--border, #e2e8f0));
+}
+.cmd-palette-input-wrap svg { width: 18px; height: 18px; color: var(--text2,#64748b); flex-shrink: 0; }
+.cmd-palette-input {
+  flex: 1; border: none; outline: none; background: transparent;
+  font-size: 15px; font-weight: 600; color: var(--content-text, var(--text, #0f172a)); font-family: inherit;
+}
+.cmd-palette-input::placeholder { color: var(--text2,#94a3b8); }
+.cmd-palette-list { overflow-y: auto; padding: 6px; max-height: 340px; }
+.cmd-palette-section { padding: 8px 10px 4px; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .8px; color: var(--text2,#94a3b8); }
+.cmd-palette-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px; border-radius: 10px; cursor: pointer;
+  transition: background .12s; border: none; background: transparent;
+  width: 100%; text-align: left; font-family: inherit;
+  color: var(--content-text, var(--text, #0f172a));
+  -webkit-tap-highlight-color: transparent;
+}
+.cmd-palette-item:hover, .cmd-palette-item.focused { background: var(--accent-soft, rgba(67,97,238,.06)); }
+.cmd-palette-item svg { width: 16px; height: 16px; color: var(--text2,#64748b); flex-shrink: 0; }
+.cmd-palette-item-text { flex: 1; font-size: 13px; font-weight: 600; }
+.cmd-palette-item-hint { font-size: 10px; font-weight: 700; color: var(--text2,#94a3b8); padding: 2px 6px; background: var(--content-bg, var(--bg, #f1f5f9)); border-radius: 5px; }
+.cmd-palette-footer {
+  padding: 8px 14px;
+  border-top: 1px solid var(--card-border, var(--border, #e2e8f0));
+  display: flex; align-items: center; gap: 12px;
+  font-size: 10px; font-weight: 600; color: var(--text2,#94a3b8);
+}
+.cmd-palette-footer kbd {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 22px; height: 20px; padding: 0 5px;
+  border: 1px solid var(--card-border, var(--border, #e2e8f0)); border-radius: 5px;
+  font-size: 10px; font-weight: 700;
+  background: var(--content-bg, var(--bg, #f1f5f9)); font-family: inherit;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ACCORDION MOBILE — Pedido: abas → seções colapsáveis
+   Escopo: html.sysrep-ms-embed #formSection.acc-mode
+══════════════════════════════════════════════════════════════════════════ */
+
+.acc-header { display: none !important; }
+
+@media (max-width: 899px) {
+  html.sysrep-ms-embed #formSection.acc-mode .form-pedido-tabs-wrap {
+    display: none !important;
+  }
+
+  html.sysrep-ms-embed #formSection.acc-mode .form-card {
+    margin-top: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: transparent !important;
+  }
+
+  html.sysrep-ms-embed #formSection.acc-mode .acc-header {
+    display: flex !important;
+    align-items: center;
+    gap: 12px;
+    scroll-margin-top: var(--pedido-sticky-chrome-h, 120px);
+    width: 100%;
+    padding: 14px 16px;
+    margin: 0;
+    border: none;
+    border-bottom: 1px solid var(--card-border, #e2e8f0);
+    background: var(--card-bg, #fff);
+    color: var(--content-text, #0f172a);
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background .15s;
+    position: relative;
+  }
+
+  html.sysrep-ms-embed #formSection.acc-mode .acc-header[data-acc-target="tab-principal"] {
+    border-radius: 16px 16px 0 0;
+    margin-top: 10px;
+  }
+
+  html.sysrep-ms-embed #formSection.acc-mode .acc-header:active {
+    background: var(--accent-soft, rgba(67,97,238,.06));
+  }
+
+  html.sysrep-ms-embed #formSection.acc-mode .acc-icon {
+    width: 20px;
+    height: 20px;
+    color: var(--accent, #4361ee);
+    flex-shrink: 0;
+  }
+
+  html.sysrep-ms-embed #formSection.acc-mode .acc-label {
+    flex: 1;
+    text-align: left;
+    letter-spacing: -0.01em;
+  }
+
+  html.sysrep-ms-embed #formSection.acc-mode .acc-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--accent, #4361ee);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+
+  html.sysrep-ms-embed #formSection.acc-mode .acc-chevron {
+    width: 18px;
+    height: 18px;
+    color: var(--text2, #94a3b8);
+    flex-shrink: 0;
+    transition: transform .25s cubic-bezier(.22,1,.36,1);
+  }
+
+  html.sysrep-ms-embed #formSection.acc-mode .acc-header.acc-open .acc-chevron {
+    transform: rotate(180deg);
+  }
+
+  html.sysrep-ms-embed #formSection.acc-mode .acc-header.acc-open {
+    background: var(--accent-soft, rgba(67,97,238,.04));
+    border-bottom-color: var(--accent, #4361ee);
+  }
+
+  html.sysrep-ms-embed #formSection.acc-mode .acc-header.acc-open .acc-icon {
+    color: var(--accent, #4361ee);
+  }
+
+  html.sysrep-ms-embed #formSection.acc-mode .tab-panel {
+    display: block !important;
+    overflow: hidden;
+    max-height: 0;
+    opacity: 0;
+    padding: 0 14px !important;
+    transition: max-height .3s cubic-bezier(.22,1,.36,1), opacity .2s ease, padding .2s ease;
+    background: var(--card-bg, #fff);
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+    animation: none !important;
+  }
+
+  html.sysrep-ms-embed #formSection.acc-mode .acc-header.acc-open + .tab-panel {
+    max-height: none;
+    opacity: 1;
+    padding: 16px 14px !important;
+    border-bottom: 1px solid var(--card-border, #e2e8f0);
+  }
+
+  html.sysrep-ms-embed #formSection.acc-mode .tab-panel.acc-collapsing {
+    transition: max-height .25s ease-out, opacity .15s ease-out, padding .15s ease-out;
+    opacity: 0;
+    padding: 0 14px !important;
+  }
+
+  html.sysrep-ms-embed #formSection.acc-mode #tab-itens {
+    padding: 0 !important;
+    height: auto !important;
+    max-height: 0 !important;
+    min-height: 0 !important;
+  }
+
+  html.sysrep-ms-embed #formSection.acc-mode .acc-header.acc-open + #tab-itens {
+    max-height: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+  }
+
+  html.sysrep-ms-embed #formSection.acc-mode > div[style*="padding: 0 28px"] {
+    padding: 0 !important;
+  }
+}
+
+/* ── Item 7: Skeleton cards ──────────────────────────────────── */
+@keyframes pmSkelWave {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.pm-card-skeleton {
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 14px;
+  padding: 14px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+  overflow: hidden;
+}
+.pm-sk-line {
+  border-radius: 6px;
+  height: 12px;
+  background: linear-gradient(
+    90deg,
+    var(--border-color, #e5e7eb) 25%,
+    color-mix(in srgb, var(--border-color, #e5e7eb) 40%, white 60%) 50%,
+    var(--border-color, #e5e7eb) 75%
+  );
+  background-size: 200% 100%;
+  animation: pmSkelWave 1.4s ease infinite;
+  display: block;
+  flex-shrink: 0;
+}
+.pm-sk-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pm-sk-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 2px;
+}
+
+/* ── Item 8: Swipe-to-delete ─────────────────────────────────── */
+.pm-card {
+  position: relative;
+  will-change: transform;
+}
+.pm-swipe-zone {
+  position: absolute;
+  top: 0; right: 0; bottom: 0;
+  width: 80px;
+  background: #ef4444;
+  border-radius: 0 12px 12px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .1s;
+  gap: 4px;
+  overflow: hidden;
+}
+.pm-card.swipe-open .pm-swipe-zone {
+  pointer-events: auto;
+  cursor: pointer;
+}

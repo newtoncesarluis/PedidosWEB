@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="sistema">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PedidosWeb CRM — Demonstração Interativa</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --accent:#0ea5e9; --accent2:#38bdf8;
+  --dark:#0f172a; --dark2:#1e293b; --dark3:#334155;
+  --muted:#64748b; --border:#e2e8f0; --white:#fff; --bg:#f1f5f9; --bg2:#f8fafc;
+  --text:#1e293b; --font:'Inter',system-ui,sans-serif;
+  --r:12px; --r-sm:8px; --shadow:0 2px 12px rgba(0,0,0,.08);
+  --topbar-h:52px; --sidebar-w:220px;
+}
+html{height:100%}
+body{font-family:var(--font);background:var(--dark2);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+
+/* ── DEMO BANNER ────────────────────────────────────────────── */
+.demo-banner{background:linear-gradient(90deg,#7c3aed,#0ea5e9);color:#fff;text-align:center;padding:8px 16px;font-size:12px;font-weight:600;letter-spacing:.2px;display:flex;align-items:center;justify-content:center;gap:12px;flex-shrink:0;z-index:1000}
+.demo-banner a{color:#fff;font-weight:700;text-decoration:underline;cursor:pointer}
+
+/* ── TOPBAR ─────────────────────────────────────────────────── */
+.topbar{background:var(--dark2);height:var(--topbar-h);display:flex;align-items:center;justify-content:space-between;padding:0 20px;border-bottom:1px solid rgba(255,255,255,.07);flex-shrink:0;gap:12px}
+.topbar-brand{display:flex;align-items:center;gap:10px}
+.topbar-icon{width:32px;height:32px;background:var(--accent);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.topbar-name{font-size:15px;font-weight:800;color:#fff;letter-spacing:-.3px}
+.topbar-demo-badge{font-size:9px;background:rgba(124,58,237,.3);color:#c4b5fd;padding:2px 7px;border-radius:99px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;border:1px solid rgba(124,58,237,.4)}
+.topbar-nav{display:flex;align-items:center;gap:2px}
+.topbar-tab{padding:6px 12px;border-radius:6px;font-size:13px;font-weight:500;color:rgba(255,255,255,.55);cursor:pointer;transition:all .2s;border:none;background:none;white-space:nowrap}
+.topbar-tab:hover{color:rgba(255,255,255,.85);background:rgba(255,255,255,.07)}
+.topbar-tab.active{color:#fff;background:rgba(255,255,255,.1)}
+.topbar-right{display:flex;align-items:center;gap:8px}
+.topbar-user{display:flex;align-items:center;gap:8px;padding:5px 10px;border-radius:8px;background:rgba(255,255,255,.07);cursor:pointer}
+.topbar-avatar{width:28px;height:28px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff}
+.topbar-uname{font-size:13px;font-weight:600;color:rgba(255,255,255,.85)}
+.btn-entrar{background:var(--accent);color:#fff;border:none;padding:7px 16px;border-radius:var(--r-sm);font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font);transition:background .2s;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+.btn-entrar:hover{background:#0284c7}
+
+/* ── MAIN LAYOUT ─────────────────────────────────────────────── */
+.main{flex:1;display:flex;overflow:hidden}
+.content{flex:1;overflow-y:auto;background:var(--bg);padding:20px}
+
+/* ── PAGES ──────────────────────────────────────────────────── */
+.page{display:none;animation:fadeIn .25s ease}
+.page.active{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── KPI GRID ────────────────────────────────────────────────── */
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+.kpi-card{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:18px 20px;transition:box-shadow .2s}
+.kpi-card:hover{box-shadow:var(--shadow)}
+.kpi-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;font-weight:600;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between}
+.kpi-icon{font-size:16px}
+.kpi-value{font-size:26px;font-weight:800;color:var(--text);letter-spacing:-1px;line-height:1;margin-bottom:6px}
+.kpi-delta{font-size:12px;font-weight:600;display:flex;align-items:center;gap:4px}
+.kpi-delta.up{color:#16a34a} .kpi-delta.down{color:#dc2626} .kpi-delta.neutral{color:var(--muted)}
+.kpi-sub{font-size:10px;color:var(--muted);margin-top:2px}
+
+/* ── GRID 2/3 col ───────────────────────────────────────────── */
+.grid-2{display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-bottom:14px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px}
+.grid-2-1{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+
+.card{background:#fff;border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+.card-head{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.card-title{font-size:13px;font-weight:700;color:var(--text)}
+.card-body{padding:16px 18px}
+.card-meta{font-size:11px;color:var(--muted)}
+
+/* ── TABLE ──────────────────────────────────────────────────── */
+.demo-table{width:100%;border-collapse:collapse;font-size:12px}
+.demo-table th{padding:8px 12px;background:var(--bg2);text-align:left;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)}
+.demo-table td{padding:9px 12px;border-bottom:1px solid var(--bg2);color:var(--text)}
+.demo-table tr:last-child td{border-bottom:none}
+.demo-table tr:hover td{background:rgba(14,165,233,.03)}
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700}
+.badge.green{background:#d1fae5;color:#065f46}
+.badge.blue{background:#e0f2fe;color:#0369a1}
+.badge.yellow{background:#fef3c7;color:#92400e}
+.badge.red{background:#fee2e2;color:#991b1b}
+.badge.gray{background:#f1f5f9;color:#475569}
+
+/* ── RANKING ────────────────────────────────────────────────── */
+.ranking-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bg2)}
+.ranking-row:last-child{border-bottom:none}
+.rank-num{width:20px;font-size:11px;font-weight:700;color:var(--muted)}
+.rank-medal{font-size:14px}
+.rank-name{flex:1;font-size:13px;font-weight:600;color:var(--text)}
+.rank-bar-wrap{width:80px;height:6px;background:var(--bg2);border-radius:3px;overflow:hidden}
+.rank-bar-fill{height:100%;border-radius:3px;background:var(--accent)}
+.rank-value{font-size:12px;font-weight:700;color:var(--text);min-width:56px;text-align:right}
+
+/* ── MAP PLACEHOLDER ────────────────────────────────────────── */
+.map-placeholder{height:280px;background:linear-gradient(135deg,#0f172a,#1e293b);border-radius:var(--r);position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.map-placeholder::before{content:'';position:absolute;inset:0;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Cpath d='M0 0h40v40H0z' fill='none'/%3E%3Cpath d='M0 40h40M40 0v40' stroke='rgba(255,255,255,.04)' stroke-width='.5'/%3E%3C/svg%3E") repeat}
+.map-dot{position:absolute;width:10px;height:10px;border-radius:50%;cursor:pointer;transition:transform .2s}
+.map-dot::after{content:'';position:absolute;inset:-6px;border-radius:50%;animation:ripple 2s infinite}
+@keyframes ripple{0%{opacity:.6;transform:scale(1)}100%{opacity:0;transform:scale(2.5)}}
+.map-dot.hot{background:#ef4444;box-shadow:0 0 12px rgba(239,68,68,.6)}.map-dot.hot::after{border:1px solid rgba(239,68,68,.5)}
+.map-dot.warm{background:#f59e0b;box-shadow:0 0 10px rgba(245,158,11,.5)}.map-dot.warm::after{border:1px solid rgba(245,158,11,.4)}
+.map-dot.cold{background:#0ea5e9;box-shadow:0 0 8px rgba(14,165,233,.5)}.map-dot.cold::after{border:1px solid rgba(14,165,233,.4)}
+.map-legend{position:absolute;bottom:12px;right:12px;background:rgba(15,23,42,.85);border-radius:8px;padding:8px 12px;font-size:10px;color:rgba(255,255,255,.7);display:flex;flex-direction:column;gap:5px;border:1px solid rgba(255,255,255,.08)}
+.legend-row{display:flex;align-items:center;gap:6px}
+.legend-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+
+/* ── FUNIL KANBAN ───────────────────────────────────────────── */
+.kanban{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;overflow-x:auto}
+.kanban-col{background:var(--bg2);border-radius:var(--r-sm);padding:10px;min-width:160px}
+.kanban-col-head{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between}
+.kanban-count{background:var(--accent);color:#fff;width:18px;height:18px;border-radius:99px;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.kanban-card{background:#fff;border:1px solid var(--border);border-radius:var(--r-sm);padding:10px;margin-bottom:6px;cursor:pointer;transition:box-shadow .2s}
+.kanban-card:hover{box-shadow:var(--shadow)}
+.kanban-card-name{font-size:12px;font-weight:600;color:var(--text);margin-bottom:4px}
+.kanban-card-val{font-size:11px;color:var(--muted)}
+.kanban-card-tag{display:inline-block;font-size:9px;font-weight:700;padding:1px 6px;border-radius:99px;margin-top:4px}
+
+/* ── ROTA TIMELINE ──────────────────────────────────────────── */
+.rota-list{display:flex;flex-direction:column;gap:10px}
+.rota-item{display:flex;align-items:center;gap:14px;padding:12px 16px;background:#fff;border:1px solid var(--border);border-radius:var(--r-sm);transition:box-shadow .2s}
+.rota-item:hover{box-shadow:var(--shadow)}
+.rota-num{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex-shrink:0}
+.rota-info{flex:1}
+.rota-name{font-size:13px;font-weight:600;color:var(--text)}
+.rota-meta{font-size:11px;color:var(--muted);margin-top:2px}
+.rota-status{font-size:11px;font-weight:600}
+
+/* ── PAGE HEADER ─────────────────────────────────────────────── */
+.page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.page-header h1{font-size:20px;font-weight:800;color:var(--text);letter-spacing:-.5px}
+.page-header .sub{font-size:13px;color:var(--muted);margin-top:2px}
+
+/* ── COMISSÃO ───────────────────────────────────────────────── */
+.comissao-progress{height:8px;background:var(--bg2);border-radius:4px;overflow:hidden;margin-top:8px}
+.comissao-fill{height:100%;border-radius:4px;background:var(--accent);transition:width .5s ease}
+</style>
+</head>
+<body>
+
+<!-- DEMO BANNER -->
+<div class="demo-banner">
+  🎯 Você está no <strong>modo demonstração</strong> — dados fictícios para ilustrar o sistema &nbsp;|&nbsp;
+  <a href="/login.html">Entrar com minha conta</a> &nbsp;·&nbsp;
+  <a href="/landing.html#cta">Solicitar demo real</a>
+</div>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="topbar-brand">
+    <div class="topbar-icon">📦</div>
+    <span class="topbar-name">PedidosWeb</span>
+    <span class="topbar-demo-badge">DEMO</span>
+  </div>
+  <div class="topbar-nav">
+    <button class="topbar-tab active" onclick="showPage('dashboard',this)">Dashboard</button>
+    <button class="topbar-tab" onclick="showPage('pedidos',this)">Pedidos</button>
+    <button class="topbar-tab" onclick="showPage('clientes',this)">Clientes</button>
+    <button class="topbar-tab" onclick="showPage('mapa',this)">Mapa</button>
+    <button class="topbar-tab" onclick="showPage('crm',this)">CRM</button>
+    <button class="topbar-tab" onclick="showPage('rotas',this)">Rotas</button>
+    <button class="topbar-tab" onclick="showPage('comissoes',this)">Comissões</button>
+  </div>
+  <div class="topbar-right">
+    <div class="topbar-user">
+      <div class="topbar-avatar">JB</div>
+      <span class="topbar-uname">João Vendedor</span>
+    </div>
+    <a href="/login.html" class="btn-entrar">Entrar no sistema →</a>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="content" id="content">
+
+    <!-- ── DASHBOARD ─────────────────────────────────────────────── -->
+    <div class="page active" id="page-dashboard">
+      <div class="page-header">
+        <div>
+          <h1>Dashboard Comercial</h1>
+          <div class="sub">Maio 2026 · Região Sudeste · Todos os vendedores</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <select style="padding:6px 12px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:12px;font-family:var(--font);background:#fff;color:var(--text)">
+            <option>Maio 2026</option><option>Abril 2026</option><option>Março 2026</option>
+          </select>
+          <select style="padding:6px 12px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:12px;font-family:var(--font);background:#fff;color:var(--text)">
+            <option>Todos os vendedores</option><option>João Silva</option><option>Maria Costa</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="kpi-grid">
+        <div class="kpi-card"><div class="kpi-label">Vendas do Mês <span class="kpi-icon">💰</span></div><div class="kpi-value">R$248k</div><div class="kpi-delta up">↑ +14,2% vs abr</div><div class="kpi-sub">Meta: R$280k (88%)</div></div>
+        <div class="kpi-card"><div class="kpi-label">Pedidos <span class="kpi-icon">📋</span></div><div class="kpi-value">147</div><div class="kpi-delta up">↑ +9 pedidos</div><div class="kpi-sub">Ticket médio: R$1.687</div></div>
+        <div class="kpi-card"><div class="kpi-label">Clientes Ativos <span class="kpi-icon">👥</span></div><div class="kpi-value">183</div><div class="kpi-delta down">↓ 12 inativos 90d</div><div class="kpi-sub">Mix: 4,2 produtos/cliente</div></div>
+        <div class="kpi-card"><div class="kpi-label">Comissão Estimada <span class="kpi-icon">💎</span></div><div class="kpi-value">R$12k</div><div class="kpi-delta up">↑ +6,1%</div><div class="kpi-sub">Taxa média: 4,8%</div></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><span class="card-title">Evolução de Vendas — 12 meses</span><span class="card-meta">Mensal</span></div>
+          <div class="card-body"><canvas id="chartVendas" height="120"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><span class="card-title">Ranking de Vendedores</span></div>
+          <div class="card-body">
+            <div class="ranking-row"><span class="rank-num">🥇</span><span class="rank-name">João Silva</span><div class="rank-bar-wrap"><div class="rank-bar-fill" style="width:100%"></div></div><span class="rank-value">R$82k</span></div>
+            <div class="ranking-row"><span class="rank-num">🥈</span><span class="rank-name">Maria Costa</span><div class="rank-bar-wrap"><div class="rank-bar-fill" style="width:78%"></div></div><span class="rank-value">R$64k</span></div>
+            <div class="ranking-row"><span class="rank-num">🥉</span><span class="rank-name">Pedro Alves</span><div class="rank-bar-wrap"><div class="rank-bar-fill" style="width:55%"></div></div><span class="rank-value">R$45k</span></div>
+            <div class="ranking-row"><span class="rank-num" style="color:var(--muted);font-size:11px">4</span><span class="rank-name">Ana Lima</span><div class="rank-bar-wrap"><div class="rank-bar-fill" style="width:40%"></div></div><span class="rank-value">R$33k</span></div>
+            <div class="ranking-row"><span class="rank-num" style="color:var(--muted);font-size:11px">5</span><span class="rank-name">Carlos Souza</span><div class="rank-bar-wrap"><div class="rank-bar-fill" style="width:28%"></div></div><span class="rank-value">R$23k</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-3">
+        <div class="card">
+          <div class="card-head"><span class="card-title">Curva ABC Clientes</span></div>
+          <div class="card-body"><canvas id="chartABC" height="140"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><span class="card-title">Produtos Mais Vendidos</span></div>
+          <div class="card-body">
+            <table class="demo-table">
+              <tr><th>Produto</th><th>Qtd</th><th>R$</th></tr>
+              <tr><td>Cabo PP 2x1,5mm</td><td>320</td><td>R$4.800</td></tr>
+              <tr><td>Disjuntor 20A</td><td>280</td><td>R$3.920</td></tr>
+              <tr><td>Câmera IP 4MP</td><td>95</td><td>R$11.400</td></tr>
+              <tr><td>Sensor de Presença</td><td>210</td><td>R$3.150</td></tr>
+              <tr><td>Central de Alarme</td><td>42</td><td>R$8.400</td></tr>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><span class="card-title">IA — Alertas Comerciais</span></div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:8px">
+            <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:10px;font-size:12px;color:#92400e">⚠️ <strong>Acme Elétrica</strong> há 67 dias sem comprar</div>
+            <div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:10px;font-size:12px;color:#991b1b">🔴 Margem da região Norte caiu <strong>-12%</strong></div>
+            <div style="background:#d1fae5;border:1px solid #a7f3d0;border-radius:8px;padding:10px;font-size:12px;color:#065f46">💡 <strong>TechSegurança</strong> compra cabos mas nunca comprou conectores</div>
+            <div style="background:#e0f2fe;border:1px solid #bae6fd;border-radius:8px;padding:10px;font-size:12px;color:#0369a1">📈 <strong>Ferragens Norte</strong> com alta chance de recompra esta semana</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PEDIDOS ──────────────────────────────────────────────── -->
+    <div class="page" id="page-pedidos">
+      <div class="page-header">
+        <div><h1>Pedidos</h1><div class="sub">Maio 2026 · 147 pedidos</div></div>
+        <button style="background:var(--accent);color:#fff;border:none;padding:8px 18px;border-radius:var(--r-sm);font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font)">+ Novo Pedido</button>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <input type="text" placeholder="🔍 Buscar pedido, cliente, produto..." style="padding:7px 12px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:13px;font-family:var(--font);width:280px;outline:none">
+          <div style="display:flex;gap:6px">
+            <select style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:12px;font-family:var(--font)"><option>Todos os status</option><option>Aprovado</option><option>Pendente</option><option>Cancelado</option></select>
+          </div>
+        </div>
+        <table class="demo-table">
+          <thead><tr><th>Nº</th><th>Data</th><th>Cliente</th><th>Representada</th><th>Valor</th><th>Status</th><th>Vendedor</th></tr></thead>
+          <tbody>
+            <tr><td>#5042</td><td>23/05</td><td>Acme Materiais Elétricos</td><td>Fábrica ABC</td><td>R$32.400</td><td><span class="badge green">Aprovado</span></td><td>João Silva</td></tr>
+            <tr><td>#5041</td><td>23/05</td><td>TechSegurança Ltda</td><td>Security Pro</td><td>R$18.900</td><td><span class="badge blue">Em análise</span></td><td>Maria Costa</td></tr>
+            <tr><td>#5040</td><td>22/05</td><td>Auto Peças Paulista</td><td>AutoParts BR</td><td>R$14.200</td><td><span class="badge green">Aprovado</span></td><td>João Silva</td></tr>
+            <tr><td>#5039</td><td>22/05</td><td>Ferragens do Norte</td><td>Fábrica ABC</td><td>R$8.750</td><td><span class="badge yellow">Pendente</span></td><td>Pedro Alves</td></tr>
+            <tr><td>#5038</td><td>21/05</td><td>Construluz SP</td><td>LuzBR Ind.</td><td>R$22.100</td><td><span class="badge green">Aprovado</span></td><td>Ana Lima</td></tr>
+            <tr><td>#5037</td><td>21/05</td><td>Elétrica Central</td><td>Fábrica ABC</td><td>R$6.300</td><td><span class="badge red">Cancelado</span></td><td>Maria Costa</td></tr>
+            <tr><td>#5036</td><td>20/05</td><td>Segure Bem Ltda</td><td>Security Pro</td><td>R$41.800</td><td><span class="badge green">Aprovado</span></td><td>Carlos Souza</td></tr>
+            <tr><td>#5035</td><td>20/05</td><td>Fio e Luz Distribuidora</td><td>LuzBR Ind.</td><td>R$9.420</td><td><span class="badge green">Aprovado</span></td><td>João Silva</td></tr>
+          </tbody>
+        </table>
+        <div style="padding:12px 18px;border-top:1px solid var(--border);font-size:12px;color:var(--muted);display:flex;align-items:center;justify-content:space-between">
+          <span>Mostrando 8 de 147 pedidos</span>
+          <div style="display:flex;gap:4px">
+            <button style="padding:4px 10px;border:1px solid var(--border);border-radius:4px;font-size:11px;background:#fff;cursor:pointer">←</button>
+            <button style="padding:4px 10px;border:1px solid var(--accent);border-radius:4px;font-size:11px;background:var(--accent);color:#fff;cursor:pointer">1</button>
+            <button style="padding:4px 10px;border:1px solid var(--border);border-radius:4px;font-size:11px;background:#fff;cursor:pointer">2</button>
+            <button style="padding:4px 10px;border:1px solid var(--border);border-radius:4px;font-size:11px;background:#fff;cursor:pointer">→</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── CLIENTES ─────────────────────────────────────────────── -->
+    <div class="page" id="page-clientes">
+      <div class="page-header">
+        <div><h1>Clientes</h1><div class="sub">183 clientes ativos · 12 inativos há 90d</div></div>
+        <button style="background:var(--accent);color:#fff;border:none;padding:8px 18px;border-radius:var(--r-sm);font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font)">+ Novo Cliente</button>
+      </div>
+      <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
+        <div class="kpi-card"><div class="kpi-label">Curva A <span class="kpi-icon">🌟</span></div><div class="kpi-value">38</div><div class="kpi-delta up">68% do faturamento</div></div>
+        <div class="kpi-card"><div class="kpi-label">Curva B <span class="kpi-icon">✅</span></div><div class="kpi-value">87</div><div class="kpi-delta neutral">26% do faturamento</div></div>
+        <div class="kpi-card"><div class="kpi-label">Curva C / Sem Compra <span class="kpi-icon">⚠️</span></div><div class="kpi-value">58</div><div class="kpi-delta down">6% · atenção requerida</div></div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <input type="text" placeholder="🔍 Buscar por nome, CNPJ, cidade..." style="padding:7px 12px;border:1px solid var(--border);border-radius:var(--r-sm);font-size:13px;font-family:var(--font);width:280px;outline:none">
+        </div>
+        <table class="demo-table">
+          <thead><tr><th>Cliente</th><th>Cidade/UF</th><th>Curva</th><th>Última Compra</th><th>Faturamento 12m</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Acme Materiais Elétricos</strong></td><td>São Paulo / SP</td><td><span class="badge green">A</span></td><td>23/05/2026</td><td>R$248.000</td><td><span class="badge green">Ativo</span></td></tr>
+            <tr><td><strong>TechSegurança Ltda</strong></td><td>Campinas / SP</td><td><span class="badge green">A</span></td><td>23/05/2026</td><td>R$182.400</td><td><span class="badge green">Ativo</span></td></tr>
+            <tr><td><strong>Auto Peças Paulista</strong></td><td>Santo André / SP</td><td><span class="badge blue">B</span></td><td>22/05/2026</td><td>R$96.500</td><td><span class="badge green">Ativo</span></td></tr>
+            <tr><td><strong>Ferragens do Norte</strong></td><td>Bauru / SP</td><td><span class="badge blue">B</span></td><td>22/05/2026</td><td>R$74.200</td><td><span class="badge green">Ativo</span></td></tr>
+            <tr><td><strong>Elétrica Primavera</strong></td><td>Ribeirão Preto / SP</td><td><span class="badge yellow">C</span></td><td>18/03/2026</td><td>R$28.400</td><td><span class="badge yellow">67 dias</span></td></tr>
+            <tr><td><strong>Distribuidora Leste</strong></td><td>São José dos Campos / SP</td><td><span class="badge yellow">C</span></td><td>04/02/2026</td><td>R$14.200</td><td><span class="badge red">109 dias</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── MAPA ─────────────────────────────────────────────────── -->
+    <div class="page" id="page-mapa">
+      <div class="page-header">
+        <div><h1>Mapa Comercial</h1><div class="sub">Cobertura de carteira · pânico do vendedor</div></div>
+      </div>
+      <div class="grid-2">
+        <div>
+          <div class="map-placeholder">
+            <div class="map-dot hot" style="top:30%;left:45%;"></div>
+            <div class="map-dot hot" style="top:55%;left:38%;"></div>
+            <div class="map-dot warm" style="top:42%;left:60%;"></div>
+            <div class="map-dot warm" style="top:25%;left:55%;"></div>
+            <div class="map-dot cold" style="top:68%;left:50%;"></div>
+            <div class="map-dot cold" style="top:38%;left:28%;"></div>
+            <div class="map-dot warm" style="top:72%;left:34%;"></div>
+            <div style="position:absolute;top:12px;left:12px;background:rgba(15,23,42,.85);border-radius:8px;padding:8px 12px;font-size:11px;color:rgba(255,255,255,.8);border:1px solid rgba(255,255,255,.1)">🗺️ Região Sudeste</div>
+            <div class="map-legend">
+              <div class="legend-row"><div class="legend-dot" style="background:#ef4444"></div> Alto faturamento</div>
+              <div class="legend-row"><div class="legend-dot" style="background:#f59e0b"></div> Médio faturamento</div>
+              <div class="legend-row"><div class="legend-dot" style="background:#0ea5e9"></div> Baixo / sem visita</div>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div class="card">
+            <div class="card-head"><span class="card-title">🚨 Pânico do Vendedor</span></div>
+            <div class="card-body" style="display:flex;flex-direction:column;gap:8px">
+              <div style="background:#fee2e2;border-radius:8px;padding:10px;font-size:12px;color:#991b1b;border:1px solid #fca5a5">🔴 <strong>3 regiões</strong> sem visita há +60 dias</div>
+              <div style="background:#fef3c7;border-radius:8px;padding:10px;font-size:12px;color:#92400e;border:1px solid #fde68a">⚠️ <strong>12 clientes</strong> inativos com histórico de compra</div>
+              <div style="background:#fef3c7;border-radius:8px;padding:10px;font-size:12px;color:#92400e;border:1px solid #fde68a">⚠️ Margem média na região <strong>Bauru caiu -8%</strong></div>
+              <div style="background:#e0f2fe;border-radius:8px;padding:10px;font-size:12px;color:#0369a1;border:1px solid #bae6fd">💡 <strong>Ribeirão Preto</strong> tem potencial não explorado</div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-head"><span class="card-title">Cobertura por Cidade</span></div>
+            <div class="card-body"><canvas id="chartCidades" height="120"></canvas></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── CRM ──────────────────────────────────────────────────── -->
+    <div class="page" id="page-crm">
+      <div class="page-header">
+        <div><h1>CRM — Funil de Vendas</h1><div class="sub">38 leads ativos · 9 fechados este mês</div></div>
+        <button style="background:var(--accent);color:#fff;border:none;padding:8px 18px;border-radius:var(--r-sm);font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font)">+ Novo Lead</button>
+      </div>
+      <div class="kpi-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:16px">
+        <div class="kpi-card"><div class="kpi-label">Leads</div><div class="kpi-value">38</div><div class="kpi-delta up">↑ +5 semana</div></div>
+        <div class="kpi-card"><div class="kpi-label">Contato</div><div class="kpi-value">14</div><div class="kpi-delta neutral">em andamento</div></div>
+        <div class="kpi-card"><div class="kpi-label">Proposta</div><div class="kpi-value">8</div><div class="kpi-delta up">R$142k</div></div>
+        <div class="kpi-card"><div class="kpi-label">Negociação</div><div class="kpi-value">6</div><div class="kpi-delta neutral">R$98k</div></div>
+        <div class="kpi-card"><div class="kpi-label">Fechados</div><div class="kpi-value">9</div><div class="kpi-delta up">↑ taxa 24%</div></div>
+      </div>
+      <div style="overflow-x:auto">
+        <div class="kanban">
+          <div class="kanban-col">
+            <div class="kanban-col-head">Novo Lead <span class="kanban-count" style="background:#64748b">5</span></div>
+            <div class="kanban-card"><div class="kanban-card-name">Elétrica Primavera</div><div class="kanban-card-val">R$45k · WhatsApp</div><span class="kanban-card-tag" style="background:#f1f5f9;color:#475569">inbound</span></div>
+            <div class="kanban-card"><div class="kanban-card-name">Ferragens ABC</div><div class="kanban-card-val">R$22k · Instagram</div><span class="kanban-card-tag" style="background:#f1f5f9;color:#475569">social</span></div>
+          </div>
+          <div class="kanban-col">
+            <div class="kanban-col-head">Contato <span class="kanban-count" style="background:#f59e0b">6</span></div>
+            <div class="kanban-card"><div class="kanban-card-name">TechSeg Norte</div><div class="kanban-card-val">R$78k · ligação</div><span class="kanban-card-tag" style="background:#fef3c7;color:#92400e">quente</span></div>
+            <div class="kanban-card"><div class="kanban-card-name">Distribuidora Leste</div><div class="kanban-card-val">R$34k · e-mail</div><span class="kanban-card-tag" style="background:#e0f2fe;color:#0369a1">morno</span></div>
+          </div>
+          <div class="kanban-col">
+            <div class="kanban-col-head">Proposta <span class="kanban-count" style="background:#0ea5e9">4</span></div>
+            <div class="kanban-card"><div class="kanban-card-name">Construluz SP</div><div class="kanban-card-val">R$52k · aguardando</div><span class="kanban-card-tag" style="background:#fef3c7;color:#92400e">quente</span></div>
+          </div>
+          <div class="kanban-col">
+            <div class="kanban-col-head">Negociação <span class="kanban-count" style="background:#8b5cf6">3</span></div>
+            <div class="kanban-card"><div class="kanban-card-name">Auto Peças Sul</div><div class="kanban-card-val">R$29k · prazo</div><span class="kanban-card-tag" style="background:#ede9fe;color:#5b21b6">negociando</span></div>
+          </div>
+          <div class="kanban-col">
+            <div class="kanban-col-head">Fechado <span class="kanban-count" style="background:#16a34a">9</span></div>
+            <div class="kanban-card"><div class="kanban-card-name">Acme Elétrica</div><div class="kanban-card-val">R$84k · ✓</div><span class="kanban-card-tag" style="background:#d1fae5;color:#065f46">ganho</span></div>
+            <div class="kanban-card"><div class="kanban-card-name">TechSegurança</div><div class="kanban-card-val">R$41k · ✓</div><span class="kanban-card-tag" style="background:#d1fae5;color:#065f46">ganho</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── ROTAS ────────────────────────────────────────────────── -->
+    <div class="page" id="page-rotas">
+      <div class="page-header">
+        <div><h1>Rotas e Visitas</h1><div class="sub">Quinta-feira, 23/05/2026 · João Silva</div></div>
+      </div>
+      <div class="kpi-grid">
+        <div class="kpi-card"><div class="kpi-label">Visitas Hoje</div><div class="kpi-value">7</div><div class="kpi-delta up">4 realizadas</div></div>
+        <div class="kpi-card"><div class="kpi-label">Cobertura Mensal</div><div class="kpi-value">73%</div><div class="kpi-delta up">↑ +8% vs mês ant.</div></div>
+        <div class="kpi-card"><div class="kpi-label">Sem Visita 30d</div><div class="kpi-value">23</div><div class="kpi-delta down">↓ atenção requerida</div></div>
+        <div class="kpi-card"><div class="kpi-label">Km Estimados</div><div class="kpi-value">284km</div><div class="kpi-delta neutral">rota otimizada</div></div>
+      </div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-head"><span class="card-title">Roteiro do Dia</span><span class="card-meta">Arraste para reordenar</span></div>
+        <div class="card-body">
+          <div class="rota-list">
+            <div class="rota-item"><div class="rota-num" style="background:#22c55e">1</div><div class="rota-info"><div class="rota-name">Acme Materiais Elétricos</div><div class="rota-meta">Av. Paulista, 1000 · São Paulo · 9h00</div></div><span class="badge green">✓ Visitado</span><span class="rota-status" style="color:#22c55e;margin-left:8px">R$12.400</span></div>
+            <div class="rota-item"><div class="rota-num" style="background:#22c55e">2</div><div class="rota-info"><div class="rota-name">TechSegurança Ltda</div><div class="rota-meta">Rua Augusta, 500 · São Paulo · 10h30</div></div><span class="badge green">✓ Visitado</span><span class="rota-status" style="color:#22c55e;margin-left:8px">R$8.900</span></div>
+            <div class="rota-item"><div class="rota-num" style="background:#0ea5e9">3</div><div class="rota-info"><div class="rota-name">Auto Peças Paulista</div><div class="rota-meta">Av. Industrial, 200 · Santo André · 13h00</div></div><span class="badge blue">Em rota</span><span class="rota-status" style="color:var(--muted);margin-left:8px">~14min</span></div>
+            <div class="rota-item" style="opacity:.7"><div class="rota-num" style="background:#94a3b8">4</div><div class="rota-info"><div class="rota-name">Ferragens do Norte</div><div class="rota-meta">Rua Comércio, 88 · Mauá · 14h30</div></div><span class="badge gray">Pendente</span></div>
+            <div class="rota-item" style="opacity:.7"><div class="rota-num" style="background:#94a3b8">5</div><div class="rota-info"><div class="rota-name">Construluz SP</div><div class="rota-meta">Av. Marginal, 340 · São Bernardo · 16h00</div></div><span class="badge gray">Pendente</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── COMISSÕES ──────────────────────────────────────────── -->
+    <div class="page" id="page-comissoes">
+      <div class="page-header">
+        <div><h1>Comissões</h1><div class="sub">Maio 2026 · Conciliação em andamento</div></div>
+      </div>
+      <div class="kpi-grid">
+        <div class="kpi-card"><div class="kpi-label">Comissão Prevista</div><div class="kpi-value">R$18.4k</div><div class="kpi-delta neutral">sobre R$248k vendidos</div></div>
+        <div class="kpi-card"><div class="kpi-label">Comissão Realizada</div><div class="kpi-value">R$12.2k</div><div class="kpi-delta up">66% conciliado</div></div>
+        <div class="kpi-card"><div class="kpi-label">A Receber</div><div class="kpi-value">R$6.2k</div><div class="kpi-delta neutral">parcelas pendentes</div></div>
+        <div class="kpi-card"><div class="kpi-label">Inadimplência</div><div class="kpi-value">8</div><div class="kpi-delta down">clientes em atraso</div></div>
+      </div>
+      <div class="grid-2-1">
+        <div class="card">
+          <div class="card-head"><span class="card-title">Conciliação por Representada</span></div>
+          <div class="card-body">
+            <table class="demo-table">
+              <thead><tr><th>Representada</th><th>Vendas</th><th>% Com.</th><th>Previsto</th><th>Realizado</th><th>Situação</th></tr></thead>
+              <tbody>
+                <tr><td>Fábrica ABC</td><td>R$124k</td><td>5%</td><td>R$6.200</td><td>R$5.800</td><td><span class="badge green">OK</span></td></tr>
+                <tr><td>Security Pro</td><td>R$78k</td><td>6%</td><td>R$4.680</td><td>R$3.200</td><td><span class="badge yellow">Parcial</span></td></tr>
+                <tr><td>LuzBR Ind.</td><td>R$46k</td><td>4,5%</td><td>R$2.070</td><td>R$1.980</td><td><span class="badge blue">Aguardando</span></td></tr>
+                <tr><td>AutoParts BR</td><td>R$38k</td><td>5,5%</td><td>R$2.090</td><td>R$1.220</td><td><span class="badge yellow">Parcial</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><span class="card-title">Evolução Comissões</span></div>
+          <div class="card-body"><canvas id="chartComissao" height="160"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function showPage(name, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.topbar-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  if (btn) btn.classList.add('active');
+  if (name === 'mapa' && !window._chartCidades) renderCidades();
+  if (name === 'comissoes' && !window._chartCom) renderComissao();
+  if (history.replaceState) history.replaceState(null, '', '#' + name);
+}
+
+(function initDemoHash() {
+  const names = ['dashboard', 'pedidos', 'clientes', 'mapa', 'crm', 'rotas', 'comissoes'];
+  const hash = (location.hash || '').replace('#', '');
+  if (!hash || names.indexOf(hash) < 0) return;
+  const tabs = document.querySelectorAll('.topbar-tab');
+  const i = names.indexOf(hash);
+  if (tabs[i]) showPage(hash, tabs[i]);
+})();
+
+// ── Charts ──────────────────────────────────────────────────────
+function renderVendas() {
+  const ctx = document.getElementById('chartVendas').getContext('2d');
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['Jun','Jul','Ago','Set','Out','Nov','Dez','Jan','Fev','Mar','Abr','Mai'],
+      datasets: [{
+        data: [142,156,138,168,182,174,195,168,152,178,217,248],
+        backgroundColor: (ctx) => ctx.dataIndex === 11 ? '#0ea5e9' : 'rgba(14,165,233,.3)',
+        borderRadius: 4, borderSkipped: false,
+      }]
+    },
+    options: { plugins:{legend:{display:false}}, scales:{x:{grid:{display:false},ticks:{font:{size:10},color:'#94a3b8'}}, y:{grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:10},color:'#94a3b8',callback:v=>`R$${v/1000}k`}}}, responsive:true, maintainAspectRatio:true }
+  });
+}
+
+function renderABC() {
+  const ctx = document.getElementById('chartABC').getContext('2d');
+  new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Curva A (21%)','Curva B (47%)','Curva C (32%)'],
+      datasets: [{ data: [68,26,6], backgroundColor:['#0ea5e9','#22c55e','#f59e0b'], borderWidth:0, spacing:2 }]
+    },
+    options: { plugins:{legend:{position:'bottom',labels:{font:{size:11},padding:8}}}, responsive:true, maintainAspectRatio:true }
+  });
+}
+
+function renderCidades() {
+  window._chartCidades = true;
+  const ctx = document.getElementById('chartCidades').getContext('2d');
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['São Paulo','Campinas','S.André','Bauru','Ribeirão'],
+      datasets: [{ label: 'Faturamento (R$k)', data: [124,78,56,34,18], backgroundColor: ['#0ea5e9','#0ea5e9','#22c55e','#f59e0b','#f59e0b'], borderRadius:4 }]
+    },
+    options: { plugins:{legend:{display:false}}, scales:{x:{grid:{display:false},ticks:{font:{size:10},color:'#94a3b8'}}, y:{grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:10},color:'#94a3b8',callback:v=>`R$${v}k`}}}, responsive:true, maintainAspectRatio:true }
+  });
+}
+
+function renderComissao() {
+  window._chartCom = true;
+  const ctx = document.getElementById('chartComissao').getContext('2d');
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: ['Jan','Fev','Mar','Abr','Mai'],
+      datasets: [
+        { label: 'Previsto', data: [14.2,13.8,15.4,17.1,18.4], borderColor:'#94a3b8', backgroundColor:'transparent', borderDash:[4,4], tension:.3 },
+        { label: 'Realizado', data: [13.8,12.4,14.9,15.2,12.2], borderColor:'#0ea5e9', backgroundColor:'rgba(14,165,233,.08)', fill:true, tension:.3 }
+      ]
+    },
+    options: { plugins:{legend:{labels:{font:{size:10},padding:8}}}, scales:{x:{grid:{display:false},ticks:{font:{size:10},color:'#94a3b8'}}, y:{grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:10},color:'#94a3b8',callback:v=>`R$${v}k`}}}, responsive:true, maintainAspectRatio:true }
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  renderVendas();
+  renderABC();
+});
+</script>
+</body>
+</html>

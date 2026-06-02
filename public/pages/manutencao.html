@@ -1,0 +1,1253 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Manutenção de Cadastros</title>
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+:root {
+  --bg: var(--content-bg); --card: var(--card-bg); --border: var(--card-border);
+  --text: var(--content-text); --text2: var(--text2); --accent: var(--accent);
+  --accent-hover: var(--accent-hover); --danger: #ef4444; --warn: #f59e0b;
+  --success: #22c55e; --input-bg: var(--card-bg);
+}
+body { font-family: var(--font,'Inter','Segoe UI',sans-serif); background: var(--bg); color: var(--text); min-height: 100vh; }
+
+.toolbar-bar {
+  background: var(--card); border-bottom: 1px solid var(--border);
+  padding: 14px 24px; display: flex; align-items: center; gap: 16px;
+  flex-wrap: wrap; position: sticky; top: 0; z-index: 100;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+}
+.toolbar-title { font-size: 14px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; white-space: nowrap; }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 14px; border: none; border-radius: 7px;
+  font-size: 12px; font-weight: 700; cursor: pointer;
+  transition: .15s; font-family: inherit; white-space: nowrap;
+}
+.btn svg { width: 14px; height: 14px; flex-shrink: 0; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn-primary { background: var(--accent); color: var(--btn-text, #fff); border: 1.5px solid var(--accent); }
+.btn-primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+.btn-ghost { background: var(--card); color: var(--text2); border: 1.5px solid var(--border); }
+.btn-ghost:hover { background: var(--bg); color: var(--text); }
+.btn-danger { background: var(--danger); color: #fff; border: 1.5px solid var(--danger); }
+.btn-danger:hover:not(:disabled) { opacity: .88; }
+
+.tabs { display: flex; gap: 2px; padding: 16px 24px 0; border-bottom: 1px solid var(--border); background: var(--card); }
+.tab-btn {
+  padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer;
+  border: none; background: none; color: var(--text2); border-bottom: 2.5px solid transparent;
+  font-family: inherit; transition: .12s;
+}
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+.content { padding: 20px 24px; max-width: 1200px; }
+
+.filter-bar {
+  display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+  padding: 14px 16px; background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; margin-bottom: 14px;
+}
+.filter-bar input, .filter-bar select {
+  height: 34px; padding: 0 10px; border: 1px solid var(--border);
+  border-radius: 7px; font-size: 12px; font-family: inherit;
+  background: var(--input-bg); color: var(--text);
+  autocomplete: off;
+}
+.filter-bar input { min-width: 200px; }
+.filter-bar select { min-width: 150px; }
+
+.actions-bar {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
+}
+.sel-count { font-size: 12px; color: var(--text2); }
+
+.grid-wrap {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; overflow: hidden;
+}
+table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+thead th {
+  background: var(--bg); padding: 10px 12px; text-align: left;
+  font-weight: 700; font-size: 11px; text-transform: uppercase;
+  letter-spacing: .5px; color: var(--text2);
+  border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+thead th:first-child { width: 36px; text-align: center; }
+tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: var(--bg); }
+td { padding: 9px 12px; vertical-align: middle; }
+td:first-child { text-align: center; }
+td input[type=checkbox] { width: 15px; height: 15px; cursor: pointer; accent-color: var(--accent); }
+
+.badge {
+  display: inline-block; padding: 2px 7px; border-radius: 20px;
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+}
+.badge-a { background: #dcfce7; color: #166534; }
+.badge-i { background: #fef9c3; color: #854d0e; }
+.badge-mov { background: #e0f2fe; color: #0369a1; }
+.badge-new { background: #f3e8ff; color: #7c3aed; }
+
+.pagination {
+  display: flex; align-items: center; gap: 8px; justify-content: flex-end;
+  padding: 12px 16px; border-top: 1px solid var(--border);
+  font-size: 12px; color: var(--text2);
+}
+.pagination button { padding: 4px 10px; font-size: 11px; }
+
+.empty { text-align: center; padding: 40px; color: var(--text2); font-size: 13px; }
+
+/* Modal de confirmação */
+.modal-overlay {
+  display: none;
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,.45); z-index: 9000;
+}
+.modal-overlay.open { display: block; }
+.modal-box {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 14px; padding: 28px 32px; max-width: 440px; width: 90%;
+  box-shadow: 0 20px 60px rgba(0,0,0,.25);
+  position: fixed; z-index: 9001;
+}
+.modal-title { font-size: 16px; font-weight: 700; margin-bottom: 10px; }
+.modal-body { font-size: 13px; color: var(--text2); margin-bottom: 20px; line-height: 1.6; }
+.modal-body strong { color: var(--text); }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+/* Toast */
+.toast {
+  position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+  padding: 12px 20px; border-radius: 10px; font-size: 13px; font-weight: 600;
+  box-shadow: 0 8px 24px rgba(0,0,0,.2); display: none; max-width: 360px;
+  animation: slideUp .25s ease;
+}
+.toast.show { display: block; }
+.toast-success { background: #166534; color: #fff; }
+.toast-error { background: var(--danger); color: #fff; }
+@keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+.loading { text-align: center; padding: 30px; color: var(--text2); }
+.spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .6s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+
+.col-picker { position: relative; }
+.col-picker-drop {
+  display: none; position: absolute; top: calc(100% + 6px); right: 0;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 12px 16px; min-width: 190px;
+  z-index: 200; box-shadow: 0 8px 24px rgba(0,0,0,.15);
+}
+.col-picker-drop.open { display: block; }
+.col-picker-drop .cpd-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text2); margin-bottom: 8px; }
+.col-picker-drop label { display: flex; align-items: center; gap: 8px; font-size: 12px; cursor: pointer; padding: 4px 0; color: var(--text); }
+.col-picker-drop label:hover { color: var(--accent); }
+.col-picker-drop input[type=checkbox] { accent-color: var(--accent); width: 14px; height: 14px; cursor: pointer; flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<div class="toolbar-bar">
+  <button class="btn btn-ghost" onclick="history.back()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+    Voltar
+  </button>
+  <span class="toolbar-title">Manutenção de Cadastros</span>
+</div>
+
+<div class="tabs">
+  <button class="tab-btn active" onclick="switchTab('produtos',this)">Produtos</button>
+  <button class="tab-btn" onclick="switchTab('clientes',this)">Clientes</button>
+  <button class="tab-btn" onclick="switchTab('fabricas',this)">Fábricas</button>
+  <button class="tab-btn" onclick="switchTab('reattr',this)">Reatribuição</button>
+  <button class="tab-btn" onclick="switchTab('geocod',this)">Geocodificação</button>
+</div>
+
+<div class="content">
+
+  <!-- ── PRODUTOS ─────────────────────────────────────────── -->
+  <div id="tab-produtos">
+    <div class="filter-bar">
+      <input id="pq" type="search" placeholder="Buscar produto..." autocomplete="off" oninput="debounce(()=>loadProd(),400)">
+      <select id="psit" onchange="loadProd()">
+        <option value="">Todos os status</option>
+        <option value="A">Ativos</option>
+        <option value="I">Inativos</option>
+      </select>
+      <select id="pforn" onchange="loadProd()">
+        <option value="">Todos fornecedores</option>
+      </select>
+      <button class="btn btn-ghost" onclick="loadProd()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z"/></svg>
+        Buscar
+      </button>
+    </div>
+    <div class="actions-bar" style="flex-wrap:wrap">
+      <button class="btn btn-danger" id="btnExecProd" onclick="confirmar('produtos')" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+        Excluir / Inativar selecionados
+      </button>
+      <span class="sel-count" id="selCountProd">0 selecionados</span>
+      <div style="width:1px;background:var(--border);height:24px;margin:0 4px;flex-shrink:0"></div>
+      <label style="font-size:12px;font-weight:600;color:var(--text2);white-space:nowrap">Múltiplo de venda:</label>
+      <input type="number" id="mvInput" min="0" step="1" value="" placeholder="ex: 6"
+        title="0 ou 1 = sem restrição de quantidade"
+        style="width:80px;height:32px;padding:0 8px;border:1px solid var(--border);border-radius:7px;font-size:12px;font-family:inherit;background:var(--input-bg);color:var(--text)"
+        oninput="updateMvBtn()" autocomplete="off">
+      <button class="btn btn-primary" id="btnExecMV" onclick="confirmarMultiplo()" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:13px;height:13px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+        Aplicar múltiplo
+      </button>
+      <div class="col-picker" style="margin-left:auto">
+        <button class="btn btn-ghost" onclick="toggleColPicker(event)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:13px;height:13px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+          Colunas
+        </button>
+        <div id="colPickerDrop" class="col-picker-drop">
+          <div class="cpd-title">Colunas extras</div>
+          <label>
+            <input type="checkbox" id="colMultiplo" onchange="toggleProdCol('multiplo',this.checked)">
+            Múltiplo de venda
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="grid-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th><input type="checkbox" id="chkAllProd" onchange="toggleAll('prod')"></th>
+            <th>Produto</th>
+            <th>Fornecedor</th>
+            <th id="thMultiplo" style="display:none;text-align:center">Múltiplo</th>
+            <th>Status</th>
+            <th>Movimento</th>
+          </tr>
+        </thead>
+        <tbody id="tbodyProd"><tr><td colspan="5" class="loading"><span class="spinner"></span></td></tr></tbody>
+      </table>
+      <div class="pagination" id="pgProd"></div>
+    </div>
+  </div>
+
+  <!-- ── CLIENTES ─────────────────────────────────────────── -->
+  <div id="tab-clientes" style="display:none">
+    <div class="filter-bar">
+      <input id="cq" type="search" placeholder="Buscar cliente..." autocomplete="off" oninput="debounce(()=>loadCli(),400)">
+      <input id="ccid" type="text" placeholder="Cidade..." autocomplete="off" oninput="debounce(()=>loadCli(),500)" style="min-width:140px">
+      <input id="cuf" type="text" placeholder="UF" autocomplete="off" oninput="debounce(()=>loadCli(),500)" style="min-width:60px;max-width:70px">
+      <button class="btn btn-ghost" onclick="loadCli()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z"/></svg>
+        Buscar
+      </button>
+    </div>
+    <div class="actions-bar">
+      <button class="btn btn-danger" id="btnExecCli" onclick="confirmar('clientes')" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+        Excluir / Inativar selecionados
+      </button>
+      <span class="sel-count" id="selCountCli">0 selecionados</span>
+    </div>
+    <div class="grid-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th><input type="checkbox" id="chkAllCli" onchange="toggleAll('cli')"></th>
+            <th>Cliente</th>
+            <th>Cidade / UF</th>
+            <th>Status</th>
+            <th>Movimento</th>
+          </tr>
+        </thead>
+        <tbody id="tbodyCli"><tr><td colspan="5" class="loading"><span class="spinner"></span></td></tr></tbody>
+      </table>
+      <div class="pagination" id="pgCli"></div>
+    </div>
+  </div>
+
+  <!-- ── FÁBRICAS ─────────────────────────────────────────── -->
+  <div id="tab-fabricas" style="display:none">
+    <div class="filter-bar">
+      <input id="fq" type="search" placeholder="Buscar fábrica..." autocomplete="off" oninput="debounce(()=>loadFab(),400)">
+      <button class="btn btn-ghost" onclick="loadFab()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z"/></svg>
+        Buscar
+      </button>
+    </div>
+    <div class="actions-bar">
+      <button class="btn btn-danger" id="btnExecFab" onclick="confirmar('fabricas')" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+        Excluir / Inativar selecionados
+      </button>
+      <span class="sel-count" id="selCountFab">0 selecionados</span>
+    </div>
+    <div class="grid-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th><input type="checkbox" id="chkAllFab" onchange="toggleAll('fab')"></th>
+            <th>Fábrica / Fornecedor</th>
+            <th>Status</th>
+            <th>Movimento em pedidos</th>
+          </tr>
+        </thead>
+        <tbody id="tbodyFab"><tr><td colspan="4" class="loading"><span class="spinner"></span></td></tr></tbody>
+      </table>
+      <div class="pagination" id="pgFab"></div>
+    </div>
+  </div>
+
+</div>
+
+  <!-- ── REATRIBUIÇÃO ────────────────────────────────────── -->
+  <div id="tab-reattr" style="display:none">
+
+    <!-- Config principal -->
+    <div class="filter-bar" style="flex-direction:column;align-items:flex-start;gap:14px">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <label style="font-size:12px;font-weight:600;color:var(--text2)">Entidade:</label>
+        <select id="raEnt" onchange="onRaEntChange()" style="height:34px;padding:0 10px;border:1px solid var(--border);border-radius:7px;font-size:12px;font-family:inherit;background:var(--input-bg);color:var(--text)">
+          <option value="clientes">Clientes</option>
+          <option value="produtos">Produtos</option>
+        </select>
+        <label style="font-size:12px;font-weight:600;color:var(--text2)">Campo a alterar:</label>
+        <select id="raCampo" onchange="onRaCampoChange()" style="height:34px;padding:0 10px;border:1px solid var(--border);border-radius:7px;font-size:12px;font-family:inherit;background:var(--input-bg);color:var(--text)">
+          <!-- preenchido via JS -->
+        </select>
+      </div>
+
+      <!-- Filtros dinâmicos -->
+      <div id="raFiltros" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"></div>
+
+      <!-- De → Para -->
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <label style="font-size:12px;font-weight:600;color:var(--text2)">De:</label>
+        <select id="raValorAtual" onchange="raReset()" style="height:34px;padding:0 10px;border:1px solid var(--border);border-radius:7px;font-size:12px;font-family:inherit;background:var(--input-bg);color:var(--text);min-width:200px">
+          <option value="">— qualquer —</option>
+        </select>
+        <label style="font-size:12px;font-weight:600;color:var(--text2)">Para:</label>
+        <select id="raNovoValor" style="height:34px;padding:0 10px;border:1px solid var(--border);border-radius:7px;font-size:12px;font-family:inherit;background:var(--input-bg);color:var(--text);min-width:200px">
+          <option value="">— selecione —</option>
+        </select>
+        <button class="btn btn-primary" onclick="loadReattr()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z"/></svg>
+          Buscar
+        </button>
+      </div>
+    </div>
+
+    <div class="actions-bar">
+      <button class="btn btn-primary" id="btnExecReattr" onclick="confirmarReattr()" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        Reatribuir selecionados
+      </button>
+      <span class="sel-count" id="selCountReattr">0 selecionados</span>
+    </div>
+
+    <div class="grid-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th><input type="checkbox" id="chkAllReattr" onchange="toggleAll('reattr')"></th>
+            <th id="raCol1">Nome</th>
+            <th id="raCol2">Info</th>
+            <th id="raCol3">Valor atual</th>
+          </tr>
+        </thead>
+        <tbody id="tbodyReattr"><tr><td colspan="4" class="empty">Configure os filtros acima e clique em Buscar</td></tr></tbody>
+      </table>
+      <div class="pagination" id="pgReattr"></div>
+    </div>
+  </div>
+
+  <!-- ── GEOCODIFICAÇÃO ─────────────────────────────────── -->
+  <div id="tab-geocod" style="display:none">
+    <div style="max-width:680px;margin:0 auto;display:flex;flex-direction:column;gap:16px;padding-top:4px">
+
+      <!-- Card status -->
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px 24px">
+        <div style="font-size:13px;font-weight:700;margin-bottom:14px;color:var(--text)">Clientes sem coordenadas (latitude/longitude)</div>
+        <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+          <div style="text-align:center;min-width:80px">
+            <div id="geo-count" style="font-size:32px;font-weight:800;color:var(--accent)">—</div>
+            <div style="font-size:11px;color:var(--text2);margin-top:2px">pendentes</div>
+          </div>
+          <div style="text-align:center;min-width:80px">
+            <div id="geo-ok" style="font-size:32px;font-weight:800;color:#22c55e">0</div>
+            <div style="font-size:11px;color:var(--text2);margin-top:2px">geocodificados</div>
+          </div>
+          <div style="text-align:center;min-width:80px">
+            <div id="geo-fail" style="font-size:32px;font-weight:800;color:#ef4444">0</div>
+            <div style="font-size:11px;color:var(--text2);margin-top:2px">sem resultado</div>
+          </div>
+          <div style="flex:1;text-align:right">
+            <button id="btnGeoStart" class="btn btn-primary" onclick="geoStart()" style="gap:8px">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:14px;height:14px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              Iniciar geocodificação
+            </button>
+            <button id="btnGeoStop" class="btn btn-danger" onclick="geoStop()" style="display:none;margin-left:8px">Parar</button>
+          </div>
+        </div>
+
+        <!-- Barra de progresso -->
+        <div id="geo-prog-wrap" style="display:none;margin-top:16px">
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text2);margin-bottom:4px">
+            <span id="geo-prog-label">Processando...</span>
+            <span id="geo-prog-pct">0%</span>
+          </div>
+          <div style="background:var(--border);border-radius:99px;height:8px;overflow:hidden">
+            <div id="geo-prog-bar" style="height:100%;background:var(--accent);border-radius:99px;width:0%;transition:width .3s"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Info -->
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 20px;font-size:12px;color:var(--text2);line-height:1.7">
+        <strong style="color:var(--text)">Como funciona:</strong> O sistema busca clientes que possuem cidade/endereço cadastrado mas não têm latitude e longitude.
+        Usa o serviço <strong>Nominatim (OpenStreetMap)</strong> — 1 cliente por segundo para respeitar o limite da API.
+        Clientes sem cidade cadastrada são ignorados. Execute em lotes após importação de planilha.
+      </div>
+
+      <!-- Tabela de clientes processados -->
+      <div id="geo-table-wrap" style="display:none;background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden">
+        <div style="padding:10px 16px;border-bottom:1px solid var(--border);font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px">
+          Clientes processados
+        </div>
+        <div style="overflow-x:auto;max-height:380px;overflow-y:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead>
+              <tr style="background:var(--bg);position:sticky;top:0;z-index:1">
+                <th style="padding:8px 12px;text-align:left;font-weight:600;color:var(--text2);border-bottom:1px solid var(--border)">#</th>
+                <th style="padding:8px 12px;text-align:left;font-weight:600;color:var(--text2);border-bottom:1px solid var(--border)">Cliente</th>
+                <th style="padding:8px 12px;text-align:left;font-weight:600;color:var(--text2);border-bottom:1px solid var(--border)">Cidade / UF</th>
+                <th style="padding:8px 12px;text-align:center;font-weight:600;color:var(--text2);border-bottom:1px solid var(--border)">Latitude</th>
+                <th style="padding:8px 12px;text-align:center;font-weight:600;color:var(--text2);border-bottom:1px solid var(--border)">Longitude</th>
+                <th style="padding:8px 12px;text-align:center;font-weight:600;color:var(--text2);border-bottom:1px solid var(--border)">Status</th>
+              </tr>
+            </thead>
+            <tbody id="geo-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<!-- Modal confirmação -->
+<div class="modal-overlay" id="modalConfirm">
+  <div class="modal-box">
+    <div class="modal-title">Confirmar operação em lote</div>
+    <div class="modal-body" id="modalText"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-danger" id="btnModalOk" onclick="executar()">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+const state = {
+  produtos: { page: 0, total: 0, rows: [], sel: new Set(), pageSize: 100 },
+  clientes: { page: 0, total: 0, rows: [], sel: new Set(), pageSize: 100 },
+  fabricas: { page: 0, total: 0, rows: [], sel: new Set(), pageSize: 100 },
+};
+const prodVisibleCols = { multiplo: false };
+function prodColspan() { return 5 + (prodVisibleCols.multiplo ? 1 : 0); }
+let _tab = 'produtos';
+let _pendingTab = null;
+let _debTimer = null;
+
+function debounce(fn, ms) {
+  clearTimeout(_debTimer);
+  _debTimer = setTimeout(fn, ms);
+}
+
+function switchTab(tab, el) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  ['produtos','clientes','fabricas','reattr','geocod'].forEach(t => {
+    document.getElementById('tab-' + t).style.display = t === tab ? '' : 'none';
+  });
+  _tab = tab;
+  if (tab === 'produtos' && !state.produtos.rows.length) loadProd();
+  if (tab === 'clientes' && !state.clientes.rows.length) loadCli();
+  if (tab === 'geocod') geoCarregarPendentes();
+  if (tab === 'fabricas' && !state.fabricas.rows.length) loadFab();
+}
+
+// ─── Produtos ────────────────────────────────────────────────────────────────
+async function loadProd() {
+  const q = document.getElementById('pq').value;
+  const sit = document.getElementById('psit').value;
+  const forn = document.getElementById('pforn').value;
+  const s = state.produtos;
+  const params = new URLSearchParams({ q, situacao: sit, fornecedor: forn, limit: s.pageSize, offset: s.page * s.pageSize });
+  document.getElementById('tbodyProd').innerHTML = `<tr><td colspan="${prodColspan()}" class="loading"><span class="spinner"></span></td></tr>`;
+  try {
+    const d = await api('/api/manutencao/produtos?' + params);
+    s.rows = d.rows; s.total = d.total;
+    renderProd();
+  } catch(e) { document.getElementById('tbodyProd').innerHTML = `<tr><td colspan="5" class="empty">Erro: ${e.message}</td></tr>`; }
+}
+
+function renderProd() {
+  const s = state.produtos;
+  const tbody = document.getElementById('tbodyProd');
+  if (!s.rows.length) { tbody.innerHTML = `<tr><td colspan="${prodColspan()}" class="empty">Nenhum produto encontrado</td></tr>`; renderPgProd(); return; }
+  const showMult = prodVisibleCols.multiplo;
+  tbody.innerHTML = s.rows.map(r => {
+    const mvRaw = r.multiplo_venda != null ? Number(r.multiplo_venda) : null;
+    const mvCell = showMult
+      ? `<td style="text-align:center;font-weight:700;color:${mvRaw > 1 ? 'var(--accent)' : 'var(--text2)'}">
+           ${mvRaw == null ? '—' : mvRaw}
+         </td>`
+      : '';
+    return `
+    <tr>
+      <td><input type="checkbox" ${s.sel.has(r.id)?'checked':''} onchange="toggleSel('prod',${r.id},this.checked)"></td>
+      <td>${esc(r.descricao)}</td>
+      <td>${esc(r.fornecedor||'—')}</td>
+      ${mvCell}
+      <td><span class="badge ${r.situacao==='A'?'badge-a':'badge-i'}">${r.situacao==='A'?'Ativo':'Inativo'}</span></td>
+      <td>${r.tem_movimento ? '<span class="badge badge-mov">Com pedidos</span>' : '<span class="badge badge-new">Sem pedidos</span>'}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('chkAllProd').checked = s.rows.every(r => s.sel.has(r.id));
+  updateCount('prod');
+  renderPgProd();
+}
+
+function renderPgProd() {
+  const s = state.produtos;
+  const total = s.total;
+  const pg = document.getElementById('pgProd');
+  if (!total) { pg.innerHTML = ''; return; }
+  const pages = Math.ceil(total / s.pageSize);
+  const nav = pages > 1 ? `
+    <button class="btn btn-ghost" onclick="pgProd(-1)" ${s.page===0?'disabled':''}>◀</button>
+    <span>Pág. ${s.page+1} / ${pages}</span>
+    <button class="btn btn-ghost" onclick="pgProd(1)" ${s.page>=pages-1?'disabled':''}>▶</button>` : '';
+  pg.innerHTML = `
+    <span style="margin-right:auto;display:flex;align-items:center;gap:6px">
+      Itens por página:
+      <select onchange="setProdPageSize(+this.value)" style="height:28px;padding:0 6px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;background:var(--input-bg);color:var(--text)">
+        ${[25,50,100,200].map(n=>`<option value="${n}"${s.pageSize===n?' selected':''}>${n}</option>`).join('')}
+      </select>
+      — ${total} registros
+    </span>${nav}`;
+}
+window.setProdPageSize = (n) => { state.produtos.pageSize = n; state.produtos.page = 0; loadProd(); };
+window.pgProd = (d) => { state.produtos.page = Math.max(0, state.produtos.page + d); loadProd(); };
+
+// ─── Clientes ────────────────────────────────────────────────────────────────
+async function loadCli() {
+  const q = document.getElementById('cq').value;
+  const cidade = document.getElementById('ccid').value;
+  const uf = document.getElementById('cuf').value;
+  const s = state.clientes;
+  const params = new URLSearchParams({ q, cidade, uf, limit: s.pageSize, offset: s.page * s.pageSize });
+  document.getElementById('tbodyCli').innerHTML = '<tr><td colspan="5" class="loading"><span class="spinner"></span></td></tr>';
+  try {
+    const d = await api('/api/manutencao/clientes?' + params);
+    s.rows = d.rows; s.total = d.total;
+    renderCli();
+  } catch(e) { document.getElementById('tbodyCli').innerHTML = `<tr><td colspan="5" class="empty">Erro: ${e.message}</td></tr>`; }
+}
+
+function renderCli() {
+  const s = state.clientes;
+  const tbody = document.getElementById('tbodyCli');
+  if (!s.rows.length) { tbody.innerHTML = '<tr><td colspan="5" class="empty">Nenhum cliente encontrado</td></tr>'; renderPgCli(); return; }
+  tbody.innerHTML = s.rows.map(r => `
+    <tr>
+      <td><input type="checkbox" ${s.sel.has(r.id)?'checked':''} onchange="toggleSel('cli',${r.id},this.checked)"></td>
+      <td>${esc(r.nome)}</td>
+      <td>${esc(r.cidade||'')} ${esc(r.uf||'')}</td>
+      <td><span class="badge ${r.status==='A'||!r.status?'badge-a':'badge-i'}">${r.status==='I'?'Inativo':'Ativo'}</span></td>
+      <td>${r.tem_movimento ? '<span class="badge badge-mov">Com pedidos</span>' : '<span class="badge badge-new">Sem pedidos</span>'}</td>
+    </tr>`).join('');
+  document.getElementById('chkAllCli').checked = s.rows.every(r => s.sel.has(r.id));
+  updateCount('cli');
+  renderPgCli();
+}
+
+function renderPgCli() {
+  const s = state.clientes;
+  const total = s.total;
+  const pg = document.getElementById('pgCli');
+  if (!total) { pg.innerHTML = ''; return; }
+  const pages = Math.ceil(total / s.pageSize);
+  const nav = pages > 1 ? `
+    <button class="btn btn-ghost" onclick="pgCli(-1)" ${s.page===0?'disabled':''}>◀</button>
+    <span>Pág. ${s.page+1} / ${pages}</span>
+    <button class="btn btn-ghost" onclick="pgCli(1)" ${s.page>=pages-1?'disabled':''}>▶</button>` : '';
+  pg.innerHTML = `
+    <span style="margin-right:auto;display:flex;align-items:center;gap:6px">
+      Itens por página:
+      <select onchange="setCliPageSize(+this.value)" style="height:28px;padding:0 6px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;background:var(--input-bg);color:var(--text)">
+        ${[25,50,100,200].map(n=>`<option value="${n}"${s.pageSize===n?' selected':''}>${n}</option>`).join('')}
+      </select>
+      — ${total} registros
+    </span>${nav}`;
+}
+window.setCliPageSize = (n) => { state.clientes.pageSize = n; state.clientes.page = 0; loadCli(); };
+window.pgCli = (d) => { state.clientes.page = Math.max(0, state.clientes.page + d); loadCli(); };
+
+// ─── Fábricas ────────────────────────────────────────────────────────────────
+async function loadFab() {
+  const q = document.getElementById('fq').value;
+  const s = state.fabricas;
+  const params = new URLSearchParams({ q, limit: s.pageSize, offset: s.page * s.pageSize });
+  document.getElementById('tbodyFab').innerHTML = '<tr><td colspan="4" class="loading"><span class="spinner"></span></td></tr>';
+  try {
+    const d = await api('/api/manutencao/fabricas?' + params);
+    s.rows = d.rows; s.total = d.total;
+    renderFab();
+  } catch(e) { document.getElementById('tbodyFab').innerHTML = `<tr><td colspan="4" class="empty">Erro: ${e.message}</td></tr>`; }
+}
+
+function renderFab() {
+  const s = state.fabricas;
+  const tbody = document.getElementById('tbodyFab');
+  if (!s.rows.length) { tbody.innerHTML = '<tr><td colspan="4" class="empty">Nenhuma fábrica encontrada</td></tr>'; renderPgFab(); return; }
+  tbody.innerHTML = s.rows.map(r => `
+    <tr>
+      <td><input type="checkbox" ${s.sel.has(r.id)?'checked':''} onchange="toggleSel('fab',${r.id},this.checked)"></td>
+      <td>${esc(r.nome)}</td>
+      <td><span class="badge ${r.status==='A'||!r.status?'badge-a':'badge-i'}">${r.status==='I'?'Inativo':'Ativo'}</span></td>
+      <td>${r.tem_movimento ? '<span class="badge badge-mov">Com pedidos</span>' : '<span class="badge badge-new">Sem pedidos</span>'}</td>
+    </tr>`).join('');
+  document.getElementById('chkAllFab').checked = s.rows.every(r => s.sel.has(r.id));
+  updateCount('fab');
+  renderPgFab();
+}
+
+function renderPgFab() {
+  const s = state.fabricas;
+  const total = s.total;
+  const pg = document.getElementById('pgFab');
+  if (!total) { pg.innerHTML = ''; return; }
+  const pages = Math.ceil(total / s.pageSize);
+  const nav = pages > 1 ? `
+    <button class="btn btn-ghost" onclick="pgFab(-1)" ${s.page===0?'disabled':''}>◀</button>
+    <span>Pág. ${s.page+1} / ${pages}</span>
+    <button class="btn btn-ghost" onclick="pgFab(1)" ${s.page>=pages-1?'disabled':''}>▶</button>` : '';
+  pg.innerHTML = `
+    <span style="margin-right:auto;display:flex;align-items:center;gap:6px">
+      Itens por página:
+      <select onchange="setFabPageSize(+this.value)" style="height:28px;padding:0 6px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;background:var(--input-bg);color:var(--text)">
+        ${[25,50,100,200].map(n=>`<option value="${n}"${s.pageSize===n?' selected':''}>${n}</option>`).join('')}
+      </select>
+      — ${total} registros
+    </span>${nav}`;
+}
+window.setFabPageSize = (n) => { state.fabricas.pageSize = n; state.fabricas.page = 0; loadFab(); };
+window.pgFab = (d) => { state.fabricas.page = Math.max(0, state.fabricas.page + d); loadFab(); };
+
+// ─── Seleção ────────────────────────────────────────────────────────────────
+const tabMap = {
+  prod: { s: () => state.produtos, btn: 'btnExecProd', cnt: 'selCountProd' },
+  cli:  { s: () => state.clientes, btn: 'btnExecCli',  cnt: 'selCountCli' },
+  fab:  { s: () => state.fabricas, btn: 'btnExecFab',  cnt: 'selCountFab' },
+};
+
+function toggleSel(key, id, checked) {
+  const { s } = tabMap[key];
+  if (checked) s().sel.add(id); else s().sel.delete(id);
+  updateCount(key);
+}
+
+const KEY_LABEL = { prod: 'Prod', cli: 'Cli', fab: 'Fab', reattr: 'Reattr' };
+function toggleAll(key) {
+  const { s } = tabMap[key];
+  const label = KEY_LABEL[key] || (key.charAt(0).toUpperCase() + key.slice(1));
+  const chk = document.getElementById('chkAll' + label);
+  s().rows.forEach(r => { if (chk.checked) s().sel.add(r.id); else s().sel.delete(r.id); });
+  const tbody = document.getElementById('tbody' + label);
+  tbody.querySelectorAll('input[type=checkbox]').forEach(cb => { cb.checked = chk.checked; });
+  updateCount(key);
+}
+
+function updateCount(key) {
+  const { s, btn, cnt } = tabMap[key];
+  const n = s().sel.size;
+  document.getElementById(cnt).textContent = n + ' selecionado' + (n !== 1 ? 's' : '');
+  document.getElementById(btn).disabled = n === 0;
+  if (key === 'prod') updateMvBtn();
+}
+
+function updateMvBtn() {
+  const n = state.produtos.sel.size;
+  const mv = parseInt(document.getElementById('mvInput')?.value, 10);
+  const btn = document.getElementById('btnExecMV');
+  if (btn) btn.disabled = n === 0 || !Number.isFinite(mv) || mv < 0;
+}
+
+// ─── Confirmação & Execução ──────────────────────────────────────────────────
+const tabLabel = { produtos: 'produtos', clientes: 'clientes', fabricas: 'fábricas' };
+
+function confirmar(entity) {
+  const keyMap = { produtos: 'prod', clientes: 'cli', fabricas: 'fab' };
+  const key = keyMap[entity];
+  const { s } = tabMap[key];
+  const n = s().sel.size;
+  _pendingTab = entity;
+  document.getElementById('modalText').innerHTML =
+    `Você selecionou <strong>${n} ${tabLabel[entity]}</strong>.<br><br>
+    Registros <strong>sem pedidos</strong> serão marcados como <strong>excluídos</strong>.<br>
+    Registros <strong>com pedidos</strong> serão apenas <strong>inativados</strong>.<br><br>
+    Esta ação não pode ser desfeita facilmente.`;
+  document.getElementById('btnModalOk').className = 'btn btn-danger';
+  document.getElementById('btnModalOk').onclick = executar;
+  abrirModal();
+}
+
+function confirmarMultiplo() {
+  const mv = parseInt(document.getElementById('mvInput').value, 10);
+  if (!Number.isFinite(mv) || mv < 0) { toast('Informe um valor válido (0 = sem restrição)', 'error'); return; }
+  const n = state.produtos.sel.size;
+  if (n === 0) { toast('Selecione ao menos um produto', 'error'); return; }
+  _pendingTab = '__multiplo__';
+  const mvDescr = mv <= 1
+    ? 'sem restrição de quantidade (equivale a 1)'
+    : `múltiplo de <strong>${mv}</strong> — quantidade deve ser ${mv}, ${mv*2}, ${mv*3}…`;
+  document.getElementById('modalText').innerHTML =
+    `Você selecionou <strong>${n} produto(s)</strong>.<br><br>
+    O <strong>múltiplo de venda</strong> será definido como ${mvDescr}.`;
+  document.getElementById('btnModalOk').className = 'btn btn-primary';
+  document.getElementById('btnModalOk').onclick = executarMultiplo;
+  abrirModal();
+}
+
+async function executarMultiplo() {
+  closeModal();
+  const mv = parseInt(document.getElementById('mvInput').value, 10);
+  const ids = [...state.produtos.sel];
+  document.getElementById('btnExecMV').disabled = true;
+  try {
+    const d = await api('/api/manutencao/produtos/bulk-multiplo', {
+      method: 'POST',
+      body: JSON.stringify({ ids, multiplo_venda: mv }),
+    });
+    state.produtos.sel.clear();
+    toast(`${d.atualizados} produto(s) atualizados com múltiplo de venda ${mv}.`, 'success');
+    loadProd();
+  } catch(e) {
+    toast('Erro: ' + e.message, 'error');
+    updateMvBtn();
+  }
+}
+
+function abrirModal() {
+  const overlay = document.getElementById('modalConfirm');
+  overlay.classList.add('open');
+  requestAnimationFrame(() => {
+    const box = overlay.querySelector('.modal-box');
+    if (!box) return;
+    const vh = window.innerHeight;
+    const vw = window.innerWidth;
+    box.style.top  = Math.max(20, Math.round((vh - box.offsetHeight) / 2)) + 'px';
+    box.style.left = Math.round((vw - box.offsetWidth)  / 2) + 'px';
+  });
+}
+
+function closeModal() {
+  document.getElementById('modalConfirm').classList.remove('open');
+  _pendingTab = null;
+}
+
+async function executar() {
+  if (!_pendingTab || _pendingTab === '__reattr__') return;
+  const entity = _pendingTab;
+  const keyMap = { produtos: 'prod', clientes: 'cli', fabricas: 'fab' };
+  const key = keyMap[entity];
+  const { s } = tabMap[key];
+  const ids = [...s().sel];
+  closeModal();
+  document.getElementById(tabMap[key].btn).disabled = true;
+  try {
+    const d = await api(`/api/manutencao/${entity}/bulk`, { method: 'POST', body: JSON.stringify({ ids }) });
+    s().sel.clear();
+    toast(`Concluído: ${d.excluidos} excluído(s), ${d.inativados} inativado(s).`, 'success');
+    // Recarrega a aba mantendo a página atual
+    if (entity === 'produtos') loadProd();
+    if (entity === 'clientes') loadCli();
+    if (entity === 'fabricas') loadFab();
+  } catch(e) {
+    toast('Erro: ' + e.message, 'error');
+    document.getElementById(tabMap[key].btn).disabled = false;
+  }
+}
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+async function api(url, opts = {}) {
+  const res = await fetch(url, {
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    ...opts,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Erro desconhecido');
+  return data;
+}
+
+function esc(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+let _toastTimer;
+function toast(msg, type = 'success') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `toast toast-${type} show`;
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => { el.className = 'toast'; }, 4000);
+}
+
+// ─── Reatribuição ───────────────────────────────────────────────────────────
+const RA = {
+  sel: new Set(),
+  rows: [],
+  total: 0,
+  page: 0,
+  pageSize: 100,
+  lookups: {},  // cache: vendedores, regioes, segmentos, grupos, fornecedores
+};
+
+const RA_CAMPOS = {
+  clientes: [
+    { value: 'vendedor',  label: 'Vendedor',  lookupKey: 'vendedores' },
+    { value: 'regiao',    label: 'Região',    lookupKey: 'regioes' },
+    { value: 'segmento',  label: 'Segmento',  lookupKey: 'segmentos' },
+  ],
+  produtos: [
+    { value: 'fornecedor', label: 'Fornecedor', lookupKey: 'fornecedores' },
+    { value: 'grupo',      label: 'Grupo',      lookupKey: 'grupos' },
+  ],
+};
+
+const RA_COLS = {
+  clientes: { col1: 'Cliente', col2: 'Cidade / UF', col3: 'Valor atual' },
+  produtos:  { col1: 'Produto', col2: 'Situação',    col3: 'Valor atual' },
+};
+
+async function getLookup(key) {
+  if (RA.lookups[key]) return RA.lookups[key];
+  const urlMap = {
+    vendedores: '/api/manutencao/reattr/lookup/vendedores',
+    regioes:    '/api/manutencao/reattr/lookup/regioes',
+    segmentos:  '/api/manutencao/reattr/lookup/segmentos',
+    grupos:     '/api/manutencao/reattr/lookup/grupos',
+    fornecedores: '/api/manutencao/fornecedores-lista',
+  };
+  const data = await api(urlMap[key]);
+  RA.lookups[key] = data;
+  return data;
+}
+
+function fillSelect(sel, items, placeholder = '— qualquer —') {
+  sel.innerHTML = `<option value="">${placeholder}</option>`;
+  items.forEach(it => {
+    const o = document.createElement('option');
+    o.value = it.id; o.textContent = it.nome || it.descricao || '';
+    sel.appendChild(o);
+  });
+}
+
+function onRaEntChange() {
+  const ent = document.getElementById('raEnt').value;
+  const campoSel = document.getElementById('raCampo');
+  campoSel.innerHTML = '';
+  RA_CAMPOS[ent].forEach(c => {
+    const o = document.createElement('option');
+    o.value = c.value; o.textContent = c.label;
+    campoSel.appendChild(o);
+  });
+  onRaCampoChange();
+}
+
+async function onRaCampoChange() {
+  const ent   = document.getElementById('raEnt').value;
+  const campo = document.getElementById('raCampo').value;
+  const cfg   = RA_CAMPOS[ent].find(c => c.value === campo);
+  if (!cfg) return;
+
+  // Cabeçalhos da tabela
+  const cols = RA_COLS[ent];
+  document.getElementById('raCol1').textContent = cols.col1;
+  document.getElementById('raCol2').textContent = cols.col2;
+  document.getElementById('raCol3').textContent = cfg.label + ' atual';
+
+  // Preenche "De:" e "Para:"
+  const items = await getLookup(cfg.lookupKey);
+  fillSelect(document.getElementById('raValorAtual'), items, '— qualquer —');
+  fillSelect(document.getElementById('raNovoValor'), items, '— selecione —');
+
+  // Filtros extras (exceto o campo principal)
+  await buildRaFiltros(ent, campo);
+  raReset();
+}
+
+async function buildRaFiltros(ent, campo) {
+  const container = document.getElementById('raFiltros');
+  container.innerHTML = '';
+
+  if (ent === 'clientes') {
+    // Filtros extras: os outros campos que não são o principal
+    const outros = RA_CAMPOS.clientes.filter(c => c.value !== campo);
+    for (const c of outros) {
+      let items = [];
+      try { items = await getLookup(c.lookupKey); } catch (_) {}
+      const lbl = document.createElement('label');
+      lbl.style.cssText = 'font-size:12px;font-weight:600;color:var(--text2)';
+      lbl.textContent = c.label + ':';
+      const sel = document.createElement('select');
+      sel.id = 'raFiltro_' + c.value;
+      sel.style.cssText = 'height:34px;padding:0 10px;border:1px solid var(--border);border-radius:7px;font-size:12px;font-family:inherit;background:var(--input-bg);color:var(--text);min-width:160px';
+      fillSelect(sel, items, '— todos —');
+      container.appendChild(lbl);
+      container.appendChild(sel);
+    }
+    // Cidade e UF
+    const cidLbl = document.createElement('label');
+    cidLbl.style.cssText = 'font-size:12px;font-weight:600;color:var(--text2)';
+    cidLbl.textContent = 'Cidade:';
+    const cidInput = document.createElement('input');
+    cidInput.id = 'raFiltroCidade'; cidInput.type = 'text';
+    cidInput.placeholder = 'Cidade...'; cidInput.autocomplete = 'off';
+    cidInput.style.cssText = 'height:34px;padding:0 10px;border:1px solid var(--border);border-radius:7px;font-size:12px;font-family:inherit;background:var(--input-bg);color:var(--text);width:140px';
+    const ufLbl = document.createElement('label');
+    ufLbl.style.cssText = 'font-size:12px;font-weight:600;color:var(--text2)';
+    ufLbl.textContent = 'UF:';
+    const ufInput = document.createElement('input');
+    ufInput.id = 'raFiltroUF'; ufInput.type = 'text';
+    ufInput.placeholder = 'UF'; ufInput.autocomplete = 'off';
+    ufInput.style.cssText = 'height:34px;padding:0 10px;border:1px solid var(--border);border-radius:7px;font-size:12px;font-family:inherit;background:var(--input-bg);color:var(--text);width:60px';
+    container.appendChild(cidLbl); container.appendChild(cidInput);
+    container.appendChild(ufLbl); container.appendChild(ufInput);
+  } else if (ent === 'produtos' && campo === 'fornecedor') {
+    // Filtro de grupo ao reatribuir fornecedor
+    const items = await getLookup('grupos');
+    const lbl = document.createElement('label');
+    lbl.style.cssText = 'font-size:12px;font-weight:600;color:var(--text2)';
+    lbl.textContent = 'Grupo:';
+    const sel = document.createElement('select');
+    sel.id = 'raFiltro_grupo';
+    sel.style.cssText = 'height:34px;padding:0 10px;border:1px solid var(--border);border-radius:7px;font-size:12px;font-family:inherit;background:var(--input-bg);color:var(--text);min-width:160px';
+    fillSelect(sel, items, '— todos —');
+    container.appendChild(lbl); container.appendChild(sel);
+  } else if (ent === 'produtos' && campo === 'grupo') {
+    // Filtro de fornecedor ao reatribuir grupo
+    const items = await getLookup('fornecedores');
+    const lbl = document.createElement('label');
+    lbl.style.cssText = 'font-size:12px;font-weight:600;color:var(--text2)';
+    lbl.textContent = 'Fornecedor:';
+    const sel = document.createElement('select');
+    sel.id = 'raFiltro_fornecedor';
+    sel.style.cssText = 'height:34px;padding:0 10px;border:1px solid var(--border);border-radius:7px;font-size:12px;font-family:inherit;background:var(--input-bg);color:var(--text);min-width:160px';
+    fillSelect(sel, items, '— todos —');
+    container.appendChild(lbl); container.appendChild(sel);
+  }
+}
+
+function raReset() {
+  RA.sel.clear();
+  RA.rows = [];
+  RA.total = 0;
+  RA.page = 0;
+  document.getElementById('tbodyReattr').innerHTML = '<tr><td colspan="4" class="empty">Clique em Buscar para carregar</td></tr>';
+  document.getElementById('pgReattr').innerHTML = '';
+  updateCount('reattr');
+}
+
+async function loadReattr() {
+  const ent    = document.getElementById('raEnt').value;
+  const campo  = document.getElementById('raCampo').value;
+  const valAt  = document.getElementById('raValorAtual').value;
+  const params = new URLSearchParams({ campo, valor_atual: valAt, limit: RA.pageSize, offset: RA.page * RA.pageSize });
+
+  if (ent === 'clientes') {
+    const reg = document.getElementById('raFiltro_regiao');
+    const seg = document.getElementById('raFiltro_segmento');
+    const vend = document.getElementById('raFiltro_vendedor');
+    const cid  = document.getElementById('raFiltroCidade');
+    const uf   = document.getElementById('raFiltroUF');
+    if (reg)  params.set('regiao',  reg.value);
+    if (seg)  params.set('segmento', seg.value);
+    if (vend) params.set('vendedor_filtro', vend.value);
+    if (cid)  params.set('cidade', cid.value);
+    if (uf)   params.set('uf', uf.value);
+  } else {
+    const grp  = document.getElementById('raFiltro_grupo');
+    const forn = document.getElementById('raFiltro_fornecedor');
+    if (grp)  params.set('grupo', grp.value);
+    if (forn) params.set('fornecedor_filtro', forn.value);
+  }
+
+  document.getElementById('tbodyReattr').innerHTML = '<tr><td colspan="4" class="loading"><span class="spinner"></span></td></tr>';
+  try {
+    const d = await api(`/api/manutencao/reattr/${ent}?` + params);
+    RA.rows = d.rows; RA.total = d.total;
+    RA.sel.clear();
+    renderReattr();
+  } catch(e) {
+    document.getElementById('tbodyReattr').innerHTML = `<tr><td colspan="4" class="empty">Erro: ${e.message}</td></tr>`;
+  }
+}
+
+function renderReattr() {
+  const ent = document.getElementById('raEnt').value;
+  const campo = document.getElementById('raCampo').value;
+  const tbody = document.getElementById('tbodyReattr');
+
+  if (!RA.rows.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty">Nenhum registro encontrado</td></tr>';
+    renderPgReattr(); return;
+  }
+
+  tbody.innerHTML = RA.rows.map(r => {
+    let col2 = '', col3 = '';
+    if (ent === 'clientes') {
+      col2 = esc(`${r.cidade||''}${r.uf ? ' / '+r.uf : ''}`);
+      if (campo === 'vendedor')  col3 = esc(r.nome_vendedor || '—');
+      if (campo === 'regiao')    col3 = esc(r.nome_regiao   || '—');
+      if (campo === 'segmento')  col3 = esc(r.segmento      || '—');
+    } else {
+      col2 = `<span class="badge ${r.situacao==='A'?'badge-a':'badge-i'}">${r.situacao==='A'?'Ativo':'Inativo'}</span>`;
+      if (campo === 'fornecedor') col3 = esc(r.nome_fornecedor || '—');
+      if (campo === 'grupo')      col3 = esc(r.nome_grupo      || '—');
+    }
+    return `<tr>
+      <td><input type="checkbox" ${RA.sel.has(r.id)?'checked':''} onchange="toggleSel('reattr',${r.id},this.checked)"></td>
+      <td>${esc(r.nome || r.descricao)}</td>
+      <td>${col2}</td>
+      <td>${col3}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('chkAllReattr').checked = RA.rows.every(r => RA.sel.has(r.id));
+  updateCount('reattr');
+  renderPgReattr();
+}
+
+function renderPgReattr() {
+  const total = RA.total;
+  const pg = document.getElementById('pgReattr');
+  if (!total) { pg.innerHTML = ''; return; }
+  const pages = Math.ceil(total / RA.pageSize);
+  const nav = pages > 1 ? `
+    <button class="btn btn-ghost" onclick="pgReattr(-1)" ${RA.page===0?'disabled':''}>◀</button>
+    <span>Pág. ${RA.page+1} / ${pages}</span>
+    <button class="btn btn-ghost" onclick="pgReattr(1)" ${RA.page>=pages-1?'disabled':''}>▶</button>` : '';
+  pg.innerHTML = `
+    <span style="margin-right:auto;display:flex;align-items:center;gap:6px">
+      Itens por página:
+      <select onchange="setReattrPageSize(+this.value)" style="height:28px;padding:0 6px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;background:var(--input-bg);color:var(--text)">
+        ${[25,50,100,200].map(n=>`<option value="${n}"${RA.pageSize===n?' selected':''}>${n}</option>`).join('')}
+      </select>
+      — ${total} registros
+    </span>${nav}`;
+}
+window.setReattrPageSize = (n) => { RA.pageSize = n; RA.page = 0; loadReattr(); };
+window.pgReattr = (d) => { RA.page = Math.max(0, RA.page + d); loadReattr(); };
+
+// Integra reatribuição no sistema de seleção existente
+tabMap.reattr = {
+  s: () => ({ sel: RA.sel, rows: RA.rows }),
+  btn: 'btnExecReattr',
+  cnt: 'selCountReattr',
+};
+
+function confirmarReattr() {
+  const campo  = document.getElementById('raCampo').value;
+  const novoSel = document.getElementById('raNovoValor');
+  const novoTxt = novoSel.options[novoSel.selectedIndex]?.text || '';
+  if (!novoSel.value) { toast('Selecione o novo valor no campo "Para:"', 'error'); return; }
+  const n = RA.sel.size;
+  const ent = document.getElementById('raEnt').value;
+  _pendingTab = '__reattr__';
+  document.getElementById('modalText').innerHTML =
+    `Você selecionou <strong>${n} ${ent}</strong>.<br><br>
+    O campo <strong>${campo}</strong> será alterado para <strong>${esc(novoTxt)}</strong>.<br><br>
+    Esta ação não pode ser desfeita facilmente.`;
+  document.getElementById('btnModalOk').className = 'btn btn-primary';
+  document.getElementById('btnModalOk').onclick = executarReattr;
+  abrirModal();
+}
+
+async function executarReattr() {
+  closeModal();
+  const ent    = document.getElementById('raEnt').value;
+  const campo  = document.getElementById('raCampo').value;
+  const novoSel = document.getElementById('raNovoValor');
+  const novo_id   = novoSel.value;
+  const novo_texto = novoSel.options[novoSel.selectedIndex]?.text || '';
+  const ids = [...RA.sel];
+  document.getElementById('btnExecReattr').disabled = true;
+  try {
+    const d = await api(`/api/manutencao/reattr/${ent}/bulk`, {
+      method: 'POST',
+      body: JSON.stringify({ ids, campo, novo_id, novo_texto }),
+    });
+    RA.sel.clear();
+    toast(`${d.atualizados} registro(s) atualizados.`, 'success');
+    loadReattr();
+  } catch(e) {
+    toast('Erro: ' + e.message, 'error');
+    document.getElementById('btnExecReattr').disabled = false;
+  }
+}
+
+// ─── Seletor de colunas (Produtos) ──────────────────────────────────────────
+function toggleColPicker(e) {
+  e.stopPropagation();
+  document.getElementById('colPickerDrop').classList.toggle('open');
+}
+
+function toggleProdCol(col, checked) {
+  prodVisibleCols[col] = checked;
+  if (col === 'multiplo') document.getElementById('thMultiplo').style.display = checked ? '' : 'none';
+  renderProd();
+  document.getElementById('colPickerDrop').classList.remove('open');
+}
+
+document.addEventListener('click', function() {
+  document.getElementById('colPickerDrop')?.classList.remove('open');
+});
+
+// ─── Init ────────────────────────────────────────────────────────────────────
+(async () => {
+  // Carrega combo de fornecedores para filtro de produtos
+  try {
+    const flist = await api('/api/manutencao/fornecedores-lista');
+    const sel = document.getElementById('pforn');
+    flist.forEach(f => {
+      const o = document.createElement('option');
+      o.value = f.id; o.textContent = f.nome;
+      sel.appendChild(o);
+    });
+  } catch(_) {}
+  // Inicializa aba reatribuição
+  try { onRaEntChange(); } catch (_) {}
+  loadProd();
+})();
+
+// ── GEOCODIFICAÇÃO ────────────────────────────────────────────────────────────
+let _geoRunning = false;
+let _geoStop    = false;
+
+async function geoCarregarPendentes() {
+  try {
+    const d = await api('/api/geocoding/pendentes');
+    document.getElementById('geo-count').textContent = d.total ?? '?';
+  } catch (_) {
+    document.getElementById('geo-count').textContent = '?';
+  }
+}
+
+async function geoStart() {
+  if (_geoRunning) return;
+  _geoRunning = true;
+  _geoStop    = false;
+
+  const btnStart   = document.getElementById('btnGeoStart');
+  const btnStop    = document.getElementById('btnGeoStop');
+  const progWrap   = document.getElementById('geo-prog-wrap');
+  const progBar    = document.getElementById('geo-prog-bar');
+  const progPct    = document.getElementById('geo-prog-pct');
+  const progLbl    = document.getElementById('geo-prog-label');
+  const tableWrap  = document.getElementById('geo-table-wrap');
+  const tbody      = document.getElementById('geo-tbody');
+  const elOk       = document.getElementById('geo-ok');
+  const elFail     = document.getElementById('geo-fail');
+  const elCount    = document.getElementById('geo-count');
+
+  btnStart.disabled = true;
+  btnStop.style.display = '';
+  progWrap.style.display = '';
+  tableWrap.style.display = '';
+  tbody.innerHTML = '';
+
+  let totalOk   = 0;
+  let totalFail = 0;
+  let rowNum    = 0;
+  const inicial = parseInt(elCount.textContent) || 0;
+
+  const addRows = (itens) => {
+    itens.forEach(it => {
+      rowNum++;
+      const tr = document.createElement('tr');
+      tr.style.cssText = 'border-bottom:1px solid var(--border);animation:fadeIn .3s ease';
+      const statusHtml = it.ok
+        ? `<span style="color:#22c55e;font-weight:700">✓ ok</span>${it.fonte === 'cidade' ? '<br><span style="font-size:10px;color:var(--text2)">por cidade</span>' : ''}`
+        : `<span style="color:#ef4444;font-weight:700">✗ não encontrado</span>`;
+      tr.innerHTML = `
+        <td style="padding:8px 12px;color:var(--text2)">${rowNum}</td>
+        <td style="padding:8px 12px;color:var(--text);font-weight:500;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${it.nome || ''}">${it.nome || '—'}</td>
+        <td style="padding:8px 12px;color:var(--text2)">${it.cidade || ''}${it.uf ? '/' + it.uf : ''}</td>
+        <td style="padding:8px 12px;text-align:center;font-family:monospace;font-size:11px;color:${it.ok ? 'var(--accent)' : 'var(--text2)'}">${it.ok ? it.lat : '—'}</td>
+        <td style="padding:8px 12px;text-align:center;font-family:monospace;font-size:11px;color:${it.ok ? 'var(--accent)' : 'var(--text2)'}">${it.ok ? it.lng : '—'}</td>
+        <td style="padding:8px 12px;text-align:center">${statusHtml}</td>`;
+      tbody.insertBefore(tr, tbody.firstChild);
+    });
+  };
+
+  while (!_geoStop) {
+    let res;
+    try {
+      res = await api('/api/geocoding/processar', { method: 'POST', body: JSON.stringify({ limite: 20 }) });
+    } catch (e) {
+      progLbl.textContent = `Erro: ${e.message}`;
+      break;
+    }
+
+    totalOk   += res.ok   || 0;
+    totalFail += res.falha || 0;
+    elOk.textContent   = totalOk;
+    elFail.textContent = totalFail;
+
+    if (res.itens?.length) addRows(res.itens);
+
+    const processados = totalOk + totalFail;
+    const pct = inicial > 0 ? Math.min(100, Math.round(processados / inicial * 100)) : 100;
+    progBar.style.width = pct + '%';
+    progPct.textContent = pct + '%';
+    progLbl.textContent = `Processando... ${processados} de ~${inicial}`;
+
+    if (res.total === 0) {
+      progLbl.textContent = `Concluído — ${totalOk} geocodificados, ${totalFail} sem resultado`;
+      break;
+    }
+
+    await new Promise(r => setTimeout(r, 300));
+  }
+
+  if (_geoStop) progLbl.textContent = `Parado — ${totalOk} geocodificados até agora`;
+
+  _geoRunning = false;
+  btnStart.disabled = false;
+  btnStop.style.display = 'none';
+  await geoCarregarPendentes();
+}
+
+function geoStop() {
+  _geoStop = true;
+}
+</script>
+</body>
+</html>

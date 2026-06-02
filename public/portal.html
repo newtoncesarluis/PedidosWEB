@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="sistema">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<title>PedidosWeb — Portal do Representante</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#0ea5e9">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--font:'Inter',system-ui,sans-serif;--topbar-h:56px}
+body{font-family:var(--font);background:var(--bg,#f1f5f9);color:var(--content-text,#1e293b);min-height:100vh;display:flex;flex-direction:column}
+
+/* ── TOPBAR ─── */
+.topbar{background:var(--topbar-bg,#1e293b);height:var(--topbar-h);display:flex;align-items:center;padding:0 20px;gap:14px;border-bottom:1px solid rgba(255,255,255,.07);position:sticky;top:0;z-index:100;flex-shrink:0}
+.topbar-icon{width:34px;height:34px;background:var(--accent,#0ea5e9);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.topbar-name{font-size:16px;font-weight:800;color:#fff;letter-spacing:-.3px;flex:1}
+.topbar-sub{font-size:11px;color:rgba(255,255,255,.4);font-weight:400;margin-top:1px}
+.topbar-tabs{display:flex;gap:2px;flex:1;justify-content:center}
+.tab-btn{padding:7px 14px;border-radius:7px;font-size:13px;font-weight:500;color:rgba(255,255,255,.55);cursor:pointer;transition:all .2s;border:none;background:none;font-family:var(--font)}
+.tab-btn:hover{color:rgba(255,255,255,.85);background:rgba(255,255,255,.07)}
+.tab-btn.active{color:#fff;background:rgba(255,255,255,.12)}
+.topbar-right{display:flex;align-items:center;gap:8px}
+.topbar-user-chip{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:5px 10px;cursor:pointer}
+.topbar-avatar{width:26px;height:26px;border-radius:50%;background:var(--accent,#0ea5e9);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#fff}
+.topbar-uname{font-size:12px;font-weight:600;color:rgba(255,255,255,.8)}
+.btn-logout{background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.25);color:rgba(239,68,68,.9);padding:5px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font);transition:background .2s}
+.btn-logout:hover{background:rgba(239,68,68,.25)}
+
+/* ── MAIN ─── */
+.main{flex:1;padding:20px;max-width:1200px;width:100%;margin:0 auto}
+.page{display:none;animation:fadeUp .28s ease}
+.page.active{display:block}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.page-header{margin-bottom:20px}
+.page-header h1{font-size:20px;font-weight:800;color:var(--content-text,#1e293b);letter-spacing:-.5px}
+.page-header .sub{font-size:13px;color:var(--text2,#64748b);margin-top:2px}
+
+/* ── CARDS ─── */
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+.kpi-card{background:var(--glass-bg,#fff);border:1px solid var(--border,#e2e8f0);border-radius:12px;padding:18px 20px;transition:box-shadow .2s}
+.kpi-card:hover{box-shadow:0 4px 20px rgba(0,0,0,.08)}
+.kpi-label{font-size:11px;color:var(--text2,#64748b);text-transform:uppercase;letter-spacing:.6px;font-weight:600;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between}
+.kpi-icon{font-size:16px;opacity:.7}
+.kpi-value{font-size:26px;font-weight:800;color:var(--content-text,#1e293b);letter-spacing:-1px;line-height:1;margin-bottom:6px}
+.kpi-delta{font-size:12px;font-weight:600}
+.kpi-delta.up{color:#16a34a}.kpi-delta.down{color:#dc2626}.kpi-delta.neutral{color:var(--text2,#64748b)}
+.kpi-bar-wrap{height:4px;background:var(--bg,#f1f5f9);border-radius:2px;overflow:hidden;margin-top:8px}
+.kpi-bar-fill{height:100%;border-radius:2px;background:var(--accent,#0ea5e9);transition:width .5s ease}
+
+.card{background:var(--glass-bg,#fff);border:1px solid var(--border,#e2e8f0);border-radius:12px;overflow:hidden;margin-bottom:14px}
+.card-head{padding:14px 18px;border-bottom:1px solid var(--border,#e2e8f0);display:flex;align-items:center;justify-content:space-between}
+.card-title{font-size:13px;font-weight:700;color:var(--content-text,#1e293b)}
+.card-meta{font-size:11px;color:var(--text2,#64748b)}
+.card-body{padding:16px 18px}
+
+.grid-2{display:grid;grid-template-columns:1.4fr 1fr;gap:14px;margin-bottom:14px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px}
+
+/* ── TABLE ─── */
+.rep-table{width:100%;border-collapse:collapse;font-size:12px}
+.rep-table th{padding:8px 12px;background:var(--bg,#f1f5f9);text-align:left;font-size:10px;font-weight:700;color:var(--text2,#64748b);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border,#e2e8f0)}
+.rep-table td{padding:9px 12px;border-bottom:1px solid var(--bg,#f1f5f9);color:var(--content-text,#1e293b)}
+.rep-table tr:last-child td{border-bottom:none}
+.rep-table tr:hover td{background:rgba(14,165,233,.03)}
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700}
+.badge.green{background:#d1fae5;color:#065f46}.badge.blue{background:#e0f2fe;color:#0369a1}
+.badge.yellow{background:#fef3c7;color:#92400e}.badge.red{background:#fee2e2;color:#991b1b}
+
+/* ── ACEITE COMISSÃO ─── */
+.aceite-card{background:var(--glass-bg,#fff);border:2px solid var(--accent,#0ea5e9);border-radius:12px;padding:20px;margin-bottom:12px;display:flex;align-items:center;gap:16px;transition:box-shadow .2s}
+.aceite-card:hover{box-shadow:0 4px 20px rgba(14,165,233,.15)}
+.aceite-info{flex:1}
+.aceite-title{font-size:14px;font-weight:700;color:var(--content-text,#1e293b);margin-bottom:4px}
+.aceite-meta{font-size:12px;color:var(--text2,#64748b);line-height:1.5}
+.aceite-value{font-size:20px;font-weight:800;color:var(--content-text,#1e293b);min-width:100px;text-align:right;margin-right:12px}
+.btn-aceitar{background:var(--accent,#0ea5e9);color:#fff;border:none;padding:9px 20px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font);transition:background .2s}
+.btn-aceitar:hover{background:#0284c7}
+.btn-recusar{background:none;border:1px solid var(--border,#e2e8f0);color:var(--text2,#64748b);padding:9px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font);transition:all .2s}
+.btn-recusar:hover{border-color:#ef4444;color:#ef4444}
+
+/* ── META PROGRESS ─── */
+.meta-item{margin-bottom:16px}
+.meta-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.meta-nome{font-size:13px;font-weight:600;color:var(--content-text,#1e293b)}
+.meta-pct{font-size:13px;font-weight:800;color:var(--accent,#0ea5e9)}
+.meta-bar{height:10px;background:var(--bg,#f1f5f9);border-radius:5px;overflow:hidden}
+.meta-fill{height:100%;border-radius:5px;transition:width .6s ease}
+.meta-vals{font-size:11px;color:var(--text2,#64748b);margin-top:4px}
+
+/* ── ROTA ─── */
+.rota-item{display:flex;align-items:center;gap:12px;padding:12px;background:var(--glass-bg,#fff);border:1px solid var(--border,#e2e8f0);border-radius:10px;margin-bottom:8px;transition:box-shadow .2s}
+.rota-item:hover{box-shadow:0 2px 12px rgba(0,0,0,.08)}
+.rota-num{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#fff;flex-shrink:0}
+.rota-name{font-size:13px;font-weight:600;color:var(--content-text,#1e293b)}
+.rota-meta{font-size:11px;color:var(--text2,#64748b);margin-top:2px}
+
+/* ── IA ALERT ─── */
+.ia-alert{border-radius:10px;padding:12px 14px;font-size:12px;font-weight:600;margin-bottom:10px;display:flex;align-items:flex-start;gap:8px;border:1px solid transparent}
+.ia-alert.warn{background:#fef3c7;color:#92400e;border-color:#fde68a}
+.ia-alert.danger{background:#fee2e2;color:#991b1b;border-color:#fca5a5}
+.ia-alert.success{background:#d1fae5;color:#065f46;border-color:#a7f3d0}
+.ia-alert.info{background:#e0f2fe;color:#0369a1;border-color:#bae6fd}
+.ia-alert-text{flex:1;line-height:1.5}
+
+@media(max-width:768px){
+  .kpi-grid{grid-template-columns:1fr 1fr}
+  .grid-2,.grid-3{grid-template-columns:1fr}
+  .topbar-tabs{display:none}
+  .aceite-card{flex-direction:column;align-items:flex-start}
+}
+
+/* ── LOADING ─── */
+.page-loading{display:flex;align-items:center;justify-content:center;height:200px;color:var(--text2,#64748b);font-size:14px;gap:8px}
+.spinner{width:20px;height:20px;border:2px solid var(--border,#e2e8f0);border-top-color:var(--accent,#0ea5e9);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="topbar-icon">📦</div>
+  <div style="line-height:1.2">
+    <div class="topbar-name">Portal do Representante</div>
+    <div class="topbar-sub" id="topbar-empresa">PedidosWeb CRM</div>
+  </div>
+  <div class="topbar-tabs">
+    <button class="tab-btn active" onclick="showTab('dashboard',this)">Início</button>
+    <button class="tab-btn" onclick="showTab('meus-pedidos',this)">Meus Pedidos</button>
+    <button class="tab-btn" onclick="showTab('comissoes',this)">Comissões</button>
+    <button class="tab-btn" onclick="showTab('clientes',this)">Clientes</button>
+    <button class="tab-btn" onclick="showTab('rotas',this)">Minhas Rotas</button>
+    <button class="tab-btn" onclick="showTab('ia',this)">IA Comercial</button>
+  </div>
+  <div class="topbar-right">
+    <div class="topbar-user-chip" id="user-chip">
+      <div class="topbar-avatar" id="user-avatar">?</div>
+      <span class="topbar-uname" id="user-name">Carregando...</span>
+    </div>
+    <button class="btn-logout" onclick="doLogout()">Sair</button>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- ── DASHBOARD ─── -->
+  <div class="page active" id="page-dashboard">
+    <div class="page-header">
+      <h1 id="dash-titulo">Bom dia! 👋</h1>
+      <div class="sub" id="dash-sub">Maio 2026 · Atualizando dados...</div>
+    </div>
+    <div class="kpi-grid" id="dash-kpis">
+      <div class="kpi-card"><div class="kpi-label">Vendas do Mês <span class="kpi-icon">💰</span></div><div class="kpi-value skeleton" style="height:32px;width:80px;border-radius:6px"></div></div>
+      <div class="kpi-card"><div class="kpi-label">Pedidos <span class="kpi-icon">📋</span></div><div class="kpi-value skeleton" style="height:32px;width:50px;border-radius:6px"></div></div>
+      <div class="kpi-card"><div class="kpi-label">Clientes Ativos <span class="kpi-icon">👥</span></div><div class="kpi-value skeleton" style="height:32px;width:50px;border-radius:6px"></div></div>
+      <div class="kpi-card"><div class="kpi-label">Comissão Estimada <span class="kpi-icon">💎</span></div><div class="kpi-value skeleton" style="height:32px;width:80px;border-radius:6px"></div></div>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-head"><span class="card-title">Evolução de Vendas</span><span class="card-meta">12 meses</span></div>
+        <div class="card-body"><canvas id="chart-vendas" height="110"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="card-title">Meta do Mês</span></div>
+        <div class="card-body" id="metas-body">
+          <div class="page-loading"><div class="spinner"></div> Carregando metas...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── MEUS PEDIDOS ─── -->
+  <div class="page" id="page-meus-pedidos">
+    <div class="page-header">
+      <h1>Meus Pedidos</h1>
+      <div class="sub" id="pedidos-sub">Carregando...</div>
+    </div>
+    <div class="card">
+      <div class="card-head">
+        <input type="text" id="pedidos-search" placeholder="🔍 Buscar pedido ou cliente..." oninput="filterPedidos(this.value)" style="padding:7px 12px;border:1px solid var(--border,#e2e8f0);border-radius:8px;font-size:13px;font-family:var(--font);width:280px;outline:none;background:var(--glass-bg,#fff);color:var(--content-text,#1e293b)">
+        <div style="display:flex;gap:6px">
+          <select id="pedidos-status-filter" onchange="filterPedidos()" style="padding:6px 10px;border:1px solid var(--border,#e2e8f0);border-radius:8px;font-size:12px;font-family:var(--font);background:var(--glass-bg,#fff);color:var(--content-text,#1e293b)">
+            <option value="">Todos</option>
+            <option value="aprovado">Aprovado</option>
+            <option value="pendente">Pendente</option>
+            <option value="cancelado">Cancelado</option>
+          </select>
+        </div>
+      </div>
+      <div id="pedidos-table-wrap"><div class="page-loading"><div class="spinner"></div> Carregando pedidos...</div></div>
+    </div>
+  </div>
+
+  <!-- ── COMISSÕES ─── -->
+  <div class="page" id="page-comissoes">
+    <div class="page-header">
+      <h1>Minhas Comissões</h1>
+      <div class="sub">Acompanhe o previsto vs realizado por representada</div>
+    </div>
+    <div class="kpi-grid">
+      <div class="kpi-card"><div class="kpi-label">Comissão Prevista <span class="kpi-icon">📊</span></div><div class="kpi-value" id="com-prevista">—</div></div>
+      <div class="kpi-card"><div class="kpi-label">Comissão Realizada <span class="kpi-icon">✅</span></div><div class="kpi-value" id="com-realizada">—</div></div>
+      <div class="kpi-card"><div class="kpi-label">A Receber <span class="kpi-icon">⏳</span></div><div class="kpi-value" id="com-receber">—</div></div>
+      <div class="kpi-card"><div class="kpi-label">Taxa Média <span class="kpi-icon">%</span></div><div class="kpi-value" id="com-taxa">—</div></div>
+    </div>
+    <div id="aceite-pendentes"></div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-head"><span class="card-title">Extrato por Representada</span></div>
+        <div class="card-body" id="com-table-wrap"><div class="page-loading"><div class="spinner"></div></div></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="card-title">Evolução de Comissões</span></div>
+        <div class="card-body"><canvas id="chart-comissao" height="160"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── CLIENTES ─── -->
+  <div class="page" id="page-clientes">
+    <div class="page-header">
+      <h1>Minha Carteira</h1>
+      <div class="sub" id="clientes-sub">Carregando...</div>
+    </div>
+    <div class="card">
+      <div class="card-head">
+        <input type="text" placeholder="🔍 Buscar cliente..." oninput="filterClientes(this.value)" style="padding:7px 12px;border:1px solid var(--border,#e2e8f0);border-radius:8px;font-size:13px;font-family:var(--font);width:280px;outline:none;background:var(--glass-bg,#fff);color:var(--content-text,#1e293b)">
+      </div>
+      <div id="clientes-table-wrap"><div class="page-loading"><div class="spinner"></div> Carregando clientes...</div></div>
+    </div>
+  </div>
+
+  <!-- ── ROTAS ─── -->
+  <div class="page" id="page-rotas">
+    <div class="page-header">
+      <h1>Minhas Rotas</h1>
+      <div class="sub" id="rotas-sub">Roteiro de hoje e agenda de visitas</div>
+    </div>
+    <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="kpi-card"><div class="kpi-label">Visitas Hoje</div><div class="kpi-value" id="rotas-hoje">—</div></div>
+      <div class="kpi-card"><div class="kpi-label">Cobertura Mensal</div><div class="kpi-value" id="rotas-cob">—</div></div>
+      <div class="kpi-card"><div class="kpi-label">Sem Visita 30d</div><div class="kpi-value" id="rotas-sem">—</div></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><span class="card-title">Roteiro de Hoje</span></div>
+      <div class="card-body" id="rotas-list"><div class="page-loading"><div class="spinner"></div> Carregando roteiro...</div></div>
+    </div>
+  </div>
+
+  <!-- ── IA COMERCIAL ─── -->
+  <div class="page" id="page-ia">
+    <div class="page-header">
+      <h1>🧠 IA Comercial</h1>
+      <div class="sub">Oportunidades e alertas detectados para você</div>
+    </div>
+    <div id="ia-alerts"><div class="page-loading"><div class="spinner"></div> Analisando carteira...</div></div>
+    <div class="card" style="margin-top:14px">
+      <div class="card-head"><span class="card-title">Clientes com Maior Potencial de Recompra</span></div>
+      <div class="card-body" id="ia-recompra-wrap"><div class="page-loading"><div class="spinner"></div></div></div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<script>
+'use strict';
+
+// ── Auth ────────────────────────────────────────────────────────────────────
+const TOKEN = localStorage.getItem('token') || sessionStorage.getItem('token');
+const HEADERS = { 'Content-Type': 'application/json', ...(TOKEN ? { Authorization: 'Bearer ' + TOKEN } : {}) };
+
+async function authFetch(url, opts) {
+  const r = await fetch(url, { credentials: 'include', headers: HEADERS, ...opts });
+  if (r.status === 401) { location.href = '/login.html'; throw new Error('auth'); }
+  return r;
+}
+
+// ── Utilitários ─────────────────────────────────────────────────────────────
+const fmtR$ = v => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+const fmtPct = v => Number(v || 0).toFixed(1).replace('.', ',') + '%';
+
+// ── Tabs ────────────────────────────────────────────────────────────────────
+function showTab(name, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + name)?.classList.add('active');
+  if (btn) btn.classList.add('active');
+  if (name === 'meus-pedidos' && !window._pedidosLoaded) loadPedidos();
+  if (name === 'comissoes'    && !window._comissoesLoaded) loadComissoes();
+  if (name === 'clientes'     && !window._clientesLoaded) loadClientes();
+  if (name === 'rotas'        && !window._rotasLoaded) loadRotas();
+  if (name === 'ia'           && !window._iaLoaded) loadIA();
+}
+
+// ── Usuário ─────────────────────────────────────────────────────────────────
+async function loadUser() {
+  try {
+    const r = await authFetch('/api/auth/me');
+    const { user } = await r.json();
+    if (!user) return;
+    const nome = user.nome || user.loginusu || 'Vendedor';
+    const initials = nome.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+    document.getElementById('user-avatar').textContent = initials;
+    document.getElementById('user-name').textContent = nome;
+    const hora = new Date().getHours();
+    const saud = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite';
+    document.getElementById('dash-titulo').textContent = saud + ', ' + nome.split(' ')[0] + '! 👋';
+  } catch {}
+}
+
+// ── Dashboard KPIs ──────────────────────────────────────────────────────────
+async function loadDashboard() {
+  try {
+    const r = await authFetch('/api/dashboard/home');
+    const data = await r.json();
+    const kpis = document.getElementById('dash-kpis');
+    const totalVendas = data.totalGeral ?? data.mes_atual?.total_vendas ?? 0;
+    const totalPedidos = data.qtdPedidos ?? data.mes_atual?.total_pedidos ?? 0;
+    const variacao = parseFloat(data.tendenciaVendas ?? data.mes_atual?.variacao_pct ?? 0);
+    const ticket = totalPedidos > 0 ? totalVendas / totalPedidos : (data.mes_atual?.ticket_medio || 0);
+    const clientesAtivos = data.clientes_ativos ?? data.topClientes?.length ?? 0;
+    const evolucao = (data.evolucao_mensal && data.evolucao_mensal.length)
+      ? data.evolucao_mensal
+      : Object.entries(data.evolucaoDiaria || {}).map(([dia, total]) => ({ mes_abrev: String(dia), total }));
+    kpis.innerHTML = `
+      <div class="kpi-card">
+        <div class="kpi-label">Vendas do Mês <span class="kpi-icon">💰</span></div>
+        <div class="kpi-value">${fmtR$(totalVendas)}</div>
+        <div class="kpi-delta ${variacao>=0?'up':'down'}">${variacao>=0?'↑':'↓'} ${fmtPct(Math.abs(variacao))} vs mês ant.</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Pedidos <span class="kpi-icon">📋</span></div>
+        <div class="kpi-value">${totalPedidos}</div>
+        <div class="kpi-delta neutral">Ticket: ${fmtR$(ticket)}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Clientes Ativos <span class="kpi-icon">👥</span></div>
+        <div class="kpi-value">${clientesAtivos}</div>
+        <div class="kpi-delta ${(data.clientes_inativos||0)>0?'down':'neutral'}">${data.clientes_inativos||0} inativos 90d</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Mix Produtos <span class="kpi-icon">📦</span></div>
+        <div class="kpi-value">${(data.mix_medio||0).toFixed(1)}</div>
+        <div class="kpi-delta neutral">produtos/cliente</div>
+      </div>`;
+    document.getElementById('dash-sub').textContent = new Date().toLocaleDateString('pt-BR',{month:'long',year:'numeric'}) + ' · dados ao vivo';
+    renderVendasChart(evolucao);
+    renderMetas(data.meta || null, totalVendas);
+  } catch (err) {
+    if (err.message !== 'auth') console.warn('[portal] dashboard:', err.message);
+  }
+}
+
+function renderVendasChart(evolucao) {
+  const ctx = document.getElementById('chart-vendas')?.getContext('2d');
+  if (!ctx) return;
+  const labels = evolucao.map(e => e.mes_abrev || e.mes || '');
+  const data   = evolucao.map(e => parseFloat(e.total || 0));
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ data, borderRadius: 4, borderSkipped: false,
+        backgroundColor: data.map((_,i) => i === data.length-1 ? '#0ea5e9' : 'rgba(14,165,233,.3)') }]
+    },
+    options: { plugins:{legend:{display:false}}, scales:{ x:{grid:{display:false},ticks:{font:{size:10},color:'#94a3b8'}}, y:{grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:10},color:'#94a3b8',callback:v=>`R$${(v/1000).toFixed(0)}k`}}}, responsive:true, maintainAspectRatio:true }
+  });
+}
+
+function renderMetas(meta, atual) {
+  const wrap = document.getElementById('metas-body');
+  if (!meta) { wrap.innerHTML = '<p style="color:var(--text2,#64748b);font-size:13px">Nenhuma meta configurada.</p>'; return; }
+  const pct = meta.meta_valor ? Math.round((atual / meta.meta_valor) * 100) : 0;
+  const cor  = pct >= 100 ? '#16a34a' : pct >= 70 ? '#0ea5e9' : '#f59e0b';
+  wrap.innerHTML = `
+    <div class="meta-item">
+      <div class="meta-header"><span class="meta-nome">Meta de Vendas — ${new Date().toLocaleDateString('pt-BR',{month:'long'})}</span><span class="meta-pct" style="color:${cor}">${pct}%</span></div>
+      <div class="meta-bar"><div class="meta-fill" style="width:${Math.min(100,pct)}%;background:${cor}"></div></div>
+      <div class="meta-vals">${fmtR$(atual)} de ${fmtR$(meta.meta_valor)} · ${pct >= 100 ? '✅ Meta atingida!' : `Faltam ${fmtR$(meta.meta_valor - atual)}`}</div>
+    </div>`;
+}
+
+// ── Pedidos ────────────────────────────────────────────────────────────────
+let _pedidosData = [];
+async function loadPedidos() {
+  window._pedidosLoaded = true;
+  try {
+    const r = await authFetch('/api/pedidos?limit=100&order=desc');
+    const data = await r.json();
+    _pedidosData = data.pedidos || data || [];
+    document.getElementById('pedidos-sub').textContent = `${_pedidosData.length} pedidos encontrados`;
+    renderPedidosTable(_pedidosData);
+  } catch (err) { if (err.message !== 'auth') renderPedidosError(); }
+}
+
+function renderPedidosTable(rows) {
+  if (!rows.length) { document.getElementById('pedidos-table-wrap').innerHTML = '<p style="padding:20px;color:var(--text2,#64748b);font-size:13px">Nenhum pedido encontrado.</p>'; return; }
+  document.getElementById('pedidos-table-wrap').innerHTML = `
+    <table class="rep-table">
+      <thead><tr><th>Nº</th><th>Data</th><th>Cliente</th><th>Representada</th><th>Valor</th><th>Status</th></tr></thead>
+      <tbody>${rows.map(p => `
+        <tr>
+          <td><strong>#${p.id || p.numero || p.id_pedido}</strong></td>
+          <td>${p.data_pedido ? new Date(p.data_pedido).toLocaleDateString('pt-BR') : '—'}</td>
+          <td>${p.razao_social || p.cliente || '—'}</td>
+          <td>${p.fornecedor || p.representada || '—'}</td>
+          <td><strong>${fmtR$(p.total || p.valor_total || 0)}</strong></td>
+          <td><span class="badge ${statusClass(p.status)}">${p.status || '—'}</span></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+function statusClass(s) {
+  if (!s) return 'gray';
+  const l = s.toLowerCase();
+  if (l.includes('aprov') || l.includes('conclui')) return 'green';
+  if (l.includes('cancel') || l.includes('recusad')) return 'red';
+  if (l.includes('pend') || l.includes('analise') || l.includes('análise')) return 'yellow';
+  return 'blue';
+}
+
+function filterPedidos(q) {
+  const search = (q || document.getElementById('pedidos-search')?.value || '').toLowerCase();
+  const status = document.getElementById('pedidos-status-filter')?.value?.toLowerCase() || '';
+  let rows = _pedidosData;
+  if (search) rows = rows.filter(p => JSON.stringify(p).toLowerCase().includes(search));
+  if (status) rows = rows.filter(p => (p.status || '').toLowerCase().includes(status));
+  renderPedidosTable(rows);
+}
+
+function renderPedidosError() {
+  document.getElementById('pedidos-table-wrap').innerHTML = '<p style="padding:20px;color:#dc2626;font-size:13px">Erro ao carregar pedidos.</p>';
+}
+
+// ── Comissões ───────────────────────────────────────────────────────────────
+async function loadComissoes() {
+  window._comissoesLoaded = true;
+  try {
+    const r = await authFetch('/api/comissoes/resumo');
+    const data = await r.json();
+    document.getElementById('com-prevista').textContent  = fmtR$(data.prevista  || 0);
+    document.getElementById('com-realizada').textContent = fmtR$(data.realizada || 0);
+    document.getElementById('com-receber').textContent   = fmtR$(data.a_receber || 0);
+    document.getElementById('com-taxa').textContent      = fmtPct(data.taxa_media || 0);
+    renderAceitePendentes(data.aceite_pendentes || []);
+    renderComissaoTable(data.por_representada || []);
+    renderComissaoChart(data.evolucao || []);
+  } catch (err) { if (err.message !== 'auth') renderComissaoFallback(); }
+}
+
+function renderAceitePendentes(pendentes) {
+  const wrap = document.getElementById('aceite-pendentes');
+  if (!pendentes.length) { wrap.innerHTML = ''; return; }
+  wrap.innerHTML = `
+    <div class="card" style="margin-bottom:14px;border-color:var(--accent,#0ea5e9)">
+      <div class="card-head"><span class="card-title">✋ Comissões aguardando seu aceite (${pendentes.length})</span></div>
+      <div class="card-body">
+        ${pendentes.map(p => `
+          <div class="aceite-card">
+            <div class="aceite-info">
+              <div class="aceite-title">${p.representada || 'Representada'} — ${p.competencia || ''}</div>
+              <div class="aceite-meta">Pedidos: ${p.qtd_pedidos||0} · Parcelas: ${p.qtd_parcelas||0}</div>
+            </div>
+            <div class="aceite-value">${fmtR$(p.valor_comissao||0)}</div>
+            <button class="btn-aceitar" onclick="aceitarComissao(${p.id||0},this)">Aceitar ✓</button>
+            <button class="btn-recusar" onclick="contestarComissao(${p.id||0})">Contestar</button>
+          </div>`).join('')}
+      </div>
+    </div>`;
+}
+
+function renderComissaoTable(rows) {
+  if (!rows.length) { document.getElementById('com-table-wrap').innerHTML = '<p style="color:var(--text2,#64748b);font-size:13px">Nenhum dado disponível.</p>'; return; }
+  document.getElementById('com-table-wrap').innerHTML = `
+    <table class="rep-table">
+      <thead><tr><th>Representada</th><th>Vendas</th><th>Previsto</th><th>Realizado</th><th>Situação</th></tr></thead>
+      <tbody>${rows.map(r => `
+        <tr>
+          <td><strong>${r.representada||'—'}</strong></td>
+          <td>${fmtR$(r.vendas||0)}</td>
+          <td>${fmtR$(r.previsto||0)}</td>
+          <td>${fmtR$(r.realizado||0)}</td>
+          <td><span class="badge ${r.realizado >= r.previsto ? 'green' : r.realizado > 0 ? 'yellow' : 'blue'}">${r.situacao||'—'}</span></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+function renderComissaoChart(evolucao) {
+  const ctx = document.getElementById('chart-comissao')?.getContext('2d');
+  if (!ctx || !evolucao.length) return;
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: evolucao.map(e => e.mes || e.competencia || ''),
+      datasets: [
+        { label:'Previsto',  data: evolucao.map(e => e.previsto || 0),  borderColor:'#94a3b8', backgroundColor:'transparent', borderDash:[4,4], tension:.3 },
+        { label:'Realizado', data: evolucao.map(e => e.realizado || 0), borderColor:'#0ea5e9', backgroundColor:'rgba(14,165,233,.08)', fill:true, tension:.3 }
+      ]
+    },
+    options: { plugins:{legend:{labels:{font:{size:10}}}}, scales:{ x:{grid:{display:false},ticks:{font:{size:10},color:'#94a3b8'}}, y:{ticks:{font:{size:10},color:'#94a3b8',callback:v=>`R$${v/1000}k`}}}, responsive:true, maintainAspectRatio:true }
+  });
+}
+
+function renderComissaoFallback() {
+  document.getElementById('com-table-wrap').innerHTML = '<p style="color:var(--text2,#64748b);font-size:13px">Carregue os dados de comissão na tela principal.</p>';
+}
+
+async function aceitarComissao(id, btn) {
+  btn.disabled = true; btn.textContent = 'Aceitando...';
+  try {
+    await authFetch(`/api/comissoes/${id}/aceitar`, { method: 'POST' });
+    btn.closest('.aceite-card').style.opacity = '0.5';
+    btn.textContent = '✓ Aceito';
+  } catch { btn.disabled = false; btn.textContent = 'Aceitar ✓'; }
+}
+
+function contestarComissao(id) {
+  const motivo = prompt('Descreva o motivo da contestação:');
+  if (!motivo) return;
+  authFetch(`/api/comissoes/${id}/contestar`, { method: 'POST', body: JSON.stringify({ motivo }) })
+    .then(() => alert('Contestação enviada com sucesso.'));
+}
+
+// ── Clientes ────────────────────────────────────────────────────────────────
+let _clientesData = [];
+async function loadClientes() {
+  window._clientesLoaded = true;
+  try {
+    const r = await authFetch('/api/clientes?limit=200');
+    const data = await r.json();
+    _clientesData = data.clientes || data || [];
+    document.getElementById('clientes-sub').textContent = `${_clientesData.length} clientes na sua carteira`;
+    renderClientesTable(_clientesData);
+  } catch (err) { if (err.message !== 'auth') renderClientesError(); }
+}
+
+function renderClientesTable(rows) {
+  if (!rows.length) { document.getElementById('clientes-table-wrap').innerHTML = '<p style="padding:20px;color:var(--text2,#64748b);font-size:13px">Nenhum cliente encontrado.</p>'; return; }
+  document.getElementById('clientes-table-wrap').innerHTML = `
+    <table class="rep-table">
+      <thead><tr><th>Cliente</th><th>Cidade/UF</th><th>Curva</th><th>Última Compra</th><th>Faturamento 12m</th><th>Status</th></tr></thead>
+      <tbody>${rows.slice(0,50).map(c => `
+        <tr>
+          <td><strong>${c.razao_social||c.nome||'—'}</strong><br><small style="color:var(--text2,#64748b)">${c.cnpj_cpf||''}</small></td>
+          <td>${c.cidade||'—'} / ${c.uf||'—'}</td>
+          <td><span class="badge ${c.curva==='A'?'green':c.curva==='B'?'blue':'yellow'}">${c.curva||'—'}</span></td>
+          <td>${c.ultima_compra ? new Date(c.ultima_compra).toLocaleDateString('pt-BR') : '—'}</td>
+          <td>${fmtR$(c.faturamento_12m||0)}</td>
+          <td><span class="badge ${c.dias_sem_compra>90?'red':c.dias_sem_compra>30?'yellow':'green'}">${c.dias_sem_compra>0?c.dias_sem_compra+'d':'Ativo'}</span></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+function filterClientes(q) {
+  const search = (q || '').toLowerCase();
+  renderClientesTable(search ? _clientesData.filter(c => JSON.stringify(c).toLowerCase().includes(search)) : _clientesData);
+}
+
+function renderClientesError() {
+  document.getElementById('clientes-table-wrap').innerHTML = '<p style="padding:20px;color:#dc2626;font-size:13px">Erro ao carregar clientes.</p>';
+}
+
+// ── Rotas ───────────────────────────────────────────────────────────────────
+async function loadRotas() {
+  window._rotasLoaded = true;
+  try {
+    const r = await authFetch('/api/visitas/resumo-hoje');
+    const data = await r.json();
+    document.getElementById('rotas-hoje').textContent = data.visitas_hoje || '—';
+    document.getElementById('rotas-cob').textContent  = (data.cobertura_pct||0) + '%';
+    document.getElementById('rotas-sem').textContent  = data.sem_visita_30d || '—';
+    renderRotaList(data.roteiro_hoje || []);
+  } catch (err) { if (err.message !== 'auth') renderRotaFallback(); }
+}
+
+function renderRotaList(items) {
+  if (!items.length) { document.getElementById('rotas-list').innerHTML = '<p style="color:var(--text2,#64748b);font-size:13px">Nenhum roteiro para hoje.</p>'; return; }
+  const cores = ['#22c55e','#0ea5e9','#f59e0b','#94a3b8'];
+  document.getElementById('rotas-list').innerHTML = items.map((v, i) => `
+    <div class="rota-item">
+      <div class="rota-num" style="background:${v.visitado?'#22c55e':v.em_rota?'#0ea5e9':'#94a3b8'}">${i+1}</div>
+      <div style="flex:1">
+        <div class="rota-name">${v.razao_social||v.cliente||'—'}</div>
+        <div class="rota-meta">${v.cidade||''} · ${v.horario||''}</div>
+      </div>
+      <span class="badge ${v.visitado?'green':v.em_rota?'blue':'gray'}">${v.visitado?'✓ Visitado':v.em_rota?'Em rota':'Pendente'}</span>
+    </div>`).join('');
+}
+
+function renderRotaFallback() {
+  document.getElementById('rotas-list').innerHTML = '<p style="color:var(--text2,#64748b);font-size:13px">Roteiro não disponível. Verifique na tela de Rotas.</p>';
+}
+
+// ── IA ──────────────────────────────────────────────────────────────────────
+async function loadIA() {
+  window._iaLoaded = true;
+  try {
+    const r = await authFetch('/api/inteligencia-comercial/alertas');
+    const data = await r.json();
+    renderIAAlerts(data.alertas || data || []);
+    renderIARecompra(data.recompra || []);
+  } catch (err) { if (err.message !== 'auth') renderIAFallback(); }
+}
+
+function renderIAAlerts(alerts) {
+  if (!alerts.length) { document.getElementById('ia-alerts').innerHTML = '<div class="ia-alert info"><span>✅</span><span class="ia-alert-text">Nenhum alerta crítico no momento. Sua carteira está em dia!</span></div>'; return; }
+  document.getElementById('ia-alerts').innerHTML = alerts.map(a => `
+    <div class="ia-alert ${a.tipo||'info'}">
+      <span>${a.icone||'💡'}</span>
+      <span class="ia-alert-text">${a.mensagem||''}</span>
+    </div>`).join('');
+}
+
+function renderIARecompra(rows) {
+  if (!rows.length) { document.getElementById('ia-recompra-wrap').innerHTML = '<p style="color:var(--text2,#64748b);font-size:13px">Nenhuma oportunidade identificada.</p>'; return; }
+  document.getElementById('ia-recompra-wrap').innerHTML = `
+    <table class="rep-table">
+      <thead><tr><th>Cliente</th><th>Última Compra</th><th>Score</th><th>Ação</th></tr></thead>
+      <tbody>${rows.map(r => `
+        <tr>
+          <td><strong>${r.razao_social||'—'}</strong></td>
+          <td>${r.ultima_compra ? new Date(r.ultima_compra).toLocaleDateString('pt-BR') : '—'}</td>
+          <td><span class="badge ${r.score>70?'green':r.score>40?'yellow':'red'}">${r.score||0}%</span></td>
+          <td><a href="https://wa.me/55${(r.whatsapp||'').replace(/\D/g,'')}" target="_blank" style="color:var(--accent,#0ea5e9);font-size:12px;font-weight:600;text-decoration:none">💬 Contatar</a></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+function renderIAFallback() {
+  document.getElementById('ia-alerts').innerHTML = '<div class="ia-alert info"><span>🧠</span><span class="ia-alert-text">Dados insuficientes para análise. Continue registrando pedidos e visitas para a IA aprender.</span></div>';
+  document.getElementById('ia-recompra-wrap').innerHTML = '<p style="color:var(--text2,#64748b);font-size:13px">Dados insuficientes.</p>';
+}
+
+// ── Logout ──────────────────────────────────────────────────────────────────
+async function doLogout() {
+  await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => {});
+  localStorage.removeItem('token'); sessionStorage.removeItem('token');
+  location.href = '/login.html';
+}
+
+// ── Init ────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  loadUser();
+  loadDashboard();
+});
+</script>
+</body>
+</html>

@@ -7,7 +7,9 @@ const ctrl = require('./clientes.controller');
 // ─── Rotas de auxiliares (antes de /:id para evitar conflito) ─────────────────
 router.get('/auxiliares/:tipo', ctrl.auxiliares);
 router.get('/consulta-cnpj/:cnpj', ctrl.consultarCNPJ);
+router.get('/check-cnpj',          ctrl.checkCnpj);
 router.get('/notificacoes',        ctrl.notificacoes);
+router.get('/aniversariantes',     ctrl.aniversariantes);
 router.post('/atualizar-ultima-compra', ctrl.atualizarUltimaCompra);
 router.post('/dias-aviso',              ctrl.atualizarDiasAviso);
 

@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Calendário de Visitas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font,'Inter','Segoe UI',sans-serif);background:var(--content-bg);color:var(--content-text);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+
+/* ── Toolbar ─────────────────────────────────────────────────────────── */
+.toolbar{flex-shrink:0;background:var(--card-bg);border-bottom:1px solid var(--card-border);padding:10px 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.nav-block{display:flex;align-items:center;gap:6px}
+.nav-btn{width:32px;height:32px;border:1.5px solid var(--card-border);border-radius:9px;background:var(--content-bg);color:var(--content-text);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .12s}
+.nav-btn:hover{background:var(--accent-soft);color:var(--accent)}
+.nav-title{font-size:17px;font-weight:900;min-width:160px;text-align:center;letter-spacing:-.3px}
+.btn{height:34px;border:none;border-radius:10px;padding:0 14px;font:inherit;font-weight:700;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-secondary{background:var(--content-bg);color:var(--content-text);border:1.5px solid var(--card-border)}
+.btn:hover{filter:brightness(1.06)}
+.view-seg{display:flex;border:1.5px solid var(--card-border);border-radius:9px;overflow:hidden}
+.view-seg button{height:32px;padding:0 12px;border:none;background:transparent;font:inherit;font-size:12px;font-weight:700;color:var(--text2);cursor:pointer}
+.view-seg button+button{border-left:1.5px solid var(--card-border)}
+.view-seg button.active{background:var(--accent-soft);color:var(--accent)}
+.filt{height:32px;border:1.5px solid var(--card-border);border-radius:9px;padding:0 10px;background:var(--content-bg);color:var(--content-text);font:inherit;font-size:12px;outline:none}
+.filt:focus{border-color:var(--accent)}
+.spacer{flex:1}
+
+/* ── KPI strip ──────────────────────────────────────────────────────── */
+.kpi-strip{flex-shrink:0;display:flex;gap:0;border-bottom:1px solid var(--card-border);background:var(--card-bg)}
+.kpi{flex:1;padding:9px 16px;display:flex;flex-direction:column;gap:1px;border-right:1px solid var(--card-border)}
+.kpi:last-child{border-right:none}
+.kpi-v{font-size:20px;font-weight:900;line-height:1}
+.kpi-l{font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--text2);font-weight:700;margin-top:2px}
+.kpi-v.blue{color:#3b82f6}.kpi-v.green{color:#10b981}.kpi-v.red{color:#ef4444}.kpi-v.yellow{color:#f59e0b}
+
+/* ── Layout ────────────────────────────────────────────────────────── */
+.layout{flex:1;display:flex;overflow:hidden}
+
+/* ── Calendário ─────────────────────────────────────────────────────── */
+.cal-wrap{flex:1;overflow-y:auto;padding:16px;min-width:0}
+.cal-head{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px}
+.cal-head-cell{text-align:center;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:var(--text2);padding:4px 0}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+
+/* Dia cell */
+.day{min-height:90px;border:1.5px solid var(--card-border);border-radius:10px;padding:6px 8px;cursor:pointer;display:flex;flex-direction:column;gap:4px;transition:border-color .12s,background .12s;position:relative;background:var(--card-bg)}
+.day:hover{border-color:var(--accent);background:var(--accent-soft)}
+.day.today{border-color:var(--accent);background:var(--accent-soft)}
+.day.today .day-num{background:var(--accent);color:#fff;border-radius:50%}
+.day.selected{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.day.other-month{opacity:.4}
+.day.weekend .day-num{color:var(--text2)}
+.day-num{width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0;border-radius:50%}
+.day-events{display:flex;flex-direction:column;gap:2px;overflow:hidden;flex:1}
+.ev-pill{border-radius:5px;font-size:10px;font-weight:700;padding:2px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.4}
+.ev-pill.aberta{background:#dbeafe;color:#1d4ed8}
+.ev-pill.finalizada{background:#d1fae5;color:#065f46}
+.ev-pill.cancelada{background:#fee2e2;color:#991b1b}
+.ev-more{font-size:10px;color:var(--text2);font-weight:700;margin-top:1px}
+
+/* dark theme pills */
+html[data-theme="dark"] .ev-pill.aberta{background:rgba(59,130,246,.2);color:#93c5fd}
+html[data-theme="dark"] .ev-pill.finalizada{background:rgba(16,185,129,.2);color:#6ee7b7}
+html[data-theme="dark"] .ev-pill.cancelada{background:rgba(239,68,68,.2);color:#fca5a5}
+
+/* Week view */
+.week-grid{display:grid;grid-template-columns:52px repeat(7,1fr);gap:0;background:var(--card-border)}
+.week-col-head{background:var(--card-bg);padding:8px 4px;text-align:center;border-bottom:1px solid var(--card-border)}
+.week-col-head .wch-day{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--text2);font-weight:700}
+.week-col-head .wch-num{font-size:18px;font-weight:900;width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:50%;margin:2px auto 0}
+.week-col-head.today .wch-num{background:var(--accent);color:#fff}
+.week-time-col{background:var(--card-bg)}
+.week-time-label{height:48px;display:flex;align-items:flex-start;padding:4px 6px;font-size:10px;color:var(--text2);font-weight:600;justify-content:flex-end;border-bottom:1px solid var(--card-border)}
+.week-col{background:var(--card-bg);position:relative;cursor:pointer}
+.week-col:hover{background:var(--accent-soft)}
+.week-slot{height:48px;border-bottom:1px solid var(--card-border)}
+.week-ev{position:absolute;left:2px;right:2px;border-radius:6px;padding:3px 6px;font-size:11px;font-weight:700;overflow:hidden;cursor:pointer;z-index:2;line-height:1.3}
+.week-ev.aberta{background:#dbeafe;color:#1d4ed8;border-left:3px solid #3b82f6}
+.week-ev.finalizada{background:#d1fae5;color:#065f46;border-left:3px solid #10b981}
+.week-ev.cancelada{background:#fee2e2;color:#991b1b;border-left:3px solid #ef4444}
+html[data-theme="dark"] .week-ev.aberta{background:rgba(59,130,246,.2);color:#93c5fd;border-left-color:#3b82f6}
+html[data-theme="dark"] .week-ev.finalizada{background:rgba(16,185,129,.2);color:#6ee7b7;border-left-color:#10b981}
+html[data-theme="dark"] .week-ev.cancelada{background:rgba(239,68,68,.2);color:#fca5a5;border-left-color:#ef4444}
+
+/* ── Side panel ─────────────────────────────────────────────────────── */
+.panel{width:360px;flex-shrink:0;border-left:1px solid var(--card-border);background:var(--card-bg);display:flex;flex-direction:column;overflow:hidden;transition:width .2s}
+.panel.closed{width:0;border-left:none}
+.panel-head{padding:14px 16px;border-bottom:1px solid var(--card-border);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-shrink:0}
+.panel-title{font-size:14px;font-weight:900}
+.panel-sub{font-size:11px;color:var(--text2);margin-top:2px}
+.panel-body{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.panel-close{width:28px;height:28px;border:1.5px solid var(--card-border);border-radius:8px;background:transparent;color:var(--content-text);font-size:14px;cursor:pointer}
+.visit-card{border:1px solid var(--card-border);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;background:var(--content-bg);position:relative;border-left-width:3px}
+.visit-card.aberta{border-left-color:#3b82f6}
+.visit-card.finalizada{border-left-color:#10b981}
+.visit-card.cancelada{border-left-color:#ef4444}
+.vc-top{display:flex;align-items:flex-start;gap:8px;justify-content:space-between}
+.vc-name{font-size:13px;font-weight:800;line-height:1.2}
+.vc-meta{font-size:11px;color:var(--text2);margin-top:2px}
+.status-badge{font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.6px;padding:3px 8px;border-radius:999px;flex-shrink:0}
+.status-badge.aberta{background:#dbeafe;color:#1d4ed8}
+.status-badge.finalizada{background:#d1fae5;color:#065f46}
+.status-badge.cancelada{background:#fee2e2;color:#991b1b}
+html[data-theme="dark"] .status-badge.aberta{background:rgba(59,130,246,.2);color:#93c5fd}
+html[data-theme="dark"] .status-badge.finalizada{background:rgba(16,185,129,.2);color:#6ee7b7}
+html[data-theme="dark"] .status-badge.cancelada{background:rgba(239,68,68,.2);color:#fca5a5}
+.vc-obs{font-size:11px;color:var(--text2);font-style:italic;line-height:1.4}
+.vc-actions{display:flex;gap:6px;flex-wrap:wrap}
+.btn-xs{height:26px;border-radius:7px;padding:0 9px;font-size:11px;font-weight:700;border:1.5px solid var(--card-border);background:transparent;color:var(--content-text);cursor:pointer}
+.btn-xs:hover{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.btn-xs.danger:hover{background:#fee2e2;border-color:#ef4444;color:#ef4444}
+.btn-xs.success:hover{background:#d1fae5;border-color:#10b981;color:#065f46}
+.panel-empty{text-align:center;padding:32px 16px;color:var(--text2);font-size:13px}
+
+/* ── Modal ──────────────────────────────────────────────────────────── */
+.modal-back{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:none;align-items:center;justify-content:center;padding:18px}
+.modal-back.open{display:flex}
+.modal{width:min(520px,100%);background:var(--card-bg);border:1px solid var(--card-border);border-radius:14px;box-shadow:0 24px 48px rgba(0,0,0,.2);overflow:hidden}
+.modal-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--card-border)}
+.modal-title{font-size:15px;font-weight:900}
+.modal-body{padding:16px 18px;display:flex;flex-direction:column;gap:12px}
+.modal-foot{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid var(--card-border);background:rgba(148,163,184,.04)}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--text2);font-weight:800}
+.field input,.field select,.field textarea{height:36px;border:1.5px solid var(--card-border);border-radius:9px;padding:0 10px;background:var(--content-bg);color:var(--content-text);font:inherit;font-size:13px;outline:none}
+.field textarea{height:64px;padding:8px 10px;resize:vertical}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.form-grid .field{min-width:0}
+.cliente-search-wrap{position:relative}
+.cliente-results{position:absolute;top:100%;left:0;right:0;background:var(--card-bg);border:1.5px solid var(--accent);border-top:none;border-radius:0 0 9px 9px;max-height:180px;overflow-y:auto;z-index:100;display:none}
+.cliente-results.open{display:block}
+.cr-item{padding:8px 12px;font-size:12px;cursor:pointer;border-bottom:1px solid var(--card-border)}
+.cr-item:last-child{border-bottom:none}
+.cr-item:hover{background:var(--accent-soft)}
+.cr-item .cr-nome{font-weight:700}
+.cr-item .cr-cidade{color:var(--text2);font-size:11px}
+
+/* ── Fab ─────────────────────────────────────────────────────────────── */
+.fab{position:fixed;bottom:24px;right:24px;width:52px;height:52px;border-radius:50%;background:var(--accent);color:#fff;border:none;font-size:24px;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.2);z-index:100;display:flex;align-items:center;justify-content:center;transition:transform .15s}
+.fab:hover{transform:scale(1.08)}
+
+/* ── Loading overlay ─────────────────────────────────────────────────── */
+.cal-loading{display:none;position:absolute;inset:0;background:rgba(var(--content-bg-rgb,.96,.96,.98),.6);border-radius:10px;align-items:center;justify-content:center;font-size:12px;color:var(--text2);z-index:10}
+
+@media(max-width:900px){
+  .panel{position:fixed;right:0;top:0;bottom:0;z-index:200;box-shadow:-8px 0 32px rgba(0,0,0,.15)}
+  .panel.closed{width:0}
+  .kpi{padding:7px 10px}
+  .kpi-v{font-size:16px}
+}
+@media(max-width:600px){
+  .kpi-strip{display:grid;grid-template-columns:1fr 1fr}
+  .kpi:nth-child(2){border-right:none}
+  .kpi:nth-child(3){border-right:1px solid var(--card-border)}
+  .nav-title{font-size:14px;min-width:130px}
+}
+</style>
+</head>
+<body>
+
+<!-- Toolbar -->
+<div class="toolbar">
+  <div class="nav-block">
+    <button class="nav-btn" id="btnPrev" title="Mês anterior">&#8249;</button>
+    <div class="nav-title" id="navTitle">—</div>
+    <button class="nav-btn" id="btnNext" title="Próximo mês">&#8250;</button>
+    <button class="btn btn-secondary" id="btnHoje" style="height:32px;font-size:11px;padding:0 10px">Hoje</button>
+  </div>
+  <div class="view-seg" id="viewSeg">
+    <button data-v="mes" class="active">Mês</button>
+    <button data-v="semana">Semana</button>
+  </div>
+  <select class="filt" id="filtVendedor" style="display:none"></select>
+  <div class="spacer"></div>
+  <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2)">
+    <span style="width:8px;height:8px;border-radius:50%;background:#3b82f6;display:inline-block"></span>Aberta
+    <span style="width:8px;height:8px;border-radius:50%;background:#10b981;display:inline-block;margin-left:6px"></span>Finalizada
+    <span style="width:8px;height:8px;border-radius:50%;background:#ef4444;display:inline-block;margin-left:6px"></span>Cancelada
+  </div>
+  <button class="btn btn-primary" id="btnNovaToolbar">+ Nova Visita</button>
+</div>
+
+<!-- KPI strip -->
+<div class="kpi-strip" id="kpiStrip">
+  <div class="kpi"><div class="kpi-v yellow" id="kpi_total">—</div><div class="kpi-l">Total no mês</div></div>
+  <div class="kpi"><div class="kpi-v blue" id="kpi_abertas">—</div><div class="kpi-l">Abertas</div></div>
+  <div class="kpi"><div class="kpi-v green" id="kpi_finalizadas">—</div><div class="kpi-l">Finalizadas</div></div>
+  <div class="kpi"><div class="kpi-v" id="kpi_pct" style="color:var(--accent)">—</div><div class="kpi-l">Conclusão</div></div>
+</div>
+
+<!-- Main layout -->
+<div class="layout">
+  <!-- Calendário -->
+  <div class="cal-wrap" id="calWrap">
+    <!-- renderizado via JS -->
+  </div>
+
+  <!-- Painel lateral -->
+  <div class="panel closed" id="sidePanel">
+    <div class="panel-head">
+      <div>
+        <div class="panel-title" id="panelTitle">—</div>
+        <div class="panel-sub" id="panelSub"></div>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-primary" style="height:28px;font-size:11px;padding:0 10px" id="btnNovaPanel">+ Visita</button>
+        <button class="panel-close" id="btnClosePanel">✕</button>
+      </div>
+    </div>
+    <div class="panel-body" id="panelBody">
+      <div class="panel-empty">Selecione um dia no calendário.</div>
+    </div>
+  </div>
+</div>
+
+<!-- FAB -->
+<button class="fab" id="fab" title="Nova Visita">+</button>
+
+<!-- Modal Nova/Editar Visita -->
+<div class="modal-back" id="modalBack" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title" id="modalTitle">Nova Visita</div>
+      <button class="panel-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="mId">
+      <div class="field cliente-search-wrap">
+        <label>Cliente</label>
+        <input id="mClienteSearch" type="text" placeholder="Digite o nome do cliente..." autocomplete="off">
+        <input type="hidden" id="mClienteId">
+        <div class="cliente-results" id="clienteResults"></div>
+      </div>
+      <div class="form-grid">
+        <div class="field"><label>Data</label><input id="mData" type="date"></div>
+        <div class="field"><label>Hora</label><input id="mHora" type="time" value="08:00"></div>
+        <div class="field"><label>Vendedor</label><select id="mVendedor"><option value="">— selecionar —</option></select></div>
+        <div class="field"><label>Motivo</label><select id="mMotivo"><option value="">— selecionar —</option></select></div>
+        <div class="field"><label>Status</label>
+          <select id="mStatus">
+            <option value="ABERTA">Aberta</option>
+            <option value="FINALIZADA">Finalizada</option>
+            <option value="CANCELADA">Cancelada</option>
+          </select>
+        </div>
+      </div>
+      <div class="field"><label>Observação</label><textarea id="mObs" placeholder="Observações da visita..."></textarea></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" id="btnSalvarVisita">Salvar Visita</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function tk(){ return localStorage.getItem('token') || sessionStorage.getItem('token') || ''; }
+function authH(){ return { 'Content-Type':'application/json', Authorization:'Bearer '+tk() }; }
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+async function apiFetch(url, opts={}){
+  const r = await fetch(url,{headers:authH(),...opts});
+  const d = await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(d.error||'Erro');
+  return d;
+}
+
+const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const DIAS_SEMANA = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+
+// ── Estado ────────────────────────────────────────────────────────────────────
+let _ano = new Date().getFullYear();
+let _mes = new Date().getMonth() + 1;
+let _view = 'mes';
+let _diasData = {};      // dados do calendário
+let _selectedDate = null;
+let _weekStart = null;   // data de início da semana atual (modo semana)
+let _motivos = [];
+let _vendedores = [];
+let _filtVendedor = '';
+let _clienteSearchDebounce = null;
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', async () => {
+  // inicializa semana com hoje
+  const hoje = new Date();
+  _weekStart = startOfWeek(hoje);
+
+  await Promise.all([fillVendedores(), fillMotivos()]);
+  await loadCalendario();
+});
+
+async function fillVendedores(){
+  try{
+    const d = await apiFetch('/api/pedidos/lookup/vendedores');
+    _vendedores = d.vendedores || [];
+    const sel1 = document.getElementById('filtVendedor');
+    const sel2 = document.getElementById('mVendedor');
+    if (_vendedores.length > 1){
+      sel1.style.display = '';
+      sel1.innerHTML = '<option value="">Todos os vendedores</option>' +
+        _vendedores.map(v=>`<option value="${v.id}">${v.nome||v.nome_vendedor}</option>`).join('');
+    }
+    sel2.innerHTML = '<option value="">— selecionar —</option>' +
+      _vendedores.map(v=>`<option value="${v.id}">${v.nome||v.nome_vendedor}</option>`).join('');
+  }catch(_){}
+}
+
+async function fillMotivos(){
+  try{
+    const rows = await apiFetch('/api/visitas/motivos');
+    _motivos = Array.isArray(rows) ? rows : [];
+    document.getElementById('mMotivo').innerHTML = '<option value="">— selecionar —</option>' +
+      _motivos.map(m=>`<option value="${m.id}">${esc(m.descricao)}</option>`).join('');
+  }catch(_){}
+}
+
+// ── Calendário mensal ─────────────────────────────────────────────────────────
+async function loadCalendario(){
+  const qs = new URLSearchParams({ ano:_ano, mes:_mes });
+  if (_filtVendedor) qs.set('id_vendedor', _filtVendedor);
+  try{
+    const d = await apiFetch('/api/visitas/calendario?'+qs);
+    _diasData = d.dias || {};
+    renderKpis(d.kpis || {});
+    document.getElementById('navTitle').textContent = `${MESES[_mes-1]} ${_ano}`;
+    if (_view === 'mes') renderMes();
+    else renderSemana();
+  }catch(e){
+    document.getElementById('calWrap').innerHTML = `<div style="padding:32px;text-align:center;color:#ef4444">${e.message}</div>`;
+  }
+}
+
+function renderKpis(k){
+  document.getElementById('kpi_total').textContent = k.total || 0;
+  document.getElementById('kpi_abertas').textContent = k.abertas || 0;
+  document.getElementById('kpi_finalizadas').textContent = k.finalizadas || 0;
+  const pct = k.total > 0 ? Math.round((k.finalizadas||0)/k.total*100) : 0;
+  document.getElementById('kpi_pct').textContent = pct + '%';
+}
+
+function renderMes(){
+  const wrap = document.getElementById('calWrap');
+  const hoje = new Date();
+  const hAnno = hoje.getFullYear(), hMes = hoje.getMonth()+1, hDia = hoje.getDate();
+
+  // primeiro dia da semana do mês
+  const primeiro = new Date(_ano, _mes-1, 1);
+  const diaSemana = primeiro.getDay(); // 0=Dom
+  const totalDias = new Date(_ano, _mes, 0).getDate();
+  const mesPrev = _mes === 1 ? 12 : _mes-1;
+  const anoPrev = _mes === 1 ? _ano-1 : _ano;
+  const diasMesPrev = new Date(anoPrev, mesPrev, 0).getDate();
+
+  let html = '<div class="cal-head">';
+  DIAS_SEMANA.forEach(d => html += `<div class="cal-head-cell">${d}</div>`);
+  html += '</div><div class="cal-grid">';
+
+  let cells = [];
+  // dias do mês anterior
+  for(let i=diaSemana-1;i>=0;i--) cells.push({dia:diasMesPrev-i,mes:mesPrev,ano:anoPrev,outro:true});
+  // dias do mês atual
+  for(let d=1;d<=totalDias;d++) cells.push({dia:d,mes:_mes,ano:_ano,outro:false});
+  // completar até 42 (6 semanas)
+  let proximo = 1;
+  const mesPrx = _mes===12?1:_mes+1, anoPrx = _mes===12?_ano+1:_ano;
+  while(cells.length < 42) cells.push({dia:proximo++,mes:mesPrx,ano:anoPrx,outro:true});
+
+  cells.forEach(c => {
+    const dateStr = `${c.ano}-${String(c.mes).padStart(2,'0')}-${String(c.dia).padStart(2,'0')}`;
+    const isToday  = c.ano===hAnno && c.mes===hMes && c.dia===hDia;
+    const isSel    = dateStr === _selectedDate;
+    const isWeekend = cells.indexOf(c) % 7 === 0 || cells.indexOf(c) % 7 === 6;
+    const dayData  = _diasData[dateStr] || {};
+
+    let cls = 'day';
+    if(c.outro) cls += ' other-month';
+    if(isToday)  cls += ' today';
+    if(isSel)    cls += ' selected';
+    if(isWeekend) cls += ' weekend';
+
+    // eventos para exibir
+    let evHtml = '';
+    if(dayData.total){
+      const vis = []; // pega as visitas do dia (precisa de chamada separada, mas usamos contagem por status)
+      const arr = [];
+      if(dayData.ABERTA)     arr.push({cls:'aberta',    label:`${dayData.ABERTA} aberta${dayData.ABERTA>1?'s':''}`});
+      if(dayData.FINALIZADA) arr.push({cls:'finalizada',label:`${dayData.FINALIZADA} finalizada${dayData.FINALIZADA>1?'s':''}`});
+      if(dayData.CANCELADA)  arr.push({cls:'cancelada', label:`${dayData.CANCELADA} cancelada${dayData.CANCELADA>1?'s':''}`});
+      arr.slice(0,2).forEach(ev => { evHtml += `<div class="ev-pill ${ev.cls}">${esc(ev.label)}</div>`; });
+      if(arr.length > 2) evHtml += `<div class="ev-more">+${arr.length-2} mais</div>`;
+    }
+
+    html += `<div class="${cls}" data-date="${dateStr}" onclick="selectDay('${dateStr}')">
+      <div class="day-num">${c.dia}</div>
+      <div class="day-events">${evHtml}</div>
+    </div>`;
+  });
+
+  html += '</div>';
+  wrap.innerHTML = html;
+}
+
+// ── Visão semana ──────────────────────────────────────────────────────────────
+function startOfWeek(d){
+  const dt = new Date(d);
+  dt.setDate(dt.getDate() - dt.getDay()); // domingo
+  return dt;
+}
+function isoDate(d){ return d.toISOString().slice(0,10); }
+
+function renderSemana(){
+  const wrap = document.getElementById('calWrap');
+  const hoje = new Date();
+  const hStr = isoDate(hoje);
+  const HORAS = Array.from({length:24},(_,i)=>i);
+  const dias = Array.from({length:7}, (_,i)=>{
+    const d = new Date(_weekStart);
+    d.setDate(_weekStart.getDate()+i);
+    return d;
+  });
+
+  // Atualiza título
+  const de = isoDate(dias[0]).slice(8,10)+'/'+isoDate(dias[0]).slice(5,7);
+  const ate = isoDate(dias[6]).slice(8,10)+'/'+isoDate(dias[6]).slice(5,7);
+  document.getElementById('navTitle').textContent = `${de} – ${ate}`;
+
+  let html = `<div class="week-grid" style="min-height:${24*48+40}px">`;
+  // cabeçalhos
+  html += `<div class="week-col-head" style="grid-column:1;grid-row:1"></div>`;
+  dias.forEach((d,i) => {
+    const str = isoDate(d);
+    const isToday = str === hStr;
+    html += `<div class="week-col-head${isToday?' today':''}" style="grid-column:${i+2};grid-row:1">
+      <div class="wch-day">${DIAS_SEMANA[d.getDay()]}</div>
+      <div class="wch-num">${d.getDate()}</div>
+    </div>`;
+  });
+
+  // slots de hora
+  HORAS.forEach(h => {
+    html += `<div class="week-time-col" style="grid-column:1;grid-row:${h+2}">
+      <div class="week-time-label">${String(h).padStart(2,'0')}h</div>
+    </div>`;
+    dias.forEach((d,i) => {
+      const str = isoDate(d);
+      html += `<div class="week-col week-slot" style="grid-column:${i+2};grid-row:${h+2}" data-date="${str}" data-hora="${String(h).padStart(2,'0')}:00" onclick="clickWeekSlot(this)"></div>`;
+    });
+  });
+  html += '</div>';
+  wrap.innerHTML = html;
+
+  // Renderiza eventos sobre os slots
+  _weekVisits && renderSemanaEvents(_weekVisits);
+}
+
+let _weekVisits = null;
+async function loadWeekVisits(){
+  if(!_weekStart) return;
+  const fim = new Date(_weekStart);
+  fim.setDate(fim.getDate()+6);
+  const qs = new URLSearchParams({ data_de: isoDate(_weekStart), data_ate: isoDate(fim), limit:500 });
+  if(_filtVendedor) qs.set('id_vendedor',_filtVendedor);
+  try{
+    const d = await apiFetch('/api/visitas?'+qs);
+    _weekVisits = d.visitas || [];
+    renderSemanaEvents(_weekVisits);
+  }catch(_){}
+}
+
+function renderSemanaEvents(visits){
+  // limpa eventos existentes
+  document.querySelectorAll('.week-ev').forEach(e=>e.remove());
+  visits.forEach(v => {
+    const dateStr = v.data_visita?.slice(0,10);
+    const hora = (v.hora_visita||'00:00').slice(0,5);
+    const hh = parseInt(hora.split(':')[0]);
+    const mm = parseInt(hora.split(':')[1]||0);
+    const top = mm/60*48;
+    const col = document.querySelector(`.week-slot[data-date="${dateStr}"][data-hora="${String(hh).padStart(2,'0')}:00"]`);
+    if(!col) return;
+    const st = (v.status||'ABERTA').toLowerCase();
+    const ev = document.createElement('div');
+    ev.className = `week-ev ${st}`;
+    ev.style.top  = top + 'px';
+    ev.style.height = '40px';
+    ev.innerHTML = `<div style="font-size:10px;opacity:.75">${hora}</div><div>${esc((v.nome_cliente||'').slice(0,22))}</div>`;
+    ev.title = `${v.nome_cliente||''} — ${v.motivo_desc||''}`;
+    ev.onclick = (e) => { e.stopPropagation(); openEditModal(v); };
+    col.style.position = 'relative';
+    col.appendChild(ev);
+  });
+}
+
+function clickWeekSlot(el){
+  const date = el.getAttribute('data-date');
+  const hora = el.getAttribute('data-hora');
+  openNovaModal(date, hora);
+}
+
+// ── Selecionar dia ────────────────────────────────────────────────────────────
+async function selectDay(dateStr){
+  _selectedDate = dateStr;
+  renderMes(); // re-render para marcar selecionado
+
+  const panel = document.getElementById('sidePanel');
+  panel.classList.remove('closed');
+
+  const [,mes,dia] = dateStr.split('-');
+  const nomeMes = MESES[parseInt(mes)-1];
+  document.getElementById('panelTitle').textContent = `${parseInt(dia)} de ${nomeMes}`;
+  document.getElementById('panelSub').textContent = 'Visitas do dia';
+  document.getElementById('panelBody').innerHTML = '<div class="panel-empty">Carregando...</div>';
+  document.getElementById('btnNovaPanel').onclick = () => openNovaModal(dateStr);
+
+  try{
+    const qs = new URLSearchParams({ data_de:dateStr, data_ate:dateStr, limit:100 });
+    if(_filtVendedor) qs.set('id_vendedor',_filtVendedor);
+    const d = await apiFetch('/api/visitas?'+qs);
+    renderPanelVisits(d.visitas||[], dateStr);
+  }catch(e){
+    document.getElementById('panelBody').innerHTML = `<div style="color:#ef4444;font-size:12px;padding:8px">${e.message}</div>`;
+  }
+}
+
+function renderPanelVisits(visits, dateStr){
+  const body = document.getElementById('panelBody');
+  document.getElementById('panelSub').textContent = visits.length
+    ? `${visits.length} visita${visits.length>1?'s':''}`
+    : 'Nenhuma visita';
+
+  if(!visits.length){
+    body.innerHTML = `<div class="panel-empty">Nenhuma visita neste dia.<br><small>Clique em <strong>+ Visita</strong> para agendar.</small></div>`;
+    return;
+  }
+
+  body.innerHTML = visits.map(v => {
+    const st = (v.status||'ABERTA').toLowerCase();
+    const hora = (v.hora_visita||'').slice(0,5);
+    const podeFinalizr = v.status === 'ABERTA';
+    return `<div class="visit-card ${st}" id="vc-${v.id}">
+      <div class="vc-top">
+        <div>
+          <div class="vc-name">${hora ? `<span style="font-size:11px;color:var(--text2);font-weight:600">${hora}</span> ` : ''}${esc(v.nome_cliente||'(sem cliente)')}</div>
+          <div class="vc-meta">${esc(v.motivo_desc||'—')} ${v.nome_vendedor?`• ${esc(v.nome_vendedor)}`:''}</div>
+        </div>
+        <span class="status-badge ${st}">${v.status||'ABERTA'}</span>
+      </div>
+      ${v.obs ? `<div class="vc-obs">${esc(v.obs)}</div>` : ''}
+      <div class="vc-actions">
+        <button class="btn-xs" onclick="openEditModal(${JSON.stringify(v).replace(/"/g,'&quot;')})">Editar</button>
+        ${podeFinalizr ? `<button class="btn-xs success" onclick="finalizarVisita(${v.id},'${dateStr}')">Finalizar</button>` : ''}
+        <button class="btn-xs danger" onclick="excluirVisita(${v.id},'${dateStr}')">Excluir</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Ações rápidas ─────────────────────────────────────────────────────────────
+async function finalizarVisita(id, dateStr){
+  if(!confirm('Finalizar esta visita?')) return;
+  try{
+    await apiFetch(`/api/visitas/${id}/finalizar`,{method:'PUT'});
+    await loadCalendario();
+    if(dateStr) await selectDay(dateStr);
+  }catch(e){ alert(e.message); }
+}
+
+async function excluirVisita(id, dateStr){
+  if(!confirm('Excluir esta visita?')) return;
+  try{
+    await apiFetch(`/api/visitas/${id}`,{method:'DELETE'});
+    await loadCalendario();
+    if(dateStr) await selectDay(dateStr);
+  }catch(e){ alert(e.message); }
+}
+
+// ── Modal ─────────────────────────────────────────────────────────────────────
+function openNovaModal(dateStr, hora){
+  document.getElementById('mId').value = '';
+  document.getElementById('mClienteSearch').value = '';
+  document.getElementById('mClienteId').value = '';
+  document.getElementById('mData').value = dateStr || isoDate(new Date());
+  document.getElementById('mHora').value = hora || '08:00';
+  document.getElementById('mStatus').value = 'ABERTA';
+  document.getElementById('mObs').value = '';
+  document.getElementById('mVendedor').value = '';
+  document.getElementById('mMotivo').value = '';
+  document.getElementById('modalTitle').textContent = 'Nova Visita';
+  document.getElementById('modalBack').classList.add('open');
+  setTimeout(()=>document.getElementById('mClienteSearch').focus(), 80);
+}
+
+function openEditModal(v){
+  if(typeof v === 'string') v = JSON.parse(v);
+  document.getElementById('mId').value = v.id || '';
+  document.getElementById('mClienteSearch').value = v.nome_cliente || '';
+  document.getElementById('mClienteId').value = v.id_cliente || '';
+  document.getElementById('mData').value = (v.data_visita||'').slice(0,10);
+  document.getElementById('mHora').value = (v.hora_visita||'08:00').slice(0,5);
+  document.getElementById('mStatus').value = v.status || 'ABERTA';
+  document.getElementById('mObs').value = v.obs || '';
+  document.getElementById('mVendedor').value = v.id_vendedor || '';
+  document.getElementById('mMotivo').value = v.id_motivo || '';
+  document.getElementById('modalTitle').textContent = 'Editar Visita';
+  document.getElementById('modalBack').classList.add('open');
+}
+
+function closeModal(){
+  document.getElementById('modalBack').classList.remove('open');
+  document.getElementById('clienteResults').classList.remove('open');
+}
+
+async function salvarVisita(){
+  const btn = document.getElementById('btnSalvarVisita');
+  const id     = document.getElementById('mId').value;
+  const idCli  = document.getElementById('mClienteId').value;
+  const data   = document.getElementById('mData').value;
+  const hora   = document.getElementById('mHora').value || '08:00';
+  const status = document.getElementById('mStatus').value;
+  const obs    = document.getElementById('mObs').value.trim();
+  const idVend = document.getElementById('mVendedor').value || null;
+  const idMot  = document.getElementById('mMotivo').value || null;
+
+  if(!idCli){ document.getElementById('mClienteSearch').focus(); return alert('Selecione o cliente.'); }
+  if(!data)  return alert('Informe a data.');
+  if(!idMot) return alert('Selecione o motivo.');
+
+  btn.disabled = true;
+  const body = { id_cliente:idCli, data_visita:data, hora_visita:hora.length===5?hora+':00':hora, status, obs, id_vendedor:idVend, id_motivo:idMot, origem:'WEB' };
+  try{
+    if(id) await apiFetch(`/api/visitas/${id}`,{method:'PUT', body:JSON.stringify(body)});
+    else   await apiFetch('/api/visitas',      {method:'POST',body:JSON.stringify(body)});
+    closeModal();
+    await loadCalendario();
+    if(_selectedDate === data) await selectDay(data);
+    if(_view==='semana') await loadWeekVisits();
+  }catch(e){ alert(e.message); }
+  finally { btn.disabled = false; }
+}
+
+// ── Busca cliente (autocomplete) ──────────────────────────────────────────────
+document.getElementById('mClienteSearch').addEventListener('input', e => {
+  clearTimeout(_clienteSearchDebounce);
+  const q = e.target.value.trim();
+  if(q.length < 2){ document.getElementById('clienteResults').classList.remove('open'); return; }
+  _clienteSearchDebounce = setTimeout(async () => {
+    try{
+      const d = await apiFetch(`/api/clientes?q=${encodeURIComponent(q)}&limit=8`);
+      const list = d.clientes || d.rows || d || [];
+      const box = document.getElementById('clienteResults');
+      if(!list.length){ box.classList.remove('open'); return; }
+      box.innerHTML = list.map(c=>`<div class="cr-item" onclick="selectCliente(${c.id},'${esc(c.nome||'')}')"><div class="cr-nome">${esc(c.nome||'')}</div><div class="cr-cidade">${esc(c.cidade||'')} ${c.uf?'/ '+c.uf:''}</div></div>`).join('');
+      box.classList.add('open');
+    }catch(_){}
+  }, 300);
+});
+
+function selectCliente(id, nome){
+  document.getElementById('mClienteId').value = id;
+  document.getElementById('mClienteSearch').value = nome;
+  document.getElementById('clienteResults').classList.remove('open');
+}
+document.addEventListener('click', e => {
+  if(!e.target.closest('.cliente-search-wrap')) document.getElementById('clienteResults').classList.remove('open');
+});
+
+// ── Navegação ─────────────────────────────────────────────────────────────────
+document.getElementById('btnPrev').addEventListener('click', () => {
+  if(_view==='mes'){
+    _mes--; if(_mes<1){ _mes=12; _ano--; }
+  } else {
+    _weekStart = new Date(_weekStart);
+    _weekStart.setDate(_weekStart.getDate()-7);
+    const d = new Date(_weekStart);
+    _mes = d.getMonth()+1; _ano = d.getFullYear();
+  }
+  _selectedDate = null;
+  document.getElementById('sidePanel').classList.add('closed');
+  loadCalendario().then(()=>{ if(_view==='semana') loadWeekVisits(); });
+});
+
+document.getElementById('btnNext').addEventListener('click', () => {
+  if(_view==='mes'){
+    _mes++; if(_mes>12){ _mes=1; _ano++; }
+  } else {
+    _weekStart = new Date(_weekStart);
+    _weekStart.setDate(_weekStart.getDate()+7);
+    const d = new Date(_weekStart);
+    _mes = d.getMonth()+1; _ano = d.getFullYear();
+  }
+  _selectedDate = null;
+  document.getElementById('sidePanel').classList.add('closed');
+  loadCalendario().then(()=>{ if(_view==='semana') loadWeekVisits(); });
+});
+
+document.getElementById('btnHoje').addEventListener('click', () => {
+  const hoje = new Date();
+  _ano = hoje.getFullYear(); _mes = hoje.getMonth()+1;
+  _weekStart = startOfWeek(hoje);
+  _selectedDate = null;
+  document.getElementById('sidePanel').classList.add('closed');
+  loadCalendario().then(()=>{ if(_view==='semana') loadWeekVisits(); });
+});
+
+// ── Alternância de view ───────────────────────────────────────────────────────
+document.getElementById('viewSeg').querySelectorAll('button').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    _view = btn.getAttribute('data-v');
+    document.querySelectorAll('#viewSeg button').forEach(b=>b.classList.toggle('active', b===btn));
+    _selectedDate = null;
+    document.getElementById('sidePanel').classList.add('closed');
+    await loadCalendario();
+    if(_view==='semana') await loadWeekVisits();
+  });
+});
+
+// ── Filtro vendedor ───────────────────────────────────────────────────────────
+document.getElementById('filtVendedor').addEventListener('change', e => {
+  _filtVendedor = e.target.value;
+  _selectedDate = null;
+  document.getElementById('sidePanel').classList.add('closed');
+  loadCalendario();
+});
+
+// ── Botões nova visita ────────────────────────────────────────────────────────
+document.getElementById('btnNovaToolbar').addEventListener('click', () => openNovaModal(_selectedDate || isoDate(new Date())));
+document.getElementById('fab').addEventListener('click', () => openNovaModal(_selectedDate || isoDate(new Date())));
+document.getElementById('btnSalvarVisita').addEventListener('click', salvarVisita);
+document.getElementById('btnClosePanel').addEventListener('click', () => {
+  document.getElementById('sidePanel').classList.add('closed');
+  _selectedDate = null;
+  if(_view==='mes') renderMes();
+});
+
+// ── Teclas ────────────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if(e.key==='Escape') closeModal();
+  if(e.key==='ArrowLeft'  && !e.target.matches('input,select,textarea')) document.getElementById('btnPrev').click();
+  if(e.key==='ArrowRight' && !e.target.matches('input,select,textarea')) document.getElementById('btnNext').click();
+});
+
+// ── Theme sync ────────────────────────────────────────────────────────────────
+window.addEventListener('message', ev => {
+  if(ev.data?.type==='theme-changed') document.documentElement.setAttribute('data-theme',ev.data.theme);
+  if(ev.data?.type==='font-pref-changed'){ window.SysFont?.apply(ev.data.familyId,ev.data.sizeId); window.SysVisual?.apply(ev.data.accentId,ev.data.compact); }
+});
+</script>
+</body>
+</html>

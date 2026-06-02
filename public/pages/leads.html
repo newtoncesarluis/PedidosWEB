@@ -238,6 +238,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
       <div class="tb-actions">
         <button class="btn" id="btnRefresh" type="button">Atualizar</button>
         <button class="btn" id="btnImport" type="button">Importar Excel</button>
+        <button class="btn" id="btnFormularios" type="button">Formulários</button>
         <button class="btn btn-primary" id="btnNovo" type="button">+ Novo Lead</button>
       </div>
     </div>
@@ -326,8 +327,16 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
           <div class="field"><label for="f_instagram">Instagram</label><input id="f_instagram" class="input" type="text" maxlength="120"></div>
           <div class="field"><label for="f_facebook">Facebook</label><input id="f_facebook" class="input" type="text" maxlength="120"></div>
           <div class="field"><label for="f_segmento">Segmento</label><input id="f_segmento" class="input" type="text" maxlength="120"></div>
+          <div class="field full"><label for="f_endereco">Endereço</label><input id="f_endereco" class="input" type="text" maxlength="255" placeholder="Rua, número"></div>
+          <div class="field"><label for="f_bairro">Bairro</label><input id="f_bairro" class="input" type="text" maxlength="100"></div>
+          <div class="field"><label for="f_cep">CEP</label><input id="f_cep" class="input" type="text" maxlength="20"></div>
           <div class="field"><label for="f_cidade">Cidade</label><input id="f_cidade" class="input" type="text" maxlength="100"></div>
           <div class="field"><label for="f_uf">UF</label><input id="f_uf" class="input" type="text" maxlength="2"></div>
+          <div class="field"><label for="f_latitude">Latitude</label><input id="f_latitude" class="input" type="text" placeholder="Mapa de Operações"></div>
+          <div class="field"><label for="f_longitude">Longitude</label><input id="f_longitude" class="input" type="text" placeholder="Mapa de Operações"></div>
+          <div class="field full" style="display:flex;align-items:flex-end">
+            <button type="button" class="btn btn-outline" id="btnGeocodeLead" onclick="geocodeLeadForm()" style="width:100%">Buscar coordenadas pelo endereço</button>
+          </div>
           <div class="field">
             <label for="f_origem">Origem</label>
             <select id="f_origem" class="select">
@@ -508,6 +517,66 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
       <div class="modal-foot">
         <button class="btn" type="button" id="btnImportCancel">Cancelar</button>
         <button class="btn btn-primary" type="button" id="btnImportSend" disabled>Importar leads</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Formulários de Captura -->
+  <div class="modal-backdrop" id="capBackdrop" style="display:none">
+    <div class="modal" style="width:min(860px,100%)">
+      <div class="modal-head">
+        <h2>Formulários de Captura Web</h2>
+        <button class="btn" type="button" id="btnCapClose">Fechar</button>
+      </div>
+      <div class="modal-body">
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-bottom:14px">
+          <button class="btn btn-primary" type="button" id="btnCapNovo">+ Novo Formulário</button>
+        </div>
+        <div id="cap-list-area"></div>
+
+        <!-- Formulário de edição inline -->
+        <div id="cap-edit-area" style="display:none;margin-top:20px;border-top:1px solid var(--border);padding-top:18px">
+          <h3 style="font-size:13px;font-weight:700;margin-bottom:14px" id="cap-edit-title">Novo Formulário</h3>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div>
+              <label style="font-size:11px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Título</label>
+              <input class="input" type="text" id="cap-titulo" placeholder="Fale Conosco" maxlength="150" autocomplete="off">
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Subtítulo</label>
+              <input class="input" type="text" id="cap-subtitulo" placeholder="Preencha e retornaremos em breve" maxlength="255" autocomplete="off">
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Origem do Lead</label>
+              <input class="input" type="text" id="cap-origem" placeholder="Formulário Web" maxlength="60" autocomplete="off">
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Campanha (opcional)</label>
+              <input class="input" type="text" id="cap-campanha" placeholder="landing-jun24" maxlength="120" autocomplete="off">
+            </div>
+            <div style="grid-column:1/-1">
+              <label style="font-size:11px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Mensagem de Sucesso</label>
+              <input class="input" type="text" id="cap-msg" placeholder="Obrigado! Entraremos em contato em breve." maxlength="500" autocomplete="off">
+            </div>
+            <div style="grid-column:1/-1">
+              <label style="font-size:11px;font-weight:600;color:var(--text2);display:block;margin-bottom:8px">Campos do Formulário</label>
+              <div style="display:flex;flex-wrap:wrap;gap:8px" id="cap-campos-checks">
+                <label style="display:flex;gap:6px;align-items:center;font-size:12px"><input type="checkbox" value="nome" checked disabled> Nome*</label>
+                <label style="display:flex;gap:6px;align-items:center;font-size:12px"><input type="checkbox" value="email" id="chk-email"> E-mail</label>
+                <label style="display:flex;gap:6px;align-items:center;font-size:12px"><input type="checkbox" value="telefone" id="chk-telefone"> Telefone/WhatsApp</label>
+                <label style="display:flex;gap:6px;align-items:center;font-size:12px"><input type="checkbox" value="empresa" id="chk-empresa"> Empresa</label>
+                <label style="display:flex;gap:6px;align-items:center;font-size:12px"><input type="checkbox" value="cidade" id="chk-cidade"> Cidade</label>
+                <label style="display:flex;gap:6px;align-items:center;font-size:12px"><input type="checkbox" value="cargo" id="chk-cargo"> Cargo</label>
+                <label style="display:flex;gap:6px;align-items:center;font-size:12px"><input type="checkbox" value="interesse" id="chk-interesse"> Interesse</label>
+                <label style="display:flex;gap:6px;align-items:center;font-size:12px"><input type="checkbox" value="mensagem" id="chk-mensagem"> Mensagem</label>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+            <button class="btn" type="button" id="btnCapEditCancel">Cancelar</button>
+            <button class="btn btn-primary" type="button" id="btnCapSalvar">Salvar Formulário</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -809,7 +878,8 @@ function renderHistory(items) {
 function clearForm() {
   state.editingId = null;
   document.getElementById('modalTitle').textContent = 'Novo Lead';
-  ['f_nome','f_empresa','f_cargo','f_telefone','f_whatsapp','f_email','f_instagram','f_facebook','f_segmento','f_cidade','f_uf',
+  ['f_nome','f_empresa','f_cargo','f_telefone','f_whatsapp','f_email','f_instagram','f_facebook','f_segmento',
+   'f_endereco','f_bairro','f_cep','f_cidade','f_uf','f_latitude','f_longitude',
    'f_campanha','f_anuncio','f_interesse','f_produto_interesse','f_tags','f_motivo_perda','f_obs','f_nota'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('f_origem').value = 'Manual';
   document.getElementById('f_status').value = 'NOVO';
@@ -842,8 +912,13 @@ function collectForm() {
     instagram: document.getElementById('f_instagram').value.trim(),
     facebook: document.getElementById('f_facebook').value.trim(),
     segmento: document.getElementById('f_segmento').value.trim(),
+    endereco: document.getElementById('f_endereco').value.trim(),
+    bairro: document.getElementById('f_bairro').value.trim(),
+    cep: document.getElementById('f_cep').value.trim(),
     cidade: document.getElementById('f_cidade').value.trim(),
     uf: document.getElementById('f_uf').value.trim().toUpperCase(),
+    latitude: document.getElementById('f_latitude').value.trim(),
+    longitude: document.getElementById('f_longitude').value.trim(),
     origem: document.getElementById('f_origem').value.trim(),
     campanha: document.getElementById('f_campanha').value.trim(),
     anuncio: document.getElementById('f_anuncio').value.trim(),
@@ -862,6 +937,45 @@ function collectForm() {
     motivo_perda: document.getElementById('f_motivo_perda').value.trim(),
     observacoes: document.getElementById('f_obs').value.trim(),
   };
+}
+
+async function geocodeLeadForm() {
+  const cidade = document.getElementById('f_cidade').value.trim();
+  if (!cidade && !document.getElementById('f_endereco').value.trim()) {
+    return toast('Informe cidade ou endereço para geocodificar.', 'err');
+  }
+  const btn = document.getElementById('btnGeocodeLead');
+  btn.disabled = true;
+  btn.textContent = 'Buscando…';
+  try {
+    if (state.editingId) {
+      const r = await api('/api/geocoding/lead/' + state.editingId, { method: 'PUT' });
+      document.getElementById('f_latitude').value = r.lat || '';
+      document.getElementById('f_longitude').value = r.lng || '';
+      toast('Coordenadas atualizadas.', 'ok');
+    } else {
+      const q = encodeURIComponent([
+        document.getElementById('f_endereco').value.trim(),
+        document.getElementById('f_bairro').value.trim(),
+        cidade,
+        document.getElementById('f_uf').value.trim(),
+        'Brasil',
+      ].filter(Boolean).join(', '));
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&q=${q}`, {
+        headers: { 'Accept-Language': 'pt-BR' },
+      });
+      const data = await res.json();
+      if (!data || !data[0]) return toast('Endereço não localizado.', 'err');
+      document.getElementById('f_latitude').value = data[0].lat;
+      document.getElementById('f_longitude').value = data[0].lon;
+      toast('Coordenadas preenchidas. Salve o lead.', 'ok');
+    }
+  } catch (e) {
+    toast(e.message || 'Erro ao geocodificar', 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Buscar coordenadas pelo endereço';
+  }
 }
 
 async function saveLead() {
@@ -939,8 +1053,13 @@ async function openEdit(id) {
     document.getElementById('f_instagram').value = lead.instagram || '';
     document.getElementById('f_facebook').value = lead.facebook || '';
     document.getElementById('f_segmento').value = lead.segmento || '';
+    document.getElementById('f_endereco').value = lead.endereco || '';
+    document.getElementById('f_bairro').value = lead.bairro || '';
+    document.getElementById('f_cep').value = lead.cep || '';
     document.getElementById('f_cidade').value = lead.cidade || '';
     document.getElementById('f_uf').value = lead.uf || '';
+    document.getElementById('f_latitude').value = lead.latitude || '';
+    document.getElementById('f_longitude').value = lead.longitude || '';
     document.getElementById('f_origem').value = lead.origem || 'Manual';
     document.getElementById('f_campanha').value = lead.campanha || '';
     document.getElementById('f_anuncio').value = lead.anuncio || '';
@@ -1452,6 +1571,145 @@ async function drop(ev, stage) {
     toast(err.message || 'Erro ao mover lead', 'err');
   }
 }
+
+// ─── Formulários de Captura ────────────────────────────────────────────────
+let _capEditId = null;
+
+function capBaseUrl() {
+  return `${location.protocol}//${location.host}`;
+}
+
+async function loadCapturas() {
+  const area = document.getElementById('cap-list-area');
+  area.innerHTML = '<div style="color:var(--text2);font-size:13px;padding:12px 0">Carregando...</div>';
+  try {
+    const rows = await api('/api/leads/capturas');
+    if (!rows.length) {
+      area.innerHTML = '<div style="color:var(--text2);font-size:13px;padding:12px 0">Nenhum formulário criado ainda.</div>';
+      return;
+    }
+    area.innerHTML = rows.map(r => {
+      const url = `${capBaseUrl()}/c/${r.token}`;
+      const ativoLabel = r.ativo === 'S'
+        ? '<span style="color:#10b981;font-size:11px;font-weight:700">● Ativo</span>'
+        : '<span style="color:#ef4444;font-size:11px;font-weight:700">● Inativo</span>';
+      return `<div style="border:1px solid var(--border);border-radius:14px;padding:12px 14px;margin-bottom:8px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <div style="flex:1;min-width:180px">
+          <strong style="font-size:13px">${r.titulo}</strong>
+          ${ativoLabel}
+          <div style="font-size:11px;color:var(--text2);margin-top:2px">${r.total_leads} lead${r.total_leads !== 1 ? 's' : ''} captados · ${r.origem}</div>
+          <div style="display:flex;gap:6px;align-items:center;margin-top:6px">
+            <input type="text" value="${url}" readonly style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text2);width:280px;max-width:100%">
+            <button class="btn" style="padding:4px 10px;font-size:11px" onclick="navigator.clipboard.writeText('${url}').then(()=>toast('Link copiado!','ok'))">Copiar</button>
+            <a href="${url}" target="_blank" style="font-size:11px;color:var(--accent)">Abrir</a>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button class="btn" style="padding:6px 12px;font-size:11px" onclick="capEdit(${r.id})">Editar</button>
+          <button class="btn" style="padding:6px 12px;font-size:11px" onclick="capToggle(${r.id},'${r.ativo === 'S' ? 'N' : 'S'}')">${r.ativo === 'S' ? 'Desativar' : 'Ativar'}</button>
+          <button class="btn btn-danger" style="padding:6px 12px;font-size:11px" onclick="capDelete(${r.id})">Excluir</button>
+        </div>
+      </div>`;
+    }).join('');
+  } catch (err) {
+    area.innerHTML = `<div style="color:#ef4444;font-size:13px">${err.message}</div>`;
+  }
+}
+
+function capOpenModal() {
+  document.getElementById('capBackdrop').style.display = 'flex';
+  loadCapturas();
+}
+
+function capCloseModal() {
+  document.getElementById('capBackdrop').style.display = 'none';
+  _capEditId = null;
+  document.getElementById('cap-edit-area').style.display = 'none';
+}
+
+function capShowForm(data) {
+  _capEditId = data?.id || null;
+  document.getElementById('cap-edit-title').textContent = _capEditId ? 'Editar Formulário' : 'Novo Formulário';
+  document.getElementById('cap-titulo').value = data?.titulo || '';
+  document.getElementById('cap-subtitulo').value = data?.subtitulo || '';
+  document.getElementById('cap-origem').value = data?.origem || 'Formulário Web';
+  document.getElementById('cap-campanha').value = data?.campanha || '';
+  document.getElementById('cap-msg').value = data?.msg_sucesso || '';
+
+  const campos = typeof data?.campos === 'string' ? JSON.parse(data.campos) : (data?.campos || ['nome','email','telefone']);
+  ['email','telefone','empresa','cidade','cargo','interesse','mensagem'].forEach(c => {
+    const el = document.getElementById('chk-' + c);
+    if (el) el.checked = campos.includes(c);
+  });
+  document.getElementById('cap-edit-area').style.display = '';
+  document.getElementById('cap-edit-area').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+async function capEdit(id) {
+  try {
+    const rows = await api('/api/leads/capturas');
+    const row = rows.find(r => r.id === id);
+    if (row) capShowForm(row);
+  } catch (_) {}
+}
+
+async function capToggle(id, ativo) {
+  try {
+    await api(`/api/leads/capturas/${id}`, { method: 'PATCH', body: JSON.stringify({ ativo }) });
+    loadCapturas();
+  } catch (err) { toast(err.message, 'err'); }
+}
+
+async function capDelete(id) {
+  if (!confirm('Excluir este formulário? Os leads já capturados não serão afetados.')) return;
+  try {
+    await api(`/api/leads/capturas/${id}`, { method: 'DELETE' });
+    toast('Formulário excluído.', 'ok');
+    loadCapturas();
+  } catch (err) { toast(err.message, 'err'); }
+}
+
+async function capSalvar() {
+  const titulo = document.getElementById('cap-titulo').value.trim();
+  if (!titulo) { toast('Informe o título.', 'err'); return; }
+
+  const campos = ['nome'];
+  ['email','telefone','empresa','cidade','cargo','interesse','mensagem'].forEach(c => {
+    if (document.getElementById('chk-' + c)?.checked) campos.push(c);
+  });
+
+  const payload = {
+    titulo,
+    subtitulo: document.getElementById('cap-subtitulo').value.trim(),
+    origem:    document.getElementById('cap-origem').value.trim() || 'Formulário Web',
+    campanha:  document.getElementById('cap-campanha').value.trim(),
+    msg_sucesso: document.getElementById('cap-msg').value.trim() || 'Obrigado! Entraremos em contato em breve.',
+    campos,
+  };
+
+  try {
+    if (_capEditId) {
+      await api(`/api/leads/capturas/${_capEditId}`, { method: 'PATCH', body: JSON.stringify(payload) });
+      toast('Formulário atualizado.', 'ok');
+    } else {
+      await api('/api/leads/capturas', { method: 'POST', body: JSON.stringify(payload) });
+      toast('Formulário criado.', 'ok');
+    }
+    document.getElementById('cap-edit-area').style.display = 'none';
+    _capEditId = null;
+    loadCapturas();
+  } catch (err) { toast(err.message, 'err'); }
+}
+
+document.getElementById('btnFormularios').addEventListener('click', capOpenModal);
+document.getElementById('btnCapClose').addEventListener('click', capCloseModal);
+document.getElementById('capBackdrop').addEventListener('click', e => { if (e.target.id === 'capBackdrop') capCloseModal(); });
+document.getElementById('btnCapNovo').addEventListener('click', () => capShowForm(null));
+document.getElementById('btnCapEditCancel').addEventListener('click', () => {
+  document.getElementById('cap-edit-area').style.display = 'none';
+  _capEditId = null;
+});
+document.getElementById('btnCapSalvar').addEventListener('click', capSalvar);
 
 (async function init() {
   clearForm();

@@ -1,10 +1,18 @@
+const path = require('path');
+// Quando empacotado com pkg: paths de leitura/escrita ficam ao lado do .exe
+const ROOT_DIR = process.pkg ? path.dirname(process.execPath) : __dirname;
+if (process.pkg) process.chdir(ROOT_DIR);
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const cookieParser = require('cookie-parser');
-const path = require('path');
 const fs = require('fs');
 const { logError, logInfo } = require('./config/logger');
+const { authLimiter, empresasUsuarioLimiter, licenseLimiter, resetIP, resetAll, getBlockedCount } = require('./middleware/rate-limiters');
+
+// BUILD_ID muda a cada restart do servidor (= cada deploy) — força o browser a detectar novo SW
+const BUILD_ID = Date.now().toString();
 
 // Captura erros não tratados globalmente
 process.on('uncaughtException',  err => logError('uncaughtException',  err));
@@ -13,11 +21,33 @@ process.on('unhandledRejection', err => logError('unhandledRejection', err));
 const app = express();
 const PORT = process.env.PORT || 30100;
 
-// Atrás de Nginx/proxy: req.ip deve refletir o cliente real (X-Forwarded-For) para rate-limit do painel /licencas
+// Atrás de Nginx/proxy: req.ip deve refletir o cliente real (X-Forwarded-For) para rate-limit
 app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS) || 1);
 
-// Middlewares
-app.use(cors({ origin: true, credentials: true }));
+// ─── Segurança: headers HTTP ─────────────────────────────────────────────────
+// CSP desativado: HTML usa scripts inline — configurar por rota futuramente se necessário
+app.use(helmet({ contentSecurityPolicy: false }));
+
+// ─── CORS: restringe origens permitidas ─────────────────────────────────────
+const _allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
+  .split(',')
+  .map(o => o.trim())
+  .filter(Boolean);
+
+// Em desenvolvimento (sem ALLOWED_ORIGINS), aceita localhost e IPs de rede privada (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
+const _devOriginRe = /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(:\d+)?$/;
+
+app.use(cors({
+  origin(origin, cb) {
+    // Requisições sem origin (curl, Postman, mobile nativo) — permite
+    if (!origin) return cb(null, true);
+    if (_allowedOrigins.includes(origin)) return cb(null, true);
+    if (!_allowedOrigins.length && _devOriginRe.test(origin)) return cb(null, true);
+    cb(new Error(`Origem não permitida pelo CORS: ${origin}`));
+  },
+  credentials: true,
+}));
+
 app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 app.use(cookieParser());
@@ -40,14 +70,14 @@ app.get('/home.html', (req, res) => {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
   res.set('Pragma', 'no-cache');
   res.set('Expires', '0');
-  res.sendFile(path.join(__dirname, 'public', 'home.html'), { etag: false, lastModified: false });
+  res.sendFile(path.join(ROOT_DIR, 'public', 'home.html'), { etag: false, lastModified: false });
 });
 
 app.get('/mobile-shell.html', (req, res) => {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
   res.set('Pragma', 'no-cache');
   res.set('Expires', '0');
-  res.sendFile(path.join(__dirname, 'public', 'mobile-shell.html'), { etag: false, lastModified: false });
+  res.sendFile(path.join(ROOT_DIR, 'public', 'mobile-shell.html'), { etag: false, lastModified: false });
 });
 
 /** Legado: favoritos / links antigos apontavam para mobile.html */
@@ -61,14 +91,14 @@ app.get('/mobile.html', (req, res) => {
 app.get('/login.html', (req, res) => {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
   res.set('Pragma', 'no-cache');
-  res.sendFile(path.join(__dirname, 'public', 'login.html'));
+  res.sendFile(path.join(ROOT_DIR, 'public', 'login.html'));
 });
 
 // Painel de licenças — rota explícita (evita CDN/proxy entregar SPA ou login por engano)
 app.get('/licencas.html', (req, res) => {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
   res.set('Pragma', 'no-cache');
-  res.sendFile(path.join(__dirname, 'public', 'licencas.html'));
+  res.sendFile(path.join(ROOT_DIR, 'public', 'licencas.html'));
 });
 
 app.get('/licencas', (req, res) => {
@@ -76,19 +106,116 @@ app.get('/licencas', (req, res) => {
   res.redirect(302, '/licencas.html' + (q >= 0 ? req.url.slice(q) : ''));
 });
 
-// Arquivos estáticos
-app.use(express.static(path.join(__dirname, 'public')));
+// Formulário de captura público — /c/:token
+app.get('/c/:token', (_req, res) => {
+  res.sendFile(path.join(ROOT_DIR, 'public', 'captura.html'));
+});
+
+// Vitrine Digital pública — /vitrine/:token
+app.get('/vitrine/:token', (_req, res) => {
+  res.sendFile(path.join(ROOT_DIR, 'public', 'vitrine.html'));
+});
+app.use('/api/vitrine', require('./routes/vitrine'));
+
+function sendServiceWorkerFile(_req, res) {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Content-Type', 'application/javascript');
+  const sw = fs.readFileSync(path.join(ROOT_DIR, 'public', 'sw.js'), 'utf8');
+  res.send(sw.replace('__BUILD_ID__', BUILD_ID));
+}
+
+// sw.js legado + sw-v3.js (novo — não intercepta /pages/)
+app.get('/sw.js', sendServiceWorkerFile);
+app.get('/sw-v3.js', sendServiceWorkerFile);
+
+// Versão atual do servidor — cliente compara para detectar novo deploy
+app.get('/api/version', (_req, res) => res.json({ v: BUILD_ID }));
+
+// HTML: nunca cachear — F5 sempre pega a versão mais nova do disco
+app.use((req, res, next) => {
+  if (req.path.endsWith('.html') || req.path === '/') {
+    res.set('Cache-Control', 'no-store');
+  }
+  next();
+});
+
+// Arquivos estáticos (CSS/JS do código — sempre do diretório do servidor)
+app.use(express.static(path.join(ROOT_DIR, 'public')));
+
+// Uploads do tenant: em modo multi-tenant, o PM2 roda cada cliente com CWD diferente
+// (ex: /home/ubuntu/pedidosweb-clients/rebisages) enquanto __dirname aponta para o
+// código compartilhado. O multer salva em process.cwd()/public/uploads, mas
+// express.static acima serve de ROOT_DIR/public. Este middleware serve o caminho correto.
+const _tenantUploadsDir = path.join(process.cwd(), 'public', 'uploads');
+const _rootUploadsDir   = path.join(ROOT_DIR, 'public', 'uploads');
+if (_tenantUploadsDir !== _rootUploadsDir) {
+  app.use('/uploads', express.static(_tenantUploadsDir));
+}
 
 // Rotas de setup (sem autenticação nem licença)
 app.use('/api/setup',    require('./routes/setup'));
-app.use('/api/auth',     require('./routes/auth'));
-app.use('/api/dbconfig', require('./routes/dbconfig'));
+app.use('/api/auth/login',            authLimiter);
+app.use('/api/auth/empresas-usuario', empresasUsuarioLimiter);
+app.use('/api/auth',         require('./routes/auth'));
+app.use('/api/dbconfig',    require('./routes/dbconfig'));
+app.use('/api/primeiro-admin', require('./routes/primeiro-admin'));
 
-// Redireciona raiz
-app.get('/', (req, res) => {
-  const installed = fs.existsSync(path.join(__dirname, '.installed'));
+// Landing page pública — rota explícita (sem cache)
+app.get('/landing.html', (req, res) => {
+  res.set('Cache-Control', 'public, max-age=300');
+  res.sendFile(path.join(ROOT_DIR, 'public', 'landing.html'));
+});
+
+app.get('/migracao', (req, res) => res.redirect('/migracao.html'));
+app.get('/migracao.html', (req, res) => {
+  res.set('Cache-Control', 'public, max-age=300');
+  res.sendFile(path.join(ROOT_DIR, 'public', 'migracao.html'));
+});
+
+// Demo mode público — sem auth, dados fake
+app.get('/demo', (req, res) => res.redirect('/demo.html'));
+app.get('/demo.html', (req, res) => {
+  res.set('Cache-Control', 'public, max-age=60');
+  res.sendFile(path.join(ROOT_DIR, 'public', 'demo.html'));
+});
+
+// Recuperação de senha — página pública
+app.get('/reset-senha.html', (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.sendFile(path.join(ROOT_DIR, 'public', 'reset-senha.html'));
+});
+
+// Portal do Representante — requer auth (JWT via cookie/header), sem cache
+app.get('/portal', (req, res) => res.redirect('/portal.html'));
+app.get('/portal.html', (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.sendFile(path.join(ROOT_DIR, 'public', 'portal.html'));
+});
+
+// Raiz: em modo bound vai direto ao login; senão verifica instalação local
+app.get('/', async (req, res) => {
+  const { getBoundChave, getPool } = require('./config/database');
+  if (getBoundChave()) {
+    // Verifica se existe algum admin — base vazia redireciona para criar primeiro admin
+    try {
+      const p = getPool();
+      if (p) {
+        const [[row]] = await p.query('SELECT COUNT(*) as n FROM usuarios WHERE role = ?', ['admin']);
+        if (row.n === 0) return res.redirect('/primeiro-admin.html');
+      }
+    } catch (_) {}
+    return res.redirect('/login.html');
+  }
+  const installed = fs.existsSync(path.join(process.cwd(), '.installed'));
   if (!installed) return res.redirect('/setup.html');
   res.redirect('/login.html');
+});
+
+// Rota pública para criar o primeiro admin (só funciona se não existir nenhum admin)
+app.get('/primeiro-admin.html', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.sendFile(path.join(ROOT_DIR, 'public', 'primeiro-admin.html'));
 });
 
 // ─── Licença e autenticação para rotas protegidas ───────────────────────────
@@ -99,7 +226,14 @@ const { authMiddleware } = require('./middleware/auth');
 app.get('/api/license/check', async (req, res) => {
   try {
     const LicenseService = require('./services/license-service');
-    const result = await LicenseService.checkLocal();
+    const { customerDbFromLicense } = require('./config/database');
+    const chave  = (req.query.chave || '').trim().toUpperCase() || null;
+    // Em multi-tenant: sem chave = tenant desconhecido → nunca cair no checkLocal() global
+    const result = chave
+      ? await LicenseService.checkByKey(chave)
+      : customerDbFromLicense()
+        ? { valid: false, status: 'sem_licenca', mensagem: 'Informe sua chave de licença' }
+        : await LicenseService.checkLocal();
     res.json({
       valid:           result.valid,
       status:          result.status,
@@ -107,6 +241,10 @@ app.get('/api/license/check', async (req, res) => {
       diasRestantes:   result.diasRestantes || null,
       aviso:           result.aviso     || false,
       demo:            result.demo      || false,
+      razao_social:    result.dados?.razao_social  || null,
+      cnpj_cpf:        result.dados?.cnpj_cpf     || null,
+      tipo:            result.dados?.tipo_licenca  || null,
+      chave_licenca:   result.chave_licenca || result.dados?.chave_licenca || null,
       suporte_whatsapp: process.env.SUPORTE_WHATSAPP || '',
       suporte_nome:     process.env.SUPORTE_NOME     || 'Suporte Técnico',
       suporte_email:    process.env.SUPORTE_EMAIL    || '',
@@ -116,7 +254,7 @@ app.get('/api/license/check', async (req, res) => {
       pix_descricao:    process.env.PIX_DESCRICAO    || '',
     });
   } catch (err) {
-    res.json({ valid: true, status: 'erro_verificacao' });
+    res.json({ valid: false, status: 'erro_verificacao' });
   }
 });
 
@@ -159,14 +297,67 @@ app.get('/api/license/status', authMiddleware, async (req, res) => {
 });
 
 // POST /api/license/activate — pública (usada na tela de login antes do auth)
-app.post('/api/license/activate', async (req, res) => {
+app.post('/api/license/activate', licenseLimiter, async (req, res) => {
   const { chave } = req.body;
-  if (!chave) return res.status(400).json({ error: 'Chave não informada' });
-  const LicenseService = require('./services/license-service');
-  const { invalidateLicenseCache } = require('./middleware/license');
-  const result = await LicenseService.activateLicense(chave);
-  if (result.sucesso) invalidateLicenseCache();
-  res.json(result);
+  if (!chave) return res.status(400).json({ sucesso: false, mensagem: 'Chave não informada' });
+  try {
+    const LicenseService = require('./services/license-service');
+    const { invalidateLicenseCache } = require('./middleware/license');
+    const result = await LicenseService.activateLicense(chave);
+    if (result.sucesso) invalidateLicenseCache();
+    // Sanitiza BigInt para evitar erro de serialização JSON
+    res.json(JSON.parse(JSON.stringify(result, (k, v) => typeof v === 'bigint' ? v.toString() : v)));
+  } catch (err) {
+    console.error('[license/activate] ERRO:', err.message, err.stack);
+    res.json({ sucesso: false, mensagem: 'Erro ao ativar: ' + err.message });
+  }
+});
+
+// POST /api/webhook/wa-admin — recebe comandos WhatsApp do administrador (Evolution API)
+// Configure na Evolution API: Webhook URL = https://seu-dominio/api/webhook/wa-admin
+//                              Instância   = ALERTA_WA_INSTANCIA
+//                              Eventos     = messages.upsert
+app.post('/api/webhook/wa-admin', async (req, res) => {
+  res.sendStatus(200); // responde imediatamente — Evolution API não aguarda processamento
+  try {
+    const body = req.body;
+    if (body.event !== 'messages.upsert') return;
+    const data = body.data;
+    if (!data || data.key?.fromMe) return;
+
+    // Só processa mensagens vindas do número do administrador
+    const adminNum = (process.env.ALERTA_WHATSAPP || '').replace(/\D/g, '');
+    const fromNum  = (data.key?.remoteJid || '').replace('@s.whatsapp.net', '').replace(/\D/g, '');
+    if (!adminNum || fromNum !== adminNum) return;
+
+    const text = (
+      data.message?.conversation ||
+      data.message?.extendedTextMessage?.text || ''
+    ).trim().toLowerCase();
+
+    const { sendMessage } = require('./config/alert');
+    let reply = '';
+
+    if (text.startsWith('liberar ')) {
+      const ip = text.slice(8).trim();
+      if (/^[\d.:\[\]a-fA-F]+$/.test(ip)) {
+        resetIP(ip);
+        reply = `✅ IP *${ip}* liberado.`;
+      } else {
+        reply = `❌ Formato inválido. Use: *liberar 1.2.3.4*`;
+      }
+    } else if (text === 'liberar tudo') {
+      const count = resetAll();
+      reply = count > 0 ? `✅ ${count} IP(s) liberado(s).` : `ℹ️ Nenhum IP bloqueado.`;
+    } else if (text === 'status') {
+      const ts = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+      reply = `✅ *SysRepWeb online*\n🔒 IPs bloqueados: ${getBlockedCount()}\n🕐 ${ts}`;
+    }
+
+    if (reply) sendMessage(reply).catch(() => {});
+  } catch (e) {
+    console.error('[wa-admin] webhook error:', e.message);
+  }
 });
 
 // POST /api/license/demo — ativa modo demo por 30 dias
@@ -180,12 +371,20 @@ app.post('/api/license/demo', authMiddleware, async (req, res) => {
 
 // POST /api/license/sync — sincroniza com base remota
 app.post('/api/license/sync', authMiddleware, async (req, res) => {
-  const LicenseService = require('./services/license-service');
+  const LicenseService   = require('./services/license-service');
   const { invalidateLicenseCache } = require('./middleware/license');
-  const status = await LicenseService.checkLocal();
-  if (!status.dados?.chave_licenca) return res.status(400).json({ error: 'Nenhuma licença ativa para sincronizar' });
-  const result = await LicenseService.syncWithRemote(status.dados.chave_licenca);
-  if (result.sucesso) invalidateLicenseCache();
+  const { customerDbFromLicense }  = require('./config/database');
+  // Em multi-tenant a chave vem do JWT; em single-tenant lê do banco local
+  let chave;
+  if (customerDbFromLicense()) {
+    chave = req.user?.chave_licenca || null;
+  } else {
+    const status = await LicenseService.checkLocal();
+    chave = status.dados?.chave_licenca || null;
+  }
+  if (!chave) return res.status(400).json({ error: 'Nenhuma licença ativa para sincronizar' });
+  const result = await LicenseService.syncWithRemote(chave);
+  if (result.sucesso) invalidateLicenseCache(chave);
   res.json(result);
 });
 
@@ -226,6 +425,9 @@ app.use('/api/licencas', require('./routes/licencas'));
 // ─── Webhooks públicos (sem auth — Meta, etc.) ───────────────────────────────
 app.use('/api/webhooks', require('./routes/webhooks'));
 
+// ─── Formulários de captura públicos (sem auth) ──────────────────────────────
+app.use('/api/captura', require('./routes/captura').router);
+
 // ─── Suas rotas de negócio vão aqui ─────────────────────────────────────────
 app.use('/api/clientes',     authMiddleware, require('./modules/clientes/clientes.routes'));
 app.use('/api/fornecedores',     authMiddleware, require('./routes/fornecedores'));
@@ -240,10 +442,16 @@ app.use('/api/importacao-precos',       authMiddleware, require('./routes/import
 app.use('/api/importacao-clientes',    authMiddleware, require('./routes/importacao-clientes'));
 app.use('/api/importacao-fornecedores',authMiddleware, require('./routes/importacao-fornecedores'));
 app.use('/api/leads',        authMiddleware, require('./routes/leads'));
+app.use('/api/teleatendimento', authMiddleware, require('./routes/teleatendimento'));
 app.use('/api/visitas',      authMiddleware, require('./routes/visitas'));
 app.use('/api/geocoding',    authMiddleware, require('./routes/geocoding'));
 app.use('/api/geolocalizacao', authMiddleware, require('./routes/geolocalizacao'));
+app.use('/api/mapa-operacoes', authMiddleware, require('./routes/mapa-operacoes'));
+app.use('/api/panico-vendedor', authMiddleware, require('./routes/panico-vendedor'));
+app.use('/api/gamificacao',    authMiddleware, require('./routes/gamificacao'));
+app.use('/api/lgpd',           authMiddleware, require('./routes/lgpd'));
 app.use('/api/user-prefs',    authMiddleware, require('./routes/user-prefs'));
+app.use('/api/mobile',        authMiddleware, require('./routes/mobile'));
 
 // ─── GET /api/grupos-fab — grupos de fornecedores (tabela: grupos) ──────────
 app.get('/api/grupos-fab', authMiddleware, async (req, res) => {
@@ -287,18 +495,27 @@ app.get('/api/vendedores', authMiddleware, async (req, res) => {
     res.json({ vendedores: [] });
   }
 });
+app.use('/api/prepostos', authMiddleware, require('./routes/prepostos'));
 app.use('/api/pedidos',   authMiddleware, require('./routes/pedidos'));
 app.use('/api/xml',       authMiddleware, require('./routes/xml'));
 app.use('/api/excel',     authMiddleware, require('./routes/excel'));
 app.use('/api/analytics', authMiddleware, require('./routes/analytics'));
-app.use('/api/comissoes', authMiddleware, require('./routes/comissoes'));
+app.use('/api/comissoes',     authMiddleware, require('./routes/comissoes'));
+app.use('/api/conciliacao',  authMiddleware, require('./routes/conciliacao'));
 app.use('/api/pagar',     authMiddleware, require('./routes/pagar'));
 app.use('/api/receber',   authMiddleware, require('./routes/receber'));
 app.use('/api/financeiro', authMiddleware, require('./routes/financeiro'));
+app.use('/api/dre',       authMiddleware, require('./routes/dre'));
+app.use('/api/faturamento', authMiddleware, require('./routes/faturamento'));
 
+// ─── Inteligência Comercial e Regiões/Rotas ───────────────────────────────────
+app.use('/api/regiao-rota',    authMiddleware, require('./routes/regiao-rota'));
+app.use('/api/inteligencia',   authMiddleware, require('./routes/inteligencia-comercial'));
+app.use('/api/performance',    authMiddleware, require('./routes/performance-representantes'));
 
 // ─── Cadastros (perfis, grupos, usuários, empresas) ──────────────────────────
 app.use('/api', authMiddleware, require('./routes/cadastros'));
+app.use('/api/manutencao', authMiddleware, require('./routes/manutencao'));
 
 // ─── Configurações do sistema e da API ───────────────────────────────────────
 app.use('/api/config',    authMiddleware, require('./routes/config-sistema'));
@@ -395,7 +612,18 @@ app.get('/api/dashboard/home', authMiddleware, async (req, res) => {
       LIMIT 10
     `).catch(() => [[]]);
 
-    // 4. Visitas e Atividades Reais (Nova Tabela)
+    // 4. KPIs mobile (hoje, abertos, orçamentos)
+    const [[mobileKpi]] = await pool.query(`
+      SELECT
+        COUNT(CASE WHEN DATE(data_abertura) = CURDATE() AND tipo_pedido NOT LIKE '%ORCA%' THEN 1 END) AS qtdHoje,
+        IFNULL(SUM(CASE WHEN DATE(data_abertura) = CURDATE() AND tipo_pedido NOT LIKE '%ORCA%' THEN vlrtotalpedido ELSE 0 END), 0) AS valorHoje,
+        COUNT(CASE WHEN situacao_pedido NOT IN ('CANCELADO','ENVIADO') AND tipo_pedido NOT LIKE '%ORCA%' THEN 1 END) AS pedidosAbertos,
+        COUNT(CASE WHEN tipo_pedido LIKE '%ORCA%' AND situacao_pedido != 'CANCELADO' THEN 1 END) AS orcamentosPendentes
+      FROM pedidos
+      WHERE excluido = 'N' ${whereUser}
+    `).catch(() => [[{ qtdHoje:0, valorHoje:0, pedidosAbertos:0, orcamentosPendentes:0 }]]);
+
+    // 5. Visitas e Atividades Reais (Nova Tabela)
     const [visitas] = await pool.query(`
       SELECT 
         v.id, v.data_visita, v.hora_visita, v.status, v.id_cliente,
@@ -421,7 +649,11 @@ app.get('/api/dashboard/home', authMiddleware, async (req, res) => {
       evolucaoDiaria,
       logs,
       visitas,
-      mesNome: hoje.toLocaleDateString('pt-BR', { month: 'long' }).toUpperCase()
+      mesNome: hoje.toLocaleDateString('pt-BR', { month: 'long' }).toUpperCase(),
+      qtdHoje: mobileKpi?.qtdHoje || 0,
+      valorHoje: mobileKpi?.valorHoje || 0,
+      pedidosAbertos: mobileKpi?.pedidosAbertos || 0,
+      orcamentosPendentes: mobileKpi?.orcamentosPendentes || 0
     });
   } catch (err) {
     console.error('Dash Error:', err);
@@ -467,28 +699,37 @@ app.get('*', (req, res) => {
   // Nunca substituir páginas reais pelo shell de login (proxy estático pode não servir o arquivo)
   if (req.path === '/licencas.html' || req.path === '/setup.html') {
     const fn = req.path === '/licencas.html' ? 'licencas.html' : 'setup.html';
-    return res.sendFile(path.join(__dirname, 'public', fn));
+    return res.sendFile(path.join(ROOT_DIR, 'public', fn));
   }
   // Demais rotas HTML → login
-  res.sendFile(path.join(__dirname, 'public', 'login.html'));
+  res.sendFile(path.join(ROOT_DIR, 'public', 'login.html'));
 });
 
 const { initCustomerDatabase, customerDbFromLicense, readLicenseBinding } = require('./config/database');
 
+function startServer() {
+  app.listen(PORT, () => {
+    const installed = fs.existsSync(path.join(process.cwd(), '.installed'));
+    console.log(`\n🚀 SysRepWeb rodando em http://localhost:${PORT}`);
+    if (!installed) {
+      console.log(`⚙️  Primeira execução — acesse http://localhost:${PORT}/setup.html`);
+    }
+    if (customerDbFromLicense() && readLicenseBinding()) {
+      console.log('📎 CUSTOMER_DB_FROM_LICENSE: banco operacional amarrado à chave em data/license-binding.json');
+    }
+  });
+}
+
 initCustomerDatabase()
+  .then(startServer)
   .then(() => {
-    app.listen(PORT, () => {
-      const installed = fs.existsSync(path.join(__dirname, '.installed'));
-      console.log(`\n🚀 SysRepWeb rodando em http://localhost:${PORT}`);
-      if (!installed) {
-        console.log(`⚙️  Primeira execução — acesse http://localhost:${PORT}/setup.html`);
-      }
-      if (customerDbFromLicense() && readLicenseBinding()) {
-        console.log('📎 CUSTOMER_DB_FROM_LICENSE: banco operacional amarrado à chave em data/license-binding.json');
-      }
-    });
+    try { require('./config/daily-report').startScheduler(); } catch {}
   })
   .catch((err) => {
-    console.error('[DB] Falha ao inicializar conexão com banco cliente:', err.message);
-    process.exit(1);
+    console.error('\n╔══════════════════════════════════════════════════════════╗');
+    console.error('║  ERRO AO CONECTAR NO BANCO DE DADOS                      ║');
+    console.error('╠══════════════════════════════════════════════════════════╣');
+    console.error('║  ' + String(err.message).padEnd(56) + '║');
+    console.error('╚══════════════════════════════════════════════════════════╝\n');
+    startServer();
   });

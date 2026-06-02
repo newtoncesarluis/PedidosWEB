@@ -1,0 +1,110 @@
+{
+  "name": "SysRepWeb — Comandos Admin WhatsApp",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sysrep-admin",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "node-webhook",
+      "name": "📩 Receber Evento WA",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [180, 300],
+      "webhookId": "sysrep-admin-wh"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond-event",
+              "leftValue": "={{ ($json.body ?? $json).event }}",
+              "rightValue": "messages.upsert",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "node-if-event",
+      "name": "🔍 É messages.upsert?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [380, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ─────────────────────────────────────────────────────────────\n// ⚠️  CONFIGURE SEU NÚMERO (ALERTA_WHATSAPP do .env do SysRepWeb)\n//     Apenas dígitos: DDI + DDD + número\n// ─────────────────────────────────────────────────────────────\nconst ADMIN_NUMBER = '5514981120394';\n\nconst raw  = $input.first().json;\nconst body = raw.body ?? raw;          // n8n embala o body em .body\nconst data = body.data ?? {};\n\n// Ignora mensagens enviadas por nós (fromMe)\nif (data.key?.fromMe) return [];\n\n// Verifica se veio do número admin\nconst fromNum = String(data.key?.remoteJid ?? '')\n  .replace('@s.whatsapp.net', '')\n  .replace(/\\D/g, '');\n\nif (fromNum !== ADMIN_NUMBER) return [];\n\n// Verifica se há texto no comando\nconst msgText = (\n  data.message?.conversation ??\n  data.message?.extendedTextMessage?.text ??\n  ''\n).trim();\n\nif (!msgText) return [];\n\n// Passa o payload original (sem o wrapper do n8n) para o próximo nó\nreturn [{ json: body }];"
+      },
+      "id": "node-code-admin",
+      "name": "👤 É do administrador?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [580, 260]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:30100/api/webhook/wa-admin",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 8000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "node-http-sysrep",
+      "name": "🚀 Encaminhar ao SysRepWeb",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [780, 260]
+    }
+  ],
+  "connections": {
+    "📩 Receber Evento WA": {
+      "main": [
+        [
+          { "node": "🔍 É messages.upsert?", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "🔍 É messages.upsert?": {
+      "main": [
+        [
+          { "node": "👤 É do administrador?", "type": "main", "index": 0 }
+        ],
+        []
+      ]
+    },
+    "👤 É do administrador?": {
+      "main": [
+        [
+          { "node": "🚀 Encaminhar ao SysRepWeb", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "instanceId": "sysrep-wa-admin-commands"
+  }
+}

@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Comissões — Conferência | SysRepWeb</title>
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<link rel="stylesheet" href="/assets/ajuda-tour.css">
+<script src="/assets/ajuda-tour.js"></script>
+<script src="/assets/ajuda-tours.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+:root {
+  --bg:#f0f2f5; --card:#fff; --border:#e5e7eb;
+  --text:#111827; --text2:#6b7280;
+  --accent:#0d9488; --accent-hover:#0f766e; --accent-rgb:13,148,136;
+  --danger:#ef4444; --warn:#f59e0b; --success:#10b981;
+}
+body { font-family:var(--font,'Inter','Segoe UI',sans-serif); background:var(--bg); color:var(--text); min-height:100vh; font-size:13px; }
+
+/* ── TOOLBAR ── */
+.toolbar-bar {
+  background:var(--card); border-bottom:1px solid var(--border);
+  padding:8px 16px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  position:sticky; top:0; z-index:100;
+}
+.toolbar-title { font-size:14px; font-weight:700; color:var(--text); white-space:nowrap; margin-right:4px; }
+.toolbar-sep { width:1px; height:20px; background:var(--border); flex-shrink:0; }
+
+/* ins-cards KPI */
+.ins-card { display:inline-flex; align-items:center; gap:6px; cursor:default; padding:5px 10px; border-radius:7px; border:1.5px solid var(--border); background:#fafafa; flex-shrink:0; white-space:nowrap; }
+.ins-label { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; color:var(--text2); }
+.ins-val   { font-size:12px; font-weight:800; color:var(--text); line-height:1; }
+.ins-card.green .ins-val { color:var(--success); }
+.ins-card.warn  .ins-val { color:var(--warn); }
+.ins-card.accent .ins-val { color:var(--accent); }
+
+/* botões */
+.btn {
+  display:inline-flex; align-items:center; gap:6px; padding:7px 14px;
+  border:none; border-radius:7px; font-size:12px; font-weight:700; cursor:pointer;
+  transition:.15s; font-family:inherit; white-space:nowrap;
+}
+.btn-primary { background:var(--accent); color:#fff; border:1.5px solid var(--accent); }
+.btn-primary:hover { background:var(--accent-hover); }
+.btn-outline { background:var(--card); color:var(--accent); border:1.5px solid var(--accent); }
+.btn-outline:hover { background:rgba(var(--accent-rgb),.06); }
+.btn-ghost { background:var(--card); color:var(--text2); border:1.5px solid var(--border); }
+.btn-ghost:hover { background:#f9fafb; color:var(--text); }
+.btn-danger { background:var(--danger); color:#fff; border:1.5px solid var(--danger); }
+
+/* ── SUBBAR (filtros) ── */
+.subbar {
+  background:#f9fafb; border-bottom:1px solid var(--border);
+  padding:6px 16px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  position:sticky; top:49px; z-index:99;
+}
+.filter-label { font-size:10px; font-weight:700; text-transform:uppercase; color:var(--text2); white-space:nowrap; }
+.filter-input {
+  padding:5px 10px; border:1.5px solid var(--border); border-radius:7px;
+  font-size:12px; font-family:inherit; background:var(--card); color:var(--text); outline:none;
+}
+.filter-input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(var(--accent-rgb),.1); }
+select.filter-input { min-width:180px; }
+input[type=date].filter-input { width:140px; }
+
+/* ── BATCH BAR ── */
+.batch-bar {
+  background:var(--accent); color:#fff;
+  padding:8px 16px; display:none; align-items:center; gap:10px;
+  position:sticky; top:93px; z-index:98;
+  font-size:12px; font-weight:600;
+}
+.batch-bar.show { display:flex; }
+.batch-bar .btn-ghost { background:rgba(255,255,255,.15); color:#fff; border-color:rgba(255,255,255,.3); }
+.batch-bar .btn-ghost:hover { background:rgba(255,255,255,.25); }
+
+/* ── CONTENT ── */
+.content-area { padding:14px 16px; }
+
+/* ── TABS ── */
+.tabs { display:flex; gap:0; border-bottom:1px solid var(--border); margin-bottom:14px; }
+.tab-btn {
+  padding:8px 18px; font-size:12px; font-weight:700; cursor:pointer;
+  background:none; border:none; border-bottom:2px solid transparent; color:var(--text2);
+  font-family:inherit; transition:.15s; margin-bottom:-1px;
+}
+.tab-btn:hover { color:var(--text); background:#f9fafb; }
+.tab-btn.active { color:var(--accent); border-bottom-color:var(--accent); background:none; }
+.tab-badge {
+  display:inline-flex; align-items:center; justify-content:center;
+  min-width:18px; height:18px; padding:0 5px; border-radius:10px;
+  font-size:10px; font-weight:800; background:var(--border); color:var(--text2); margin-left:5px;
+}
+.tab-btn.active .tab-badge { background:rgba(var(--accent-rgb),.15); color:var(--accent); }
+.tab-pane { display:none; }
+.tab-pane.active { display:block; }
+
+/* ── TABLE ── */
+.table-card { background:var(--card); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+.table-wrap { overflow-x:auto; }
+table { width:100%; border-collapse:collapse; }
+thead th {
+  background:#f9fafb; padding:7px 12px; text-align:left;
+  font-size:10px; font-weight:700; text-transform:uppercase;
+  letter-spacing:.5px; color:var(--text2); border-bottom:1px solid var(--border); white-space:nowrap;
+}
+thead th.text-end { text-align:right; }
+thead th.text-center { text-align:center; }
+tbody tr { transition:background .1s; }
+tbody tr:hover { background:#f5fffe; }
+tbody tr.selected { background:rgba(var(--accent-rgb),.07); }
+tbody td { padding:8px 12px; border-bottom:1px solid var(--border); font-size:12px; vertical-align:middle; }
+tbody td.text-end { text-align:right; }
+tbody td.text-center { text-align:center; }
+tbody tr:last-child td { border-bottom:none; }
+.empty-row td { text-align:center; padding:32px; color:var(--text2); font-size:12px; }
+
+/* checkbox */
+input[type=checkbox] { width:15px; height:15px; accent-color:var(--accent); cursor:pointer; }
+.th-check, .td-check { width:36px; padding-left:14px !important; padding-right:4px !important; }
+
+/* badges */
+.badge { display:inline-flex; align-items:center; gap:4px; padding:2px 9px; border-radius:20px; font-size:10px; font-weight:700; white-space:nowrap; }
+.badge-pend    { background:#fef3c7; color:#92400e; }
+.badge-conf    { background:#d1fae5; color:#065f46; }
+.badge-liq     { background:#dbeafe; color:#1e40af; }
+.badge-fab     { background:#f3f4f6; color:var(--text2); border:1px solid var(--border); }
+.vlr-comissao  { font-weight:700; color:var(--success); }
+.vlr-provisao  { font-weight:700; color:var(--warn); }
+.num-pedido    { font-weight:700; color:var(--accent); }
+
+/* ação individual */
+.btn-conf {
+  padding:4px 12px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;
+  background:rgba(var(--accent-rgb),.1); color:var(--accent);
+  border:1px solid rgba(var(--accent-rgb),.2); font-family:inherit; transition:.15s;
+}
+.btn-conf:hover { background:var(--accent); color:#fff; }
+
+/* ── CHART SECTION ── */
+.chart-section { display:grid; grid-template-columns:2fr 1fr; gap:14px; margin-top:14px; }
+@media(max-width:900px) { .chart-section { grid-template-columns:1fr; } }
+.chart-card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:16px; }
+.chart-card-title { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; color:var(--text2); margin-bottom:12px; }
+.chart-wrap { height:200px; position:relative; }
+
+/* ── TOAST ── */
+#toast-c { position:fixed; bottom:24px; right:24px; z-index:99999; display:flex; flex-direction:column; gap:8px; pointer-events:none; }
+.toast { display:flex; align-items:center; gap:10px; padding:11px 16px; border-radius:9px; font-size:13px; font-weight:600; box-shadow:0 8px 24px rgba(0,0,0,.14); animation:toastIn .2s ease-out; pointer-events:auto; }
+@keyframes toastIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+.toast-ok  { background:#1a1a2e; color:#fff; }
+.toast-err { background:var(--danger); color:#fff; }
+
+@media(max-width:700px) {
+  .toolbar-bar { top:0; }
+  .subbar { top:44px; flex-wrap:wrap; }
+  .batch-bar { top:auto; position:relative; }
+  input[type=date].filter-input { width:130px; }
+  select.filter-input { min-width:140px; }
+}
+</style>
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body data-tour-default="comissoes-conferencia">
+
+<!-- TOOLBAR -->
+<div class="toolbar-bar">
+  <button class="btn btn-ghost" onclick="history.back()" style="padding:6px 10px" title="Voltar">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+  </button>
+  <span class="toolbar-title" id="toolbar_title">Comissões — Conferência</span>
+  <div class="toolbar-sep"></div>
+  <div class="ins-card accent">
+    <span class="ins-label">Vendas</span>
+    <span class="ins-val" id="kpi_vendas">—</span>
+  </div>
+  <div class="ins-card green">
+    <span class="ins-label">Comissão Real</span>
+    <span class="ins-val" id="kpi_comissao">—</span>
+  </div>
+  <div class="ins-card warn">
+    <span class="ins-label">Provisão</span>
+    <span class="ins-val" id="kpi_futura">—</span>
+  </div>
+  <div class="ins-card">
+    <span class="ins-label">Meta</span>
+    <span class="ins-val" id="kpi_meta">—%</span>
+  </div>
+  <button type="button" id="btn_whatsapp" class="btn btn-ghost" onclick="enviarWhatsApp()" style="display:none;color:#25d366;border-color:#25d366">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+    WhatsApp
+  </button>
+  <div style="flex:1"></div>
+  <button class="btn btn-ghost" onclick="loadAll()">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+    Atualizar
+  </button>
+  <button type="button" class="btn-sysrep-tour" onclick="SysRepTour.start('comissoes-conferencia')" title="Tour — Conferência de comissões">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+    Tour
+  </button>
+  <a href="ajuda-comissoes.html#vendedor" target="_blank" class="btn btn-ghost" title="Ajuda — Como usar comissões" style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:50%;font-size:15px;font-weight:700;color:var(--accent);border:1.5px solid var(--accent);padding:0;text-decoration:none">?</a>
+</div>
+
+<!-- SUBBAR FILTROS -->
+<div class="subbar">
+  <span class="filter-label">Período</span>
+  <input type="date" id="dt_inicio" class="filter-input" autocomplete="off">
+  <span class="filter-label" style="margin-left:2px">até</span>
+  <input type="date" id="dt_fim" class="filter-input" autocomplete="off">
+  <div class="toolbar-sep"></div>
+  <span class="filter-label">Fábrica</span>
+  <select id="id_fornecedor" class="filter-input">
+    <option value="">Todas</option>
+  </select>
+  <div id="wrap_filtro_preposto" style="display:none;align-items:center;gap:8px">
+    <div class="toolbar-sep"></div>
+    <span class="filter-label">Preposto</span>
+    <select id="id_preposto_filtro" class="filter-input" style="min-width:160px">
+      <option value="">Todos</option>
+    </select>
+  </div>
+  <button class="btn btn-primary" onclick="loadAll()">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+    Filtrar
+  </button>
+</div>
+
+<!-- BATCH BAR -->
+<div class="batch-bar" id="batchBar">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+  <span id="batchCount">0 selecionados</span>
+  <button class="btn btn-ghost" onclick="conferirLote()">Conferir Selecionados</button>
+  <button class="btn btn-ghost" style="margin-left:auto" onclick="limparSelecao()">Cancelar</button>
+</div>
+
+<!-- CONTENT -->
+<div class="content-area">
+
+  <!-- TABS -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('pendentes',this)">
+      Pendentes <span class="tab-badge" id="badge_pendentes">0</span>
+    </button>
+    <button class="tab-btn" onclick="switchTab('conferidas',this)">
+      Conferidas <span class="tab-badge" id="badge_conferidas">0</span>
+    </button>
+    <button class="tab-btn" onclick="switchTab('liquidadas',this)">
+      Liquidadas <span class="tab-badge" id="badge_liquidadas">0</span>
+    </button>
+    <button class="tab-btn" id="tab_btn_prepostos" onclick="switchTab('prepostos',this)" style="display:none">
+      Prepostos <span class="tab-badge" id="badge_prepostos">0</span>
+    </button>
+  </div>
+
+  <!-- TAB PENDENTES -->
+  <div id="tab_pendentes" class="tab-pane active">
+    <div class="table-card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th class="th-check">
+                <input type="checkbox" id="chkAll" onclick="toggleSelectAll(this)">
+              </th>
+              <th>Pedido</th>
+              <th>Cliente</th>
+              <th>Fábrica</th>
+              <th class="text-end">Vlr. Pedido</th>
+              <th class="text-end">Comissão</th>
+              <th class="text-center">Lançamento</th>
+              <th class="text-center">Ação</th>
+            </tr>
+          </thead>
+          <tbody id="list_provisoes">
+            <tr class="empty-row"><td colspan="8">Carregando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB CONFERIDAS -->
+  <div id="tab_conferidas" class="tab-pane">
+    <div class="table-card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Pedido</th>
+              <th>Cliente</th>
+              <th>Fábrica</th>
+              <th class="text-end">Comissão</th>
+              <th class="text-center">Confirmação</th>
+              <th class="text-center">Status</th>
+            </tr>
+          </thead>
+          <tbody id="list_conferidas">
+            <tr class="empty-row"><td colspan="6">Nenhum registro</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB LIQUIDADAS -->
+  <div id="tab_liquidadas" class="tab-pane">
+    <div class="table-card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Pedido</th>
+              <th>Cliente</th>
+              <th>Fábrica</th>
+              <th class="text-end">Vlr. Pago</th>
+              <th class="text-center">Data Pgto</th>
+              <th class="text-center">Status</th>
+            </tr>
+          </thead>
+          <tbody id="list_historico">
+            <tr class="empty-row"><td colspan="6">Nenhum registro</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB PREPOSTOS (visível apenas para representante) -->
+  <div id="tab_prepostos" class="tab-pane">
+    <!-- batch bar específica de prepostos -->
+    <div id="batchBarPrep" style="display:none;align-items:center;gap:10px;padding:8px 0 10px;font-size:12px;font-weight:600;color:var(--accent)">
+      <span id="batchCountPrep">0 selecionados</span>
+      <button class="btn btn-primary" style="padding:5px 14px;font-size:11px" onclick="conferirLotePrepostos()">Conferir Selecionados</button>
+      <button class="btn btn-ghost"  style="padding:5px 14px;font-size:11px;margin-left:auto" onclick="limparSelecaoPrep()">Cancelar</button>
+    </div>
+    <div class="table-card">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th class="th-check"><input type="checkbox" id="chkAllPrep" onclick="toggleSelectAllPrep(this)"></th>
+              <th>Preposto</th>
+              <th>Pedido</th>
+              <th>Cliente</th>
+              <th>Fábrica</th>
+              <th class="text-end">Comissão</th>
+              <th class="text-center">Lançamento</th>
+              <th class="text-center">Status</th>
+              <th class="text-center">Ação</th>
+            </tr>
+          </thead>
+          <tbody id="list_prepostos">
+            <tr class="empty-row"><td colspan="9">Carregando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHARTS -->
+  <div class="chart-section">
+    <div class="chart-card">
+      <div class="chart-card-title">Evolução de Ganhos</div>
+      <div class="chart-wrap"><canvas id="chart_trend"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-title">Por Fábrica</div>
+      <div class="chart-wrap"><canvas id="chart_fabricas"></canvas></div>
+    </div>
+  </div>
+
+</div><!-- /content-area -->
+
+<div id="toast-c"></div>
+
+<script>
+let _charts = {};
+let _selecionados    = new Set();
+let _selecionadosPrep = new Set();
+let _tipoUsuario = 'REPRESENTANTE';
+let _nomeUsuario = '';
+let _resumoAtual = {};
+
+// Detecta tipo de usuário pelo JWT (sem dependência de lib externa)
+(function() {
+  try {
+    const raw = document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('token='))?.split('=').slice(1).join('=')
+             || localStorage.getItem('token') || sessionStorage.getItem('sysrep_token') || '';
+    if (raw) {
+      const payload = JSON.parse(atob(raw.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+      _tipoUsuario = payload.tipo_usuario || 'REPRESENTANTE';
+    }
+  } catch(_) {}
+})();
+
+// ── Utilitários ──────────────────────────────────────────────────────────────
+function fmtBRL(v) {
+  return parseFloat(v || 0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
+}
+function fmtBRLShort(v) {
+  const n = parseFloat(v || 0);
+  if (n >= 1e6) return 'R$' + (n/1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return 'R$' + (n/1e3).toFixed(1) + 'k';
+  return fmtBRL(n);
+}
+function fmtDate(d) {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('pt-BR');
+}
+function toast(msg, type) {
+  const c = document.getElementById('toast-c');
+  const el = document.createElement('div');
+  el.className = 'toast toast-' + (type === 'err' ? 'err' : 'ok');
+  el.textContent = msg;
+  c.appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+}
+
+// ── Seleção em lote ──────────────────────────────────────────────────────────
+function toggleSelectAll(master) {
+  document.querySelectorAll('.row-chk').forEach(chk => {
+    chk.checked = master.checked;
+    const id = parseInt(chk.dataset.id);
+    if (master.checked) _selecionados.add(id);
+    else _selecionados.delete(id);
+    chk.closest('tr').classList.toggle('selected', master.checked);
+  });
+  atualizarBatchBar();
+}
+
+function onRowCheck(chk) {
+  const id = parseInt(chk.dataset.id);
+  if (chk.checked) _selecionados.add(id);
+  else _selecionados.delete(id);
+  chk.closest('tr').classList.toggle('selected', chk.checked);
+  // sync master
+  const all = document.querySelectorAll('.row-chk');
+  document.getElementById('chkAll').indeterminate = _selecionados.size > 0 && _selecionados.size < all.length;
+  document.getElementById('chkAll').checked = _selecionados.size === all.length && all.length > 0;
+  atualizarBatchBar();
+}
+
+function atualizarBatchBar() {
+  const bar = document.getElementById('batchBar');
+  const cnt = document.getElementById('batchCount');
+  if (_selecionados.size > 0) {
+    bar.classList.add('show');
+    cnt.textContent = _selecionados.size + ' selecionado' + (_selecionados.size > 1 ? 's' : '');
+  } else {
+    bar.classList.remove('show');
+  }
+}
+
+function limparSelecao() {
+  _selecionados.clear();
+  document.querySelectorAll('.row-chk').forEach(c => { c.checked = false; c.closest('tr').classList.remove('selected'); });
+  const chkAll = document.getElementById('chkAll');
+  if (chkAll) { chkAll.checked = false; chkAll.indeterminate = false; }
+  atualizarBatchBar();
+}
+
+// ── Carregamento principal ───────────────────────────────────────────────────
+async function loadAll() {
+  limparSelecao();
+  const q = new URLSearchParams({
+    dt_inicio:     document.getElementById('dt_inicio').value,
+    dt_fim:        document.getElementById('dt_fim').value,
+    id_fornecedor: document.getElementById('id_fornecedor').value
+  }).toString();
+
+  try {
+    const data = await fetch('/api/comissoes/extrato?' + q).then(r => r.json());
+    if (data.error) throw new Error(data.error);
+
+    if (data.resumo) renderStats(data);
+    populateFabricas(data.fornecedores || data.rankings?.fabricas || []);
+    renderProvisoes(data.lista_pendentes  || []);
+    renderConferidas(data.lista_conferidas || []);
+    renderHistorico(data.lista_liquidadas  || []);
+
+    // Aba Prepostos só aparece para REPRESENTANTE
+    const btnPrep = document.getElementById('tab_btn_prepostos');
+    const wrapFiltroPrep = document.getElementById('wrap_filtro_preposto');
+    if (_tipoUsuario !== 'PREPOSTO') {
+      if (btnPrep) btnPrep.style.display = '';
+      if (wrapFiltroPrep) wrapFiltroPrep.style.display = 'flex';
+      loadPrepostos();
+    }
+  } catch (err) {
+    console.error('Erro ao carregar extrato:', err);
+    toast('Erro ao carregar dados', 'err');
+  }
+}
+
+function renderStats(data) {
+  const res = data.resumo;
+  const vendas   = parseFloat(res.vendas_totais   || 0);
+  const comReal  = parseFloat(res.comissao_total  || 0);
+  const comFut   = parseFloat(res.comissao_futura || 0);
+  const meta     = parseFloat(res.meta            || 0);
+
+  _nomeUsuario = res.nome || '';
+  _resumoAtual = { vendas, comReal, comFut };
+
+  // Tipo de usuário pode vir da resposta (fallback ao JWT decodificado)
+  if (data.tipo_usuario) _tipoUsuario = data.tipo_usuario;
+
+  document.getElementById('kpi_vendas').textContent   = fmtBRLShort(vendas);
+  document.getElementById('kpi_comissao').textContent = fmtBRLShort(comReal);
+  document.getElementById('kpi_futura').textContent   = fmtBRLShort(comFut);
+  const perc = meta > 0 ? Math.min((vendas / meta) * 100, 999) : 0;
+  document.getElementById('kpi_meta').textContent = perc.toFixed(1) + '%';
+
+  // Ajustes visuais por tipo
+  if (_tipoUsuario === 'PREPOSTO') {
+    document.getElementById('toolbar_title').textContent = 'Minhas Comissões (Preposto)';
+  }
+  document.getElementById('btn_whatsapp').style.display = '';
+
+  renderTrendChart(data.rankings?.diaria   || []);
+  renderFabricaChart(data.rankings?.fabricas || []);
+}
+
+// ── Prepostos: carregamento ──────────────────────────────────────────────────
+async function loadPrepostos() {
+  const q = new URLSearchParams({
+    dt_inicio:    document.getElementById('dt_inicio').value,
+    dt_fim:       document.getElementById('dt_fim').value,
+    id_preposto:  document.getElementById('id_preposto_filtro')?.value || '',
+    id_fornecedor:document.getElementById('id_fornecedor').value
+  }).toString();
+
+  try {
+    const data = await fetch('/api/comissoes/prepostos-do-rep?' + q).then(r => r.json());
+    if (data.error) throw new Error(data.error);
+    populatePrepostosFiltro(data.prepostos || []);
+    renderListaPrepostos(data.pendentes || [], data.conferidas || [], data.liquidadas || []);
+  } catch(e) {
+    document.getElementById('list_prepostos').innerHTML =
+      '<tr class="empty-row"><td colspan="9">Erro ao carregar</td></tr>';
+  }
+}
+
+function populatePrepostosFiltro(lista) {
+  const sel = document.getElementById('id_preposto_filtro');
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">Todos</option>' +
+    lista.map(p => `<option value="${p.id}">${p.nome}</option>`).join('');
+  if (cur) sel.value = cur;
+}
+
+function renderListaPrepostos(pendentes, conferidas, liquidadas) {
+  const todas = [
+    ...pendentes.map(r => ({ ...r, _grupo: 'pendente' })),
+    ...conferidas.map(r => ({ ...r, _grupo: 'conferida' })),
+    ...liquidadas.map(r => ({ ...r, _grupo: 'liquidada' })),
+  ];
+  document.getElementById('badge_prepostos').textContent = pendentes.length;
+
+  if (!todas.length) {
+    document.getElementById('list_prepostos').innerHTML =
+      '<tr class="empty-row"><td colspan="9">Nenhuma comissão de preposto encontrada</td></tr>';
+    return;
+  }
+
+  document.getElementById('list_prepostos').innerHTML = todas.map(p => {
+    const badgeMap = { pendente:'badge-pend', conferida:'badge-conf', liquidada:'badge-liq' };
+    const labelMap = { pendente:'Pendente',   conferida:'Conferida',  liquidada:'Liquidada' };
+    const isPend   = p._grupo === 'pendente';
+    return `
+    <tr data-id="${p.id}">
+      <td class="td-check">
+        ${isPend ? `<input type="checkbox" class="row-chk-prep" data-id="${p.id}" onclick="onRowCheckPrep(this)">` : ''}
+      </td>
+      <td style="font-weight:700;color:var(--warn)">${p.nome_preposto || '—'}</td>
+      <td><span class="num-pedido">${p.pedido || '—'}</span></td>
+      <td>${p.nome_cliente || '—'}</td>
+      <td><span class="badge badge-fab">${p.nome_fornecedor || '—'}</span></td>
+      <td class="text-end"><span class="${isPend ? 'vlr-provisao' : 'vlr-comissao'}">${fmtBRL(p.vlr_pago || 0)}</span></td>
+      <td class="text-center" style="color:var(--text2)">${fmtDate(p.data_lancamento)}</td>
+      <td class="text-center"><span class="badge ${badgeMap[p._grupo]}">${labelMap[p._grupo]}</span></td>
+      <td class="text-center">
+        ${isPend ? `<button class="btn-conf" onclick="conferirUmPrep(${p.id}, this)">Conferir</button>` : '—'}
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Prepostos: seleção em lote ───────────────────────────────────────────────
+function toggleSelectAllPrep(master) {
+  document.querySelectorAll('.row-chk-prep').forEach(chk => {
+    chk.checked = master.checked;
+    const id = parseInt(chk.dataset.id);
+    if (master.checked) _selecionadosPrep.add(id);
+    else _selecionadosPrep.delete(id);
+    chk.closest('tr').classList.toggle('selected', master.checked);
+  });
+  atualizarBatchBarPrep();
+}
+
+function onRowCheckPrep(chk) {
+  const id = parseInt(chk.dataset.id);
+  if (chk.checked) _selecionadosPrep.add(id);
+  else _selecionadosPrep.delete(id);
+  chk.closest('tr').classList.toggle('selected', chk.checked);
+  const all = document.querySelectorAll('.row-chk-prep');
+  const mst = document.getElementById('chkAllPrep');
+  if (mst) {
+    mst.indeterminate = _selecionadosPrep.size > 0 && _selecionadosPrep.size < all.length;
+    mst.checked = _selecionadosPrep.size === all.length && all.length > 0;
+  }
+  atualizarBatchBarPrep();
+}
+
+function atualizarBatchBarPrep() {
+  const bar = document.getElementById('batchBarPrep');
+  const cnt = document.getElementById('batchCountPrep');
+  if (!bar) return;
+  if (_selecionadosPrep.size > 0) {
+    bar.style.display = 'flex';
+    cnt.textContent = _selecionadosPrep.size + ' selecionado' + (_selecionadosPrep.size > 1 ? 's' : '');
+  } else {
+    bar.style.display = 'none';
+  }
+}
+
+function limparSelecaoPrep() {
+  _selecionadosPrep.clear();
+  document.querySelectorAll('.row-chk-prep').forEach(c => { c.checked = false; c.closest('tr').classList.remove('selected'); });
+  const mst = document.getElementById('chkAllPrep');
+  if (mst) { mst.checked = false; mst.indeterminate = false; }
+  atualizarBatchBarPrep();
+}
+
+// ── Prepostos: confirmação ───────────────────────────────────────────────────
+async function conferirUmPrep(id, btn) {
+  if (!confirm('Confirmar comissão deste preposto?')) return;
+  await _conferirPrep([id], btn);
+}
+
+async function conferirLotePrepostos() {
+  if (!_selecionadosPrep.size) return;
+  if (!confirm(`Conferir ${_selecionadosPrep.size} comissão(ões) de prepostos?`)) return;
+  await _conferirPrep([..._selecionadosPrep]);
+}
+
+async function _conferirPrep(ids, btn) {
+  if (btn) btn.disabled = true;
+  try {
+    const res = await fetch('/api/comissoes/preposto/aceitar-pelo-rep', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids })
+    }).then(r => r.json());
+
+    if (res.sucesso) {
+      toast(ids.length > 1 ? ids.length + ' comissões conferidas!' : 'Comissão conferida!', 'ok');
+      limparSelecaoPrep();
+      loadPrepostos();
+    } else {
+      toast(res.error || 'Falha ao conferir', 'err');
+      if (btn) btn.disabled = false;
+    }
+  } catch(e) {
+    toast('Erro de comunicação', 'err');
+    if (btn) btn.disabled = false;
+  }
+}
+
+// ── WhatsApp ─────────────────────────────────────────────────────────────────
+function enviarWhatsApp() {
+  const dtIni = document.getElementById('dt_inicio').value;
+  const dtFim = document.getElementById('dt_fim').value;
+  const nome  = _nomeUsuario || 'Vendedor';
+  const tipo  = _tipoUsuario === 'PREPOSTO' ? 'Preposto' : 'Representante';
+
+  const fmtW = v => parseFloat(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  const linhas = [
+    `*Comissões — ${nome} (${tipo})*`,
+    `Período: ${dtIni} a ${dtFim}`,
+    ``,
+    `*Confirmadas:* ${fmtW(_resumoAtual.comReal)}`,
+    `*Provisões:*  ${fmtW(_resumoAtual.comFut)}`,
+    ``,
+    `_Gerado via SysRepWeb_`
+  ];
+
+  const url = `https://wa.me/?text=${encodeURIComponent(linhas.join('\n'))}`;
+  window.open(url, '_blank');
+}
+
+function renderProvisoes(list) {
+  const badge = document.getElementById('badge_pendentes');
+  badge.textContent = list.length;
+
+  if (!list.length) {
+    document.getElementById('list_provisoes').innerHTML =
+      '<tr class="empty-row"><td colspan="8">Nenhuma provisão pendente</td></tr>';
+    return;
+  }
+
+  document.getElementById('list_provisoes').innerHTML = list.map(p => `
+    <tr data-id="${p.id}">
+      <td class="td-check">
+        <input type="checkbox" class="row-chk" data-id="${p.id}" onclick="onRowCheck(this)">
+      </td>
+      <td><span class="num-pedido">${p.pedido || '—'}</span></td>
+      <td>${p.nome_cliente || '—'}</td>
+      <td><span class="badge badge-fab">${p.nome_fornecedor || '—'}</span></td>
+      <td class="text-end">${fmtBRL(p.vlrtotalpedido || 0)}</td>
+      <td class="text-end"><span class="vlr-provisao">${fmtBRL(p.vlr_pago || 0)}</span></td>
+      <td class="text-center" style="color:var(--text2)">${fmtDate(p.data_lancamento)}</td>
+      <td class="text-center">
+        <button class="btn-conf" onclick="conferirUm(${p.id}, this)">Conferir</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function renderConferidas(list) {
+  const badge = document.getElementById('badge_conferidas');
+  badge.textContent = list.length;
+
+  if (!list.length) {
+    document.getElementById('list_conferidas').innerHTML =
+      '<tr class="empty-row"><td colspan="6">Nenhuma comissão conferida</td></tr>';
+    return;
+  }
+
+  document.getElementById('list_conferidas').innerHTML = list.map(p => `
+    <tr>
+      <td><span class="num-pedido">${p.pedido || '—'}</span></td>
+      <td>${p.nome_cliente || '—'}</td>
+      <td>${p.nome_fornecedor || '—'}</td>
+      <td class="text-end"><span class="vlr-comissao">${fmtBRL(p.vlr_pago || 0)}</span></td>
+      <td class="text-center" style="color:var(--text2)">${fmtDate(p.data_confirmacao)}</td>
+      <td class="text-center"><span class="badge badge-conf">Conferido</span></td>
+    </tr>
+  `).join('');
+}
+
+function renderHistorico(list) {
+  const badge = document.getElementById('badge_liquidadas');
+  badge.textContent = list.length;
+
+  if (!list.length) {
+    document.getElementById('list_historico').innerHTML =
+      '<tr class="empty-row"><td colspan="6">Nenhum pagamento liquidado</td></tr>';
+    return;
+  }
+
+  document.getElementById('list_historico').innerHTML = list.map(p => `
+    <tr>
+      <td><span class="num-pedido">${p.pedido || '—'}</span></td>
+      <td>${p.nome_cliente || '—'}</td>
+      <td>${p.nome_fornecedor || '—'}</td>
+      <td class="text-end"><span class="vlr-comissao">${fmtBRL(p.vlr_pago || 0)}</span></td>
+      <td class="text-center" style="color:var(--text2)">${fmtDate(p.data_pagamento)}</td>
+      <td class="text-center"><span class="badge badge-liq">Liquidado</span></td>
+    </tr>
+  `).join('');
+}
+
+// ── Ações de conferência ─────────────────────────────────────────────────────
+async function conferirUm(id, btn) {
+  if (!confirm('Confirmar conferência desta comissão?')) return;
+  await _conferir([id], btn);
+}
+
+async function conferirLote() {
+  if (!_selecionados.size) return;
+  if (!confirm(`Conferir ${_selecionados.size} comissão(ões) selecionada(s)?`)) return;
+  await _conferir([..._selecionados]);
+}
+
+async function _conferir(ids, btn) {
+  if (btn) btn.disabled = true;
+  try {
+    const res = await fetch('/api/comissoes/vendedor/aceitar', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json' },
+      body: JSON.stringify({ ids })
+    }).then(r => r.json());
+
+    if (res.sucesso) {
+      toast(ids.length > 1 ? ids.length + ' comissões conferidas!' : 'Comissão conferida!', 'ok');
+      limparSelecao();
+      loadAll();
+    } else {
+      toast(res.error || 'Falha ao conferir', 'err');
+      if (btn) btn.disabled = false;
+    }
+  } catch (e) {
+    toast('Erro de comunicação com o servidor', 'err');
+    if (btn) btn.disabled = false;
+  }
+}
+
+// ── Tabs ─────────────────────────────────────────────────────────────────────
+function switchTab(id, el) {
+  document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab_' + id).classList.add('active');
+  if (id !== 'pendentes') limparSelecao();
+  if (id === 'prepostos') loadPrepostos();
+}
+
+// ── Combo fábricas ───────────────────────────────────────────────────────────
+function populateFabricas(fabricas) {
+  const sel = document.getElementById('id_fornecedor');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">Todas</option>';
+  (fabricas || []).forEach(f => {
+    const nome = (f.nome_fornecedor || f.nome || '').trim();
+    if (!nome || nome === 'undefined' || nome === 'null') return;
+    const o = document.createElement('option');
+    o.value = nome; o.textContent = nome;
+    sel.appendChild(o);
+  });
+  if (cur) sel.value = cur;
+}
+
+// ── Charts ───────────────────────────────────────────────────────────────────
+function renderTrendChart(diaria) {
+  if (_charts.trend) _charts.trend.destroy();
+  const ctx = document.getElementById('chart_trend').getContext('2d');
+  const accentColor = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#0d9488';
+  _charts.trend = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: diaria.map(d => fmtDate(d.data)),
+      datasets: [{
+        label: 'Comissão R$',
+        data: diaria.map(d => d.total),
+        borderColor: accentColor,
+        backgroundColor: 'rgba(13,148,136,.1)',
+        fill: true, tension: 0.4, pointRadius: 3
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { x: { ticks: { font: { size:10 } } }, y: { ticks: { font: { size:10 } } } }
+    }
+  });
+}
+
+function renderFabricaChart(fabricas) {
+  if (_charts.fabricas) _charts.fabricas.destroy();
+  const ctx = document.getElementById('chart_fabricas').getContext('2d');
+  _charts.fabricas = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: fabricas.map(f => f.nome_fornecedor),
+      datasets: [{
+        data: fabricas.map(f => f.total),
+        backgroundColor: ['#0d9488','#0ea5e9','#f59e0b','#ef4444','#8b5cf6','#10b981','#f97316']
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position:'bottom', labels: { font:{size:10}, boxWidth:10 } } }
+    }
+  });
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  const now = new Date();
+  document.getElementById('dt_inicio').value =
+    new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0,10);
+  document.getElementById('dt_fim').value =
+    new Date(now.getFullYear(), now.getMonth()+1, 0).toISOString().slice(0,10);
+  loadAll();
+});
+</script>
+</body>
+</html>
