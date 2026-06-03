@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Guia Completo — API SysRepWeb</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --primary: #0ea5e9;
+      --primary-dark: #0284c7;
+      --bg: #0f172a;
+      --bg2: #1e293b;
+      --bg3: #273548;
+      --border: #334155;
+      --text: #f1f5f9;
+      --text2: #94a3b8;
+      --text3: #64748b;
+      --green: #10b981;
+      --blue: #3b82f6;
+      --orange: #f59e0b;
+      --red: #ef4444;
+      --purple: #8b5cf6;
+      --font: 'Inter', system-ui, sans-serif;
+      --mono: 'JetBrains Mono', monospace;
+    }
+
+    body { font-family: var(--font); background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.7; display: flex; min-height: 100vh; }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 260px; min-width: 260px;
+      background: var(--bg2); border-right: 1px solid var(--border);
+      position: sticky; top: 0; height: 100vh; overflow-y: auto;
+    }
+
+    .sidebar-header { padding: 24px 20px 16px; border-bottom: 1px solid var(--border); }
+    .sidebar-logo { font-size: 15px; font-weight: 700; color: var(--primary); }
+    .sidebar-sub  { font-size: 11px; color: var(--text3); margin-top: 4px; }
+
+    .sidebar-nav { padding: 12px 0; }
+    .nav-group-title { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--text3); padding: 10px 20px 4px; }
+
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 7px 20px; color: var(--text2); text-decoration: none;
+      font-size: 13px; transition: all .15s; border-left: 3px solid transparent; cursor: pointer;
+    }
+    .nav-item:hover { background: var(--bg3); color: var(--text); }
+    .nav-item.active { background: rgba(14,165,233,.1); color: var(--primary); border-left-color: var(--primary); }
+
+    .step-num {
+      width: 20px; height: 20px; border-radius: 50%; background: var(--bg3);
+      color: var(--text3); font-size: 10px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .nav-item.active .step-num { background: var(--primary); color: #fff; }
+
+    /* ── Main ── */
+    .main { flex: 1; overflow-y: auto; padding: 40px 48px; max-width: 860px; }
+
+    /* ── Hero ── */
+    .hero {
+      background: linear-gradient(135deg, rgba(14,165,233,.12), rgba(139,92,246,.08));
+      border: 1px solid rgba(14,165,233,.2); border-radius: 12px;
+      padding: 32px; margin-bottom: 48px;
+    }
+    .hero h1 { font-size: 26px; font-weight: 700; margin-bottom: 8px; }
+    .hero p  { color: var(--text2); font-size: 15px; margin-bottom: 16px; }
+    .hero-badges { display: flex; gap: 8px; flex-wrap: wrap; }
+    .badge { font-size: 12px; font-weight: 500; padding: 4px 12px; border-radius: 20px; border: 1px solid; }
+    .badge-green  { background: rgba(16,185,129,.1); color: var(--green);  border-color: rgba(16,185,129,.3); }
+    .badge-blue   { background: rgba(59,130,246,.1);  color: var(--blue);   border-color: rgba(59,130,246,.3); }
+    .badge-purple { background: rgba(139,92,246,.1);  color: var(--purple); border-color: rgba(139,92,246,.3); }
+
+    /* ── Section ── */
+    .section { margin-bottom: 60px; scroll-margin-top: 24px; }
+
+    .section-header {
+      display: flex; align-items: center; gap: 14px;
+      margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border);
+    }
+    .section-num {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      color: #fff; font-size: 16px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .section-title { font-size: 20px; font-weight: 700; }
+    .section-desc  { font-size: 13px; color: var(--text3); margin-top: 2px; }
+
+    h3 { font-size: 15px; font-weight: 600; color: var(--text); margin: 24px 0 10px; }
+    p  { color: var(--text2); margin-bottom: 12px; }
+
+    /* ── Steps ── */
+    .steps { display: flex; flex-direction: column; gap: 12px; }
+
+    .step {
+      display: flex; gap: 16px;
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 16px 18px;
+    }
+    .step-icon {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: rgba(14,165,233,.15); color: var(--primary);
+      font-size: 16px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .step-content { flex: 1; }
+    .step-content strong { display: block; font-size: 14px; margin-bottom: 4px; color: var(--text); }
+    .step-content p { margin: 0; font-size: 13px; color: var(--text2); }
+
+    /* ── Code ── */
+    .code-block { background: #0a0f1a; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin: 12px 0; }
+    .code-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; background: var(--bg3); border-bottom: 1px solid var(--border); font-size: 11px; color: var(--text3); }
+    .copy-btn { background: none; border: 1px solid var(--border); color: var(--text3); font-size: 11px; padding: 3px 10px; border-radius: 4px; cursor: pointer; font-family: var(--font); transition: all .15s; }
+    .copy-btn:hover { border-color: var(--primary); color: var(--primary); }
+    pre { padding: 16px; overflow-x: auto; font-family: var(--mono); font-size: 12.5px; line-height: 1.7; color: #e2e8f0; }
+
+    /* ── Info / Warn / Success ── */
+    .info-box, .warn-box, .success-box {
+      border-radius: 8px; padding: 14px 16px; margin: 16px 0; font-size: 13px; color: var(--text2);
+      border-left: 3px solid;
+    }
+    .info-box    { background: rgba(14,165,233,.08);  border-color: var(--primary); }
+    .warn-box    { background: rgba(245,158,11,.08);  border-color: var(--orange); }
+    .success-box { background: rgba(16,185,129,.08);  border-color: var(--green);  }
+
+    /* ── Table ── */
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 12px 0; }
+    th { text-align: left; padding: 9px 12px; background: var(--bg3); color: var(--text3); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+    td { padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--text2); }
+    tr:last-child td { border-bottom: none; }
+    .table-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin: 12px 0; }
+
+    code { font-family: var(--mono); font-size: 12px; background: var(--bg3); padding: 2px 6px; border-radius: 4px; color: var(--primary); }
+
+    /* ── Checklist ── */
+    .checklist { list-style: none; display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
+    .checklist li { display: flex; align-items: flex-start; gap: 10px; color: var(--text2); font-size: 13px; }
+    .checklist li::before { content: '✓'; color: var(--green); font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+
+    /* ── Links ── */
+    .link-card {
+      display: flex; align-items: center; gap: 12px;
+      background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+      padding: 14px 16px; margin: 8px 0; text-decoration: none; color: var(--text);
+      transition: border-color .15s;
+    }
+    .link-card:hover { border-color: var(--primary); }
+    .link-card .link-icon { font-size: 20px; }
+    .link-card .link-text { flex: 1; }
+    .link-card .link-title { font-weight: 600; font-size: 14px; }
+    .link-card .link-url   { font-size: 11px; color: var(--text3); font-family: var(--mono); }
+    .link-card .link-arrow { color: var(--text3); }
+
+    /* ── Footer ── */
+    .footer { margin-top: 60px; padding-top: 24px; border-top: 1px solid var(--border); text-align: center; color: var(--text3); font-size: 12px; }
+
+    /* ── Scroll ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    @media (max-width: 768px) {
+      .sidebar { display: none; }
+      .main { padding: 24px 20px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══ SIDEBAR ═══ -->
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <div class="sidebar-logo">📘 Guia da API</div>
+    <div class="sidebar-sub">SysRepWeb — NC Sistemas</div>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-group-title">Visão Geral</div>
+    <a class="nav-item active" href="#visao-geral"><span class="step-num">★</span> Introdução</a>
+    <a class="nav-item" href="#links"><span class="step-num">🔗</span> Links rápidos</a>
+
+    <div class="nav-group-title">Configuração Inicial</div>
+    <a class="nav-item" href="#passo1"><span class="step-num">1</span> DNS do domínio</a>
+    <a class="nav-item" href="#passo2"><span class="step-num">2</span> Nginx + SSL</a>
+    <a class="nav-item" href="#passo3"><span class="step-num">3</span> Deploy do código</a>
+    <a class="nav-item" href="#passo4"><span class="step-num">4</span> Variáveis de ambiente</a>
+
+    <div class="nav-group-title">Por cliente</div>
+    <a class="nav-item" href="#passo5"><span class="step-num">5</span> Criar banco MySQL</a>
+    <a class="nav-item" href="#passo6"><span class="step-num">6</span> Criar licença</a>
+    <a class="nav-item" href="#passo7"><span class="step-num">7</span> Gerar API Key</a>
+    <a class="nav-item" href="#passo8"><span class="step-num">8</span> Entregar ao cliente</a>
+
+    <div class="nav-group-title">Referência</div>
+    <a class="nav-item" href="#novo-cliente">🚀 Novo cliente (resumo)</a>
+    <a class="nav-item" href="#erros-comuns">⚠️ Erros comuns</a>
+    <a class="nav-item" href="#credenciais">🔐 Credenciais</a>
+  </nav>
+</aside>
+
+<!-- ═══ MAIN ═══ -->
+<main class="main">
+
+  <!-- Hero -->
+  <div class="hero" id="visao-geral">
+    <h1>📘 Guia Completo da API SysRepWeb</h1>
+    <p>Passo a passo para configurar, publicar e liberar acesso à API pública para clientes externos (ERPs, sistemas de gestão, etc.).</p>
+    <div class="hero-badges">
+      <span class="badge badge-green">Node.js + Express</span>
+      <span class="badge badge-blue">Nginx + SSL</span>
+      <span class="badge badge-purple">MySQL multi-tenant</span>
+    </div>
+  </div>
+
+  <!-- Links rápidos -->
+  <section class="section" id="links">
+    <div class="section-header">
+      <div class="section-num">🔗</div>
+      <div>
+        <div class="section-title">Links Rápidos</div>
+        <div class="section-desc">Acesso direto aos painéis e documentação</div>
+      </div>
+    </div>
+
+    <a class="link-card" href="https://api.nresolutions.com.br/api-docs.html" target="_blank">
+      <span class="link-icon">📄</span>
+      <div class="link-text">
+        <div class="link-title">Documentação da API</div>
+        <div class="link-url">https://api.nresolutions.com.br/api-docs.html</div>
+      </div>
+      <span class="link-arrow">→</span>
+    </a>
+
+    <a class="link-card" href="https://api.nresolutions.com.br/api-keys.html" target="_blank">
+      <span class="link-icon">🔑</span>
+      <div class="link-text">
+        <div class="link-title">Gerenciar API Keys</div>
+        <div class="link-url">https://api.nresolutions.com.br/api-keys.html</div>
+      </div>
+      <span class="link-arrow">→</span>
+    </a>
+
+    <a class="link-card" href="https://pedidos.nresolutions.com.br/licencas.html" target="_blank">
+      <span class="link-icon">🪪</span>
+      <div class="link-text">
+        <div class="link-title">Painel de Licenças</div>
+        <div class="link-url">https://pedidos.nresolutions.com.br/licencas.html</div>
+      </div>
+      <span class="link-arrow">→</span>
+    </a>
+
+    <a class="link-card" href="https://api.nresolutions.com.br/api/v1/ping" target="_blank">
+      <span class="link-icon">💓</span>
+      <div class="link-text">
+        <div class="link-title">Healthcheck da API</div>
+        <div class="link-url">https://api.nresolutions.com.br/api/v1/ping</div>
+      </div>
+      <span class="link-arrow">→</span>
+    </a>
+  </section>
+
+  <!-- ══ PASSO 1 ══ -->
+  <section class="section" id="passo1">
+    <div class="section-header">
+      <div class="section-num">1</div>
+      <div>
+        <div class="section-title">Configurar DNS do domínio</div>
+        <div class="section-desc">Feito uma única vez — já está configurado</div>
+      </div>
+    </div>
+
+    <p>O domínio <code>api.nresolutions.com.br</code> deve apontar para o IP do VPS Hostinger.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Tipo</th><th>Nome</th><th>Valor</th></tr></thead>
+        <tbody>
+          <tr><td>A</td><td>api.nresolutions.com.br</td><td>2.25.154.140</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="success-box">✓ DNS já configurado no painel da Hostinger. Não precisa refazer.</div>
+
+    <div class="warn-box">⚠️ Após criar um registro DNS, aguarde até 24h para propagação. Normalmente resolve em minutos.</div>
+  </section>
+
+  <!-- ══ PASSO 2 ══ -->
+  <section class="section" id="passo2">
+    <div class="section-header">
+      <div class="section-num">2</div>
+      <div>
+        <div class="section-title">Configurar Nginx + SSL</div>
+        <div class="section-desc">Feito uma única vez — já está configurado</div>
+      </div>
+    </div>
+
+    <p>Use o <strong>Servidor_Projetos.bat</strong> para configurar o Nginx e SSL automaticamente.</p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-icon">🦇</div>
+        <div class="step-content">
+          <strong>Abrir o bat</strong>
+          <p>Execute <code>Servidor_Projetos.bat</code> → <strong>[A] SysRepWeb</strong> → <strong>[A] API Pública</strong></p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">⚙️</div>
+        <div class="step-content">
+          <strong>Opção [5] Configuração completa</strong>
+          <p>Cria o vhost Nginx + gera certificado SSL em um passo só</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">🔢</div>
+        <div class="step-content">
+          <strong>Informe a porta</strong>
+          <p>Porta do pedidosweb: <code>3002</code> (ou confira com <code>pm2 describe pedidosweb</code>)</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">📧</div>
+        <div class="step-content">
+          <strong>Informe o email</strong>
+          <p>Email para notificações SSL: <code>newton.bauru@gmail.com</code></p>
+        </div>
+      </div>
+    </div>
+
+    <div class="success-box">✓ Nginx e SSL já configurados. Para verificar: <strong>[A] → [3] Testar API</strong> no bat.</div>
+
+    <h3>Verificação manual via SSH</h3>
+    <div class="code-block">
+      <div class="code-header"><span>Testar se a API responde</span><button class="copy-btn" onclick="copyCode(this)">Copiar</button></div>
+      <pre>curl -s https://api.nresolutions.com.br/api/v1/ping</pre>
+    </div>
+    <p>Resposta esperada: <code>{"status":"ok","version":"1.0"}</code></p>
+  </section>
+
+  <!-- ══ PASSO 3 ══ -->
+  <section class="section" id="passo3">
+    <div class="section-header">
+      <div class="section-num">3</div>
+      <div>
+        <div class="section-title">Deploy do código</div>
+        <div class="section-desc">Sempre que houver atualização no sistema</div>
+      </div>
+    </div>
+
+    <p>O deploy envia o código do SysRepWeb para o VPS e reinicia o processo automaticamente.</p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-icon">🦇</div>
+        <div class="step-content">
+          <strong>Abrir o bat</strong>
+          <p><code>Servidor_Projetos.bat</code> → <strong>[A] SysRepWeb</strong> → <strong>[1] Deploy → Hostinger</strong></p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">📦</div>
+        <div class="step-content">
+          <strong>O que o deploy faz automaticamente</strong>
+          <p>Gera o pacote .tar.gz (sem node_modules/.env/logs) → envia via SCP → extrai no servidor → npm install → pm2 reload</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="warn-box">⚠️ O arquivo <code>.env</code> do servidor <strong>não é sobrescrito</strong> pelo deploy — suas configurações ficam preservadas.</div>
+  </section>
+
+  <!-- ══ PASSO 4 ══ -->
+  <section class="section" id="passo4">
+    <div class="section-header">
+      <div class="section-num">4</div>
+      <div>
+        <div class="section-title">Variáveis de ambiente (.env)</div>
+        <div class="section-desc">Configuração do servidor — feito uma única vez</div>
+      </div>
+    </div>
+
+    <p>O arquivo <code>/root/pedidosweb/.env</code> no servidor contém as configurações do sistema.</p>
+
+    <div class="code-block">
+      <div class="code-header"><span>Configurações essenciais do .env</span><button class="copy-btn" onclick="copyCode(this)">Copiar</button></div>
+      <pre>PORT=3002
+NODE_ENV=production
+TRUST_PROXY_HOPS=1
+
+# Banco de licenças (Oracle/remoto)
+LICENSE_DB_HOST=147.15.106.135
+LICENSE_DB_PORT=3306
+LICENSE_DB_NAME=sistema_licencas
+LICENSE_DB_USER=nilton
+LICENSE_DB_PASSWORD=kzf010557f
+
+# Senha do painel de licenças e API Keys
+DEV_PASSWORD=mudar@123</pre>
+    </div>
+
+    <div class="info-box">
+      💡 Para editar o .env no servidor: <strong>bat → [1] SSH</strong> → <code>nano /root/pedidosweb/.env</code><br/>
+      Após editar: <code>pm2 restart pedidosweb --update-env</code>
+    </div>
+
+    <div class="warn-box">
+      ⚠️ Sempre use <code>--update-env</code> ao reiniciar após alterar o .env, caso contrário o PM2 ignora as novas variáveis.
+    </div>
+  </section>
+
+  <!-- ══ PASSO 5 ══ -->
+  <section class="section" id="passo5">
+    <div class="section-header">
+      <div class="section-num">5</div>
+      <div>
+        <div class="section-title">Criar banco MySQL para o cliente</div>
+        <div class="section-desc">Repetir para cada novo cliente</div>
+      </div>
+    </div>
+
+    <p>Cada cliente precisa de um banco de dados próprio. Criamos a estrutura a partir do banco do Poliitens (template).</p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-icon">1️⃣</div>
+        <div class="step-content">
+          <strong>Conectar ao servidor via SSH</strong>
+          <p>bat → [1] SSH</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">2️⃣</div>
+        <div class="step-content">
+          <strong>Exportar estrutura do banco template</strong>
+          <div class="code-block" style="margin-top:8px">
+            <div class="code-header"><span>SSH</span><button class="copy-btn" onclick="copyCode(this)">Copiar</button></div>
+            <pre>mysqldump -u root -pNRE_Mysql2025 --no-data nc_poliitens > /root/estrutura_template.sql</pre>
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">3️⃣</div>
+        <div class="step-content">
+          <strong>Criar banco e importar estrutura</strong>
+          <div class="code-block" style="margin-top:8px">
+            <div class="code-header"><span>SSH — substitua nc_CLIENTE pelo nome real</span><button class="copy-btn" onclick="copyCode(this)">Copiar</button></div>
+            <pre>mysql -u root -pNRE_Mysql2025 -e "CREATE DATABASE nc_CLIENTE CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+mysql -u root -pNRE_Mysql2025 nc_CLIENTE < /root/estrutura_template.sql</pre>
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">4️⃣</div>
+        <div class="step-content">
+          <strong>Criar usuário MySQL para o cliente</strong>
+          <div class="code-block" style="margin-top:8px">
+            <div class="code-header"><span>SSH — substitua nc_CLIENTE e senha_CLIENTE</span><button class="copy-btn" onclick="copyCode(this)">Copiar</button></div>
+            <pre>mysql -u root -pNRE_Mysql2025 -e "
+  CREATE USER 'nc_CLIENTE'@'localhost' IDENTIFIED BY 'senha_CLIENTE';
+  CREATE USER 'nc_CLIENTE'@'%' IDENTIFIED BY 'senha_CLIENTE';
+  GRANT ALL PRIVILEGES ON nc_CLIENTE.* TO 'nc_CLIENTE'@'localhost';
+  GRANT ALL PRIVILEGES ON nc_CLIENTE.* TO 'nc_CLIENTE'@'%';
+  FLUSH PRIVILEGES;"</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="info-box">
+      💡 Padrão de nomenclatura: banco = <code>nc_SLUG</code> · usuário = <code>nc_SLUG</code> · senha = <code>SLUG@ANO</code><br/>
+      Exemplo: banco <code>nc_smp</code> · usuário <code>nc_smp</code> · senha <code>smp@2026</code>
+    </div>
+  </section>
+
+  <!-- ══ PASSO 6 ══ -->
+  <section class="section" id="passo6">
+    <div class="section-header">
+      <div class="section-num">6</div>
+      <div>
+        <div class="section-title">Criar licença para o cliente</div>
+        <div class="section-desc">Repetir para cada novo cliente</div>
+      </div>
+    </div>
+
+    <p>A licença vincula o cliente ao banco de dados dele no sistema.</p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-icon">🌐</div>
+        <div class="step-content">
+          <strong>Acessar o painel de licenças</strong>
+          <p><a href="https://pedidos.nresolutions.com.br/licencas.html" target="_blank" style="color:var(--primary)">https://pedidos.nresolutions.com.br/licencas.html</a></p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">➕</div>
+        <div class="step-content">
+          <strong>Criar nova licença</strong>
+          <p>Clique em <strong>+ Nova Licença</strong> e preencha os dados da empresa</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">🗄️</div>
+        <div class="step-content">
+          <strong>Configurar o banco de dados</strong>
+          <p>Na licença criada, configure a seção <strong>Banco de Dados (PedidosWeb)</strong>:</p>
+          <div class="table-wrap" style="margin-top:8px">
+            <table>
+              <thead><tr><th>Campo</th><th>Valor</th></tr></thead>
+              <tbody>
+                <tr><td>Host</td><td>2.25.154.140</td></tr>
+                <tr><td>Porta</td><td>3306</td></tr>
+                <tr><td>Usuário</td><td>nc_CLIENTE</td></tr>
+                <tr><td>Senha</td><td>senha_CLIENTE</td></tr>
+                <tr><td>Nome do banco</td><td>nc_CLIENTE</td></tr>
+                <tr><td>Host do App</td><td>localhost</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">✅</div>
+        <div class="step-content">
+          <strong>Testar e salvar</strong>
+          <p>Clique em <strong>Testar conexão</strong> → deve retornar ✓ Conectado → clique <strong>Salvar</strong></p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">📋</div>
+        <div class="step-content">
+          <strong>Copiar a chave_licenca gerada</strong>
+          <p>Ex: <code>WZM9-147T-VBUL-IG4C</code> — será usada no próximo passo</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ PASSO 7 ══ -->
+  <section class="section" id="passo7">
+    <div class="section-header">
+      <div class="section-num">7</div>
+      <div>
+        <div class="section-title">Gerar API Key para o cliente</div>
+        <div class="section-desc">Repetir para cada novo cliente</div>
+      </div>
+    </div>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-icon">🌐</div>
+        <div class="step-content">
+          <strong>Acessar o painel de API Keys</strong>
+          <p><a href="https://api.nresolutions.com.br/api-keys.html" target="_blank" style="color:var(--primary)">https://api.nresolutions.com.br/api-keys.html</a></p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">🔐</div>
+        <div class="step-content">
+          <strong>Fazer login</strong>
+          <p>Senha: <code>mudar@123</code> (padrão — altere no .env do servidor)</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">➕</div>
+        <div class="step-content">
+          <strong>Clicar em + Nova API Key</strong>
+          <p>Cole a <code>chave_licenca</code> do passo anterior e informe uma descrição</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-icon">📋</div>
+        <div class="step-content">
+          <strong>Copiar a chave gerada</strong>
+          <p>A chave começa com <code>sk_</code> e aparece <strong>somente uma vez</strong>. Guarde em local seguro antes de fechar.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="warn-box">⚠️ A API Key é exibida apenas no momento da criação. Se perder, será necessário revogar e gerar uma nova.</div>
+  </section>
+
+  <!-- ══ PASSO 8 ══ -->
+  <section class="section" id="passo8">
+    <div class="section-header">
+      <div class="section-num">8</div>
+      <div>
+        <div class="section-title">Entregar ao cliente</div>
+        <div class="section-desc">O que enviar para o desenvolvedor do ERP</div>
+      </div>
+    </div>
+
+    <p>Envie as três informações abaixo para o desenvolvedor do ERP do cliente:</p>
+
+    <div class="code-block">
+      <div class="code-header"><span>Mensagem modelo para o desenvolvedor</span><button class="copy-btn" onclick="copyCode(this)">Copiar</button></div>
+      <pre>Segue o acesso à API de integração:
+
+🔗 Documentação completa:
+https://api.nresolutions.com.br/api-docs.html
+
+🔑 Sua API Key:
+sk_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+
+📌 Base URL:
+https://api.nresolutions.com.br/api/v1
+
+Endpoints disponíveis:
+- GET /pedidos          (com filtros: data, status, vendedor, cliente)
+- GET /pedidos/:id      (detalhe completo com itens)
+- GET /clientes
+- GET /produtos
+- GET /formas-pagamento
+- GET /ping             (healthcheck — sem autenticação)
+
+Todas as requisições devem incluir o header:
+Authorization: Bearer sk_XXXXXXXXXXXXXXXX</pre>
+    </div>
+
+    <div class="info-box">
+      💡 O desenvolvedor pode testar a chave diretamente na documentação — há um campo interativo na seção "Autenticação".
+    </div>
+  </section>
+
+  <!-- ══ NOVO CLIENTE ══ -->
+  <section class="section" id="novo-cliente">
+    <div class="section-header">
+      <div class="section-num">🚀</div>
+      <div>
+        <div class="section-title">Checklist — Novo Cliente</div>
+        <div class="section-desc">Domínio, Nginx e SSL já estão prontos. Só esses 3 passos.</div>
+      </div>
+    </div>
+
+    <div class="success-box">✓ <strong>api.nresolutions.com.br já está no ar.</strong> Não precisa reconfigurar Nginx, SSL ou fazer deploy novamente.</div>
+
+    <!-- Card resumo -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin:24px 0">
+      <div style="background:var(--bg2);border:1px solid var(--border);border-top:3px solid var(--green);border-radius:10px;padding:20px">
+        <div style="font-size:24px;margin-bottom:8px">🗄️</div>
+        <div style="font-weight:700;margin-bottom:4px">Passo 1</div>
+        <div style="color:var(--text2);font-size:13px">Criar banco MySQL no servidor</div>
+      </div>
+      <div style="background:var(--bg2);border:1px solid var(--border);border-top:3px solid var(--primary);border-radius:10px;padding:20px">
+        <div style="font-size:24px;margin-bottom:8px">🪪</div>
+        <div style="font-weight:700;margin-bottom:4px">Passo 2</div>
+        <div style="color:var(--text2);font-size:13px">Criar licença no painel e vincular ao banco</div>
+      </div>
+      <div style="background:var(--bg2);border:1px solid var(--border);border-top:3px solid var(--purple);border-radius:10px;padding:20px">
+        <div style="font-size:24px;margin-bottom:8px">🔑</div>
+        <div style="font-weight:700;margin-bottom:4px">Passo 3</div>
+        <div style="color:var(--text2);font-size:13px">Gerar API Key e entregar ao desenvolvedor</div>
+      </div>
+    </div>
+
+    <!-- Passo 1 -->
+    <h3>🗄️ Passo 1 — Criar banco MySQL</h3>
+    <p>Conecte ao servidor via <strong>bat → [1] SSH</strong> e rode os comandos abaixo substituindo <code>CLIENTE</code> pelo slug do cliente (ex: <code>smp</code>, <code>farma</code>, <code>acme</code>):</p>
+
+    <div class="code-block">
+      <div class="code-header"><span>SSH — substitua CLIENTE e SENHA</span><button class="copy-btn" onclick="copyCode(this)">Copiar</button></div>
+      <pre># 1. Exportar estrutura template (só precisa fazer 1x — reutilize o arquivo)
+mysqldump -u root -pNRE_Mysql2025 --no-data nc_poliitens > /root/estrutura_template.sql
+
+# 2. Criar banco
+mysql -u root -pNRE_Mysql2025 -e "CREATE DATABASE nc_CLIENTE CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+
+# 3. Importar estrutura
+mysql -u root -pNRE_Mysql2025 nc_CLIENTE < /root/estrutura_template.sql
+
+# 4. Criar usuário MySQL
+mysql -u root -pNRE_Mysql2025 -e "
+  CREATE USER 'nc_CLIENTE'@'localhost' IDENTIFIED BY 'SENHA';
+  CREATE USER 'nc_CLIENTE'@'%'         IDENTIFIED BY 'SENHA';
+  GRANT ALL PRIVILEGES ON nc_CLIENTE.* TO 'nc_CLIENTE'@'localhost';
+  GRANT ALL PRIVILEGES ON nc_CLIENTE.* TO 'nc_CLIENTE'@'%';
+  FLUSH PRIVILEGES;"</pre>
+    </div>
+
+    <div class="info-box">💡 Padrão sugerido: banco <code>nc_SLUG</code> · usuário <code>nc_SLUG</code> · senha <code>SLUG@ANO</code><br/>Exemplo: <code>nc_smp</code> · <code>nc_smp</code> · <code>smp@2026</code></div>
+
+    <!-- Passo 2 -->
+    <h3>🪪 Passo 2 — Criar licença</h3>
+    <p>Acesse <a href="https://pedidos.nresolutions.com.br/licencas.html" target="_blank" style="color:var(--primary)">pedidos.nresolutions.com.br/licencas.html</a> e crie uma nova licença com os dados do banco:</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Campo</th><th>Valor</th></tr></thead>
+        <tbody>
+          <tr><td>Host</td><td><code>2.25.154.140</code></td></tr>
+          <tr><td>Porta</td><td><code>3306</code></td></tr>
+          <tr><td>Usuário</td><td><code>nc_CLIENTE</code></td></tr>
+          <tr><td>Senha</td><td><code>SENHA do cliente</code></td></tr>
+          <tr><td>Nome do Banco</td><td><code>nc_CLIENTE</code></td></tr>
+          <tr><td>Host do App</td><td><code>localhost</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Clique <strong>Testar conexão</strong> → deve aparecer ✓ → clique <strong>Salvar</strong> → copie a <code>chave_licenca</code> gerada.</p>
+
+    <!-- Passo 3 -->
+    <h3>🔑 Passo 3 — Gerar API Key</h3>
+    <p>Acesse <a href="https://api.nresolutions.com.br/api-keys.html" target="_blank" style="color:var(--primary)">api.nresolutions.com.br/api-keys.html</a> → login → <strong>+ Nova API Key</strong> → cole a <code>chave_licenca</code> → <strong>Gerar Chave</strong> → copie a chave <code>sk_...</code></p>
+
+    <div class="warn-box">⚠️ A chave <code>sk_...</code> aparece <strong>somente uma vez</strong>. Copie antes de fechar.</div>
+
+    <!-- Entregar -->
+    <h3>📤 Entregar ao desenvolvedor</h3>
+    <div class="code-block">
+      <div class="code-header"><span>Mensagem modelo</span><button class="copy-btn" onclick="copyCode(this)">Copiar</button></div>
+      <pre>🔗 Documentação: https://api.nresolutions.com.br/api-docs.html
+🔑 API Key: sk_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+📌 Base URL: https://api.nresolutions.com.br/api/v1
+
+Header obrigatório em todas as requisições:
+Authorization: Bearer sk_XXXXXXXXXXXXXXXX</pre>
+    </div>
+  </section>
+
+  <!-- ══ ERROS COMUNS ══ -->
+  <section class="section" id="erros-comuns">
+    <div class="section-header">
+      <div class="section-num">⚠️</div>
+      <div>
+        <div class="section-title">Erros comuns e soluções</div>
+        <div class="section-desc">Problemas encontrados durante a configuração</div>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Erro</th><th>Causa</th><th>Solução</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>502 Bad Gateway</code></td>
+            <td>pedidosweb caiu ou Nginx aponta para porta errada</td>
+            <td><code>pm2 restart pedidosweb --update-env</code> e verificar porta no Nginx</td>
+          </tr>
+          <tr>
+            <td><code>Origem não permitida pelo CORS</code></td>
+            <td>Domínio não está na lista de origens permitidas</td>
+            <td>Domínios <code>*.nresolutions.com.br</code> são permitidos automaticamente no código</td>
+          </tr>
+          <tr>
+            <td><code>Access denied for user root</code></td>
+            <td><code>LICENSE_DB_*</code> vazio no .env</td>
+            <td>Preencher credenciais do banco de licenças no .env e reiniciar com <code>--update-env</code></td>
+          </tr>
+          <tr>
+            <td><code>401 Unauthorized</code> na API Key</td>
+            <td>Chave inválida ou licença inativa</td>
+            <td>Verificar se a licença está ativa no painel e se a chave está correta</td>
+          </tr>
+          <tr>
+            <td><code>Bloqueado por 15 min</code></td>
+            <td>Muitas tentativas de login erradas</td>
+            <td><code>pm2 restart pedidosweb</code> no servidor para limpar o bloqueio</td>
+          </tr>
+          <tr>
+            <td>PM2 com 4kb de memória</td>
+            <td>Processo reiniciando em loop (erro no .env)</td>
+            <td>Ver logs: <code>pm2 logs pedidosweb --lines 20 --nostream</code></td>
+          </tr>
+          <tr>
+            <td><code>Unknown database</code></td>
+            <td>Nome do banco digitado errado</td>
+            <td>Verificar: <code>mysql -u root -pNRE_Mysql2025 -e "SHOW DATABASES;"</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ══ CREDENCIAIS ══ -->
+  <section class="section" id="credenciais">
+    <div class="section-header">
+      <div class="section-num">🔐</div>
+      <div>
+        <div class="section-title">Credenciais e acessos</div>
+        <div class="section-desc">Referência rápida — mantenha em local seguro</div>
+      </div>
+    </div>
+
+    <div class="warn-box">⚠️ Não compartilhe este guia com clientes. Estas informações são de uso interno.</div>
+
+    <div class="table-wrap" style="margin-top:16px">
+      <table>
+        <thead><tr><th>Serviço</th><th>Dado</th><th>Valor</th></tr></thead>
+        <tbody>
+          <tr><td>VPS Hostinger</td><td>IP</td><td><code>2.25.154.140</code></td></tr>
+          <tr><td>VPS Hostinger</td><td>SSH</td><td><code>root@2.25.154.140</code> via chave hostinger_key</td></tr>
+          <tr><td>MySQL Hostinger</td><td>Root</td><td>usuário <code>root</code> · senha <code>NRE_Mysql2025</code></td></tr>
+          <tr><td>Banco de licenças</td><td>Host</td><td><code>147.15.106.135:3306</code></td></tr>
+          <tr><td>Banco de licenças</td><td>Usuário</td><td><code>nilton</code> · senha <code>kzf010557f</code></td></tr>
+          <tr><td>Painel API Keys</td><td>Senha</td><td><code>mudar@123</code> (alterar no .env)</td></tr>
+          <tr><td>pedidosweb</td><td>Porta</td><td><code>3002</code></td></tr>
+          <tr><td>pedidosweb</td><td>.env</td><td><code>/root/pedidosweb/.env</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="footer">
+    <p>Guia interno — SysRepWeb API · <strong>NC Sistemas</strong> · Nilton César · 2026</p>
+  </div>
+
+</main>
+
+<script>
+  function copyCode(btn) {
+    const pre = btn.closest('.code-block').querySelector('pre');
+    navigator.clipboard.writeText(pre.innerText).then(() => {
+      btn.textContent = 'Copiado!';
+      setTimeout(() => btn.textContent = 'Copiar', 2000);
+    });
+  }
+
+  document.querySelectorAll('.nav-item[href]').forEach(link => {
+    link.addEventListener('click', e => {
+      e.preventDefault();
+      document.querySelectorAll('.nav-item').forEach(l => l.classList.remove('active'));
+      link.classList.add('active');
+      const target = document.querySelector(link.getAttribute('href'));
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+</script>
+</body>
+</html>

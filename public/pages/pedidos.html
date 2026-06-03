@@ -13,7 +13,7 @@
 <script src="/assets/pedidos-offline.js"></script>
 <script src="/assets/pedidos-offline-pack.js"></script>
 <script src="/assets/offline-db.js"></script>
-<link rel="stylesheet" href="/assets/mobile-app.css?v=15">
+<link rel="stylesheet" href="/assets/mobile-app.css?v=27">
 <link rel="stylesheet" href="/assets/ajuda-tour.css">
 <script src="/assets/ajuda-tour.js"></script>
 <script src="/assets/ajuda-tours.js"></script>
@@ -739,6 +739,48 @@ html.sysrep-ms-embed .pm-card-status .pm-status-txt {
   padding: 14px 20px; display: flex; gap: 10px; justify-content: flex-end;
   flex-shrink: 0;
 }
+
+/* Desktop: formulário do pedido abre na lateral (lista permanece visível) */
+@media (min-width: 900px) {
+  #formSection.pedido-drawer-open {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: min(780px, 56vw);
+    max-width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    z-index: 1001;
+    display: flex !important;
+    flex-direction: column;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    background: var(--bg);
+    box-shadow: -8px 0 32px rgba(0,0,0,.12);
+    margin: 0;
+    padding: 0 !important;
+    min-height: 0 !important;
+  }
+  html.sysrep-ms-embed #formSection.pedido-drawer-open {
+    padding: 0 !important;
+    min-height: 0 !important;
+    --pedido-tab-itens-gap: 0;
+  }
+  #formSection.pedido-drawer-open .form-pedido-chrome {
+    position: sticky;
+    top: 0;
+    z-index: 12;
+    flex-shrink: 0;
+  }
+  #formSection.pedido-drawer-open #banner-rota {
+    flex-shrink: 0;
+  }
+  body.pedido-form-drawer-open {
+    overflow: hidden;
+  }
+}
+
 @media (max-width: 600px) {
   /* Header sticky — sempre visível */
   #subrecMobile .drawer-header { position: sticky; top: 0; z-index: 10; }
@@ -1125,7 +1167,8 @@ html.sysrep-ms-embed #heroBadgeTipo {
   z-index: 1;
 }
 #formSection .form-pedido-chrome .tabs-bar .tab-btn:active {
-  transform: scale(0.98);
+  transform: none;
+  opacity: .94;
 }
 #formSection .form-pedido-chrome .tabs-bar .tab-btn.active {
   color: var(--accent);
@@ -1274,13 +1317,39 @@ html[data-theme="diamond"] #formSection select option {
 .input-field::placeholder { color: var(--text2); opacity: 0.6; }
 
 .input-with-action { position: relative; display: flex; align-items: center; }
-.input-with-action .input-field { padding-right: 38px; }
+.input-with-action .input-field { padding-right: 44px; }
 .btn-input-action {
   position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
-  background: none; border: none; color: var(--accent); cursor: pointer;
-  padding: 6px; border-radius: var(--radius-sm); transition: .15s; display: flex; align-items: center;
+  width: 34px; height: 34px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: color-mix(in srgb, var(--text, #111) 55%, var(--accent));
+  cursor: pointer;
+  padding: 0;
+  border-radius: 10px;
+  transition: background .15s, border-color .15s, color .15s, transform .12s, box-shadow .15s;
+  display: grid;
+  place-items: center;
+  z-index: 2;
+  pointer-events: auto;
 }
-.btn-input-action:hover { background: var(--accent-soft); }
+/* Força o estilo discreto mesmo se algum CSS global sobrescrever <button> */
+.input-with-action .btn-input-action {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+.btn-input-action:hover {
+  background: color-mix(in srgb, var(--accent-soft) 70%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border, rgba(0,0,0,.12)));
+  color: var(--accent);
+}
+.btn-input-action:active { transform: translateY(-50%) !important; }
+.btn-input-action:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-soft) 75%, transparent);
+  border-color: var(--accent);
+}
 .btn-input-action svg { width: 16px; height: 16px; }
 
 /* ── ATALHO NOVO (+ rápido) ── */
@@ -1678,8 +1747,10 @@ html.sysrep-ms-embed .btn-novo-rapido.desktop-only { display: none !important; }
 /* ── TOAST ───────────────────────────────────────────── */
 #toast-container {
   position: fixed; top: 16px; right: 16px;
-  z-index: 9999; display: flex; flex-direction: column; gap: 8px;
+  z-index: 2147483700; display: flex; flex-direction: column; gap: 8px;
+  pointer-events: none;
 }
+.toast { pointer-events: auto; }
 .toast {
   background: var(--card); color: var(--text); padding: 10px 16px;
   border-radius: var(--radius-md); display: flex; align-items: center;
@@ -1698,6 +1769,17 @@ html.sysrep-ms-embed .btn-novo-rapido.desktop-only { display: none !important; }
   }
   .toast { min-width: 0; }
   @keyframes toastIn { from { transform: translateY(20px); opacity:0; } to { transform:none; opacity:1; } }
+}
+
+/* Modal envio aberto: esconder overlays da página (evita “tela preta” dupla) */
+html.sysrep-envio-modal-open .drawer-overlay,
+html.sysrep-envio-modal-open #drawerOverlay,
+html.sysrep-envio-modal-open #qvOverlay,
+html.sysrep-envio-modal-open #filterOverlay,
+html.sysrep-envio-modal-open #subrecOverlay {
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
 /* ── PAGINATION (compacta: mais linhas visíveis na tabela) ── */
@@ -2186,9 +2268,118 @@ html.sysrep-ms-embed #listSection #toolbar .toolbar-pedidos-row:has(#colChooser.
   overflow: hidden; box-shadow: 0 24px 64px rgba(0,0,0,.25);
   border: 1px solid var(--border);
 }
+/* mobile-shell / iframe: centralizar na viewport (form longo + scroll) */
+html.sysrep-ms-embed #modalHist.modal-hist[data-ms-embed-hist="1"] {
+  position: fixed !important;
+  inset: 0 !important;
+  top: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  min-height: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: max(12px, env(safe-area-inset-top, 0px)) 16px max(12px, env(safe-area-inset-bottom, 0px)) !important;
+  box-sizing: border-box !important;
+  background: rgba(0, 0, 0, .45) !important;
+  z-index: 2147483646 !important;
+  margin: 0 !important;
+  transform: none !important;
+  overflow: hidden !important;
+}
+html.sysrep-ms-embed #modalHist.modal-hist[data-ms-embed-hist="1"] > .modal-hist-content {
+  position: relative !important;
+  top: auto !important;
+  left: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  transform: none !important;
+  flex: 0 1 auto !important;
+  align-self: center !important;
+  width: min(920px, calc(100vw - 32px)) !important;
+  max-width: 920px !important;
+  max-height: min(82dvh, 82vh) !important;
+  height: auto !important;
+  min-height: 120px !important;
+  margin: 0 !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+/* mobile-shell / iframe: modal Imprimir/Enviar (centralizado) */
+html.sysrep-ms-embed #modalEnvio[data-ms-embed-envio="1"] {
+  position: fixed !important;
+  inset: 0 !important;
+  top: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  min-height: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: max(12px, env(safe-area-inset-top, 0px)) 16px max(12px, env(safe-area-inset-bottom, 0px)) !important;
+  box-sizing: border-box !important;
+  background: rgba(15, 23, 42, .42) !important;
+  backdrop-filter: blur(2px) !important;
+  z-index: 2147483646 !important;
+  margin: 0 !important;
+  transform: none !important;
+  overflow: hidden !important;
+  pointer-events: auto !important;
+  touch-action: manipulation !important;
+}
+html.sysrep-ms-embed #modalEnvio[data-ms-embed-envio="1"] > .modal-envio-panel {
+  position: relative !important;
+  top: auto !important;
+  left: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  transform: none !important;
+  flex: 0 0 auto !important;
+  align-self: center !important;
+  width: min(480px, calc(100vw - 32px)) !important;
+  max-width: 480px !important;
+  max-height: min(85dvh, 90vh) !important;
+  height: auto !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  border-radius: 18px !important;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, .25) !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+/* Embed: painel Incluir Item */
+html.sysrep-ms-embed #subrecMobile[data-ms-embed-subrec="1"] {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  z-index: 2147483640 !important;
+  background: var(--bg, #fff) !important;
+  overflow: hidden !important;
+  transform: none !important;
+}
+html.sysrep-ms-embed #subrecMobile[data-ms-embed-subrec="1"] #subrecContent {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
 @media (max-width: 600px) {
-  .modal-hist { align-items: stretch; padding: 0; background: rgba(0,0,0,0); }
-  .modal-hist-content {
+  html:not(.sysrep-ms-embed) .modal-hist { align-items: stretch; padding: 0; background: rgba(0,0,0,0); }
+  html:not(.sysrep-ms-embed) .modal-hist-content {
     height: 100dvh; max-height: 100dvh; border-radius: 0;
     padding-top: env(safe-area-inset-top, 0px);
     padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -3127,75 +3318,22 @@ html.sysrep-ms-embed #avisoCondMinimo {
 }
 @media (max-width: 899px) {
   html.sysrep-ms-embed #formSection .form-pedido-header.form-actions-bar {
-    padding: 12px 14px 10px;
-    gap: 12px;
-    align-items: stretch;
+    justify-content: flex-end !important;
+    padding: 6px 14px !important;
+    gap: 0 !important;
+    min-height: 0 !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
   }
-  html.sysrep-ms-embed #formSection .form-actions-left {
-    width: 100%;
-    min-width: 0;
+  html.sysrep-ms-embed #formSection .form-pedido-header .form-actions-left {
+    display: none !important;
   }
-  html.sysrep-ms-embed #formSection .form-pedido-hero-row {
-    flex-wrap: wrap;
-    gap: 8px;
+  html.sysrep-ms-embed #formSection #painelAvisoCritico.form-pedido-alert--inline {
+    display: none !important;
   }
-  html.sysrep-ms-embed #formSection .form-pedido-hero-title.is-generic {
-    display: none;
-  }
-  html.sysrep-ms-embed #formSection .form-pedido-badges-inline {
-    width: 100%;
-    gap: 6px;
-    flex-wrap: wrap;
-  }
-  html.sysrep-ms-embed #formSection .form-pedido-badges-inline .badge-status {
-    padding: 4px 8px;
-    font-size: 9px;
-    border-radius: 999px;
-  }
-  html.sysrep-ms-embed #formSection .form-pedido-badges-inline #heroBadgeTotal {
-    padding: 4px 10px;
-    font-size: 13px;
-    font-weight: 800;
-  }
-  html.sysrep-ms-embed #formSection .form-pedido-badges-inline #heroBadgeItens {
-    padding: 4px 8px;
-    font-size: 9px;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-  html.sysrep-ms-embed #formSection .form-pedido-badges-inline #btnTrocarFornecedorHero.is-visible {
-    width: 100%;
-    justify-content: center;
-    margin-top: 2px;
-    padding: 7px 10px !important;
-    font-size: 11px !important;
-    font-weight: 700;
-    color: #1d4ed8 !important;
-    background: #eff6ff;
-    border: 1px solid #93c5fd;
-    border-radius: 8px;
-  }
-  /* Salvar/Excluir/Voltar mobile: ver mobile-app.css */
+  /* Accordion mobile: ver mobile-app.css */
   html.sysrep-ms-embed #formSection.acc-mode .form-card {
-    margin-top: 14px;
-  }
-  html.sysrep-ms-embed #formSection.acc-mode .acc-header {
-    margin-top: 0;
-    border-radius: 16px;
-  }
-  html.sysrep-ms-embed #formSection.acc-mode .acc-header + .tab-panel {
-    margin-top: -8px;
-    padding: 18px 14px 16px !important;
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 0 0 18px 18px;
-    box-shadow: var(--shadow-sm);
-  }
-  html.sysrep-ms-embed #formSection.acc-mode .acc-header:not(.acc-open) + .tab-panel {
-    border: none;
-    box-shadow: none;
-    padding: 0 !important;
-    margin-top: 0;
+    margin-top: 8px;
   }
 }
 @media (max-width: 899px) {
@@ -5036,7 +5174,25 @@ function isTypingTarget(el) {
 }
 
 function isDrawerOpen() {
-  return document.getElementById('formSection')?.style.display === 'block';
+  const fs = document.getElementById('formSection');
+  if (!fs) return false;
+  if (fs.classList.contains('pedido-drawer-open')) return true;
+  const disp = fs.style.display;
+  return disp === 'block' || disp === 'flex';
+}
+
+function _usePedidoDesktopLateral() {
+  try {
+    return window.matchMedia('(min-width: 900px)').matches;
+  } catch (_) {
+    return window.innerWidth >= 900;
+  }
+}
+
+function _useSubrecMobilePanel() {
+  if (_usePedidoDesktopLateral()) return false;
+  if (isModalHistEmbed()) return true;
+  return window.innerWidth <= 600;
 }
 
 function isFilterOpen() {
@@ -5049,7 +5205,13 @@ function isQuickViewOpen() {
 
 function isSubrecOpen() {
   const drawer = document.getElementById('subrecForm');
-  return !!drawer && drawer.style.right === '0px';
+  const mob = document.getElementById('subrecMobile');
+  if (mob && mob.dataset.msEmbedSubrec === '1') return true;
+  if (mob) {
+    const mobDisp = mob.style.display;
+    if (mobDisp && mobDisp !== 'none') return true;
+  }
+  return !!drawer && drawer.classList.contains('open');
 }
 
 function isHistoryModalOpen() {
@@ -5213,9 +5375,18 @@ function bindFormStaticControls() {
   if (btnExcluir) btnExcluir.addEventListener('click', excluirPedido);
   if (btnCancelar) btnCancelar.addEventListener('click', fecharDrawer);
   if (btnSalvar) btnSalvar.addEventListener('click', salvar);
-  if (btnBuscaCadastroClientes) btnBuscaCadastroClientes.addEventListener('click', () => abrirBuscaCadastro('clientes'));
-  if (btnBuscaCadastroFornecedores) btnBuscaCadastroFornecedores.addEventListener('click', () => abrirBuscaCadastro('fornecedores'));
-  if (btnBuscaCadastroTransportadoras) btnBuscaCadastroTransportadoras.addEventListener('click', () => abrirBuscaCadastro('transportadoras'));
+  function bindBuscaBtn(el, tipo) {
+    if (!el) return;
+    const open = () => { try { abrirBuscaCadastro(tipo); } catch (_) {} };
+    el.addEventListener('click', open);
+    // Mobile: alguns webviews falham em disparar click em botões absolutos;
+    // pointerup/touchend garante o acionamento sem depender do click.
+    el.addEventListener('pointerup', (e) => { e.preventDefault(); open(); });
+    el.addEventListener('touchend',  (e) => { e.preventDefault(); open(); }, { passive: false });
+  }
+  bindBuscaBtn(btnBuscaCadastroClientes, 'clientes');
+  bindBuscaBtn(btnBuscaCadastroFornecedores, 'fornecedores');
+  bindBuscaBtn(btnBuscaCadastroTransportadoras, 'transportadoras');
   if (vendedorSelect) vendedorSelect.addEventListener('change', checkPriceRule);
   if (puxadaSelect) puxadaSelect.addEventListener('change', onChangePuxada);
   if (btnToggleDesconto) btnToggleDesconto.addEventListener('click', togglePainelDesconto);
@@ -5842,7 +6013,9 @@ function bindEnvioModalControls() {
 
   if (btnFecharModalEnvio) btnFecharModalEnvio.addEventListener('click', fecharModalEnvio);
   if (btnOptPrint) btnOptPrint.addEventListener('click', opcaoImprimir);
-  if (btnBaixarPdfOpt) btnBaixarPdfOpt.addEventListener('click', opcaoBaixarPdf);
+  if (btnBaixarPdfOpt) {
+    btnBaixarPdfOpt.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); opcaoBaixarPdf(); });
+  }
   if (btnOptEmail) btnOptEmail.addEventListener('click', () => opcaoToggleForm('email'));
   if (btnOptWhats) btnOptWhats.addEventListener('click', () => opcaoToggleForm('whats'));
   if (btnVoltarEmail) btnVoltarEmail.addEventListener('click', () => opcaoToggleForm('reset'));
@@ -5858,7 +6031,7 @@ function bindEnvioModalControls() {
   if (btnCancelarEmail) btnCancelarEmail.addEventListener('click', () => opcaoToggleForm('reset'));
   if (btnEnvioConfig) btnEnvioConfig.addEventListener('click', envioToggleConfig);
   if (envioOutlookCheck) envioOutlookCheck.addEventListener('change', (event) => envioSalvarOutlook(event.target.checked));
-  if (btnEnvioSmtp) btnEnvioSmtp.addEventListener('click', () => { fecharModalEnvio(); abrirModalSmtp(); });
+  if (btnEnvioSmtp) btnEnvioSmtp.addEventListener('click', () => { abrirModalSmtp(); });
   if (btnEnviarEmail) btnEnviarEmail.addEventListener('click', enviarPedidoEmail);
   if (btnVoltarWhats) btnVoltarWhats.addEventListener('click', () => opcaoToggleForm('reset'));
   if (btnEnviarWhats) btnEnviarWhats.addEventListener('click', enviarPedidoWhatsApp);
@@ -7363,6 +7536,13 @@ function syncFornecedorPedidoUi() {
 
   [btnTrocar, btnTrocarHero].forEach(btn => {
     if (!btn) return;
+    const ocultarHeroEmbed = btn === btnTrocarHero
+      && document.documentElement.classList.contains('sysrep-ms-embed');
+    if (ocultarHeroEmbed) {
+      btn.classList.remove('is-visible');
+      btn.style.display = 'none';
+      return;
+    }
     btn.classList.toggle('is-visible', mostrarTrocar);
     btn.style.display = mostrarTrocar ? 'inline-flex' : 'none';
   });
@@ -7642,7 +7822,7 @@ function syncMobileShellPedidoState(open, meta = {}) {
       title: meta.title || document.getElementById('heroClienteName')?.textContent || '',
       shellTitle: meta.shellTitle || buildPedidoShellTitle(meta),
       activeTab: open ? getFormActiveTabId() : null,
-      filtersCount: typeof getUserFiltersCount === 'function' ? getUserFiltersCount() : 0
+      filtersCount: typeof getUserFiltersCount === 'function' ? getUserFiltersCount() : 0,
     }, '*');
   } catch (_) {}
 }
@@ -7674,6 +7854,7 @@ function scrollPedidoFormToTop(delayMs) {
 }
 
 function abrirNovo() {
+  fecharModalEnvio();
   if (typeof SysRepPedidosOffline !== 'undefined' && !SysRepPedidosOffline.isOnline()
       && typeof SysRepPedidosOfflinePack !== 'undefined') {
     SysRepPedidosOfflinePack.hasValidPack().then((ok) => {
@@ -7717,6 +7898,7 @@ async function abrirEdicao(id) {
     toast('Sem permissão para alterar pedidos de venda', 'err');
     return;
   }
+  fecharModalEnvio();
   if (typeof fecharQuickView === 'function' && document.getElementById('quickViewPanel')?.classList.contains('open')) {
     fecharQuickView();
   }
@@ -7884,8 +8066,22 @@ function getDrawerUiRefs() {
 
 function setDrawerVisibility(open) {
   const refs = getDrawerUiRefs();
-  if (refs.listSection) refs.listSection.style.display = open ? 'none' : '';
-  if (refs.formSection) refs.formSection.style.display = open ? 'block' : 'none';
+  const lateral = open && _usePedidoDesktopLateral();
+  const overlay = document.getElementById('drawerOverlay');
+
+  if (refs.listSection) refs.listSection.style.display = (open && !lateral) ? 'none' : '';
+  if (refs.formSection) {
+    if (lateral) {
+      refs.formSection.style.display = 'flex';
+      refs.formSection.classList.add('pedido-drawer-open');
+    } else {
+      refs.formSection.classList.remove('pedido-drawer-open');
+      refs.formSection.style.display = open ? 'block' : 'none';
+    }
+  }
+  if (overlay) overlay.classList.toggle('show', lateral);
+  document.body.classList.toggle('pedido-form-drawer-open', lateral);
+
   if (open) {
     const bar = document.getElementById('bulkBar');
     if (bar) bar.classList.remove('show');
@@ -7898,11 +8094,16 @@ function setDrawerVisibility(open) {
     updateBulkBar();
   }
   if (!open && refs.totalsBar) refs.totalsBar.style.display = 'none';
-  _setToolbarVisivel(!open);
+  _setToolbarVisivel(!open || lateral);
   syncMobileShellPedidoState(open);
-  if (refs.themeFab) refs.themeFab.style.display = open ? 'none' : '';
-  if (open) scrollPedidoFormToTop(180);
-  else window.scrollTo({ top: 0, behavior: 'smooth' });
+  if (refs.themeFab) refs.themeFab.style.display = (open && !lateral) ? 'none' : '';
+  if (open) {
+    if (!_embedOverlayModalAtivo()) releaseEmbedUiLocks();
+    if (lateral && refs.formSection) refs.formSection.scrollTop = 0;
+    else scrollPedidoFormToTop(180);
+  } else if (!lateral) {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
   if (open) stopPedidosAutoSync();
   else startPedidosAutoSync();
   syncPedidoStickyChromeOffset();
@@ -9182,15 +9383,22 @@ async function abrirSubrecForm(tipo, preservarTabela = false) {
     bindSubrecParcelaFormControls();
   }
 
-  if (window.innerWidth <= 600) {
+  const useMobilePanel = _useSubrecMobilePanel();
+  if (useMobilePanel) {
     const mob = document.getElementById('subrecMobile');
     const src = document.getElementById('subrecContent');
     if (mob && src) {
-      mob.innerHTML = '';
-      mob.appendChild(src);
-      mob.style.display = 'flex';
-      src.scrollTop = 0;
+      if (isModalHistEmbed()) {
+        aplicarSubrecEmbed(true);
+      } else {
+        mob.innerHTML = '';
+        mob.appendChild(src);
+        mob.style.display = 'flex';
+        mob.scrollTop = 0;
+        src.scrollTop = 0;
+      }
       setTimeout(() => {
+        mob.scrollTop = 0;
         src.scrollTop = 0;
         if (tipo === 'itens' && _editandoItemIdx < 0) {
           _buscaProdutoAutoAposIncluir = false;
@@ -9236,8 +9444,9 @@ function fecharSubrecForm() {
   const modal   = document.getElementById('subrecForm');
   const overlay = document.getElementById('subrecOverlay');
   const mob     = document.getElementById('subrecMobile');
-  // Mobile: devolve #subrecContent ao drawer e esconde overlay
-  if (mob && mob.style.display !== 'none') {
+  if (isModalHistEmbed() && mob?.dataset?.msEmbedSubrec === '1') {
+    aplicarSubrecEmbed(false);
+  } else if (mob && mob.style.display !== 'none') {
     const src = mob.querySelector('#subrecContent');
     if (src) modal.appendChild(src);
     mob.style.display = 'none';
@@ -9245,6 +9454,8 @@ function fecharSubrecForm() {
     overlay.classList.remove('show');
     modal.classList.remove('open');
   }
+  repararSubrecEmbedDom();
+  if (!_embedOverlayModalAtivo()) releaseEmbedUiLocks();
   _editandoItemIdx = -1;
 }
 
@@ -11546,6 +11757,8 @@ function switchTab(panelId, el, opts) {
 
   var isAccMode = formSec && formSec.classList.contains('acc-mode');
 
+  if (!_embedOverlayModalAtivo()) releaseEmbedUiLocks();
+
   if (isAccMode) {
     toggleAccordionSection(panelId, true);
     return;
@@ -11601,11 +11814,11 @@ function initAccordionMobile() {
   if (!formCard) return;
 
   var panels = [
-    { id: 'tab-principal', label: 'Cabeçalho', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2' },
+    { id: 'tab-principal', label: 'Dados', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2' },
     { id: 'tab-itens',     label: 'Itens',     icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', badgeId: 'badgeContadorItens' },
     { id: 'tab-logistica', label: 'Entrega',   icon: 'M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4' },
     { id: 'tab-financeiro',label: 'Pagamento',  icon: 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z', badgeId: 'badgeContadorParcelas' },
-    { id: 'tab-obs',       label: 'Observações', icon: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z' }
+    { id: 'tab-obs',       label: 'Obs', icon: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z' }
   ];
 
   panels.forEach(function(p) {
@@ -11641,7 +11854,10 @@ function initAccordionMobile() {
   });
 
   _accordionMql = window.matchMedia('(max-width: 899px)');
-  function onMqlChange() { applyAccordionLayout(); }
+  function onMqlChange() {
+    applyAccordionLayout();
+    if (isDrawerOpen()) setDrawerVisibility(true);
+  }
   if (_accordionMql.addEventListener) _accordionMql.addEventListener('change', onMqlChange);
   else _accordionMql.addListener(onMqlChange);
   applyAccordionLayout();
@@ -12283,6 +12499,8 @@ async function selecionarProdutoAvancado(id) {
 
   setTimeout(() => { const q = g("sub_qtd"); if(q) q.focus(); }, 100);
   if(typeof calcSubItem === "function") calcSubItem();
+  // Selecionar produto continua o fluxo — não cancelar o painel de quantidade
+  _buscaProdutoAutoAposIncluir = false;
   if(typeof fecharModalHist === "function") fecharModalHist();
 }
 
@@ -12334,6 +12552,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   bindSmtpModalControls();
   bindQuickAssistControls();
   bindModalHistoryControls();
+  repararModalHistDom();
+  repararModalEnvioDom();
+  repararSubrecEmbedDom();
   if (typeof SysRepPedidosOffline !== 'undefined') {
     SysRepPedidosOffline.bindEvents(apiJ);
     SysRepPedidosOffline.updateBadge();
@@ -13169,6 +13390,40 @@ async function imgUrlToBase64(url) {
   } catch { return null; }
 }
 
+function _mergeClienteImpressao(cliRaw, pedido) {
+  const cli = { ...(cliRaw || {}) };
+  const num = cli.numerosulframa || cli.numero_suframa || '';
+  cli.numerosulframa = num;
+  cli.numero_suframa = num;
+  if (_clienteConfig && String(_clienteConfig.id) === String(pedido?.cod_cliente)) {
+    if (!cli.numerosulframa) cli.numerosulframa = _clienteConfig.numerosulframa || _clienteConfig.numero_suframa || '';
+    if (!cli.numero_suframa) cli.numero_suframa = cli.numerosulframa;
+    if (!cli.imprimirsuframaped) cli.imprimirsuframaped = _clienteConfig.imprimirsuframaped;
+    if (!cli.descontoIPIsuframaped) cli.descontoIPIsuframaped = _clienteConfig.descontoIPIsuframaped;
+  }
+  return cli;
+}
+
+function _resolveSuframaImpressao(cli, p) {
+  const num = String(cli?.numerosulframa || cli?.numero_suframa || p?.numerosulframa || p?.numero_suframa || '').trim();
+  const imprimirFlag = (cli?.imprimirsuframaped || p?.imprimirsuframaped) === 'S';
+  const isento = (cli?.descontoIPIsuframaped || p?.descontoIPIsuframaped) === 'S';
+  const ativo = imprimirFlag || isento || num.length > 0;
+  return { num, isento, ativo };
+}
+
+function _buildSuframaImpressaoHtml(cli, p, escHtml) {
+  const h = typeof escHtml === 'function' ? escHtml : (s => String(s || ''));
+  const s = _resolveSuframaImpressao(cli, p);
+  if (!s.ativo) return '';
+  return `
+    <div style="display:flex;align-items:center;gap:8px;margin-top:6px;padding:6px 10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px">
+      <span style="background:#16a34a;color:#fff;font-weight:900;font-size:10px;padding:2px 8px;border-radius:4px;letter-spacing:0.5px;flex-shrink:0">SUFRAMA</span>
+      ${s.num ? `<span style="font-size:11px"><b>Nº: ${h(s.num)}</b></span>` : ''}
+      ${s.isento ? `<span style="font-size:11px;color:#166534;font-weight:600">— Isento de IPI conforme legislação SUFRAMA</span>` : ''}
+    </div>`;
+}
+
 async function buildEmpresaLogoInnerHtml(emp, forPdf) {
   const dims = dimsLogoRelatorio(emp);
   const logoRel = ((emp && emp.logo_relatorio) || '').trim();
@@ -13195,10 +13450,73 @@ async function buildEmpresaLogoInnerHtml(emp, forPdf) {
   return { inner: `<img src="${escAttr(abs)}" alt="" style="${style}" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'LOGO',style:'font-weight:800;font-size:12px;color:#64748b'}))"/>`, dims };
 }
 
+function _liberarUiAntesImpressao() {
+  // Só destrava scroll — modal Imprimir/Enviar permanece aberto por baixo
+  document.documentElement.style.overflow = '';
+  document.body.style.overflow = '';
+}
+
+function _abrirJanelaImpressaoPedido(html) {
+  _liberarUiAntesImpressao();
+  const isEmbed = document.documentElement.classList.contains('sysrep-ms-embed');
+  const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+
+  if (isEmbed || isMobile) {
+    let overlay = document.getElementById('_printPreviewOverlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = '_printPreviewOverlay';
+      overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:#fff;display:none;flex-direction:column';
+      overlay.innerHTML = `
+        <div style="flex:0 0 auto;padding:10px 12px;border-bottom:1px solid #e2e8f0;display:flex;gap:8px;align-items:center;justify-content:flex-end;background:#f8fafc">
+          <button type="button" id="_printPreviewBtn" style="padding:11px 14px;border:none;border-radius:8px;background:var(--accent,#0ea5e9);color:#fff;font-weight:600;font-size:13px;font-family:inherit;white-space:nowrap">Imprimir</button>
+          <button type="button" id="_printPreviewClose" style="padding:11px 14px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;font-weight:600;font-size:13px;font-family:inherit;color:var(--text,#0f172a);white-space:nowrap">Fechar</button>
+        </div>
+        <iframe id="_printPreviewFrame" title="Pré-visualização do pedido" style="flex:1;width:100%;border:none;background:#fff"></iframe>`;
+      document.body.appendChild(overlay);
+      overlay.querySelector('#_printPreviewClose').addEventListener('click', () => {
+        overlay.style.display = 'none';
+      });
+      overlay.querySelector('#_printPreviewBtn').addEventListener('click', () => {
+        const frame = document.getElementById('_printPreviewFrame');
+        if (!frame) return;
+        try {
+          frame.contentWindow.focus();
+          frame.contentWindow.print();
+        } catch (_) {
+          toast('Não foi possível abrir a impressão neste dispositivo.', 'err');
+        }
+      });
+    }
+    overlay.style.display = 'flex';
+    const frame = document.getElementById('_printPreviewFrame');
+    const doc = frame.contentDocument || frame.contentWindow.document;
+    doc.open();
+    doc.write(html.replace('onload="setTimeout(()=>window.print(),300)"', ''));
+    doc.close();
+    return;
+  }
+
+  const win = window.open('', '_blank');
+  if (!win) { toast('Permita pop-ups para imprimir', 'warn'); return; }
+  win.document.write(html);
+  win.document.close();
+}
+
 async function imprimirPedidoAtual() {
-  if (!_currentQvData) return;
-  const pid = _currentQvData.p?.id || _currentQvData.p?.idusuario;
-  if (!pid) return;
+  const pid = _currentQvData?.p?.id || _idEdit || (typeof _envioPedidoId !== 'undefined' ? _envioPedidoId : null);
+  if (!pid) {
+    toast('Pedido não identificado para impressão.', 'err');
+    return;
+  }
+  if (!_currentQvData) {
+    _currentQvData = { p: { id: pid, numero: (typeof _envioNumeroPedido !== 'undefined' && _envioNumeroPedido) ? _envioNumeroPedido : pid }, itens: [], cliente: {} };
+  } else if (!_currentQvData.p?.id) {
+    _currentQvData.p = Object.assign({}, _currentQvData.p || {}, {
+      id: pid,
+      numero: _currentQvData.p?.numero || (typeof _envioNumeroPedido !== 'undefined' ? _envioNumeroPedido : null) || pid
+    });
+  }
 
   let dados;
   try {
@@ -13208,7 +13526,7 @@ async function imprimirPedidoAtual() {
 
   const p  = dados.pedido || _currentQvData.p;
   const its = dados.itens  || _currentQvData.itens || [];
-  const cli = dados.cliente || {};
+  const cli = _mergeClienteImpressao(dados.cliente || {}, p);
   const emp = dados.empresa || {};
 
   // ── config do fornecedor (parcelas, cor/estilo obs) ─────────────
@@ -13247,16 +13565,7 @@ async function imprimirPedidoAtual() {
   const cliEmail = cli.email || '';
   const cliIE    = cli.inscricao_estadual || cli.ie || cli.insc_estadual || '';
   const cliCnpj  = p.cnpj || cli.cpf || '';
-  // ── SUFRAMA ─────────────────────────────────────────────────────
-  const isSuframaImpressao = (cli.imprimirsuframaped || p.imprimirsuframaped) === 'S';
-  const isSuframaIsento    = (cli.descontoIPIsuframaped || p.descontoIPIsuframaped) === 'S';
-  const cliNumSuframa      = cli.numero_suframa || p.numero_suframa || '';
-  const suframaHtml = isSuframaImpressao ? `
-    <div style="display:flex;align-items:center;gap:8px;margin-top:6px;padding:6px 10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px">
-      <span style="background:#16a34a;color:#fff;font-weight:900;font-size:10px;padding:2px 8px;border-radius:4px;letter-spacing:0.5px;flex-shrink:0">SUFRAMA</span>
-      ${cliNumSuframa ? `<span style="font-size:11px"><b>Nº: ${h(cliNumSuframa)}</b></span>` : ''}
-      ${isSuframaIsento ? `<span style="font-size:11px;color:#166534;font-weight:600">— Isento de IPI conforme legislação SUFRAMA</span>` : ''}
-    </div>` : '';
+  const suframaHtml = _buildSuframaImpressaoHtml(cli, p, h);
 
   // ── empresa emissora ────────────────────────────────────────────
   const empNome = emp.Razao_empresa || emp.nome_fantasia || p.nome_empresa || 'EMPRESA PADRÃO';
@@ -13451,10 +13760,7 @@ async function imprimirPedidoAtual() {
 </body>
 </html>`;
 
-  const win = window.open('', '_blank');
-  if (!win) { toast('Permita pop-ups para imprimir', 'warn'); return; }
-  win.document.write(html);
-  win.document.close();
+  _abrirJanelaImpressaoPedido(html);
 }
 
 function _dropdownMarcarRepHtml(pedido, id) {
@@ -13655,8 +13961,19 @@ function _abrirModalEnvioComDados(pedido, itens, cliente) {
   if (fotoCheckEl) fotoCheckEl.style.display = deveMostrarFotoCheck ? '' : 'none';
   const chkFoto = $('chkFotoPDF');
   if (chkFoto) chkFoto.checked = _fornecedorConfig.fotosprodutospedido === 'S';
-  try { _envioPedidoId = pedido.id; _envioNumeroPedido = num; _envioPdfBase64 = null; _envioHtml = ''; _envioDestinatarios = []; } catch(e) {}
-  modal.style.display = 'flex';
+  try {
+    _envioPedidoId = pedido.id || _idEdit || null;
+    _envioNumeroPedido = num;
+    _envioPdfBase64 = null; _envioHtml = ''; _envioDestinatarios = [];
+  } catch(e) {}
+  if (!_envioPedidoId) {
+    toast('Pedido inválido para envio', 'err');
+    return;
+  }
+  if (typeof fecharQuickView === 'function' && document.getElementById('quickViewPanel')?.classList.contains('open')) {
+    fecharQuickView();
+  }
+  _setModalEnvioOpen(true);
 }
 
 async function abrirModalEnvioPorId(id) {
@@ -13931,6 +14248,12 @@ function sysrepHapticFeedback(tipo) {
   } catch (_) {}
 }
 function toast(msg, tipo = 'ok') {
+  const envioAberto = document.getElementById('modalEnvio')?.getAttribute('aria-hidden') === 'false';
+  if (envioAberto && (tipo === 'err' || tipo === 'warn') && typeof _envioShowStatus === 'function') {
+    _envioShowStatus(msg, tipo);
+    sysrepHapticFeedback(tipo);
+    return;
+  }
   const el = document.createElement('div');
   const kind = tipo === 'err' ? 'err' : (tipo === 'warn' ? 'warn' : 'ok');
   el.className = `toast toast--${kind}`;
@@ -13947,12 +14270,13 @@ function toast(msg, tipo = 'ok') {
     m.className = 'client-quick-modal-overlay sys-confirm-modal';
     m.style.zIndex = '2147483647';
     m.innerHTML = `
-      <div class="client-quick-modal-content" style="background:var(--card,#fff);border:1px solid var(--border,#e2e8f0);border-radius:14px;padding:28px 32px;max-width:440px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.25)">
-        <div id="_confirmTit" style="font-size:15px;font-weight:700;margin-bottom:10px;color:var(--text,#0f172a)"></div>
-        <div id="_confirmMsg" style="font-size:13px;color:var(--text2,#64748b);margin-bottom:20px;line-height:1.6;white-space:pre-line"></div>
-        <div id="_confirmActions" style="display:flex;gap:8px;justify-content:flex-end">
-          <button type="button" id="_confirmCancel" style="padding:7px 16px;border:1.5px solid var(--border,#e2e8f0);border-radius:7px;background:transparent;color:var(--text2,#64748b);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Cancelar</button>
-          <button type="button" id="_confirmOk" style="padding:7px 16px;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;background:var(--accent,#0d9488)">Confirmar</button>
+      <div class="client-quick-modal-content sys-dialog-card">
+        <div class="sys-modal-handle" aria-hidden="true"></div>
+        <div id="_confirmTit" class="sys-dialog-title"></div>
+        <div id="_confirmMsg" class="sys-dialog-msg"></div>
+        <div id="_confirmActions" class="sys-dialog-actions">
+          <button type="button" id="_confirmCancel" class="sys-dialog-btn sys-dialog-btn--ghost">Cancelar</button>
+          <button type="button" id="_confirmOk" class="sys-dialog-btn sys-dialog-btn--primary">Confirmar</button>
         </div>
       </div>`;
     document.body.appendChild(m);
@@ -13965,11 +14289,12 @@ function toast(msg, tipo = 'ok') {
     a.className = 'client-quick-modal-overlay sys-alert-modal';
     a.style.zIndex = '2147483647';
     a.innerHTML = `
-      <div class="client-quick-modal-content" style="background:var(--card,#fff);border:1px solid var(--border,#e2e8f0);border-radius:14px;padding:28px 32px;max-width:440px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.25)">
-        <div id="_alertTit" style="font-size:15px;font-weight:700;margin-bottom:10px;color:var(--text,#0f172a)"></div>
-        <div id="_alertMsg" style="font-size:13px;color:var(--text2,#64748b);margin-bottom:20px;line-height:1.6;white-space:pre-line"></div>
-        <div style="display:flex;justify-content:flex-end">
-          <button type="button" id="_alertOk" style="padding:7px 16px;border:none;border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;background:var(--accent,#0d9488)">Entendi</button>
+      <div class="client-quick-modal-content sys-dialog-card">
+        <div class="sys-modal-handle" aria-hidden="true"></div>
+        <div id="_alertTit" class="sys-dialog-title"></div>
+        <div id="_alertMsg" class="sys-dialog-msg"></div>
+        <div class="sys-dialog-actions sys-dialog-actions--single">
+          <button type="button" id="_alertOk" class="sys-dialog-btn sys-dialog-btn--primary">Entendi</button>
         </div>
       </div>`;
     document.body.appendChild(a);
@@ -13982,16 +14307,16 @@ function toast(msg, tipo = 'ok') {
     v.className = 'client-quick-modal-overlay sys-validacao-modal';
     v.style.zIndex = '2147483647';
     v.innerHTML = `
-      <div class="client-quick-modal-content" style="padding:20px 22px 18px;max-width:400px">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-          <div style="font-size:13px;font-weight:700;color:var(--text,#0f172a)">Não foi possível salvar</div>
+      <div class="client-quick-modal-content sys-validacao-card">
+        <div class="sys-validacao-head">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <div class="sys-validacao-title">Não foi possível salvar</div>
         </div>
-        <div id="_validacaoPedidoSub" style="font-size:12px;color:var(--text2,#64748b);margin-bottom:10px;line-height:1.5"></div>
-        <ul id="_validacaoPedidoLista" style="list-style:none;margin:0 0 14px;padding:0;max-height:min(40vh,260px);overflow-y:auto"></ul>
-        <div style="display:flex;gap:8px;justify-content:flex-end">
-          <button type="button" id="_validacaoPedidoFechar" style="padding:6px 14px;border:1.5px solid var(--border,#e2e8f0);border-radius:7px;background:transparent;color:var(--text2,#64748b);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Fechar</button>
-          <button type="button" id="_validacaoPedidoIr" style="padding:6px 14px;border:none;border-radius:7px;background:var(--accent,#0d9488);color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Ir corrigir</button>
+        <div id="_validacaoPedidoSub" class="sys-validacao-sub"></div>
+        <ul id="_validacaoPedidoLista" class="sys-validacao-list"></ul>
+        <div class="sys-validacao-actions">
+          <button type="button" id="_validacaoPedidoFechar" class="sys-dialog-btn sys-dialog-btn--ghost">Fechar</button>
+          <button type="button" id="_validacaoPedidoIr" class="sys-dialog-btn sys-dialog-btn--primary">Ir corrigir</button>
         </div>
       </div>`;
     document.body.appendChild(v);
@@ -14157,25 +14482,33 @@ function _fecharConfirm(confirmed) {
   _confirmCb = null;
 }
 
-function confirmar(tit, txt, ok, opts = {}) {
-  const m = document.getElementById('_confirmModal');
-  if (!m) { if (window.confirm(tit + '\n' + txt)) { if (ok) ok(); } return; }
-  const isDanger = opts.danger === true;
-  document.getElementById('_confirmTit').textContent = tit;
-  document.getElementById('_confirmMsg').textContent = txt;
-  const btnOk = document.getElementById('_confirmOk');
-  const btnCancel = document.getElementById('_confirmCancel');
-  btnOk.textContent = opts.labelOk || (isDanger ? 'Sim, excluir' : 'Confirmar');
-  btnOk.style.background = isDanger ? '#ef4444' : 'var(--accent,#0d9488)';
-  if (btnCancel) {
-    btnCancel.textContent = opts.labelCancel || 'Cancelar';
-    btnCancel.style.display = opts.hideCancel ? 'none' : '';
+function _resetSysDialogBoxPosition(modal) {
+  const box = modal?.querySelector('.client-quick-modal-content');
+  if (!box) return;
+  box.style.position = '';
+  box.style.top = '';
+  box.style.left = '';
+  box.style.margin = '';
+  box.style.transform = '';
+}
+
+function _shouldManualCenterSysDialog() {
+  if (document.documentElement.classList.contains('sysrep-ms-embed')) return false;
+  try { return window.matchMedia('(max-width: 900px)').matches; } catch (_) { return window.innerWidth <= 900; }
+}
+
+function _centerSysDialogBox(modal) {
+  if (!modal) return;
+  if (document.documentElement.classList.contains('sysrep-ms-embed')) {
+    _resetSysDialogBoxPosition(modal);
+    return;
   }
-  _confirmCb = ok;
-  btnOk.onclick = () => { const cb = _confirmCb; _fecharConfirm(true); if (cb) cb(); };
-  m.classList.add('show');
+  if (!_shouldManualCenterSysDialog()) {
+    _resetSysDialogBoxPosition(modal);
+    return;
+  }
   requestAnimationFrame(() => {
-    const box = m.querySelector('.client-quick-modal-content');
+    const box = modal.querySelector('.client-quick-modal-content');
     if (!box) return;
     box.style.position = 'fixed';
     box.style.top  = Math.max(20, Math.round((window.innerHeight - box.offsetHeight) / 2)) + 'px';
@@ -14183,6 +14516,40 @@ function confirmar(tit, txt, ok, opts = {}) {
     box.style.margin = '0';
     box.style.transform = 'none';
   });
+}
+
+function _applySysDialogButtonStyles(isDanger, btnOk, btnCancel, hideCancel) {
+  if (!btnOk) return;
+  btnOk.className = 'sys-dialog-btn';
+  if (btnCancel) btnCancel.className = 'sys-dialog-btn';
+  if (isDanger && btnCancel && !hideCancel) {
+    btnCancel.classList.add('sys-dialog-btn--primary');
+    btnOk.classList.add('sys-dialog-btn--danger');
+  } else {
+    btnOk.classList.add('sys-dialog-btn--primary');
+    if (btnCancel && !hideCancel) btnCancel.classList.add('sys-dialog-btn--ghost');
+  }
+}
+
+function confirmar(tit, txt, ok, opts = {}) {
+  const m = document.getElementById('_confirmModal');
+  if (!m) { if (window.confirm(tit + '\n' + txt)) { if (ok) ok(); } return; }
+  const isDanger = opts.danger === true;
+  m.classList.toggle('sys-dialog--danger', isDanger);
+  document.getElementById('_confirmTit').textContent = tit;
+  document.getElementById('_confirmMsg').textContent = txt;
+  const btnOk = document.getElementById('_confirmOk');
+  const btnCancel = document.getElementById('_confirmCancel');
+  btnOk.textContent = opts.labelOk || (isDanger ? 'Sim, excluir' : 'Confirmar');
+  if (btnCancel) {
+    btnCancel.textContent = opts.labelCancel || 'Cancelar';
+    btnCancel.style.display = opts.hideCancel ? 'none' : '';
+  }
+  _applySysDialogButtonStyles(isDanger, btnOk, btnCancel, opts.hideCancel);
+  _confirmCb = ok;
+  btnOk.onclick = () => { const cb = _confirmCb; _fecharConfirm(true); if (cb) cb(); };
+  m.classList.add('show');
+  _centerSysDialogBox(m);
 }
 
 function confirmarAsync(tit, txt, opts = {}) {
@@ -14209,15 +14576,7 @@ function alertar(tit, txt, opts = {}) {
     if (btnOk) btnOk.textContent = opts.labelOk || 'Entendi';
     _alertResolve = resolve;
     m.classList.add('show');
-    requestAnimationFrame(() => {
-      const box = m.querySelector('.client-quick-modal-content');
-      if (!box) return;
-      box.style.position = 'fixed';
-      box.style.top  = Math.max(20, Math.round((window.innerHeight - box.offsetHeight) / 2)) + 'px';
-      box.style.left = Math.round((window.innerWidth  - box.offsetWidth)  / 2) + 'px';
-      box.style.margin = '0';
-      box.style.transform = 'none';
-    });
+    _centerSysDialogBox(m);
   });
 }
 
@@ -14361,6 +14720,357 @@ let _modalTipo = '';
 let _modalPage = 1;
 let _modalQuery = '';
 const MODAL_LIMIT = 15;
+let _modalHistAnchor = null;
+
+function isModalHistEmbed() {
+  return document.documentElement.classList.contains('sysrep-ms-embed');
+}
+
+/** Recoloca card/overlay se o mobile-shell tiver portado o conteúdo para fora. */
+function repararModalHistDom() {
+  const modal = document.getElementById('modalHist');
+  if (!modal) return;
+
+  const portaled = document.querySelector('.modal-hist-content[data-ms-portaled="1"]');
+  if (portaled && !modal.contains(portaled)) {
+    const orphanInModal = modal.querySelector('.modal-hist-content');
+    if (orphanInModal && orphanInModal !== portaled) orphanInModal.remove();
+    modal.appendChild(portaled);
+    delete portaled.dataset.msPortaled;
+  }
+
+  const looseCard = document.body.querySelector(':scope > .modal-hist-content');
+  if (looseCard && !modal.contains(looseCard)) {
+    const inner = modal.querySelector('.modal-hist-content');
+    if (inner && inner !== looseCard) inner.remove();
+    modal.appendChild(looseCard);
+  }
+
+  modal.classList.remove('ms-modal-open', 'ms-modal-card-fixed');
+  modal.querySelectorAll('.ms-modal-card, .ms-modal-card-fixed').forEach((el) => {
+    el.classList.remove('ms-modal-card', 'ms-modal-card-fixed');
+  });
+}
+
+let _embedFixedLock = 0;
+let _embedOverlayLock = 0;
+
+function _embedOverlayModalAtivo() {
+  return isHistoryModalOpen()
+    || document.getElementById('subrecMobile')?.dataset?.msEmbedSubrec === '1'
+    || document.getElementById('modalEnvio')?.dataset?.msEmbedEnvio === '1';
+}
+
+function releaseEmbedUiLocks() {
+  _embedOverlayLock = 0;
+  _embedFixedLock = 0;
+  const de = document.documentElement;
+  const body = document.body;
+  de.classList.remove('modal-hist-embed-open');
+  de.style.overflow = '';
+  body.style.overflow = '';
+  if (de.dataset.msModalHistPt === '1') body.classList.add('pt-page-enter');
+  else body.classList.remove('pt-page-enter');
+  de.style.removeProperty('transform');
+  body.style.removeProperty('transform');
+  delete de.dataset.msModalHistPt;
+}
+
+function _lockEmbedOverlay() {
+  if (_embedOverlayLock++ === 0) {
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+  }
+}
+
+function _unlockEmbedOverlay() {
+  if (_embedOverlayLock <= 0) { _embedOverlayLock = 0; return; }
+  if (--_embedOverlayLock === 0) {
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
+  }
+}
+
+function _neutralizeEmbedFixedBreakers(on) {
+  const de = document.documentElement;
+  const body = document.body;
+  if (on) {
+    if (_embedFixedLock++ > 0) return;
+    de.dataset.msModalHistPt = body.classList.contains('pt-page-enter') ? '1' : '0';
+    body.classList.remove('pt-page-enter');
+    de.style.setProperty('transform', 'none', 'important');
+    body.style.setProperty('transform', 'none', 'important');
+    return;
+  }
+  if (_embedFixedLock <= 0) { _embedFixedLock = 0; return; }
+  if (--_embedFixedLock > 0) return;
+  if (de.dataset.msModalHistPt === '1') body.classList.add('pt-page-enter');
+  else body.classList.remove('pt-page-enter');
+  de.style.removeProperty('transform');
+  body.style.removeProperty('transform');
+  delete de.dataset.msModalHistPt;
+}
+
+function _setModalHistEmbedStyles(modal, card) {
+  const overlay = {
+    position: 'fixed', inset: '0', top: '0', right: '0', bottom: '0', left: '0',
+    width: '100vw', height: '100dvh', 'max-height': '100dvh', 'min-height': '0',
+    display: 'flex', 'align-items': 'center', 'justify-content': 'center',
+    padding: 'max(12px, env(safe-area-inset-top, 0px)) 16px max(12px, env(safe-area-inset-bottom, 0px))',
+    'box-sizing': 'border-box', background: 'rgba(0,0,0,.45)', 'z-index': '2147483646',
+    margin: '0', visibility: 'visible', opacity: '1', transform: 'none', overflow: 'hidden'
+  };
+  Object.entries(overlay).forEach(([k, v]) => modal.style.setProperty(k, v, 'important'));
+  if (!card) return;
+  const panel = {
+    position: 'relative', flex: '0 1 auto', 'align-self': 'center',
+    width: 'min(920px, calc(100vw - 32px))', 'max-width': '920px',
+    'max-height': 'min(82dvh, 82vh)', height: 'auto', 'min-height': '120px',
+    margin: '0', display: 'flex', 'flex-direction': 'column', overflow: 'hidden',
+    visibility: 'visible', opacity: '1', 'z-index': '1',
+    background: 'var(--card)', 'border-radius': '18px',
+    border: '1px solid var(--border)', 'box-shadow': '0 24px 64px rgba(0,0,0,.25)',
+    transform: 'none', top: 'auto', left: 'auto', right: 'auto', bottom: 'auto'
+  };
+  Object.entries(panel).forEach(([k, v]) => card.style.setProperty(k, v, 'important'));
+}
+
+function aplicarModalHistEmbed(abrir) {
+  const modal = document.getElementById('modalHist');
+  if (!modal || !isModalHistEmbed()) return false;
+
+  repararModalHistDom();
+  const card = modal.querySelector('.modal-hist-content');
+
+  if (abrir) {
+    const jaAberto = modal.classList.contains('show') && modal.dataset.msEmbedHist === '1';
+    if (!_modalHistAnchor) {
+      _modalHistAnchor = { parent: modal.parentNode, next: modal.nextSibling };
+    }
+    if (modal.parentNode !== document.documentElement) document.documentElement.appendChild(modal);
+
+    modal.classList.remove('ms-modal-open', 'ms-modal-card-fixed');
+    modal.classList.add('show');
+    modal.dataset.msEmbedHist = '1';
+    if (!jaAberto) {
+      _neutralizeEmbedFixedBreakers(true);
+      _lockEmbedOverlay();
+    }
+    _setModalHistEmbedStyles(modal, card);
+
+    document.documentElement.classList.add('modal-hist-embed-open');
+    return true;
+  }
+
+  modal.classList.remove('show');
+  modal.removeAttribute('style');
+  delete modal.dataset.msEmbedHist;
+  if (card) card.removeAttribute('style');
+  if (!_embedOverlayModalAtivo()) releaseEmbedUiLocks();
+  else {
+    _neutralizeEmbedFixedBreakers(false);
+    _unlockEmbedOverlay();
+    document.documentElement.classList.remove('modal-hist-embed-open');
+  }
+
+  if (_modalHistAnchor && _modalHistAnchor.parent) {
+    try {
+      if (_modalHistAnchor.next && _modalHistAnchor.next.parentNode === _modalHistAnchor.parent) {
+        _modalHistAnchor.parent.insertBefore(modal, _modalHistAnchor.next);
+      } else {
+        _modalHistAnchor.parent.appendChild(modal);
+      }
+    } catch (_) {}
+  }
+  return true;
+}
+
+// ── Embed mobile-shell: drawer Incluir Item (#subrecMobile) ─────────────────
+let _subrecMobileAnchor = null;
+
+function repararSubrecEmbedDom() {
+  const drawer = document.getElementById('subrecForm');
+  const mob = document.getElementById('subrecMobile');
+  const content = document.getElementById('subrecContent');
+  if (drawer) {
+    drawer.classList.remove('ms-modal-open', 'ms-modal-card', 'ms-modal-card-fixed', 'open');
+  }
+  if (content && drawer && !drawer.contains(content) && mob && !mob.contains(content)) {
+    drawer.appendChild(content);
+  }
+}
+
+function aplicarSubrecEmbed(abrir) {
+  if (!isModalHistEmbed()) return false;
+  const mob = document.getElementById('subrecMobile');
+  const content = document.getElementById('subrecContent');
+  const overlay = document.getElementById('subrecOverlay');
+  const drawer = document.getElementById('subrecForm');
+  if (!mob || !content) return false;
+
+  repararSubrecEmbedDom();
+
+  if (abrir) {
+    const jaAberto = mob.dataset.msEmbedSubrec === '1';
+    if (!_subrecMobileAnchor) {
+      _subrecMobileAnchor = { parent: mob.parentNode, next: mob.nextSibling };
+    }
+    if (mob.parentNode !== document.documentElement) document.documentElement.appendChild(mob);
+    if (!mob.contains(content)) {
+      mob.innerHTML = '';
+      mob.appendChild(content);
+    }
+    mob.dataset.msEmbedSubrec = '1';
+    overlay?.classList.remove('show');
+    drawer?.classList.remove('open');
+    if (!jaAberto) {
+      _neutralizeEmbedFixedBreakers(true);
+      _lockEmbedOverlay();
+    }
+
+    const panel = {
+      position: 'fixed', inset: '0', top: '0', right: '0', bottom: '0', left: '0',
+      width: '100vw', height: '100dvh', 'max-height': '100dvh',
+      display: 'flex', 'flex-direction': 'column',
+      'z-index': '2147483640', background: 'var(--bg,#fff)',
+      margin: '0', visibility: 'visible', opacity: '1', transform: 'none', overflow: 'hidden'
+    };
+    Object.entries(panel).forEach(([k, v]) => mob.style.setProperty(k, v, 'important'));
+    content.style.setProperty('flex', '1 1 auto', 'important');
+    content.style.setProperty('overflow-y', 'auto', 'important');
+    content.style.setProperty('min-height', '0', 'important');
+    content.style.setProperty('display', 'flex', 'important');
+    content.style.setProperty('flex-direction', 'column', 'important');
+    mob.scrollTop = 0;
+    content.scrollTop = 0;
+    return true;
+  }
+
+  mob.removeAttribute('style');
+  content.removeAttribute('style');
+  delete mob.dataset.msEmbedSubrec;
+  mob.style.display = 'none';
+  if (!_embedOverlayModalAtivo()) releaseEmbedUiLocks();
+  else {
+    _neutralizeEmbedFixedBreakers(false);
+    _unlockEmbedOverlay();
+  }
+  if (_subrecMobileAnchor?.parent) {
+    try {
+      if (_subrecMobileAnchor.next && _subrecMobileAnchor.next.parentNode === _subrecMobileAnchor.parent) {
+        _subrecMobileAnchor.parent.insertBefore(mob, _subrecMobileAnchor.next);
+      } else {
+        _subrecMobileAnchor.parent.appendChild(mob);
+      }
+    } catch (_) {}
+  }
+  if (drawer && !drawer.contains(content)) drawer.appendChild(content);
+  return true;
+}
+
+// ── Embed mobile-shell: modal Imprimir / Enviar (#modalEnvio) ────────────────
+let _modalEnvioAnchor = null;
+
+function repararModalEnvioDom() {
+  const modal = document.getElementById('modalEnvio');
+  if (!modal) return;
+
+  const portaled = document.querySelector('.modal-envio-panel[data-ms-portaled="1"]');
+  if (portaled && !modal.contains(portaled)) {
+    const orphan = modal.querySelector('.modal-envio-panel');
+    if (orphan && orphan !== portaled) orphan.remove();
+    modal.appendChild(portaled);
+    delete portaled.dataset.msPortaled;
+  }
+
+  const looseCard = document.body.querySelector(':scope > .modal-envio-panel');
+  if (looseCard && !modal.contains(looseCard)) {
+    const inner = modal.querySelector('.modal-envio-panel');
+    if (inner && inner !== looseCard) inner.remove();
+    modal.appendChild(looseCard);
+  }
+
+  modal.classList.remove('ms-modal-open', 'ms-modal-card-fixed');
+  modal.querySelectorAll('.ms-modal-card, .ms-modal-card-fixed').forEach((el) => {
+    el.classList.remove('ms-modal-card', 'ms-modal-card-fixed');
+  });
+}
+
+function _setModalEnvioEmbedStyles(modal, card) {
+  const overlay = {
+    position: 'fixed', inset: '0', top: '0', right: '0', bottom: '0', left: '0',
+    width: '100vw', height: '100dvh', 'max-height': '100dvh', 'min-height': '0',
+    display: 'flex', 'align-items': 'center', 'justify-content': 'center',
+    padding: 'max(12px, env(safe-area-inset-top, 0px)) 16px max(12px, env(safe-area-inset-bottom, 0px))',
+    'box-sizing': 'border-box', background: 'rgba(15, 23, 42, .42)',
+    'z-index': '2147483646', margin: '0', visibility: 'visible', opacity: '1',
+    transform: 'none', overflow: 'hidden', 'pointer-events': 'auto', 'touch-action': 'manipulation'
+  };
+  Object.entries(overlay).forEach(([k, v]) => modal.style.setProperty(k, v, 'important'));
+  modal.style.setProperty('backdrop-filter', 'blur(2px)', 'important');
+  modal.setAttribute('aria-hidden', 'false');
+  if (!card) return;
+  const panel = {
+    position: 'relative', flex: '0 0 auto', 'align-self': 'center',
+    width: 'min(480px, calc(100vw - 32px))', 'max-width': '480px',
+    'max-height': 'min(85dvh, 90vh)', height: 'auto', margin: '0',
+    display: 'flex', 'flex-direction': 'column', overflow: 'hidden',
+    visibility: 'visible', opacity: '1', 'z-index': '1',
+    background: 'var(--card, #fff)', 'border-radius': '18px',
+    'box-shadow': '0 24px 64px rgba(0,0,0,.28)', transform: 'none',
+    top: 'auto', left: 'auto', right: 'auto', bottom: 'auto',
+    'pointer-events': 'auto', 'touch-action': 'manipulation'
+  };
+  Object.entries(panel).forEach(([k, v]) => card.style.setProperty(k, v, 'important'));
+}
+
+function aplicarModalEnvioEmbed(abrir) {
+  const modal = document.getElementById('modalEnvio');
+  if (!modal || !isModalHistEmbed()) return false;
+
+  repararModalEnvioDom();
+  const card = modal.querySelector('.modal-envio-panel');
+
+  if (abrir) {
+    const jaAberto = modal.dataset.msEmbedEnvio === '1' && modal.getAttribute('aria-hidden') === 'false';
+    if (!_modalEnvioAnchor) {
+      _modalEnvioAnchor = { parent: modal.parentNode, next: modal.nextSibling };
+    }
+    if (modal.parentNode !== document.documentElement) document.documentElement.appendChild(modal);
+
+    modal.classList.remove('ms-modal-open', 'ms-modal-card-fixed');
+    modal.dataset.msEmbedEnvio = '1';
+    if (!jaAberto) {
+      _neutralizeEmbedFixedBreakers(true);
+      _lockEmbedOverlay();
+    }
+    _setModalEnvioEmbedStyles(modal, card);
+    document.documentElement.classList.add('sysrep-envio-modal-open');
+    return true;
+  }
+
+  modal.setAttribute('aria-hidden', 'true');
+  modal.removeAttribute('style');
+  delete modal.dataset.msEmbedEnvio;
+  if (card) card.removeAttribute('style');
+  document.documentElement.classList.remove('sysrep-envio-modal-open');
+  if (!_embedOverlayModalAtivo()) releaseEmbedUiLocks();
+  else {
+    _neutralizeEmbedFixedBreakers(false);
+    _unlockEmbedOverlay();
+  }
+
+  if (_modalEnvioAnchor?.parent) {
+    try {
+      if (_modalEnvioAnchor.next && _modalEnvioAnchor.next.parentNode === _modalEnvioAnchor.parent) {
+        _modalEnvioAnchor.parent.insertBefore(modal, _modalEnvioAnchor.next);
+      } else {
+        _modalEnvioAnchor.parent.appendChild(modal);
+      }
+    } catch (_) {}
+  }
+  return true;
+}
 
 async function abrirBuscaCadastro(tipo, query = '') {
   if (tipo === 'fornecedores' && pedidoPermiteTrocaFornecedorControlada() && !_fornecedorTrocaViaBotao) {
@@ -14377,8 +15087,8 @@ async function abrirBuscaCadastro(tipo, query = '') {
 
   const modal = document.getElementById('modalHist');
   const title = document.getElementById('histTitle');
-  modal.classList.add('show');
-  
+  if (!aplicarModalHistEmbed(true)) modal.classList.add('show');
+
   const labels = { clientes: 'Clientes', fornecedores: 'Fornecedores / Fábricas', transportadoras: 'Transportadoras', produtos: 'Produtos (Pesquisa Avançada)' };
   title.innerHTML = `Pesquisa de <span style="color:var(--accent)">${labels[tipo]}</span>`;
   
@@ -14727,7 +15437,12 @@ async function verHistoricoRegistro(tipo, id, nome) {
 }
 
 function fecharModalHist() {
-  document.getElementById('modalHist').classList.remove('show');
+  if (!aplicarModalHistEmbed(false)) {
+    const modal = document.getElementById('modalHist');
+    if (modal) modal.classList.remove('show', 'ms-modal-open');
+  }
+  repararModalHistDom();
+  if (!_embedOverlayModalAtivo()) releaseEmbedUiLocks();
   _fornecedorTrocaViaBotao = false;
   // Se a busca abriu automaticamente após incluir item, fechar também fecha o form de itens
   if (_buscaProdutoAutoAposIncluir) {
@@ -14740,6 +15455,7 @@ const _renderEstruturaBuscaOriginal = renderEstruturaBusca;
 renderEstruturaBusca = function(...args) {
   const result = _renderEstruturaBuscaOriginal.apply(this, args);
   sanitizeModalHistoryMarkup();
+  if (isModalHistEmbed() && document.getElementById('modalHist')?.classList.contains('show')) aplicarModalHistEmbed(true);
   return result;
 };
 
@@ -14747,6 +15463,7 @@ const _carregarDadosModalOriginal = carregarDadosModal;
 carregarDadosModal = async function(...args) {
   const result = await _carregarDadosModalOriginal.apply(this, args);
   sanitizeModalHistoryMarkup();
+  if (isModalHistEmbed() && document.getElementById('modalHist')?.classList.contains('show')) aplicarModalHistEmbed(true);
   return result;
 };
 
@@ -14819,18 +15536,217 @@ html.sysrep-ms-embed #_repetirPedidoModal .client-quick-modal-content {
 }
 html.sysrep-ms-embed #_repetirPedidoHandle { display: block !important; }
 html.sysrep-ms-embed #_repetirPedidoActions { flex-direction: column-reverse !important; }
-.sys-modal-handle { display:none;width:40px;height:4px;background:var(--border,#e2e8f0);border-radius:4px;margin:10px auto 0; }
+
+/* Diálogos de confirmação / alerta */
+.sys-dialog-card {
+  background: var(--card, #fff);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 16px;
+  padding: 22px 24px 24px;
+  max-width: 420px;
+  width: min(420px, 92vw);
+  box-shadow: 0 20px 50px rgba(15, 23, 42, .22);
+}
+.sys-dialog-title {
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.3;
+  color: var(--text, #0f172a);
+  margin: 0 0 8px;
+  letter-spacing: -0.02em;
+}
+.sys-dialog-msg {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text2, #64748b);
+  margin: 0 0 20px;
+  white-space: pre-line;
+}
+.sys-dialog-actions {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 10px;
+  width: 100%;
+}
+.sys-dialog-actions--single { flex-direction: column; }
+.sys-dialog-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 16px;
+  border-radius: 14px;
+  font-size: 14px;
+  font-weight: 800;
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity .15s ease, transform .12s ease;
+}
+.sys-dialog-btn:active { opacity: .88; transform: scale(.99); }
+.sys-dialog-btn--primary {
+  background: linear-gradient(135deg, var(--accent, #2563eb), var(--accent-hover, #1d4ed8));
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, .28);
+}
+.sys-dialog-btn--ghost {
+  background: var(--card, #fff);
+  color: var(--text2, #64748b);
+  border: 1.5px solid var(--border, #e2e8f0);
+  font-weight: 700;
+}
+.sys-dialog-btn--danger {
+  background: color-mix(in oklab, #ef4444 8%, var(--card, #fff) 92%);
+  color: #dc2626;
+  border: 1.5px solid color-mix(in oklab, #ef4444 28%, transparent);
+  font-weight: 700;
+}
+.sys-dialog--danger .sys-dialog-actions { flex-direction: column-reverse; }
+
+/* Validação ao salvar pedido */
+.sys-validacao-card {
+  padding: 20px 22px 18px;
+  max-width: 440px;
+  width: min(440px, 92vw);
+  box-sizing: border-box;
+}
+.sys-validacao-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.sys-validacao-head svg { flex-shrink: 0; }
+.sys-validacao-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text, #0f172a);
+  line-height: 1.3;
+}
+.sys-validacao-sub {
+  font-size: 12px;
+  color: var(--text2, #64748b);
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+.sys-validacao-list {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  max-height: min(40vh, 260px);
+  overflow-y: auto;
+}
+.sys-validacao-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+.sys-validacao-actions .sys-dialog-btn {
+  width: auto;
+  min-width: 108px;
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+/* Desktop: diálogos compactos e centralizados */
+@media (min-width: 901px) {
+  .sys-validacao-modal .sys-validacao-card,
+  .sys-confirm-modal .sys-dialog-card,
+  .sys-alert-modal .sys-dialog-card {
+    width: min(440px, calc(100vw - 48px)) !important;
+    max-width: 440px !important;
+  }
+  html.sysrep-ms-embed .sys-validacao-modal,
+  html.sysrep-ms-embed .sys-confirm-modal,
+  html.sysrep-ms-embed .sys-alert-modal {
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 20px !important;
+    background: rgba(15, 23, 42, .55) !important;
+    backdrop-filter: blur(4px);
+  }
+  html.sysrep-ms-embed .sys-validacao-modal .sys-validacao-card,
+  html.sysrep-ms-embed .sys-confirm-modal .sys-dialog-card,
+  html.sysrep-ms-embed .sys-alert-modal .sys-dialog-card {
+    width: min(440px, calc(100vw - 48px)) !important;
+    max-width: 440px !important;
+    border-radius: 16px !important;
+    transform: none !important;
+    padding: 20px 22px 18px !important;
+    box-shadow: 0 20px 50px rgba(15, 23, 42, .22) !important;
+  }
+  html.sysrep-ms-embed .sys-validacao-actions,
+  html.sysrep-ms-embed .sys-dialog-actions {
+    flex-direction: row !important;
+    justify-content: flex-end !important;
+  }
+  html.sysrep-ms-embed .sys-validacao-actions .sys-dialog-btn,
+  html.sysrep-ms-embed .sys-dialog-actions .sys-dialog-btn {
+    width: auto !important;
+    min-width: 108px !important;
+    min-height: 40px !important;
+  }
+  .sys-confirm-modal .sys-dialog-actions,
+  .sys-alert-modal .sys-dialog-actions {
+    flex-direction: row !important;
+    justify-content: flex-end !important;
+  }
+  .sys-confirm-modal .sys-dialog-btn,
+  .sys-alert-modal .sys-dialog-btn,
+  .sys-validacao-actions .sys-dialog-btn {
+    width: auto !important;
+    min-width: 108px !important;
+    min-height: 40px !important;
+  }
+}
+
+.sys-modal-handle {
+  display: none;
+  width: 40px;
+  height: 4px;
+  background: var(--border, #e2e8f0);
+  border-radius: 4px;
+  margin: 10px auto 0;
+}
+
+html.sysrep-ms-embed .sys-confirm-modal.show .client-quick-modal-content,
+html.sysrep-ms-embed .sys-alert-modal.show .client-quick-modal-content {
+  transform: translateY(0) !important;
+}
+
 html.sysrep-ms-embed .sys-confirm-modal,
 html.sysrep-ms-embed .sys-alert-modal,
 html.sysrep-ms-embed .sys-validacao-modal {
-  align-items: flex-end; padding: 0 0 max(12px, env(safe-area-inset-bottom, 12px));
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0 10px max(12px, env(safe-area-inset-bottom, 12px));
+  background: rgba(15, 23, 42, .48);
+  backdrop-filter: blur(6px);
 }
-html.sysrep-ms-embed .sys-confirm-modal .client-quick-modal-content,
-html.sysrep-ms-embed .sys-alert-modal .client-quick-modal-content,
+html.sysrep-ms-embed .sys-confirm-modal .sys-dialog-card,
+html.sysrep-ms-embed .sys-alert-modal .sys-dialog-card,
 html.sysrep-ms-embed .sys-validacao-modal .client-quick-modal-content {
-  max-width: 100%; border-radius: 16px 16px 0 0 !important;
+  width: 100%;
+  max-width: 100% !important;
+  border-radius: 18px 18px 14px 14px !important;
+  padding: 8px 18px 18px !important;
+  box-shadow: 0 -10px 40px rgba(15, 23, 42, .16) !important;
+  transform: translateY(16px);
+  transition: transform .28s cubic-bezier(.22, 1, .36, 1);
 }
-html.sysrep-ms-embed .sys-modal-handle { display: block !important; }
+html.sysrep-ms-embed .sys-confirm-modal.show .sys-dialog-card,
+html.sysrep-ms-embed .sys-alert-modal.show .sys-dialog-card {
+  transform: translateY(0);
+}
+html.sysrep-ms-embed .sys-modal-handle { display: block !important; margin: 8px auto 12px; }
+html.sysrep-ms-embed .sys-dialog-title { font-size: 16px; }
+html.sysrep-ms-embed .sys-dialog-msg { font-size: 13px; margin-bottom: 16px; }
 html.sysrep-ms-embed #_confirmActions { flex-direction: column-reverse !important; }
 </style>
 <!-- Modal Repetir Último Pedido -->
@@ -15870,7 +16786,9 @@ function aplicarPermissoesTela() {
     if (painel && texto) {
       texto.textContent = nomeEmp ? `· ${nomeEmp}` : '· empresa';
       painel.title = nomeEmp ? `Pedidos nesta sessão: ${nomeEmp}` : '';
-      painel.style.display = 'flex';
+      const embedMobile = document.documentElement.classList.contains('sysrep-ms-embed')
+        && window.matchMedia && window.matchMedia('(max-width: 899px)').matches;
+      if (!embedMobile) painel.style.display = 'flex';
     }
   }
 }
@@ -16660,8 +17578,15 @@ async function salvarVisita() {
 </div>
 
 <!-- ═══ MODAL IMPRESSÃO / ENVIO ═══════════════════════════════════════════ -->
-<div id="modalEnvio" style="display:none;position:fixed;inset:0;z-index:2147483400;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:16px">
-  <div style="background:var(--card,#fff);border-radius:18px;width:100%;max-width:480px;box-shadow:0 24px 64px rgba(0,0,0,.25);overflow:hidden;animation:slideUpModal .22s ease-out">
+<div id="modalEnvio" data-ms-native-modal="1" aria-modal="true" aria-hidden="true" aria-labelledby="envioModalTitle" style="display:none;position:fixed;inset:0;z-index:2147483400;background:rgba(15,23,42,.42);backdrop-filter:blur(2px);align-items:center;justify-content:center;padding:16px;box-sizing:border-box">
+  <div class="modal-content modal-envio-panel" style="position:relative;background:var(--card,#fff);border-radius:18px;width:100%;max-width:480px;max-height:min(85dvh,90vh);box-shadow:0 24px 64px rgba(0,0,0,.25);overflow:hidden;display:flex;flex-direction:column;margin:0">
+    <div id="envioPdfLoading" class="env-pdf-loading" style="display:none" aria-hidden="true">
+      <div class="env-pdf-loading-inner">
+        <span class="env-pdf-spinner" aria-hidden="true"></span>
+        <span class="env-pdf-loading-text">Gerando PDF…</span>
+        <span class="env-pdf-loading-hint">Aguarde, montando o pedido</span>
+      </div>
+    </div>
     <style>
       @keyframes slideUpModal{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
       .env-opt-btn{display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 12px;border:1.5px solid var(--border,#d1d5db);border-radius:10px;background:var(--card);cursor:pointer;font-family:inherit;font-size:11px;font-weight:700;color:var(--content-text,#374151);transition:.15s;flex:1}
@@ -16675,7 +17600,28 @@ async function salvarVisita() {
       .env-send-btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px var(--accent-soft)}
       .env-send-btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
       .env-status{margin-top:12px;padding:10px 14px;border-radius:10px;font-size:12px;font-weight:600;display:none;animation:fadeIn .2s}
+      .env-status-inline{display:none;margin-top:12px;padding:10px 14px;border-radius:10px;font-size:12px;font-weight:700;line-height:1.35;text-align:center}
+      .env-status-inline.err{background:#fef2f2;border:1px solid #fca5a5;color:#b91c1c}
+      .env-status-inline.warn{background:#fffbeb;border:1px solid #fcd34d;color:#92400e}
+      .env-status-inline.ok{background:#ecfdf5;border:1px solid #6ee7b7;color:#047857}
       @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+      .modal-envio-panel{max-height:min(88dvh,90vh);height:auto;flex:0 0 auto}
+      #envOptionsGrid{flex:0 0 auto}
+      #envFormsContainer{overflow-y:auto;-webkit-overflow-scrolling:touch;flex:1 1 auto;min-height:0}
+      .env-pdf-loading{position:absolute;inset:0;z-index:20;display:none;align-items:center;justify-content:center;background:rgba(15,23,42,.72);backdrop-filter:blur(3px);border-radius:20px 20px 0 0}
+      .env-pdf-loading-inner{display:flex;flex-direction:column;align-items:center;gap:10px;padding:20px 24px;text-align:center;color:#fff;max-width:88%}
+      .env-pdf-spinner{width:36px;height:36px;border:3px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:envPdfSpin .75s linear infinite}
+      .env-pdf-loading-text{font-size:15px;font-weight:800;letter-spacing:.2px}
+      .env-pdf-loading-hint{font-size:11px;font-weight:600;opacity:.82;line-height:1.35}
+      @keyframes envPdfSpin{to{transform:rotate(360deg)}}
+      @keyframes envSheetUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+      .modal-envio-panel{animation:envSheetUp .22s ease-out}
+      html.sysrep-ms-embed #modalEnvio[data-ms-native-modal]{align-items:center!important;justify-content:center!important;padding:max(12px,env(safe-area-inset-top,0px)) 16px max(12px,env(safe-area-inset-bottom,0px))!important;box-sizing:border-box!important;touch-action:manipulation!important}
+      html.sysrep-ms-embed #modalEnvio[data-ms-native-modal] .modal-envio-panel{width:min(480px,calc(100vw - 32px))!important;max-width:480px!important;border-radius:18px!important;max-height:min(85dvh,90vh)!important;box-shadow:0 24px 64px rgba(0,0,0,.25)!important;pointer-events:auto!important;touch-action:manipulation!important}
+      html.sysrep-ms-embed #modalEnvio .env-opt-btn{pointer-events:auto!important;touch-action:manipulation!important;min-height:48px!important;-webkit-tap-highlight-color:transparent}
+      html.sysrep-ms-embed #toast-container{z-index:2147483600!important}
+      #modalEnvio[data-ms-native-modal][aria-hidden="true"]{display:none!important;pointer-events:none!important}
+      #modalEnvio[data-ms-native-modal][aria-hidden="false"]{display:flex!important;pointer-events:auto!important}
       /* ── Configurar Modelo Pedido ── */
       .cmp-box{background:var(--card);border-radius:18px;width:100%;max-width:560px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,.25);overflow:hidden;animation:slideUpModal .22s ease-out}
       .cmp-head{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
@@ -16699,7 +17645,7 @@ async function salvarVisita() {
     <!-- Cabeçalho -->
     <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--card)">
       <div>
-        <div style="font-size:15px;font-weight:800;color:var(--text)">Imprimir / Enviar Pedido</div>
+        <div id="envioModalTitle" style="font-size:15px;font-weight:800;color:var(--text)">Imprimir / Enviar Pedido</div>
         <div id="envio_ped_num" style="font-size:11px;color:var(--text2);margin-top:2px;font-weight:600"></div>
       </div>
       <button id="btnFecharModalEnvio" type="button" style="width:28px;height:28px;border-radius:50%;border:none;background:var(--bg);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;color:var(--text2);transition:.15s" onmouseover="this.style.color='var(--text)'">✕</button>
@@ -16731,6 +17677,7 @@ async function salvarVisita() {
           Incluir fotos dos produtos no PDF / impressão
         </label>
       </div>
+      <div id="envioStatus" class="env-status-inline" role="alert" aria-live="polite"></div>
       <div style="text-align:center;margin-top:12px">
         <button type="button" onclick="abrirConfigurarModelo()" style="background:none;border:1.5px solid var(--border,#d1d5db);font-size:11px;color:var(--content-text,#374151);cursor:pointer;padding:6px 14px;border-radius:8px;display:inline-flex;align-items:center;gap:5px;transition:.15s;font-family:inherit;font-weight:600;opacity:.75" onmouseover="this.style.color='var(--accent)';this.style.borderColor='var(--accent)';this.style.opacity='1'" onmouseout="this.style.color='var(--content-text,#374151)';this.style.borderColor='var(--border,#d1d5db)';this.style.opacity='.75'">
           ⚙️ Configurar modelo de impressão
@@ -16869,8 +17816,16 @@ async function salvarVisita() {
 </div>
 
 <script>
-// Move modalEnvio para body — estava dentro de formSection (display:none) o que bloqueava position:fixed
-document.body.appendChild(document.getElementById('modalEnvio'));
+(function initModalEnvioDom() {
+  const modal = document.getElementById('modalEnvio');
+  if (!modal) return;
+  if (!_modalEnvioAnchor) {
+    _modalEnvioAnchor = { parent: modal.parentNode, next: modal.nextSibling };
+  }
+  if (modal.parentNode !== document.body) document.body.appendChild(modal);
+})();
+initEnvioModalDelegation();
+_setModalEnvioOpen(false);
 
 // ═══ MODAL ENVIO / PDF ═══════════════════════════════════════════════════════
 let _envioHtml = '';
@@ -16878,8 +17833,139 @@ let _envioPedidoId = null;
 let _envioPdfBase64 = null;
 let _envioNumeroPedido = '';
 
+function _resolveEnvioPedidoId() {
+  const pid = _envioPedidoId || _idEdit || _currentQvData?.p?.id || _qvIdAtual || null;
+  if (pid) _envioPedidoId = pid;
+  return pid;
+}
+
+function _envioShowStatus(msg, tipo) {
+  const el = document.getElementById('envioStatus');
+  if (!el) {
+    if (msg) toast(msg, tipo || 'ok');
+    return;
+  }
+  if (!msg) {
+    el.style.display = 'none';
+    el.textContent = '';
+    el.className = 'env-status-inline';
+    return;
+  }
+  el.textContent = msg;
+  el.className = 'env-status-inline ' + (tipo === 'err' ? 'err' : tipo === 'warn' ? 'warn' : 'ok');
+  el.style.display = 'block';
+}
+
+function _hideOverlaysForEnvioModal() {
+  document.querySelectorAll('.drawer-overlay.show').forEach((ov) => {
+    ov.dataset.hiddenForEnvio = '1';
+    ov.classList.remove('show');
+  });
+}
+
+function _restoreOverlaysAfterEnvioModal() {
+  document.querySelectorAll('.drawer-overlay[data-hidden-for-envio="1"]').forEach((ov) => {
+    ov.classList.add('show');
+    delete ov.dataset.hiddenForEnvio;
+  });
+}
+
+function _setModalEnvioOpen(open) {
+  const modal = document.getElementById('modalEnvio');
+  if (!modal) return;
+  const root = document.documentElement;
+  if (open) {
+    _envioShowStatus('');
+    if (_idEdit && !_envioPedidoId) _envioPedidoId = _idEdit;
+    _hideOverlaysForEnvioModal();
+    if (isModalHistEmbed() && aplicarModalEnvioEmbed(true)) return;
+    repararModalEnvioDom();
+    root.classList.add('sysrep-envio-modal-open');
+    modal.style.setProperty('display', 'flex', 'important');
+    modal.setAttribute('aria-hidden', 'false');
+  } else {
+    _envioPdfLoading(false);
+    _envioShowStatus('');
+    if (isModalHistEmbed() && aplicarModalEnvioEmbed(false)) {
+      _restoreOverlaysAfterEnvioModal();
+      return;
+    }
+    modal.style.setProperty('display', 'none', 'important');
+    modal.setAttribute('aria-hidden', 'true');
+    root.classList.remove('sysrep-envio-modal-open');
+    repararModalEnvioDom();
+    _restoreOverlaysAfterEnvioModal();
+  }
+}
+
+function initEnvioModalDelegation() {
+  const modal = document.getElementById('modalEnvio');
+  if (!modal || modal.dataset.envDelegation === '1') return;
+  modal.dataset.envDelegation = '1';
+  modal.addEventListener('click', (event) => {
+    const btn = event.target.closest('#btnBaixarPdfOpt,#btnOptPrint,#btnOptEmail,#btnOptWhats,#btnFecharModalEnvio');
+    if (!btn || !modal.contains(btn)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (btn.id === 'btnBaixarPdfOpt') opcaoBaixarPdf();
+    else if (btn.id === 'btnOptPrint') opcaoImprimir();
+    else if (btn.id === 'btnOptEmail') opcaoToggleForm('email');
+    else if (btn.id === 'btnOptWhats') opcaoToggleForm('whats');
+    else if (btn.id === 'btnFecharModalEnvio') fecharModalEnvio();
+  });
+}
+
+function _envioPdfLoading(show, msg, hint) {
+  const el = document.getElementById('envioPdfLoading');
+  if (!el) return;
+  el.style.display = show ? 'flex' : 'none';
+  el.setAttribute('aria-hidden', show ? 'false' : 'true');
+  const txt = el.querySelector('.env-pdf-loading-text');
+  const sub = el.querySelector('.env-pdf-loading-hint');
+  if (txt && msg) txt.textContent = msg;
+  if (sub && hint) sub.textContent = hint;
+}
+
+async function _baixarPdfBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+    || document.documentElement.classList.contains('sysrep-ms-embed');
+
+  if (isMobile) {
+    try {
+      const file = new File([blob], filename, { type: 'application/pdf' });
+      if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
+        await navigator.share({ files: [file], title: filename });
+        setTimeout(() => URL.revokeObjectURL(url), 120000);
+        return 'shared';
+      }
+    } catch (e) {
+      if (e && e.name === 'AbortError') {
+        URL.revokeObjectURL(url);
+        return 'cancelled';
+      }
+    }
+    const w = window.open(url, '_blank', 'noopener,noreferrer');
+    if (w) {
+      toast('PDF aberto — use Salvar ou Compartilhar no visualizador', 'ok');
+      setTimeout(() => URL.revokeObjectURL(url), 180000);
+      return 'opened';
+    }
+  }
+
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 120000);
+  return 'download';
+}
+
 function fecharModalEnvio() {
-  document.getElementById('modalEnvio').style.display = 'none';
+  _setModalEnvioOpen(false);
   _envioHtml = ''; _envioPdfBase64 = null;
 }
 
@@ -16939,18 +18025,38 @@ function abrirModalEnvio() {
   _envioHtml = '';
   _envioDestinatarios = [];
   envioRenderChips();
-  elModal.style.display = 'flex';
+  _setModalEnvioOpen(true);
+}
+
+function _ensureEnvioPrintContext(pid) {
+  if (!_currentQvData) {
+    _currentQvData = { p: { id: pid, numero: _envioNumeroPedido || pid }, itens: [], cliente: {} };
+    return;
+  }
+  if (!_currentQvData.p) _currentQvData.p = {};
+  if (!_currentQvData.p.id) _currentQvData.p.id = pid;
+  if (!_currentQvData.p.numero) _currentQvData.p.numero = _envioNumeroPedido || pid;
 }
 
 function opcaoImprimir() {
-  fecharModalEnvio();
-  imprimirPedidoAtual();
+  const pid = _resolveEnvioPedidoId();
+  if (!pid) {
+    _envioShowStatus('Pedido não identificado para impressão.', 'err');
+    return;
+  }
+  _envioPedidoId = pid;
+  _ensureEnvioPrintContext(pid);
+  void imprimirPedidoAtual();
 }
 
 async function gerarHtmlImpressao() {
   if (_envioHtml) return _envioHtml;
-  if (!_currentQvData) return null;
-  const pid = _envioPedidoId;
+  const pid = _resolveEnvioPedidoId();
+  if (!pid) {
+    _envioShowStatus('Pedido não identificado. Feche e abra o envio novamente.', 'err');
+    return null;
+  }
+  if (!_currentQvData) _currentQvData = { p: { id: pid, numero: _envioNumeroPedido }, itens: [], cliente: {} };
   let dados;
   try {
     const r = await api(`/api/pedidos/${pid}`);
@@ -16959,7 +18065,7 @@ async function gerarHtmlImpressao() {
 
   const p   = dados.pedido || _currentQvData.p;
   const its = dados.itens  || _currentQvData.itens || [];
-  const cli = dados.cliente || {};
+  const cli = _mergeClienteImpressao(dados.cliente || {}, p);
   const emp = dados.empresa || {};
 
   let fornConf = {};
@@ -16991,15 +18097,7 @@ async function gerarHtmlImpressao() {
   const cliEmail = cli.email || '';
   const cliIE    = cli.inscricao_estadual || cli.ie || cli.insc_estadual || '';
   const cliCnpj  = p.cnpj || cli.cpf || '';
-  const isSuframaImpressao2 = (cli.imprimirsuframaped || p.imprimirsuframaped) === 'S';
-  const isSuframaIsento2    = (cli.descontoIPIsuframaped || p.descontoIPIsuframaped) === 'S';
-  const cliNumSuframa2      = cli.numero_suframa || p.numero_suframa || '';
-  const suframaHtml2 = isSuframaImpressao2 ? `
-    <div style="display:flex;align-items:center;gap:8px;margin-top:6px;padding:6px 10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px">
-      <span style="background:#16a34a;color:#fff;font-weight:900;font-size:10px;padding:2px 8px;border-radius:4px;letter-spacing:0.5px;flex-shrink:0">SUFRAMA</span>
-      ${cliNumSuframa2 ? `<span style="font-size:11px"><b>Nº: ${h(cliNumSuframa2)}</b></span>` : ''}
-      ${isSuframaIsento2 ? `<span style="font-size:11px;color:#166534;font-weight:600">— Isento de IPI conforme legislação SUFRAMA</span>` : ''}
-    </div>` : '';
+  const suframaHtml2 = _buildSuframaImpressaoHtml(cli, p, h);
   const empNome = emp.Razao_empresa || emp.nome_fantasia || p.nome_empresa || '';
   const empLogo = mergeEmpresaComParametroLocais(emp);
   const { inner: logoBoxInner, dims: logoDims } = await buildEmpresaLogoInnerHtml(empLogo, true);
@@ -17167,42 +18265,67 @@ ${cfg2.sec_obs ? `<div class="obs-box"><div style="font-weight:700;margin-bottom
 
 async function gerarPdfBase64() {
   if (_envioPdfBase64) return _envioPdfBase64;
+  const pid = _resolveEnvioPedidoId();
+  if (!pid) {
+    _envioShowStatus('Pedido não identificado. Feche e abra o envio novamente.', 'err');
+    return null;
+  }
+  _envioPdfLoading(true, 'Gerando PDF…', 'Montando layout do pedido');
   const html = await gerarHtmlImpressao();
-  if (!html) return null;
+  if (!html) { _envioPdfLoading(false); return null; }
+  _envioPdfLoading(true, 'Gerando PDF…', 'Enviando para o servidor');
   try {
-    const r = await apiJ(`/api/pedidos/${_envioPedidoId}/pdf-generate`, 'POST', { html });
-    const d = await r.json();
-    if (!d.ok) throw new Error(d.error || 'Falha ao gerar PDF');
+    const r = await apiJ(`/api/pedidos/${pid}/pdf-generate`, 'POST', { html });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !d.ok) throw new Error(d.error || `Falha ao gerar PDF (${r.status})`);
     _envioPdfBase64 = d.pdf;
+    _envioShowStatus('');
     return _envioPdfBase64;
   } catch(e) {
-    toast('Erro ao gerar PDF: ' + e.message, 'err');
+    _envioShowStatus('Erro ao gerar PDF: ' + (e.message || e), 'err');
     return null;
+  } finally {
+    _envioPdfLoading(false);
   }
 }
 
+const _PDF_BTN_SVG = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>PDF`;
+
 async function opcaoBaixarPdf() {
   const btn = document.getElementById('btnBaixarPdfOpt');
-  btn.innerHTML = '⏳ Gerando PDF…';
+  if (!btn || btn.disabled) return;
+  if (!_resolveEnvioPedidoId()) {
+    _envioShowStatus('Pedido não identificado. Feche e abra o envio novamente.', 'err');
+    return;
+  }
+  const prevHtml = btn.innerHTML;
+  btn.innerHTML = '⏳ Gerando…';
   btn.disabled = true;
+  _envioShowStatus('Gerando PDF do pedido…', 'ok');
   try {
     const base64 = await gerarPdfBase64();
-    if (!base64) { btn.innerHTML = '⬇️ Baixar PDF'; btn.disabled = false; return; }
+    if (!base64) { btn.innerHTML = prevHtml || _PDF_BTN_SVG; btn.disabled = false; return; }
     const byteChars = atob(base64);
     const arr = new Uint8Array(byteChars.length);
     for (let i = 0; i < byteChars.length; i++) arr[i] = byteChars.charCodeAt(i);
     const blob = new Blob([arr], { type: 'application/pdf' });
-    const url  = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Pedido-${_envioNumeroPedido}.pdf`;
-    a.click();
-    URL.revokeObjectURL(url);
-    btn.innerHTML = '✅ Baixado!';
-    setTimeout(() => { btn.innerHTML = '⬇️ Baixar PDF'; btn.disabled = false; }, 2500);
+    const fname = `Pedido-${_envioNumeroPedido || _envioPedidoId}.pdf`;
+    _envioPdfLoading(true, 'Abrindo PDF…', 'Aguarde um instante');
+    const mode = await _baixarPdfBlob(blob, fname);
+    _envioPdfLoading(false);
+    if (mode === 'cancelled') {
+      btn.innerHTML = prevHtml || _PDF_BTN_SVG;
+      btn.disabled = false;
+      return;
+    }
+    btn.innerHTML = (mode === 'shared' || mode === 'opened') ? '✅ PDF pronto!' : '✅ Baixado!';
+    _envioShowStatus('PDF gerado com sucesso.', 'ok');
+    setTimeout(() => { btn.innerHTML = _PDF_BTN_SVG; btn.disabled = false; _envioShowStatus(''); }, 2500);
   } catch(e) {
-    btn.innerHTML = '⬇️ Baixar PDF'; btn.disabled = false;
-    toast('Erro: ' + e.message, 'err');
+    _envioPdfLoading(false);
+    btn.innerHTML = prevHtml || _PDF_BTN_SVG;
+    btn.disabled = false;
+    toast('Erro: ' + (e.message || e), 'err');
   }
 }
 
@@ -18308,7 +19431,18 @@ function confirmarImportacaoExcel() {
     closePalette();
     switch (cmd) {
       case 'novo': { const b = document.getElementById('btnNovoPedido') || document.getElementById('fabNovo'); if (b) b.click(); break; }
-      case 'buscar-cliente': { const f = document.getElementById('f_cliente_search'); if (f) { document.getElementById('formSection').style.display !== 'none' ? f.focus() : void 0; } break; }
+      case 'buscar-cliente': {
+        // UX: no mobile, o usuário espera abrir a pesquisa (modal), não só focar o input.
+        const formOpen = document.getElementById('formSection')?.style.display !== 'none';
+        const btn = document.getElementById('btnBuscaCadastroClientes');
+        if (formOpen) {
+          try { if (typeof abrirBuscaCadastro === 'function') { abrirBuscaCadastro('clientes'); break; } } catch (_) {}
+          if (btn) { btn.click(); break; }
+        }
+        const f = document.getElementById('f_cliente_search');
+        if (formOpen && f) { try { f.focus({ preventScroll: true }); } catch (_) { try { f.focus(); } catch (e) {} } }
+        break;
+      }
       case 'salvar': { const b = document.getElementById('btnSalvar'); if (b) b.click(); break; }
       case 'desconto': { const b = document.getElementById('btnToggleDesconto'); if (b && b.style.display !== 'none') b.click(); break; }
       case 'importar': { const b = document.getElementById('btnImportarXml') || document.getElementById('btnImportarExcel'); if (b) b.click(); break; }
@@ -18652,6 +19786,11 @@ async function cmpResetarModelo() {
 // Esc fecha qualquer modal aberto
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
+  const printOv = document.getElementById('_printPreviewOverlay');
+  if (printOv && printOv.style.display === 'flex') {
+    printOv.style.display = 'none';
+    return;
+  }
   if (document.getElementById('_validacaoPedidoModal')?.classList.contains('show')) {
     document.getElementById('_validacaoPedidoModal').classList.remove('show');
     return;
@@ -18666,7 +19805,7 @@ document.addEventListener('keydown', e => {
 </script>
 
 <!-- ── MODAL CONFIGURAR MODELO DE IMPRESSÃO ── -->
-<div id="cmpOverlay" style="display:none;position:fixed;inset:0;z-index:11500;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:16px" onclick="if(event.target===this)fecharConfigurarModelo()">
+<div id="cmpOverlay" data-ms-native-modal="1" aria-modal="true" aria-hidden="true" style="display:none;position:fixed;inset:0;z-index:2147483500;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);align-items:flex-end;justify-content:center;padding:0;box-sizing:border-box" onclick="if(event.target===this)fecharConfigurarModelo()">
   <div class="cmp-box">
     <div class="cmp-head">
       <div>

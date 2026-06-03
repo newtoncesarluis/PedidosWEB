@@ -36,7 +36,10 @@
 
   async function apiFetch(url, opts) {
     const resp = await fetch(url, { ...opts, headers: { ...authHeaders(), ...(opts && opts.headers) } });
-    if (resp.status === 401) throw new Error('auth');
+    if (resp.status === 401) {
+      window.dispatchEvent(new CustomEvent('sysrep-auth-expired'));
+      throw new Error('auth');
+    }
     return resp;
   }
 

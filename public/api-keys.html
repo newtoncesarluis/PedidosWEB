@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gerenciar API Keys — NC Sistemas</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --primary: #0ea5e9;
+      --primary-dark: #0284c7;
+      --bg: #0f172a;
+      --bg2: #1e293b;
+      --bg3: #273548;
+      --border: #334155;
+      --text: #f1f5f9;
+      --text2: #94a3b8;
+      --text3: #64748b;
+      --green: #10b981;
+      --red: #ef4444;
+      --orange: #f59e0b;
+      --font: 'Inter', system-ui, sans-serif;
+      --mono: 'JetBrains Mono', monospace;
+    }
+
+    body { font-family: var(--font); background: var(--bg); color: var(--text); font-size: 14px; min-height: 100vh; }
+
+    /* ── Header ── */
+    .topbar {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      padding: 0 32px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .topbar-title { font-size: 15px; font-weight: 700; color: var(--primary); display: flex; align-items: center; gap: 8px; }
+    .topbar-back { color: var(--text3); font-size: 13px; text-decoration: none; display: flex; align-items: center; gap: 6px; transition: color .15s; }
+    .topbar-back:hover { color: var(--text); }
+
+    /* ── Auth wall ── */
+    #auth-wall {
+      display: flex; align-items: center; justify-content: center;
+      min-height: calc(100vh - 56px);
+    }
+    .auth-card {
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 12px; padding: 32px; width: 100%; max-width: 380px;
+    }
+    .auth-card h2 { font-size: 18px; margin-bottom: 6px; }
+    .auth-card p  { color: var(--text3); font-size: 13px; margin-bottom: 24px; }
+
+    /* ── Main ── */
+    #main-content { display: none; max-width: 900px; margin: 0 auto; padding: 32px 24px; }
+
+    /* ── Cards info ── */
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 32px; }
+    .stat-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; }
+    .stat-label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
+    .stat-value { font-size: 26px; font-weight: 700; }
+
+    /* ── Toolbar ── */
+    .toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+    .toolbar h2 { font-size: 17px; font-weight: 600; }
+
+    /* ── Botões ── */
+    .btn {
+      padding: 8px 18px; border-radius: 6px; font-size: 13px; font-weight: 600;
+      font-family: var(--font); cursor: pointer; border: none; transition: all .15s; display: inline-flex; align-items: center; gap: 6px;
+    }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-danger  { background: rgba(239,68,68,.15); color: var(--red); border: 1px solid rgba(239,68,68,.3); }
+    .btn-danger:hover  { background: rgba(239,68,68,.25); }
+    .btn-ghost   { background: var(--bg3); color: var(--text2); border: 1px solid var(--border); }
+    .btn-ghost:hover { color: var(--text); }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+    /* ── Table ── */
+    .table-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead th { text-align: left; padding: 11px 16px; background: var(--bg3); color: var(--text3); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
+    tbody td { padding: 13px 16px; border-bottom: 1px solid var(--border); color: var(--text2); vertical-align: middle; }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: rgba(255,255,255,.02); }
+
+    .key-cell { font-family: var(--mono); font-size: 12px; color: var(--text3); cursor: pointer; display: flex; align-items: center; gap: 8px; }
+    .key-cell:hover { color: var(--text); }
+    .key-masked { color: var(--text3); }
+    .key-visible { color: var(--primary); }
+
+    .badge-ativa    { background: rgba(16,185,129,.15); color: var(--green); border: 1px solid rgba(16,185,129,.3); padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+    .badge-inativa  { background: rgba(239,68,68,.1); color: var(--red); border: 1px solid rgba(239,68,68,.25); padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+
+    .actions { display: flex; gap: 6px; }
+    .icon-btn { background: none; border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; cursor: pointer; font-size: 14px; transition: all .15s; color: var(--text3); }
+    .icon-btn:hover { border-color: var(--primary); color: var(--primary); }
+    .icon-btn.del:hover { border-color: var(--red); color: var(--red); }
+
+    /* ── Modal ── */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.6); backdrop-filter: blur(4px);
+      z-index: 100; align-items: center; justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 12px; padding: 28px; width: 100%; max-width: 460px;
+    }
+    .modal h3 { font-size: 16px; margin-bottom: 6px; }
+    .modal p  { color: var(--text3); font-size: 13px; margin-bottom: 20px; }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-size: 12px; font-weight: 600; color: var(--text3); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .04em; }
+    .form-group input, .form-group select {
+      width: 100%; padding: 9px 12px; background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 6px; color: var(--text); font-family: var(--font); font-size: 13px; outline: none;
+    }
+    .form-group input:focus, .form-group select:focus { border-color: var(--primary); }
+    .modal-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+
+    /* ── Alerta da chave gerada ── */
+    .key-generated {
+      background: rgba(16,185,129,.08); border: 1px solid rgba(16,185,129,.3);
+      border-radius: 8px; padding: 16px; margin-top: 16px; display: none;
+    }
+    .key-generated p { color: var(--text2); font-size: 12px; margin-bottom: 8px; }
+    .key-value {
+      font-family: var(--mono); font-size: 13px; color: var(--green);
+      background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+      padding: 10px 12px; word-break: break-all; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    }
+
+    /* ── Input ── */
+    input { autocomplete: off; }
+
+    /* ── Empty state ── */
+    .empty { text-align: center; padding: 48px 24px; color: var(--text3); }
+    .empty .icon { font-size: 40px; margin-bottom: 12px; }
+    .empty p { font-size: 14px; }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed; bottom: 24px; right: 24px; z-index: 200;
+      background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+      padding: 12px 18px; font-size: 13px; transform: translateY(80px);
+      opacity: 0; transition: all .25s; pointer-events: none;
+    }
+    #toast.show { transform: translateY(0); opacity: 1; }
+    #toast.ok    { border-color: rgba(16,185,129,.5); color: var(--green); }
+    #toast.error { border-color: rgba(239,68,68,.5);  color: var(--red); }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-title">🔑 API Keys</div>
+  <a href="/licencas.html" class="topbar-back">← Voltar ao painel</a>
+</div>
+
+<!-- ── Auth Wall ── -->
+<div id="auth-wall">
+  <div class="auth-card">
+    <h2>Acesso restrito</h2>
+    <p>Digite a senha de desenvolvedor para gerenciar as API Keys.</p>
+    <div class="form-group">
+      <label>Senha</label>
+      <input type="password" id="dev-password" placeholder="Senha do desenvolvedor" autocomplete="off" />
+    </div>
+    <button class="btn btn-primary" style="width:100%" onclick="login()">Entrar</button>
+    <div id="auth-error" style="margin-top:12px; color:var(--red); font-size:13px; display:none"></div>
+  </div>
+</div>
+
+<!-- ── Main ── -->
+<div id="main-content">
+
+  <div class="stats" id="stats-cards"></div>
+
+  <div class="toolbar">
+    <h2>Chaves de API</h2>
+    <button class="btn btn-primary" onclick="openModal()">+ Nova API Key</button>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Empresa</th>
+          <th>Descrição</th>
+          <th>Chave</th>
+          <th>Status</th>
+          <th>Último uso</th>
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody id="keys-table">
+        <tr><td colspan="6"><div class="empty"><div class="icon">🔑</div><p>Carregando...</p></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── Modal Nova Key ── -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h3>Nova API Key</h3>
+    <p>Gera uma nova chave de autenticação vinculada a uma licença.</p>
+
+    <div class="form-group">
+      <label>Licença (chave_licenca)</label>
+      <select id="modal-licenca" autocomplete="off">
+        <option value="">Carregando licenças...</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Descrição</label>
+      <input type="text" id="modal-desc" placeholder="Ex: ERP Cliente Poliitens" autocomplete="off" />
+    </div>
+
+    <!-- Chave gerada -->
+    <div class="key-generated" id="key-generated">
+      <p>⚠️ Copie agora — esta chave não será exibida novamente:</p>
+      <div class="key-value">
+        <span id="key-value-text"></span>
+        <button class="icon-btn" onclick="copyKey()" title="Copiar">📋</button>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Fechar</button>
+      <button class="btn btn-primary" id="btn-gerar" onclick="gerarKey()">Gerar Chave</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+  const BASE = '/api/licencas';
+  let devToken = null;
+  let keys = [];
+
+  // ── Auth ──────────────────────────────────────────────────────────────────
+  document.getElementById('dev-password').addEventListener('keydown', e => {
+    if (e.key === 'Enter') login();
+  });
+
+  async function login() {
+    const pwd = document.getElementById('dev-password').value;
+    try {
+      // Valida a senha chamando uma rota protegida por devAuth (x-dev-password)
+      const r = await fetch(`${BASE}/api-keys`, {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Dev-Password': pwd,
+        },
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || 'Senha incorreta');
+      devToken = pwd; // guarda a senha para requests futuros
+      document.getElementById('auth-wall').style.display    = 'none';
+      document.getElementById('main-content').style.display = 'block';
+      keys = Array.isArray(data) ? data : [];
+      renderTable();
+      renderStats();
+      loadLicencas();
+    } catch (err) {
+      const el = document.getElementById('auth-error');
+      el.style.display = 'block';
+      el.textContent = err.message;
+    }
+  }
+
+  function authHeaders() {
+    return {
+      'Content-Type': 'application/json',
+      'X-Dev-Password': devToken,
+    };
+  }
+
+  // ── Carregar chaves ────────────────────────────────────────────────────────
+  async function loadKeys() {
+    try {
+      const r = await fetch(`${BASE}/api-keys`, { headers: authHeaders() });
+      if (!r.ok) throw new Error('Erro ao carregar chaves');
+      keys = await r.json();
+      renderTable();
+      renderStats();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  }
+
+  function renderStats() {
+    const total   = keys.length;
+    const ativas  = keys.filter(k => k.ativa).length;
+    const usadas  = keys.filter(k => k.last_used).length;
+    const empresas= new Set(keys.map(k => k.chave_licenca)).size;
+
+    document.getElementById('stats-cards').innerHTML = `
+      <div class="stat-card"><div class="stat-label">Total de chaves</div><div class="stat-value">${total}</div></div>
+      <div class="stat-card"><div class="stat-label">Ativas</div><div class="stat-value" style="color:var(--green)">${ativas}</div></div>
+      <div class="stat-card"><div class="stat-label">Com uso registrado</div><div class="stat-value" style="color:var(--primary)">${usadas}</div></div>
+      <div class="stat-card"><div class="stat-label">Empresas</div><div class="stat-value">${empresas}</div></div>
+    `;
+  }
+
+  function renderTable() {
+    const tbody = document.getElementById('keys-table');
+    if (!keys.length) {
+      tbody.innerHTML = `<tr><td colspan="6"><div class="empty"><div class="icon">🔑</div><p>Nenhuma API Key cadastrada ainda.</p></div></td></tr>`;
+      return;
+    }
+    tbody.innerHTML = keys.map(k => `
+      <tr>
+        <td><strong>${k.empresa || k.chave_licenca}</strong><br><span style="font-size:11px;color:var(--text3)">${k.chave_licenca}</span></td>
+        <td>${k.descricao || '—'}</td>
+        <td>
+          <div class="key-cell" onclick="toggleKey(this, '${k.chave}')">
+            <span class="key-masked">${k.chave.slice(0,8)}••••••••••••••••</span>
+            <span style="font-size:11px">👁</span>
+          </div>
+        </td>
+        <td>
+          <span class="${k.ativa ? 'badge-ativa' : 'badge-inativa'}">${k.ativa ? 'Ativa' : 'Inativa'}</span>
+        </td>
+        <td style="font-size:12px;color:var(--text3)">${k.last_used ? formatDate(k.last_used) : 'Nunca usado'}</td>
+        <td>
+          <div class="actions">
+            <button class="icon-btn" onclick="toggleStatus(${k.id})" title="${k.ativa ? 'Desativar' : 'Ativar'}">${k.ativa ? '🔒' : '🔓'}</button>
+            <button class="icon-btn" onclick="copyText('${k.chave}')" title="Copiar chave">📋</button>
+            <button class="icon-btn del" onclick="revogar(${k.id})" title="Revogar">🗑</button>
+          </div>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  function toggleKey(el, chave) {
+    const span = el.querySelector('span.key-masked, span.key-visible');
+    if (span.classList.contains('key-masked')) {
+      span.className = 'key-visible';
+      span.textContent = chave;
+    } else {
+      span.className = 'key-masked';
+      span.textContent = chave.slice(0,8) + '••••••••••••••••';
+    }
+  }
+
+  function formatDate(dt) {
+    return new Date(dt).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  }
+
+  // ── Toggle status ──────────────────────────────────────────────────────────
+  async function toggleStatus(id) {
+    try {
+      await fetch(`${BASE}/api-keys/${id}/toggle`, { method: 'PATCH', headers: authHeaders() });
+      loadKeys();
+      showToast('Status atualizado', 'ok');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  }
+
+  // ── Revogar ────────────────────────────────────────────────────────────────
+  async function revogar(id) {
+    if (!confirm('Revogar esta API Key? A ação não pode ser desfeita.')) return;
+    try {
+      await fetch(`${BASE}/api-keys/${id}`, { method: 'DELETE', headers: authHeaders() });
+      loadKeys();
+      showToast('Chave revogada', 'ok');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  }
+
+  // ── Modal ─────────────────────────────────────────────────────────────────
+  async function loadLicencas() {
+    try {
+      const r = await fetch('/api/licencas/license/remote/stats', { headers: authHeaders() });
+      // Carrega lista real de licenças
+      const r2 = await fetch('/api/licencas/license/remote/history/0', { headers: authHeaders() }).catch(() => null);
+      // Busca diretamente
+      const r3 = await fetch('/api/licencas/api-keys', { headers: authHeaders() });
+      const existing = await r3.json();
+      // Tenta pegar licenças de outra rota
+    } catch {}
+
+    // Fallback: preenche o select com opção manual
+    document.getElementById('modal-licenca').innerHTML =
+      `<option value="">-- Digite a chave manualmente abaixo --</option>`;
+
+    // Adiciona campo de input manual
+    const sel = document.getElementById('modal-licenca');
+    sel.insertAdjacentHTML('afterend',
+      `<input type="text" id="modal-licenca-manual" placeholder="Ou cole a chave_licenca aqui" autocomplete="off"
+        style="width:100%;margin-top:8px;padding:9px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:12px;outline:none;" />`
+    );
+  }
+
+  function openModal() {
+    document.getElementById('key-generated').style.display = 'none';
+    document.getElementById('modal-desc').value = '';
+    document.getElementById('btn-gerar').style.display = '';
+    document.getElementById('modal').classList.add('open');
+  }
+
+  function closeModal() {
+    document.getElementById('modal').classList.remove('open');
+    loadKeys();
+  }
+
+  async function gerarKey() {
+    const licSel    = document.getElementById('modal-licenca').value;
+    const licManual = document.getElementById('modal-licenca-manual')?.value?.trim();
+    const chave_licenca = licManual || licSel;
+    const descricao = document.getElementById('modal-desc').value.trim();
+
+    if (!chave_licenca) {
+      showToast('Informe a chave_licenca', 'error'); return;
+    }
+
+    const btn = document.getElementById('btn-gerar');
+    btn.disabled = true;
+    btn.textContent = 'Gerando...';
+
+    try {
+      const r = await fetch(`${BASE}/api-keys`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ chave_licenca, descricao }),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || 'Erro ao gerar chave');
+
+      document.getElementById('key-value-text').textContent = data.chave;
+      document.getElementById('key-generated').style.display = 'block';
+      btn.style.display = 'none';
+      showToast('API Key gerada!', 'ok');
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Gerar Chave';
+    }
+  }
+
+  function copyKey() {
+    const val = document.getElementById('key-value-text').textContent;
+    copyText(val);
+  }
+
+  function copyText(text) {
+    navigator.clipboard.writeText(text).then(() => showToast('Copiado!', 'ok'));
+  }
+
+  // ── Toast ─────────────────────────────────────────────────────────────────
+  let toastTimer;
+  function showToast(msg, type = 'ok') {
+    const el = document.getElementById('toast');
+    el.textContent = type === 'ok' ? '✓ ' + msg : '✗ ' + msg;
+    el.className = 'show ' + type;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.className = '', 3000);
+  }
+
+  // Fechar modal clicando fora
+  document.getElementById('modal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeModal();
+  });
+</script>
+</body>
+</html>

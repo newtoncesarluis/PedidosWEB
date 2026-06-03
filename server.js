@@ -37,11 +37,15 @@ const _allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
 // Em desenvolvimento (sem ALLOWED_ORIGINS), aceita localhost e IPs de rede privada (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
 const _devOriginRe = /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(:\d+)?$/;
 
+// Subdomínios próprios sempre permitidos (independente de ALLOWED_ORIGINS)
+const _ownDomainRe = /^https?:\/\/([a-z0-9-]+\.)?nresolutions\.com\.br(:\d+)?$/;
+
 app.use(cors({
   origin(origin, cb) {
     // Requisições sem origin (curl, Postman, mobile nativo) — permite
     if (!origin) return cb(null, true);
     if (_allowedOrigins.includes(origin)) return cb(null, true);
+    if (_ownDomainRe.test(origin)) return cb(null, true);
     if (!_allowedOrigins.length && _devOriginRe.test(origin)) return cb(null, true);
     cb(new Error(`Origem não permitida pelo CORS: ${origin}`));
   },
@@ -284,7 +288,12 @@ app.get('/api/license/ping', async (req, res) => {
   }
 });
 
-app.use('/api', licenseMiddleware);
+// /api/v1 e /api/licencas são públicas — não passam pelo licenseMiddleware
+app.use('/api', (req, res, next) => {
+  if (req.path.startsWith('/v1')) return next();
+  if (req.path.startsWith('/licencas')) return next();
+  return licenseMiddleware(req, res, next);
+});
 
 /** Logs do browser (mobile-shell / iframe) → console do Node + logs/errors.log */
 app.use('/api/client-log', require('./routes/client-log'));
@@ -427,6 +436,9 @@ app.use('/api/webhooks', require('./routes/webhooks'));
 
 // ─── Formulários de captura públicos (sem auth) ──────────────────────────────
 app.use('/api/captura', require('./routes/captura').router);
+
+// ─── API Pública v1 (autenticação por API Key) ───────────────────────────────
+app.use('/api/v1', require('./routes/api-publica/index'));
 
 // ─── Suas rotas de negócio vão aqui ─────────────────────────────────────────
 app.use('/api/clientes',     authMiddleware, require('./modules/clientes/clientes.routes'));
@@ -724,6 +736,7 @@ initCustomerDatabase()
   .then(startServer)
   .then(() => {
     try { require('./config/daily-report').startScheduler(); } catch {}
+    try { require('./config/api-keys-setup').setupApiKeysTable(); } catch {}
   })
   .catch((err) => {
     console.error('\n╔══════════════════════════════════════════════════════════╗');

@@ -5,12 +5,12 @@ const { getPool } = require('../config/database');
 // GET /api/mobile/resumo-dia — KPIs do dia para o top bar do shell
 router.get('/resumo-dia', async (req, res) => {
   try {
-    if (!req.user || !req.user.idusuario) return res.status(401).json({ error: 'Não autenticado' });
+    if (!req.user || !(req.user.id || req.user.idusuario)) return res.status(401).json({ error: 'Não autenticado' });
 
     const pool = getPool();
     const user = req.user;
     const idEmpresa = parseInt(user.id_empresa || 1, 10);
-    const idUsuario = parseInt(user.idusuario || user.id || 0, 10);
+    const idUsuario = parseInt(user.id || user.idusuario || 0, 10);
     const isAdmin = user.perfil === '1' || user.role === 'admin';
 
     const [[pedidos], [visitas]] = await Promise.all([
@@ -54,11 +54,11 @@ router.get('/resumo-dia', async (req, res) => {
 // Pensado para ser chamado ao abrir o app com internet e armazenar tudo offline.
 router.get('/dados-offline', async (req, res) => {
   try {
-    if (!req.user || !req.user.idusuario) return res.status(401).json({ error: 'Não autenticado' });
+    if (!req.user || !(req.user.id || req.user.idusuario)) return res.status(401).json({ error: 'Não autenticado' });
 
     const pool    = getPool();
     const user    = req.user;
-    const idVend  = parseInt(user.idusuario || user.id || 0, 10);
+    const idVend  = parseInt(user.id || user.idusuario || 0, 10);
     const isAdmin = user.perfil === '1' || user.role === 'admin';
 
     // Detecta tabela de produtos

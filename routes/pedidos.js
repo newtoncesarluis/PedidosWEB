@@ -2210,6 +2210,8 @@ router.get('/:id', async (req, res) => {
       ? await pool.query(`SELECT * FROM clientes WHERE id = ? LIMIT 1`, [codCli]).catch(() => [[]])
       : [[]];
     const cliente = cliRows[0] || {};
+    if (cliente.numerosulframa && !cliente.numero_suframa) cliente.numero_suframa = cliente.numerosulframa;
+    if (cliente.numero_suframa && !cliente.numerosulframa) cliente.numerosulframa = cliente.numero_suframa;
 
     // Dados da empresa emissora
     const idFilial = header[0].id_empresa ?? header[0].id_filial;

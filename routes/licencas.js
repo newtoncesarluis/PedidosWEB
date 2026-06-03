@@ -586,4 +586,81 @@ router.get('/license/remote/history/:id', async (req, res) => {
   }
 });
 
+// ════════════════════════════════════════════════════════════════════════════
+//  API KEYS — Gerenciamento via portal de licenças
+// ════════════════════════════════════════════════════════════════════════════
+
+// GET /api/licencas/api-keys — lista todas as chaves
+router.get('/api-keys', async (req, res) => {
+  try {
+    const licPool = getLicensePool();
+    await require('../config/api-keys-setup').setupApiKeysTable();
+    const [rows] = await licPool.query(
+      `SELECT ak.id, ak.chave, ak.chave_licenca, ak.descricao,
+              ak.ativa, ak.criada_em, ak.last_used,
+              sl.razao_social AS empresa
+       FROM api_keys ak
+       LEFT JOIN sistema_licencas sl ON sl.chave_licenca = ak.chave_licenca
+       ORDER BY ak.criada_em DESC`
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/licencas/api-keys — gera nova chave
+router.post('/api-keys', async (req, res) => {
+  try {
+    const { chave_licenca, descricao } = req.body;
+    if (!chave_licenca) return res.status(400).json({ error: 'chave_licenca obrigatória' });
+
+    const licPool = getLicensePool();
+    await require('../config/api-keys-setup').setupApiKeysTable();
+
+    // Verifica se licença existe
+    const [[lic]] = await licPool.query(
+      'SELECT chave_licenca, razao_social FROM sistema_licencas WHERE chave_licenca = ? AND ativo = 1 LIMIT 1',
+      [chave_licenca]
+    );
+    if (!lic) return res.status(404).json({ error: 'Licença não encontrada ou inativa' });
+
+    const apiKey = 'sk_' + crypto.randomBytes(24).toString('hex');
+    const [result] = await licPool.query(
+      'INSERT INTO api_keys (chave, chave_licenca, descricao) VALUES (?, ?, ?)',
+      [apiKey, chave_licenca, descricao || `API Key - ${lic.razao_social}`]
+    );
+
+    res.json({ id: result.insertId, chave: apiKey, chave_licenca, descricao, empresa: lic.razao_social });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/licencas/api-keys/:id/toggle — ativa/desativa
+router.patch('/api-keys/:id/toggle', async (req, res) => {
+  try {
+    const licPool = getLicensePool();
+    await licPool.query(
+      'UPDATE api_keys SET ativa = NOT ativa WHERE id = ?',
+      [req.params.id]
+    );
+    const [[row]] = await licPool.query('SELECT ativa FROM api_keys WHERE id = ?', [req.params.id]);
+    res.json({ ativa: row?.ativa });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/licencas/api-keys/:id — revoga chave
+router.delete('/api-keys/:id', async (req, res) => {
+  try {
+    const licPool = getLicensePool();
+    await licPool.query('DELETE FROM api_keys WHERE id = ?', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
