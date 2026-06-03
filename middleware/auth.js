@@ -76,6 +76,12 @@ async function authMiddleware(req, res, next) {
         return res.redirect('/login.html');
       }
 
+      // Multi-tenant sem chave no token: nega acesso (nunca cair no pool global)
+      if (customerDbFromLicense()) {
+        if (isApi) return res.status(401).json({ error: 'Token sem licença. Faça login novamente.', redirect: true });
+        return res.redirect('/login.html');
+      }
+
       return next();
     } catch (_) {}
   }
