@@ -14,6 +14,7 @@ const BYPASS = [
   '/api/license',
   '/api/client-log',
   '/api/licencas',
+  '/api/pedidos/pdf-download', // link temporário do PDF (token na URL; sem JWT no mobile)
   '/setup.html',
   '/login.html',
   '/licencas.html',

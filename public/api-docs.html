@@ -445,14 +445,35 @@
       <a class="nav-item" href="#pedido-detalhe">
         <span class="method-badge get">GET</span> Pedido por ID
       </a>
+      <a class="nav-item" href="#pedido-status">
+        <span class="method-badge" style="background:rgba(251,191,36,.12);color:#fbbf24">PATCH</span> Status do Pedido
+      </a>
       <a class="nav-item" href="#clientes">
         <span class="method-badge get">GET</span> Clientes
+      </a>
+      <a class="nav-item" href="#cliente-criar">
+        <span class="method-badge post">POST</span> Criar Cliente
+      </a>
+      <a class="nav-item" href="#cliente-atualizar">
+        <span class="method-badge" style="background:rgba(251,191,36,.12);color:#fbbf24">PATCH</span> Atualizar Cliente
       </a>
       <a class="nav-item" href="#produtos">
         <span class="method-badge get">GET</span> Produtos
       </a>
+      <a class="nav-item" href="#produto-criar">
+        <span class="method-badge post">POST</span> Criar Produto
+      </a>
+      <a class="nav-item" href="#produto-atualizar">
+        <span class="method-badge" style="background:rgba(251,191,36,.12);color:#fbbf24">PATCH</span> Atualizar Produto
+      </a>
       <a class="nav-item" href="#formas-pagamento">
         <span class="method-badge get">GET</span> Formas de Pagamento
+      </a>
+      <a class="nav-item" href="#forma-criar">
+        <span class="method-badge post">POST</span> Criar Forma Pagto
+      </a>
+      <a class="nav-item" href="#forma-atualizar">
+        <span class="method-badge" style="background:rgba(251,191,36,.12);color:#fbbf24">PATCH</span> Atualizar Forma Pagto
       </a>
     </div>
 
@@ -488,6 +509,9 @@
       <strong>Base URL</strong><br />
       <code style="font-family:var(--mono); color: var(--primary)">https://api.nresolutions.com.br/api/v1</code>
     </div>
+
+    <h3>id_parceiro — Controle de duplicidade</h3>
+    <p>Disponível em clientes e produtos. Use para armazenar o ID do registro no seu ERP. Garante que em caso de timeout no POST você possa reenviar a requisição com segurança — se o registro já existir, a API retorna <code style="font-family:var(--mono);color:var(--primary)">409 Conflict</code> com o <code style="font-family:var(--mono);color:var(--primary)">id</code> do registro existente, sem criar duplicata.</p>
 
     <h3>Paginação</h3>
     <p>Endpoints de listagem suportam paginação via parâmetros <code style="font-family:var(--mono);color:var(--primary)">page</code> e <code style="font-family:var(--mono);color:var(--primary)">limit</code>. O padrão é 100 registros por página.</p>
@@ -703,6 +727,61 @@
     </div>
   </section>
 
+  <!-- ── PATCH /pedidos/:id ── -->
+  <section class="section" id="pedido-status">
+
+    <div class="endpoint-card">
+      <div class="endpoint-header" onclick="toggleEndpoint(this)">
+        <span class="method-badge" style="background:rgba(251,191,36,.12);color:#fbbf24;font-size:10px;font-weight:700;font-family:var(--mono);padding:2px 6px;border-radius:3px;min-width:36px;text-align:center;">PATCH</span>
+        <span class="endpoint-path">/pedidos/:id</span>
+        <span class="endpoint-desc">Atualiza status do pedido</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="endpoint-body open">
+        <p>Permite que o ERP atualize o status de um pedido. Dois status são aceitos:</p>
+        <ul style="color:var(--text2);font-size:13px;margin:8px 0 12px 20px;line-height:1.8">
+          <li><strong style="color:var(--green)">FATURADO</strong> — ERP recebeu o pedido e emitiu a nota fiscal</li>
+          <li><strong style="color:var(--red)">CANCELADO</strong> — ERP ou vendedor solicita cancelamento do pedido</li>
+        </ul>
+
+        <div class="warn-box">⚠️ Somente sistemas autenticados com API Key podem alterar o status. O vendedor não tem acesso a este endpoint.</div>
+
+        <div class="params-title">Body (JSON)</div>
+        <table>
+          <thead><tr><th>Campo</th><th>Tipo</th><th>Obrig.</th><th>Descrição</th></tr></thead>
+          <tbody>
+            <tr><td class="param-name">status</td><td><span class="param-type">string</span></td><td class="required">Sim</td><td><code style="font-family:var(--mono)">FATURADO</code> ou <code style="font-family:var(--mono)">CANCELADO</code></td></tr>
+            <tr><td class="param-name">id_parceiro</td><td><span class="param-type">string</span></td><td class="optional">Opcional</td><td>ID do pedido no sistema do ERP (para rastreabilidade)</td></tr>
+            <tr><td class="param-name">observacao</td><td><span class="param-type">string</span></td><td class="optional">Opcional</td><td>Observação sobre a atualização</td></tr>
+          </tbody>
+        </table>
+
+        <div class="code-block">
+          <div class="code-header"><span>Exemplo — marcar como FATURADO</span><button class="copy-btn" onclick="copyCode(this)">Copiar</button></div>
+          <pre>PATCH /api/v1/pedidos/1042
+Content-Type: application/json
+Authorization: Bearer SUA_API_KEY
+
+{
+  <span class="json-key">"status"</span>: <span class="json-string">"FATURADO"</span>,
+  <span class="json-key">"id_parceiro"</span>: <span class="json-string">"NF-000123"</span>
+}</pre>
+        </div>
+
+        <div class="code-block">
+          <div class="code-header"><span>Resposta — 200 OK</span></div>
+          <pre>{
+  <span class="json-key">"data"</span>: {
+    <span class="json-key">"id"</span>: <span class="json-number">1042</span>,
+    <span class="json-key">"status"</span>: <span class="json-string">"FATURADO"</span>,
+    <span class="json-key">"atualizado_em"</span>: <span class="json-string">"2026-06-03T10:00:00.000Z"</span>
+  }
+}</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- ── CLIENTES ── -->
   <section class="section" id="clientes">
     <h2>Clientes</h2>
@@ -774,6 +853,99 @@
     <span class="json-key">"limit"</span>: <span class="json-number">100</span>,
     <span class="json-key">"pages"</span>: <span class="json-number">3</span>
   }
+}</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── POST /clientes ── -->
+  <section class="section" id="cliente-criar">
+    <div class="endpoint-card">
+      <div class="endpoint-header" onclick="toggleEndpoint(this)">
+        <span class="method-badge post">POST</span>
+        <span class="endpoint-path">/clientes</span>
+        <span class="endpoint-desc">Cria um novo cliente</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="endpoint-body open">
+        <p>Cria um cliente no SysRepWeb a partir dos dados enviados pelo ERP.</p>
+        <div class="info-box">💡 Use <code style="font-family:var(--mono)">id_parceiro</code> para evitar duplicidade em caso de timeout — se já existir um cliente com o mesmo <code style="font-family:var(--mono)">id_parceiro</code>, retorna <code style="font-family:var(--mono)">409 Conflict</code>.</div>
+
+        <div class="params-title">Body (JSON)</div>
+        <table>
+          <thead><tr><th>Campo</th><th>Tipo</th><th>Obrig.</th><th>Descrição</th></tr></thead>
+          <tbody>
+            <tr><td class="param-name">nome</td><td><span class="param-type">string</span></td><td class="required">Sim</td><td>Razão social</td></tr>
+            <tr><td class="param-name">nome_fantasia</td><td><span class="param-type">string</span></td><td class="optional">Opcional</td><td>Nome fantasia</td></tr>
+            <tr><td class="param-name">cnpj</td><td><span class="param-type">string</span></td><td class="optional">Opcional</td><td>CNPJ ou CPF</td></tr>
+            <tr><td class="param-name">ie</td><td><span class="param-type">string</span></td><td class="optional">Opcional</td><td>Inscrição estadual</td></tr>
+            <tr><td class="param-name">telefone</td><td><span class="param-type">string</span></td><td class="optional">Opcional</td><td>Telefone</td></tr>
+            <tr><td class="param-name">email</td><td><span class="param-type">string</span></td><td class="optional">Opcional</td><td>Email</td></tr>
+            <tr><td class="param-name">endereco</td><td><span class="param-type">string</span></td><td class="optional">Opcional</td><td>Logradouro</td></tr>
+            <tr><td class="param-name">cidade</td><td><span class="param-type">string</span></td><td class="optional">Opcional</td><td>Cidade</td></tr>
+            <tr><td class="param-name">uf</td><td><span class="param-type">string</span></td><td class="optional">Opcional</td><td>UF (2 chars)</td></tr>
+            <tr><td class="param-name">cep</td><td><span class="param-type">string</span></td><td class="optional">Opcional</td><td>CEP</td></tr>
+            <tr><td class="param-name">id_parceiro</td><td><span class="param-type">string(36)</span></td><td class="optional">Opcional</td><td>ID único no sistema do ERP</td></tr>
+          </tbody>
+        </table>
+
+        <div class="code-block">
+          <div class="code-header"><span>Resposta — 201 Created</span></div>
+          <pre>{
+  <span class="json-key">"data"</span>: {
+    <span class="json-key">"id"</span>: <span class="json-number">215</span>,
+    <span class="json-key">"nome"</span>: <span class="json-string">"Farmácia São João"</span>,
+    <span class="json-key">"status"</span>: <span class="json-string">"A"</span>
+  }
+}</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── PATCH /clientes/:id ── -->
+  <section class="section" id="cliente-atualizar">
+    <div class="endpoint-card">
+      <div class="endpoint-header" onclick="toggleEndpoint(this)">
+        <span class="method-badge" style="background:rgba(251,191,36,.12);color:#fbbf24;font-size:10px;font-weight:700;font-family:var(--mono);padding:2px 6px;border-radius:3px;min-width:36px;text-align:center;">PATCH</span>
+        <span class="endpoint-path">/clientes/:id</span>
+        <span class="endpoint-desc">Atualiza campos de um cliente</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="endpoint-body open">
+        <p>Atualização parcial — envie apenas os campos que deseja alterar.</p>
+
+        <div class="params-title">Campos aceitos</div>
+        <table>
+          <thead><tr><th>Campo</th><th>Tipo</th><th>Descrição</th></tr></thead>
+          <tbody>
+            <tr><td class="param-name">nome</td><td><span class="param-type">string</span></td><td>Razão social</td></tr>
+            <tr><td class="param-name">nome_fantasia</td><td><span class="param-type">string</span></td><td>Nome fantasia</td></tr>
+            <tr><td class="param-name">cnpj</td><td><span class="param-type">string</span></td><td>CNPJ ou CPF</td></tr>
+            <tr><td class="param-name">ie</td><td><span class="param-type">string</span></td><td>Inscrição estadual</td></tr>
+            <tr><td class="param-name">telefone</td><td><span class="param-type">string</span></td><td>Telefone</td></tr>
+            <tr><td class="param-name">celular</td><td><span class="param-type">string</span></td><td>Celular</td></tr>
+            <tr><td class="param-name">email</td><td><span class="param-type">string</span></td><td>Email</td></tr>
+            <tr><td class="param-name">endereco</td><td><span class="param-type">string</span></td><td>Logradouro</td></tr>
+            <tr><td class="param-name">numero</td><td><span class="param-type">string</span></td><td>Número</td></tr>
+            <tr><td class="param-name">bairro</td><td><span class="param-type">string</span></td><td>Bairro</td></tr>
+            <tr><td class="param-name">cidade</td><td><span class="param-type">string</span></td><td>Cidade</td></tr>
+            <tr><td class="param-name">uf</td><td><span class="param-type">string</span></td><td>UF (2 chars)</td></tr>
+            <tr><td class="param-name">cep</td><td><span class="param-type">string</span></td><td>CEP</td></tr>
+            <tr><td class="param-name">status</td><td><span class="param-type">string</span></td><td><code style="font-family:var(--mono)">A</code> = Ativo, <code style="font-family:var(--mono)">I</code> = Inativo</td></tr>
+            <tr><td class="param-name">id_parceiro</td><td><span class="param-type">string(36)</span></td><td>ID único no sistema do ERP</td></tr>
+          </tbody>
+        </table>
+
+        <div class="code-block">
+          <div class="code-header"><span>Exemplo — atualizar telefone e email</span><button class="copy-btn" onclick="copyCode(this)">Copiar</button></div>
+          <pre>PATCH /api/v1/clientes/215
+Authorization: Bearer SUA_API_KEY
+
+{
+  <span class="json-key">"telefone"</span>: <span class="json-string">"(14) 3300-0000"</span>,
+  <span class="json-key">"email"</span>: <span class="json-string">"novo@email.com.br"</span>
 }</pre>
         </div>
       </div>
@@ -859,6 +1031,72 @@
     </div>
   </section>
 
+  <!-- ── POST /produtos ── -->
+  <section class="section" id="produto-criar">
+    <div class="endpoint-card">
+      <div class="endpoint-header" onclick="toggleEndpoint(this)">
+        <span class="method-badge post">POST</span>
+        <span class="endpoint-path">/produtos</span>
+        <span class="endpoint-desc">Cria um novo produto</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="endpoint-body open">
+        <p>Cria um produto no catálogo do SysRepWeb a partir do ERP.</p>
+
+        <div class="params-title">Body (JSON)</div>
+        <table>
+          <thead><tr><th>Campo</th><th>Tipo</th><th>Obrig.</th><th>Descrição</th></tr></thead>
+          <tbody>
+            <tr><td class="param-name">descricao</td><td><span class="param-type">string</span></td><td class="required">Sim</td><td>Descrição do produto</td></tr>
+            <tr><td class="param-name">codigo</td><td><span class="param-type">string</span></td><td class="optional">Opcional</td><td>Código/referência do ERP</td></tr>
+            <tr><td class="param-name">unidade</td><td><span class="param-type">string</span></td><td class="optional">Opcional</td><td>Ex: UN, CX, KG</td></tr>
+            <tr><td class="param-name">preco_venda</td><td><span class="param-type">number</span></td><td class="optional">Opcional</td><td>Preço de venda</td></tr>
+            <tr><td class="param-name">preco_atacado</td><td><span class="param-type">number</span></td><td class="optional">Opcional</td><td>Preço atacado</td></tr>
+            <tr><td class="param-name">preco_promocao</td><td><span class="param-type">number</span></td><td class="optional">Opcional</td><td>Preço promoção</td></tr>
+            <tr><td class="param-name">cod_fornecedor</td><td><span class="param-type">integer</span></td><td class="optional">Opcional</td><td>ID do fornecedor</td></tr>
+            <tr><td class="param-name">id_parceiro</td><td><span class="param-type">string(36)</span></td><td class="optional">Opcional</td><td>ID único no sistema do ERP</td></tr>
+          </tbody>
+        </table>
+
+        <div class="code-block">
+          <div class="code-header"><span>Resposta — 201 Created</span></div>
+          <pre>{
+  <span class="json-key">"data"</span>: {
+    <span class="json-key">"id"</span>: <span class="json-number">310</span>,
+    <span class="json-key">"descricao"</span>: <span class="json-string">"Dipirona 500mg cx 20cp"</span>,
+    <span class="json-key">"situacao"</span>: <span class="json-string">"A"</span>
+  }
+}</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── PATCH /produtos/:id ── -->
+  <section class="section" id="produto-atualizar">
+    <div class="endpoint-card">
+      <div class="endpoint-header" onclick="toggleEndpoint(this)">
+        <span class="method-badge" style="background:rgba(251,191,36,.12);color:#fbbf24;font-size:10px;font-weight:700;font-family:var(--mono);padding:2px 6px;border-radius:3px;min-width:36px;text-align:center;">PATCH</span>
+        <span class="endpoint-path">/produtos/:id</span>
+        <span class="endpoint-desc">Atualiza campos de um produto</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="endpoint-body open">
+        <p>Atualização parcial — envie apenas os campos que deseja alterar. Útil para sincronizar preços ou estoque.</p>
+        <div class="code-block">
+          <div class="code-header"><span>Exemplo — atualizar preços</span><button class="copy-btn" onclick="copyCode(this)">Copiar</button></div>
+          <pre>PATCH /api/v1/produtos/310
+Authorization: Bearer SUA_API_KEY
+
+{
+  <span class="json-key">"preco_venda"</span>: <span class="json-number">14.90</span>,
+  <span class="json-key">"preco_atacado"</span>: <span class="json-number">13.00</span>
+}</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- ── FORMAS DE PAGAMENTO ── -->
   <section class="section" id="formas-pagamento">
     <h2>Formas de Pagamento</h2>
@@ -897,6 +1135,85 @@
     }
   ]
 }</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── POST /formas-pagamento ── -->
+  <section class="section" id="forma-criar">
+    <div class="endpoint-card">
+      <div class="endpoint-header" onclick="toggleEndpoint(this)">
+        <span class="method-badge post">POST</span>
+        <span class="endpoint-path">/formas-pagamento</span>
+        <span class="endpoint-desc">Cria uma forma de pagamento</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="endpoint-body open">
+        <p>Cria uma nova forma de pagamento no sistema. Se já existir uma com a mesma descrição, retorna <code style="font-family:var(--mono)">409 Conflict</code>.</p>
+
+        <div class="params-title">Body (JSON)</div>
+        <table>
+          <thead><tr><th>Campo</th><th>Tipo</th><th>Obrig.</th><th>Descrição</th></tr></thead>
+          <tbody>
+            <tr><td class="param-name">descricao</td><td><span class="param-type">string</span></td><td class="required">Sim</td><td>Ex: <code style="font-family:var(--mono)">BOLETO 30/60/90</code></td></tr>
+            <tr><td class="param-name">prazo_padrao</td><td><span class="param-type">integer</span></td><td class="optional">Opcional</td><td>Prazo em dias</td></tr>
+          </tbody>
+        </table>
+
+        <div class="code-block">
+          <div class="code-header"><span>Exemplo</span><button class="copy-btn" onclick="copyCode(this)">Copiar</button></div>
+          <pre>POST /api/v1/formas-pagamento
+Authorization: Bearer SUA_API_KEY
+
+{
+  <span class="json-key">"descricao"</span>: <span class="json-string">"BOLETO 30/60/90"</span>,
+  <span class="json-key">"prazo_padrao"</span>: <span class="json-number">30</span>
+}</pre>
+        </div>
+        <div class="code-block">
+          <div class="code-header"><span>Resposta — 201 Created</span></div>
+          <pre>{
+  <span class="json-key">"data"</span>: {
+    <span class="json-key">"id"</span>: <span class="json-number">4</span>,
+    <span class="json-key">"descricao"</span>: <span class="json-string">"BOLETO 30/60/90"</span>,
+    <span class="json-key">"prazo_padrao"</span>: <span class="json-number">30</span>,
+    <span class="json-key">"ativo"</span>: <span class="json-bool">true</span>
+  }
+}</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── PATCH /formas-pagamento/:id ── -->
+  <section class="section" id="forma-atualizar">
+    <div class="endpoint-card">
+      <div class="endpoint-header" onclick="toggleEndpoint(this)">
+        <span class="method-badge" style="background:rgba(251,191,36,.12);color:#fbbf24;font-size:10px;font-weight:700;font-family:var(--mono);padding:2px 6px;border-radius:3px;min-width:36px;text-align:center;">PATCH</span>
+        <span class="endpoint-path">/formas-pagamento/:id</span>
+        <span class="endpoint-desc">Atualiza uma forma de pagamento</span>
+        <span class="chevron">▼</span>
+      </div>
+      <div class="endpoint-body open">
+        <p>Atualização parcial — envie apenas os campos que deseja alterar.</p>
+
+        <div class="params-title">Campos aceitos</div>
+        <table>
+          <thead><tr><th>Campo</th><th>Tipo</th><th>Descrição</th></tr></thead>
+          <tbody>
+            <tr><td class="param-name">descricao</td><td><span class="param-type">string</span></td><td>Nova descrição</td></tr>
+            <tr><td class="param-name">prazo_padrao</td><td><span class="param-type">integer</span></td><td>Prazo em dias</td></tr>
+            <tr><td class="param-name">ativo</td><td><span class="param-type">boolean</span></td><td><code style="font-family:var(--mono)">true</code> ou <code style="font-family:var(--mono)">false</code></td></tr>
+          </tbody>
+        </table>
+
+        <div class="code-block">
+          <div class="code-header"><span>Exemplo — desativar</span><button class="copy-btn" onclick="copyCode(this)">Copiar</button></div>
+          <pre>PATCH /api/v1/formas-pagamento/4
+Authorization: Bearer SUA_API_KEY
+
+{ <span class="json-key">"ativo"</span>: <span class="json-bool">false</span> }</pre>
         </div>
       </div>
     </div>

@@ -106,6 +106,22 @@ async function ensureColumns(pool) {
     await pool.query(`ALTER TABLE fornecedores ADD COLUMN min_cx_pedido INT DEFAULT 0`).catch(() => {});
     _colunasCache = null;
   }
+  if (!cols.has('enviar_pedido_fabrica')) {
+    await pool.query(`ALTER TABLE fornecedores ADD COLUMN enviar_pedido_fabrica CHAR(1) DEFAULT 'N'`).catch(() => {});
+    _colunasCache = null;
+  }
+  // Tabela de e-mails da fábrica
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS fornecedor_emails (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      id_fornecedor INT NOT NULL,
+      email VARCHAR(255) NOT NULL,
+      descricao VARCHAR(100) DEFAULT NULL,
+      excluido CHAR(1) DEFAULT 'N',
+      dtcadastro DATE DEFAULT (CURDATE()),
+      INDEX idx_fe_fornecedor (id_fornecedor)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `).catch(() => {});
   // Tabela de condições de pagamento por fornecedor
   await pool.query(`
     CREATE TABLE IF NOT EXISTS fornecedor_condicoes_pagamento (
@@ -464,7 +480,7 @@ router.post('/', async (req, res) => {
       'pedidos_codfabricante',
       'tipo',
       'ipi_frete_base','com_sobre_ipi','com_sobre_st','com_tipo','tipo_num_pedido','base_conciliacao',
-      'min_cx_pedido','recalc_comissao_fatur'
+      'min_cx_pedido','recalc_comissao_fatur','enviar_pedido_fabrica'
     ];
 
     const campos = todosCampos.filter(c => body[c] !== undefined && colunasReais.has(c));
@@ -523,7 +539,7 @@ router.put('/:id', async (req, res) => {
       'pedidos_codfabricante',
       'tipo',
       'ipi_frete_base','com_sobre_ipi','com_sobre_st','com_tipo','tipo_num_pedido','base_conciliacao',
-      'min_cx_pedido','recalc_comissao_fatur'
+      'min_cx_pedido','recalc_comissao_fatur','enviar_pedido_fabrica'
     ];
 
     const campos = todosCampos.filter(c => body[c] !== undefined && colunasReais.has(c));
@@ -756,6 +772,65 @@ router.post('/:id/condicoes-pagamento', async (req, res) => {
         );
       }
     }
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── GET /api/fornecedores/:id/emails ────────────────────────────────────────
+router.get('/:id/emails', async (req, res) => {
+  try {
+    const pool = getPool();
+    await ensureColumns(pool);
+    const [rows] = await pool.query(
+      `SELECT id, email, descricao FROM fornecedor_emails
+       WHERE id_fornecedor = ? AND excluido = 'N'
+       ORDER BY id`,
+      [req.params.id]
+    ).catch(() => [[]]);
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── POST /api/fornecedores/:id/emails — adiciona e-mail ─────────────────────
+router.post('/:id/emails', async (req, res) => {
+  const { id } = req.params;
+  const { email, descricao } = req.body;
+  if (!email?.trim()) return res.status(400).json({ error: 'E-mail obrigatório' });
+  try {
+    const pool = getPool();
+    await ensureColumns(pool);
+    const [result] = await pool.query(
+      `INSERT INTO fornecedor_emails (id_fornecedor, email, descricao, excluido, dtcadastro)
+       VALUES (?, ?, ?, 'N', CURDATE())`,
+      [id, email.trim().toLowerCase(), (descricao || '').trim() || null]
+    );
+    res.status(201).json({ ok: true, id: result.insertId });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── PUT /api/fornecedores/:id/emails/:emailId — edita e-mail ────────────────
+router.put('/:id/emails/:emailId', async (req, res) => {
+  const { emailId } = req.params;
+  const { email, descricao } = req.body;
+  if (!email?.trim()) return res.status(400).json({ error: 'E-mail obrigatório' });
+  try {
+    const pool = getPool();
+    await pool.query(
+      `UPDATE fornecedor_emails SET email=?, descricao=? WHERE id=? AND id_fornecedor=?`,
+      [email.trim().toLowerCase(), (descricao || '').trim() || null, emailId, req.params.id]
+    );
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── DELETE /api/fornecedores/:id/emails/:emailId — remove e-mail ────────────
+router.delete('/:id/emails/:emailId', async (req, res) => {
+  try {
+    const pool = getPool();
+    await pool.query(
+      `UPDATE fornecedor_emails SET excluido='S' WHERE id=? AND id_fornecedor=?`,
+      [req.params.emailId, req.params.id]
+    );
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

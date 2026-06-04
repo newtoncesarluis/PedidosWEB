@@ -143,6 +143,29 @@ body { font-family:var(--font,'Inter',sans-serif); background:var(--bg,#f4f5f7);
   transition:box-shadow .15s;
 }
 .cli-card:hover { box-shadow:0 2px 12px rgba(0,0,0,.07); }
+.cli-card.proximo-destaque {
+  border-color: var(--accent,#0ea5e9);
+  box-shadow: 0 0 0 2px rgba(14,165,233,.25);
+}
+.cli-proximo-badge {
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #0284c7;
+  margin-bottom: 4px;
+}
+.btn-cli-wa {
+  background: rgba(37, 211, 102, .12);
+  color: #15803d;
+  border: 1px solid rgba(37, 211, 102, .35);
+}
+.btn-cli-wa:hover { background: rgba(37, 211, 102, .22); }
+.btn-cli-visita {
+  background: rgba(59, 130, 246, .1);
+  color: #1d4ed8;
+  border: 1px solid rgba(59, 130, 246, .25);
+}
 .cli-card-top {
   display:flex; align-items:center; gap:12px; padding:14px;
   cursor:pointer;
@@ -510,7 +533,16 @@ function renderClientes(clientes, idRota) {
     el.innerHTML = `<div class="empty-state"><p>Nenhum cliente nesta rota.</p></div>`;
     return;
   }
-  el.innerHTML = clientes.map((c, i) => cardCliente(c, i + 1, idRota)).join('');
+  const proxIdx = clientes.findIndex(c => !['VISITADO', 'PEDIDO_REALIZADO'].includes(c.status_visita));
+  const proxId = proxIdx >= 0 ? clientes[proxIdx].id_cliente : null;
+  el.innerHTML = clientes.map((c, i) => cardCliente(c, i + 1, idRota, c.id_cliente === proxId)).join('');
+  if (proxId) {
+    setTimeout(() => {
+      const painel = document.getElementById(`painel-${proxId}`);
+      if (painel) painel.classList.add('open');
+      document.getElementById(`cli-card-${proxId}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 120);
+  }
 }
 
 function _numClass(status) {
@@ -523,11 +555,13 @@ function _pillLabel(status) {
   return { PENDENTE:'Pendente', VISITADO:'Visitado', PEDIDO_REALIZADO:'Pedido realizado', NAO_ENCONTRADO:'Não encontrado', REAGENDAR:'Reagendar' }[status] || status;
 }
 
-function cardCliente(c, num, idRota) {
+function cardCliente(c, num, idRota, isProximo) {
   const diasStr = c.dias_sem_compra && c.dias_sem_compra < 9999 ? `${c.dias_sem_compra}d sem compra` : '';
-  const tel = (c.foneprincipal || '').replace(/\D/g,'');
+  const tel = (c.foneprincipal || c.celular || '').replace(/\D/g,'');
   const telHref = tel ? `tel:+55${tel}` : '#';
+  const waHref = tel && tel.length >= 10 ? `https://wa.me/55${tel}` : '';
   const temGeo = c.latitude && c.longitude;
+  isProximo = !!isProximo;
 
   const pedidoVinculado = c.id_pedido_vinculado
     ? `<div class="cli-pedido-vinculado"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" style="width:14px;height:14px"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>Pedido #${c.id_pedido_vinculado} vinculado</div>`
@@ -538,10 +572,11 @@ function cardCliente(c, num, idRota) {
     return `<button class="btn-status ${ativo}" onclick="marcarStatus(${idRota},${c.id_cliente},\'${st}\',this)">${label}</button>`;
   };
 
-  return `<div class="cli-card" id="cli-card-${c.id_cliente}">
+  return `<div class="cli-card${isProximo ? ' proximo-destaque' : ''}" id="cli-card-${c.id_cliente}">
     <div class="cli-card-top" onclick="toggleCliPainel(${c.id_cliente})">
       <div class="cli-num ${_numClass(c.status_visita)}">${num}</div>
       <div class="cli-info">
+        ${isProximo ? '<div class="cli-proximo-badge">Próximo na rota</div>' : ''}
         <div class="cli-nome">${c.nome || c.apelido || '—'}</div>
         <div class="cli-meta">${[c.cidade, c.uf].filter(Boolean).join('/')}${diasStr ? ' · ' + diasStr : ''}</div>
       </div>
@@ -564,6 +599,12 @@ function cardCliente(c, num, idRota) {
         ${tel ? `<button class="btn-cli-nav btn-cli-tel" onclick="location.href='${telHref}'">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>Ligar
         </button>` : ''}
+        ${waHref ? `<button class="btn-cli-nav btn-cli-wa" onclick="window.open('${waHref}','_blank')">
+          <svg viewBox="0 0 24 24" fill="currentColor" style="width:14px;height:14px"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.001 4.072-9.065 9.082-9.065s9.082 4.064 9.082 9.065c0 5.001-4.072 9.065-9.082 9.065z"/></svg>WhatsApp
+        </button>` : ''}
+        <button class="btn-cli-nav btn-cli-visita" onclick="abrirVisitaCliente(${c.id_cliente})">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Visita
+        </button>
         <button class="btn-cli-nav btn-cli-pedido" onclick="abrirPedidoCliente(${c.id_cliente},'${(c.nome||'').replace(/'/g,"\\'")}')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path stroke-linecap="round" stroke-linejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>Pedido
         </button>
@@ -715,11 +756,24 @@ async function otimizarTrajetoVendedor() {
 // ── ABRIR PEDIDO ──────────────────────────────────────────────────────────────
 function abrirPedidoCliente(idCliente, nome) {
   const url = `/pages/pedidos.html?id_cliente=${idCliente}&nome_cliente=${encodeURIComponent(nome)}`;
-  // Se estiver dentro do mobile-shell, navega pelo frame
   if (window.parent && window.parent !== window) {
-    try { window.parent.postMessage({ type: 'MS_NAVIGATE', href: url }, '*'); return; } catch(_) {}
+    try {
+      window.parent.postMessage({ type: 'navigate', url: url, label: 'Novo pedido' }, '*');
+      return;
+    } catch (_) {}
   }
-  window.open(url, '_blank');
+  window.location.href = url;
+}
+
+function abrirVisitaCliente(idCliente) {
+  const url = `/pages/visitas.html?id_cliente=${idCliente}`;
+  if (window.parent && window.parent !== window) {
+    try {
+      window.parent.postMessage({ type: 'navigate', url: url, label: 'Visitas' }, '*');
+      return;
+    } catch (_) {}
+  }
+  window.location.href = url;
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────

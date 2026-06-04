@@ -91,4 +91,76 @@ router.get('/', async (req, res) => {
   }
 });
 
+// ─── POST /produtos — cria produto ───────────────────────────────────────────
+router.post('/', async (req, res) => {
+  try {
+    const pool = getPool();
+    const pt   = await getProdTabela(pool);
+    const { descricao, codigo, unidade, preco_venda, preco_atacado,
+            preco_promocao, cod_fornecedor, id_parceiro } = req.body;
+
+    if (!descricao) return res.status(400).json({ error: { code: 400, message: 'Campo obrigatório: descricao' } });
+
+    // Evita duplicidade por id_parceiro
+    if (id_parceiro) {
+      const [[ex]] = await pool.query(`SELECT ID FROM \`${pt}\` WHERE id_parceiro = ? LIMIT 1`, [id_parceiro]);
+      if (ex) return res.status(409).json({ error: { code: 409, message: 'Já existe um produto com este id_parceiro', id: ex.ID } });
+    }
+
+    const [result] = await pool.query(
+      `INSERT INTO \`${pt}\`
+        (descricao, referencia, unidade, preco1, preco2, preco3,
+         cod_fornecedor, id_parceiro, situacao, excluido)
+       VALUES (?,?,?,?,?,?,?,?,'A','N')`,
+      [descricao, codigo||null, unidade||null,
+       preco_venda||0, preco_atacado||0, preco_promocao||0,
+       cod_fornecedor||null, id_parceiro||null]
+    );
+
+    res.status(201).json({ data: { id: result.insertId, descricao, situacao: 'A' } });
+  } catch (err) {
+    console.error('[api/v1/produtos] POST /', err.message);
+    res.status(500).json({ error: { code: 500, message: 'Erro interno ao criar produto' } });
+  }
+});
+
+// ─── PATCH /produtos/:id — atualiza produto (parcial) ────────────────────────
+router.patch('/:id', async (req, res) => {
+  try {
+    const pool = getPool();
+    const pt   = await getProdTabela(pool);
+    const id   = parseInt(req.params.id);
+    if (!id) return res.status(400).json({ error: { code: 400, message: 'ID inválido' } });
+
+    const CAMPOS_PERMITIDOS = {
+      descricao: 'descricao', codigo: 'referencia', unidade: 'unidade',
+      preco_venda: 'preco1', preco_atacado: 'preco2', preco_promocao: 'preco3',
+      cod_fornecedor: 'cod_fornecedor', situacao: 'situacao', id_parceiro: 'id_parceiro',
+    };
+
+    const campos = {};
+    for (const [campo, coluna] of Object.entries(CAMPOS_PERMITIDOS)) {
+      if (req.body[campo] !== undefined) campos[coluna] = req.body[campo];
+    }
+
+    if (!Object.keys(campos).length) {
+      return res.status(400).json({ error: { code: 400, message: 'Nenhum campo válido para atualizar' } });
+    }
+
+    const [[prod]] = await pool.query(
+      `SELECT ID FROM \`${pt}\` WHERE ID = ? AND excluido = 'N' LIMIT 1`, [id]
+    );
+    if (!prod) return res.status(404).json({ error: { code: 404, message: 'Produto não encontrado' } });
+
+    const sets   = Object.keys(campos).map(k => `\`${k}\` = ?`).join(', ');
+    const values = Object.values(campos);
+    await pool.query(`UPDATE \`${pt}\` SET ${sets} WHERE ID = ?`, [...values, id]);
+
+    res.json({ data: { id, atualizado_em: new Date().toISOString() } });
+  } catch (err) {
+    console.error('[api/v1/produtos] PATCH /:id', err.message);
+    res.status(500).json({ error: { code: 500, message: 'Erro interno ao atualizar produto' } });
+  }
+});
+
 module.exports = router;

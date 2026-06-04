@@ -76,6 +76,12 @@ async function apiKeyAuth(req, res, next) {
       return res.status(503).json({ error: { code: 503, message: 'Banco de dados do tenant indisponível' } });
     }
 
+    // Garante que as migrations rodaram para este tenant
+    try {
+      const { runMigrations } = require('../config/schema-migrations');
+      await runWithPool(pool, () => runMigrations(pool));
+    } catch (_) {}
+
     req.apiKey = keyRow;
     return runWithPool(pool, () => next());
 

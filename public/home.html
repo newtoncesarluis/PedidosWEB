@@ -944,28 +944,35 @@
     border-left:none;
     pointer-events:none;
   }
-  /* Botão flutuante para reabrir timeline */
+  /* Botão flutuante para reabrir timeline (lado direito = mesmo lado do painel) */
   #btn_show_timeline {
     display:none;
     position:fixed;
     bottom:24px;
-    left:20px;
+    right:20px;
+    left:auto;
     z-index:900;
     background:var(--accent,#4361ee);
     color:#fff;
     border:none;
-    border-radius:50%;
-    width:36px;height:36px;
-    padding:0;
+    border-radius:999px;
+    min-width:36px;
+    height:40px;
+    padding:0 14px 0 10px;
+    gap:6px;
     cursor:pointer;
     align-items:center;justify-content:center;
     box-shadow:0 4px 14px rgba(67,97,238,.4);
     transition:.2s;
     font-family:inherit;
-    opacity:.7;
+    font-size:11px;
+    font-weight:700;
+    letter-spacing:.02em;
+    opacity:.92;
   }
   #btn_show_timeline:hover { opacity:1;transform:translateY(-1px); }
-  #btn_show_timeline svg { width:15px;height:15px; }
+  #btn_show_timeline svg { width:15px;height:15px;flex-shrink:0; }
+  #btn_show_timeline .btn-tl-label { white-space:nowrap; }
   .tl-close-btn {
     background:none;border:none;cursor:pointer;
     width:28px;height:28px;border-radius:8px;
@@ -1120,9 +1127,28 @@
   .modal-btn.ghost:hover { background:var(--timeline-border,#ddd); }
   .modal-btn svg { width:16px;height:16px; }
 
+  /* Backdrop do menu dropdown (fecha ao tocar fora) */
+  .nav-drop-backdrop {
+    position:fixed;
+    inset:0;
+    z-index:9998;
+    background:rgba(15,23,42,.28);
+    display:none;
+    animation:nav-bd-in .14s ease-out;
+  }
+  .nav-drop-backdrop.show { display:block; }
+
+  /* App mobile: Acesso Rápido lateral é só desktop — no celular use menu inferior + “Mais” */
+  html.sysrep-ms-embed .timeline-panel,
+  html.sysrep-ms-embed #btn_show_timeline,
+  html.sysrep-ms-embed #tl_backdrop {
+    display: none !important;
+    pointer-events: none !important;
+  }
+
   /* ══ MOBILE ════════════════════════════════════════════════════════ */
   @media (max-width:900px) {
-    .timeline-panel { display:none; }
+    html:not(.sysrep-ms-embed) .timeline-panel { display:none; }
     .chart-grid { grid-template-columns:1fr; }
   }
   @media (max-width:600px) {
@@ -1361,7 +1387,8 @@
   html.ms-embedded-tech .kpi-desktop-only { display: none !important; }
   /* ── Painel Metas/Campanhas/Fechamento (mobile) ── */
   #mobile_painel { display:none; flex-direction:column; gap:10px; margin:0 0 14px; }
-  html.ms-embedded-tech #mobile_painel { display:flex !important; }
+  html.ms-embedded-tech #mobile_painel,
+  html.sysrep-ms-embed #mobile_painel { display:flex !important; }
   .mpc { background:var(--card-bg,#fff); border:1px solid var(--card-border,#e2e8f0); border-radius:16px; padding:14px 16px; }
   .mpc-title { font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted,#64748b); margin-bottom:10px; display:flex; align-items:center; gap:6px; }
   .mpc-label { font-size:9px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted,#94a3b8); margin-bottom:3px; }
@@ -2179,8 +2206,8 @@
                     <div id="ms_vdata" style="color:rgba(255,255,255,.75);font-size:10px;margin-top:1px"></div>
                   </div>
                 </div>
-                <a href="#" onclick="openTab('/pages/visitas.html','Visitas');return false"
-                   style="background:rgba(255,255,255,.18);color:white;font-size:10px;font-weight:700;padding:5px 12px;border-radius:20px;text-decoration:none;white-space:nowrap;flex-shrink:0">Ver tudo →</a>
+                <a href="#" id="ms_visitas_ver_tudo" onclick="abrirRotasOuVisitas();return false"
+                   style="background:rgba(255,255,255,.18);color:white;font-size:10px;font-weight:700;padding:5px 12px;border-radius:20px;text-decoration:none;white-space:nowrap;flex-shrink:0">Ver rota →</a>
               </div>
               <!-- KPIs -->
               <div style="display:grid;grid-template-columns:1fr 1fr 1fr;border-bottom:1px solid var(--card-border,#e2e8f0)">
@@ -2914,8 +2941,10 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   window.App = { user, empresa, token, perm: user.permissoes || {} };
 
-  // Verifica se deve exibir a timeline financeira
-  if (user.dash_avisofinanceiro === 'S') {
+  const _isAppEmbed = document.documentElement.classList.contains('sysrep-ms-embed');
+
+  // Verifica se deve exibir a timeline financeira (não no app mobile — já oculto no CSS)
+  if (!_isAppEmbed && user.dash_avisofinanceiro === 'S') {
     const card = document.getElementById('card_timeline_financeira');
     if (card) {
         card.style.display = 'flex';
@@ -2963,10 +2992,19 @@ window.addEventListener('DOMContentLoaded', async () => {
   _setElText('label_aniversariantes', `Aniversariantes — ${meses[new Date().getMonth()]}`);
 
   await carregarModulos(token);
-  carregarDashboard(token);
-  verificarServidor(token);
-  verificarBackup(token);
-  verificarWhatsApp(token);
+  if (_isAppEmbed) {
+    setTimeout(() => carregarDashboard(token), 0);
+    setTimeout(() => {
+      verificarServidor(token);
+      verificarBackup(token);
+      verificarWhatsApp(token);
+    }, 3000);
+  } else {
+    carregarDashboard(token);
+    verificarServidor(token);
+    verificarBackup(token);
+    verificarWhatsApp(token);
+  }
   carregarAlertaRotas(token);
   registrarPushSubscription(token);
   setTimeout(notifyShellChromeState, 400);
@@ -2980,7 +3018,16 @@ async function carregarAlertaRotas(token) {
     });
     if (!r.ok) return;
     const { rotas } = await r.json();
-    if (!rotas || rotas.length === 0) return;
+    if (!rotas || rotas.length === 0) {
+      window._rotasPendentesCount = 0;
+      window._primeiraRotaPendenteId = null;
+      return;
+    }
+
+    window._rotasPendentesCount = rotas.length;
+    window._primeiraRotaPendenteId = rotas[0].id;
+    const verLink = document.getElementById('ms_visitas_ver_tudo');
+    if (verLink) verLink.textContent = rotas.length ? 'Ver rota →' : 'Ver visitas →';
 
     const hoje = new Date().toISOString().slice(0, 10);
     document.getElementById('alerta-rotas').classList.add('show');
@@ -3021,16 +3068,32 @@ function toggleAlertaRotas() {
 }
 
 function abrirRota(id) {
-  // Abre a tela de rotas filtrando pela rota específica
+  const url = `/pages/minhas-rotas.html?id=${id}`;
+  if (navigateInMobileApp(url, 'Minhas Rotas')) return;
   const iframe = document.querySelector('#content_area iframe.tab-ativa') ||
                  document.querySelector('#content_area iframe');
-  const url = `/pages/rotas-vendedor.html?id=${id}`;
   if (iframe) {
     iframe.src = url;
   } else {
     openTab(url, 'Rotas');
   }
 }
+
+function abrirRotasOuVisitas() {
+  if (window._rotasPendentesCount > 0) {
+    const id = window._primeiraRotaPendenteId;
+    if (id) {
+      abrirRota(id);
+      return;
+    }
+    if (navigateInMobileApp('/pages/minhas-rotas.html', 'Rotas')) return;
+  }
+  if (navigateInMobileApp('/pages/visitas.html', 'Visitas')) return;
+  openTab('/pages/visitas.html', 'Visitas');
+}
+
+window._rotasPendentesCount = 0;
+window._primeiraRotaPendenteId = null;
 
 // ── Registro de Push PWA ──────────────────────────────────────────────────────
 async function registrarPushSubscription(token) {
@@ -3151,6 +3214,23 @@ const MOD_SVGS = {
 let _tabs = [];        // [{id, label, page, iframe}]
 let _activeTabId = null;
 
+function isMobileAppEmbed() {
+  return document.documentElement.classList.contains('sysrep-ms-embed') && window.parent !== window;
+}
+
+/** No app mobile: navega no iframe principal do shell (evita abas/iframes aninhados na home). */
+function navigateInMobileApp(page, label) {
+  if (!isMobileAppEmbed()) return false;
+  try {
+    window.parent.postMessage({ type: 'navigate', url: page, label: label || '' }, '*');
+    if (typeof ocultarTimeline === 'function') ocultarTimeline();
+    if (typeof closeDropdown === 'function') closeDropdown();
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 function notifyShellChromeState() {
   try {
     if (window.parent === window) return;
@@ -3163,6 +3243,8 @@ function notifyShellChromeState() {
 }
 
 function openTab(page, label) {
+  if (navigateInMobileApp(page, label)) return;
+
   // Se já existe uma aba com essa page, só ativa
   const existing = _tabs.find(t => t.page === page);
   if (existing) { switchTab(existing.id); notifyShellChromeState(); return; }
@@ -3501,11 +3583,42 @@ function showDropdown(modulo, btnEl) {
   drop.style.top  = topPos  + 'px';
   drop.style.left = leftPos + 'px';
 
+  _dropBackdrop(true);
+
   // Auto-focus na busca
   setTimeout(() => document.getElementById('drop_search_input')?.focus(), 60);
 
+  _bindDropDismiss(drop);
+
   // Fecha ao clicar fora
   setTimeout(() => document.addEventListener('click', _closeDropHandler), 50);
+}
+
+function _dropBackdrop(show) {
+  let bd = document.getElementById('nav_drop_backdrop');
+  if (!bd) {
+    bd = document.createElement('div');
+    bd.id = 'nav_drop_backdrop';
+    bd.className = 'nav-drop-backdrop';
+    bd.addEventListener('click', () => {
+      closeDropdown();
+      _activeModulo = null;
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    });
+    document.body.appendChild(bd);
+  }
+  bd.classList.toggle('show', !!show);
+}
+
+function _bindDropDismiss(drop) {
+  if (!drop || drop.dataset.dropDismissBound) return;
+  drop.dataset.dropDismissBound = '1';
+  drop.addEventListener('click', (e) => {
+    if (e.target.closest('.drop-item, .drop-search-wrap, .drop-group-header, .drop-search-clear, #drop_search_input')) return;
+    closeDropdown();
+    _activeModulo = null;
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  });
 }
 
 function toggleDropGroup(headerEl) {
@@ -3684,9 +3797,10 @@ async function loadTimelineFinanceira() {
 }
 
 function closeDropdown() {
-  document.getElementById('nav_dropdown').style.display = 'none';
+  const drop = document.getElementById('nav_dropdown');
+  if (drop) drop.style.display = 'none';
+  _dropBackdrop(false);
   document.removeEventListener('click', _closeDropHandler);
-  document.removeEventListener('keydown', _dropKeyHandler);
 }
 
 function _dropKeyHandler(e) {
@@ -3739,28 +3853,65 @@ function renderSubSidebar(modulo) { showDropdown(modulo, document.getElementById
 function loadSubItem(page, key, label, el) { selectDropItem(page, key, label, el); }
 
 // ═══ TIMELINE VISIBILIDADE ═══════════════════════════════════════════════════
+function _notifyAcessoRapidoBtn(visible) {
+  if (isMobileAppEmbed()) return;
+  try {
+    window.parent.postMessage({ type: 'acesso-rapido-visible', visible: !!visible }, '*');
+  } catch (_) {}
+}
+
 function ocultarTimeline() {
+  if (isMobileAppEmbed()) return;
   const tl  = document.querySelector('.timeline-panel');
   const btn = document.getElementById('btn_show_timeline');
   if (!tl) return;
   tl.classList.add('tl-hidden');
-  btn.style.display = 'inline-flex';
+  document.getElementById('tl_backdrop')?.classList.remove('show');
+  if (btn) {
+    btn.style.display = 'inline-flex';
+    _notifyAcessoRapidoBtn(true);
+  }
 }
 function mostrarTimeline() {
+  if (isMobileAppEmbed()) return;
   const tl  = document.querySelector('.timeline-panel');
   const btn = document.getElementById('btn_show_timeline');
   if (!tl) return;
   tl.classList.remove('tl-hidden');
-  btn.style.display = 'none';
+  if (btn) {
+    btn.style.display = 'none';
+    _notifyAcessoRapidoBtn(false);
+  }
 }
 
 // ═══ TIMELINE ════════════════════════════════════════════════════════════════
 function timelineClick(tipo, event) {
   event.preventDefault();
   const token = sessionStorage.getItem('token') || localStorage.getItem('token');
-  if (tipo === 'aniversariantes') { abrirModalAniversariantes(token); return; }
-  if (tipo === 'vitrine-digital') { abrirModalVitrineHome(); return; }
+  if (tipo === 'aniversariantes') {
+    if (isMobileAppEmbed()) {
+      navigateInMobileApp('/pages/clientes.html', 'Clientes');
+      return;
+    }
+    abrirModalAniversariantes(token);
+    return;
+  }
+  if (tipo === 'vitrine-digital') {
+    if (isMobileAppEmbed()) {
+      navigateInMobileApp('/pages/clientes.html', 'Clientes');
+      return;
+    }
+    abrirModalVitrineHome();
+    return;
+  }
   const diasInativos = Number(document.getElementById('tl-inativos-dias')?.value || 15);
+  const labels = {
+    'clientes-inativos': 'Clientes Inativos',
+    'top-clientes': 'Top Clientes',
+    'localizar-clientes': 'Localizar Clientes',
+    'anotacoes': 'Anotações',
+    'visitas-calendario': 'Calendário de Visitas',
+  };
   const endpoints = {
     'clientes-inativos':  `/pages/comercial-clientes-inativos.html?dias=${diasInativos}`,
     'top-clientes':       '/api/clientes/top?limit=10',
@@ -3771,10 +3922,14 @@ function timelineClick(tipo, event) {
   const target = endpoints[tipo];
   if (!target) return;
   if (target.startsWith('/pages/')) {
-    openTab(target, tipo.replace(/-/g,' ').replace(/\b\w/g, c => c.toUpperCase()));
-  } else {
-    window.open(target + (target.includes('?') ? '&' : '?') + 'token=' + token, '_blank');
+    openTab(target, labels[tipo] || tipo);
+    return;
   }
+  if (isMobileAppEmbed()) {
+    navigateInMobileApp('/pages/clientes.html', 'Clientes');
+    return;
+  }
+  window.open(target + (target.includes('?') ? '&' : '?') + 'token=' + token, '_blank');
 }
 
 async function abrirModalAniversariantes(token) {
@@ -4008,6 +4163,8 @@ async function carregarDashboard(token) {
     if (!r.ok) { _set('dash_nodata', 'flex', 'style.display'); return; }
 
     const d = await r.json();
+    const _appDash = isMobileAppEmbed();
+
     if (d.qtdPedidos === 0) {
       document.getElementById('dash_nodata').style.display = 'flex';
       document.getElementById('dash_bento').style.display = 'none';
@@ -4019,12 +4176,20 @@ async function carregarDashboard(token) {
       _set('dash_qtd', d.qtdPedidos || 0);
       _set('dash_mes_label', (d.mesNome || 'Este Mês').toUpperCase());
       carregarPainelMobile(token);
+      if (_appDash) {
+        applyMobileDashLayout();
+        await loadCardVisitasMs(token);
+        await loadCardAniversariantesMs(token);
+      }
       return;
     }
 
     _set('dash_nodata', 'none', 'style.display');
     _set('kpi_row', 'grid', 'style.display');
-    if (window.innerWidth >= 900) _set('dash_bento', 'grid', 'style.display');
+    if (!_appDash && window.innerWidth >= 900) _set('dash_bento', 'grid', 'style.display');
+    if (_appDash) {
+      document.getElementById('dash_bento').style.display = 'none';
+    }
 
     _set('dash_total', fmtCur(d.totalGeral));
     _set('dash_qtd', d.qtdPedidos);
@@ -4047,6 +4212,14 @@ async function carregarDashboard(token) {
     };
     setTrend('trend_vendas', d.tendenciaVendas);
     setTrend('trend_pedidos', d.tendenciaPedidos);
+
+    if (_appDash) {
+      applyMobileDashLayout();
+      await loadCardVisitasMs(token);
+      await loadCardAniversariantesMs(token);
+      carregarPainelMobile(token);
+      return;
+    }
 
     // 1. Gráfico de Evolução (Line)
     const canEvo = document.getElementById('dash_chart_evolucao');
@@ -4349,8 +4522,9 @@ async function carregarFeedAtividades(token, logs = []) {
 
 // ═══ PAINEL MOBILE: METAS / CAMPANHAS / FECHAMENTO ═══════════════════════════
 async function carregarPainelMobile(token) {
-  // Só executa quando dentro do mobile shell
-  if (!document.documentElement.classList.contains('ms-embedded-tech')) return;
+  const noApp = document.documentElement.classList.contains('ms-embedded-tech') ||
+    document.documentElement.classList.contains('sysrep-ms-embed');
+  if (!noApp) return;
 
   const MESES_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   function cur(v) { return (parseFloat(v)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}); }
@@ -4953,11 +5127,12 @@ document.addEventListener('keydown', e => {
 </div>
 
 <!-- Botão flutuante Acesso Rápido -->
-<button id="btn_show_timeline" onclick="mostrarTimeline()" title="Acesso Rápido">
-  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<button type="button" id="btn_show_timeline" onclick="mostrarTimeline()" title="Abrir Acesso Rápido" aria-label="Abrir Acesso Rápido">
+  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
       d="M13 10V3L4 14h7v7l9-11h-7z"/>
   </svg>
+  <span class="btn-tl-label">Acesso rápido</span>
 </button>
 
 <style>

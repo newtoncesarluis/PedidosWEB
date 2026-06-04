@@ -122,9 +122,17 @@ async function initCustomerDatabase() {
     return;
   }
 
-  // ── Modo legado ──────────────────────────────────────────────────────────────
+  // ── Modo legado (XAMPP / DB no .env) ───────────────────────────────────────
   if (!customerDbFromLicense()) {
     createPool();
+    await pool.query('SELECT 1');
+    try {
+      const { runMigrations } = require('./schema-migrations');
+      await runMigrations(pool);
+    } catch (e) {
+      console.warn('[DB] Migração:', e.message);
+    }
+    console.log(`[DB] Conectado: ${process.env.DB_NAME || 'sysrepweb'}@${process.env.DB_HOST || 'localhost'}`);
     return;
   }
 

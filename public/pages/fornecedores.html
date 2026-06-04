@@ -616,6 +616,7 @@ tbody td { padding:10px 12px; vertical-align:middle; }
       <div class="form-tab" onclick="abrirAba('imagens',this)">Imagens</div>
       <div class="form-tab" onclick="abrirAba('produtos',this)">Produtos</div>
       <div class="form-tab" onclick="abrirAba('obs',this)">Observações</div>
+      <div class="form-tab" onclick="abrirAba('emails-fabrica',this)">E-mails Fábrica</div>
     </div>
 
     <div class="form-body">
@@ -1301,6 +1302,40 @@ tbody td { padding:10px 12px; vertical-align:middle; }
           </div>
         </div>
       </div>
+
+      <!-- ABA E-MAILS FÁBRICA -->
+      <div class="tab-pane" id="tab-emails-fabrica">
+        <div style="padding:4px 0 16px">
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;font-weight:600;color:var(--text)">
+            <input type="checkbox" id="f_enviar_pedido_fabrica" style="accent-color:var(--accent);width:16px;height:16px;cursor:pointer">
+            Enviar pedido automaticamente para a fábrica ao transmitir
+          </label>
+          <p style="margin:6px 0 0 26px;font-size:11px;color:var(--text2)">Quando ativado, o pedido será enviado por e-mail para os endereços abaixo ao clicar em "Enviar para Fábrica".</p>
+        </div>
+        <div style="border-top:1px solid var(--border);padding-top:14px">
+          <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);margin-bottom:10px">E-mails cadastrados</div>
+          <div id="emailsFabricaList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px">
+            <div style="color:var(--text2);font-size:12px;padding:8px 0">Nenhum e-mail cadastrado</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:flex-end">
+            <div style="flex:1">
+              <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2);display:block;margin-bottom:4px">E-mail</label>
+              <input type="email" id="novoEmailFabrica" autocomplete="off" placeholder="pedidos@fabrica.com.br"
+                style="width:100%;padding:8px 11px;border:1.5px solid var(--border);border-radius:9px;font-size:13px;font-family:inherit;background:var(--card);color:var(--text);outline:none;box-sizing:border-box"
+                onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"
+                onkeydown="if(event.key==='Enter'){event.preventDefault();adicionarEmailFabrica()}">
+            </div>
+            <div style="flex:1">
+              <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2);display:block;margin-bottom:4px">Descrição (opcional)</label>
+              <input type="text" id="novoEmailFabricaDesc" autocomplete="off" placeholder="Ex: Pedidos, Financeiro…"
+                style="width:100%;padding:8px 11px;border:1.5px solid var(--border);border-radius:9px;font-size:13px;font-family:inherit;background:var(--card);color:var(--text);outline:none;box-sizing:border-box"
+                onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"
+                onkeydown="if(event.key==='Enter'){event.preventDefault();adicionarEmailFabrica()}">
+            </div>
+            <button onclick="adicionarEmailFabrica()" style="padding:8px 16px;border:none;border-radius:9px;background:var(--accent);color:#fff;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0">+ Adicionar</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="form-footer">
@@ -1709,6 +1744,8 @@ function sincronizarChkAll() {
 // CARREGAR LISTA
 // ═══════════════════════════════════════════════════════════
 async function carregar() {
+  _selecionados.clear();
+  atualizarBulkBar();
   const q      = document.getElementById('searchInput').value.trim();
   const status = _filtro;
   const fa     = _filtrosAvancados;
@@ -1899,7 +1936,13 @@ function atualizarBulkBar() {
   const n = _selecionados.size;
   const bar = document.getElementById('bulkBar');
   if (!bar) return;
-  bar.classList.toggle('show', n > 0);
+  if (n > 0) {
+    bar.classList.add('show');
+    bar.style.display = '';
+  } else {
+    bar.classList.remove('show');
+    bar.style.display = 'none';
+  }
   const countEl = document.getElementById('bulkCount');
   if (countEl) countEl.textContent = n;
 }
@@ -2193,6 +2236,7 @@ async function abrirEdicao(id) {
     carregarVendedores(id);
     carregarCondicoesPagtoFornecedor(id);
     carregarProdutosFornecedor(id);
+    carregarEmailsFabrica(id);
     abrirAba('geral', document.querySelector('.form-tab'));
     document.getElementById('listSection').style.display = 'none';
     document.getElementById('formSection').style.display = 'block';
@@ -2205,8 +2249,10 @@ function fecharFormulario() {
   document.getElementById('listSection').style.display = '';
   _formAberto = false;
   _editandoId = null;
+  _emailsFabrica = [];
   const _sub = document.getElementById('formSubtitulo');
   if (_sub) { _sub.textContent = ''; _sub.style.display = 'none'; }
+  carregar();
 }
 
 // ── CLONAR ────────────────────────────────────────────────────────────────────
@@ -2348,6 +2394,8 @@ function preencherForm(f) {
   setCheckSN('f_com_sobre_ipi',  f.com_sobre_ipi  !== 'N' ? 'S' : 'N');
   setCheckSN('f_com_sobre_st',   f.com_sobre_st   !== 'N' ? 'S' : 'N');
   setCheckSN('f_recalc_comissao_fatur', f.recalc_comissao_fatur === 'S' ? 'S' : 'N');
+  const chkFabrica = document.getElementById('f_enviar_pedido_fabrica');
+  if (chkFabrica) chkFabrica.checked = (f.enviar_pedido_fabrica === 'S');
   const rdComTipo = document.querySelector(`input[name="com_tipo"][value="${f.com_tipo || 'PARCELADA'}"]`);
   if (rdComTipo) rdComTipo.checked = true;
   const rdTNP = document.querySelector(`input[name="tipo_num_pedido"][value="${f.tipo_num_pedido || 'SISTEMA'}"]`);
@@ -2435,6 +2483,7 @@ function coletarForm() {
     tipo_num_pedido:  document.querySelector('input[name="tipo_num_pedido"]:checked')?.value  || 'SISTEMA',
     base_conciliacao: document.querySelector('input[name="base_conciliacao"]:checked')?.value || 'PARCELA',
     recalc_comissao_fatur: getCheckSN('f_recalc_comissao_fatur'),
+    enviar_pedido_fabrica: document.getElementById('f_enviar_pedido_fabrica')?.checked ? 'S' : 'N',
     tipo_desconto:        document.querySelector('input[name="tipo_desconto"]:checked')?.value || 'PERCENTUAL',
     exibirtodosdesconto:  getCheckSN('f_exibirtodosdesconto'),
     desconto1:  document.getElementById('f_desconto1')?.value  || null,
@@ -2978,6 +3027,77 @@ async function carregarProdutosFornecedor(id) {
   } catch(_) {
     tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text2)">Erro ao carregar produtos.</td></tr>';
   }
+}
+
+// ═══════════════════════════════════════════════════════════
+// E-MAILS FÁBRICA
+// ═══════════════════════════════════════════════════════════
+let _emailsFabrica = []; // cache local dos e-mails carregados
+
+async function carregarEmailsFabrica(id) {
+  _emailsFabrica = [];
+  if (!id) { _renderEmailsFabrica(); return; }
+  try {
+    const r = await api(`/api/fornecedores/${id}/emails`);
+    if (r.ok) _emailsFabrica = await r.json();
+  } catch(_) {}
+  _renderEmailsFabrica();
+}
+
+function _renderEmailsFabrica() {
+  const container = document.getElementById('emailsFabricaList');
+  if (!container) return;
+  if (!_emailsFabrica.length) {
+    container.innerHTML = '<div style="color:var(--text2);font-size:12px;padding:8px 0">Nenhum e-mail cadastrado</div>';
+    return;
+  }
+  container.innerHTML = _emailsFabrica.map(e => `
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bg);border-radius:8px;border:1px solid var(--border)">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px;flex-shrink:0;color:var(--accent)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600;color:var(--text)">${escHtml(e.email)}</div>
+        ${e.descricao ? `<div style="font-size:11px;color:var(--text2)">${escHtml(e.descricao)}</div>` : ''}
+      </div>
+      <button onclick="removerEmailFabrica(${e.id})" style="background:none;border:none;cursor:pointer;color:var(--text2);font-size:16px;padding:2px 6px;border-radius:6px;line-height:1" title="Remover">✕</button>
+    </div>`).join('');
+}
+
+async function adicionarEmailFabrica() {
+  const emailEl = document.getElementById('novoEmailFabrica');
+  const descEl  = document.getElementById('novoEmailFabricaDesc');
+  const email   = emailEl?.value.trim();
+  const descricao = descEl?.value.trim();
+  if (!email) { emailEl?.focus(); return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    showToast('E-mail inválido', 'error'); emailEl?.focus(); return;
+  }
+  if (!_editandoId) { showToast('Salve o fornecedor antes de adicionar e-mails', 'warn'); return; }
+  try {
+    const r = await api(`/api/fornecedores/${_editandoId}/emails`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, descricao })
+    });
+    if (!r.ok) { const d = await r.json().catch(()=>{}); throw new Error(d?.error || 'Erro'); }
+    const data = await r.json();
+    _emailsFabrica.push({ id: data.id, email, descricao });
+    _renderEmailsFabrica();
+    if (emailEl) emailEl.value = '';
+    if (descEl)  descEl.value  = '';
+    emailEl?.focus();
+    showToast('E-mail adicionado', 'success');
+  } catch(err) { showToast(err.message || 'Erro ao adicionar e-mail', 'error'); }
+}
+
+async function removerEmailFabrica(emailId) {
+  if (!_editandoId) return;
+  try {
+    const r = await api(`/api/fornecedores/${_editandoId}/emails/${emailId}`, { method: 'DELETE' });
+    if (!r.ok) throw new Error();
+    _emailsFabrica = _emailsFabrica.filter(e => e.id !== emailId);
+    _renderEmailsFabrica();
+    showToast('E-mail removido');
+  } catch(_) { showToast('Erro ao remover e-mail', 'error'); }
 }
 
 // ═══════════════════════════════════════════════════════════

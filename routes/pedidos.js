@@ -97,6 +97,20 @@ function mysqlDatetimeBrasil() {
   return new Date().toLocaleString('sv-SE', { timeZone: 'America/Sao_Paulo' }).replace('T', ' ');
 }
 
+/** Config de colunas da grade de itens do pedido (objeto JSON em preferencias_grid). */
+function parseItensColunasConfigJson(raw) {
+  if (raw == null) return null;
+  let v = raw;
+  if (Buffer.isBuffer(v)) {
+    try { v = v.toString('utf8'); } catch { return null; }
+  }
+  if (typeof v === 'string') {
+    try { v = JSON.parse(v); } catch { return null; }
+  }
+  if (v && typeof v === 'object' && !Array.isArray(v)) return v;
+  return null;
+}
+
 /** `preferencias_grid.config_json` pode vir como string (TEXT) ou já parseado (tipo JSON no MySQL). */
 function parsePreferenciasGridConfigJson(raw) {
   if (raw == null) return null;
@@ -333,6 +347,10 @@ async function ensureTables(pool) {
         { name: 'tipo_grade',             type: 'VARCHAR(200) NULL' },
         { name: 'grade_resumo',           type: 'VARCHAR(300) NULL' },
         { name: 'cod_fornecedor',         type: 'INT NULL' },
+        { name: 'vlr_padrao',             type: 'DECIMAL(15,4) DEFAULT NULL' },
+        { name: 'acrescimo',              type: 'DECIMAL(15,2) DEFAULT 0' },
+        { name: 'valor_cliente',          type: 'DECIMAL(15,4) DEFAULT 0' },
+        { name: 'vlrtotalcomimposto',     type: 'DECIMAL(15,3) DEFAULT 0' },
       ];
       for (const c of itCols)
         await pool.query(`ALTER TABLE itensped ADD COLUMN ${c.name} ${c.type}`).catch(() => {});
@@ -386,6 +404,86 @@ async function ensureTables(pool) {
     // ── tipo_pedidos ─────────────────────────────────────────────────────────
     pool.query(`ALTER TABLE tipo_pedidos ADD COLUMN padrao_vitrine CHAR(1) NOT NULL DEFAULT 'N'`).catch(() => {}),
   ]);
+}
+
+// ─── Helper: INSERT itensped (campos alinhados ao legado Delphi) ─────────────
+const ITENSPED_INSERT_COLS = [
+  'numpedido', 'id_pedido', 'cod_produto', 'cod_fabricante', 'cod_fornecedor',
+  'desc_prod', 'unidade', 'kilo_embalagem', 'quantidade', 'vlr_padrao', 'valor_unitario', 'vlrtotal_itens',
+  'vlrtotalcomimposto',
+  'desconto', 'comissao', 'acrescimo',
+  'st', 'vlr_st', 'ipi', 'vlr_ipi', 'icms', 'vlr_icms',
+  'valor_puxada', 'valor_cliente', 'total_peso', 'cores', 'obsitem',
+  'tipo_pedido', 'id_tipopedido',
+  'sequencia', 'vlr_unitariosemimposto', 'vlr_totalsemimposto', 'vlr_descontototal', 'peso',
+  'multiplo_sigla', 'multiplo_fator',
+  'id_grade', 'solado', 'tipo_grade', 'grade_resumo',
+  'tipo_preco',
+  'data_inclusao', 'sincronizar', 'excluido',
+].join(', ');
+
+function _normItemImpostosGravacao(item) {
+  const icmsPct = parseFloat(item.icms_percentual ?? item.icms) || 0;
+  const base = parseFloat(item.vlrtotal_itens) || 0;
+  let vlrIcms = parseFloat(item.vlr_icms);
+  if (!Number.isFinite(vlrIcms)) {
+    vlrIcms = Math.round(base * icmsPct / 100 * 1000) / 1000;
+  }
+  let vlrTotalComImp = parseFloat(item.vlrtotal_com_imposto ?? item.vlrtotalcomimposto);
+  if (!Number.isFinite(vlrTotalComImp)) {
+    vlrTotalComImp = Math.round(
+      (base + (parseFloat(item.vlr_st) || 0) + (parseFloat(item.vlr_ipi) || 0) + vlrIcms) * 1000
+    ) / 1000;
+  }
+  const obsitem = String(item.obsitem ?? item.obs_item ?? '').trim().slice(0, 100);
+  return { icmsPct, vlrIcms, vlrTotalComImp, obsitem };
+}
+
+function buildItenspedInsertParams(item, ctx) {
+  const {
+    numpedido, idPedido, codFornecedor, tipoPedido, idTipoPedido, seqItem,
+  } = ctx;
+  const vlrUnitSemImp = Math.round(
+    (item.valor_unitario || 0) * (1 - (item.desconto_percentual || 0) / 100) * 10000
+  ) / 10000;
+  const vlrDescTotal = Math.round(
+    (item.valor_unitario || 0) * (item.quantidade || 0) * (item.desconto_percentual || 0) / 100 * 100
+  ) / 100;
+  const pesoItem = item.total_peso || 0;
+  const gradeResumo = (item.grade_qtd || [])
+    .filter(g => g.quantidade > 0)
+    .map(g => `${g.nome_grade}:${g.quantidade}`)
+    .join(' ');
+  const imp = _normItemImpostosGravacao(item);
+  return [
+    numpedido, idPedido,
+    item.cod_produto, item.cod_fabricante || '', codFornecedor || null,
+    item.desc_prod, item.unidade || '', item.embalagem || 0,
+    item.quantidade, nPedidoField(item.vlr_padrao), item.valor_unitario, item.vlrtotal_itens,
+    imp.vlrTotalComImp,
+    item.desconto_percentual || 0, item.comissao_percentual || 0, item.acrescimo_percentual || 0,
+    item.st_percentual || 0, item.vlr_st || 0,
+    item.ipi_percentual || 0, item.vlr_ipi || 0,
+    imp.icmsPct, imp.vlrIcms,
+    item.valor_puxada || 0, nPedidoField(item.valor_cliente), pesoItem,
+    item.cores_qt || '', imp.obsitem,
+    (tipoPedido || '').toString().toUpperCase() || 'PEDIDO', idTipoPedido || null,
+    seqItem + 1, vlrUnitSemImp, item.vlrtotal_itens || 0, vlrDescTotal, pesoItem,
+    item.multiplo_sigla || null, item.multiplo_fator || 1,
+    item.id_grade || null, item.solado || null, item.tipo_grade || null, gradeResumo || null,
+    item.tipo_preco || 'venda',
+  ];
+}
+
+async function insertItenspedItem(conn, item, ctx) {
+  const vals = buildItenspedInsertParams(item, ctx);
+  const ph = vals.map(() => '?').join(', ');
+  const iResult = await conn.query(
+    `INSERT INTO itensped (${ITENSPED_INSERT_COLS}) VALUES (${ph}, CURDATE(), 'N', 'N')`,
+    vals
+  );
+  await _salvarGradeQtd(conn, iResult[0].insertId, item.grade_qtd);
+  return iResult;
 }
 
 // ─── Helper: grava quantidades de grade em itensped_grade_qtd ───────────────
@@ -1154,6 +1252,7 @@ router.get('/produtos/busca', async (req, res) => {
               IFNULL(p.precoa, 0) as precoa, IFNULL(p.precob, 0) as precob,
               IFNULL(p.precoc, 0) as precoc, IFNULL(p.precopromo, 0) as precopromo,
               IFNULL(p.st, 0) as st,
+              IFNULL(p.icms, 0) as icms,
               IFNULL(p.valor_puxada, 0) as valor_puxada,
               IFNULL(p.kilo_embalagem, 0) as kilo_embalagem,
               IFNULL(p.multiplo_venda, 1) as multiplo_venda,
@@ -1370,6 +1469,50 @@ router.get('/config/grid', async (req, res) => {
     const cfg = parsePreferenciasGridConfigJson(rows[0]?.config_json);
     res.json({ config: cfg && cfg.length ? cfg : null });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/pedidos/config/itens-colunas — colunas da grade de itens (tela + relatório)
+router.get('/config/itens-colunas', async (req, res) => {
+  try {
+    const pool = getPool();
+    await ensureTablesOnce(pool);
+    const id_usuario = req.user?.id;
+    if (!id_usuario) return res.status(401).json({ error: 'Usuário não identificado no token' });
+    const [rows] = await pool.query(
+      `SELECT config_json FROM preferencias_grid WHERE id_usuario = ? AND nome_grid = 'pedidos_itens_colunas'`,
+      [id_usuario]
+    );
+    const cfg = parseItensColunasConfigJson(rows[0]?.config_json);
+    res.json({ config: cfg && Object.keys(cfg).length ? cfg : null });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/pedidos/config/itens-colunas
+router.post('/config/itens-colunas', async (req, res) => {
+  try {
+    const pool = getPool();
+    await ensureTablesOnce(pool);
+    const id_usuario = req.user?.id;
+    if (!id_usuario) return res.status(401).json({ error: 'Usuário não identificado no token' });
+    const { config } = req.body;
+    if (!config || typeof config !== 'object' || Array.isArray(config)) {
+      return res.status(400).json({ error: 'config deve ser um objeto' });
+    }
+    const json = JSON.stringify(config);
+    const dtBr = mysqlDatetimeBrasil();
+    await pool.query(
+      `INSERT INTO preferencias_grid (id_usuario, nome_grid, config_json, dt_alterado)
+       VALUES (?, 'pedidos_itens_colunas', ?, ?)
+       ON DUPLICATE KEY UPDATE config_json = ?, dt_alterado = ?`,
+      [id_usuario, json, dtBr, json, dtBr]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[pedidos/config/itens-colunas] POST', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -1973,6 +2116,7 @@ router.get('/offline-pack', async (req, res) => {
                COALESCE(tpi.valor_tabela, tpi.preco_venda, p.vlr_venda) AS vlr_venda,
                p.ipi, p.comissao,
                IFNULL(p.st, 0) AS st,
+               IFNULL(p.icms, 0) AS icms,
                IFNULL(p.valor_puxada, 0) AS valor_puxada,
                IFNULL(p.kilo_embalagem, 0) AS kilo_embalagem,
                IFNULL(p.multiplo_venda, 1) AS multiplo_venda,
@@ -2169,12 +2313,19 @@ router.get('/:id', async (req, res) => {
     const numPedido = header[0].numero;
     const _ptb = await _getProdTabela(pool);
     const [itens] = await pool.query(
-      `SELECT i.*, p.foto_principal
+      `SELECT i.*, p.foto_principal,
+              COALESCE(i.vlr_padrao, p.vlr_venda, 0) AS vlr_padrao_efetivo
        FROM itensped i
        LEFT JOIN ${_ptb} p ON i.cod_produto = p.id
        WHERE i.numpedido = ? AND (i.excluido = 'N' OR i.excluido IS NULL)`,
       [numPedido]
     );
+    for (const row of itens) {
+      if (row.vlr_padrao == null || row.vlr_padrao === '' || Number(row.vlr_padrao) === 0) {
+        row.vlr_padrao = row.vlr_padrao_efetivo;
+      }
+      delete row.vlr_padrao_efetivo;
+    }
     
     // Carrega quantidades de grade para os itens
     if (itens.length) {
@@ -2340,43 +2491,14 @@ router.post('/', async (req, res) => {
     if (itens && itens.length > 0) {
       for (let seqItem = 0; seqItem < itens.length; seqItem++) {
         const item = itens[seqItem];
-        const vlrUnitSemImp  = Math.round((item.valor_unitario || 0) * (1 - (item.desconto_percentual || 0) / 100) * 10000) / 10000;
-        const vlrDescTotal   = Math.round((item.valor_unitario || 0) * (item.quantidade || 0) * (item.desconto_percentual || 0) / 100 * 100) / 100;
-        const pesoItem       = item.total_peso || 0;
-        const gradeResumo = (item.grade_qtd || []).filter(g => g.quantidade > 0).map(g => `${g.nome_grade}:${g.quantidade}`).join(' ');
-        const iResult = await conn.query(
-          `INSERT INTO itensped (
-            numpedido, id_pedido, cod_produto, cod_fabricante, cod_fornecedor,
-            desc_prod, unidade, kilo_embalagem, quantidade, valor_unitario, vlrtotal_itens,
-            desconto, comissao,
-            st, vlr_st, ipi, vlr_ipi, icms, vlr_icms,
-            valor_puxada, total_peso, cores, obsitem,
-            tipo_pedido, id_tipopedido,
-            sequencia, vlr_unitariosemimposto, vlr_totalsemimposto, vlr_descontototal, peso,
-            multiplo_sigla, multiplo_fator,
-            id_grade, solado, tipo_grade, grade_resumo,
-            tipo_preco,
-            data_inclusao, sincronizar, excluido
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), 'N', 'N')`,
-          [
-            num, pedidoId,
-            item.cod_produto, item.cod_fabricante || '', pedido.cod_fornecedor || null,
-            item.desc_prod, item.unidade || '', item.embalagem || 0,
-            item.quantidade, item.valor_unitario, item.vlrtotal_itens,
-            item.desconto_percentual || 0, item.comissao_percentual || 0,
-            item.st_percentual || 0, item.vlr_st || 0,
-            item.ipi_percentual || 0, item.vlr_ipi || 0,
-            0, 0,
-            item.valor_puxada || 0, pesoItem,
-            item.cores_qt || '', '',
-            up(pedido.tipo_pedido) || 'PEDIDO', pedido.id_tipopedido || null,
-            seqItem + 1, vlrUnitSemImp, item.vlrtotal_itens || 0, vlrDescTotal, pesoItem,
-            item.multiplo_sigla || null, item.multiplo_fator || 1,
-            item.id_grade || null, item.solado || null, item.tipo_grade || null, gradeResumo || null,
-            item.tipo_preco || 'venda'
-          ]
-        );
-        await _salvarGradeQtd(conn, iResult[0].insertId, item.grade_qtd);
+        await insertItenspedItem(conn, item, {
+          numpedido: num,
+          idPedido: pedidoId,
+          codFornecedor: pedido.cod_fornecedor,
+          tipoPedido: pedido.tipo_pedido,
+          idTipoPedido: pedido.id_tipopedido,
+          seqItem,
+        });
       }
     }
 
@@ -2521,43 +2643,14 @@ router.post('/:id', async (req, res) => {
 
         for (let seqItem = 0; seqItem < itens.length; seqItem++) {
           const item = itens[seqItem];
-          const vlrUnitSemImp = Math.round((item.valor_unitario || 0) * (1 - (item.desconto_percentual || 0) / 100) * 10000) / 10000;
-          const vlrDescTotal  = Math.round((item.valor_unitario || 0) * (item.quantidade || 0) * (item.desconto_percentual || 0) / 100 * 100) / 100;
-          const pesoItem      = item.total_peso || 0;
-          const gradeResumo   = (item.grade_qtd || []).filter(g => g.quantidade > 0).map(g => `${g.nome_grade}:${g.quantidade}`).join(' ');
-          const iResult = await conn.query(
-            `INSERT INTO itensped (
-              numpedido, id_pedido, cod_produto, cod_fabricante, cod_fornecedor,
-              desc_prod, unidade, kilo_embalagem, quantidade, valor_unitario, vlrtotal_itens,
-              desconto, comissao,
-              st, vlr_st, ipi, vlr_ipi, icms, vlr_icms,
-              valor_puxada, total_peso, cores, obsitem,
-              tipo_pedido, id_tipopedido,
-              sequencia, vlr_unitariosemimposto, vlr_totalsemimposto, vlr_descontototal, peso,
-              multiplo_sigla, multiplo_fator,
-              id_grade, solado, tipo_grade, grade_resumo,
-              tipo_preco,
-              data_inclusao, sincronizar, excluido
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), 'N', 'N')`,
-            [
-              numPedido, id,
-              item.cod_produto, item.cod_fabricante || '', pedido?.cod_fornecedor || null,
-              item.desc_prod, item.unidade || '', item.embalagem || 0,
-              item.quantidade, item.valor_unitario, item.vlrtotal_itens,
-              item.desconto_percentual || 0, item.comissao_percentual || 0,
-              item.st_percentual || 0, item.vlr_st || 0,
-              item.ipi_percentual || 0, item.vlr_ipi || 0,
-              0, 0,
-              item.valor_puxada || 0, pesoItem,
-              item.cores_qt || '', '',
-              (pedido?.tipo_pedido || '').toUpperCase() || 'PEDIDO', pedido?.id_tipopedido || null,
-              seqItem + 1, vlrUnitSemImp, item.vlrtotal_itens || 0, vlrDescTotal, pesoItem,
-              item.multiplo_sigla || null, item.multiplo_fator || 1,
-              item.id_grade || null, item.solado || null, item.tipo_grade || null, gradeResumo || null,
-              item.tipo_preco || 'venda'
-            ]
-          );
-          await _salvarGradeQtd(conn, iResult[0].insertId, item.grade_qtd);
+          await insertItenspedItem(conn, item, {
+            numpedido: numPedido,
+            idPedido: id,
+            codFornecedor: pedido?.cod_fornecedor,
+            tipoPedido: pedido?.tipo_pedido,
+            idTipoPedido: pedido?.id_tipopedido,
+            seqItem,
+          });
         }
       }
     }
@@ -2730,54 +2823,7 @@ router.post('/bulk-update', async (req, res) => {
 
 const https   = require('https');
 const http    = require('http');
-const fsSync  = require('fs');
-const pathMod = require('path');
-
-// ── detecta Chrome/Chromium instalado (Windows e Linux) ─────────────────────
-function findChrome() {
-  const local = process.env.LOCALAPPDATA || '';
-  const candidates = [
-    process.env.CHROME_PATH,
-    // Linux
-    '/usr/bin/chromium-browser',
-    '/usr/bin/chromium',
-    '/snap/bin/chromium',
-    '/usr/bin/google-chrome',
-    '/usr/bin/google-chrome-stable',
-    // Windows
-    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-    local ? pathMod.join(local, 'Google\\Chrome\\Application\\chrome.exe') : null,
-    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
-    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
-  ].filter(Boolean);
-  return candidates.find(p => fsSync.existsSync(p)) || null;
-}
-
-// ── converte HTML string → Buffer PDF via puppeteer-core ────────────────────
-async function htmlToPdf(html) {
-  const puppeteer = require('puppeteer-core');
-  const execPath  = findChrome();
-  if (!execPath) throw new Error('Chrome/Edge não encontrado. Defina CHROME_PATH no .env');
-  const browser = await puppeteer.launch({
-    executablePath: execPath,
-    headless: 'new',
-    args: ['--no-sandbox','--disable-setuid-sandbox','--disable-dev-shm-usage','--disable-gpu'],
-  });
-  try {
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await new Promise(r => setTimeout(r, 800));
-    const pdf = await page.pdf({
-      format: 'A4',
-      printBackground: true,
-      margin: { top: '10mm', bottom: '10mm', left: '12mm', right: '12mm' },
-    });
-    return Buffer.from(pdf);
-  } finally {
-    await browser.close();
-  }
-}
+const { htmlToPdf } = require('../config/pdf-browser');
 
 // ── helper Evolution API ────────────────────────────────────────────────────
 function evoRequest(baseUrl, path, method, apikey, body) {
@@ -2811,14 +2857,50 @@ function evoRequest(baseUrl, path, method, apikey, body) {
   });
 }
 
+// POST /api/pedidos/:id/pdf-share-url — URL HTTP temporária para abrir/compartilhar PDF (mobile)
+router.post('/:id/pdf-share-url', async (req, res) => {
+  try {
+    const { pdf_base64, filename } = req.body || {};
+    if (!pdf_base64) return res.status(400).json({ error: 'pdf_base64 obrigatório' });
+    const buf = Buffer.from(String(pdf_base64).replace(/\s/g, ''), 'base64');
+    if (!buf.length || buf[0] !== 0x25 || buf[1] !== 0x50 || buf[2] !== 0x44 || buf[3] !== 0x46) {
+      return res.status(400).json({ error: 'PDF inválido ou corrompido' });
+    }
+    const { putPdfShare, TTL_MS } = require('../config/pedido-pdf-share');
+    const name = filename || `Pedido-${req.params.id}.pdf`;
+    const token = putPdfShare(buf, name);
+    const base = `${req.protocol}://${req.get('host')}`;
+    res.json({
+      ok: true,
+      url: `${base}/api/pedidos/pdf-download/${token}`,
+      expires_sec: Math.floor(TTL_MS / 1000),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/pedidos/:id/pdf-generate
 // Recebe HTML do front, gera PDF, devolve base64
 router.post('/:id/pdf-generate', async (req, res) => {
   try {
-    const { html } = req.body;
+    const { html, base_url: baseUrlBody } = req.body;
     if (!html) return res.status(400).json({ error: 'HTML não informado' });
-    const pdf = await htmlToPdf(html);
-    res.json({ ok: true, pdf: pdf.toString('base64'), size: pdf.length });
+    const baseUrl = baseUrlBody
+      || process.env.APP_URL
+      || process.env.PUBLIC_URL
+      || `${req.protocol}://${req.get('host')}`;
+    const t0 = Date.now();
+    const pdf = await htmlToPdf(html, { baseUrl });
+    if (!pdf.length || pdf[0] !== 0x25 || pdf[1] !== 0x50) {
+      return res.status(500).json({ error: 'PDF gerado está vazio ou inválido' });
+    }
+    res.json({
+      ok: true,
+      pdf: pdf.toString('base64'),
+      size: pdf.length,
+      ms: Date.now() - t0,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -2889,6 +2971,10 @@ router.post('/:id/enviar', async (req, res) => {
         if (smtpConfig.emailpedemaildiretor) mailOpts.cc = smtpConfig.emailpedemaildiretor;
         await transporter.sendMail(mailOpts);
         results.email = { ok: true };
+        await pool.query(
+          `UPDATE pedidos SET emailclienteenviado='S' WHERE id=? AND COALESCE(excluido,'N')='N'`,
+          [req.params.id]
+        ).catch(() => {});
       } catch (err) {
         results.email = { ok: false, error: err.message };
       }
@@ -2896,21 +2982,37 @@ router.post('/:id/enviar', async (req, res) => {
 
     // ── WhatsApp ────────────────────────────────────────────────────────────
     if ((via === 'whatsapp' || via === 'ambos') && telefone) {
+      const fone = String(telefone).replace(/\D/g, '');
+      const numero = fone.startsWith('55') ? fone : `55${fone}`;
+      const waLink = `https://wa.me/${numero}?text=${encodeURIComponent(
+        mensagem || `Segue o Pedido Nº ${numero_pedido}`
+      )}`;
       try {
         const [cfgRows] = await pool.query(
           `SELECT w_urlplataforma, w_apiglobal FROM configuracao WHERE excluido='N' ORDER BY id DESC LIMIT 1`
         ).catch(() => [[]]);
-        if (!cfgRows[0]?.w_urlplataforma) throw new Error('Evolution API não configurada');
+        if (!cfgRows[0]?.w_urlplataforma) {
+          throw new Error('Evolution API não configurada');
+        }
         const cfg = { url: cfgRows[0].w_urlplataforma, apikey: cfgRows[0].w_apiglobal };
 
         const [uRows] = await pool.query(
           `SELECT instancia FROM usuarios WHERE idusuario=? AND excluido='N' LIMIT 1`, [userId]
         ).catch(() => [[]]);
-        if (!uRows[0]?.instancia) throw new Error('Usuário sem instância WhatsApp configurada');
+        if (!uRows[0]?.instancia) {
+          throw new Error('Usuário sem instância WhatsApp configurada');
+        }
         const instancia = uRows[0].instancia;
 
-        const fone = telefone.replace(/\D/g, '');
-        const numero = fone.startsWith('55') ? fone : `55${fone}`;
+        const st = await evoRequest(cfg.url, `/instance/connectionState/${instancia}`, 'GET', cfg.apikey);
+        const state = st.body?.instance?.state || st.body?.state || '';
+        if (state !== 'open') {
+          throw new Error('WhatsApp desconectado — reconecte em Configurações');
+        }
+
+        if (!pdf_base64) {
+          throw new Error('PDF do pedido é obrigatório para envio pelo WhatsApp');
+        }
 
         const r = await evoRequest(cfg.url, `/message/sendMedia/${instancia}`, 'POST', cfg.apikey, {
           number:    numero,
@@ -2920,13 +3022,105 @@ router.post('/:id/enviar', async (req, res) => {
           media:     pdf_base64,
           fileName,
         });
-        results.whatsapp = r.status < 300 ? { ok: true } : { ok: false, error: JSON.stringify(r.body).slice(0,200) };
+        results.whatsapp = r.status < 300
+          ? { ok: true, via: 'api' }
+          : { ok: false, error: JSON.stringify(r.body).slice(0, 200), wa_link: waLink, fallback: true };
       } catch (err) {
-        results.whatsapp = { ok: false, error: err.message };
+        results.whatsapp = { ok: false, error: err.message, wa_link: waLink, fallback: true };
       }
     }
 
     res.json({ ok: true, results });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── POST /api/pedidos/:id/enviar-fabrica — envia PDF para e-mails da fábrica ──
+router.post('/:id/enviar-fabrica', async (req, res) => {
+  try {
+    const pool = getPool();
+    const id = parseInt(req.params.id, 10);
+    const { pdf_base64, numero_pedido, mensagem } = req.body;
+
+    // Busca o fornecedor do pedido
+    const [pedRows] = await pool.query(
+      `SELECT cod_fornecedor FROM pedidos WHERE id=? AND COALESCE(excluido,'N')='N' LIMIT 1`, [id]
+    );
+    if (!pedRows[0]) return res.status(404).json({ error: 'Pedido não encontrado' });
+    const cod_fornecedor = pedRows[0].cod_fornecedor;
+
+    // Verifica se envio para fábrica está ativo
+    const [fornRows] = await pool.query(
+      `SELECT enviar_pedido_fabrica FROM fornecedores WHERE id=? AND (excluido='N' OR excluido IS NULL OR excluido='') LIMIT 1`,
+      [cod_fornecedor]
+    ).catch(() => [[]]);
+    if (!fornRows[0]) return res.status(404).json({ error: 'Fornecedor não encontrado' });
+    if ((fornRows[0].enviar_pedido_fabrica || 'N') !== 'S') {
+      return res.status(400).json({ error: 'Fornecedor não tem envio para fábrica ativado' });
+    }
+
+    // Busca os e-mails cadastrados
+    const [emailRows] = await pool.query(
+      `SELECT email FROM fornecedor_emails WHERE id_fornecedor=? AND excluido='N'`,
+      [cod_fornecedor]
+    ).catch(() => [[]]);
+    if (!emailRows.length) {
+      return res.status(400).json({ error: 'Nenhum e-mail de fábrica cadastrado para este fornecedor' });
+    }
+    const emails = emailRows.map(r => r.email);
+
+    // Busca SMTP (vendedor → empresa)
+    const userId = req.user?.id;
+    const empresaId = req.user?.id_empresa;
+    const [userRows] = await pool.query(
+      `SELECT emailpedsmtp, emailpedporta, emailpedemail, emailpedsenha,
+              emailpednome, emailpedassinatura
+       FROM usuarios WHERE idusuario = ? AND excluido='N' LIMIT 1`,
+      [userId]
+    ).catch(() => [[]]);
+    let smtpConfig = userRows[0] || {};
+    if (!smtpConfig.emailpedsmtp || !smtpConfig.emailpedemail) {
+      const [empRows] = await pool.query(
+        `SELECT email_smtp AS emailpedsmtp, email_port AS emailpedporta,
+                email_username AS emailpedemail, email_password AS emailpedsenha,
+                email_nomeexibicao AS emailpednome
+         FROM empresa WHERE id_empresa = ? AND excluido='N' LIMIT 1`,
+        [empresaId]
+      ).catch(() => [[]]);
+      smtpConfig = empRows[0] || {};
+    }
+    if (!smtpConfig.emailpedsmtp || !smtpConfig.emailpedemail) {
+      return res.status(400).json({ error: 'CONFIG_EMAIL_NAO_ENCONTRADA' });
+    }
+
+    const nodemailer = require('nodemailer');
+    const transporter = nodemailer.createTransport({
+      host: smtpConfig.emailpedsmtp,
+      port: parseInt(smtpConfig.emailpedporta) || 587,
+      secure: parseInt(smtpConfig.emailpedporta) === 465,
+      auth: { user: smtpConfig.emailpedemail, pass: smtpConfig.emailpedsenha },
+      tls: { rejectUnauthorized: false },
+    });
+    const fileName = `Pedido-${numero_pedido || id}.pdf`;
+    const pdfBuffer = pdf_base64 ? Buffer.from(pdf_base64, 'base64') : null;
+    const assinatura = smtpConfig.emailpedassinatura
+      ? `<br><br><img src="${smtpConfig.emailpedassinatura}" style="max-width:400px" alt="Assinatura">`
+      : '';
+    await transporter.sendMail({
+      from: `"${smtpConfig.emailpednome || 'S.G.I WEB'}" <${smtpConfig.emailpedemail}>`,
+      to: emails.join(', '),
+      subject: `Pedido Nº ${numero_pedido || id}`,
+      html: (mensagem ? `<p style="font-family:Arial">${mensagem.replace(/\n/g, '<br>')}</p>` : '') + assinatura,
+      attachments: pdfBuffer ? [{ filename: fileName, content: pdfBuffer, contentType: 'application/pdf' }] : [],
+    });
+
+    await pool.query(
+      `UPDATE pedidos SET emailforenviado='S' WHERE id=? AND COALESCE(excluido,'N')='N'`,
+      [id]
+    ).catch(() => {});
+
+    res.json({ ok: true, emails });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

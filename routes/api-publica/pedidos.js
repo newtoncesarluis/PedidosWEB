@@ -258,4 +258,47 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// ─── PATCH /pedidos/:id — atualiza status do pedido ──────────────────────────
+// O ERP pode definir apenas: FATURADO ou CANCELADO
+// O vendedor não tem permissão para isso via API pública
+router.patch('/:id', async (req, res) => {
+  try {
+    const pool = getPool();
+    const id   = parseInt(req.params.id);
+    if (!id) return res.status(400).json({ error: { code: 400, message: 'ID inválido' } });
+
+    const { status, id_parceiro, observacao } = req.body;
+
+    const STATUS_PERMITIDOS = ['FATURADO', 'CANCELADO'];
+    if (!status) return res.status(400).json({ error: { code: 400, message: 'Campo obrigatório: status' } });
+    if (!STATUS_PERMITIDOS.includes(status.toUpperCase())) {
+      return res.status(400).json({ error: { code: 400, message: `Status inválido. Valores permitidos: ${STATUS_PERMITIDOS.join(', ')}` } });
+    }
+
+    // Verifica se pedido existe
+    const [[pedido]] = await pool.query(
+      `SELECT id, situacao_pedido FROM pedidos WHERE id = ? AND (excluido = 'N' OR excluido IS NULL) LIMIT 1`,
+      [id]
+    );
+    if (!pedido) return res.status(404).json({ error: { code: 404, message: 'Pedido não encontrado' } });
+
+    // Monta campos a atualizar
+    const campos = { situacao_pedido: status.toUpperCase() };
+    if (id_parceiro !== undefined) campos.id_parceiro = id_parceiro;
+    if (observacao  !== undefined) campos.observacao  = observacao;
+    if (status.toUpperCase() === 'FATURADO')  campos.data_faturamento = new Date().toISOString().slice(0,10);
+    if (status.toUpperCase() === 'CANCELADO') campos.data_cancelamento = new Date().toISOString().slice(0,10);
+
+    const sets   = Object.keys(campos).map(k => `\`${k}\` = ?`).join(', ');
+    const values = Object.values(campos);
+
+    await pool.query(`UPDATE pedidos SET ${sets} WHERE id = ?`, [...values, id]);
+
+    res.json({ data: { id, status: status.toUpperCase(), atualizado_em: new Date().toISOString() } });
+  } catch (err) {
+    console.error('[api/v1/pedidos] PATCH /:id', err.message);
+    res.status(500).json({ error: { code: 500, message: 'Erro interno ao atualizar pedido' } });
+  }
+});
+
 module.exports = router;

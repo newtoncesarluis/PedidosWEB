@@ -137,8 +137,10 @@
   function show() {
     if (banner) return;
     if (isStandalone()) return;
-    buildBanner(false);
+    buildBanner(isIOS);
   }
+
+  window.sysrepShowPwaBanner = show;
 
   window.addEventListener('beforeinstallprompt', function (e) {
     e.preventDefault();

@@ -2891,6 +2891,12 @@ html.sysrep-ms-embed #avisoCondMinimo {
 .itens-toolbar-tools::-webkit-scrollbar {
   height: 4px;
 }
+.itens-tool-btn.itens-tool-btn--padrao-on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.itens-col-padrao-muted { color: var(--text2); font-size: 11px; }
 .itens-toolbar-tools::-webkit-scrollbar-thumb {
   background: var(--border);
   border-radius: 4px;
@@ -4187,6 +4193,7 @@ html.sysrep-ms-embed #listSection .pm-sync-ts { display: none !important; }
             <button class="btn btn-ghost" id="btnTrocarFornecedor" type="button" style="display:none;padding:4px 8px;font-size:11px;color:#2563eb;font-weight:700;width:fit-content" title="Trocar fábrica representada"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px;margin-right:4px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg> Trocar fábrica</button>
             <div id="badgeFatMinimo" style="display:none; align-items:center; gap:4px; background:#fffbeb; border:1px solid #fcd34d; border-radius:6px; padding:3px 8px; font-size:11px; font-weight:700; color:#92400e"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:12px;height:12px;flex-shrink:0"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg> <span id="txtFatMinimo"></span></div>
             <div id="badgeMinCx" style="display:none; align-items:center; gap:4px; background:#eff6ff; border:1px solid #93c5fd; border-radius:6px; padding:3px 8px; font-size:11px; font-weight:700; color:#1e40af"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:12px;height:12px;flex-shrink:0"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 10V7"/></svg> <span id="txtMinCx"></span></div>
+            <div id="badgeEnviaFabrica" style="display:none; align-items:center; gap:4px; background:#f0fdf4; border:1px solid #86efac; border-radius:6px; padding:3px 8px; font-size:11px; font-weight:700; color:#166534"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:12px;height:12px;flex-shrink:0"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg> Envia para fábrica</div>
           </div>
           <div id="avisoFornecedorItens" class="aviso-fornecedor-itens" style="display:none" role="status" aria-live="polite"></div>
         </div>
@@ -4260,6 +4267,14 @@ html.sysrep-ms-embed #listSection .pm-sync-ts { display: none !important; }
             <button id="btnImportarExcel" class="itens-tool-btn" title="Importar itens de planilha Excel">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
               Importar Excel
+            </button>
+            <button type="button" id="btnToggleVlrPadrao" class="itens-tool-btn" title="Mostrar ou ocultar preço padrão (catálogo/tabela) neste pedido" style="display:none">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+              <span id="btnToggleVlrPadraoLbl">Padrão</span>
+            </button>
+            <button type="button" id="btnItensColunas" class="itens-tool-btn" title="Colunas visíveis na tela e no relatório">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"/></svg>
+              Colunas
             </button>
           </div>
           <!-- À direita, alinhado ao fim da linha (perto da coluna de ações da grade) -->
@@ -4660,6 +4675,15 @@ let _logadoIdGerente = null;
 let _prepostoComissaoPct = 0;
 let _produtosAvancadoCache = [];
 let _tabelaPrecoAtual = '';
+/** Oculta coluna preço padrão na grade (sessão do pedido até fechar o formulário). */
+let _vlrPadraoOcultoPedido = true;
+let _itensColsCfg = null;
+const ITENS_COLS_DEFAULT = {
+  vlr_padrao: { tela: true, relatorio: false },
+  desconto:   { tela: true, relatorio: true },
+  acrescimo:  { tela: true, relatorio: false },
+  comissao:   { tela: true, relatorio: false },
+};
 let _tabelasModalCache = []; // tabelas disponíveis para o pedido atual (reusado no modal de pesquisa)
 let _subProdEstoque = null;
 let _tabelaPrecoOrigem = '';
@@ -5393,6 +5417,14 @@ function bindFormStaticControls() {
   if (btnToggleAcrescimo) btnToggleAcrescimo.addEventListener('click', togglePainelAcrescimo);
   if (btnImportarXml) btnImportarXml.addEventListener('click', abrirModalImportarXml);
   if (btnImportarExcel) btnImportarExcel.addEventListener('click', abrirModalImportarExcel);
+  const btnToggleVlrPadrao = document.getElementById('btnToggleVlrPadrao');
+  if (btnToggleVlrPadrao) btnToggleVlrPadrao.addEventListener('click', toggleVlrPadraoVisibilidadePedido);
+  const btnItensColunas = document.getElementById('btnItensColunas');
+  if (btnItensColunas) btnItensColunas.addEventListener('click', abrirItensColunasModal);
+  const btnItensColsSalvar = document.getElementById('btnItensColsSalvar');
+  if (btnItensColsSalvar) btnItensColsSalvar.addEventListener('click', salvarItensColunasModal);
+  const itensColsOv = document.getElementById('itensColsOverlay');
+  if (itensColsOv) itensColsOv.addEventListener('click', e => { if (e.target === itensColsOv) fecharItensColunasModal(); });
   if (btnAdicionarItem) btnAdicionarItem.addEventListener('click', () => abrirSubrecForm('itens'));
   if (btnRemoverDescontosCascata) btnRemoverDescontosCascata.addEventListener('click', removerDescontosCascata);
   if (btnAplicarDescontosCascata) btnAplicarDescontosCascata.addEventListener('click', aplicarDescontoCascata);
@@ -5516,6 +5548,9 @@ function bindDynamicListDelegation() {
         if (quickBtn.dataset.quickActionCard === 'edit') abrirEdicao(id);
         else if (quickBtn.dataset.quickActionCard === 'send') abrirModalEnvioPorId(id);
         else if (quickBtn.dataset.quickActionCard === 'comissoes') abrirModalComissoesFaturamento(id);
+        else if (quickBtn.dataset.quickActionCard === 'repetir') {
+          repetirUltimoPedidoPorCliente(quickBtn.dataset.clienteId);
+        }
         return;
       }
 
@@ -5736,6 +5771,7 @@ function bindSubrecItemFormControls() {
     ['sub_acrescimo', 'input', calcSubItem],
     ['sub_st', 'input', calcSubItem],
     ['sub_ipi', 'input', calcSubItem],
+    ['sub_icms', 'input', calcSubItem],
     ['sub_puxada', 'input', calcSubItem]
   ];
 
@@ -5744,7 +5780,7 @@ function bindSubrecItemFormControls() {
     if (el) el.addEventListener(eventName, handler);
   });
 
-  const cleanupIds = ['btnSubrecClose', 'btnSubrecCancel', 'btnSubrecConfirmItem', 'btnSubrecProdutoBusca', 'f_id_tabela_preco', 'sub_embalagem', 'sub_qtd', 'sub_vlr', 'sub_desconto', 'sub_st', 'sub_ipi', 'sub_puxada'];
+  const cleanupIds = ['btnSubrecClose', 'btnSubrecCancel', 'btnSubrecConfirmItem', 'btnSubrecProdutoBusca', 'f_id_tabela_preco', 'sub_embalagem', 'sub_qtd', 'sub_vlr', 'sub_desconto', 'sub_st', 'sub_ipi', 'sub_icms', 'sub_puxada'];
   cleanupIds.forEach((id) => {
     const el = document.getElementById(id);
     if (!el) return;
@@ -5756,7 +5792,7 @@ function bindSubrecItemFormControls() {
   // UX: ao clicar com mouse em campos de valor, selecionar tudo
   const selectAllIds = [
     'sub_qtd', 'sub_vlr', 'sub_desconto', 'sub_embalagem',
-    'sub_st', 'sub_ipi', 'sub_puxada', 'sub_vlr_cliente'
+    'sub_st', 'sub_ipi', 'sub_icms', 'sub_puxada', 'sub_vlr_cliente', 'sub_obsitem'
   ];
   selectAllIds.forEach((id) => {
     const el = document.getElementById(id);
@@ -5948,7 +5984,13 @@ function sanitizeEnvioModalMarkup() {
   if (headerButtons[0]) headerButtons[0].id = 'btnFecharModalEnvio';
 
   const optionButtons = modal.querySelectorAll('#envOptionsGrid .env-opt-btn');
-  if (optionButtons[0]) optionButtons[0].id = 'btnOptPrint';
+  if (optionButtons[0]) optionButtons[0].id = 'btnOptVisualizar';
+  if (optionButtons[1]) optionButtons[1].id = 'btnCompartilharOpt';
+  if (optionButtons[2]) optionButtons[2].id = 'btnBaixarPdfOpt';
+  if (optionButtons[3]) optionButtons[3].id = 'btnVerPdfOpt';
+  if (optionButtons[4]) optionButtons[4].id = 'btnOptPrint';
+  if (optionButtons[5]) optionButtons[5].id = 'btnOptEmail';
+  if (optionButtons[6]) optionButtons[6].id = 'btnOptWhats';
 
   const emailBackBtn = modal.querySelector('#envioFormEmail > div button');
   if (emailBackBtn) emailBackBtn.id = 'btnVoltarEmail';
@@ -5964,8 +6006,11 @@ function sanitizeEnvioModalMarkup() {
 
   [
     'btnFecharModalEnvio',
-    'btnOptPrint',
+    'btnOptVisualizar',
+    'btnCompartilharOpt',
     'btnBaixarPdfOpt',
+    'btnVerPdfOpt',
+    'btnOptPrint',
     'btnOptEmail',
     'btnOptWhats',
     'btnVoltarEmail',
@@ -5995,8 +6040,11 @@ function bindEnvioModalControls() {
   sanitizeEnvioModalMarkup();
 
   const btnFecharModalEnvio = document.getElementById('btnFecharModalEnvio');
+  const btnOptVisualizar = document.getElementById('btnOptVisualizar');
   const btnOptPrint = document.getElementById('btnOptPrint');
+  const btnCompartilharOpt = document.getElementById('btnCompartilharOpt');
   const btnBaixarPdfOpt = document.getElementById('btnBaixarPdfOpt');
+  const btnVerPdfOpt = document.getElementById('btnVerPdfOpt');
   const btnOptEmail = document.getElementById('btnOptEmail');
   const btnOptWhats = document.getElementById('btnOptWhats');
   const btnVoltarEmail = document.getElementById('btnVoltarEmail');
@@ -6012,9 +6060,14 @@ function bindEnvioModalControls() {
   const chipsArea = document.getElementById('envio_chips');
 
   if (btnFecharModalEnvio) btnFecharModalEnvio.addEventListener('click', fecharModalEnvio);
+  if (btnOptVisualizar) btnOptVisualizar.addEventListener('click', () => { void opcaoVisualizarPedido(); });
+  if (btnCompartilharOpt) btnCompartilharOpt.addEventListener('click', (e) => { e.preventDefault(); void opcaoCompartilharPedido(); });
   if (btnOptPrint) btnOptPrint.addEventListener('click', opcaoImprimir);
   if (btnBaixarPdfOpt) {
     btnBaixarPdfOpt.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); opcaoBaixarPdf(); });
+  }
+  if (btnVerPdfOpt) {
+    btnVerPdfOpt.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); void opcaoVerPdf(); });
   }
   if (btnOptEmail) btnOptEmail.addEventListener('click', () => opcaoToggleForm('email'));
   if (btnOptWhats) btnOptWhats.addEventListener('click', () => opcaoToggleForm('whats'));
@@ -6942,6 +6995,12 @@ function renderTabela(rows, offset) {
         case 8: {
           val = `<span class="badge-status ${bdCls}">${p.situacao_pedido || '—'}</span>`;
           if (p.numeronf) val += ` <span style="font-size:10px;font-weight:800;padding:1px 6px;border-radius:6px;background:#ede9fe;color:#5b21b6;white-space:nowrap" title="NF: ${escHtml(p.numeronf)}${p.data_faturado ? ' · ' + new Date(p.data_faturado+'T12:00:00').toLocaleDateString('pt-BR') : ''}">NF ${escHtml(p.numeronf)}</span>`;
+          // Ícones de e-mail enviado
+          const emailIcons = [];
+          if (p.emailclienteenviado === 'S') emailIcons.push(`<span title="E-mail enviado ao cliente" style="font-size:11px;padding:1px 5px;border-radius:5px;background:#ecfdf5;color:#059669;border:1px solid #6ee7b7;font-weight:700">✉ CLI</span>`);
+          if (p.emailforenviado    === 'S') emailIcons.push(`<span title="E-mail enviado à fábrica"  style="font-size:11px;padding:1px 5px;border-radius:5px;background:#eff6ff;color:#2563eb;border:1px solid #93c5fd;font-weight:700">✉ FÁB</span>`);
+          if (p.emailvendenviado   === 'S') emailIcons.push(`<span title="E-mail enviado ao vendedor" style="font-size:11px;padding:1px 5px;border-radius:5px;background:#fefce8;color:#ca8a04;border:1px solid #fde047;font-weight:700">✉ VEN</span>`);
+          if (emailIcons.length) val += ' ' + emailIcons.join(' ');
           break;
         }
         case 9: val = escHtml(p.nome_empresa || '—'); break;
@@ -7948,6 +8007,7 @@ async function abrirEdicao(id) {
         _fornecedorConfig = f;
         atualizarBadgeFatMinimo();
         atualizarBadgeMinCx();
+        atualizarBadgeEnviaFabrica();
         renderSubrec('itens');
         await carregarCondsRestritasFornecedor(p.cod_fornecedor);
         // Em modo edição, preenche o select restrito com o valor já salvo
@@ -8017,11 +8077,19 @@ async function abrirEdicao(id) {
 
     _subData.itens = (data.itens || []).map(i => ({
       ...i,
+      vlr_padrao:           normalizarVlrPadraoItem(i),
       comissao_percentual:  parseFloat(i.comissao_percentual ?? i.comissao ?? 0),
       desconto_percentual:  parseFloat(i.desconto_percentual ?? i.desconto  ?? 0),
+      acrescimo_percentual: parseFloat(i.acrescimo_percentual ?? i.acrescimo ?? 0),
       st_percentual:        parseFloat(i.st_percentual  ?? i.st  ?? 0),
       ipi_percentual:       parseFloat(i.ipi_percentual ?? i.ipi ?? 0),
       embalagem:            parseFloat(i.embalagem ?? i.kilo_embalagem ?? 1),
+      cores_qt:             String(i.cores_qt ?? i.cores ?? '').trim(),
+      tipo_preco:           i.tipo_preco || 'venda',
+      icms_percentual:      parseFloat(i.icms_percentual ?? i.icms ?? 0),
+      vlr_icms:             parseFloat(i.vlr_icms ?? 0),
+      obsitem:              String(i.obsitem ?? '').trim(),
+      vlrtotal_com_imposto: parseFloat(i.vlrtotal_com_imposto ?? i.vlrtotalcomimposto ?? i.vlrtotal_itens ?? 0),
     }));
     _subData.parcelas = data.parcelas || [];
     if ((parseFloat(p.vlrdesconto) || 0) > 0) {
@@ -8340,6 +8408,7 @@ async function aplicarPedidoCloneConfigs(p = {}) {
     }
     atualizarBadgeFatMinimo();
     atualizarBadgeMinCx();
+    atualizarBadgeEnviaFabrica();
     await carregarCondsRestritasFornecedor(p.cod_fornecedor);
     renderDescontoCascata();
   } else {
@@ -8383,6 +8452,8 @@ function abrirDrawer() {
 function _executarFecharDrawer() {
   liberarPedidoEditLockServidor();
   resetPedidoFormBaseline();
+  _vlrPadraoOcultoPedido = true;
+  syncToggleVlrPadraoBtn();
   setDrawerVisibility(false);
   if (typeof fecharQuickView === 'function' && document.getElementById('quickViewPanel')?.classList.contains('open')) {
     fecharQuickView();
@@ -8560,7 +8631,97 @@ function limparForm() {
   const wFormPux = document.getElementById('wrap_form_puxada');
   if (wFormPux) wFormPux.style.display = _habilitaPuxada === 'S' ? '' : 'none';
   _fornecedorNomeSnapshot = '';
+  _vlrPadraoOcultoPedido = true;
+  syncToggleVlrPadraoBtn();
   syncFornecedorPedidoUi();
+}
+
+function mergeItensColsConfig(saved) {
+  const out = {};
+  for (const k of Object.keys(ITENS_COLS_DEFAULT)) {
+    const def = ITENS_COLS_DEFAULT[k];
+    const s = saved && saved[k] ? saved[k] : {};
+    out[k] = {
+      tela: s.tela !== undefined ? !!s.tela : def.tela,
+      relatorio: s.relatorio !== undefined ? !!s.relatorio : def.relatorio,
+    };
+  }
+  return out;
+}
+
+function itensColCfg(id) {
+  if (!_itensColsCfg) _itensColsCfg = mergeItensColsConfig(null);
+  return _itensColsCfg[id] || { tela: true, relatorio: false };
+}
+
+function itensMostraColTela(id) {
+  return itensColCfg(id).tela !== false;
+}
+
+function itensMostraColRelatorio(id) {
+  return itensColCfg(id).relatorio === true;
+}
+
+async function loadItensColsConfig() {
+  try {
+    const r = await api('/api/pedidos/config/itens-colunas');
+    if (!r.ok) { _itensColsCfg = mergeItensColsConfig(null); return; }
+    const data = await r.json();
+    let cfg = data.config;
+    if (typeof cfg === 'string') { try { cfg = JSON.parse(cfg); } catch { cfg = null; } }
+    _itensColsCfg = mergeItensColsConfig(cfg && typeof cfg === 'object' ? cfg : null);
+  } catch (_) {
+    _itensColsCfg = mergeItensColsConfig(null);
+  }
+}
+
+function syncToggleVlrPadraoBtn() {
+  const btn = document.getElementById('btnToggleVlrPadrao');
+  const lbl = document.getElementById('btnToggleVlrPadraoLbl');
+  if (!btn) return;
+  const habilitado = itensMostraColTela('vlr_padrao');
+  btn.style.display = habilitado ? '' : 'none';
+  if (!habilitado) return;
+  const visivel = !_vlrPadraoOcultoPedido;
+  btn.classList.toggle('itens-tool-btn--padrao-on', visivel);
+  btn.title = visivel
+    ? 'Ocultar preço padrão (visível para você neste pedido)'
+    : 'Mostrar preço padrão de catálogo/tabela neste pedido';
+  if (lbl) lbl.textContent = visivel ? 'Ocultar padrão' : 'Ver padrão';
+}
+
+function toggleVlrPadraoVisibilidadePedido() {
+  _vlrPadraoOcultoPedido = !_vlrPadraoOcultoPedido;
+  syncToggleVlrPadraoBtn();
+  renderSubrec('itens');
+}
+
+/** Preço de referência (tabela de preço, se ativa; senão vlr_venda do cadastro). */
+async function fetchVlrPadraoProduto(prodId, prod) {
+  const vCatalogo = parseFloat(prod?.vlr_venda ?? prod?.preco_venda) || 0;
+  if (!_tabelaPrecoAtual || !prodId) return vCatalogo;
+  if (prod?.preco_da_tabela != null && Number.isFinite(parseFloat(prod.preco_da_tabela))) {
+    return parseFloat(prod.preco_da_tabela);
+  }
+  try {
+    const r = await api(`/api/tabela-precos/vlr-venda/${_tabelaPrecoAtual}/${prodId}`);
+    const d = await r.json();
+    const tv = parseFloat(d.valor);
+    if (Number.isFinite(tv) && !d.is_fallback) return tv;
+    // Produto fora da tabela: unitário usa fallback com aviso; padrão mantém catálogo
+    return vCatalogo;
+  } catch (_) {}
+  return vCatalogo;
+}
+
+function setSubVlrPadrao(v) {
+  const el = document.getElementById('sub_vlr_padrao');
+  if (el) el.value = (parseFloat(v) || 0).toFixed(4);
+}
+
+function normalizarVlrPadraoItem(i) {
+  const vp = parseFloat(i.vlr_padrao ?? i.vlr_padrao_efetivo);
+  return Number.isFinite(vp) ? vp : 0;
 }
 
 // ── SUB-RECORDS (ITENS / PARCELAS) ────────────────────────────────────────────
@@ -8590,6 +8751,10 @@ function renderSubrec(tipo) {
   if (tipo === 'itens') {
     const showFoto = _fornecedorConfig.fotosprodutospedido === 'S';
     const usarCodFab = (_fornecedorConfig.pedidos_codfabricante || 'N') === 'S';
+    const showPadrao = itensMostraColTela('vlr_padrao') && !_vlrPadraoOcultoPedido;
+    const showDesc = itensMostraColTela('desconto');
+    const showAcr = itensMostraColTela('acrescimo');
+    const showCom = itensMostraColTela('comissao');
     const totalItens = data.length;
     const totalPags  = Math.ceil(totalItens / _itensPorPagina);
     if (_itensPage > totalPags) _itensPage = Math.max(1, totalPags);
@@ -8628,10 +8793,11 @@ function renderSubrec(tipo) {
         </td>
         <td class="td-center it-unidade">${escHtml((item.unidade || '').trim() || '—')}</td>
         <td class="td-num it-desc-cell">${item.quantidade}</td>
+        ${showPadrao ? `<td class="td-num it-desc-cell itens-col-padrao-muted">${fmtPreco(normalizarVlrPadraoItem(item))}</td>` : ''}
         <td class="td-num it-desc-cell">${fmtPreco(item.valor_unitario)}</td>
-        <td class="td-center it-td-pct">${item.desconto_percentual > 0 ? item.desconto_percentual + '%' : '<span style="color:var(--border)">—</span>'}</td>
-        <td class="td-center it-td-pct">${parseFloat(item.acrescimo_percentual) > 0 ? `<span style="color:var(--success);font-weight:700">+${item.acrescimo_percentual}%</span>` : '<span style="color:var(--border)">—</span>'}</td>
-        <td class="td-center it-td-pct">${(() => { const pct = parseFloat(item.comissao_percentual) || 0; const vlrCom = numPed(item.vlrtotal_itens) * pct / 100; return pct > 0 ? `<div style="font-size:10px;color:var(--text2);line-height:1.2">${pct}%</div><div style="font-weight:700;font-size:12px;color:var(--success)">${fmtPreco(vlrCom)}</div>` : '<span style="color:var(--border)">—</span>'; })()}</td>
+        ${showDesc ? `<td class="td-center it-td-pct">${item.desconto_percentual > 0 ? item.desconto_percentual + '%' : '<span style="color:var(--border)">—</span>'}</td>` : ''}
+        ${showAcr ? `<td class="td-center it-td-pct">${parseFloat(item.acrescimo_percentual) > 0 ? `<span style="color:var(--success);font-weight:700">+${item.acrescimo_percentual}%</span>` : '<span style="color:var(--border)">—</span>'}</td>` : ''}
+        ${showCom ? `<td class="td-center it-td-pct">${(() => { const pct = parseFloat(item.comissao_percentual) || 0; const vlrCom = numPed(item.vlrtotal_itens) * pct / 100; return pct > 0 ? `<div style="font-size:10px;color:var(--text2);line-height:1.2">${pct}%</div><div style="font-weight:700;font-size:12px;color:var(--success)">${fmtPreco(vlrCom)}</div>` : '<span style="color:var(--border)">—</span>'; })()}</td>` : ''}
         <td class="td-num"><span class="it-total">${fmtPreco(item.vlrtotal_itens)}</span></td>
         <td class="td-center" style="white-space:nowrap">
           <span class="it-actions">
@@ -8661,11 +8827,12 @@ function renderSubrec(tipo) {
             <th>Produto</th>
             <th style="text-align:center;width:1%">Un.</th>
             <th style="text-align:right;width:1%">Qtd</th>
-            <th style="text-align:right;width:1%">Unit.</th>
-            <th style="text-align:center;width:1%">Desc.</th>
-            <th style="text-align:center;width:1%">Acrésc.</th>
-            <th style="text-align:center;width:1%">Com.</th>
-            <th style="text-align:right;width:1%">Total</th>
+            ${showPadrao ? '<th style="text-align:right;width:1%" title="Valor da tabela de preço ou catálogo">Vlr. Tabela</th>' : ''}
+            <th style="text-align:right;width:1%">Vlr Venda</th>
+            ${showDesc ? '<th style="text-align:center;width:1%">Desc.</th>' : ''}
+            ${showAcr ? '<th style="text-align:center;width:1%">Acrésc.</th>' : ''}
+            ${showCom ? '<th style="text-align:center;width:1%">Com.</th>' : ''}
+            <th style="text-align:right;width:1%">Vlr Total</th>
             <th style="width:1%"></th>
           </tr>
         </thead>
@@ -8677,6 +8844,7 @@ function renderSubrec(tipo) {
     renderDescontoCascata();
     renderAcrescimoLote();
     renderItensPagBtns(totalItens);
+    syncToggleVlrPadraoBtn();
     syncFornecedorPedidoUi();
     return;
   }
@@ -9073,6 +9241,7 @@ async function abrirSubrecForm(tipo, preservarTabela = false) {
         </div>
 
         <input type="hidden" id="sub_tipo_preco" value="venda">
+        <input type="hidden" id="sub_vlr_padrao" value="0">
         <div id="sub_preco_pills" style="display:none; flex-wrap:wrap; gap:5px; margin-bottom:2px"></div>
         <div class="subrec-grid-3" style="display:grid; grid-template-columns: 1fr 1fr 1.4fr; gap: 8px;">
           <div class="form-group"><label>Comissão %</label><input type="number" id="sub_comissao" class="input-field" step="0.01" style="height:34px"></div>
@@ -9114,13 +9283,18 @@ async function abrirSubrecForm(tipo, preservarTabela = false) {
             <div class="form-group"><label>Desconto %</label><input type="number" id="sub_desconto" class="input-field" step="0.01" value="0" style="height:34px"></div>
             <div class="form-group"><label>Acréscimo %</label><input type="number" id="sub_acrescimo" class="input-field" step="0.01" value="0" style="height:34px"></div>
           </div>
-          <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
             <div class="form-group"><label>ST %</label><input type="number" id="sub_st" class="input-field" value="0" style="height:34px"></div>
             <div class="form-group"><label>IPI %</label><input type="number" id="sub_ipi" class="input-field" value="0" style="height:34px"></div>
+            <div class="form-group"><label>ICMS %</label><input type="number" id="sub_icms" class="input-field" value="0" step="0.001" style="height:34px"></div>
           </div>
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 8px;">
             <div class="form-group" id="wrap_vlr_cliente" style="display:none"><label>Valor Cliente</label><input type="number" id="sub_vlr_cliente" class="input-field" step="0.01" style="height:34px"></div>
             <div class="form-group" id="wrap_puxada" style="display:none"><label>Puxada / Un.</label><input type="number" id="sub_puxada" class="input-field" value="0" style="height:34px"></div>
+          </div>
+          <div class="form-group">
+            <label>Obs. do item</label>
+            <input type="text" id="sub_obsitem" class="input-field" maxlength="100" placeholder="Até 100 caracteres" autocomplete="off" style="height:34px">
           </div>
         </div>
 
@@ -9272,6 +9446,7 @@ async function abrirSubrecForm(tipo, preservarTabela = false) {
             const d = await r.json();
             document.getElementById('sub_vlr').value = parseFloat(d.valor || prod.vlr_venda || 0).toFixed(2);
           } catch(e) { document.getElementById('sub_vlr').value = parseFloat(prod.vlr_venda || 0).toFixed(2); }
+          setSubVlrPadrao(await fetchVlrPadraoProduto(prod.id, prod));
         } else {
           renderPrecoPills(prod);
         }
@@ -9299,12 +9474,16 @@ async function abrirSubrecForm(tipo, preservarTabela = false) {
         } catch (e) {
           setVlr(prod.vlr_venda || 0);
         }
+        setSubVlrPadrao(await fetchVlrPadraoProduto(prod.id, prod));
       } else {
         renderPrecoPills(prod);
+        fetchVlrPadraoProduto(prod.id, prod).then(v => setSubVlrPadrao(v));
       }
       
       document.getElementById('sub_st').value = prod.st || 0;
       document.getElementById('sub_ipi').value = _clienteConfig?.descontoIPIsuframaped === 'S' ? 0 : (prod.ipi || 0);
+      const elIcms = document.getElementById('sub_icms');
+      if (elIcms) elIcms.value = prod.icms || 0;
       document.getElementById('sub_comissao').value = prod.comissao || 0;
       document.getElementById('sub_puxada').value = prod.valor_puxada || 0;
       document.getElementById('sub_foto').value = prod.foto_principal || prod.foto || '';
@@ -9479,6 +9658,8 @@ function _resetSubrecItemForm() {
   setV('sub_acrescimo', '0');
   setV('sub_st', '0');
   setV('sub_ipi', '0');
+  setV('sub_icms', '0');
+  setV('sub_obsitem', '');
   setV('sub_comissao', '');
   setV('sub_embalagem', '1');
   setV('sub_puxada', '0');
@@ -10103,6 +10284,7 @@ function renderPrecoPills(prod) {
     container.style.display = 'none';
     document.getElementById('sub_vlr').value = prod.vlr_venda || 0;
     if (hiddenTipo) hiddenTipo.value = 'venda';
+    fetchVlrPadraoProduto(prod.id || prod.ID, prod).then(v => setSubVlrPadrao(v));
     calcSubItem();
     return;
   }
@@ -10132,7 +10314,20 @@ function renderPrecoPills(prod) {
       calcSubItem();
     });
   });
+  fetchVlrPadraoProduto(prod.id || prod.ID, prod).then(v => setSubVlrPadrao(v));
   calcSubItem();
+}
+
+/** Recalcula ST, IPI, ICMS e total com impostos de um item em memória. */
+function recalcItemTotaisComImposto(item) {
+  const base = parseFloat(item.vlrtotal_itens) || 0;
+  const stPct = parseFloat(item.st_percentual ?? item.st) || 0;
+  const ipiPct = parseFloat(item.ipi_percentual ?? item.ipi) || 0;
+  const icmsPct = parseFloat(item.icms_percentual ?? item.icms) || 0;
+  item.vlr_st = Math.round(base * stPct / 100 * 100) / 100;
+  item.vlr_ipi = Math.round(base * ipiPct / 100 * 100) / 100;
+  item.vlr_icms = Math.round(base * icmsPct / 100 * 1000) / 1000;
+  item.vlrtotal_com_imposto = Math.round((base + item.vlr_st + item.vlr_ipi + item.vlr_icms) * 1000) / 1000;
 }
 
 function calcSubItem() {
@@ -10144,6 +10339,7 @@ function calcSubItem() {
   const ipi  = _clienteConfig?.descontoIPIsuframaped === 'S'
                ? 0
                : (parseFloat(document.getElementById('sub_ipi').value) || 0);
+  const icms = parseFloat(document.getElementById('sub_icms')?.value)      || 0;
   const px   = parseFloat(document.getElementById('sub_puxada')?.value)    || 0;
   const embEl = document.getElementById('sub_embalagem');
   const embVal = embEl?.value?.trim();
@@ -10161,10 +10357,11 @@ function calcSubItem() {
 
   const tst  = base * (st  / 100);
   const tipi = base * (ipi / 100);
+  const ticms = base * (icms / 100);
   const tpx  = q * px;
 
   const totalLiq        = base + tpx;
-  const totalComImposto = totalLiq + tst + tipi;
+  const totalComImposto = totalLiq + tst + tipi + ticms;
 
   const totalSemDesc = (_somaEmbalagem === 'S' ? (emb > 0 ? emb * q : q) : q) * v + tpx;
   const totalComDesc = base + tpx;
@@ -10189,7 +10386,7 @@ function calcSubItem() {
   document.getElementById('sub_total_prev').textContent    = fmtR(totalLiq);
   document.getElementById('sub_total_imposto').textContent = fmtR(totalComImposto);
 
-  return { base, tst, tipi, tpx, total: totalLiq, totalComImposto };
+  return { base, tst, tipi, ticms, tpx, total: totalLiq, totalComImposto };
 }
 
 function pedidoControlaEstoque() {
@@ -10358,19 +10555,18 @@ async function adicionarProdutoCatalogoRapido(prod) {
   }
 
   let vlr = parseFloat(prod.vlr_venda) || 0;
+  const vlrPadrao = await fetchVlrPadraoProduto(prodId, prod);
   if (_tabelaPrecoAtual) {
-    try {
-      const r = await api(`/api/tabela-precos/vlr-venda/${_tabelaPrecoAtual}/${prodId}`);
-      const d = await r.json();
-      vlr = parseFloat(d.valor) || vlr;
-    } catch (_) {}
+    vlr = vlrPadrao;
   }
   const desconto = 0;
   const st = parseFloat(prod.st) || 0;
   const ipi = _clienteConfig?.descontoIPIsuframaped === 'S' ? 0 : (parseFloat(prod.ipi) || 0);
+  const icms = parseFloat(prod.icms) || 0;
   const subtotal = Math.round(vlr * qtd * (1 - desconto / 100) * 100) / 100;
   const tst = Math.round(subtotal * st / 100 * 100) / 100;
   const tipi = Math.round(subtotal * ipi / 100 * 100) / 100;
+  const ticms = Math.round(subtotal * icms / 100 * 1000) / 1000;
   const kilo = parseFloat(prod.kilo_embalagem) || 0;
   const peso = (_fornecedorConfig.peso_exibritelapedidos === 'S') ? qtd * kilo : 0;
   const item = {
@@ -10379,6 +10575,7 @@ async function adicionarProdutoCatalogoRapido(prod) {
     unidade: prod.unidade || '',
     desc_prod: prod.descricao || prod.desc_prod || '',
     quantidade: qtd,
+    vlr_padrao: vlrPadrao,
     valor_unitario: vlr,
     desconto_percentual: desconto,
     cores_qt: '',
@@ -10387,11 +10584,14 @@ async function adicionarProdutoCatalogoRapido(prod) {
     valor_cliente: 0,
     st_percentual: st,
     ipi_percentual: ipi,
+    icms_percentual: icms,
     vlr_st: tst,
     vlr_ipi: tipi,
+    vlr_icms: ticms,
+    obsitem: '',
     valor_puxada: parseFloat(prod.valor_puxada) || 0,
     vlrtotal_itens: subtotal,
-    vlrtotal_com_imposto: Math.round((subtotal + tst + tipi) * 100) / 100,
+    vlrtotal_com_imposto: Math.round((subtotal + tst + tipi + ticms) * 1000) / 1000,
     foto_principal: prod.foto_principal || '',
     total_peso: peso,
     multiplo_sigla: null,
@@ -10508,12 +10708,18 @@ async function _confirmarSubrecAsync(tipo) {
       if (!seguir) return;
     }
 
+    let vlrPadraoItem = parseFloat(document.getElementById('sub_vlr_padrao')?.value);
+    if (!Number.isFinite(vlrPadraoItem) || vlrPadraoItem <= 0) {
+      vlrPadraoItem = await fetchVlrPadraoProduto(parseInt(sel.value, 10) || 0, window._prodSubrecAtual || {});
+    }
+
     item = {
       cod_produto: parseInt(sel.value),
       cod_fabricante: document.getElementById('sub_cod_fabricante')?.value || '',
       unidade: document.getElementById('sub_unidade')?.value || '',
       desc_prod: search.value,
       quantidade: qtd,
+      vlr_padrao: vlrPadraoItem,
       valor_unitario: parseFloat(document.getElementById('sub_vlr').value),
       tipo_preco: document.getElementById('sub_tipo_preco')?.value || 'venda',
       desconto_percentual:  parseFloat(document.getElementById('sub_desconto').value)   || 0,
@@ -10524,8 +10730,11 @@ async function _confirmarSubrecAsync(tipo) {
       valor_cliente: parseFloat(document.getElementById('sub_vlr_cliente').value) || 0,
       st_percentual: parseFloat(document.getElementById('sub_st').value) || 0,
       ipi_percentual: parseFloat(document.getElementById('sub_ipi').value) || 0,
+      icms_percentual: parseFloat(document.getElementById('sub_icms')?.value) || 0,
       vlr_st: calc.tst,
       vlr_ipi: calc.tipi,
+      vlr_icms: calc.ticms,
+      obsitem: (document.getElementById('sub_obsitem')?.value || '').trim().slice(0, 100),
       valor_puxada: parseFloat(document.getElementById('sub_puxada').value),
       vlrtotal_itens: calc.total,
       vlrtotal_com_imposto: calc.totalComImposto,
@@ -10941,9 +11150,17 @@ async function salvar() {
 
     _ultimaObs   = document.getElementById('f_obs')?.value || '';
     _ultimoPrazo = document.getElementById('f_condicao_pagto')?.value || '';
-    const idPedidoSalvo = data.id || data.idpedido || null;
+    const idPedidoSalvo = data.id || data.idpedido || (_modoEdit ? _idEdit : null);
 
     toast('Pedido salvo com sucesso!', 'ok');
+
+    // Confirmação de envio para fábrica — gera PDF enquanto form ainda está aberto
+    if (_fornecedorConfig.enviar_pedido_fabrica === 'S' && idPedidoSalvo) {
+      const _numExib = _pedidoNumeroExibicao || data.numero || idPedidoSalvo;
+      let _pdfFabrica = null;
+      try { _pdfFabrica = await gerarPdfBase64(); } catch(_) {}
+      _confirmarEnvioFabrica(idPedidoSalvo, _numExib, _pdfFabrica);
+    }
 
     const _msEmbed = document.documentElement.classList.contains('sysrep-ms-embed');
     const _doFechar = () => {
@@ -12109,6 +12326,14 @@ function renderCards(rows, offset) {
     const stCode = _STATUS_CODE_MAP[p.situacao_pedido] || 'P';
     const nomeCli = p.nome_cliente || '—';
     const fornec  = p.nome_fornecedor || '';
+    const cidRep  = parseInt(p.id_cliente || p.cod_cliente || '0', 10);
+    const embedRep = document.documentElement.classList.contains('sysrep-ms-embed');
+    const repetirRow = embedRep && cidRep
+      ? `<button type="button" class="pcd-repetir-btn" data-quick-action-card="repetir" data-cliente-id="${cidRep}" title="Repetir último pedido deste cliente">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          Repetir último pedido
+        </button>`
+      : '';
 
     return `<div class="ped-card-new ${sel?'active row-selected':''}" data-card-id="${p.id}" data-cliente-id="${p.id_cliente || p.cod_cliente || ''}" data-status="${stCode}">
       <div class="pcd-header">
@@ -12143,6 +12368,7 @@ function renderCards(rows, offset) {
         </span>` : ''}
         <span class="tag-tipo ${tagCls}">${escHtml(tipoText)}</span>
       </div>
+      ${repetirRow}
       <div class="pcd-footer">
         <div class="pcd-actions">
           <button class="btn-quick quick-prt" data-quick-action-card="send" data-id="${p.id}" title="Imprimir / Enviar">
@@ -12468,10 +12694,13 @@ async function selecionarProdutoAvancado(id) {
   }
 
   const g = id => document.getElementById(id);
+  const vlrPadraoSel = await fetchVlrPadraoProduto(prod.cod_produto, prod);
+  setSubVlrPadrao(vlrPadraoSel);
   if(g("sub_vlr"))              g("sub_vlr").value = parseFloat(vlr || 0).toFixed(2);
   if(g("sub_ipi"))              g("sub_ipi").value = _clienteConfig?.descontoIPIsuframaped === 'S' ? 0 : (prod.ipi || 0);
   if(g("sub_comissao"))         g("sub_comissao").value = _prepostoComissaoPct || prod.comissao || 0;
   if(g("sub_st"))               g("sub_st").value = prod.st || 0;
+  if(g("sub_icms"))             g("sub_icms").value = prod.icms || 0;
   if(g("sub_puxada"))           g("sub_puxada").value = prod.valor_puxada || 0;
   if(g("sub_foto"))             g("sub_foto").value = prod.foto_principal || prod.foto || "";
   if(g("sub_cod_fabricante"))   g("sub_cod_fabricante").value = prod.cod_fabricante || "";
@@ -12586,6 +12815,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 2. Carrega configurações de grid (sem disparar carregar() interno)
   await loadGridConfig();
+  await loadItensColsConfig();
+  syncToggleVlrPadraoBtn();
 
   // 2.6 Carrega modelo de impressão do servidor em background
   _cmpLoadRemoto().catch(() => {});
@@ -13432,20 +13663,8 @@ async function buildEmpresaLogoInnerHtml(emp, forPdf) {
   const style = `max-width:${dims.imgMaxW}px;max-height:${dims.imgMaxH}px;width:auto;height:auto;object-fit:contain`;
   const escAttr = s => String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;');
   if (forPdf) {
-    try {
-      const r = await fetch(abs, { credentials: 'include', cache: 'no-store' });
-      if (!r.ok) throw new Error('logo');
-      const blob = await r.blob();
-      const dataUrl = await new Promise((res, rej) => {
-        const fr = new FileReader();
-        fr.onload = () => res(fr.result);
-        fr.onerror = rej;
-        fr.readAsDataURL(blob);
-      });
-      return { inner: `<img src="${escAttr(dataUrl)}" alt="" style="${style}"/>`, dims };
-    } catch (_) {
-      return { inner: `<img src="${escAttr(abs)}" alt="" style="${style}"/>`, dims };
-    }
+    const rel = logoRel.startsWith('/') ? logoRel : '/' + logoRel;
+    return { inner: `<img src="${escAttr(rel)}" alt="" style="${style}"/>`, dims };
   }
   return { inner: `<img src="${escAttr(abs)}" alt="" style="${style}" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'LOGO',style:'font-weight:800;font-size:12px;color:#64748b'}))"/>`, dims };
 }
@@ -13456,44 +13675,59 @@ function _liberarUiAntesImpressao() {
   document.body.style.overflow = '';
 }
 
-function _abrirJanelaImpressaoPedido(html) {
+function _htmlPreviewSemAutoPrint(html) {
+  return String(html || '').replace(/onload="setTimeout\(\(\)=>window\.print\(\),300\)"/g, '');
+}
+
+function _abrirPreviewPedidoHtml(html, opts = {}) {
+  const showPrint = opts.showPrint !== false;
+  const titulo = opts.title || 'Visualização do pedido';
   _liberarUiAntesImpressao();
+  let overlay = document.getElementById('_printPreviewOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = '_printPreviewOverlay';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:#fff;display:none;flex-direction:column';
+    overlay.innerHTML = `
+      <div style="flex:0 0 auto;padding:10px 14px;border-bottom:1px solid #e2e8f0;display:flex;gap:10px;align-items:center;background:#f8fafc">
+        <span id="_printPreviewTitle" style="flex:1;font-size:13px;font-weight:700;color:var(--text,#0f172a);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+        <button type="button" id="_printPreviewBtn" style="padding:10px 14px;border:none;border-radius:8px;background:var(--accent,#0ea5e9);color:#fff;font-weight:600;font-size:13px;font-family:inherit;white-space:nowrap">Imprimir</button>
+        <button type="button" id="_printPreviewClose" style="padding:10px 14px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;font-weight:600;font-size:13px;font-family:inherit;color:var(--text,#0f172a);white-space:nowrap">Fechar</button>
+      </div>
+      <iframe id="_printPreviewFrame" title="Pré-visualização do pedido" style="flex:1;width:100%;border:none;background:#fff"></iframe>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#_printPreviewClose').addEventListener('click', () => {
+      overlay.style.display = 'none';
+    });
+    overlay.querySelector('#_printPreviewBtn').addEventListener('click', () => {
+      const frame = document.getElementById('_printPreviewFrame');
+      if (!frame) return;
+      try {
+        frame.contentWindow.focus();
+        frame.contentWindow.print();
+      } catch (_) {
+        toast('Não foi possível abrir a impressão neste dispositivo.', 'err');
+      }
+    });
+  }
+  const titleEl = overlay.querySelector('#_printPreviewTitle');
+  const printBtn = overlay.querySelector('#_printPreviewBtn');
+  if (titleEl) titleEl.textContent = titulo;
+  if (printBtn) printBtn.style.display = showPrint ? '' : 'none';
+  overlay.style.display = 'flex';
+  const frame = document.getElementById('_printPreviewFrame');
+  const doc = frame.contentDocument || frame.contentWindow.document;
+  doc.open();
+  doc.write(_htmlPreviewSemAutoPrint(html));
+  doc.close();
+}
+
+function _abrirJanelaImpressaoPedido(html) {
   const isEmbed = document.documentElement.classList.contains('sysrep-ms-embed');
   const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
 
   if (isEmbed || isMobile) {
-    let overlay = document.getElementById('_printPreviewOverlay');
-    if (!overlay) {
-      overlay = document.createElement('div');
-      overlay.id = '_printPreviewOverlay';
-      overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:#fff;display:none;flex-direction:column';
-      overlay.innerHTML = `
-        <div style="flex:0 0 auto;padding:10px 12px;border-bottom:1px solid #e2e8f0;display:flex;gap:8px;align-items:center;justify-content:flex-end;background:#f8fafc">
-          <button type="button" id="_printPreviewBtn" style="padding:11px 14px;border:none;border-radius:8px;background:var(--accent,#0ea5e9);color:#fff;font-weight:600;font-size:13px;font-family:inherit;white-space:nowrap">Imprimir</button>
-          <button type="button" id="_printPreviewClose" style="padding:11px 14px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;font-weight:600;font-size:13px;font-family:inherit;color:var(--text,#0f172a);white-space:nowrap">Fechar</button>
-        </div>
-        <iframe id="_printPreviewFrame" title="Pré-visualização do pedido" style="flex:1;width:100%;border:none;background:#fff"></iframe>`;
-      document.body.appendChild(overlay);
-      overlay.querySelector('#_printPreviewClose').addEventListener('click', () => {
-        overlay.style.display = 'none';
-      });
-      overlay.querySelector('#_printPreviewBtn').addEventListener('click', () => {
-        const frame = document.getElementById('_printPreviewFrame');
-        if (!frame) return;
-        try {
-          frame.contentWindow.focus();
-          frame.contentWindow.print();
-        } catch (_) {
-          toast('Não foi possível abrir a impressão neste dispositivo.', 'err');
-        }
-      });
-    }
-    overlay.style.display = 'flex';
-    const frame = document.getElementById('_printPreviewFrame');
-    const doc = frame.contentDocument || frame.contentWindow.document;
-    doc.open();
-    doc.write(html.replace('onload="setTimeout(()=>window.print(),300)"', ''));
-    doc.close();
+    _abrirPreviewPedidoHtml(html, { title: 'Impressão do pedido', showPrint: true });
     return;
   }
 
@@ -13591,9 +13825,10 @@ async function imprimirPedidoAtual() {
                          `<th class="td">Descrição</th>`,
     cfg.col_unidade    ? `<th class="tc">Unid.</th>` : '',
     cfg.col_quantidade ? `<th class="tr">Quant.</th>` : '',
-    cfg.col_preco_unit ? `<th class="tr">R$ Unit.</th>` : '',
-    cfg.col_desconto   ? `<th class="tc">Desc.%</th>` : '',
-    cfg.col_subtotal   ? `<th class="tr">R$</th>` : '',
+    itensMostraColRelatorio('vlr_padrao') ? `<th class="tr">Vlr. Tabela</th>` : '',
+    cfg.col_preco_unit ? `<th class="tr">Vlr Venda</th>` : '',
+    itensMostraColRelatorio('desconto') && cfg.col_desconto ? `<th class="tc">Desc.%</th>` : '',
+    cfg.col_subtotal   ? `<th class="tr">Vlr Total</th>` : '',
     cfg.col_ipi        ? `<th class="tc">IPI %</th>` : '',
     cfg.col_st         ? `<th class="tc">ST %</th>` : '',
   ].join('');
@@ -13607,8 +13842,9 @@ async function imprimirPedidoAtual() {
                            `<td class="td">${h(i.desc_prod)}</td>`,
       cfg.col_unidade    ? `<td class="tc">${h(i.unidade||'')}</td>` : '',
       cfg.col_quantidade ? `<td class="tr">${fmtQtd(i.quantidade)}</td>` : '',
+      itensMostraColRelatorio('vlr_padrao') ? `<td class="tr">R$ ${br(normalizarVlrPadraoItem(i))}</td>` : '',
       cfg.col_preco_unit ? `<td class="tr">R$ ${br(i.valor_unitario)}</td>` : '',
-      cfg.col_desconto   ? `<td class="tc">${parseFloat(i.desconto_percentual||i.desconto)||0}%</td>` : '',
+      (itensMostraColRelatorio('desconto') && cfg.col_desconto) ? `<td class="tc">${parseFloat(i.desconto_percentual||i.desconto)||0}%</td>` : '',
       cfg.col_subtotal   ? `<td class="tr"><b>R$ ${br(i.vlrtotal_itens)}</b></td>` : '',
       cfg.col_ipi        ? `<td class="tc">${parseFloat(i.ipi_percentual)||0}</td>` : '',
       cfg.col_st         ? `<td class="tc">${parseFloat(i.st_percentual)||0}</td>` : '',
@@ -13846,14 +14082,14 @@ function converterOrcamentoParaPedido(id) {
   _abrirModalConverter(id);
 }
 
-async function repetirUltimoPedidoCliente() {
-  const clientId = parseInt(document.getElementById('f_cod_cliente')?.value || '0', 10);
-  if (!clientId) {
-    toast('Selecione um cliente primeiro.', 'err');
+async function repetirUltimoPedidoPorCliente(clientId) {
+  const cid = parseInt(clientId, 10);
+  if (!cid) {
+    toast('Cliente inválido.', 'err');
     return;
   }
   try {
-    const r = await api(`/api/pedidos/ultimo-por-cliente/${clientId}`);
+    const r = await api(`/api/pedidos/ultimo-por-cliente/${cid}`);
     const d = await r.json();
     if (!d.pedido?.id) {
       toast('Nenhum pedido anterior encontrado para este cliente.', 'warn');
@@ -13866,6 +14102,15 @@ async function repetirUltimoPedidoCliente() {
   } catch (e) {
     toast('Erro ao buscar último pedido do cliente.', 'err');
   }
+}
+
+async function repetirUltimoPedidoCliente() {
+  const clientId = parseInt(document.getElementById('f_cod_cliente')?.value || '0', 10);
+  if (!clientId) {
+    toast('Selecione um cliente primeiro.', 'err');
+    return;
+  }
+  return repetirUltimoPedidoPorCliente(clientId);
 }
 
 // ── CLONAR PEDIDO ─────────────────────────────────────────────────────────────
@@ -13890,16 +14135,24 @@ async function clonarPedido(id, opts = {}) {
       itens: src_itens.map(i => ({
         cod_produto: i.cod_produto, cod_fabricante: i.cod_fabricante || '',
         unidade: i.unidade || '', desc_prod: i.desc_prod,
-        quantidade: i.quantidade, valor_unitario: i.valor_unitario,
+        quantidade: i.quantidade,
+        vlr_padrao: normalizarVlrPadraoItem(i),
+        valor_unitario: i.valor_unitario,
         desconto_percentual: parseFloat(i.desconto || i.desconto_percentual || 0),
+        acrescimo_percentual: parseFloat(i.acrescimo || i.acrescimo_percentual || 0),
         cores_qt: i.cores || '', embalagem: parseFloat(i.kilo_embalagem || i.embalagem || 1),
         comissao_percentual: parseFloat(i.comissao || 0),
-        valor_cliente: 0, st_percentual: parseFloat(i.st || 0),
+        valor_cliente: parseFloat(i.valor_cliente || 0),
+        st_percentual: parseFloat(i.st || 0),
         ipi_percentual: parseFloat(i.ipi || 0),
+        icms_percentual: parseFloat(i.icms || 0),
         vlr_st: parseFloat(i.vlr_st || 0), vlr_ipi: parseFloat(i.vlr_ipi || 0),
+        vlr_icms: parseFloat(i.vlr_icms || 0),
+        obsitem: String(i.obsitem || '').trim(),
         valor_puxada: parseFloat(i.valor_puxada || 0),
         vlrtotal_itens: parseFloat(i.vlrtotal_itens || 0),
-        vlrtotal_com_imposto: parseFloat(i.vlrtotal_itens || 0),
+        vlrtotal_com_imposto: parseFloat(i.vlrtotalcomimposto || i.vlrtotal_com_imposto || i.vlrtotal_itens || 0),
+        tipo_preco: i.tipo_preco || 'venda',
         foto_principal: i.foto_principal || '',
         total_peso: parseFloat(i.total_peso || i.peso || 0)
       })),
@@ -13953,6 +14206,8 @@ function _abrirModalEnvioComDados(pedido, itens, cliente) {
   if ($('statusWhats'))      $('statusWhats').style.display      = 'none';
   if ($('btnOptEmail'))      $('btnOptEmail').classList.remove('active');
   if ($('btnOptWhats'))      $('btnOptWhats').classList.remove('active');
+  const btnFabrica = $('btnOptFabrica');
+  if (btnFabrica) btnFabrica.style.display = (_fornecedorConfig.enviar_pedido_fabrica === 'S') ? '' : 'none';
   if ($('btnBaixarPdfOpt'))  { $('btnBaixarPdfOpt').disabled = false; }
   if ($('envio_chips'))      $('envio_chips').innerHTML = '<span style="font-size:11px;color:var(--text2);align-self:center">Nenhum destinatário — adicione abaixo</span>';
   const temFotos = Array.isArray(itens) && itens.some(i => i.foto_principal);
@@ -13988,6 +14243,13 @@ async function abrirModalEnvioPorId(id) {
     const pedido = d.pedido || {};
     if (!pedido.id) pedido.id = id;
     _currentQvData = { p: pedido, itens: d.itens || [], cliente: d.cliente || {} };
+    // Garante que _fornecedorConfig está atualizado para este pedido
+    if (pedido.cod_fornecedor) {
+      try {
+        const rf = await api(`/api/fornecedores/${pedido.cod_fornecedor}`);
+        if (rf.ok) _fornecedorConfig = await rf.json();
+      } catch(_) {}
+    }
     _abrirModalEnvioComDados(pedido, d.itens || [], d.cliente || {});
   } catch(e) {
     console.error('Erro ao carregar pedido para envio:', e);
@@ -15536,36 +15798,53 @@ html.sysrep-ms-embed #_repetirPedidoModal .client-quick-modal-content {
 }
 html.sysrep-ms-embed #_repetirPedidoHandle { display: block !important; }
 html.sysrep-ms-embed #_repetirPedidoActions { flex-direction: column-reverse !important; }
+html.sysrep-ms-embed .pcd-repetir-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: calc(100% - 4px);
+  margin: 0 2px 10px;
+  padding: 11px 14px;
+  border-radius: 12px;
+  border: 1.5px solid rgba(13, 148, 136, .35);
+  background: rgba(13, 148, 136, .1);
+  color: #0f766e;
+  font-size: 12px;
+  font-weight: 800;
+  font-family: inherit;
+  cursor: pointer;
+}
+html.sysrep-ms-embed .pcd-repetir-btn svg { width: 16px; height: 16px; flex-shrink: 0; }
 
 /* Diálogos de confirmação / alerta */
 .sys-dialog-card {
   background: var(--card, #fff);
   border: 1px solid var(--border, #e2e8f0);
-  border-radius: 16px;
-  padding: 22px 24px 24px;
-  max-width: 420px;
-  width: min(420px, 92vw);
-  box-shadow: 0 20px 50px rgba(15, 23, 42, .22);
+  border-radius: 14px;
+  padding: 20px 22px 22px;
+  max-width: 380px;
+  width: min(380px, 92vw);
+  box-shadow: 0 4px 24px rgba(15, 23, 42, .10);
 }
 .sys-dialog-title {
-  font-size: 17px;
-  font-weight: 800;
-  line-height: 1.3;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
   color: var(--text, #0f172a);
-  margin: 0 0 8px;
-  letter-spacing: -0.02em;
+  margin: 0 0 6px;
 }
 .sys-dialog-msg {
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.55;
   color: var(--text2, #64748b);
-  margin: 0 0 20px;
+  margin: 0 0 18px;
   white-space: pre-line;
 }
 .sys-dialog-actions {
   display: flex;
   flex-direction: column-reverse;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
 }
 .sys-dialog-actions--single { flex-direction: column; }
@@ -15574,35 +15853,34 @@ html.sysrep-ms-embed #_repetirPedidoActions { flex-direction: column-reverse !im
   align-items: center;
   justify-content: center;
   width: 100%;
-  min-height: 48px;
+  min-height: 40px;
   padding: 0 16px;
-  border-radius: 14px;
-  font-size: 14px;
-  font-weight: 800;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
   font-family: inherit;
   cursor: pointer;
-  border: none;
+  border: 1.5px solid transparent;
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
-  transition: opacity .15s ease, transform .12s ease;
+  transition: opacity .15s ease, background .15s ease;
 }
-.sys-dialog-btn:active { opacity: .88; transform: scale(.99); }
+.sys-dialog-btn:hover { opacity: .88; }
+.sys-dialog-btn:active { opacity: .75; }
 .sys-dialog-btn--primary {
-  background: linear-gradient(135deg, var(--accent, #2563eb), var(--accent-hover, #1d4ed8));
+  background: var(--accent, #0ea5e9);
   color: #fff;
-  box-shadow: 0 4px 14px rgba(37, 99, 235, .28);
+  border-color: var(--accent, #0ea5e9);
 }
 .sys-dialog-btn--ghost {
-  background: var(--card, #fff);
+  background: transparent;
   color: var(--text2, #64748b);
-  border: 1.5px solid var(--border, #e2e8f0);
-  font-weight: 700;
+  border-color: var(--border, #e2e8f0);
 }
 .sys-dialog-btn--danger {
-  background: color-mix(in oklab, #ef4444 8%, var(--card, #fff) 92%);
+  background: transparent;
   color: #dc2626;
-  border: 1.5px solid color-mix(in oklab, #ef4444 28%, transparent);
-  font-weight: 700;
+  border-color: #fca5a5;
 }
 .sys-dialog--danger .sys-dialog-actions { flex-direction: column-reverse; }
 
@@ -15908,6 +16186,13 @@ async function abrirDetalhesFornecedor() {
   } catch(e) {
     body.innerHTML = `<div style="color:var(--danger); padding:20px">Erro ao carregar dados do fornecedor.</div>`;
   }
+}
+
+function atualizarBadgeEnviaFabrica() {
+  const badge = document.getElementById('badgeEnviaFabrica');
+  if (!badge) return;
+  const ativo = _fornecedorConfig.enviar_pedido_fabrica === 'S';
+  badge.style.display = ativo ? 'flex' : 'none';
 }
 
 // Atualiza o badge de faturamento mínimo na área do fornecedor
@@ -16878,6 +17163,7 @@ async function onFornecedorSelecionado(id, nome) {
 
   atualizarBadgeFatMinimo();
   atualizarBadgeMinCx();
+  atualizarBadgeEnviaFabrica();
   await carregarCondsRestritasFornecedor(id);
   if (!_carregandoPedido) aplicarCondicaoPagtoFornecedor();
   atualizarAvisoCondMinimo();
@@ -17095,7 +17381,7 @@ function removerDescontosCascata() {
     const base = Math.round((item.quantidade || 0) * (item.valor_unitario || 0) * 100) / 100;
     item.vlrtotal_itens       = base;
     item.desconto_percentual  = 0;
-    item.vlrtotal_com_imposto = Math.round((base + (item.vlr_st || 0) + (item.vlr_ipi || 0)) * 100) / 100;
+    recalcItemTotaisComImposto(item);
   });
   const aviso = document.getElementById('aviso_desconto_aplicado');
   if (aviso) aviso.style.display = 'none';
@@ -17134,7 +17420,7 @@ function aplicarDescontoCascata() {
     const descPct = base > 0 ? Math.round((1 - vlr / base) * 10000) / 100 : 0;
     item.vlrtotal_itens         = Math.round(vlr * 100) / 100;
     item.desconto_percentual    = descPct;
-    item.vlrtotal_com_imposto   = Math.round((item.vlrtotal_itens + (item.vlr_st || 0) + (item.vlr_ipi || 0)) * 100) / 100;
+    recalcItemTotaisComImposto(item);
     totalComDesc += item.vlrtotal_itens;
   });
 
@@ -17176,21 +17462,25 @@ async function editarItem(realIdx) {
   document.getElementById('sub_prod').value         = item.cod_produto || '';
   setV('sub_qtd',          item.quantidade);
   setV('sub_vlr',          item.valor_unitario);
+  setSubVlrPadrao(normalizarVlrPadraoItem(item));
   setV('sub_tipo_preco',   item.tipo_preco || 'venda');
   const pillsElEdit = document.getElementById('sub_preco_pills');
   if (pillsElEdit) pillsElEdit.style.display = 'none';
-  setV('sub_desconto',     item.desconto_percentual  || 0);
-  setV('sub_acrescimo',    item.acrescimo_percentual || 0);
-  setV('sub_cores',        item.cores_qt || '');
-  setV('sub_embalagem',    item.embalagem || '');
-  setV('sub_comissao',     item.comissao_percentual || 0);
-  setV('sub_vlr_cliente',  item.valor_cliente || 0);
-  setV('sub_st',           item.st_percentual || 0);
-  setV('sub_ipi',          _clienteConfig?.descontoIPIsuframaped === 'S' ? 0 : (item.ipi_percentual || 0));
+  setV('sub_desconto',     parseFloat(item.desconto_percentual ?? item.desconto) || 0);
+  setV('sub_acrescimo',    parseFloat(item.acrescimo_percentual ?? item.acrescimo) || 0);
+  setV('sub_cores',        item.cores_qt ?? item.cores ?? '');
+  const embItem = parseFloat(item.embalagem ?? item.kilo_embalagem) || 1;
+  setV('sub_embalagem',    embItem);
+  setV('sub_kilo_embalagem', parseFloat(item.kilo_embalagem ?? item.embalagem) || 0);
+  setV('sub_comissao',     parseFloat(item.comissao_percentual ?? item.comissao) || 0);
+  setV('sub_vlr_cliente',  parseFloat(item.valor_cliente) || 0);
+  setV('sub_st',           parseFloat(item.st_percentual ?? item.st) || 0);
+  setV('sub_ipi',          _clienteConfig?.descontoIPIsuframaped === 'S' ? 0 : (parseFloat(item.ipi_percentual ?? item.ipi) || 0));
+  setV('sub_icms',         parseFloat(item.icms_percentual ?? item.icms) || 0);
+  setV('sub_obsitem',      item.obsitem ?? '');
   setV('sub_cod_fabricante', item.cod_fabricante || '');
   setV('sub_unidade',        item.unidade || '');
   setV('sub_puxada',       item.valor_puxada || 0);
-  setV('sub_kilo_embalagem', 0);
   setV('sub_foto',         item.foto_principal || '');
   // Restaurar múltiplo de venda e hint
   const mvSaved = parseInt(item.multiplo_venda_produto) || 1;
@@ -17303,8 +17593,10 @@ function aplicarAcrescimoLote() {
       let novoUnit;
       if (tipo === 'PERCENTUAL') {
         novoUnit = Math.round(vUnit * (1 + val / 100) * 10000) / 10000;
+        item.acrescimo_percentual = val;
       } else {
         novoUnit = Math.round((vUnit + val) * 10000) / 10000;
+        item.acrescimo_percentual = vUnit > 0 ? Math.round(val / vUnit * 10000) / 100 : 0;
       }
       item.valor_unitario = novoUnit;
       const descFator = 1 - ((item.desconto_percentual || 0) / 100);
@@ -17313,7 +17605,7 @@ function aplicarAcrescimoLote() {
       totalOriginal += vlrOrig;
       item._acr_aplicado        = Math.round((vlr - vlrOrig) * 100) / 100;
       item.vlrtotal_itens       = vlr;
-      item.vlrtotal_com_imposto = Math.round((vlr + (item.vlr_st || 0) + (item.vlr_ipi || 0)) * 100) / 100;
+      recalcItemTotaisComImposto(item);
       totalComAcr += vlr;
     } else {
       // Acréscimo no total do item (sem alterar valor_unitario)
@@ -17327,7 +17619,7 @@ function aplicarAcrescimoLote() {
       }
       item._acr_aplicado        = Math.round((vlr - baseTotal) * 100) / 100;
       item.vlrtotal_itens       = vlr;
-      item.vlrtotal_com_imposto = Math.round((vlr + (item.vlr_st || 0) + (item.vlr_ipi || 0)) * 100) / 100;
+      recalcItemTotaisComImposto(item);
       totalComAcr += vlr;
     }
   });
@@ -17350,10 +17642,11 @@ function removerAcrescimoLote() {
       delete item._vunit_original;
     }
     delete item._acr_aplicado;
+    item.acrescimo_percentual = 0;
     const descFator = 1 - ((item.desconto_percentual || 0) / 100);
     const base = Math.round((item.quantidade || 0) * (item.valor_unitario || 0) * descFator * 100) / 100;
     item.vlrtotal_itens       = base;
-    item.vlrtotal_com_imposto = Math.round((base + (item.vlr_st || 0) + (item.vlr_ipi || 0)) * 100) / 100;
+    recalcItemTotaisComImposto(item);
   });
   const aviso = document.getElementById('aviso_acrescimo_aplicado');
   if (aviso) aviso.style.display = 'none';
@@ -17593,6 +17886,7 @@ async function salvarVisita() {
       .env-opt-btn:hover{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
       .env-opt-btn.active{border-color:var(--accent);background:var(--accent);color:var(--btn-text, #fff)}
       .env-opt-btn svg{width:16px;height:16px}
+      .env-opt-btn--primary{border-color:var(--accent,#0ea5e9)!important;background:var(--accent-soft,rgba(14,165,233,.12))!important;color:var(--accent,#0ea5e9)!important;font-size:12px}
       .env-field{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-size:13px;font-family:inherit;outline:none;margin-bottom:12px;background:var(--card);color:var(--text)}
       .env-field:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
       .env-lbl{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);margin-bottom:5px;display:block}
@@ -17600,6 +17894,9 @@ async function salvarVisita() {
       .env-send-btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px var(--accent-soft)}
       .env-send-btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
       .env-status{margin-top:12px;padding:10px 14px;border-radius:10px;font-size:12px;font-weight:600;display:none;animation:fadeIn .2s}
+      .env-status.ok{background:#ecfdf5;border:1px solid #6ee7b7;color:#047857}
+      .env-status.err{background:#fef2f2;border:1px solid #fca5a5;color:#b91c1c}
+      .env-status.warn{background:#fffbeb;border:1px solid #fcd34d;color:#92400e}
       .env-status-inline{display:none;margin-top:12px;padding:10px 14px;border-radius:10px;font-size:12px;font-weight:700;line-height:1.35;text-align:center}
       .env-status-inline.err{background:#fef2f2;border:1px solid #fca5a5;color:#b91c1c}
       .env-status-inline.warn{background:#fffbeb;border:1px solid #fcd34d;color:#92400e}
@@ -17619,6 +17916,9 @@ async function salvarVisita() {
       html.sysrep-ms-embed #modalEnvio[data-ms-native-modal]{align-items:center!important;justify-content:center!important;padding:max(12px,env(safe-area-inset-top,0px)) 16px max(12px,env(safe-area-inset-bottom,0px))!important;box-sizing:border-box!important;touch-action:manipulation!important}
       html.sysrep-ms-embed #modalEnvio[data-ms-native-modal] .modal-envio-panel{width:min(480px,calc(100vw - 32px))!important;max-width:480px!important;border-radius:18px!important;max-height:min(85dvh,90vh)!important;box-shadow:0 24px 64px rgba(0,0,0,.25)!important;pointer-events:auto!important;touch-action:manipulation!important}
       html.sysrep-ms-embed #modalEnvio .env-opt-btn{pointer-events:auto!important;touch-action:manipulation!important;min-height:48px!important;-webkit-tap-highlight-color:transparent}
+      html.sysrep-ms-embed #modalEnvio .env-opt-btn--desktop-pdf,
+      html.sysrep-ms-embed #modalEnvio .env-opt-btn--desktop-whats{display:none!important}
+      html.sysrep-ms-embed #modalEnvio .env-opt-btn--share{display:flex!important}
       html.sysrep-ms-embed #toast-container{z-index:2147483600!important}
       #modalEnvio[data-ms-native-modal][aria-hidden="true"]{display:none!important;pointer-events:none!important}
       #modalEnvio[data-ms-native-modal][aria-hidden="false"]{display:flex!important;pointer-events:auto!important}
@@ -17654,19 +17954,35 @@ async function salvarVisita() {
     <!-- Grid de Opções Principais -->
     <div id="envOptionsGrid" style="padding:20px;background:var(--bg)">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <button class="env-opt-btn env-opt-btn--primary" id="btnOptVisualizar" type="button" style="grid-column:1/-1" title="Abre na hora, sem gerar PDF no servidor">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+          Visualizar
+        </button>
+        <button class="env-opt-btn env-opt-btn--share" id="btnCompartilharOpt" type="button" style="display:none" title="Gera o PDF e abre o menu do celular para enviar (como comprovante PIX)">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/></svg>
+          Compartilhar
+        </button>
+        <button class="env-opt-btn env-opt-btn--desktop-pdf" id="btnBaixarPdfOpt" type="button" title="Gera PDF no servidor (mais lento) e baixa ou compartilha">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          Baixar PDF
+        </button>
+        <button class="env-opt-btn env-opt-btn--desktop-pdf" id="btnVerPdfOpt" type="button" title="Gera PDF e abre no navegador para só ler">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          Ver PDF
+        </button>
         <button class="env-opt-btn" id="btnOptPrint" type="button">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
           Imprimir
-        </button>
-        <button class="env-opt-btn" id="btnBaixarPdfOpt" type="button">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-          PDF
         </button>
         <button class="env-opt-btn" id="btnOptEmail" type="button">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
           E-mail
         </button>
-        <button class="env-opt-btn" id="btnOptWhats" type="button">
+        <button class="env-opt-btn" id="btnOptFabrica" type="button" style="grid-column:1/-1;display:none" title="Envia o PDF por e-mail para os endereços cadastrados na fábrica" onclick="enviarParaFabrica()">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+          Enviar para Fábrica
+        </button>
+        <button class="env-opt-btn env-opt-btn--desktop-whats" id="btnOptWhats" type="button" style="grid-column:1/-1">
           <svg viewBox="0 0 24 24" fill="currentColor" style="color:#25d366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
           WhatsApp
         </button>
@@ -17674,7 +17990,7 @@ async function salvarVisita() {
       <div id="envFotoCheck" style="display:none;margin-top:12px;padding:8px 12px;background:var(--card,#fff);border:1.5px solid var(--border,#e2e8f0);border-radius:10px">
         <label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--text,#0f172a);cursor:pointer;user-select:none">
           <input type="checkbox" id="chkFotoPDF" style="accent-color:var(--accent,#0ea5e9);width:15px;height:15px;flex-shrink:0;cursor:pointer" onchange="_envioHtml='';_envioPdfBase64=null;">
-          Incluir fotos dos produtos no PDF / impressão
+          Incluir fotos dos produtos (visualizar, PDF e impressão)
         </label>
       </div>
       <div id="envioStatus" class="env-status-inline" role="alert" aria-live="polite"></div>
@@ -17805,6 +18121,7 @@ async function salvarVisita() {
         <input class="env-field" type="tel" id="envio_telefone" placeholder="(11) 99999-9999" autocomplete="off">
         <label class="env-lbl">Mensagem</label>
         <textarea class="env-field" id="envio_msg_whats" rows="8" placeholder="Segue o pedido em PDF…" style="resize:vertical"></textarea>
+        <p id="envio_whats_hint" class="env-whats-hint" style="display:none;margin:0 0 10px;font-size:11px;line-height:1.4;color:var(--text2)"></p>
         <button class="env-send-btn" id="btnEnviarWhats" type="button" style="background:#25d366">
           <svg viewBox="0 0 24 24" fill="currentColor" style="width:16px;height:16px"><path d="M12 2C6.477 2 2 6.477 2 12c0 4.97 3.657 9.067 8.438 9.877L12 22l1.562-.123C18.343 21.067 22 16.97 22 12 22 6.477 17.523 2 12 2zm1.1 14.4c-1.2.4-2.5.6-3.8.6-.3 0-.6 0-.9-.02l-.7-.04.6-2.2-.4-.5c-.8-.9-.9-1.4-.6-1.8.2-.3.5-.6.9-.9.3-.2.5-.3.7-.3.2 0 .4.1.6.2.2.1.4.2.6.3.2.1.4.1.5.1.1 0 .2 0 .2-.1.1-.1.2-.3.3-.5.1-.2.2-.4.3-.5.1-.2.2-.3.4-.3s.5 0 .9.2c.7.3 1.4.9 1.9 1.6.5.7.8 1.6.8 2.6 0 1.1-.4 2.2-1.3 2.8-.6.4-1.2.6-1.9.8z"/></svg>
           Enviar por WhatsApp
@@ -17903,11 +18220,14 @@ function initEnvioModalDelegation() {
   if (!modal || modal.dataset.envDelegation === '1') return;
   modal.dataset.envDelegation = '1';
   modal.addEventListener('click', (event) => {
-    const btn = event.target.closest('#btnBaixarPdfOpt,#btnOptPrint,#btnOptEmail,#btnOptWhats,#btnFecharModalEnvio');
+    const btn = event.target.closest('#btnOptVisualizar,#btnCompartilharOpt,#btnBaixarPdfOpt,#btnVerPdfOpt,#btnOptPrint,#btnOptEmail,#btnOptWhats,#btnFecharModalEnvio');
     if (!btn || !modal.contains(btn)) return;
     event.preventDefault();
     event.stopPropagation();
-    if (btn.id === 'btnBaixarPdfOpt') opcaoBaixarPdf();
+    if (btn.id === 'btnOptVisualizar') void opcaoVisualizarPedido();
+    else if (btn.id === 'btnCompartilharOpt') void opcaoCompartilharPedido();
+    else if (btn.id === 'btnBaixarPdfOpt') opcaoBaixarPdf();
+    else if (btn.id === 'btnVerPdfOpt') void opcaoVerPdf();
     else if (btn.id === 'btnOptPrint') opcaoImprimir();
     else if (btn.id === 'btnOptEmail') opcaoToggleForm('email');
     else if (btn.id === 'btnOptWhats') opcaoToggleForm('whats');
@@ -17926,41 +18246,374 @@ function _envioPdfLoading(show, msg, hint) {
   if (sub && hint) sub.textContent = hint;
 }
 
-async function _baixarPdfBlob(blob, filename) {
-  const url = URL.createObjectURL(blob);
-  const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
-    || document.documentElement.classList.contains('sysrep-ms-embed');
+function _pdfBase64Clean(base64) {
+  if (!base64) return '';
+  let s = String(base64).trim();
+  const m = s.match(/^data:application\/pdf;base64,(.+)$/i);
+  if (m) s = m[1];
+  return s.replace(/\s/g, '');
+}
 
-  if (isMobile) {
-    try {
-      const file = new File([blob], filename, { type: 'application/pdf' });
-      if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
-        await navigator.share({ files: [file], title: filename });
-        setTimeout(() => URL.revokeObjectURL(url), 120000);
-        return 'shared';
-      }
-    } catch (e) {
-      if (e && e.name === 'AbortError') {
-        URL.revokeObjectURL(url);
-        return 'cancelled';
-      }
-    }
-    const w = window.open(url, '_blank', 'noopener,noreferrer');
-    if (w) {
-      toast('PDF aberto — use Salvar ou Compartilhar no visualizador', 'ok');
-      setTimeout(() => URL.revokeObjectURL(url), 180000);
-      return 'opened';
+function _pdfBlobFromBase64(base64) {
+  const clean = _pdfBase64Clean(base64);
+  if (!clean) return null;
+  try {
+    const binary = atob(clean);
+    if (binary.length < 200) return null;
+    const arr = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) arr[i] = binary.charCodeAt(i);
+    if (arr[0] !== 0x25 || arr[1] !== 0x50 || arr[2] !== 0x44 || arr[3] !== 0x46) return null;
+    return new Blob([arr], { type: 'application/pdf' });
+  } catch (_) {
+    return null;
+  }
+}
+
+/** No celular abre PDF pelo servidor (arquivo válido); no desktop baixa o blob. */
+async function _salvarPdfDownload(blob, filename, opts = {}) {
+  const base64 = opts.base64 || _envioPdfBase64;
+  let b = blob;
+  if (!b || b.size < 200) b = base64 ? _pdfBlobFromBase64(base64) : null;
+  else {
+    const head = await b.slice(0, 5).text().catch(() => '');
+    if (!head.startsWith('%PDF') && base64) b = _pdfBlobFromBase64(base64);
+  }
+  if (!b) {
+    toast('PDF inválido. Gere o pedido de novo.', 'err');
+    return false;
+  }
+  const fname = String(filename || 'pedido.pdf').endsWith('.pdf') ? filename : `${filename}.pdf`;
+
+  if (_isEnvioMobileUi() && base64) {
+    const httpUrl = await _criarUrlPdfCompartilhavel(base64, fname);
+    if (httpUrl) {
+      window.open(`${httpUrl}?dl=1`, '_blank', 'noopener,noreferrer');
+      toast('PDF abrindo no navegador — se não abrir, toque em Baixar de novo', 'ok');
+      return true;
     }
   }
 
+  const url = URL.createObjectURL(b);
   const a = document.createElement('a');
   a.href = url;
-  a.download = filename;
+  a.download = fname;
+  a.type = 'application/pdf';
   a.rel = 'noopener';
+  a.style.display = 'none';
   document.body.appendChild(a);
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 120000);
+  return true;
+}
+
+async function _criarUrlPdfCompartilhavel(base64, filename) {
+  const pid = _resolveEnvioPedidoId();
+  if (!pid || !base64) return null;
+  try {
+    const r = await apiJ(`/api/pedidos/${pid}/pdf-share-url`, 'POST', {
+      pdf_base64: base64,
+      filename,
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !d.ok || !d.url) return null;
+    return d.url;
+  } catch (_) {
+    return null;
+  }
+}
+
+/** Aguarda UI limpa — modais bloqueiam o share sheet no Android/iOS. */
+function _aguardarUiShare() {
+  return new Promise(resolve => {
+    requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 80)));
+  });
+}
+
+function _pdfFileFromBlob(blob, filename) {
+  const nome = String(filename || 'pedido.pdf').endsWith('.pdf') ? filename : `${filename}.pdf`;
+  return new File([blob], nome, { type: 'application/pdf' });
+}
+
+/**
+ * Compartilhar como recibo PIX: menu nativo com o arquivo PDF (sem preview no navegador).
+ */
+async function _compartilharArquivoNativo(blob, filename) {
+  if (!navigator.share) return 'unsupported';
+  const file = _pdfFileFromBlob(blob, filename);
+  const tentativas = [
+    { files: [file] },
+    { files: [file], title: filename },
+  ];
+  for (const payload of tentativas) {
+    try {
+      if (navigator.canShare && !navigator.canShare(payload)) continue;
+      await navigator.share(payload);
+      return 'shared';
+    } catch (e) {
+      if (e && e.name === 'AbortError') return 'cancelled';
+    }
+  }
+  try {
+    await navigator.share({ files: [file] });
+    return 'shared';
+  } catch (e) {
+    if (e && e.name === 'AbortError') return 'cancelled';
+    return 'failed';
+  }
+}
+
+/**
+ * WhatsApp com PDF: API (anexo automático) → compartilhar arquivo → baixar + abrir chat.
+ * O link wa.me sozinho NÃO envia PDF — só texto.
+ */
+async function _envioWhatsAppComPdf(pdfBlob, pdfBase64, fname, tel, msg) {
+  const fone = String(tel || '').replace(/\D/g, '');
+  if (!fone) {
+    toast('Informe o WhatsApp do cliente', 'warn');
+    return 'no-tel';
+  }
+  const elEnvTel = document.getElementById('envio_telefone');
+  if (elEnvTel) elEnvTel.value = String(tel || '').trim();
+
+  const pid = _resolveEnvioPedidoId();
+  if (pdfBase64 && pid && (await _whatsappEnvioPronto())) {
+    try {
+      const r = await apiJ(`/api/pedidos/${pid}/enviar`, 'POST', {
+        via: 'whatsapp',
+        pdf_base64: pdfBase64,
+        numero_pedido: _envioNumeroPedido,
+        telefone: tel,
+        mensagem: msg,
+      });
+      const d = await r.json().catch(() => ({}));
+      const wa = d.results?.whatsapp;
+      if (wa?.ok) {
+        toast('PDF enviado no WhatsApp do cliente', 'ok');
+        _fecharPainelPdfCompartilhar();
+        return 'api';
+      }
+    } catch (_) { /* segue fallbacks */ }
+  }
+
+  if (pdfBlob && navigator.share) {
+    const mode = await _compartilharArquivoNativo(pdfBlob, fname);
+    if (mode === 'shared') {
+      toast('Escolha WhatsApp — o PDF vai em anexo (não só a mensagem)', 'ok');
+      _fecharPainelPdfCompartilhar();
+      return 'shared';
+    }
+    if (mode === 'cancelled') return 'cancelled';
+  }
+
+  if (pdfBlob) await _salvarPdfDownload(pdfBlob, fname, { base64: pdfBase64 });
+  const link = _foneWaLink(tel, msg);
+  if (link) window.open(link, '_blank', 'noopener,noreferrer');
+  toast('PDF baixado — anexe na conversa do WhatsApp (o link não manda arquivo)', 'warn');
+  return 'fallback';
+}
+
+function _isMsShellIframe() {
+  return document.documentElement.classList.contains('sysrep-ms-embed') && window.parent !== window;
+}
+
+function _fecharPainelPdfCompartilhar() {
+  if (_isMsShellIframe()) {
+    try { window.parent.postMessage({ type: 'sysrep-pdf-share-sheet-close' }, '*'); } catch (_) {}
+  }
+  const legado = document.getElementById('envPdfMobileOverlay');
+  if (legado) {
+    legado.style.display = 'none';
+    const ifr = legado.querySelector('iframe,.env-pdf-ov-frame');
+    if (ifr) ifr.src = 'about:blank';
+  }
+  const ov = document.getElementById('envShareSheet');
+  if (ov) ov.style.display = 'none';
+}
+
+function _telDoSheetCompartilhar(ov) {
+  const inp = ov?.querySelector('#envShareTel');
+  const v = (inp?.value || '').trim();
+  if (v) return v;
+  return _envioResolveTelefone();
+}
+
+function _aplicarUiSheetCompartilhar(ov, shareOpts) {
+  ov._shareOpts = shareOpts;
+  const title = ov.querySelector('.env-sh-title');
+  const hint = ov.querySelector('.env-sh-hint');
+  const btnPri = ov.querySelector('.env-sh-primary');
+  const inpTel = ov.querySelector('#envShareTel');
+  if (title) title.textContent = shareOpts.filename || 'PDF do pedido';
+  if (inpTel) {
+    inpTel.value = shareOpts.tel || '';
+    inpTel.placeholder = shareOpts.tel
+      ? 'Alterar número, se precisar'
+      : '(11) 99999-9999 — informe para WhatsApp';
+  }
+  if (hint) {
+    hint.textContent = shareOpts.insecure
+      ? 'HTTP (sem cadeado): use Baixar PDF e envie pelo app Arquivos. Em HTTPS o Compartilhar abre como comprovante PIX.'
+      : 'Enviar pelo WhatsApp: API envia o PDF no número; senão use Compartilhar arquivo e escolha WhatsApp (com anexo).';
+  }
+  if (btnPri) {
+    btnPri.textContent = shareOpts.insecure ? 'Tentar compartilhar (pode falhar)' : 'Compartilhar arquivo';
+  }
+}
+
+function _garantirSheetCompartilhar() {
+  let ov = document.getElementById('envShareSheet');
+  if (ov && !ov.querySelector('#envShareTel')) {
+    ov.remove();
+    ov = null;
+  }
+  if (ov) return ov;
+  ov = document.createElement('div');
+  ov.id = 'envShareSheet';
+  ov.innerHTML = `
+    <div class="env-sh-backdrop"></div>
+    <div class="env-sh-panel" role="dialog" aria-label="Compartilhar pedido">
+      <div class="env-sh-head">
+        <span class="env-sh-title"></span>
+        <button type="button" class="env-sh-close" aria-label="Fechar">✕</button>
+      </div>
+      <p class="env-sh-hint"></p>
+      <div class="env-sh-tel-wrap">
+        <label class="env-sh-tel-label" for="envShareTel">WhatsApp / celular do cliente</label>
+        <input type="tel" id="envShareTel" class="env-sh-tel-input" placeholder="(11) 99999-9999" autocomplete="off" inputmode="tel">
+      </div>
+      <div class="env-sh-actions">
+        <button type="button" class="env-sh-btn env-sh-dl">Baixar PDF</button>
+        <button type="button" class="env-sh-btn env-sh-primary">Compartilhar arquivo</button>
+        <button type="button" class="env-sh-btn env-sh-wa">Enviar pelo WhatsApp</button>
+        <button type="button" class="env-sh-btn env-sh-ghost">Fechar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  if (!document.getElementById('envShareSheetStyles')) {
+    const css = document.createElement('style');
+    css.id = 'envShareSheetStyles';
+    css.textContent = `
+      #envShareSheet{position:fixed;inset:0;z-index:2147483800;display:none;flex-direction:column;justify-content:flex-end;align-items:stretch;pointer-events:auto}
+      #envShareSheet .env-sh-backdrop{position:absolute;inset:0;background:rgba(15,23,42,.55)}
+      #envShareSheet .env-sh-panel{position:relative;z-index:2;width:100%;max-width:480px;margin:0 auto;background:var(--card,#fff);border-radius:20px 20px 0 0;padding:12px 18px max(22px,env(safe-area-inset-bottom));box-shadow:0 -16px 48px rgba(0,0,0,.22);color:var(--text,#0f172a);box-sizing:border-box}
+      #envShareSheet .env-sh-panel::before{content:'';display:block;width:40px;height:4px;border-radius:4px;background:var(--border,#cbd5e1);margin:2px auto 14px}
+      #envShareSheet .env-sh-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px}
+      #envShareSheet .env-sh-title{font-size:15px;font-weight:800;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      #envShareSheet .env-sh-close{width:36px;height:36px;flex-shrink:0;border:none;border-radius:50%;background:var(--bg,#f1f5f9);cursor:pointer;font-size:15px;color:var(--text2,#64748b)}
+      #envShareSheet .env-sh-hint{font-size:12px;line-height:1.45;color:var(--text2,#64748b);margin:0 0 12px}
+      #envShareSheet .env-sh-tel-wrap{margin-bottom:14px}
+      #envShareSheet .env-sh-tel-label{display:block;font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--text2,#64748b);margin-bottom:6px}
+      #envShareSheet .env-sh-tel-input{width:100%;box-sizing:border-box;min-height:48px;padding:12px 14px;border:1.5px solid var(--border,#cbd5e1);border-radius:12px;font-size:16px;font-family:inherit;background:var(--card,#fff);color:var(--text,#0f172a);outline:none}
+      #envShareSheet .env-sh-tel-input:focus{border-color:var(--accent,#0ea5e9);box-shadow:0 0 0 3px var(--accent-soft,rgba(14,165,233,.2))}
+      #envShareSheet .env-sh-actions{display:flex;flex-direction:column;gap:10px}
+      #envShareSheet .env-sh-btn{display:flex;align-items:center;justify-content:center;width:100%;min-height:50px;padding:12px 16px;border:1.5px solid var(--border,#e2e8f0);border-radius:12px;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;background:var(--bg,#f8fafc);color:var(--text,#0f172a);-webkit-tap-highlight-color:transparent}
+      #envShareSheet .env-sh-dl{background:var(--accent,#0ea5e9)!important;border-color:var(--accent,#0ea5e9)!important;color:var(--btn-text,#fff)!important;min-height:52px}
+      #envShareSheet .env-sh-primary{font-size:13px;font-weight:700;background:var(--bg,#f1f5f9)}
+      #envShareSheet .env-sh-wa{background:#25d366!important;border-color:#25d366!important;color:#fff!important;min-height:52px}
+      #envShareSheet .env-sh-ghost{min-height:44px;border-color:transparent;background:transparent;color:var(--text2,#64748b);font-size:13px;font-weight:700}`;
+    document.head.appendChild(css);
+  }
+  const fechar = () => _fecharPainelPdfCompartilhar();
+  ov.querySelector('.env-sh-close').addEventListener('click', fechar);
+  ov.querySelector('.env-sh-ghost').addEventListener('click', fechar);
+  ov.querySelector('.env-sh-backdrop').addEventListener('click', fechar);
+  ov.querySelector('.env-sh-primary').addEventListener('click', () => {
+    const o = ov._shareOpts;
+    if (!o?.blob) return;
+    fechar();
+    void (async () => {
+      await _aguardarUiShare();
+      const m = await _compartilharArquivoNativo(o.blob, o.filename);
+      if (m === 'shared') toast('Escolha WhatsApp, Telegram, e-mail…', 'ok');
+      else if (m !== 'cancelled') _mostrarSheetCompartilhar(o);
+    })();
+  });
+  ov.querySelector('.env-sh-dl').addEventListener('click', () => {
+    const o = ov._shareOpts;
+    if (o?.blob) void _salvarPdfDownload(o.blob, o.filename, { base64: o.base64 });
+    toast('PDF salvo — em Arquivos/Downloads toque em Compartilhar no arquivo', 'ok');
+    fechar();
+  });
+  ov.querySelector('.env-sh-wa').addEventListener('click', () => {
+    const o = ov._shareOpts || {};
+    const tel = _telDoSheetCompartilhar(ov);
+    const msg = o.text || _envioMensagemPadrao();
+    if (!tel.replace(/\D/g, '')) {
+      toast('Informe o WhatsApp do cliente no campo acima', 'warn');
+      ov.querySelector('#envShareTel')?.focus();
+      return;
+    }
+    void _envioWhatsAppComPdf(o.blob, o.base64, o.filename, tel, msg);
+  });
+  return ov;
+}
+
+function _mostrarSheetCompartilhar(shareOpts) {
+  if (_isMsShellIframe() && shareOpts.base64) {
+    try {
+      window.parent.postMessage({
+        type: 'sysrep-pdf-share-sheet',
+        filename: shareOpts.filename,
+        text: shareOpts.text,
+        tel: shareOpts.tel || _envioResolveTelefone(),
+        numero_pedido: _envioNumeroPedido,
+        pedido_id: _resolveEnvioPedidoId(),
+        insecure: !!shareOpts.insecure,
+        pdfBase64: shareOpts.base64,
+      }, '*');
+      return;
+    } catch (_) {}
+  }
+  const ov = _garantirSheetCompartilhar();
+  _aplicarUiSheetCompartilhar(ov, shareOpts);
+  ov.style.display = 'flex';
+}
+
+/** Compartilhar no mobile — estilo comprovante PIX. */
+async function _envioCompartilharPdf(blob, base64, filename, msg, tel) {
+  _fecharPainelPdfCompartilhar();
+  const modalAberto = document.getElementById('modalEnvio')?.getAttribute('aria-hidden') === 'false';
+  if (modalAberto) _setModalEnvioOpen(false);
+  await _aguardarUiShare();
+
+  let mode = await _compartilharArquivoNativo(blob, filename);
+  if (mode === 'cancelled') {
+    if (modalAberto) _setModalEnvioOpen(true);
+    return mode;
+  }
+  if (mode === 'shared') return mode;
+
+  const insecure = !window.isSecureContext;
+  const shareOpts = { blob, base64, filename, text: msg, tel, insecure };
+
+  if (!insecure && base64) {
+    const httpUrl = await _criarUrlPdfCompartilhavel(base64, filename);
+    if (httpUrl) shareOpts.httpUrl = httpUrl;
+  }
+
+  _mostrarSheetCompartilhar(shareOpts);
+  return 'sheet';
+}
+
+/** Uso em outros fluxos (ex.: fallback WhatsApp). */
+async function _tentarWebSharePdf({ blob, filename }) {
+  if (!blob) return null;
+  return _compartilharArquivoNativo(blob, filename);
+}
+
+async function _baixarPdfBlob(blob, filename, opts = {}) {
+  const isMobile = _isEnvioMobileUi();
+  if (isMobile && opts.intent === 'share' && opts.base64) {
+    return _envioCompartilharPdf(blob, opts.base64, filename, opts.text || '', opts.tel || '');
+  }
+  if (isMobile) {
+    const shared = await _compartilharArquivoNativo(blob, filename);
+    if (shared === 'shared' || shared === 'cancelled') return shared;
+    await _salvarPdfDownload(blob, filename, { base64: opts.base64 });
+    return 'download';
+  }
+  await _salvarPdfDownload(blob, filename, { base64: opts.base64 });
   return 'download';
 }
 
@@ -17969,12 +18622,19 @@ function fecharModalEnvio() {
   _envioHtml = ''; _envioPdfBase64 = null;
 }
 
-function abrirModalEnvio() {
+async function abrirModalEnvio() {
   if (!_currentQvData) {
     toast('Abra um pedido antes de imprimir ou enviar.', 'warn');
     return;
   }
   const p = _currentQvData.p || {};
+  // Garante _fornecedorConfig atualizado para este pedido
+  if (p.cod_fornecedor && _fornecedorConfig.id !== p.cod_fornecedor) {
+    try {
+      const rf = await api(`/api/fornecedores/${p.cod_fornecedor}`);
+      if (rf.ok) _fornecedorConfig = await rf.json();
+    } catch(_) {}
+  }
   const pedidoId = p.id || _envioPedidoId || _qvIdAtual;
   if (!pedidoId) {
     toast('Nao foi possivel identificar o pedido para envio.', 'err');
@@ -18018,13 +18678,16 @@ function abrirModalEnvio() {
   if (elBW)  elBW.classList.remove('active');
   if (elPDF) {
     elPDF.disabled = false;
-    elPDF.innerHTML = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>PDF`;
+    elPDF.innerHTML = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>Baixar PDF`;
   }
+  const btnFab = document.getElementById('btnOptFabrica');
+  if (btnFab) btnFab.style.display = (_fornecedorConfig.enviar_pedido_fabrica === 'S') ? '' : 'none';
 
   _envioPdfBase64 = null;
   _envioHtml = '';
   _envioDestinatarios = [];
   envioRenderChips();
+  aplicarLayoutModalEnvio();
   _setModalEnvioOpen(true);
 }
 
@@ -18049,6 +18712,60 @@ function opcaoImprimir() {
   void imprimirPedidoAtual();
 }
 
+/** Visualização instantânea (HTML) — mesmo layout do PDF, sem Puppeteer. */
+async function opcaoVisualizarPedido() {
+  const pid = _resolveEnvioPedidoId();
+  if (!pid) {
+    _envioShowStatus('Pedido não identificado.', 'err');
+    return;
+  }
+  _envioPedidoId = pid;
+  _ensureEnvioPrintContext(pid);
+  _envioPdfLoading(true, 'Abrindo visualização…', 'Montando pedido na tela');
+  try {
+    const html = await gerarHtmlImpressao();
+    if (!html) return;
+    const num = _envioNumeroPedido || _currentQvData?.p?.numero || pid;
+    _abrirPreviewPedidoHtml(html, { title: 'Pedido Nº ' + num, showPrint: true });
+    _envioShowStatus('Visualização aberta — use Imprimir no painel se precisar', 'ok');
+    setTimeout(() => _envioShowStatus(''), 4000);
+  } finally {
+    _envioPdfLoading(false);
+  }
+}
+
+/** Gera PDF no servidor e abre no navegador (só leitura, sem baixar arquivo). */
+async function opcaoVerPdf() {
+  const pid = _resolveEnvioPedidoId();
+  if (!pid) {
+    _envioShowStatus('Pedido não identificado.', 'err');
+    return;
+  }
+  const btn = document.getElementById('btnVerPdfOpt');
+  const prev = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Gerando…'; }
+  try {
+    const base64 = await gerarPdfBase64();
+    if (!base64) return;
+    const byteChars = atob(base64);
+    const arr = new Uint8Array(byteChars.length);
+    for (let i = 0; i < byteChars.length; i++) arr[i] = byteChars.charCodeAt(i);
+    const blob = new Blob([arr], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const w = window.open(url, '_blank', 'noopener,noreferrer');
+    if (!w) {
+      toast('Permita pop-ups para abrir o PDF', 'warn');
+      await _baixarPdfBlob(blob, `Pedido-${_envioNumeroPedido || pid}.pdf`);
+    } else {
+      setTimeout(() => URL.revokeObjectURL(url), 300000);
+      _envioShowStatus('PDF aberto em nova aba', 'ok');
+      setTimeout(() => _envioShowStatus(''), 3000);
+    }
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = prev; }
+  }
+}
+
 async function gerarHtmlImpressao() {
   if (_envioHtml) return _envioHtml;
   const pid = _resolveEnvioPedidoId();
@@ -18057,10 +18774,33 @@ async function gerarHtmlImpressao() {
     return null;
   }
   if (!_currentQvData) _currentQvData = { p: { id: pid, numero: _envioNumeroPedido }, itens: [], cliente: {} };
+
+  const cachePedidoOk = String(_currentQvData.p?.id) === String(pid)
+    && (_currentQvData.itens?.length || 0) > 0;
+
   let dados;
   try {
-    const r = await api(`/api/pedidos/${pid}`);
-    dados = await r.json();
+    if (cachePedidoOk) {
+      dados = {
+        pedido: _currentQvData.p,
+        itens: _currentQvData.itens,
+        cliente: _currentQvData.cliente || {},
+        parcelas: [],
+        empresa: _currentQvData.empresa || {},
+      };
+      if (!dados.empresa?.Razao_empresa && !dados.empresa?.nome_fantasia) {
+        const rFull = await api(`/api/pedidos/${pid}`);
+        if (rFull.ok) {
+          const full = await rFull.json();
+          dados.empresa = full.empresa || {};
+          dados.parcelas = full.parcelas || [];
+          if (!dados.cliente?.id) dados.cliente = full.cliente || dados.cliente;
+        }
+      }
+    } else {
+      const r = await api(`/api/pedidos/${pid}`);
+      dados = await r.json();
+    }
   } catch(e) { toast('Erro ao buscar dados para PDF', 'err'); return null; }
 
   const p   = dados.pedido || _currentQvData.p;
@@ -18070,7 +18810,10 @@ async function gerarHtmlImpressao() {
 
   let fornConf = {};
   if (p.cod_fornecedor) {
-    try { const rf = await api(`/api/fornecedores/${p.cod_fornecedor}`); if (rf.ok) fornConf = await rf.json(); } catch(_){}
+    try {
+      const rf = await api(`/api/fornecedores/${p.cod_fornecedor}`);
+      if (rf.ok) fornConf = await rf.json();
+    } catch (_) {}
   }
   const imprimirParc = (fornConf.imprimirparcelaspedido || 'N') === 'S';
   const usarCodFab   = (fornConf.pedidos_codfabricante || 'N') === 'S';
@@ -18115,16 +18858,6 @@ async function gerarHtmlImpressao() {
     && its.some(i => i.foto_principal)
     && !!document.getElementById('chkFotoPDF')?.checked;
 
-  let fotosBase64Map = {};
-  if (showFotosPDF) {
-    await Promise.all(its.map(async item => {
-      if (item.foto_principal) {
-        const b64 = await imgUrlToBase64(item.foto_principal);
-        if (b64) fotosBase64Map[item.cod_produto] = b64;
-      }
-    }));
-  }
-
   const theadCells2 = [
     showFotosPDF        ? `<th class="tc" style="width:70px">Foto</th>` : '',
     cfg2.col_seq        ? `<th class="tc">Item</th>` : '',
@@ -18132,17 +18865,17 @@ async function gerarHtmlImpressao() {
                           `<th>Descrição</th>`,
     cfg2.col_unidade    ? `<th class="tc">Unid.</th>` : '',
     cfg2.col_quantidade ? `<th class="tr">Quant.</th>` : '',
-    cfg2.col_preco_unit ? `<th class="tr">R$ Unit.</th>` : '',
-    cfg2.col_desconto   ? `<th class="tc">Desc.%</th>` : '',
-    cfg2.col_subtotal   ? `<th class="tr">R$</th>` : '',
+    itensMostraColRelatorio('vlr_padrao') ? `<th class="tr">Vlr. Tabela</th>` : '',
+    cfg2.col_preco_unit ? `<th class="tr">Vlr Venda</th>` : '',
+    (itensMostraColRelatorio('desconto') && cfg2.col_desconto) ? `<th class="tc">Desc.%</th>` : '',
+    cfg2.col_subtotal   ? `<th class="tr">Vlr Total</th>` : '',
     cfg2.col_ipi        ? `<th class="tc">IPI%</th>` : '',
     cfg2.col_st         ? `<th class="tc">ST%</th>` : '',
   ].join('');
 
   const itensTr = its.map((i,idx) => {
-    const fotoSrc = fotosBase64Map[i.cod_produto];
     const fotoTd = showFotosPDF
-      ? `<td class="tc" style="padding:3px 5px;width:70px">${fotoSrc ? `<img src="${fotoSrc}" style="width:60px;height:60px;object-fit:cover;border-radius:5px;display:block;margin:0 auto">` : ''}</td>`
+      ? `<td class="tc" style="padding:3px 5px;width:70px">${i.foto_principal ? `<img src="${h(i.foto_principal)}" style="width:60px;height:60px;object-fit:cover;border-radius:5px;display:block;margin:0 auto" onerror="this.style.display='none'">` : ''}</td>`
       : '';
     const cells2 = [
       fotoTd,
@@ -18151,8 +18884,9 @@ async function gerarHtmlImpressao() {
                             `<td>${h(i.desc_prod)}</td>`,
       cfg2.col_unidade    ? `<td class="tc">${h(i.unidade||'')}</td>` : '',
       cfg2.col_quantidade ? `<td class="tr">${fmtQtd2(i.quantidade)}</td>` : '',
+      itensMostraColRelatorio('vlr_padrao') ? `<td class="tr">R$ ${br(normalizarVlrPadraoItem(i))}</td>` : '',
       cfg2.col_preco_unit ? `<td class="tr">R$ ${br(i.valor_unitario)}</td>` : '',
-      cfg2.col_desconto   ? `<td class="tc">${parseFloat(i.desconto_percentual||i.desconto)||0}%</td>` : '',
+      (itensMostraColRelatorio('desconto') && cfg2.col_desconto) ? `<td class="tc">${parseFloat(i.desconto_percentual||i.desconto)||0}%</td>` : '',
       cfg2.col_subtotal   ? `<td class="tr"><b>R$ ${br(i.vlrtotal_itens)}</b></td>` : '',
       cfg2.col_ipi        ? `<td class="tc">${parseFloat(i.ipi_percentual)||0}</td>` : '',
       cfg2.col_st         ? `<td class="tc">${parseFloat(i.st_percentual)||0}</td>` : '',
@@ -18183,8 +18917,10 @@ async function gerarHtmlImpressao() {
 
   const obsHtml = (p.obs||'').split('\n').map(ln=>`<div style="${obsCSS}">${h(ln)}</div>`).join('');
 
+  const pdfBase = window.location.origin + '/';
   _envioHtml = `<!DOCTYPE html>
 <html lang="pt-BR"><head><meta charset="UTF-8">
+<base href="${pdfBase}">
 <title>Pedido Nº ${h(p.numero||p.id)}</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -18273,13 +19009,17 @@ async function gerarPdfBase64() {
   _envioPdfLoading(true, 'Gerando PDF…', 'Montando layout do pedido');
   const html = await gerarHtmlImpressao();
   if (!html) { _envioPdfLoading(false); return null; }
-  _envioPdfLoading(true, 'Gerando PDF…', 'Enviando para o servidor');
+  _envioPdfLoading(true, 'Gerando PDF…', 'Convertendo (primeira vez pode levar alguns segundos)');
   try {
-    const r = await apiJ(`/api/pedidos/${pid}/pdf-generate`, 'POST', { html });
+    const r = await apiJ(`/api/pedidos/${pid}/pdf-generate`, 'POST', {
+      html,
+      base_url: window.location.origin,
+    });
     const d = await r.json().catch(() => ({}));
     if (!r.ok || !d.ok) throw new Error(d.error || `Falha ao gerar PDF (${r.status})`);
-    _envioPdfBase64 = d.pdf;
-    _envioShowStatus('');
+    if (!_pdfBlobFromBase64(d.pdf)) throw new Error('PDF gerado inválido — tente novamente');
+    _envioPdfBase64 = _pdfBase64Clean(d.pdf);
+    _envioShowStatus(d.ms != null ? `PDF pronto (${(d.ms / 1000).toFixed(1)}s)` : '');
     return _envioPdfBase64;
   } catch(e) {
     _envioShowStatus('Erro ao gerar PDF: ' + (e.message || e), 'err');
@@ -18305,13 +19045,11 @@ async function opcaoBaixarPdf() {
   try {
     const base64 = await gerarPdfBase64();
     if (!base64) { btn.innerHTML = prevHtml || _PDF_BTN_SVG; btn.disabled = false; return; }
-    const byteChars = atob(base64);
-    const arr = new Uint8Array(byteChars.length);
-    for (let i = 0; i < byteChars.length; i++) arr[i] = byteChars.charCodeAt(i);
-    const blob = new Blob([arr], { type: 'application/pdf' });
+    const blob = _pdfBlobFromBase64(base64);
+    if (!blob) throw new Error('PDF inválido após gerar');
     const fname = `Pedido-${_envioNumeroPedido || _envioPedidoId}.pdf`;
     _envioPdfLoading(true, 'Abrindo PDF…', 'Aguarde um instante');
-    const mode = await _baixarPdfBlob(blob, fname);
+    const mode = await _baixarPdfBlob(blob, fname, { base64 });
     _envioPdfLoading(false);
     if (mode === 'cancelled') {
       btn.innerHTML = prevHtml || _PDF_BTN_SVG;
@@ -18326,6 +19064,105 @@ async function opcaoBaixarPdf() {
     btn.innerHTML = prevHtml || _PDF_BTN_SVG;
     btn.disabled = false;
     toast('Erro: ' + (e.message || e), 'err');
+  }
+}
+
+function _isEnvioMobileUi() {
+  return document.documentElement.classList.contains('sysrep-ms-embed')
+    || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+}
+
+function aplicarLayoutModalEnvio() {
+  const mobile = _isEnvioMobileUi();
+  const show = (sel, on) => {
+    document.querySelectorAll(sel).forEach(el => { el.style.display = on ? 'flex' : 'none'; });
+  };
+  show('.env-opt-btn--desktop-pdf', !mobile);
+  show('.env-opt-btn--desktop-whats', !mobile);
+  show('.env-opt-btn--share', mobile);
+}
+
+function _foneWaLink(tel, msg) {
+  const fone = String(tel || '').replace(/\D/g, '');
+  if (!fone) return '';
+  const numero = fone.startsWith('55') ? fone : `55${fone}`;
+  return `https://wa.me/${numero}?text=${encodeURIComponent(msg || '')}`;
+}
+
+/** Telefone do destino: campo do formulário ou cadastro do cliente do pedido aberto. */
+function _envioResolveTelefone() {
+  const fromField = (document.getElementById('envio_telefone')?.value || '').trim();
+  if (fromField) return fromField;
+  const cli = _currentQvData?.cliente || {};
+  return String(cli.fonesecundario || cli.foneprincipal || '').trim();
+}
+
+function _envioMensagemPadrao() {
+  const el = document.getElementById('envio_msg_whats');
+  if (el?.value?.trim()) return el.value.trim();
+  return `Segue o Pedido Nº ${_envioNumeroPedido || _envioPedidoId} em PDF.`;
+}
+
+async function _whatsappEnvioPronto() {
+  try {
+    const r = await api('/api/whatsapp/status');
+    const d = await r.json();
+    return d.conectado === true && !!d.instancia;
+  } catch (_) {
+    return false;
+  }
+}
+
+async function envioAtualizarHintWhatsApp() {
+  const el = document.getElementById('envio_whats_hint');
+  if (!el) return;
+  if (_isEnvioMobileUi()) {
+    el.style.display = 'none';
+    return;
+  }
+  el.style.display = 'block';
+  const ok = await _whatsappEnvioPronto();
+  el.textContent = ok
+    ? 'Instância WhatsApp conectada: o PDF será enviado direto pela API ao clicar em Enviar.'
+    : 'Sem API/instância ativa: ao enviar, o sistema abre o WhatsApp Web (ou app) com a mensagem; o PDF será baixado para você anexar, se necessário.';
+}
+
+async function _abrirWhatsAppFallback(tel, msg, pdfBlob, fname, pdfBase64) {
+  if (!String(tel || '').replace(/\D/g, '')) {
+    toast('Telefone inválido', 'warn');
+    return;
+  }
+  await _envioWhatsAppComPdf(pdfBlob, pdfBase64, fname, tel, msg);
+}
+
+/** Mobile: gera PDF e usa compartilhamento nativo (WhatsApp, Drive, e-mail…). */
+async function opcaoCompartilharPedido() {
+  if (!_resolveEnvioPedidoId()) {
+    _envioShowStatus('Pedido não identificado.', 'err');
+    return;
+  }
+  const btn = document.getElementById('btnCompartilharOpt');
+  const prev = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Gerando…'; }
+  _envioShowStatus('Gerando PDF para compartilhar…', 'ok');
+  try {
+    const base64 = await gerarPdfBase64();
+    if (!base64) return;
+    const fname = `Pedido-${_envioNumeroPedido || _envioPedidoId}.pdf`;
+    const blob = _pdfBlobFromBase64(base64);
+    const msg = _envioMensagemPadrao();
+    const tel = _envioResolveTelefone();
+    const mode = await _envioCompartilharPdf(blob, base64, fname, msg, tel);
+    if (mode === 'shared') {
+      toast('Escolha o app na lista (WhatsApp, Telegram…)', 'ok');
+    } else if (mode === 'sheet') {
+      if (!_isMsShellIframe()) toast('Toque em Baixar PDF ou Compartilhar', 'ok');
+    } else if (mode === 'unsupported') {
+      toast('Seu navegador não suporta compartilhar — use Baixar PDF', 'warn');
+    }
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = prev; }
+    setTimeout(() => _envioShowStatus(''), 5000);
   }
 }
 
@@ -18352,10 +19189,15 @@ function opcaoToggleForm(tipo) {
     // Auto-carrega destinatários
     envioCarregarDestinatarios();
   } else if (tipo === 'whats') {
+    if (_isEnvioMobileUi()) {
+      toast('No celular use Compartilhar para enviar o PDF (ex.: WhatsApp)', 'warn');
+      return;
+    }
     grid.style.display = 'none';
     elForms.style.display = 'block';
     elWhats.style.display = 'block';
     elEmail.style.display = 'none';
+    void envioAtualizarHintWhatsApp();
   } else {
     // Reset para o estado inicial
     grid.style.display = 'block';
@@ -18420,34 +19262,192 @@ async function enviarPedidoEmail() {
   }
 }
 
-async function enviarPedidoWhatsApp() {
-  const tel = document.getElementById('envio_telefone').value.trim();
-  if (!tel) return toast('Informe o telefone de destino', 'warn');
-  const btn = document.getElementById('btnEnviarWhats');
-  const status = document.getElementById('statusWhats');
-  btn.disabled = true; btn.textContent = '⏳ Gerando PDF…';
-  status.style.display = 'none';
+function _confirmarEnvioFabrica(idPedido, numeroPedido, pdfBase64) {
+  const existing = document.getElementById('_toastFabrica');
+  if (existing) existing.remove();
+
+  const el = document.createElement('div');
+  el.id = '_toastFabrica';
+  el.style.cssText = `
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+    background:var(--card,#fff);border:1.5px solid var(--accent,#0ea5e9);
+    border-radius:16px;padding:18px 20px;box-shadow:0 8px 32px rgba(0,0,0,.18);
+    z-index:99999;display:flex;flex-direction:column;gap:12px;
+    font-family:inherit;width:340px;max-width:94vw;
+  `;
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px">
+      <svg fill="none" stroke="var(--accent,#0ea5e9)" viewBox="0 0 24 24" style="width:20px;height:20px;flex-shrink:0">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+      </svg>
+      <div>
+        <div style="font-size:13px;font-weight:700;color:var(--text,#0f172a)">Enviar para a fábrica?</div>
+        <div style="font-size:11px;color:var(--text2,#64748b)">Pedido Nº ${numeroPedido} ${pdfBase64 ? '· PDF gerado ✓' : '· <span style="color:#f59e0b">sem PDF</span>'}</div>
+      </div>
+      <button id="_btnFabricaNao" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--text2,#94a3b8);font-size:18px;line-height:1;padding:2px 4px">✕</button>
+    </div>
+    <textarea id="_msgFabrica" rows="3" placeholder="Mensagem para a fábrica (opcional)…"
+      style="width:100%;padding:8px 11px;border:1.5px solid var(--border,#e2e8f0);border-radius:9px;
+             font-size:12px;font-family:inherit;background:var(--card,#fff);color:var(--text,#0f172a);
+             outline:none;resize:none;box-sizing:border-box"></textarea>
+    <button id="_btnFabricaSim" style="width:100%;padding:9px;border:none;border-radius:10px;
+      background:var(--accent,#0ea5e9);color:#fff;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit">
+      Enviar para Fábrica
+    </button>
+  `;
+  document.body.appendChild(el);
+
+  const remover = () => { try { el.remove(); } catch(_) {} };
+  document.getElementById('_btnFabricaNao').onclick = remover;
+
+  document.getElementById('_btnFabricaSim').onclick = async () => {
+    const btn = document.getElementById('_btnFabricaSim');
+    const mensagem = document.getElementById('_msgFabrica')?.value.trim() || '';
+    if (btn) { btn.textContent = '⏳ Enviando…'; btn.disabled = true; }
+    try {
+      const r = await apiJ(`/api/pedidos/${idPedido}/enviar-fabrica`, 'POST', {
+        pdf_base64: pdfBase64 || null,
+        numero_pedido: numeroPedido,
+        mensagem
+      });
+      const d = await r.json();
+      remover();
+      if (r.ok) toast('Pedido enviado para a fábrica ✓', 'ok');
+      else toast('Erro: ' + (d.error || 'Falha ao enviar'), 'err');
+    } catch(err) {
+      remover();
+      toast('Erro: ' + err.message, 'err');
+    }
+  };
+
+  setTimeout(remover, 30000);
+}
+
+async function gerarPdfBase64FromId(idPedido) {
+  try {
+    // Reutiliza o HTML já gerado se disponível, senão gera via servidor
+    if (_envioHtml && _envioPedidoId === idPedido) {
+      const r = await api(`/api/pedidos/${idPedido}/pdf-generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ html: _envioHtml, base_url: location.origin })
+      });
+      if (r.ok) { const d = await r.json(); return d.pdf || null; }
+    }
+    // Fallback: gera PDF direto no servidor pelo id
+    const r = await api(`/api/pedidos/${idPedido}/gerar-pdf-servidor`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ base_url: location.origin })
+    });
+    if (r.ok) { const d = await r.json(); return d.pdf || null; }
+  } catch(_) {}
+  return null;
+}
+
+async function enviarParaFabrica() {
+  const btn = document.getElementById('btnOptFabrica');
+  const statusEl = document.getElementById('envioStatus');
+  const showStatus = (msg, tipo) => {
+    if (!statusEl) return;
+    statusEl.textContent = msg;
+    statusEl.className = 'env-status-inline ' + (tipo || '');
+    statusEl.style.display = 'block';
+  };
+  if (btn) { btn.disabled = true; btn.textContent = 'Gerando PDF…'; }
   try {
     const base64 = await gerarPdfBase64();
-    if (!base64) { btn.disabled = false; btn.textContent = 'Enviar por WhatsApp'; return; }
+    if (!base64) { if (btn) { btn.disabled = false; btn.textContent = 'Enviar para Fábrica'; } return; }
+    if (btn) btn.textContent = 'Enviando…';
+    const r = await apiJ(`/api/pedidos/${_envioPedidoId}/enviar-fabrica`, 'POST', {
+      pdf_base64: base64,
+      numero_pedido: _envioNumeroPedido || _envioPedidoId,
+      mensagem: ''
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Erro ao enviar');
+    const destinos = (data.emails || []).join(', ');
+    showStatus('✓ Pedido enviado para a fábrica: ' + destinos, 'ok');
+  } catch(err) {
+    const msg = err.message || 'Erro ao enviar';
+    if (msg.includes('CONFIG_EMAIL_NAO_ENCONTRADA')) {
+      abrirModalSmtp();
+    } else {
+      showStatus('✗ ' + msg, 'err');
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg> Enviar para Fábrica`;
+    }
+  }
+}
+
+async function enviarPedidoWhatsApp() {
+  const tel = _envioResolveTelefone();
+  if (!tel) return toast('Informe o telefone do cliente ou cadastre WhatsApp/telefone no cadastro', 'warn');
+  const msg = _envioMensagemPadrao();
+  const btn = document.getElementById('btnEnviarWhats');
+  const status = document.getElementById('statusWhats');
+  const fname = `Pedido-${_envioNumeroPedido || _envioPedidoId}.pdf`;
+  btn.disabled = true;
+  status.style.display = 'none';
+
+  const apiPronta = await _whatsappEnvioPronto();
+  if (!apiPronta) {
+    btn.textContent = '⏳ Preparando…';
+    try {
+      const base64 = await gerarPdfBase64();
+      if (!base64) return;
+      const blob = _pdfBlobFromBase64(base64);
+      await _abrirWhatsAppFallback(tel, msg, blob, fname, base64);
+      status.className = 'env-status ok';
+      status.textContent = '✓ WhatsApp aberto — conclua o envio no aplicativo';
+      status.style.display = 'block';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Enviar por WhatsApp';
+    }
+    return;
+  }
+
+  btn.textContent = '⏳ Gerando PDF…';
+  try {
+    const base64 = await gerarPdfBase64();
+    if (!base64) return;
     btn.textContent = '⏳ Enviando…';
     const r = await apiJ(`/api/pedidos/${_envioPedidoId}/enviar`, 'POST', {
       via: 'whatsapp',
       pdf_base64: base64,
       numero_pedido: _envioNumeroPedido,
       telefone: tel,
-      mensagem: document.getElementById('envio_msg_whats').value,
+      mensagem: msg,
     });
     const d = await r.json();
-    if (d.results?.whatsapp?.ok) {
-      status.className = 'env-status ok'; status.textContent = '✓ Enviado via WhatsApp!'; status.style.display = 'block';
+    const wa = d.results?.whatsapp;
+    if (wa?.ok) {
+      status.className = 'env-status ok';
+      status.textContent = '✓ PDF enviado via WhatsApp (API)';
+      status.style.display = 'block';
+    } else if (wa?.fallback || wa?.wa_link) {
+      const blob = _pdfBlobFromBase64(base64);
+      await _abrirWhatsAppFallback(tel, msg, blob, fname, base64);
+      status.className = 'env-status warn';
+      status.textContent = 'API indisponível — WhatsApp aberto para você concluir o envio';
+      status.style.display = 'block';
     } else {
-      status.className = 'env-status err'; status.textContent = '✗ ' + (d.results?.whatsapp?.error || d.error || 'Falha ao enviar'); status.style.display = 'block';
+      status.className = 'env-status err';
+      status.textContent = '✗ ' + (wa?.error || d.error || 'Falha ao enviar');
+      status.style.display = 'block';
     }
-  } catch(e) {
-    status.className = 'env-status err'; status.textContent = '✗ Erro: ' + e.message; status.style.display = 'block';
+  } catch (e) {
+    status.className = 'env-status err';
+    status.textContent = '✗ Erro: ' + e.message;
+    status.style.display = 'block';
   } finally {
-    btn.disabled = false; btn.textContent = 'Enviar por WhatsApp';
+    btn.disabled = false;
+    btn.textContent = 'Enviar por WhatsApp';
   }
 }
 
@@ -18714,6 +19714,28 @@ window.addEventListener('message', (ev) => {
     Promise.resolve(carregar(true, { silent: true })).finally(() => {
       try { window.parent.postMessage({ type: 'ms-pull-refresh-done' }, '*'); } catch (_) {}
     });
+  }
+  if (ev.data && ev.data.type === 'sysrep-pdf-abrir-download') {
+    const d = ev.data;
+    void _salvarPdfDownload(
+      d.pdfBase64 ? _pdfBlobFromBase64(d.pdfBase64) : null,
+      d.filename || `Pedido-${_envioNumeroPedido || 'pedido'}.pdf`,
+      { base64: d.pdfBase64 }
+    );
+    return;
+  }
+  if (ev.data && ev.data.type === 'sysrep-whatsapp-enviar-pdf') {
+    const d = ev.data;
+    if (d.numero_pedido) _envioNumeroPedido = d.numero_pedido;
+    if (d.pedido_id) _envioPedidoId = d.pedido_id;
+    const blob = d.pdfBase64 ? _pdfBlobFromBase64(d.pdfBase64) : null;
+    void _envioWhatsAppComPdf(
+      blob,
+      d.pdfBase64,
+      d.filename || `Pedido-${_envioNumeroPedido || 'pedido'}.pdf`,
+      d.telefone,
+      d.mensagem || _envioMensagemPadrao()
+    );
   }
 });
 
@@ -18985,12 +20007,13 @@ function confirmarImportacaoXml() {
 
   for (const item of itensValidos) {
     if (jaExistentes.has(String(item.cod_fabricante))) { ignorados++; continue; }
-    _subData.itens.push({
+    const rowXml = {
       cod_produto:          item.cod_produtos  || null,
       cod_fabricante:       item.cod_fabricante,
       unidade:              item.unidade       || '',
       desc_prod:            item.descricao     || '',
       quantidade:           item.quantidade,
+      vlr_padrao:           parseFloat(item.vlr_padrao) || parseFloat(item.valor_unitario) || 0,
       valor_unitario:       item.valor_unitario,
       desconto_percentual:  0,
       cores_qt:             '',
@@ -18999,16 +20022,19 @@ function confirmarImportacaoXml() {
       valor_cliente:        item.valor_unitario,
       st_percentual:        item.st             ?? 0,
       ipi_percentual:       item.ipi            ?? 0,
+      icms_percentual:      item.icms           ?? 0,
       vlr_st:               item.vlr_st         ?? 0,
       vlr_ipi:              item.vlr_ipi        ?? 0,
       valor_puxada:         0,
+      obsitem:              '',
       vlrtotal_itens:       item.total_produtos,
-      vlrtotal_com_imposto: item.total_produtos + (item.vlr_ipi ?? 0) + (item.vlr_st ?? 0),
       foto_principal:       '',
       total_peso:           0,
       id_familiaproduto:    item.id_familiaproduto ?? null,
       _from_xml:            true
-    });
+    };
+    recalcItemTotaisComImposto(rowXml);
+    _subData.itens.push(rowXml);
     adicionados++;
   }
 
@@ -19137,8 +20163,8 @@ async function _excelProcessarArquivo(file) {
             <th style="padding:6px 8px;text-align:left">Cód. Fab.</th>
             <th style="padding:6px 8px;text-align:left">Descrição</th>
             <th style="padding:6px 8px;text-align:right">Qtd</th>
-            <th style="padding:6px 8px;text-align:right">Vlr. Unit.</th>
-            <th style="padding:6px 8px;text-align:right">Total</th>
+            <th style="padding:6px 8px;text-align:right">Vlr Venda</th>
+            <th style="padding:6px 8px;text-align:right">Vlr Total</th>
             <th style="padding:6px 8px">Status</th>
           </tr></thead>
           <tbody>${linhas}</tbody>
@@ -19177,12 +20203,13 @@ function confirmarImportacaoExcel() {
 
   for (const item of itensValidos) {
     if (jaExistentes.has(String(item.cod_fabricante))) { ignorados++; continue; }
-    _subData.itens.push({
+    const rowXls = {
       cod_produto:          item.cod_produtos     || null,
       cod_fabricante:       item.cod_fabricante,
       unidade:              item.unidade          || '',
       desc_prod:            item.descricao        || '',
       quantidade:           item.quantidade,
+      vlr_padrao:           parseFloat(item.vlr_padrao) || parseFloat(item.valor_unitario) || 0,
       valor_unitario:       item.valor_unitario,
       desconto_percentual:  0,
       cores_qt:             '',
@@ -19191,16 +20218,19 @@ function confirmarImportacaoExcel() {
       valor_cliente:        item.valor_unitario,
       st_percentual:        item.st               ?? 0,
       ipi_percentual:       0,
+      icms_percentual:      0,
       vlr_st:               item.vlr_st           ?? 0,
       vlr_ipi:              0,
       valor_puxada:         0,
+      obsitem:              '',
       vlrtotal_itens:       item.total_produtos,
-      vlrtotal_com_imposto: item.total_produtos + (item.vlr_st ?? 0),
       foto_principal:       '',
       total_peso:           0,
       id_familiaproduto:    item.id_familiaproduto ?? null,
       _from_excel:          true
-    });
+    };
+    recalcItemTotaisComImposto(rowXls);
+    _subData.itens.push(rowXls);
     adicionados++;
   }
 
@@ -19686,6 +20716,64 @@ async function salvarQrProduto() {
   finally { btn.disabled = false; btn.textContent = 'Salvar e selecionar'; }
 }
 
+// ── COLUNAS DA GRADE DE ITENS (tela + relatório) ─────────────────────────────
+const ITENS_COLS_LABELS = {
+  vlr_padrao: 'Vlr. Tabela (catálogo/tabela de preço)',
+  desconto:   'Desconto %',
+  acrescimo:  'Acréscimo %',
+  comissao:   'Comissão',
+};
+
+function popularItensColunasModal() {
+  const body = document.getElementById('itensColsModalBody');
+  if (!body) return;
+  const cfg = _itensColsCfg || mergeItensColsConfig(null);
+  body.innerHTML = Object.keys(ITENS_COLS_DEFAULT).map(id => {
+    const c = cfg[id] || ITENS_COLS_DEFAULT[id];
+    const lbl = ITENS_COLS_LABELS[id] || id;
+    return `<div class="itens-cols-row">
+      <span class="itens-cols-lbl">${escHtml(lbl)}</span>
+      <label class="itens-cols-chk"><input type="checkbox" data-itens-col="${id}" data-flag="tela" ${c.tela !== false ? 'checked' : ''}> Na tela</label>
+      <label class="itens-cols-chk"><input type="checkbox" data-itens-col="${id}" data-flag="relatorio" ${c.relatorio ? 'checked' : ''}> No relatório</label>
+    </div>`;
+  }).join('');
+}
+
+function abrirItensColunasModal() {
+  const ov = document.getElementById('itensColsOverlay');
+  if (!ov) return;
+  if (ov.parentNode !== document.body) document.body.appendChild(ov);
+  popularItensColunasModal();
+  ov.style.display = 'flex';
+  ov.setAttribute('aria-hidden', 'false');
+}
+
+function fecharItensColunasModal() {
+  const ov = document.getElementById('itensColsOverlay');
+  if (ov) { ov.style.display = 'none'; ov.setAttribute('aria-hidden', 'true'); }
+}
+
+async function salvarItensColunasModal() {
+  const cfg = mergeItensColsConfig(null);
+  document.querySelectorAll('#itensColsModalBody [data-itens-col]').forEach(el => {
+    const id = el.dataset.itensCol;
+    const flag = el.dataset.flag;
+    if (!cfg[id] || !flag) return;
+    cfg[id][flag] = el.checked;
+  });
+  _itensColsCfg = cfg;
+  fecharItensColunasModal();
+  syncToggleVlrPadraoBtn();
+  renderSubrec('itens');
+  try {
+    const r = await apiJ('/api/pedidos/config/itens-colunas', 'POST', { config: cfg });
+    if (r.ok) toast('Colunas dos itens salvas', 'ok');
+    else toast('Salvo localmente (erro no servidor)', 'warn');
+  } catch (_) {
+    toast('Salvo apenas nesta sessão (sem conexão)', 'warn');
+  }
+}
+
 // ── CONFIGURAR MODELO DE IMPRESSÃO ─────────────────────────────────────────
 const _CMP_KEY = 'sysrep_modelo_pedido';
 const _CMP_DEFAULT = {
@@ -19797,12 +20885,37 @@ document.addEventListener('keydown', e => {
   }
   if (document.getElementById('_confirmModal')?.classList.contains('show')) { _fecharConfirm(false); return; }
   if (document.getElementById('_alertModal')?.classList.contains('show')) { _fecharAlert(); return; }
+  if (document.getElementById('itensColsOverlay')?.style.display === 'flex') { fecharItensColunasModal(); return; }
   if (document.getElementById('cmpOverlay')?.style.display === 'flex') { fecharConfigurarModelo(); return; }
   if (document.getElementById('qrClienteOverlay').classList.contains('open'))   { fecharQrCliente();    return; }
   if (document.getElementById('qrFornecedorOverlay').classList.contains('open')){ fecharQrFornecedor(); return; }
   if (document.getElementById('qrProdutoOverlay').classList.contains('open'))   { fecharQrProduto();    return; }
 });
 </script>
+
+<!-- ── MODAL COLUNAS ITENS DO PEDIDO ── -->
+<div id="itensColsOverlay" data-ms-native-modal="1" aria-modal="true" aria-hidden="true" style="display:none;position:fixed;inset:0;z-index:2147483400;background:rgba(0,0,0,.55);backdrop-filter:blur(3px);align-items:center;justify-content:center;padding:16px;box-sizing:border-box">
+  <div class="cmp-box" style="max-width:420px;width:100%;margin:0;border-radius:12px" role="dialog" aria-labelledby="itensColsTitle">
+    <div class="cmp-head">
+      <div>
+        <div id="itensColsTitle" style="font-size:15px;font-weight:800;color:var(--text)">Colunas dos itens</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:2px">Tela do pedido e impressão/PDF (marque «No relatório»)</div>
+      </div>
+      <button type="button" onclick="fecharItensColunasModal()" style="width:28px;height:28px;border-radius:50%;border:none;background:var(--bg);cursor:pointer;font-size:14px;color:var(--text2)">✕</button>
+    </div>
+    <div class="cmp-body" id="itensColsModalBody" style="display:flex;flex-direction:column;gap:10px"></div>
+    <div style="padding:12px 16px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px">
+      <button type="button" class="btn btn-ghost" onclick="fecharItensColunasModal()">Cancelar</button>
+      <button type="button" class="btn btn-primary" id="btnItensColsSalvar">Salvar</button>
+    </div>
+  </div>
+</div>
+<style>
+.itens-cols-row{display:grid;grid-template-columns:1fr auto auto;gap:10px 14px;align-items:center;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:8px}
+.itens-cols-lbl{font-size:12px;font-weight:700;color:var(--text)}
+.itens-cols-chk{font-size:11px;color:var(--text2);display:flex;align-items:center;gap:5px;white-space:nowrap;cursor:pointer}
+.itens-cols-chk input{accent-color:var(--accent)}
+</style>
 
 <!-- ── MODAL CONFIGURAR MODELO DE IMPRESSÃO ── -->
 <div id="cmpOverlay" data-ms-native-modal="1" aria-modal="true" aria-hidden="true" style="display:none;position:fixed;inset:0;z-index:2147483500;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);align-items:flex-end;justify-content:center;padding:0;box-sizing:border-box" onclick="if(event.target===this)fecharConfigurarModelo()">

@@ -22,33 +22,7 @@ if (window.self !== window.top) {
   (function () {
     'use strict';
 
-    /* 1. Pull-to-refresh
-       Detecta arraste pra baixo quando a página já está no topo e envia postMessage ao shell. */
-    var ptr_startY = 0, ptr_pulling = false, ptr_triggered = false;
-    var PTR_THRESHOLD = 72;
-
-    function _scrollTop() {
-      return window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
-    }
-
-    document.addEventListener('touchstart', function (e) {
-      ptr_startY    = e.touches[0].clientY;
-      ptr_pulling   = _scrollTop() <= 2;
-      ptr_triggered = false;
-    }, { passive: true });
-
-    document.addEventListener('touchmove', function (e) {
-      if (!ptr_pulling || ptr_triggered) return;
-      var dy = e.touches[0].clientY - ptr_startY;
-      if (dy > PTR_THRESHOLD) {
-        ptr_triggered = true;
-        window.parent.postMessage({ type: 'ms-pull-refresh' }, '*');
-      }
-    }, { passive: true });
-
-    document.addEventListener('touchend', function () {
-      ptr_pulling = false;
-    }, { passive: true });
+    /* Pull-to-refresh: apenas o mobile-shell.html controla (evita reload duplo do iframe). */
 
     /* 2. Swipe-to-reveal em cards
        Uso: sysrep.initSwipeReveal(containerEl)

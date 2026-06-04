@@ -85,7 +85,7 @@ Isso garante que bases antigas (Delphi legado) recebem a coluna automaticamente 
 | `fornecedores` | `id` | `excluido='S'`, `status='E'/'I'/'A'` | coluna nome = `nome` |
 | `produto` ou `produtos` | `ID` | `excluido='S'`, `situacao='A'/'I'` | detectar com `SHOW TABLES LIKE 'produto'` |
 | `pedidos` | `id` | `excluido='N'` | `cod_cliente`, `cod_fornecedor` |
-| `itensped` | `id` | — | `cod_produto` (INT) |
+| `itensped` | `id` | — | `cod_produto` (INT); `vlr_padrao` = preço catálogo/tabela; `valor_unitario` = preço negociado; `vlrtotalcomimposto` = total c/ ST+IPI+ICMS; `obsitem` (varchar 100); `icms`/`vlr_icms` = % e valor ICMS do item |
 | `usuarios` | `idusuario` | `excluido='N'`, `SITUACAO='ATIVO'` | vendedor = `JOIN perfil WHERE p.p_vender='S'` |
 | `perfil` | `id` | `excluido='N'` | permissões S/N, `manutencaocadastros` |
 | `regiao_rota` | `id` | `excluido='N'`, `status='A'` | regiões dos clientes |

@@ -990,10 +990,39 @@ html[data-theme="charcoal"] #modalVitrine .vitrine-panel {
     position: relative;
     z-index: 0;
   }
-  html.sysrep-ms-embed .btn-new-float,
-  html.sysrep-ms-embed .btn-near-float {
+  html.sysrep-ms-embed .btn-new-float {
     display: none !important;
   }
+  html.sysrep-ms-embed .btn-near-float {
+    display: flex !important;
+    bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+    right: 14px;
+  }
+  .cli-card-quick {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    padding: 8px 0 0;
+    border-top: 1px dashed var(--border, #e2e8f0);
+    margin-top: 8px;
+  }
+  .cli-qbtn {
+    flex: 1;
+    min-width: calc(50% - 4px);
+    padding: 8px 6px;
+    border-radius: 10px;
+    border: 1px solid var(--border, #e2e8f0);
+    background: var(--card, #fff);
+    font-size: 10px;
+    font-weight: 800;
+    cursor: pointer;
+    font-family: inherit;
+    color: var(--text, #334155);
+  }
+  .cli-qbtn-pedido { background: rgba(99,102,241,.08); color: #4338ca; border-color: rgba(99,102,241,.2); }
+  .cli-qbtn-wa { background: rgba(37,211,102,.08); color: #15803d; border-color: rgba(37,211,102,.25); }
+  .cli-qbtn-map { background: rgba(37,99,235,.08); color: #1d4ed8; border-color: rgba(37,99,235,.2); }
+  .cli-qbtn-vit { background: rgba(14,165,233,.08); color: #0369a1; border-color: rgba(14,165,233,.2); }
 }
 
 @keyframes floatPulse {
@@ -3480,7 +3509,13 @@ function checkUrlParams() {
   if (id) {
     setTimeout(() => abrirEdicao(parseInt(id)), 500);
   }
-  // 4. Notificações
+
+  // 4. Vitrine (atalho do app mobile)
+  if (urlParams.get('vitrine') === '1') {
+    setTimeout(() => toast('Toque em um cliente e use o botão Vitrine no card.', 'info'), 700);
+  }
+
+  // 5. Notificações
   carregarNotificacoes();
 }
 
@@ -4375,6 +4410,18 @@ function renderCards(rows, offset) {
     const sel    = _selecionados.has(c.id);
     const letra  = (c.nome || '?')[0];
 
+    const telDigits = (c.foneprincipal || c.celular || '').replace(/\D/g, '');
+    const waQ = telDigits.length >= 10 ? `https://wa.me/55${telDigits}` : '';
+    const mapQ = `/pages/clientes.html?mapa=1&id=${c.id}`;
+    const pedQ = `/pages/pedidos.html?id_cliente=${c.id}&nome_cliente=${encodeURIComponent(c.nome || '')}`;
+    const quickRow = document.documentElement.classList.contains('sysrep-ms-embed')
+      ? `<div class="cli-card-quick" onclick="event.stopPropagation()">
+          <button type="button" class="cli-qbtn cli-qbtn-pedido" onclick="msNavCliente('${pedQ}','Pedido')">Pedido</button>
+          ${waQ ? `<button type="button" class="cli-qbtn cli-qbtn-wa" onclick="window.open('${waQ}','_blank')">WhatsApp</button>` : ''}
+          <button type="button" class="cli-qbtn cli-qbtn-vit" onclick="gerarVitrine(${c.id}, event)">Vitrine</button>
+          <button type="button" class="cli-qbtn cli-qbtn-map" onclick="msNavCliente('${mapQ}','Mapa')">Mapa</button>
+        </div>` : '';
+
     return `<div class="cli-card ${sel?'row-selected':''}" onclick="abrirEdicao(${c.id})">
       <div class="cli-card-head">
         <div class="cli-avatar ${_avatarClass(c.nome)}">${escHtml(letra)}</div>
@@ -4415,6 +4462,7 @@ function renderCards(rows, offset) {
         </div>` : ''}
       </div>
 
+      ${quickRow}
       <div class="cli-card-foot">
         <span class="badge ${statusBadge}">${statusLabel}${c.venda_suspensa==='S'?' · Suspenso':''}</span>
         <div style="display:flex;gap:5px;align-items:center" onclick="event.stopPropagation()">
@@ -6090,6 +6138,16 @@ setTimeout(verificarGeocodingPendente, 2000);
 window.addEventListener('message', function (ev) {
   if (ev.data && ev.data.type === 'mobile-refresh') carregar();
 });
+
+function msNavCliente(url, label) {
+  if (window.self !== window.top) {
+    try {
+      window.top.postMessage({ type: 'ms-navigate', href: url, label: label || 'SysRep' }, '*');
+      return;
+    } catch (_) {}
+  }
+  window.location.href = url;
+}
 
 // ── VITRINE DIGITAL ───────────────────────────────────────────────────────────
 let _vitrineModalBlockClose = false;

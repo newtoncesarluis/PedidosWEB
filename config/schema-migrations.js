@@ -42,6 +42,10 @@ const MIGRATIONS = [
   { table: 'itensped', column: 'multiplo_sigla',         type: "VARCHAR(20) NULL" },
   { table: 'itensped', column: 'multiplo_fator',         type: "DECIMAL(10,4) DEFAULT 1" },
   { table: 'itensped', column: 'tipo_preco',             type: "VARCHAR(10) DEFAULT 'venda'" },
+  { table: 'itensped', column: 'vlr_padrao',             type: "DECIMAL(15,4) DEFAULT NULL" },
+  { table: 'itensped', column: 'acrescimo',              type: "DECIMAL(15,2) DEFAULT 0" },
+  { table: 'itensped', column: 'valor_cliente',          type: "DECIMAL(15,4) DEFAULT 0" },
+  { table: 'itensped', column: 'vlrtotalcomimposto',     type: "DECIMAL(15,3) DEFAULT 0" },
 
   // ── RECEBER ───────────────────────────────────────────────────────────────
   { table: 'receber', column: 'id_pedido',        type: "INT" },
@@ -76,6 +80,7 @@ const MIGRATIONS = [
   { table: 'fornecedores', column: 'com_tipo',               type: "VARCHAR(20) DEFAULT 'PARCELADA'" },
   { table: 'fornecedores', column: 'tipo_num_pedido',        type: "VARCHAR(20) DEFAULT 'SISTEMA'" },
   { table: 'fornecedores', column: 'base_conciliacao',       type: "VARCHAR(10) DEFAULT 'PARCELA'" },
+  { table: 'fornecedores', column: 'enviar_pedido_fabrica',  type: "CHAR(1) DEFAULT 'N'" },
 
   // ── CLIENTES ──────────────────────────────────────────────────────────────
   { table: 'clientes', column: 'latitude',       type: "VARCHAR(50) DEFAULT NULL" },
@@ -110,10 +115,23 @@ const MIGRATIONS = [
   // ── PAGAR ────────────────────────────────────────────────────────────────────
   { table: 'pagar', column: 'historico_rec', type: "VARCHAR(500) DEFAULT NULL" },
 
+  // ── API Pública — campos para integração ERP ─────────────────────────────
+  { table: 'pedidos',  column: 'id_parceiro',       type: 'VARCHAR(36) NULL DEFAULT NULL' },
+  { table: 'pedidos',  column: 'data_faturamento',  type: 'DATE NULL DEFAULT NULL' },
+  { table: 'pedidos',  column: 'data_cancelamento', type: 'DATE NULL DEFAULT NULL' },
+  { table: 'clientes', column: 'id_parceiro',       type: 'VARCHAR(36) NULL DEFAULT NULL' },
+  { table: 'produto',  column: 'id_parceiro',       type: 'VARCHAR(36) NULL DEFAULT NULL' },
+  { table: 'produtos', column: 'id_parceiro',       type: 'VARCHAR(36) NULL DEFAULT NULL' },
+
   // ── TELE_CAMPANHAS (colunas novas em base existente) ─────────────────────────
   { table: 'tele_campanhas', column: 'max_tentativas', type: 'INT NOT NULL DEFAULT 3' },
   { table: 'tele_campanhas', column: 'horario_inicio', type: 'TIME NULL' },
   { table: 'tele_campanhas', column: 'horario_fim',    type: 'TIME NULL' },
+
+  // ── PEDIDOS — controle de envio de emails ────────────────────────────────────
+  { table: 'pedidos', column: 'emailclienteenviado', type: "CHAR(1) DEFAULT 'N'" },
+  { table: 'pedidos', column: 'emailforenviado',     type: "CHAR(1) DEFAULT 'N'" },
+  { table: 'pedidos', column: 'emailvendenviado',    type: "CHAR(1) DEFAULT 'N'" },
 ];
 
 // Tabelas novas — cria se não existir (apenas estrutura mínima)
@@ -138,6 +156,18 @@ const CREATE_IF_NOT_EXISTS = [
       valor_minimo DECIMAL(15,2) DEFAULT 0.00,
       excluido CHAR(1) DEFAULT 'N',
       INDEX idx_forn_cond (id_fornecedor)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  },
+  {
+    name: 'fornecedor_emails',
+    sql: `CREATE TABLE IF NOT EXISTS fornecedor_emails (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      id_fornecedor INT NOT NULL,
+      email VARCHAR(255) NOT NULL,
+      descricao VARCHAR(100) DEFAULT NULL,
+      excluido CHAR(1) DEFAULT 'N',
+      dtcadastro DATE DEFAULT (CURDATE()),
+      INDEX idx_fe_fornecedor (id_fornecedor)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   },
   {

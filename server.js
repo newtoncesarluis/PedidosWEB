@@ -292,6 +292,7 @@ app.get('/api/license/ping', async (req, res) => {
 app.use('/api', (req, res, next) => {
   if (req.path.startsWith('/v1')) return next();
   if (req.path.startsWith('/licencas')) return next();
+  if (req.path.startsWith('/pedidos/pdf-download/')) return next();
   return licenseMiddleware(req, res, next);
 });
 
@@ -508,6 +509,20 @@ app.get('/api/vendedores', authMiddleware, async (req, res) => {
   }
 });
 app.use('/api/prepostos', authMiddleware, require('./routes/prepostos'));
+// PDF temporário para compartilhar no mobile (sem JWT — token secreto na URL)
+const { getPdfShare } = require('./config/pedido-pdf-share');
+app.get('/api/pedidos/pdf-download/:token', (req, res) => {
+  const item = getPdfShare(req.params.token);
+  if (!item || !item.buf?.length || item.buf[0] !== 0x25) {
+    return res.status(404).type('text/plain').send('Link expirado ou PDF inválido');
+  }
+  const safeName = item.name.replace(/[^\w.\-() ]+/g, '_').replace(/"/g, '') || 'pedido.pdf';
+  const attach = req.query.attachment === '1' || req.query.dl === '1';
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `${attach ? 'attachment' : 'inline'}; filename="${safeName}"`);
+  res.setHeader('Cache-Control', 'private, max-age=300');
+  res.send(item.buf);
+});
 app.use('/api/pedidos',   authMiddleware, require('./routes/pedidos'));
 app.use('/api/xml',       authMiddleware, require('./routes/xml'));
 app.use('/api/excel',     authMiddleware, require('./routes/excel'));
@@ -737,6 +752,9 @@ initCustomerDatabase()
   .then(() => {
     try { require('./config/daily-report').startScheduler(); } catch {}
     try { require('./config/api-keys-setup').setupApiKeysTable(); } catch {}
+    setImmediate(() => {
+      try { require('./config/pdf-browser').warmupPdfBrowser(); } catch {}
+    });
   })
   .catch((err) => {
     console.error('\n╔══════════════════════════════════════════════════════════╗');
