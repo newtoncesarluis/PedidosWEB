@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Ranking Vendedores | SysRepWeb</title>
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<link rel="stylesheet" href="/assets/mobile-app.css">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: var(--font); background: var(--content-bg); color: var(--content-text); min-height: 100vh; }
+
+.toolbar {
+  position: sticky; top: 0; z-index: 30; background: var(--card-bg);
+  border-bottom: 1px solid var(--card-border); padding: 12px 18px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.tb-top { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.title { font-size: 13px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.tb-actions { margin-left: auto; display: flex; gap: 8px; }
+.tb-filters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.select, .input {
+  padding: 8px 12px; border: 1.5px solid var(--card-border);
+  border-radius: 10px; background: var(--card-bg); color: var(--content-text);
+  font: inherit; outline: none;
+}
+.select:focus, .input:focus { border-color: var(--accent); }
+.btn {
+  padding: 8px 16px; border-radius: 10px; border: none; cursor: pointer;
+  font: inherit; font-weight: 600; font-size: 13px;
+  background: var(--accent); color: #fff;
+}
+.btn:hover { opacity: .88; }
+
+.podio { display: flex; gap: 12px; padding: 16px 18px; justify-content: center; flex-wrap: wrap; }
+.podio-card {
+  flex: 0 0 160px; background: var(--card-bg); border: 1px solid var(--card-border);
+  border-radius: 18px; padding: 16px 14px; text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+}
+.podio-card.pos-1 { border-color: #f59e0b; order: 2; transform: translateY(-8px); }
+.podio-card.pos-2 { order: 1; }
+.podio-card.pos-3 { order: 3; }
+.podio-medal { font-size: 28px; }
+.podio-nome { font-size: 13px; font-weight: 700; line-height: 1.2; }
+.podio-valor { font-size: 15px; font-weight: 800; color: var(--accent); }
+.podio-meta { font-size: 10px; color: var(--text2); }
+.podio-pct { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; margin-top: 2px; }
+.pct-ok   { background: #d1fae5; color: #065f46; }
+.pct-warn { background: #fef3c7; color: #92400e; }
+.pct-low  { background: #fee2e2; color: #991b1b; }
+.pct-nd   { background: var(--content-bg); color: var(--text2); border: 1px solid var(--card-border); }
+
+.table-wrap { overflow-x: auto; padding: 0 18px 80px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th {
+  text-align: left; padding: 8px 10px; font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .06em; color: var(--text2);
+  border-bottom: 2px solid var(--card-border); white-space: nowrap;
+}
+td { padding: 10px; border-bottom: 1px solid var(--card-border); vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--accent-soft, rgba(13,148,136,.06)); }
+.right { text-align: right; }
+
+.meta-bar-wrap { display: flex; align-items: center; gap: 6px; min-width: 120px; }
+.meta-bar-bg { flex: 1; height: 8px; background: var(--card-border); border-radius: 999px; overflow: hidden; }
+.meta-bar-fill { height: 100%; border-radius: 999px; transition: width .4s; }
+.fill-ok   { background: #16a34a; }
+.fill-warn { background: #d97706; }
+.fill-low  { background: #ef4444; }
+
+.var-pos { color: #16a34a; font-weight: 700; }
+.var-neg { color: #ef4444; font-weight: 700; }
+.var-nd  { color: var(--text2); }
+
+.badge-pos { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 800; }
+.rank-1 { background: #fef3c7; color: #78350f; }
+.rank-2 { background: #f1f5f9; color: #334155; }
+.rank-3 { background: #fef3c7; color: #78350f; }
+
+.empty { text-align: center; padding: 48px; color: var(--text2); }
+.acesso-negado { text-align: center; padding: 60px 24px; }
+.acesso-negado strong { display: block; font-size: 18px; margin-bottom: 8px; }
+.acesso-negado p { color: var(--text2); }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <div class="tb-top">
+    <span class="title">Ranking de Vendedores</span>
+    <div class="tb-actions">
+      <button class="btn" id="btn-filtrar">Aplicar</button>
+    </div>
+  </div>
+  <div class="tb-filters">
+    <select class="select" id="f-mes">
+      <option value="1">Janeiro</option>
+      <option value="2">Fevereiro</option>
+      <option value="3">Março</option>
+      <option value="4">Abril</option>
+      <option value="5">Maio</option>
+      <option value="6">Junho</option>
+      <option value="7">Julho</option>
+      <option value="8">Agosto</option>
+      <option value="9">Setembro</option>
+      <option value="10">Outubro</option>
+      <option value="11">Novembro</option>
+      <option value="12">Dezembro</option>
+    </select>
+    <input class="input" type="number" id="f-ano" min="2020" max="2099" style="width:90px">
+    <a href="/pages/comissoes_metas.html" style="font-size:12px;color:var(--accent);text-decoration:none;white-space:nowrap">⚙ Editar metas</a>
+  </div>
+</div>
+
+<div id="conteudo">
+  <div class="empty">Carregando…</div>
+</div>
+
+<script>
+var _tkn = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+var _user = {};
+try { _user = JSON.parse(sessionStorage.getItem('user') || '{}'); } catch(_) {}
+var _isAdmin = _user.role === 'admin' || _user.perfil == 1;
+
+// Inicializa mês/ano corrente
+(function() {
+  var now = new Date();
+  document.getElementById('f-mes').value = now.getMonth() + 1;
+  document.getElementById('f-ano').value = now.getFullYear();
+})();
+
+function authFetch(url) {
+  return fetch(url, { headers: { 'Authorization': 'Bearer ' + _tkn } });
+}
+function fmtMoeda(v) {
+  return Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+function pctCls(pct) {
+  if (pct === null) return 'pct-nd';
+  if (pct >= 100) return 'pct-ok';
+  if (pct >= 70)  return 'pct-warn';
+  return 'pct-low';
+}
+function fillCls(pct) {
+  if (pct === null) return 'fill-low';
+  if (pct >= 100) return 'fill-ok';
+  if (pct >= 70)  return 'fill-warn';
+  return 'fill-low';
+}
+function pctLabel(pct) {
+  if (pct === null) return 'Sem meta';
+  return pct.toFixed(1) + '%';
+}
+function varLabel(v) {
+  if (v === null) return '<span class="var-nd">—</span>';
+  var sinal = v >= 0 ? '+' : '';
+  var cls = v >= 0 ? 'var-pos' : 'var-neg';
+  return '<span class="' + cls + '">' + sinal + v.toFixed(1) + '%</span>';
+}
+function medalha(pos) {
+  if (pos === 1) return '🥇';
+  if (pos === 2) return '🥈';
+  if (pos === 3) return '🥉';
+  return '#' + pos;
+}
+
+function renderPodio(top3) {
+  if (!top3.length) return '';
+  return '<div class="podio">' + top3.map(function(r) {
+    var pct = r.pct_meta;
+    return '<div class="podio-card pos-' + r.posicao + '">' +
+      '<div class="podio-medal">' + medalha(r.posicao) + '</div>' +
+      '<div class="podio-nome">' + esc(r.nome_vendedor) + '</div>' +
+      '<div class="podio-valor">' + fmtMoeda(r.valor_mes) + '</div>' +
+      (r.meta_vendas > 0
+        ? '<div class="podio-meta">Meta: ' + fmtMoeda(r.meta_vendas) + '</div>' +
+          '<span class="podio-pct ' + pctCls(pct) + '">' + pctLabel(pct) + '</span>'
+        : '<div class="podio-meta">Sem meta definida</div>') +
+    '</div>';
+  }).join('') + '</div>';
+}
+
+function renderTabela(ranking) {
+  if (!ranking.length) return '<div class="empty">Nenhum vendedor encontrado</div>';
+  return '<div class="table-wrap"><table>' +
+    '<thead><tr>' +
+      '<th>#</th>' +
+      '<th>Vendedor</th>' +
+      '<th class="right">Faturamento</th>' +
+      '<th class="right">Pedidos</th>' +
+      '<th>Meta / Atingimento</th>' +
+      '<th class="right">vs. Mês Ant.</th>' +
+    '</tr></thead>' +
+    '<tbody>' + ranking.map(function(r) {
+      var pct = r.pct_meta;
+      var fillW = pct !== null ? Math.min(100, pct) : 0;
+      return '<tr>' +
+        '<td style="font-weight:800;font-size:14px">' + medalha(r.posicao) + '</td>' +
+        '<td style="font-weight:600">' + esc(r.nome_vendedor) + '</td>' +
+        '<td class="right" style="font-weight:700">' + fmtMoeda(r.valor_mes) + '</td>' +
+        '<td class="right">' + r.pedidos_mes + '</td>' +
+        '<td>' +
+          (r.meta_vendas > 0
+            ? '<div class="meta-bar-wrap">' +
+                '<div class="meta-bar-bg"><div class="meta-bar-fill ' + fillCls(pct) + '" style="width:' + fillW + '%"></div></div>' +
+                '<span class="podio-pct ' + pctCls(pct) + '" style="white-space:nowrap">' + pctLabel(pct) + '</span>' +
+              '</div>'
+            : '<span style="font-size:11px;color:var(--text2)">Sem meta</span>') +
+        '</td>' +
+        '<td class="right">' + varLabel(r.variacao_pct) + '</td>' +
+      '</tr>';
+    }).join('') +
+    '</tbody></table></div>';
+}
+
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function carregar() {
+  var mes = document.getElementById('f-mes').value;
+  var ano = document.getElementById('f-ano').value;
+  var el = document.getElementById('conteudo');
+  el.innerHTML = '<div class="empty">Carregando…</div>';
+
+  authFetch('/api/analytics/comercial/ranking-vendedores?mes=' + mes + '&ano=' + ano)
+    .then(function(r) {
+      if (r.status === 403) throw new Error('403');
+      return r.json();
+    })
+    .then(function(data) {
+      var ranking = data.ranking || [];
+      var top3 = ranking.slice(0, 3);
+      var mesesNomes = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+      var header = '<div style="padding:8px 18px 0;font-size:12px;color:var(--text2)">' +
+        mesesNomes[data.mes] + ' / ' + data.ano + ' &nbsp;·&nbsp; comparado com ' +
+        mesesNomes[data.mes_ant] + ' / ' + data.ano_ant + '</div>';
+      el.innerHTML = header + renderPodio(top3) + renderTabela(ranking);
+    })
+    .catch(function(err) {
+      if (err.message === '403') {
+        el.innerHTML = '<div class="acesso-negado"><strong>Acesso restrito</strong><p>Esta página é exclusiva para administradores.</p></div>';
+      } else {
+        el.innerHTML = '<div class="empty">Erro ao carregar dados</div>';
+      }
+    });
+}
+
+document.getElementById('btn-filtrar').addEventListener('click', carregar);
+carregar();
+</script>
+</body>
+</html>

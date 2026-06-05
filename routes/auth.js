@@ -751,7 +751,8 @@ router.get('/minhas-permissoes', async (req, res) => {
     const [rows] = await pool.query(
       `SELECT p.acessar_configuracoes, p.alterar_configuracoes, p.manutencaocadastros,
               p.acessogerenciais, p.acessoperfil, p.mudarempresa, p.tela_usuarios,
-              p.alterardatapedido, p.trocarvendedorpedido, p.p_vender
+              p.alterardatapedido, p.trocarvendedorpedido, p.p_vender,
+              p.incluir_produtos, p.alterar_produtos, p.excluir_produtos
        FROM usuarios u
        INNER JOIN perfil p ON p.id = u.idperfil
        WHERE u.idusuario = ? AND u.excluido = 'N' LIMIT 1`,
@@ -768,6 +769,9 @@ router.get('/minhas-permissoes', async (req, res) => {
       alterardatapedido:      isAdmin ? 'S' : (perm.alterardatapedido     || 'N'),
       trocarvendedorpedido:   isAdmin ? 'S' : (perm.trocarvendedorpedido  || 'N'),
       p_vender:               isAdmin ? 'S' : (perm.p_vender              || 'N'),
+      incluir_produtos:       isAdmin ? 'S' : (perm.incluir_produtos      || 'N'),
+      alterar_produtos:       isAdmin ? 'S' : (perm.alterar_produtos      || 'N'),
+      excluir_produtos:       isAdmin ? 'S' : (perm.excluir_produtos      || 'N'),
       isAdmin
     });
   } catch (e) {

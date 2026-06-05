@@ -115,6 +115,40 @@ body {
 }
 .kpi-sub { font-size: 9px; color: var(--text2); line-height: 1.2; }
 
+.kpi-scroll-wrap { position: relative; flex-shrink: 0; }
+.kpi-scroll-btn {
+    display: none; position: absolute; top: 50%; transform: translateY(-50%);
+    z-index: 6; width: 34px; height: 34px; border-radius: 50%;
+    border: 1.5px solid var(--card-border); background: var(--card-bg); color: var(--text);
+    box-shadow: 0 4px 14px rgba(15, 23, 42, .1);
+    align-items: center; justify-content: center; cursor: pointer; padding: 0;
+    -webkit-tap-highlight-color: transparent;
+}
+.kpi-scroll-btn svg { width: 18px; height: 18px; }
+.kpi-scroll-btn:disabled { opacity: .35; pointer-events: none; }
+.kpi-scroll-prev { left: 4px; }
+.kpi-scroll-next { right: 4px; }
+.kpi-scroll-hint {
+    display: none; text-align: center; font-size: 10px; font-weight: 700;
+    color: var(--text2); padding: 0 12px 6px; letter-spacing: .02em;
+}
+.kpi-scroll-wrap.kpi-scrollable .kpi-scroll-btn { display: flex; }
+.kpi-scroll-wrap.kpi-scrollable .kpi-scroll-hint { display: block; }
+.kpi-scroll-wrap.kpi-scrollable .kpi-row {
+    padding-left: 42px !important; padding-right: 42px !important;
+    scroll-padding-inline: 42px;
+}
+.kpi-scroll-wrap.kpi-scrollable::before,
+.kpi-scroll-wrap.kpi-scrollable::after {
+    content: ''; position: absolute; top: 0; bottom: 0; width: 28px; z-index: 4; pointer-events: none;
+}
+.kpi-scroll-wrap.kpi-scrollable::before {
+    left: 0; background: linear-gradient(90deg, var(--bg) 35%, transparent);
+}
+.kpi-scroll-wrap.kpi-scrollable::after {
+    right: 0; background: linear-gradient(270deg, var(--bg) 35%, transparent);
+}
+
 /* ── BUTTONS ── */
 .btn {
     display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px;
@@ -386,7 +420,7 @@ select option { background: var(--bg); color: var(--text); }
 
 @media print {
     body { background: #fff !important; color: #000 !important; font-family: Arial, sans-serif !important; }
-    .toolbar, .filters-section, .pagination, .tab-btn, .bulk-bar, .no-print, .actions-cell, .kpi-row, .list-summary { display: none !important; }
+    .toolbar, .filters-section, .pagination, .tab-btn, .bulk-bar, .no-print, .actions-cell, .kpi-scroll-wrap, .kpi-row, .list-summary { display: none !important; }
     
     /* Configuração para quando for imprimir a lista */
     body.print-list #content_analise { display: none !important; }
@@ -1013,7 +1047,15 @@ html.ms-embedded-tech.ms-page-contas-pagar .slide-panel.open { right: 0 !importa
 <div id="content_list" class="tab-content active">
     <div class="glass-panel no-print">
         <!-- Resumo financeiro (somente leitura) -->
-        <div class="kpi-row" aria-label="Resumo de contas a pagar">
+        <div class="kpi-scroll-wrap" id="pagarKpiScrollWrap">
+            <button type="button" class="kpi-scroll-btn kpi-scroll-prev" id="pagarKpiPrev" aria-label="Card anterior" title="Card anterior">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <button type="button" class="kpi-scroll-btn kpi-scroll-next" id="pagarKpiNext" aria-label="Próximo card" title="Próximo card">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+            <p class="kpi-scroll-hint" id="pagarKpiHint">Deslize ou use as setas para ver todos os cards →</p>
+            <div class="kpi-row" id="pagarKpiRow" aria-label="Resumo de contas a pagar">
             <div class="kpi-card kpi-card--aberto" id="kpi_aberto">
                 <span class="kpi-label">Em aberto</span>
                 <span class="kpi-val" id="ins_aberto">R$ 0,00</span>
@@ -1038,6 +1080,7 @@ html.ms-embedded-tech.ms-page-contas-pagar .slide-panel.open { right: 0 !importa
                 <span class="kpi-label">Resultado da busca</span>
                 <span class="kpi-val" style="color:var(--accent)" id="ins_resultado_val">—</span>
                 <span class="kpi-sub" id="ins_resultado_qtd">Use os filtros e clique em Buscar</span>
+            </div>
             </div>
         </div>
 
@@ -2365,7 +2408,46 @@ async function fetchStats() {
     } catch (e) {
         console.warn('fetchStats:', e);
     }
+    setupPagarKpiScrollNav();
 }
+
+var _pagarKpiScrollBound = false;
+
+function setupPagarKpiScrollNav() {
+    const wrap = document.getElementById('pagarKpiScrollWrap');
+    const row = document.getElementById('pagarKpiRow');
+    const prev = document.getElementById('pagarKpiPrev');
+    const next = document.getElementById('pagarKpiNext');
+    if (!wrap || !row || !prev || !next) return;
+
+    function updateArrows() {
+        const max = Math.max(0, row.scrollWidth - row.clientWidth);
+        const sl = row.scrollLeft;
+        const scrollable = max > 8;
+        wrap.classList.toggle('kpi-scrollable', scrollable);
+        prev.disabled = !scrollable || sl <= 4;
+        next.disabled = !scrollable || sl >= max - 4;
+    }
+
+    function scrollKpis(dir) {
+        const visible = Array.from(row.querySelectorAll('.kpi-card')).filter((c) => c.offsetParent !== null);
+        const card = visible[0] || row.querySelector('.kpi-card');
+        const step = card ? card.offsetWidth + 8 : Math.min(row.clientWidth * 0.75, 140);
+        row.scrollBy({ left: dir * step, behavior: 'smooth' });
+    }
+
+    if (!_pagarKpiScrollBound) {
+        _pagarKpiScrollBound = true;
+        prev.addEventListener('click', () => scrollKpis(-1));
+        next.addEventListener('click', () => scrollKpis(1));
+        row.addEventListener('scroll', updateArrows, { passive: true });
+        window.addEventListener('resize', updateArrows);
+    }
+    requestAnimationFrame(updateArrows);
+    setTimeout(updateArrows, 120);
+    setTimeout(updateArrows, 400);
+}
+window.setupPagarKpiScrollNav = setupPagarKpiScrollNav;
 
 function abrirNovo() {
     resetForm();
@@ -2753,12 +2835,16 @@ document.addEventListener('DOMContentLoaded', () => {
         .then(() => loadLookups())
         .then(() => buscarPagar());
     fetchStats();
+    setupPagarKpiScrollNav();
 });
 
 let _resizeTimer;
 window.addEventListener('resize', () => {
     clearTimeout(_resizeTimer);
-    _resizeTimer = setTimeout(() => renderTable(_globalContas), 150);
+    _resizeTimer = setTimeout(() => {
+        renderTable(_globalContas);
+        setupPagarKpiScrollNav();
+    }, 150);
 });
 </script>
 </body>

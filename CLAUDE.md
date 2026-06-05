@@ -25,6 +25,10 @@ Exemplos de erros passados por não fazer isso:
 - `regiao_rota` NÃO tem coluna `nome_regiao` — coluna real é **`descricao`**; usar sempre `rr.descricao AS nome_regiao` no JOIN
 - `natureza` NÃO tem coluna `nome` — coluna real é **`descricao`**; usar `n.descricao AS nome_natureza` no JOIN e `descricao AS nome` nos lookups
 - `pedidos` NÃO tem coluna `id_cliente` — coluna real é **`cod_cliente`** — em qualquer query em `pedidos` referenciando o cliente usar `cod_cliente`
+- `itensped`: exclusão é **`excluido='S'`** — nunca `DELETE FROM itensped`; no `POST /api/pedidos/:id` só regravar itens se `itens.length > 0` (mudança só de status/cancelar/aprovar não envia `itens`)
+- Filtro avançado Empresa (`f_nome_empresa` em `pedidos.html`): valor legado **`ILUMAC`** no `localStorage` travava a lista — limpar com `clearLegacyEmpresaFilter()`; não persistir nem aplicar esse valor
+- Fotos de cliente: tabela **`cliente_fotos`** (`cod_cliente`, `caminho`, `tipo_imagem`, `principal`) — a tabela `clientes` **não** tem coluna de foto/logo; listagem usa subquery em `cliente_fotos`
+- Logo no relatório de pedido (impressão/PDF): fornecedor **`logopedido='S'`** → duas logos (esq. fábrica, dir. empresa); senão só logo da empresa à esquerda. Logo da fábrica vem de **`fornecedor_fotos`** (`tipo_imagem='LOGO'`, senão `principal='S'`, senão primeira foto) — campo **`caminho`** (web: `/uploads/fornecedores/{id}/...`). GET `/api/fornecedores/:id` expõe **`logo_imagem`** já resolvida
 - `despesas`: Delphi legado usa **`nome`**; cadastro web antigo usa **`descricao`** — usar `config/despesas-label.js` (`resolveDespesasLabelColumn` + `despesasLabelExpr`); cache é por `DATABASE()` (multi-tenant); se ambas colunas existem, SQL usa `COALESCE(nome, descricao)`
 - Contas a pagar: combo **Natureza** = lookup `/api/lookups/despesas` (retorna `id_despesas` + `nome`) — gravar em **`id_despesas`**
 - `pagar.numero` é **`INT`** sequencial (`MAX(numero)+1`) — gerado pelo sistema; Nº título/NF do formulário grava em **`numeronf`** (varchar 25), não em `numero`

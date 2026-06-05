@@ -224,6 +224,40 @@ function getPool() {
   return pool;
 }
 
+/**
+ * Pool do tenant para a requisição atual (ALS, JWT ou pool global em modo bound/.env).
+ * Usar após middlewares assíncronos (ex.: multer) que podem perder o AsyncLocalStorage.
+ */
+function resolvePool(req) {
+  const ctxPool = _als.getStore();
+  if (ctxPool) return ctxPool;
+
+  const chave = req?.user?.chave_licenca;
+  if (chave) {
+    const p = getPoolForLicense(String(chave).trim());
+    if (p) return p;
+  }
+
+  if (getBoundChave() || !customerDbFromLicense()) {
+    if (!pool) {
+      if (customerDbFromLicense()) {
+        throw new Error('Banco do cliente ainda não conectado. Ative a licença na tela de login ou reinicie o servidor.');
+      }
+      createPool();
+    }
+    return pool;
+  }
+
+  throw new Error('Banco do cliente ainda não conectado. Ative a licença na tela de login ou reinicie o servidor.');
+}
+
+/** Executa fn com o pool do tenant (recria ALS após multer e outros middlewares assíncronos). */
+function runWithRequestPool(req, fn) {
+  const tenantPool = resolvePool(req);
+  if (_als.getStore()) return fn();
+  return runWithPool(tenantPool, fn);
+}
+
 /** Retorna o pool registrado para a chave, ou null se não encontrado. */
 function getPoolForLicense(chave) {
   if (!chave) return null;
@@ -264,6 +298,8 @@ async function testConnection(config) {
 module.exports = {
   createPool,
   getPool,
+  resolvePool,
+  runWithRequestPool,
   getPoolForLicense,
   runWithPool,
   testConnection,

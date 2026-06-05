@@ -453,13 +453,21 @@ router.get('/rotas-vendedor/clientes-em-rota', async (req, res) => {
     const pool = getPool();
     await ensureRotasTables(pool);
     const [rows] = await pool.query(`
-      SELECT DISTINCT rvc.id_cliente
+      SELECT rvc.id_cliente, rv.id AS id_rota, rv.descricao, rvc.status_visita, rv.status AS status_rota
       FROM rota_vendedor_cliente rvc
       JOIN rota_vendedor rv ON rv.id = rvc.id_rota
       WHERE rv.id_usuario = ? AND rv.excluido = 'N'
         AND rv.status IN ('PENDENTE','EM_ANDAMENTO')
+      ORDER BY rv.data_prevista ASC, rvc.ordem ASC
     `, [req.user.id]);
-    res.json({ ids: rows.map(r => r.id_cliente) });
+    const seen = new Set();
+    const items = [];
+    for (const r of rows) {
+      if (seen.has(r.id_cliente)) continue;
+      seen.add(r.id_cliente);
+      items.push(r);
+    }
+    res.json({ ids: items.map(r => r.id_cliente), items });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -607,7 +615,7 @@ router.post('/rotas-vendedor', async (req, res) => {
     enviarPushVendedor(pool, id_usuario, {
       title: '📍 Nova rota atribuída',
       body: `${descricao.trim()} — ${clientes.length} cliente(s)`,
-      url: '/pages/rotas-vendedor.html'
+      url: '/mobile-shell.html'
     }).catch(() => {});
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

@@ -1,6 +1,25 @@
 const express = require('express');
 const router = express.Router();
 const { getPool } = require('../config/database');
+const { sanitizeEmpresaRow } = require('../services/empresa-logo');
+const { enrichProdutosComPromocao, parseOptInt } = require('../config/promocoes-produto');
+
+async function _promoCtxFromPedidoQuery(pool, query) {
+  const codCliente = parseOptInt(query.cod_cliente);
+  let idRegiao = parseOptInt(query.id_regiao);
+  const codFornecedor = parseOptInt(query.cod_fornecedor || query.id_fornecedor);
+  const idTabelaPreco = parseOptInt(query.id_tabela || query.id_tabela_preco);
+
+  if (codCliente && !idRegiao) {
+    const [[cli]] = await pool.query(
+      `SELECT regiao FROM clientes WHERE id = ? AND (excluido = 'N' OR excluido IS NULL) LIMIT 1`,
+      [codCliente]
+    );
+    if (cli?.regiao) idRegiao = parseInt(cli.regiao, 10) || null;
+  }
+
+  return { codCliente, idRegiao, codFornecedor, idTabelaPreco };
+}
 
 // tabela de produtos pode ser "produto" ou "produtos" — detecta e cacheia
 let _prodTabela = null;
@@ -35,6 +54,14 @@ async function _ensureProdCols(pool) {
 const PEDIDO_EDIT_LOCK_TTL_MS = 3 * 60 * 1000;
 const pedidoEditLocks = new Map();
 
+function pedidoEditTenantKey(req) {
+  return String(req?.user?.chave_licenca || process.env.DB_NAME || 'default');
+}
+
+function pedidoEditLockKey(tenantKey, pedidoId) {
+  return `${String(tenantKey || 'default')}:${String(pedidoId)}`;
+}
+
 function cleanExpiredPedidoEditLocks() {
   const now = Date.now();
   for (const [k, v] of pedidoEditLocks) {
@@ -42,25 +69,34 @@ function cleanExpiredPedidoEditLocks() {
   }
 }
 
-function tryAcquirePedidoEditLock(pedidoId, userId, userName) {
+function tryAcquirePedidoEditLock(tenantKey, pedidoId, userId, userName, meta = {}) {
   cleanExpiredPedidoEditLocks();
-  const id = String(pedidoId);
+  const id = pedidoEditLockKey(tenantKey, pedidoId);
   const now = Date.now();
   const cur = pedidoEditLocks.get(id);
   const uid = userId != null ? String(userId) : '';
   if (cur && cur.exp >= now && cur.userId !== uid) {
-    return { ok: false, lockedBy: cur.userName || 'Outro usuário' };
+    return {
+      ok: false,
+      lockedBy: cur.userName || 'Outro usuário',
+      lockedHost: cur.clientHost || '',
+      lockedIp: cur.clientIp || '',
+      lockedSince: cur.since || null
+    };
   }
   pedidoEditLocks.set(id, {
     userId: uid,
     userName: (userName || '').trim(),
+    clientHost: String(meta.clientHost || '').trim().slice(0, 120),
+    clientIp: String(meta.clientIp || '').trim().slice(0, 64),
+    since: now,
     exp: now + PEDIDO_EDIT_LOCK_TTL_MS
   });
   return { ok: true };
 }
 
-function renewPedidoEditLock(pedidoId, userId) {
-  const id = String(pedidoId);
+function renewPedidoEditLock(tenantKey, pedidoId, userId) {
+  const id = pedidoEditLockKey(tenantKey, pedidoId);
   const cur = pedidoEditLocks.get(id);
   const uid = userId != null ? String(userId) : '';
   if (!cur || cur.userId !== uid) return false;
@@ -68,12 +104,35 @@ function renewPedidoEditLock(pedidoId, userId) {
   return true;
 }
 
-function releasePedidoEditLock(pedidoId, userId) {
-  const id = String(pedidoId);
+function releasePedidoEditLock(tenantKey, pedidoId, userId) {
+  const id = pedidoEditLockKey(tenantKey, pedidoId);
   const cur = pedidoEditLocks.get(id);
   const uid = userId != null ? String(userId) : '';
   if (!cur || cur.userId !== uid) return;
   pedidoEditLocks.delete(id);
+}
+
+/** Nome do terminal: body/header, tabela terminais (login Delphi/web) ou fallback por IP. */
+async function resolvePedidoEditClientHost(pool, clientHost, clientIp) {
+  const fromClient = String(clientHost || '').trim().slice(0, 120);
+  if (fromClient) return fromClient;
+  const ip = String(clientIp || '').trim();
+  if (!ip) return 'Navegador web';
+  const ipSlug = ip.replace(/[.:]/g, '-');
+  if (pool) {
+    try {
+      const [rows] = await pool.query(
+        `SELECT host_name FROM terminais
+         WHERE excluido = 'N' AND (ip = ? OR host_name = ? OR host_name LIKE ?)
+         ORDER BY dt_ultimoacesso DESC, hora_ultimoacesso DESC, id DESC
+         LIMIT 1`,
+        [ip, `web-${ipSlug}`, `web-${ipSlug}%`]
+      );
+      const hn = rows[0]?.host_name;
+      if (hn && String(hn).trim()) return String(hn).trim().slice(0, 120);
+    } catch (_) {}
+  }
+  return `web-${ipSlug}`;
 }
 
 /** Evita gravar string concatenada no DECIMAL (ex.: JSON com número como string + reduce no browser). */
@@ -486,6 +545,15 @@ async function insertItenspedItem(conn, item, ctx) {
   return iResult;
 }
 
+/** Exclusão lógica dos itens ativos do pedido (não usa DELETE físico em itensped). */
+async function softDeleteItenspedByNumPedido(conn, numPedido) {
+  if (numPedido == null || numPedido === '') return;
+  await conn.query(
+    `UPDATE itensped SET excluido = 'S' WHERE numpedido = ? AND COALESCE(excluido, 'N') = 'N'`,
+    [numPedido]
+  );
+}
+
 // ─── Helper: grava quantidades de grade em itensped_grade_qtd ───────────────
 async function _salvarGradeQtd(conn, itemId, grade_qtd) {
   if (!grade_qtd || !grade_qtd.length) return;
@@ -633,7 +701,8 @@ async function salvarParcelas(conn, num, pedidoId, pedido, parcelas) {
   const totalParcelas = parcelas.reduce((s, p) => s + (p.valor || 0), 0);
   if (fornConfig.com_sobre_ipi !== 'S' || fornConfig.com_sobre_st !== 'S') {
     const [impos] = await conn.query(
-      `SELECT COALESCE(SUM(vlr_ipi),0) AS ipi, COALESCE(SUM(vlr_st),0) AS st FROM itensped WHERE id_pedido = ?`,
+      `SELECT COALESCE(SUM(vlr_ipi),0) AS ipi, COALESCE(SUM(vlr_st),0) AS st
+       FROM itensped WHERE id_pedido = ? AND COALESCE(excluido, 'N') = 'N'`,
       [pedidoId]
     ).catch(() => [[{ ipi: 0, st: 0 }]]);
     totalIpi = parseFloat(impos[0]?.ipi || 0);
@@ -1278,7 +1347,10 @@ router.get('/produtos/busca', async (req, res) => {
        LIMIT ?`,
       [...params, ...searchParams, ...(isBarcodeLike ? [qTrim, qTrim] : []), parseInt(limit)]
     );
-    res.json({ data: rows });
+    const promoCtx = await _promoCtxFromPedidoQuery(pool, req.query);
+    const qtdPromo = parseFloat(req.query.qtd) || 1;
+    const data = await enrichProdutosComPromocao(pool, rows, { qtd: qtdPromo, ...promoCtx });
+    res.json({ data });
   } catch (err) {
     console.error('[/produtos/busca] ERRO:', err.message);
     res.status(500).json({ error: err.message });
@@ -1446,7 +1518,9 @@ router.get('/lookup/produtos-avancado', async (req, res) => {
     sql += ` ORDER BY p.descricao LIMIT 600 `;
 
     const [rows] = await pool.query(sql, params);
-    res.json({ produtos: rows });
+    const promoCtx = await _promoCtxFromPedidoQuery(pool, req.query);
+    const produtos = await enrichProdutosComPromocao(pool, rows, { qtd: 1, ...promoCtx });
+    res.json({ produtos });
   } catch (err) {
     console.error('Erro lookup produtos:', err);
     res.status(500).json({ error: err.message });
@@ -1593,7 +1667,8 @@ async function getComissoesFaturamentoHandler(req, res) {
     const fornConfig = { com_sobre_st: ped.com_sobre_st, com_sobre_ipi: ped.com_sobre_ipi };
     if (fornConfig.com_sobre_st !== 'S' || fornConfig.com_sobre_ipi !== 'S') {
       const [impos] = await pool.query(
-        `SELECT COALESCE(SUM(vlr_ipi),0) AS ipi, COALESCE(SUM(vlr_st),0) AS st FROM itensped WHERE id_pedido = ?`,
+        `SELECT COALESCE(SUM(vlr_ipi),0) AS ipi, COALESCE(SUM(vlr_st),0) AS st
+         FROM itensped WHERE id_pedido = ? AND COALESCE(excluido, 'N') = 'N'`,
         [id]
       ).catch(() => [[{ ipi: 0, st: 0 }]]);
       totalIpi = parseFloat(impos[0]?.ipi || 0);
@@ -1931,24 +2006,36 @@ router.post('/:id/edit-lock', async (req, res) => {
     if (!/^\d+$/.test(String(rawId))) return res.status(400).json({ error: 'ID inválido' });
     const action = (req.body && req.body.action) || 'acquire';
     const uid = req.user?.id;
-    const uname = req.user?.name || req.user?.login || 'Usuário';
+    const uname = req.user?.name || req.user?.login || req.user?.nome || 'Usuário';
+    const tenantKey = pedidoEditTenantKey(req);
+    const clientIp = String(req.ip || req.socket?.remoteAddress || '').trim();
 
     if (action === 'acquire') {
-      const r = tryAcquirePedidoEditLock(rawId, uid, uname);
+      const pool = getPool();
+      const hostHint = String(
+        (req.body && req.body.clientHost) ||
+        req.headers['x-client-hostname'] ||
+        ''
+      ).trim();
+      const clientHost = await resolvePedidoEditClientHost(pool, hostHint, clientIp);
+      const r = tryAcquirePedidoEditLock(tenantKey, rawId, uid, uname, { clientHost, clientIp });
       if (!r.ok) {
         return res.status(409).json({
-          error: 'Este pedido está em uso. Aguarde ou peça para a outra pessoa salvar e fechar.',
-          lockedBy: r.lockedBy
+          error: 'Este pedido já está em edição por outro usuário.',
+          lockedBy: r.lockedBy,
+          lockedHost: r.lockedHost,
+          lockedIp: r.lockedIp,
+          lockedSince: r.lockedSince
         });
       }
-      return res.json({ ok: true });
+      return res.json({ ok: true, clientHost });
     }
     if (action === 'ping') {
-      const ok = renewPedidoEditLock(rawId, uid);
+      const ok = renewPedidoEditLock(tenantKey, rawId, uid);
       return res.json({ ok: !!ok });
     }
     if (action === 'release') {
-      releasePedidoEditLock(rawId, uid);
+      releasePedidoEditLock(tenantKey, rawId, uid);
       return res.json({ ok: true });
     }
     return res.status(400).json({ error: 'Ação inválida' });
@@ -2370,7 +2457,7 @@ router.get('/:id', async (req, res) => {
       ? pool.query(`SELECT * FROM empresa WHERE id_empresa = ? LIMIT 1`, [idFilial])
       : pool.query(`SELECT * FROM empresa WHERE excluido = 'N' ORDER BY id_empresa LIMIT 1`)
     ).catch(() => [[]]);
-    const empresa = empRows[0] || {};
+    const empresa = empRows[0] ? await sanitizeEmpresaRow(pool, empRows[0]) : {};
 
     res.json({
       pedido: header[0],
@@ -2628,18 +2715,13 @@ router.post('/:id', async (req, res) => {
       ]);
     }
 
-    // 2. Atualiza Itens (Se fornecidos)
-    if (itens && Array.isArray(itens)) {
+    // 2. Atualiza Itens (somente salvamento completo com grade — array vazio não toca itensped)
+    if (itens && Array.isArray(itens) && itens.length > 0) {
       // Busca o número do pedido para os itens
       const [p] = await conn.query('SELECT numero FROM pedidos WHERE id = ?', [id]);
       if (p[0]) {
         const numPedido = p[0].numero;
-        // Apaga grade_qtd dos itens antigos antes de deletar os itens
-        const [oldIds] = await conn.query(`SELECT id FROM itensped WHERE numpedido = ?`, [numPedido]);
-        if (oldIds.length) {
-          await conn.query(`DELETE FROM itensped_grade_qtd WHERE id_item_ped IN (?)`, [oldIds.map(r => r.id)]);
-        }
-        await conn.query(`DELETE FROM itensped WHERE numpedido = ?`, [numPedido]);
+        await softDeleteItenspedByNumPedido(conn, numPedido);
 
         for (let seqItem = 0; seqItem < itens.length; seqItem++) {
           const item = itens[seqItem];
@@ -2674,7 +2756,7 @@ router.post('/:id', async (req, res) => {
     }
 
     await conn.commit();
-    releasePedidoEditLock(id, req.user?.id);
+    releasePedidoEditLock(pedidoEditTenantKey(req), id, req.user?.id);
     res.json({ ok: true });
   } catch (err) {
     await conn.rollback();
@@ -2738,8 +2820,8 @@ router.delete('/:id', async (req, res) => {
       });
     }
 
-    // 1. Exclui itens do pedido
-    await conn.query(`DELETE FROM itensped WHERE numpedido = ?`, [numPedido]);
+    // 1. Exclusão lógica dos itens do pedido
+    await softDeleteItenspedByNumPedido(conn, numPedido);
 
     // 2. Exclui parcelas/títulos a receber (apenas não baixadas — garantido pelo bloqueio acima)
     await conn.query(`DELETE FROM receber WHERE numero = ?`, [numPedido]).catch(() => {});
@@ -2763,7 +2845,7 @@ router.delete('/:id', async (req, res) => {
     `, [id, id_usuario_log, pedRows[0].situacao_pedido]).catch(() => {});
 
     await conn.commit();
-    releasePedidoEditLock(id, id_usuario_log);
+    releasePedidoEditLock(pedidoEditTenantKey(req), id, id_usuario_log);
     res.json({ ok: true, numero: numPedido });
   } catch (err) {
     await conn.rollback();

@@ -370,6 +370,11 @@ app.post('/api/webhook/wa-admin', async (req, res) => {
   }
 });
 
+// POST /api/webhook/wa-vendedor — bot WhatsApp para consultas de vendedores (Evolution API)
+// Configure na Evolution API: Webhook URL = https://seu-dominio/api/webhook/wa-vendedor
+//                              Eventos     = messages.upsert
+app.use('/api/webhook/wa-vendedor', require('./routes/wa-vendedor'));
+
 // POST /api/license/demo — ativa modo demo por 30 dias
 app.post('/api/license/demo', authMiddleware, async (req, res) => {
   const LicenseService = require('./services/license-service');
@@ -751,6 +756,12 @@ initCustomerDatabase()
   .then(startServer)
   .then(() => {
     try { require('./config/daily-report').startScheduler(); } catch {}
+    try { require('./config/push-lembretes-vendedor').startPushLembretesScheduler(); } catch (e) {
+      console.warn('[push-lembretes] init:', e.message);
+    }
+    try { require('./config/relatorio-diario').startRelatorioDiarioScheduler(); } catch (e) {
+      console.warn('[relatorio-diario] init:', e.message);
+    }
     try { require('./config/api-keys-setup').setupApiKeysTable(); } catch {}
     setImmediate(() => {
       try { require('./config/pdf-browser').warmupPdfBrowser(); } catch {}

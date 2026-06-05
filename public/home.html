@@ -2501,6 +2501,8 @@ const SUBMENUS = {
       items: [
         { label: 'Produtos', key: 'produtos', page: '/pages/produtos.html',
           svg: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>' },
+        { label: 'Promoções de Produtos', key: 'comercial-promocoes', page: '/pages/comercial-promocoes.html',
+          svg: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>' },
         { label: 'Família de Produtos', key: 'familia-produtos', page: '/pages/familia-produtos.html',
           svg: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>' },
         { label: 'Grades', key: 'grades', page: '/pages/grades.html',
@@ -2567,6 +2569,8 @@ const SUBMENUS = {
       items: [
         { label: 'Pedidos', key: 'pedidos', page: '/pages/pedidos.html',
           svg: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>' },
+        { label: 'Promoções de Produtos', key: 'comercial-promocoes', page: '/pages/comercial-promocoes.html',
+          svg: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>' },
       ]
     },
     {
@@ -2786,6 +2790,20 @@ window.addEventListener('message', (ev) => {
     document.querySelectorAll('iframe').forEach(fr => {
       try { fr.contentWindow.postMessage(ev.data, '*'); } catch(_) {}
     });
+    return;
+  }
+
+  // Vitrine Digital — gerada por clientes.html dentro do iframe
+  if (ev.data.type === 'ms-vitrine-loading') {
+    _vitrineHomeIframeLoading();
+    return;
+  }
+  if (ev.data.type === 'ms-vitrine-show') {
+    _vitrineHomeIframeShow(ev.data);
+    return;
+  }
+  if (ev.data.type === 'ms-vitrine-error') {
+    _vitrineHomeIframeError(ev.data.message);
     return;
   }
 
@@ -4043,6 +4061,49 @@ async function buscarClientesVitrineHome(q) {
   }
 }
 
+// ─── Handlers para vitrine gerada pelo clientes.html dentro do iframe ────────
+function _vitrineHomeIframeLoading() {
+  const back = document.getElementById('modalVitrineHomeBack');
+  const body = document.getElementById('modalVitrineHomeBody');
+  if (!back || !body) return;
+  back.style.display = 'flex';
+  body.innerHTML = '<div style="padding:32px 0;text-align:center;color:var(--text2)">Gerando link…</div>';
+}
+
+function _vitrineHomeIframeShow(data) {
+  const body = document.getElementById('modalVitrineHomeBody');
+  if (!body) return;
+  const back = document.getElementById('modalVitrineHomeBack');
+  if (back) back.style.display = 'flex';
+  const link   = String(data.link || '');
+  const expira = String(data.expira || '');
+  const waUrl  = String(data.waUrl || ('https://wa.me/?text=' + encodeURIComponent('Olá! Acesse o catálogo: ' + link)));
+  const linkSafe = link.replace(/"/g, '&quot;');
+  body.innerHTML = `
+    <div style="margin-bottom:12px;font-size:13px;color:var(--text2)">
+      Link válido até <strong>${expira}</strong>. Compartilhe com o cliente.
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+      <input id="vitrineHomeLink" value="${linkSafe}" readonly
+        style="flex:1;padding:10px 12px;border:1.5px solid var(--card-border);border-radius:8px;font-size:11px;background:var(--content-bg);color:var(--content-text);font-family:monospace;outline:none">
+      <button type="button" onclick="copiarVitrineHome()" style="flex-shrink:0;height:38px;padding:0 14px;border:none;border-radius:8px;background:#0284c7;color:#fff;font:inherit;font-size:12px;font-weight:700;cursor:pointer">Copiar</button>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <a href="${linkSafe}" target="_blank" rel="noopener"
+        style="flex:1;min-width:120px;height:36px;border:1.5px solid var(--card-border);border-radius:8px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--content-text);text-decoration:none;background:var(--content-bg)">Abrir vitrine</a>
+      <a href="${waUrl.replace(/"/g,'&quot;')}" target="_blank" rel="noopener"
+        style="flex:1;min-width:120px;height:36px;border:1.5px solid #bbf7d0;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#16a34a;text-decoration:none;background:#f0fdf4">WhatsApp</a>
+    </div>`;
+}
+
+function _vitrineHomeIframeError(msg) {
+  const body = document.getElementById('modalVitrineHomeBody');
+  if (!body) return;
+  const back = document.getElementById('modalVitrineHomeBack');
+  if (back) back.style.display = 'flex';
+  body.innerHTML = `<div style="padding:12px 0;color:#dc2626;font-size:13px">${String(msg || 'Erro ao gerar link.')}</div>`;
+}
+
 async function gerarVitrineHome(idCliente, nomeCliente) {
   const body = document.getElementById('modalVitrineHomeBody');
   if (!body) return;
@@ -4876,6 +4937,7 @@ const SEARCH_INDEX = [
   { label:'Tour: Cadastro de fornecedores',              sub:'Tour interativo', tag:'Tour', page:'/pages/fornecedores.html?tour=fornecedores-cadastro', modKey:'ajuda', subKey:'tour-fornecedores' },
   { label:'Tour: Cadastro de usuários',                  sub:'Tour interativo', tag:'Tour', page:'/pages/usuarios.html?tour=usuarios-cadastro', modKey:'ajuda', subKey:'tour-usuarios' },
   { label:'Produtos',                                    sub:'Cadastros',  tag:'Cadastro', page:'/pages/produtos.html',           modKey:'cadastros', subKey:'produtos' },
+  { label:'Promoções de Produtos',                       sub:'Comercial › Vendas', tag:'Comercial', page:'/pages/comercial-promocoes.html', modKey:'comercial', subKey:'comercial-promocoes' },
   { label:'Clientes',                                    sub:'Cadastros',  tag:'Cadastro', page:'/pages/clientes.html',           modKey:'cadastros', subKey:'clientes' },
   { label:'Segmento',                                    sub:'Cadastros',  tag:'Cadastro', page:'/pages/segmento.html',           modKey:'cadastros', subKey:'segmento' },
   { label:'Bancos',                                      sub:'Cadastros',  tag:'Cadastro', page:'/pages/bancos.html',             modKey:'cadastros', subKey:'bancos' },
@@ -5201,7 +5263,7 @@ document.addEventListener('keydown', e => {
 </script>
 
 <!-- Modal Vitrine Digital -->
-<div id="modalVitrineHomeBack" onclick="if(event.target===this)fecharModalVitrineHome()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;align-items:center;justify-content:center;padding:18px">
+<div id="modalVitrineHomeBack" onclick="if(event.target===this)fecharModalVitrineHome()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:2147483000;align-items:center;justify-content:center;padding:18px">
   <div style="width:min(520px,100%);background:var(--card-bg);border:1px solid var(--card-border);border-radius:16px;box-shadow:0 20px 48px rgba(0,0,0,.2);overflow:hidden;max-height:88vh;display:flex;flex-direction:column">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--card-border);gap:10px">
       <div style="display:flex;align-items:center;gap:10px;min-width:0">

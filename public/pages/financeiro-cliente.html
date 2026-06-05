@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Financeiro do Cliente | SysRepWeb</title>
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<script src="/assets/mobile-app.js"></script>
+<link rel="stylesheet" href="/assets/mobile-app.css">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: var(--font); background: var(--content-bg); color: var(--content-text); min-height: 100vh; }
+.toolbar {
+  position: sticky; top: 0; z-index: 30; background: var(--card-bg);
+  border-bottom: 1px solid var(--card-border); padding: 12px 16px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.tb-top { display: flex; gap: 10px; align-items: center; }
+.title { font-size: 13px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; flex: 1; }
+.cliente-nome { font-size: 12px; color: var(--text2); }
+.tabs { display: flex; gap: 4px; }
+.tab {
+  padding: 6px 14px; border-radius: 999px; font-size: 12px; font-weight: 600;
+  border: 1.5px solid var(--card-border); background: var(--card-bg);
+  color: var(--text2); cursor: pointer;
+}
+.tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.kpi-row { display: flex; gap: 8px; padding: 10px 12px; flex-wrap: wrap; }
+.kpi {
+  flex: 1; min-width: 100px; background: var(--card-bg);
+  border: 1px solid var(--card-border); border-radius: 14px; padding: 10px 12px;
+}
+.kpi small { display: block; font-size: 10px; color: var(--text2); text-transform: uppercase; letter-spacing: .05em; }
+.kpi strong { display: block; font-size: 16px; margin-top: 3px; font-weight: 700; }
+.kpi-atraso strong { color: #dc2626; }
+.kpi-aberto strong { color: var(--accent); }
+.list { padding: 0 12px 80px; display: flex; flex-direction: column; gap: 8px; }
+.card {
+  background: var(--card-bg); border: 1px solid var(--card-border);
+  border-radius: 14px; padding: 12px 14px;
+}
+.card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.card-doc { font-size: 12px; font-weight: 700; }
+.card-valor { font-size: 15px; font-weight: 800; white-space: nowrap; }
+.card-info { font-size: 11px; color: var(--text2); margin-top: 4px; }
+.badge {
+  display: inline-block; padding: 2px 9px; border-radius: 999px;
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+}
+.badge-aberta  { background: #dbeafe; color: #1e40af; }
+.badge-atraso  { background: #fee2e2; color: #991b1b; }
+.badge-pago    { background: #d1fae5; color: #065f46; }
+.empty { text-align: center; padding: 48px 24px; color: var(--text2); font-size: 14px; }
+.spinner { text-align: center; padding: 40px; color: var(--text2); font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <div class="tb-top">
+    <span class="title">Financeiro</span>
+    <span id="nomeCliente" class="cliente-nome"></span>
+  </div>
+  <div class="tabs">
+    <button class="tab active" data-status="ABERTA">Em aberto</button>
+    <button class="tab" data-status="EM ATRASO">Vencidas</button>
+    <button class="tab" data-status="T">Todas</button>
+  </div>
+</div>
+
+<div class="kpi-row">
+  <div class="kpi kpi-aberto">
+    <small>Em Aberto</small>
+    <strong id="kpi-aberto">—</strong>
+  </div>
+  <div class="kpi kpi-atraso">
+    <small>Vencidas</small>
+    <strong id="kpi-atraso">—</strong>
+  </div>
+</div>
+
+<div id="lista" class="list">
+  <div class="spinner">Carregando…</div>
+</div>
+
+<script>
+var _tkn = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+var _params = new URLSearchParams(window.location.search);
+var _codCliente = _params.get('cod_cliente') || _params.get('id') || '';
+var _nome = _params.get('nome') || '';
+var _statusAtual = 'ABERTA';
+
+if (_nome) document.getElementById('nomeCliente').textContent = _nome;
+
+function fmtMoeda(v) {
+  return 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function fmtData(d) {
+  if (!d) return '—';
+  var dt = new Date(d); if (isNaN(dt)) return d;
+  return dt.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+}
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function badgeCls(st) {
+  if (!st || st === 'ABERTA' || st === 'ABERTO') return 'badge-aberta';
+  if (st === 'EM ATRASO') return 'badge-atraso';
+  return 'badge-pago';
+}
+function badgeLabel(st) {
+  if (st === 'LIQUIDADO' || st === 'RECEBIDO' || st === 'PAGO' || st === 'BAIXADO' || st === 'QUITADO') return 'Pago';
+  if (st === 'EM ATRASO') return 'Vencida';
+  return 'Aberta';
+}
+
+function render(rows) {
+  var el = document.getElementById('lista');
+  if (!rows || !rows.length) {
+    el.innerHTML = '<div class="empty">Nenhum título encontrado</div>';
+    return;
+  }
+  el.innerHTML = rows.map(function(p) {
+    var st = p.status_display || p.status || 'ABERTA';
+    return '<div class="card">' +
+      '<div class="card-top">' +
+        '<div>' +
+          '<div class="card-doc">' + escHtml(p.doc || p.numero || '—') + '</div>' +
+          '<div class="card-info">Venc: ' + fmtData(p.vencimento) + '</div>' +
+          (p.obs ? '<div class="card-info">' + escHtml(p.obs) + '</div>' : '') +
+        '</div>' +
+        '<div style="text-align:right">' +
+          '<div class="card-valor">' + fmtMoeda(p.valor) + '</div>' +
+          '<span class="badge ' + badgeCls(st) + '">' + badgeLabel(st) + '</span>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function carregar(status) {
+  if (!_codCliente) {
+    document.getElementById('lista').innerHTML = '<div class="empty">Cliente não identificado</div>';
+    return;
+  }
+  document.getElementById('lista').innerHTML = '<div class="spinner">Carregando…</div>';
+  var url = '/api/receber?limit=100&cod_cliente=' + encodeURIComponent(_codCliente) +
+    (status && status !== 'T' ? '&status=' + encodeURIComponent(status) : '');
+  fetch(url, { headers: { 'Authorization': 'Bearer ' + _tkn } })
+    .then(function(r) { return r.json(); })
+    .then(function(data) { render(data.rows || data); })
+    .catch(function() {
+      document.getElementById('lista').innerHTML = '<div class="empty">Erro ao carregar títulos</div>';
+    });
+}
+
+function carregarKpis() {
+  if (!_codCliente) return;
+  var base = '/api/receber?limit=500&cod_cliente=' + encodeURIComponent(_codCliente);
+  var hdrs = { 'Authorization': 'Bearer ' + _tkn };
+  Promise.all([
+    fetch(base + '&status=ABERTA',        { headers: hdrs }).then(function(r){ return r.json(); }),
+    fetch(base + '&status=EM%20ATRASO',   { headers: hdrs }).then(function(r){ return r.json(); })
+  ]).then(function(results) {
+    var somaAberto = 0, somaAtraso = 0;
+    (results[0].rows || results[0] || []).forEach(function(r){ somaAberto += Number(r.valor || 0); });
+    (results[1].rows || results[1] || []).forEach(function(r){ somaAtraso += Number(r.valor || 0); });
+    document.getElementById('kpi-aberto').textContent = fmtMoeda(somaAberto);
+    document.getElementById('kpi-atraso').textContent = fmtMoeda(somaAtraso);
+  }).catch(function(){});
+}
+
+document.querySelectorAll('.tab').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.tab').forEach(function(b){ b.classList.remove('active'); });
+    btn.classList.add('active');
+    _statusAtual = btn.dataset.status;
+    carregar(_statusAtual);
+  });
+});
+
+carregar(_statusAtual);
+carregarKpis();
+</script>
+</body>
+</html>

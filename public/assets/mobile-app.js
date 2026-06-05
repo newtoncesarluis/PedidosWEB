@@ -1,19 +1,32 @@
 /**
- * Marca o documento quando a tela roda dentro do mobile-shell (iframe) ou com ?_ms=
- * (mesmo parâmetro que o shell adiciona). CSS em mobile-app.css usa .sysrep-ms-embed.
+ * Marca o documento quando a tela roda no app mobile-shell (iframe) ou com ?_ms=
+ * NÃO marca iframes do home.html / abas desktop — só mobile-shell.
  */
 (function () {
   'use strict';
-  try {
-    if (window.self !== window.top) {
-      document.documentElement.classList.add('sysrep-ms-embed');
-      return;
+
+  function isMobileShellEmbed() {
+    try {
+      if (new URLSearchParams(window.location.search).has('_ms')) return true;
+    } catch (_) {}
+    try {
+      if (window.self !== window.top) {
+        var parentPath = window.parent.location.pathname || '';
+        return parentPath.indexOf('mobile-shell') >= 0;
+      }
+    } catch (_) {
+      try {
+        return new URLSearchParams(window.location.search).has('_ms');
+      } catch (_) {}
     }
-    if (new URLSearchParams(window.location.search).has('_ms')) {
-      document.documentElement.classList.add('sysrep-ms-embed');
-    }
-  } catch (_) {
-    if (window.self !== window.top) document.documentElement.classList.add('sysrep-ms-embed');
+    return false;
+  }
+
+  window.sysrep = window.sysrep || {};
+  window.sysrep.isMobileShellEmbed = isMobileShellEmbed;
+
+  if (isMobileShellEmbed()) {
+    document.documentElement.classList.add('sysrep-ms-embed');
   }
 })();
 

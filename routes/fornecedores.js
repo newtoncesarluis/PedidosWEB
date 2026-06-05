@@ -1,6 +1,6 @@
 const express = require('express');
 const router  = express.Router();
-const { getPool } = require('../config/database');
+const { getPool, runWithRequestPool } = require('../config/database');
 const multer  = require('multer');
 const path    = require('path');
 const fs      = require('fs');
@@ -196,7 +196,8 @@ router.get('/', async (req, res) => {
                 WHERE ff.cod_fornecedor = f.id
                   AND (ff.excluido = 'N' OR ff.excluido IS NULL OR ff.excluido = '')
                   AND ff.caminho IS NOT NULL AND ff.caminho <> ''
-                ORDER BY (ff.principal = 'S') DESC, ff.id ASC
+                ORDER BY (UPPER(COALESCE(ff.tipo_imagem, '')) = 'LOGO') DESC,
+                         (ff.principal = 'S') DESC, ff.id ASC
                 LIMIT 1) AS foto_principal
        FROM fornecedores f
        WHERE ${whereClause}
@@ -432,6 +433,34 @@ router.post('/:id/tabelas-preco', async (req, res) => {
 });
 
 
+/** Caminho web da logo do fornecedor para pedido (tipo LOGO → principal → primeira). */
+async function resolveFornecedorLogoCaminho(pool, idFornecedor) {
+  const id = parseInt(idFornecedor, 10);
+  if (!id) return null;
+  const [rows] = await pool.query(
+    `SELECT caminho, tipo_imagem, principal
+     FROM fornecedor_fotos
+     WHERE cod_fornecedor = ? AND COALESCE(excluido, 'N') = 'N'
+     ORDER BY (UPPER(COALESCE(tipo_imagem, '')) = 'LOGO') DESC,
+              (COALESCE(principal, 'N') = 'S') DESC,
+              id ASC`,
+    [id]
+  ).catch(() => [[]]);
+  if (!rows.length) return null;
+  const pick = rows.find(r => String(r.tipo_imagem || '').toUpperCase() === 'LOGO')
+    || rows.find(r => String(r.principal || '').toUpperCase() === 'S')
+    || rows[0];
+  let cam = String(pick?.caminho || '').trim();
+  if (!cam) return null;
+  if (!cam.startsWith('/')) cam = '/' + cam;
+  const prefix = `/uploads/fornecedores/${id}/`;
+  if (!cam.toLowerCase().startsWith(prefix.toLowerCase())) return null;
+  const rel = cam.replace(/^\//, '');
+  const abs = path.join(process.cwd(), 'public', rel.replace(/\//g, path.sep));
+  if (!fs.existsSync(abs)) return null;
+  return cam;
+}
+
 // ─── GET /api/fornecedores/:id ────────────────────────────────────────────────
 router.get('/:id', async (req, res) => {
   try {
@@ -441,7 +470,9 @@ router.get('/:id', async (req, res) => {
       [req.params.id]
     );
     if (!rows[0]) return res.status(404).json({ error: 'Fornecedor não encontrado' });
-    res.json(rows[0]);
+    const row = rows[0];
+    row.logo_imagem = await resolveFornecedorLogoCaminho(pool, row.id);
+    res.json(row);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -661,11 +692,18 @@ router.get('/:id/fotos', async (req, res) => {
     const [rows] = await pool.query(
       `SELECT id, descricao, tipo_imagem AS tipo, principal, caminho
        FROM fornecedor_fotos
-       WHERE cod_fornecedor = ? AND excluido = 'N'
-       ORDER BY principal DESC, id`,
+       WHERE cod_fornecedor = ? AND COALESCE(excluido, 'N') = 'N'
+       ORDER BY (UPPER(COALESCE(tipo_imagem, '')) = 'LOGO') DESC,
+                (COALESCE(principal, 'N') = 'S') DESC,
+                id ASC`,
       [req.params.id]
     ).catch(() => [[]]);
-    res.json(rows);
+    const out = rows.map((r) => {
+      let cam = String(r.caminho || '').trim();
+      if (cam && !cam.startsWith('/')) cam = '/' + cam;
+      return { ...r, caminho: cam };
+    });
+    res.json(out);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -673,18 +711,26 @@ router.get('/:id/fotos', async (req, res) => {
 
 // ─── POST /api/fornecedores/:id/fotos — upload de arquivo ────────────────────
 router.post('/:id/fotos', upload.single('arquivo'), async (req, res) => {
+  const handler = async () => {
+    try {
+      if (!req.file) return res.status(400).json({ error: 'Arquivo não enviado' });
+      const pool = getPool();
+      const { id } = req.params;
+      const { descricao, tipo_imagem, principal } = req.body;
+      const caminho = `uploads/fornecedores/${id}/${req.file.filename}`;
+      const [result] = await pool.query(
+        `INSERT INTO fornecedor_fotos (cod_fornecedor, descricao, tipo_imagem, principal, caminho, excluido, dtcadastro)
+         VALUES (?, ?, ?, ?, ?, 'N', CURDATE())`,
+        [id, descricao || req.file.originalname, tipo_imagem || '', principal || 'N', caminho]
+      );
+      res.status(201).json({ ok: true, id: result.insertId, caminho });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  };
+
   try {
-    if (!req.file) return res.status(400).json({ error: 'Arquivo não enviado' });
-    const pool = getPool();
-    const { id } = req.params;
-    const { descricao, tipo_imagem, principal } = req.body;
-    const caminho = `uploads/fornecedores/${id}/${req.file.filename}`;
-    const [result] = await pool.query(
-      `INSERT INTO fornecedor_fotos (cod_fornecedor, descricao, tipo_imagem, principal, caminho, excluido, dtcadastro)
-       VALUES (?, ?, ?, ?, ?, 'N', CURDATE())`,
-      [id, descricao || req.file.originalname, tipo_imagem || '', principal || 'N', caminho]
-    );
-    res.status(201).json({ ok: true, id: result.insertId, caminho });
+    return runWithRequestPool(req, handler);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

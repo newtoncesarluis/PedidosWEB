@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Curva ABC — Clientes | SysRepWeb</title>
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<link rel="stylesheet" href="/assets/mobile-app.css">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: var(--font); background: var(--content-bg); color: var(--content-text); min-height: 100vh; }
+
+.toolbar {
+  position: sticky; top: 0; z-index: 30; background: var(--card-bg);
+  border-bottom: 1px solid var(--card-border); padding: 12px 18px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.tb-top { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.title { font-size: 13px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.tb-actions { margin-left: auto; display: flex; gap: 8px; }
+.tb-filters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.input, .select {
+  padding: 8px 12px; border: 1.5px solid var(--card-border);
+  border-radius: 10px; background: var(--card-bg); color: var(--content-text);
+  font: inherit; outline: none;
+}
+.input:focus, .select:focus { border-color: var(--accent); }
+.input { flex: 1 1 180px; min-width: 160px; }
+.btn {
+  padding: 8px 16px; border-radius: 10px; border: none; cursor: pointer;
+  font: inherit; font-weight: 600; font-size: 13px;
+  background: var(--accent); color: #fff;
+}
+.btn:hover { opacity: .88; }
+.btn-outline { background: var(--card-bg); border: 1.5px solid var(--card-border); color: var(--content-text); }
+
+.kpi-row { display: flex; gap: 10px; padding: 14px 18px; flex-wrap: wrap; }
+.kpi {
+  flex: 1; min-width: 140px; background: var(--card-bg);
+  border: 1px solid var(--card-border); border-radius: 14px; padding: 12px 16px;
+}
+.kpi small { display: block; font-size: 10px; color: var(--text2); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 2px; }
+.kpi strong { display: block; font-size: 18px; font-weight: 800; }
+.kpi .sub { font-size: 11px; color: var(--text2); margin-top: 3px; }
+.kpi-a strong { color: #16a34a; }
+.kpi-b strong { color: #d97706; }
+.kpi-c strong { color: #6b7280; }
+
+.tabs-classe { display: flex; gap: 6px; padding: 0 18px 10px; }
+.tab-cls {
+  padding: 6px 16px; border-radius: 999px; font-size: 12px; font-weight: 700;
+  border: 1.5px solid var(--card-border); background: var(--card-bg);
+  color: var(--text2); cursor: pointer;
+}
+.tab-cls.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.tab-cls.cls-a.active { background: #16a34a; border-color: #16a34a; }
+.tab-cls.cls-b.active { background: #d97706; border-color: #d97706; }
+.tab-cls.cls-c.active { background: #6b7280; border-color: #6b7280; }
+
+.table-wrap { overflow-x: auto; padding: 0 18px 80px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th {
+  text-align: left; padding: 8px 10px; font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .06em; color: var(--text2);
+  border-bottom: 2px solid var(--card-border); white-space: nowrap;
+}
+td { padding: 9px 10px; border-bottom: 1px solid var(--card-border); }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--accent-soft, rgba(13,148,136,.06)); }
+
+.badge-abc {
+  display: inline-block; padding: 2px 10px; border-radius: 999px;
+  font-size: 11px; font-weight: 800; min-width: 26px; text-align: center;
+}
+.badge-a { background: #d1fae5; color: #065f46; }
+.badge-b { background: #fef3c7; color: #92400e; }
+.badge-c { background: #f3f4f6; color: #374151; }
+
+.bar-wrap { display: flex; align-items: center; gap: 6px; }
+.bar { height: 6px; border-radius: 999px; background: var(--accent); min-width: 2px; }
+.bar-a { background: #16a34a; }
+.bar-b { background: #d97706; }
+.bar-c { background: #9ca3af; }
+
+.empty { text-align: center; padding: 48px; color: var(--text2); }
+.spinner { text-align: center; padding: 40px; color: var(--text2); }
+
+.link-cl { color: var(--accent); text-decoration: none; font-weight: 600; }
+.link-cl:hover { text-decoration: underline; }
+
+.right { text-align: right; }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <div class="tb-top">
+    <span class="title">Curva ABC — Clientes</span>
+    <div class="tb-actions">
+      <button class="btn btn-outline" id="btn-exportar">↓ CSV</button>
+      <button class="btn" id="btn-filtrar">Aplicar</button>
+    </div>
+  </div>
+  <div class="tb-filters">
+    <input class="input" type="date" id="f-inicio" title="Data início">
+    <input class="input" type="date" id="f-fim" title="Data fim">
+    <select class="select" id="f-vendedor" style="display:none">
+      <option value="">Todos vendedores</option>
+    </select>
+    <input class="input" type="search" id="f-busca" placeholder="Buscar cliente…" autocomplete="off">
+  </div>
+</div>
+
+<div class="kpi-row" id="kpis">
+  <div class="kpi kpi-a">
+    <small>Classe A — top 80%</small>
+    <strong id="k-a-valor">—</strong>
+    <div class="sub" id="k-a-count">— clientes</div>
+  </div>
+  <div class="kpi kpi-b">
+    <small>Classe B — 80–95%</small>
+    <strong id="k-b-valor">—</strong>
+    <div class="sub" id="k-b-count">— clientes</div>
+  </div>
+  <div class="kpi kpi-c">
+    <small>Classe C — cauda</small>
+    <strong id="k-c-valor">—</strong>
+    <div class="sub" id="k-c-count">— clientes</div>
+  </div>
+</div>
+
+<div class="tabs-classe">
+  <button class="tab-cls active" data-cls="TODOS">Todos</button>
+  <button class="tab-cls cls-a" data-cls="A">Classe A</button>
+  <button class="tab-cls cls-b" data-cls="B">Classe B</button>
+  <button class="tab-cls cls-c" data-cls="C">Classe C</button>
+</div>
+
+<div class="table-wrap">
+  <table id="tabela">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Classe</th>
+        <th>Cliente</th>
+        <th>Cidade / UF</th>
+        <th class="right">Faturamento</th>
+        <th class="right">% Total</th>
+        <th class="right">% Acum.</th>
+        <th class="right">Pedidos</th>
+        <th class="right">Ticket Médio</th>
+        <th>Últ. Compra</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="tbody">
+      <tr><td colspan="11" class="spinner">Carregando…</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<script>
+var _tkn = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+var _user = {};
+try { _user = JSON.parse(sessionStorage.getItem('user') || '{}'); } catch(_) {}
+var _isAdmin = _user.role === 'admin' || _user.perfil == 1;
+var _dados = [];
+var _clsFiltro = 'TODOS';
+var _busca = '';
+
+function authFetch(url) {
+  return fetch(url, { headers: { 'Authorization': 'Bearer ' + _tkn } });
+}
+function fmtMoeda(v) {
+  return Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+function fmtData(d) {
+  if (!d) return '—';
+  var dt = new Date(d);
+  return isNaN(dt) ? d : dt.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+}
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function barCls(cls) { return cls === 'A' ? 'bar-a' : cls === 'B' ? 'bar-b' : 'bar-c'; }
+function badgeCls(cls) { return cls === 'A' ? 'badge-a' : cls === 'B' ? 'badge-b' : 'badge-c'; }
+
+function render() {
+  var busca = _busca.toLowerCase();
+  var lista = _dados.filter(function(c) {
+    if (_clsFiltro !== 'TODOS' && c.classe !== _clsFiltro) return false;
+    if (busca && !c.nome_cliente.toLowerCase().includes(busca) &&
+        !(c.cidade || '').toLowerCase().includes(busca)) return false;
+    return true;
+  });
+
+  var tbody = document.getElementById('tbody');
+  if (!lista.length) {
+    tbody.innerHTML = '<tr><td colspan="11" class="empty">Nenhum cliente encontrado</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = lista.map(function(c) {
+    var barW = Math.max(2, Math.round(c.share));
+    var finUrl = '/pages/financeiro-cliente.html?cod_cliente=' + encodeURIComponent(c.id_cliente) +
+                 '&nome=' + encodeURIComponent(c.nome_cliente);
+    return '<tr>' +
+      '<td style="color:var(--text2);font-size:11px">' + c.posicao + '</td>' +
+      '<td><span class="badge-abc ' + badgeCls(c.classe) + '">' + esc(c.classe) + '</span></td>' +
+      '<td style="font-weight:600;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(c.nome_cliente) + '</td>' +
+      '<td style="font-size:11px;color:var(--text2)">' + esc((c.cidade && c.uf) ? c.cidade + ' / ' + c.uf : c.cidade || c.uf || '—') + '</td>' +
+      '<td class="right" style="font-weight:700">' + fmtMoeda(c.valor_total) + '</td>' +
+      '<td class="right">' +
+        '<div class="bar-wrap">' +
+          '<div class="bar ' + barCls(c.classe) + '" style="width:' + barW + 'px"></div>' +
+          '<span style="font-size:11px">' + c.share.toFixed(1) + '%</span>' +
+        '</div>' +
+      '</td>' +
+      '<td class="right" style="font-size:11px">' + c.acumulado_pct.toFixed(1) + '%</td>' +
+      '<td class="right">' + c.total_pedidos + '</td>' +
+      '<td class="right" style="font-size:11px">' + fmtMoeda(c.ticket_medio) + '</td>' +
+      '<td style="font-size:11px">' + fmtData(c.ultima_compra) + '</td>' +
+      '<td><a class="link-cl" href="' + finUrl + '" target="_blank" title="Financeiro">$</a></td>' +
+    '</tr>';
+  }).join('');
+}
+
+function carregarVendedores() {
+  if (!_isAdmin) return;
+  var sel = document.getElementById('f-vendedor');
+  sel.style.display = '';
+  authFetch('/api/usuarios?perfil_vender=S&limit=100')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      (data.rows || data || []).forEach(function(u) {
+        var op = document.createElement('option');
+        op.value = u.idusuario || u.id;
+        op.textContent = u.nomeusu || u.nome;
+        sel.appendChild(op);
+      });
+    })
+    .catch(function(){});
+}
+
+function carregar() {
+  var params = new URLSearchParams();
+  var ini = document.getElementById('f-inicio').value;
+  var fim = document.getElementById('f-fim').value;
+  var vend = document.getElementById('f-vendedor').value;
+  if (ini) params.set('dt_inicio', ini);
+  if (fim) params.set('dt_fim', fim);
+  if (vend) params.set('id_vendedor', vend);
+
+  document.getElementById('tbody').innerHTML = '<tr><td colspan="11" class="spinner">Calculando curva ABC…</td></tr>';
+
+  authFetch('/api/analytics/comercial/curva-abc-clientes?' + params.toString())
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      _dados = data.clientes || [];
+
+      var r = data.resumo || {};
+      var fmtV = function(v) { return fmtMoeda(v); };
+      document.getElementById('k-a-valor').textContent = fmtV(r.A && r.A.valor);
+      document.getElementById('k-a-count').textContent = (r.A ? r.A.count : 0) + ' clientes';
+      document.getElementById('k-b-valor').textContent = fmtV(r.B && r.B.valor);
+      document.getElementById('k-b-count').textContent = (r.B ? r.B.count : 0) + ' clientes';
+      document.getElementById('k-c-valor').textContent = fmtV(r.C && r.C.valor);
+      document.getElementById('k-c-count').textContent = (r.C ? r.C.count : 0) + ' clientes';
+
+      render();
+    })
+    .catch(function() {
+      document.getElementById('tbody').innerHTML = '<tr><td colspan="11" class="empty">Erro ao carregar dados</td></tr>';
+    });
+}
+
+// Filtros padrão: ano corrente
+(function() {
+  var now = new Date();
+  var y = now.getFullYear();
+  document.getElementById('f-inicio').value = y + '-01-01';
+  document.getElementById('f-fim').value    = y + '-12-31';
+})();
+
+document.getElementById('btn-filtrar').addEventListener('click', carregar);
+
+document.getElementById('f-busca').addEventListener('input', function() {
+  _busca = this.value.trim();
+  render();
+});
+
+document.querySelectorAll('.tab-cls').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.tab-cls').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    _clsFiltro = btn.dataset.cls;
+    render();
+  });
+});
+
+document.getElementById('btn-exportar').addEventListener('click', function() {
+  var linhas = [['#','Classe','Cliente','Cidade','UF','Faturamento','% Total','% Acum','Pedidos','Ticket Medio','Ultima Compra']];
+  _dados.forEach(function(c) {
+    linhas.push([c.posicao, c.classe, c.nome_cliente, c.cidade || '', c.uf || '',
+      c.valor_total.toFixed(2), c.share.toFixed(2), c.acumulado_pct.toFixed(2),
+      c.total_pedidos, c.ticket_medio.toFixed(2), c.ultima_compra || '']);
+  });
+  var csv = linhas.map(function(l) {
+    return l.map(function(v) { return '"' + String(v).replace(/"/g,'""') + '"'; }).join(';');
+  }).join('\n');
+  var a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,﻿' + encodeURIComponent(csv);
+  a.download = 'curva-abc-clientes.csv';
+  a.click();
+});
+
+carregarVendedores();
+carregar();
+</script>
+</body>
+</html>

@@ -68,6 +68,11 @@ router.get('/', async (req, res) => {
     where += ' AND (p.nome_fornecedor LIKE ? OR CAST(p.cod_fornecedor AS CHAR) LIKE ? OR p.doc LIKE ? OR p.numero LIKE ?)';
     params.push(`%${fornecedor}%`, `%${fornecedor}%`, `%${fornecedor}%`, `%${fornecedor}%`);
   }
+  const { cod_cliente } = req.query;
+  if (cod_cliente) {
+    where += ' AND p.id_cliente = ?';
+    params.push(cod_cliente);
+  }
   const recId = parseInt(id_receitas, 10);
   if (recId > 0) {
     where += ' AND p.id_receitas = ?';

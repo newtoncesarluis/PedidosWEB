@@ -4,6 +4,106 @@ const multer  = require('multer');
 const path    = require('path');
 const fs      = require('fs');
 const { getPool } = require('../config/database');
+const {
+  PROMO_SELECT_COLS,
+  tabelaPromocoesExiste,
+  buscarPromocoesProduto,
+  formatarPromocaoRow,
+  validarPayloadPromocao,
+  resolverMelhorPromocao,
+  calcularPrecoPromocao,
+  sincronizarPrecopromoLegado,
+  parseOptInt,
+} = require('../config/promocoes-produto');
+
+function _parseCodCliente(v) {
+  return parseOptInt(v);
+}
+
+function _promoContextoFromQuery(q) {
+  return {
+    codCliente: parseOptInt(q.cod_cliente),
+    idRegiao: parseOptInt(q.id_regiao),
+    codFornecedor: parseOptInt(q.cod_fornecedor),
+    idTabelaPreco: parseOptInt(q.id_tabela_preco || q.id_tabela),
+  };
+}
+
+async function _gravarPromocao(pool, prodId, body, promoId = null) {
+  const tb = await getTabela(pool);
+  const [[prod]] = await pool.query(
+    `SELECT ID, vlr_venda FROM ${tb} WHERE ID=? AND (excluido='N' OR excluido IS NULL OR excluido='') LIMIT 1`,
+    [prodId]
+  );
+  if (!prod) return { status: 404, json: { error: 'Produto não encontrado' } };
+
+  const val = validarPayloadPromocao(body, parseFloat(prod.vlr_venda) || 0);
+  if (!val.ok) return { status: 400, json: { error: val.erros[0] } };
+
+  const [dup] = await pool.query(
+    `SELECT id FROM produto_promocoes
+     WHERE cod_produto=? AND excluido='N' AND ativo='S'
+       AND descricao=? AND qtd_minima=?
+       AND (cod_cliente <=> ?)
+       AND (id_regiao <=> ?)
+       AND (cod_fornecedor <=> ?)
+       AND (id_tabela_preco <=> ?)
+       ${promoId ? 'AND id<>?' : ''}
+     LIMIT 1`,
+    promoId
+      ? [prodId, val.desc.slice(0, 200), val.qtdMin, val.codCliente, val.idRegiao, val.codFornecedor, val.idTabelaPreco, promoId]
+      : [prodId, val.desc.slice(0, 200), val.qtdMin, val.codCliente, val.idRegiao, val.codFornecedor, val.idTabelaPreco]
+  );
+  if (dup.length) {
+    return { status: 400, json: { error: 'Já existe promoção ativa com mesma descrição, regras e quantidade mínima' } };
+  }
+
+  const params = [
+    val.desc.slice(0, 200),
+    val.tipoNorm,
+    val.val,
+    val.qtdMin,
+    body.data_inicio || null,
+    body.data_fim || null,
+    body.destaque === 'S' || body.destaque === true ? 'S' : 'N',
+    body.ativo === 'N' ? 'N' : 'S',
+    val.codCliente,
+    val.idRegiao,
+    val.codFornecedor,
+    val.idTabelaPreco,
+    val.syncPrecopromo,
+  ];
+
+  if (promoId) {
+    await pool.query(
+      `UPDATE produto_promocoes SET
+         descricao=?, tipo=?, valor=?, qtd_minima=?, data_inicio=?, data_fim=?, destaque=?, ativo=?,
+         cod_cliente=?, id_regiao=?, cod_fornecedor=?, id_tabela_preco=?, sync_precopromo=?
+       WHERE id=? AND cod_produto=?`,
+      [...params, promoId, prodId]
+    );
+    if (val.syncPrecopromo === 'S' && body.ativo !== 'N') {
+      await sincronizarPrecopromoLegado(pool, tb, prodId, {
+        tipo: val.tipoNorm, valor: val.val, qtd_minima: val.qtdMin, ativo: 'S', sync_precopromo: 'S',
+      }, prod.vlr_venda);
+    }
+    return { status: 200, json: { ok: true } };
+  }
+
+  const [r] = await pool.query(
+    `INSERT INTO produto_promocoes
+       (cod_produto, descricao, tipo, valor, qtd_minima, data_inicio, data_fim, destaque, ativo,
+        cod_cliente, id_regiao, cod_fornecedor, id_tabela_preco, sync_precopromo)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [prodId, ...params]
+  );
+  if (val.syncPrecopromo === 'S' && body.ativo !== 'N') {
+    await sincronizarPrecopromoLegado(pool, tb, prodId, {
+      tipo: val.tipoNorm, valor: val.val, qtd_minima: val.qtdMin, ativo: 'S', sync_precopromo: 'S',
+    }, prod.vlr_venda);
+  }
+  return { status: 201, json: { ok: true, id: r.insertId } };
+}
 
 // ─── cache DESCRIBE ───────────────────────────────────────────────────────────
 let _colunasCache = null;
@@ -548,6 +648,217 @@ router.post('/importar-fotos',
     (req.files || []).forEach(f => { try { fs.rmSync(f.path, { force: true }); } catch {} });
     res.status(500).json({ error: `Erro interno: ${err.message}` });
   }
+});
+
+// ─── Promoções — lista central e relatório ────────────────────────────────────
+router.get('/promocoes/lista', async (req, res) => {
+  try {
+    const pool = getPool();
+    if (!(await tabelaPromocoesExiste(pool))) return res.json({ data: [], total: 0 });
+
+    const tb = await getTabela(pool);
+    const somenteAtivas = req.query.ativo !== 'N';
+    const q = String(req.query.q || '').trim();
+    const limit = Math.min(500, Math.max(1, parseInt(req.query.limit, 10) || 100));
+    const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
+
+    let where = `pp.excluido = 'N'`;
+    const params = [];
+    if (somenteAtivas) {
+      where += ` AND pp.ativo = 'S'
+        AND (pp.data_inicio IS NULL OR pp.data_inicio <= CURDATE())
+        AND (pp.data_fim IS NULL OR pp.data_fim >= CURDATE())`;
+    }
+    if (q) {
+      where += ` AND (pp.descricao LIKE ? OR p.descricao LIKE ? OR CAST(pp.cod_produto AS CHAR) LIKE ?)`;
+      const lk = `%${q}%`;
+      params.push(lk, lk, lk);
+    }
+
+    const [[{ total }]] = await pool.query(
+      `SELECT COUNT(*) AS total
+       FROM produto_promocoes pp
+       INNER JOIN ${tb} p ON p.ID = pp.cod_produto
+       WHERE ${where}`,
+      params
+    );
+
+    const [rows] = await pool.query(
+      `SELECT pp.*, p.descricao AS nome_produto, p.vlr_venda,
+              rr.descricao AS nome_regiao,
+              f.nome AS nome_fornecedor,
+              c.nome AS nome_cliente
+       FROM produto_promocoes pp
+       INNER JOIN ${tb} p ON p.ID = pp.cod_produto
+       LEFT JOIN regiao_rota rr ON rr.id = pp.id_regiao AND (rr.excluido = 'N' OR rr.excluido IS NULL)
+       LEFT JOIN fornecedores f ON f.id = pp.cod_fornecedor AND f.excluido = 'N'
+       LEFT JOIN clientes c ON c.id = pp.cod_cliente AND c.excluido = 'N'
+       WHERE ${where}
+       ORDER BY pp.data_fim IS NULL DESC, pp.data_fim DESC, pp.id DESC
+       LIMIT ? OFFSET ?`,
+      [...params, limit, offset]
+    );
+
+    const data = rows.map((r) => ({
+      ...formatarPromocaoRow(r, parseFloat(r.vlr_venda) || 0, parseFloat(r.qtd_minima) || 1),
+      cod_produto: r.cod_produto,
+      nome_produto: r.nome_produto,
+      nome_regiao: r.nome_regiao || null,
+      nome_fornecedor: r.nome_fornecedor || null,
+      nome_cliente: r.nome_cliente || null,
+      dtcadastro: r.dtcadastro,
+    }));
+
+    res.json({ data, total: Number(total) || 0 });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/promocoes/relatorio-vendas', async (req, res) => {
+  try {
+    const pool = getPool();
+    const tb = await getTabela(pool);
+    const dtIni = req.query.dt_inicio || null;
+    const dtFim = req.query.dt_fim || null;
+    if (!dtIni || !dtFim) {
+      return res.status(400).json({ error: 'Informe dt_inicio e dt_fim (YYYY-MM-DD)' });
+    }
+
+    const [rows] = await pool.query(
+      `SELECT p.numero, p.data_abertura, c.nome AS nome_cliente,
+              i.cod_produto, prod.descricao AS nome_produto,
+              i.quantidade, i.valor_unitario, i.vlr_padrao,
+              prod.vlr_venda,
+              ROUND(i.quantidade * i.valor_unitario, 2) AS total_item
+       FROM itensped i
+       INNER JOIN pedidos p ON p.id = i.id_pedido AND p.excluido = 'N'
+       LEFT JOIN clientes c ON c.id = p.cod_cliente
+       INNER JOIN ${tb} prod ON prod.ID = i.cod_produto
+       WHERE (i.excluido = 'N' OR i.excluido IS NULL)
+         AND p.data_abertura >= ? AND p.data_abertura <= ?
+         AND i.valor_unitario > 0
+         AND prod.vlr_venda > 0
+         AND i.valor_unitario < prod.vlr_venda * 0.995
+       ORDER BY p.data_abertura DESC, p.numero DESC, i.id DESC
+       LIMIT 2000`,
+      [dtIni, dtFim]
+    );
+
+    const resumo = {
+      itens: rows.length,
+      total_vendido: rows.reduce((s, r) => s + (parseFloat(r.total_item) || 0), 0),
+      economia_estimada: rows.reduce((s, r) => {
+        const diff = (parseFloat(r.vlr_venda) || 0) - (parseFloat(r.valor_unitario) || 0);
+        return s + diff * (parseFloat(r.quantidade) || 0);
+      }, 0),
+    };
+
+    res.json({ data: rows, resumo });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── Promoções por produto (estilo Mercos) ────────────────────────────────────
+router.get('/:id/promocoes/resolve', async (req, res) => {
+  try {
+    const pool = getPool();
+    const prodId = parseInt(req.params.id, 10);
+    if (!prodId) return res.status(400).json({ error: 'ID inválido' });
+    if (!(await tabelaPromocoesExiste(pool))) return res.json(null);
+
+    const tb = await getTabela(pool);
+    const [[prod]] = await pool.query(
+      `SELECT ID, vlr_venda FROM ${tb} WHERE ID=? AND (excluido='N' OR excluido IS NULL OR excluido='') LIMIT 1`,
+      [prodId]
+    );
+    if (!prod) return res.status(404).json({ error: 'Produto não encontrado' });
+
+    const qtd = parseFloat(req.query.qtd) || 1;
+    const ctx = _promoContextoFromQuery(req.query);
+    const vlrBase = parseFloat(req.query.vlr_base) || parseFloat(prod.vlr_venda) || 0;
+    const promo = await resolverMelhorPromocao(pool, prodId, vlrBase, qtd, ctx);
+    res.json(promo);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/:id/promocoes', async (req, res) => {
+  try {
+    const pool = getPool();
+    const prodId = parseInt(req.params.id, 10);
+    if (!prodId) return res.status(400).json({ error: 'ID inválido' });
+    if (!(await tabelaPromocoesExiste(pool))) return res.json([]);
+
+    const tb = await getTabela(pool);
+    const [[prod]] = await pool.query(
+      `SELECT ID, vlr_venda FROM ${tb} WHERE ID=? AND (excluido='N' OR excluido IS NULL OR excluido='') LIMIT 1`,
+      [prodId]
+    );
+    if (!prod) return res.status(404).json({ error: 'Produto não encontrado' });
+
+    const [rows] = await pool.query(
+      `SELECT ${PROMO_SELECT_COLS}, dtcadastro
+       FROM produto_promocoes
+       WHERE cod_produto = ? AND excluido = 'N'
+       ORDER BY qtd_minima DESC, id DESC`,
+      [prodId]
+    );
+    const vlrBase = parseFloat(prod.vlr_venda) || 0;
+    res.json(rows.map((r) => ({
+      ...formatarPromocaoRow(r, vlrBase, parseFloat(r.qtd_minima) || 1),
+      dtcadastro: r.dtcadastro,
+    })));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/:id/promocoes', async (req, res) => {
+  try {
+    const pool = getPool();
+    const prodId = parseInt(req.params.id, 10);
+    if (!prodId) return res.status(400).json({ error: 'ID inválido' });
+    if (!(await tabelaPromocoesExiste(pool))) {
+      return res.status(503).json({ error: 'Tabela produto_promocoes indisponível. Reinicie o servidor para aplicar migrations.' });
+    }
+    const out = await _gravarPromocao(pool, prodId, req.body || {});
+    res.status(out.status).json(out.json);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.put('/:id/promocoes/:promoId', async (req, res) => {
+  try {
+    const pool = getPool();
+    const prodId = parseInt(req.params.id, 10);
+    const promoId = parseInt(req.params.promoId, 10);
+    if (!prodId || !promoId) return res.status(400).json({ error: 'IDs inválidos' });
+    if (!(await tabelaPromocoesExiste(pool))) {
+      return res.status(503).json({ error: 'Tabela produto_promocoes indisponível.' });
+    }
+
+    const [[row]] = await pool.query(
+      `SELECT id FROM produto_promocoes WHERE id=? AND cod_produto=? AND excluido='N' LIMIT 1`,
+      [promoId, prodId]
+    );
+    if (!row) return res.status(404).json({ error: 'Promoção não encontrada' });
+
+    const out = await _gravarPromocao(pool, prodId, req.body || {}, promoId);
+    res.status(out.status).json(out.json);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.delete('/:id/promocoes/:promoId', async (req, res) => {
+  try {
+    const pool = getPool();
+    const prodId = parseInt(req.params.id, 10);
+    const promoId = parseInt(req.params.promoId, 10);
+    if (!prodId || !promoId) return res.status(400).json({ error: 'IDs inválidos' });
+    if (!(await tabelaPromocoesExiste(pool))) {
+      return res.status(503).json({ error: 'Tabela produto_promocoes indisponível.' });
+    }
+
+    const [r] = await pool.query(
+      `UPDATE produto_promocoes SET excluido='S' WHERE id=? AND cod_produto=? AND excluido='N'`,
+      [promoId, prodId]
+    );
+    if (!r.affectedRows) return res.status(404).json({ error: 'Promoção não encontrada' });
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ─── GET /api/produtos/:id ────────────────────────────────────────────────────

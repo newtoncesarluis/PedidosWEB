@@ -76,6 +76,34 @@ function injectBaseHref(html, baseUrl) {
   return `<base href="${safe}">` + html;
 }
 
+const MIME_BY_EXT = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  svg: 'image/svg+xml',
+};
+
+/** Embute imagens /uploads/ como data: URL — Puppeteer não depende de HTTP para logos/fotos. */
+function inlineLocalUploadImages(html, publicRoot) {
+  if (!html || typeof html !== 'string') return html;
+  const root = publicRoot || pathMod.join(process.cwd(), 'public');
+  return html.replace(/<img([^>]*)\ssrc=["'](\/?uploads\/[^"']+)["']/gi, (match, attrs, src) => {
+    try {
+      const fp = pathMod.join(root, src.replace(/^\//, '').replace(/\//g, pathMod.sep));
+      if (!fsSync.existsSync(fp)) return match;
+      const ext = pathMod.extname(fp).slice(1).toLowerCase();
+      const mime = MIME_BY_EXT[ext];
+      if (!mime) return match;
+      const b64 = fsSync.readFileSync(fp).toString('base64');
+      return `<img${attrs} src="data:${mime};base64,${b64}"`;
+    } catch {
+      return match;
+    }
+  });
+}
+
 /**
  * @param {string} html
  * @param {{ baseUrl?: string }} [opts]
@@ -83,7 +111,8 @@ function injectBaseHref(html, baseUrl) {
  */
 async function htmlToPdf(html, opts = {}) {
   const baseUrl = opts.baseUrl || process.env.APP_URL || process.env.PUBLIC_URL || '';
-  const doc = injectBaseHref(html, baseUrl);
+  let doc = inlineLocalUploadImages(html);
+  doc = injectBaseHref(doc, baseUrl);
   const browser = await getBrowser();
   const page = await browser.newPage();
   try {
@@ -141,4 +170,4 @@ async function warmupPdfBrowser() {
   }
 }
 
-module.exports = { htmlToPdf, closePdfBrowser, findChrome, injectBaseHref, warmupPdfBrowser };
+module.exports = { htmlToPdf, closePdfBrowser, findChrome, injectBaseHref, inlineLocalUploadImages, warmupPdfBrowser };

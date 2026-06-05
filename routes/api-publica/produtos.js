@@ -4,6 +4,7 @@
 const express = require('express');
 const router  = express.Router();
 const { getPool } = require('../../config/database');
+const { enrichProdutosComPromocao } = require('../../config/promocoes-produto');
 
 let _prodTabela = null;
 async function getProdTabela(pool) {
@@ -61,7 +62,7 @@ router.get('/', async (req, res) => {
       [...params, limitNum, offset]
     );
 
-    const data = rows.map(p => ({
+    let data = rows.map(p => ({
       id:           p.id,
       codigo:       p.codigo    || null,
       descricao:    p.descricao,
@@ -69,12 +70,53 @@ router.get('/', async (req, res) => {
       preco_venda:  Number(p.preco_venda   || 0),
       preco_atacado:Number(p.preco_atacado || 0),
       preco_promocao:Number(p.preco_promocao || 0),
+      vlr_venda:    Number(p.preco_venda   || 0),
       situacao:     p.situacao,
+      cod_fornecedor: p.cod_fornecedor || null,
       fornecedor: {
         id:   p.cod_fornecedor || null,
         nome: p.nome_fornecedor || null,
       },
     }));
+
+    const codCliente = parseInt(req.query.cod_cliente, 10) || null;
+    const idRegiao = parseInt(req.query.id_regiao, 10) || null;
+    const codFornecedor = parseInt(req.query.cod_fornecedor || req.query.id_fornecedor, 10) || null;
+    const idTabelaPreco = parseInt(req.query.id_tabela_preco || req.query.id_tabela, 10) || null;
+    data = await enrichProdutosComPromocao(pool, data, {
+      codCliente,
+      idRegiao,
+      codFornecedor,
+      idTabelaPreco,
+    });
+
+    data = data.map((p) => {
+      const out = {
+        id: p.id,
+        codigo: p.codigo || null,
+        descricao: p.descricao,
+        unidade: p.unidade || null,
+        preco_venda: Number(p.preco_venda || 0),
+        preco_atacado: Number(p.preco_atacado || 0),
+        preco_promocao: Number(p.preco_promocao || 0),
+        situacao: p.situacao,
+        fornecedor: p.fornecedor,
+        tem_promocao: !!p.tem_promocao,
+      };
+      if (p.promocao_ativa) {
+        out.promocao_ativa = {
+          id: p.promocao_ativa.id,
+          descricao: p.promocao_ativa.descricao,
+          preco_promo: p.promocao_ativa.preco_promo,
+          qtd_minima: p.promocao_ativa.qtd_minima,
+          aplica_agora: p.promocao_ativa.aplica_agora,
+        };
+        if (p.promocao_ativa.aplica_agora) {
+          out.preco_promocao = Number(p.promocao_ativa.preco_promo || 0);
+        }
+      }
+      return out;
+    });
 
     res.json({
       data,

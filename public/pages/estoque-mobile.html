@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Estoque | SysRepWeb</title>
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<script src="/assets/mobile-app.js"></script>
+<link rel="stylesheet" href="/assets/mobile-app.css">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: var(--font); background: var(--content-bg); color: var(--content-text); min-height: 100vh; }
+.toolbar {
+  position: sticky; top: 0; z-index: 30; background: var(--card-bg);
+  border-bottom: 1px solid var(--card-border); padding: 12px 16px;
+  display: flex; gap: 10px; align-items: center;
+}
+.title { font-size: 13px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+.input {
+  flex: 1; padding: 9px 12px; border: 1.5px solid var(--card-border);
+  border-radius: 12px; background: var(--card-bg); color: var(--content-text);
+  font: inherit; outline: none;
+}
+.input:focus { border-color: var(--accent); }
+.list { padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.card {
+  background: var(--card-bg); border: 1px solid var(--card-border);
+  border-radius: 14px; padding: 12px 14px; display: flex; align-items: center; gap: 12px;
+}
+.card-info { flex: 1; min-width: 0; }
+.card-nome { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-cod { font-size: 11px; color: var(--text2); margin-top: 2px; }
+.badge {
+  min-width: 52px; text-align: center; padding: 5px 10px;
+  border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap;
+}
+.badge-ok    { background: #d1fae5; color: #065f46; }
+.badge-low   { background: #fef3c7; color: #92400e; }
+.badge-zero  { background: #fee2e2; color: #991b1b; }
+.badge-nd    { background: var(--content-bg); color: var(--text2); border: 1px solid var(--card-border); }
+.empty { text-align: center; padding: 48px 24px; color: var(--text2); font-size: 14px; }
+.spinner { text-align: center; padding: 40px; color: var(--text2); font-size: 13px; }
+.fornecedor-tag {
+  font-size: 10px; font-weight: 600; color: var(--text2);
+  background: var(--content-bg); border: 1px solid var(--card-border);
+  border-radius: 6px; padding: 1px 6px; margin-top: 3px; display: inline-block;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+}
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <span class="title">Estoque</span>
+  <input id="q" class="input" type="search" placeholder="Buscar produto…" autocomplete="off" autofocus>
+</div>
+
+<div id="lista" class="list">
+  <div class="spinner">Digite para buscar</div>
+</div>
+
+<script>
+var _tkn = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+var _timer;
+
+function authFetch(url) {
+  return fetch(url, { headers: { 'Authorization': 'Bearer ' + _tkn } });
+}
+
+function badgeClass(est, min) {
+  if (est == null) return 'badge-nd';
+  if (est <= 0) return 'badge-zero';
+  if (min > 0 && est <= min) return 'badge-low';
+  return 'badge-ok';
+}
+
+function badgeLabel(est) {
+  if (est == null) return 'N/D';
+  return Number(est).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
+function render(rows) {
+  var el = document.getElementById('lista');
+  if (!rows || !rows.length) {
+    el.innerHTML = '<div class="empty">Nenhum produto encontrado</div>';
+    return;
+  }
+  el.innerHTML = rows.map(function(p) {
+    var bc = badgeClass(p.estoque_atual, p.estoque_minimo);
+    var bl = badgeLabel(p.estoque_atual);
+    var forn = p.nome_fornecedor || p.fornecedor || '';
+    return '<div class="card">' +
+      '<div class="card-info">' +
+        '<div class="card-nome">' + escHtml(p.descricao || p.nome || '') + '</div>' +
+        '<div class="card-cod">Cód: ' + escHtml(String(p.ID || p.id || '')) +
+          (forn ? ' &nbsp;·&nbsp; <span class="fornecedor-tag">' + escHtml(forn) + '</span>' : '') +
+        '</div>' +
+      '</div>' +
+      '<span class="badge ' + bc + '">' + bl + '</span>' +
+    '</div>';
+  }).join('');
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function buscar(q) {
+  var el = document.getElementById('lista');
+  el.innerHTML = '<div class="spinner">Buscando…</div>';
+  var url = '/api/produtos?limit=60&status=A' + (q ? '&q=' + encodeURIComponent(q) : '');
+  authFetch(url)
+    .then(function(r) { return r.json(); })
+    .then(function(data) { render(data.rows || data); })
+    .catch(function() { el.innerHTML = '<div class="empty">Erro ao carregar estoque</div>'; });
+}
+
+document.getElementById('q').addEventListener('input', function() {
+  clearTimeout(_timer);
+  var v = this.value.trim();
+  _timer = setTimeout(function() { buscar(v); }, 350);
+});
+
+// carrega ao iniciar sem filtro
+buscar('');
+</script>
+</body>
+</html>

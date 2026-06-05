@@ -135,7 +135,7 @@ function buildClientesScope(req) {
 
 function buildVisitasWhere(req) {
   const { dt_inicio, dt_fim, status, id_vendedor, id_motivo } = req.query;
-  const where = [`v.exluido = 'N'`];
+  const where = [`COALESCE(v.excluido, 'N') = 'N'`];
   const params = [];
   const isAdmin = req.user?.role === 'admin';
 
@@ -2909,6 +2909,166 @@ router.get('/comercial/relatorios-padrao/produtos-por-fornecedor', async (req, r
   } catch (err) {
     console.error('[analytics/comercial/relatorios-padrao/produtos-por-fornecedor]', err);
     res.status(500).json({ error: 'Erro ao gerar relatorio' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Curva ABC de Clientes
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/comercial/curva-abc-clientes', async (req, res) => {
+  const pool = getPool();
+  try {
+    const base = buildPedidosWhereFromQuery(req.query, req.user);
+
+    const [rows] = await pool.query(
+      `
+      SELECT
+        p.cod_cliente AS id_cliente,
+        COALESCE(NULLIF(TRIM(p.nome_cliente), ''), c.nome, CONCAT('Cliente #', p.cod_cliente)) AS nome_cliente,
+        COALESCE(c.cidade, '') AS cidade,
+        COALESCE(c.uf, '') AS uf,
+        COUNT(DISTINCT p.numero) AS total_pedidos,
+        COALESCE(SUM(p.vlrtotalpedido), 0) AS valor_total,
+        COALESCE(AVG(NULLIF(p.vlrtotalpedido, 0)), 0) AS ticket_medio,
+        MAX(p.data_abertura) AS ultima_compra
+      FROM pedidos p
+      LEFT JOIN clientes c ON c.id = p.cod_cliente
+      ${base.clause}
+      AND p.situacao_pedido NOT IN ('CANCELADO')
+      GROUP BY p.cod_cliente, COALESCE(NULLIF(TRIM(p.nome_cliente), ''), c.nome, CONCAT('Cliente #', p.cod_cliente)), c.cidade, c.uf
+      ORDER BY valor_total DESC
+      LIMIT 2000
+      `,
+      base.params
+    );
+
+    const totalGeral = rows.reduce((s, r) => s + Number(r.valor_total || 0), 0);
+    let acumulado = 0;
+    const clientes = rows.map((r, idx) => {
+      const v = Number(r.valor_total || 0);
+      acumulado += v;
+      const share = totalGeral > 0 ? (v / totalGeral) * 100 : 0;
+      const acumuladoPct = totalGeral > 0 ? (acumulado / totalGeral) * 100 : 0;
+      const classe = acumuladoPct <= 80 ? 'A' : acumuladoPct <= 95 ? 'B' : 'C';
+      return {
+        posicao: idx + 1,
+        id_cliente: r.id_cliente,
+        nome_cliente: r.nome_cliente,
+        cidade: r.cidade,
+        uf: r.uf,
+        total_pedidos: Number(r.total_pedidos || 0),
+        valor_total: v,
+        ticket_medio: Number(r.ticket_medio || 0),
+        ultima_compra: r.ultima_compra,
+        share: Number(share.toFixed(2)),
+        acumulado_pct: Number(acumuladoPct.toFixed(2)),
+        classe,
+      };
+    });
+
+    const resumo = { A: { count: 0, valor: 0 }, B: { count: 0, valor: 0 }, C: { count: 0, valor: 0 } };
+    clientes.forEach(c => {
+      resumo[c.classe].count++;
+      resumo[c.classe].valor += c.valor_total;
+    });
+
+    res.json({
+      filtros: {
+        isAdmin: base.isAdmin,
+        dt_inicio: req.query.dt_inicio || null,
+        dt_fim: req.query.dt_fim || null,
+        id_vendedor: req.query.id_vendedor || null,
+      },
+      total_geral: totalGeral,
+      resumo,
+      clientes,
+    });
+  } catch (err) {
+    console.error('[analytics/comercial/curva-abc-clientes]', err);
+    res.status(500).json({ error: 'Erro ao calcular curva ABC de clientes' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Ranking de Vendedores com Metas
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/comercial/ranking-vendedores', async (req, res) => {
+  const pool = getPool();
+  try {
+    const isAdmin = req.user?.role === 'admin';
+    if (!isAdmin) return res.status(403).json({ error: 'Acesso restrito a administradores' });
+
+    const now = new Date();
+    const mes  = parseInt(req.query.mes  || String(now.getMonth() + 1), 10);
+    const ano  = parseInt(req.query.ano  || String(now.getFullYear()),   10);
+
+    const _ultimoDia = (y, m) => String(new Date(y, m, 0).getDate()).padStart(2, '0');
+    const dtInicio = `${ano}-${String(mes).padStart(2, '0')}-01`;
+    const dtFim    = `${ano}-${String(mes).padStart(2, '0')}-${_ultimoDia(ano, mes)}`;
+
+    // mês anterior para comparativo
+    const mesAnt = mes === 1 ? 12 : mes - 1;
+    const anoAnt = mes === 1 ? ano - 1 : ano;
+    const dtInicioAnt = `${anoAnt}-${String(mesAnt).padStart(2, '0')}-01`;
+    const dtFimAnt    = `${anoAnt}-${String(mesAnt).padStart(2, '0')}-${_ultimoDia(anoAnt, mesAnt)}`;
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS comissao_metas (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        id_usuario INT NOT NULL,
+        mes INT NOT NULL,
+        ano INT NOT NULL,
+        vlr_meta_vendas DECIMAL(15,2) DEFAULT 0,
+        vlr_meta_comissao DECIMAL(15,2) DEFAULT 0,
+        obs VARCHAR(500) DEFAULT NULL,
+        criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_meta (id_usuario, mes, ano)
+      )
+    `).catch(() => {});
+
+    const [rows] = await pool.query(
+      `
+      SELECT
+        u.idusuario AS id_usuario,
+        u.nomeusu AS nome_vendedor,
+        COALESCE(SUM(CASE WHEN p.data_abertura BETWEEN ? AND ? AND p.situacao_pedido NOT IN ('CANCELADO') THEN p.vlrtotalpedido END), 0) AS valor_mes,
+        COALESCE(COUNT(DISTINCT CASE WHEN p.data_abertura BETWEEN ? AND ? AND p.situacao_pedido NOT IN ('CANCELADO') THEN p.numero END), 0) AS pedidos_mes,
+        COALESCE(SUM(CASE WHEN p.data_abertura BETWEEN ? AND ? AND p.situacao_pedido NOT IN ('CANCELADO') THEN p.vlrtotalpedido END), 0) AS valor_ant,
+        COALESCE(m.vlr_meta_vendas, 0) AS meta_vendas
+      FROM usuarios u
+      INNER JOIN perfil pf ON pf.id = u.perfil AND pf.p_vender = 'S'
+      LEFT JOIN pedidos p ON p.id_usuario = u.idusuario AND COALESCE(p.excluido, 'N') = 'N'
+      LEFT JOIN comissao_metas m ON m.id_usuario = u.idusuario AND m.mes = ? AND m.ano = ?
+      WHERE u.excluido = 'N' AND u.SITUACAO = 'ATIVO'
+      GROUP BY u.idusuario, u.nomeusu, m.vlr_meta_vendas
+      ORDER BY valor_mes DESC
+      `,
+      [dtInicio, dtFim, dtInicio, dtFim, dtInicioAnt, dtFimAnt, mes, ano]
+    );
+
+    const ranking = rows.map((r, idx) => {
+      const v = Number(r.valor_mes || 0);
+      const meta = Number(r.meta_vendas || 0);
+      const ant = Number(r.valor_ant || 0);
+      const pctMeta = meta > 0 ? (v / meta) * 100 : null;
+      const variacao = ant > 0 ? ((v - ant) / ant) * 100 : null;
+      return {
+        posicao: idx + 1,
+        id_usuario: r.id_usuario,
+        nome_vendedor: r.nome_vendedor,
+        valor_mes: v,
+        pedidos_mes: Number(r.pedidos_mes || 0),
+        valor_ant: ant,
+        meta_vendas: meta,
+        pct_meta: pctMeta !== null ? Number(pctMeta.toFixed(1)) : null,
+        variacao_pct: variacao !== null ? Number(variacao.toFixed(1)) : null,
+      };
+    });
+
+    res.json({ mes, ano, mes_ant: mesAnt, ano_ant: anoAnt, ranking });
+  } catch (err) {
+    console.error('[analytics/comercial/ranking-vendedores]', err);
+    res.status(500).json({ error: 'Erro ao carregar ranking de vendedores' });
   }
 });
 

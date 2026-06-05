@@ -1,6 +1,80 @@
 const express = require('express');
 const router  = express.Router();
-const { getPool } = require('../config/database');
+const { getPool, runWithRequestPool } = require('../config/database');
+const multer  = require('multer');
+const path    = require('path');
+const fs      = require('fs');
+
+// ─── Multer: upload de fotos do cliente ───────────────────────────────────────
+const _uploadsBase = path.join(process.cwd(), 'public', 'uploads', 'clientes');
+const _storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(_uploadsBase, String(req.params.id));
+    fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const ext  = path.extname(file.originalname);
+    const base = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9_-]/g, '_');
+    cb(null, `${Date.now()}_${base}${ext}`);
+  }
+});
+const upload = multer({
+  storage: _storage,
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ok = /\.(jpg|jpeg|png|gif|webp|bmp|svg|pdf)$/i.test(file.originalname);
+    cb(ok ? null : new Error('Tipo de arquivo não permitido'), ok);
+  }
+});
+
+let _temClienteFotos = null;
+
+async function temClienteFotos(pool) {
+  if (_temClienteFotos !== null) return _temClienteFotos;
+  try {
+    const [r] = await pool.query("SHOW TABLES LIKE 'cliente_fotos'");
+    _temClienteFotos = r.length > 0;
+  } catch {
+    _temClienteFotos = false;
+  }
+  return _temClienteFotos;
+}
+
+function normalizarCaminhoFoto(caminho) {
+  if (!caminho) return null;
+  const cam = String(caminho).trim();
+  if (!cam) return null;
+  return cam.startsWith('/') ? cam : '/' + cam;
+}
+
+const FOTO_CLIENTE_SUBQUERY = `(SELECT cf.caminho
+     FROM cliente_fotos cf
+    WHERE cf.cod_cliente = c.id
+      AND (cf.excluido = 'N' OR cf.excluido IS NULL OR cf.excluido = '')
+      AND cf.caminho IS NOT NULL AND cf.caminho <> ''
+    ORDER BY (UPPER(COALESCE(cf.tipo_imagem, '')) = 'LOGO') DESC,
+             (cf.principal = 'S') DESC, cf.id ASC
+    LIMIT 1) AS foto_principal`;
+
+async function resolveClienteFotoPrincipal(pool, idCliente) {
+  if (!(await temClienteFotos(pool))) return null;
+  try {
+    const [rows] = await pool.query(
+      `SELECT caminho, tipo_imagem, principal
+       FROM cliente_fotos
+       WHERE cod_cliente = ? AND (excluido = 'N' OR excluido IS NULL OR excluido = '')
+         AND caminho IS NOT NULL AND caminho <> ''
+       ORDER BY (UPPER(COALESCE(tipo_imagem, '')) = 'LOGO') DESC,
+                (principal = 'S') DESC, id ASC
+       LIMIT 1`,
+      [idCliente]
+    );
+    return normalizarCaminhoFoto(rows[0]?.caminho);
+  } catch {
+    return null;
+  }
+}
 
 async function salvarVinculosTabelas(pool, clienteId, tabelasPreco) {
   if (!Array.isArray(tabelasPreco)) return;
@@ -98,6 +172,8 @@ router.get('/', async (req, res) => {
     }
 
     const whereClause = where.join(' AND ');
+    const comFotos = await temClienteFotos(pool);
+    const fotoCol = comFotos ? `, ${FOTO_CLIENTE_SUBQUERY}` : '';
 
     const [rows] = await pool.query(
       `SELECT c.id, c.nome, c.apelido, c.tipo_pessoa, c.cpf, c.foneprincipal, c.fonesecundario,
@@ -105,6 +181,7 @@ router.get('/', async (req, res) => {
               c.tipo_cliente, c.segmento, c.cod_vendedor, u.nomeusu AS nome_vendedor,
               c.credito, c.desconto, c.conceitocliente, c.venda_suspensa,
               (SELECT COUNT(p.id) FROM pedidos p WHERE p.cod_cliente = c.id AND COALESCE(p.excluido, 'N') = 'N') as total_pedidos
+              ${fotoCol}
               ${distanceCol}
         FROM clientes c
        LEFT JOIN usuarios u ON u.idusuario = c.cod_vendedor AND u.excluido = 'N'
@@ -113,6 +190,10 @@ router.get('/', async (req, res) => {
        LIMIT ? OFFSET ?`,
       [...selectVals, ...vals, parseInt(limit), parseInt(offset)]
     );
+
+    if (comFotos) {
+      rows.forEach(r => { r.foto_principal = normalizarCaminhoFoto(r.foto_principal); });
+    }
 
     const [total] = await pool.query(
       `SELECT COUNT(*) AS total FROM clientes c WHERE ${whereClause}`,
@@ -294,6 +375,8 @@ router.get('/:id', async (req, res) => {
       [req.params.id]
     );
     if (!rows[0]) return res.status(404).json({ error: 'Cliente não encontrado' });
+    const row = rows[0];
+    row.foto_principal = await resolveClienteFotoPrincipal(pool, row.id);
     let tabelasPreco = [];
     try {
       const [vinc] = await pool.query(
@@ -302,7 +385,7 @@ router.get('/:id', async (req, res) => {
       );
       tabelasPreco = vinc;
     } catch(e) {}
-    res.json({ ...rows[0], tabelasPreco });
+    res.json({ ...row, tabelasPreco });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -541,6 +624,81 @@ router.get('/:id/historico', async (req, res) => {
       LIMIT 20
     `, [req.params.id]);
     res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── GET /api/clientes/:id/fotos ─────────────────────────────────────────────
+router.get('/:id/fotos', async (req, res) => {
+  try {
+    if (!(await temClienteFotos(getPool()))) return res.json([]);
+    const pool = getPool();
+    const [rows] = await pool.query(
+      `SELECT id, descricao, tipo_imagem AS tipo, principal, caminho
+       FROM cliente_fotos
+       WHERE cod_cliente = ? AND COALESCE(excluido, 'N') = 'N'
+       ORDER BY (UPPER(COALESCE(tipo_imagem, '')) = 'LOGO') DESC,
+                (COALESCE(principal, 'N') = 'S') DESC,
+                id ASC`,
+      [req.params.id]
+    ).catch(() => [[]]);
+    const out = rows.map((r) => {
+      let cam = String(r.caminho || '').trim();
+      if (cam && !cam.startsWith('/')) cam = '/' + cam;
+      return { ...r, caminho: cam };
+    });
+    res.json(out);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── POST /api/clientes/:id/fotos — upload de arquivo ────────────────────────
+router.post('/:id/fotos', upload.single('arquivo'), async (req, res) => {
+  const handler = async () => {
+    try {
+      if (!req.file) return res.status(400).json({ error: 'Arquivo não enviado' });
+      const pool = getPool();
+      if (!(await temClienteFotos(pool))) {
+        return res.status(503).json({ error: 'Tabela cliente_fotos indisponível. Reinicie o servidor para aplicar migrations.' });
+      }
+      const { id } = req.params;
+      const { descricao, tipo_imagem, principal } = req.body;
+      const caminho = `uploads/clientes/${id}/${req.file.filename}`;
+      const [result] = await pool.query(
+        `INSERT INTO cliente_fotos (cod_cliente, descricao, tipo_imagem, principal, caminho, excluido, dtcadastro)
+         VALUES (?, ?, ?, ?, ?, 'N', CURDATE())`,
+        [id, descricao || req.file.originalname, tipo_imagem || '', principal || 'N', caminho]
+      );
+      res.status(201).json({ ok: true, id: result.insertId, caminho: '/' + caminho });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  };
+  try {
+    return runWithRequestPool(req, handler);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── DELETE /api/clientes/:id/fotos/:fotoId — soft delete ────────────────────
+router.delete('/:id/fotos/:fotoId', async (req, res) => {
+  try {
+    if (!(await temClienteFotos(getPool()))) return res.json({ ok: true });
+    const pool = getPool();
+    const [rows] = await pool.query(
+      `SELECT caminho FROM cliente_fotos WHERE id = ? AND cod_cliente = ? AND excluido = 'N' LIMIT 1`,
+      [req.params.fotoId, req.params.id]
+    );
+    if (rows[0]?.caminho) {
+      const rel = String(rows[0].caminho).replace(/^\//, '');
+      const abs = path.join(process.cwd(), 'public', rel.replace(/\//g, path.sep));
+      fs.unlink(abs, () => {});
+    }
+    await pool.query(`UPDATE cliente_fotos SET excluido = 'S' WHERE id = ?`, [req.params.fotoId]);
+    res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

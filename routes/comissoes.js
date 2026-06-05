@@ -149,6 +149,11 @@ router.get('/admin/extrato', async (req, res) => {
         u.nomeusu                                          AS nome_vendedor,
         ped.nome_cliente,
         ped.nome_fornecedor,
+        COALESCE(
+          NULLIF(TRIM(ped.nome_empresa), ''),
+          NULLIF(TRIM(emp.Razao_empresa), ''),
+          NULLIF(TRIM(emp.nome_fantasia), '')
+        ) AS nome_empresa,
         ped.numero,
         COALESCE(rec.parcela, 1)                           AS parcela,
         COALESCE(rec.qt_parcelas, ped.qt_parcelas, 1)      AS qt_parcelas,
@@ -175,6 +180,8 @@ router.get('/admin/extrato', async (req, res) => {
       JOIN usuarios u ON pc.cod_user = u.idusuario
       LEFT JOIN receber rec ON pc.id_parcela = rec.id
       LEFT JOIN fornecedores forn ON forn.id = ped.cod_fornecedor
+      LEFT JOIN empresa emp ON emp.id_empresa = COALESCE(ped.id_empresa, ped.id_filial)
+        AND COALESCE(emp.excluido, 'N') = 'N'
       WHERE ${where}
       ORDER BY pc.data_lancamento DESC
       LIMIT ${lim}

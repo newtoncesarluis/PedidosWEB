@@ -53,6 +53,7 @@
           <a class="nav-link" href="?sec=alteracao">Como alterar produtos</a>
           <a class="nav-link" href="?sec=fotos">Como cadastrar fotos</a>
           <a class="nav-link" href="?sec=importacao-fotos">Como importar fotos</a>
+          <a class="nav-link" href="?sec=promocoes">Promoções (estilo Mercos)</a>
           <a class="nav-link" href="?sec=atencao">Pontos de atencao</a>
         </nav>
       </aside>
@@ -62,8 +63,8 @@
           <h3>Visao geral da tela</h3>
           <p>
             A tela de produtos reune listagem, filtros, busca rapida, visualizacao em lista e cards,
-            formulario de cadastro e manutencao, notificacoes, exportacao em CSV, operacoes em massa e
-            uma aba especifica para a galeria de fotos.
+            formulario de cadastro e manutencao, notificacoes, exportacao em CSV, operacoes em massa,
+            aba de galeria de fotos e aba de <strong>Promoções</strong> (campanhas estilo Mercos).
           </p>
           <p>
             Tambem existem acoes rapidas como ativar, inativar, excluir logicamente e clonar um produto
@@ -130,6 +131,91 @@
             <li>Formatos aceitos na aba individual: <strong>JPG, PNG, GIF e WEBP</strong>.</li>
             <li>Se ainda nao existir foto principal, a primeira imagem enviada vira principal automaticamente.</li>
             <li>Ao excluir a foto principal, o sistema promove automaticamente a proxima disponivel.</li>
+          </ul>
+        </section>
+
+        <section class="section help-section" id="promocoes">
+          <h3>Promoções por produto (estilo Mercos)</h3>
+          <p>
+            A aba <strong>Promoções</strong> permite criar campanhas com vigência, quantidade mínima e destaque
+            na busca de produtos do pedido. O vendedor vê o preço promocional e pode escolher a pill
+            <strong>Campanha</strong> ao incluir o item — sem alterar o cadastro legado <code>precopromo</code>.
+          </p>
+          <div class="callout">
+            Salve o produto antes de cadastrar promoções. A tabela <code>produto_promocoes</code> é criada
+            automaticamente no próximo startup do servidor (migration).
+          </div>
+          <ol class="steps">
+            <li>Abra o produto em modo de edição.</li>
+            <li>Entre na aba <strong>Promoções</strong>.</li>
+            <li>Informe descrição, tipo (<strong>Preço fixo</strong> ou <strong>Desconto %</strong>), valor e quantidade mínima.</li>
+            <li>Opcional: defina data início/fim e marque <strong>Destaque na busca do pedido</strong>.</li>
+            <li>Clique em <strong>Salvar promoção</strong>.</li>
+          </ol>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Campo</th>
+                  <th>Função</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Tipo — Preço fixo</td>
+                  <td>Define o valor unitário promocional (ex.: R$ 45,90).</td>
+                </tr>
+                <tr>
+                  <td>Tipo — Desconto %</td>
+                  <td>Aplica percentual sobre o <strong>vlr_venda</strong> do produto.</td>
+                </tr>
+                <tr>
+                  <td>Qtd. mínima</td>
+                  <td>Promoção só pode ser aplicada no item quando a quantidade do pedido atinge esse valor (ex.: 3 un.).</td>
+                </tr>
+                <tr>
+                  <td>Vigência</td>
+                  <td>Fora do período, a promoção não aparece na busca nem nas pills do pedido.</td>
+                </tr>
+                <tr>
+                  <td>Cliente (opcional)</td>
+                  <td>Vazio = todos os clientes. Com ID = promo exclusiva; no pedido vale também a regra geral, mas a específica do cliente tem prioridade.</td>
+                </tr>
+                <tr>
+                  <td>Região (opcional)</td>
+                  <td>Restringe a campanha à região do cliente no pedido (<code>regiao_rota</code>). Vazio = qualquer região.</td>
+                </tr>
+                <tr>
+                  <td>Fornecedor (opcional)</td>
+                  <td>Campanha válida só quando o pedido usa o mesmo fabricante/fornecedor selecionado.</td>
+                </tr>
+                <tr>
+                  <td>Tabela de preço (opcional)</td>
+                  <td>Campanha válida apenas com a mesma tabela ativa no pedido. Com tabela no pedido, promo geral não substitui o preço da tabela.</td>
+                </tr>
+                <tr>
+                  <td>Sincronizar precopromo</td>
+                  <td>Quando marcado e qtd. mínima = 1, grava o valor no campo legado <code>precopromo</code> do produto (integrações antigas).</td>
+                </tr>
+                <tr>
+                  <td>Destaque</td>
+                  <td>Exibe badge <strong>PROMO</strong> na lista de produtos do pedido (desktop e mobile Mercos).</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>No pedido:</p>
+          <ul class="rules">
+            <li>Produtos com promoção ativa mostram preço riscado + preço promocional quando a quantidade mínima já é atendida (ex.: 1 un.).</li>
+            <li>Se a quantidade mínima for maior que 1, aparece a dica <em>promo a partir de X un</em> na lista.</li>
+            <li>Ao alterar a <strong>quantidade</strong> no item, o preço promocional é aplicado ou removido automaticamente (desde que você não tenha alterado o preço manualmente).</li>
+            <li>No catálogo mobile Mercos (+/−), itens novos já entram com preço promocional quando a regra permite.</li>
+            <li>Ao editar o item, a pill da campanha fica disponível junto com Venda, Atacado e <code>precopromo</code> legado.</li>
+            <li>Se tentar usar a pill da campanha com quantidade abaixo do mínimo, o sistema avisa e não troca o preço.</li>
+            <li>Com <strong>tabela de preço</strong> ativa no pedido, a promoção não substitui o preço da tabela (evita conflito de regras).</li>
+            <li>O sistema bloqueia datas inválidas, desconto acima de 100% e promoções duplicadas (mesma descrição, qtd. mínima e regras de escopo).</li>
+            <li>No menu <strong>⋮</strong> da lista de produtos há atalho direto para a aba <strong>Promoções</strong>.</li>
+            <li>A página <strong>Comercial › Promoções de Produtos</strong> lista todas as campanhas e oferece relatório de itens vendidos abaixo do preço de cadastro.</li>
           </ul>
         </section>
 

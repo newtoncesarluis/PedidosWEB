@@ -1,5 +1,5 @@
 /**
- * UX vendedor — mobile-shell (busca global, offline, PWA, navegação legada)
+ * UX vendedor — mobile-shell (busca global, offline, PWA, push, navegação)
  */
 (function () {
   'use strict';
@@ -16,6 +16,54 @@
       return;
     }
     window.location.href = url;
+  }
+
+  function urlBase64ToUint8Array(base64String) {
+    var padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    var base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    var raw = atob(base64);
+    var out = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+    return out;
+  }
+
+  function initPushSubscription() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    var tkn = token();
+    if (!tkn) return;
+
+    function registrar() {
+      navigator.serviceWorker.ready.then(function (reg) {
+        return reg.pushManager.getSubscription().then(function (sub) {
+          if (sub) return sub;
+          return fetch('/api/regiao-rota/rotas-vendedor/vapid-public', {
+            headers: { Authorization: 'Bearer ' + tkn }
+          }).then(function (r) {
+            if (!r.ok) return null;
+            return r.text();
+          }).then(function (vapidKey) {
+            if (!vapidKey || vapidKey.indexOf('{') >= 0) return null;
+            return reg.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: urlBase64ToUint8Array(vapidKey.trim())
+            });
+          });
+        }).then(function (sub) {
+          if (!sub) return;
+          return fetch('/api/regiao-rota/rotas-vendedor/push-subscription', {
+            method: 'POST',
+            headers: { Authorization: 'Bearer ' + tkn, 'Content-Type': 'application/json' },
+            body: JSON.stringify(sub)
+          });
+        });
+      }).catch(function () {});
+    }
+
+    if (typeof window.sysrepInitServiceWorker === 'function') {
+      window.sysrepInitServiceWorker().then(registrar).catch(registrar);
+    } else {
+      registrar();
+    }
   }
 
   function initGlobalSearch() {
@@ -65,7 +113,7 @@
     async function runSearch(q) {
       var term = (q || '').trim();
       if (term.length < 2) {
-        renderEmpty('Digite ao menos 2 caracteres (cliente ou nº do pedido).');
+        renderEmpty('Digite ao menos 2 caracteres (cliente, pedido ou nº).');
         return;
       }
       renderEmpty('Buscando…');
@@ -76,11 +124,10 @@
       }
       var frag = document.createDocumentFragment();
       var found = 0;
+      var headers = { Authorization: 'Bearer ' + tkn };
 
       try {
-        var rC = await fetch('/api/clientes?q=' + encodeURIComponent(term) + '&status=A&limit=12', {
-          headers: { Authorization: 'Bearer ' + tkn }
-        });
+        var rC = await fetch('/api/clientes?q=' + encodeURIComponent(term) + '&status=A&limit=12', { headers: headers });
         if (rC.ok) {
           var dC = await rC.json();
           var list = dC.clientes || dC.rows || dC || [];
@@ -96,24 +143,22 @@
         }
       } catch (_) {}
 
-      if (/^\d+$/.test(term)) {
-        try {
-          var rP = await fetch('/api/pedidos?page=1&limit=8&q=' + encodeURIComponent(term), {
-            headers: { Authorization: 'Bearer ' + tkn }
+      try {
+        var rP = await fetch('/api/pedidos?page=1&limit=8&q=' + encodeURIComponent(term), { headers: headers });
+        if (rP.ok) {
+          var dP = await rP.json();
+          var pedidos = dP.pedidos || dP.rows || [];
+          if (!Array.isArray(pedidos)) pedidos = [];
+          pedidos.slice(0, 6).forEach(function (p) {
+            found++;
+            var num = p.numero || p.id;
+            var sub = (p.nome_cliente || '').slice(0, 48) || 'Abrir pedido';
+            frag.appendChild(row('📦', 'Pedido #' + num, sub, function () {
+              openPage('/pages/pedidos.html?id=' + (p.id || num), 'Pedido #' + num);
+            }));
           });
-          if (rP.ok) {
-            var dP = await rP.json();
-            var pedidos = dP.pedidos || dP.rows || [];
-            pedidos.slice(0, 5).forEach(function (p) {
-              found++;
-              var num = p.numero || p.id;
-              frag.appendChild(row('📦', 'Pedido #' + num, (p.nome_cliente || '').slice(0, 48) || 'Abrir pedido', function () {
-                openPage('/pages/pedidos.html?id=' + (p.id || num), 'Pedido #' + num);
-              }));
-            });
-          }
-        } catch (_) {}
-      }
+        }
+      } catch (_) {}
 
       results.innerHTML = '';
       if (!found) {
@@ -177,19 +222,10 @@
     }
   }
 
-  function initVitrineSheet() {
-    var btn = document.getElementById('ms-sheet-vitrine');
-    if (!btn) return;
-    btn.addEventListener('click', function () {
-      if (typeof window._fecharSheet === 'function') window._fecharSheet();
-      openPage('/pages/clientes.html?vitrine=1', 'Vitrine');
-    });
-  }
-
   document.addEventListener('DOMContentLoaded', function () {
     initGlobalSearch();
     initOfflineHint();
     initPwaLoginCount();
-    initVitrineSheet();
+    initPushSubscription();
   });
 })();

@@ -128,6 +128,13 @@ const MIGRATIONS = [
   { table: 'tele_campanhas', column: 'horario_inicio', type: 'TIME NULL' },
   { table: 'tele_campanhas', column: 'horario_fim',    type: 'TIME NULL' },
 
+  // ── PRODUTO_PROMOCOES — promo por cliente (NULL = todos) ─────────────────────
+  { table: 'produto_promocoes', column: 'cod_cliente', type: 'INT NULL DEFAULT NULL' },
+  { table: 'produto_promocoes', column: 'id_regiao', type: 'INT NULL DEFAULT NULL' },
+  { table: 'produto_promocoes', column: 'cod_fornecedor', type: 'INT NULL DEFAULT NULL' },
+  { table: 'produto_promocoes', column: 'id_tabela_preco', type: 'INT NULL DEFAULT NULL' },
+  { table: 'produto_promocoes', column: 'sync_precopromo', type: "CHAR(1) NOT NULL DEFAULT 'N'" },
+
   // ── PEDIDOS — controle de envio de emails ────────────────────────────────────
   { table: 'pedidos', column: 'emailclienteenviado', type: "CHAR(1) DEFAULT 'N'" },
   { table: 'pedidos', column: 'emailforenviado',     type: "CHAR(1) DEFAULT 'N'" },
@@ -146,6 +153,34 @@ const CREATE_IF_NOT_EXISTS = [
       dt_alterado DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       UNIQUE KEY unq_user_grid (id_usuario, nome_grid)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3`,
+  },
+  {
+    name: 'cliente_fotos',
+    sql: `CREATE TABLE IF NOT EXISTS cliente_fotos (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      cod_cliente INT NOT NULL,
+      descricao VARCHAR(200) DEFAULT NULL,
+      tipo_imagem VARCHAR(50) DEFAULT NULL,
+      principal CHAR(1) NOT NULL DEFAULT 'N',
+      caminho VARCHAR(500) DEFAULT NULL,
+      excluido CHAR(1) NOT NULL DEFAULT 'N',
+      dtcadastro DATE DEFAULT NULL,
+      INDEX idx_cf_cliente (cod_cliente)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  },
+  {
+    name: 'fornecedor_fotos',
+    sql: `CREATE TABLE IF NOT EXISTS fornecedor_fotos (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      cod_fornecedor INT NOT NULL,
+      descricao VARCHAR(200) DEFAULT NULL,
+      tipo_imagem VARCHAR(50) DEFAULT NULL,
+      principal CHAR(1) NOT NULL DEFAULT 'N',
+      caminho VARCHAR(500) DEFAULT NULL,
+      excluido CHAR(1) NOT NULL DEFAULT 'N',
+      dtcadastro DATE DEFAULT NULL,
+      INDEX idx_ff_fornecedor (cod_fornecedor)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   },
   {
     name: 'fornecedor_condicoes_pagamento',
@@ -168,6 +203,32 @@ const CREATE_IF_NOT_EXISTS = [
       excluido CHAR(1) DEFAULT 'N',
       dtcadastro DATE DEFAULT (CURDATE()),
       INDEX idx_fe_fornecedor (id_fornecedor)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  },
+  {
+    name: 'produto_promocoes',
+    sql: `CREATE TABLE IF NOT EXISTS produto_promocoes (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      cod_produto INT NOT NULL,
+      descricao VARCHAR(200) NOT NULL,
+      tipo VARCHAR(20) NOT NULL DEFAULT 'PRECO_FIXO',
+      valor DECIMAL(15,4) NOT NULL DEFAULT 0,
+      qtd_minima DECIMAL(15,4) NOT NULL DEFAULT 1,
+      data_inicio DATE NULL DEFAULT NULL,
+      data_fim DATE NULL DEFAULT NULL,
+      destaque CHAR(1) NOT NULL DEFAULT 'N',
+      ativo CHAR(1) NOT NULL DEFAULT 'S',
+      excluido CHAR(1) NOT NULL DEFAULT 'N',
+      dtcadastro DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      cod_cliente INT NULL DEFAULT NULL,
+      id_regiao INT NULL DEFAULT NULL,
+      cod_fornecedor INT NULL DEFAULT NULL,
+      id_tabela_preco INT NULL DEFAULT NULL,
+      sync_precopromo CHAR(1) NOT NULL DEFAULT 'N',
+      INDEX idx_pp_produto (cod_produto),
+      INDEX idx_pp_cliente (cod_cliente),
+      INDEX idx_pp_regiao (id_regiao),
+      INDEX idx_pp_vigencia (data_inicio, data_fim)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   },
   {

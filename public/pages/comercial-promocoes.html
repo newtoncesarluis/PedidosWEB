@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Promoções de Produtos</title>
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<script src="/assets/mobile-app.js"></script>
+<link rel="stylesheet" href="/assets/mobile-app.css">
+<style>
+  :root { --bg:var(--content-bg); --card:var(--card-bg); --border:var(--card-border); --text:var(--content-text); --text2:var(--text2); --accent:var(--accent); --accent-soft:var(--accent-soft); --success:#059669; --warn:#d97706; --danger:#dc2626; --shadow:0 10px 30px rgba(0,0,0,.08); }
+  *{box-sizing:border-box} body{margin:0;font-family:var(--font);background:var(--bg);color:var(--text)}
+  .page{min-height:100vh;display:flex;flex-direction:column}
+  .toolbar{position:sticky;top:0;z-index:20;background:var(--card);border-bottom:1px solid var(--border);padding:14px 18px;display:flex;flex-wrap:wrap;align-items:end;gap:12px}
+  .title-wrap{min-width:260px;margin-right:auto}.eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--text2);font-weight:800} h1{margin:3px 0 0;font-size:22px;line-height:1.1}.subtitle{margin-top:6px;font-size:12px;color:var(--text2)}
+  .filter{display:flex;flex-direction:column;gap:5px;min-width:140px}.filter label{font-size:10px;text-transform:uppercase;color:var(--text2);font-weight:800;letter-spacing:.7px}
+  .filter input,.filter select{height:36px;border:1.5px solid var(--border);border-radius:10px;padding:0 10px;background:var(--bg);color:var(--text);font:inherit;outline:none}
+  .filter input:focus,.filter select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .filter select option{color:var(--text);background:var(--card)}
+  .btn{height:36px;border:none;border-radius:10px;padding:0 14px;font:inherit;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;text-decoration:none}
+  .btn-primary{background:var(--accent);color:var(--btn-text,#fff)}
+  .btn-secondary{background:var(--bg);color:var(--text);border:1.5px solid var(--border)}
+  .seg{display:flex;align-items:center;border:1.5px solid var(--border);border-radius:10px;overflow:hidden;background:var(--bg)}
+  .seg button{height:36px;border:none;background:transparent;color:var(--text2);font:inherit;font-weight:800;padding:0 12px;cursor:pointer;white-space:nowrap}
+  .seg button + button{border-left:1.5px solid var(--border)}
+  .seg button.active{background:var(--accent-soft);color:var(--accent)}
+  .content{padding:18px;display:grid;gap:16px}
+  .panel{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:14px 16px;box-shadow:var(--shadow)}
+  .panel h2{margin:0 0 4px;font-size:15px}
+  .panel-sub{font-size:12px;color:var(--text2);margin-bottom:14px}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px}
+  .kpi{border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--bg)}
+  .kpi-lbl{font-size:10px;text-transform:uppercase;color:var(--text2);font-weight:800}
+  .kpi-val{font-size:18px;font-weight:900;margin-top:4px}
+  .list{display:grid;gap:10px}
+  .item{border:1px solid var(--border);border-radius:8px;padding:12px;background:var(--bg);display:grid;gap:6px}
+  .item-top{display:flex;gap:10px;align-items:flex-start;justify-content:space-between}
+  .name{font-size:13px;font-weight:800}
+  .meta{font-size:11px;color:var(--text2);line-height:1.45}
+  .badge{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;background:var(--accent-soft);color:var(--accent);padding:2px 8px;border-radius:999px;white-space:nowrap}
+  .badge.off{background:rgba(148,163,184,.15);color:var(--text2)}
+  .tbl-wrap{overflow:auto;border:1px solid var(--border);border-radius:8px}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th,td{padding:8px 10px;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap}
+  th{font-size:10px;text-transform:uppercase;color:var(--text2);background:var(--bg);position:sticky;top:0}
+  tr:last-child td{border-bottom:none}
+  .num{text-align:right;font-variant-numeric:tabular-nums}
+  .loading,.error{padding:16px;border-radius:8px;background:var(--card);border:1px solid var(--border);font-size:13px}
+  .error{color:var(--danger)}
+  .link-prod{color:var(--accent);font-weight:700;cursor:pointer;text-decoration:none}
+  @media (max-width:720px){.tbl-wrap{font-size:11px}}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="toolbar">
+    <div class="title-wrap">
+      <div class="eyebrow">Comercial</div>
+      <h1>Promoções de Produtos</h1>
+      <div class="subtitle">Campanhas ativas em todos os produtos e estimativa de vendas com preço abaixo do cadastro.</div>
+    </div>
+    <div class="filter">
+      <label>Aba</label>
+      <div class="seg" id="segAba">
+        <button type="button" data-v="lista" class="active">Campanhas</button>
+        <button type="button" data-v="relatorio">Relatório vendas</button>
+      </div>
+    </div>
+    <div class="filter" id="filtroBusca"><label for="q">Busca</label><input id="q" type="text" placeholder="Produto ou campanha" autocomplete="off"></div>
+    <div class="filter" id="filtroAtivo"><label for="ativo">Status</label>
+      <select id="ativo"><option value="S">Somente ativas</option><option value="N">Incluir inativas</option></select>
+    </div>
+    <div class="filter" id="filtroDtIni" style="display:none"><label for="dt_inicio">De</label><input id="dt_inicio" type="date"></div>
+    <div class="filter" id="filtroDtFim" style="display:none"><label for="dt_fim">Até</label><input id="dt_fim" type="date"></div>
+    <button class="btn btn-primary" id="btnAplicar">Atualizar</button>
+    <a class="btn btn-secondary" href="/pages/produtos.html">Cadastro de produtos</a>
+  </div>
+
+  <div class="content">
+    <div id="stateBox" class="loading">Carregando…</div>
+    <div id="painelLista" style="display:none" class="panel">
+      <h2>Campanhas cadastradas</h2>
+      <div class="panel-sub" id="listaSub">Promoções vigentes com regras por cliente, região, fornecedor ou tabela.</div>
+      <div class="list" id="promoList"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-secondary" id="btnPrev" type="button">Anterior</button>
+        <span class="meta" id="pageInfo" style="font-size:12px;color:var(--text2)"></span>
+        <button class="btn btn-secondary" id="btnNext" type="button">Próxima</button>
+      </div>
+    </div>
+    <div id="painelRelatorio" style="display:none" class="panel">
+      <h2>Itens vendidos abaixo do preço de cadastro</h2>
+      <div class="panel-sub">Estimativa de itens com desconto no período (não vincula automaticamente à campanha).</div>
+      <div class="kpis" id="kpisRel"></div>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Pedido</th><th>Data</th><th>Cliente</th><th>Produto</th><th class="num">Qtd</th>
+              <th class="num">Preço</th><th class="num">Cadastro</th><th class="num">Total</th>
+            </tr>
+          </thead>
+          <tbody id="tblRel"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const fmtMoeda = v => 'R$ ' + (parseFloat(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtData = d => d ? String(d).slice(0, 10).split('-').reverse().join('/') : '—';
+function token(){ return localStorage.getItem('token') || sessionStorage.getItem('token') || ''; }
+async function api(url, opts = {}) {
+  const r = await fetch(url, {
+    ...opts,
+    headers: { Authorization: 'Bearer ' + token(), ...(opts.body ? { 'Content-Type': 'application/json' } : {}), ...(opts.headers || {}) },
+  });
+  return r;
+}
+
+let _aba = 'lista';
+let _offset = 0;
+const _limit = 50;
+
+function setAba(v) {
+  _aba = v;
+  document.querySelectorAll('#segAba button').forEach(b => b.classList.toggle('active', b.dataset.v === v));
+  document.getElementById('filtroBusca').style.display = v === 'lista' ? '' : 'none';
+  document.getElementById('filtroAtivo').style.display = v === 'lista' ? '' : 'none';
+  document.getElementById('filtroDtIni').style.display = v === 'relatorio' ? '' : 'none';
+  document.getElementById('filtroDtFim').style.display = v === 'relatorio' ? '' : 'none';
+  document.getElementById('painelLista').style.display = v === 'lista' ? '' : 'none';
+  document.getElementById('painelRelatorio').style.display = v === 'relatorio' ? '' : 'none';
+  _offset = 0;
+  carregar();
+}
+
+function defaultDatas() {
+  const fim = new Date();
+  const ini = new Date(fim);
+  ini.setDate(ini.getDate() - 30);
+  const iso = d => d.toISOString().slice(0, 10);
+  document.getElementById('dt_fim').value = iso(fim);
+  document.getElementById('dt_inicio').value = iso(ini);
+}
+
+function escHtml(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function escopoTxt(p) {
+  const parts = [];
+  if (p.nome_cliente || p.cod_cliente) parts.push(p.nome_cliente || `Cliente #${p.cod_cliente}`);
+  if (p.nome_regiao || p.id_regiao) parts.push(p.nome_regiao || `Região #${p.id_regiao}`);
+  if (p.nome_fornecedor || p.cod_fornecedor) parts.push(p.nome_fornecedor || `Forn. #${p.cod_fornecedor}`);
+  if (p.id_tabela_preco) parts.push(`Tabela #${p.id_tabela_preco}`);
+  return parts.length ? parts.join(' · ') : 'Regra geral';
+}
+
+async function carregarLista() {
+  const q = document.getElementById('q').value.trim();
+  const ativo = document.getElementById('ativo').value;
+  const params = new URLSearchParams({ limit: _limit, offset: _offset });
+  if (q) params.set('q', q);
+  if (ativo === 'N') params.set('ativo', 'N');
+
+  const r = await api('/api/produtos/promocoes/lista?' + params);
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || 'Erro ao carregar campanhas');
+
+  const rows = j.data || [];
+  const total = j.total || 0;
+  const list = document.getElementById('promoList');
+  document.getElementById('listaSub').textContent = `${total} campanha(s) encontrada(s).`;
+
+  if (!rows.length) {
+    list.innerHTML = '<div class="meta">Nenhuma promoção encontrada.</div>';
+  } else {
+    list.innerHTML = rows.map(p => {
+      const regra = p.tipo === 'DESCONTO_PERC'
+        ? `${p.valor}% → ${fmtMoeda(p.preco_promo)}`
+        : `Fixo ${fmtMoeda(p.preco_promo)}`;
+      const qtd = (parseFloat(p.qtd_minima) || 1) > 1 ? `A partir de ${p.qtd_minima} un.` : 'Qualquer qtd.';
+      const vig = `${fmtData(p.data_inicio)} até ${fmtData(p.data_fim)}`;
+      const badges = [
+        p.destaque ? '<span class="badge">Destaque</span>' : '',
+        !p.ativo ? '<span class="badge off">Inativa</span>' : '',
+        p.sync_precopromo ? '<span class="badge">Sync precopromo</span>' : '',
+      ].join('');
+      return `<div class="item">
+        <div class="item-top">
+          <div>
+            <div class="name">${escHtml(p.descricao)} ${badges}</div>
+            <div class="meta">
+              <a class="link-prod" href="/pages/produtos.html" onclick="event.preventDefault();window.parent?.postMessage?.({type:'navigate',page:'/pages/produtos.html'},'*');">#${p.cod_produto} ${escHtml(p.nome_produto || '')}</a><br>
+              ${escHtml(regra)} · ${escHtml(qtd)}<br>
+              ${escHtml(escopoTxt(p))}<br>
+              Vigência: ${escHtml(vig)}
+            </div>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  const pagDe = total ? _offset + 1 : 0;
+  const pagAte = Math.min(_offset + rows.length, total);
+  document.getElementById('pageInfo').textContent = total ? `${pagDe}–${pagAte} de ${total}` : '0 registros';
+  document.getElementById('btnPrev').disabled = _offset <= 0;
+  document.getElementById('btnNext').disabled = _offset + _limit >= total;
+}
+
+async function carregarRelatorio() {
+  const dtIni = document.getElementById('dt_inicio').value;
+  const dtFim = document.getElementById('dt_fim').value;
+  if (!dtIni || !dtFim) throw new Error('Informe o período');
+
+  const r = await api(`/api/produtos/promocoes/relatorio-vendas?dt_inicio=${encodeURIComponent(dtIni)}&dt_fim=${encodeURIComponent(dtFim)}`);
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || 'Erro ao carregar relatório');
+
+  const resumo = j.resumo || {};
+  document.getElementById('kpisRel').innerHTML = `
+    <div class="kpi"><div class="kpi-lbl">Itens</div><div class="kpi-val">${resumo.itens || 0}</div></div>
+    <div class="kpi"><div class="kpi-lbl">Total vendido</div><div class="kpi-val">${fmtMoeda(resumo.total_vendido)}</div></div>
+    <div class="kpi"><div class="kpi-lbl">Economia estimada</div><div class="kpi-val">${fmtMoeda(resumo.economia_estimada)}</div></div>`;
+
+  const rows = j.data || [];
+  const tbody = document.getElementById('tblRel');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="8" style="color:var(--text2)">Nenhum item no período.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(r => `<tr>
+    <td>${escHtml(r.numero)}</td>
+    <td>${escHtml(fmtData(r.data_abertura))}</td>
+    <td>${escHtml(r.nome_cliente || '—')}</td>
+    <td>${escHtml(r.nome_produto || r.cod_produto)}</td>
+    <td class="num">${escHtml(r.quantidade)}</td>
+    <td class="num">${fmtMoeda(r.valor_unitario)}</td>
+    <td class="num">${fmtMoeda(r.vlr_venda)}</td>
+    <td class="num">${fmtMoeda(r.total_item)}</td>
+  </tr>`).join('');
+}
+
+async function carregar() {
+  const box = document.getElementById('stateBox');
+  box.style.display = '';
+  box.className = 'loading';
+  box.textContent = 'Carregando…';
+  try {
+    if (_aba === 'lista') await carregarLista();
+    else await carregarRelatorio();
+    box.style.display = 'none';
+  } catch (e) {
+    box.className = 'error';
+    box.textContent = e.message || 'Erro ao carregar';
+  }
+}
+
+document.getElementById('segAba').addEventListener('click', e => {
+  const btn = e.target.closest('button[data-v]');
+  if (!btn) return;
+  setAba(btn.dataset.v);
+});
+
+document.getElementById('btnAplicar').addEventListener('click', () => { _offset = 0; carregar(); });
+document.getElementById('btnPrev').addEventListener('click', () => { _offset = Math.max(0, _offset - _limit); carregar(); });
+document.getElementById('btnNext').addEventListener('click', () => { _offset += _limit; carregar(); });
+document.getElementById('q').addEventListener('keydown', e => { if (e.key === 'Enter') { _offset = 0; carregar(); } });
+
+defaultDatas();
+setAba('lista');
+</script>
+</body>
+</html>

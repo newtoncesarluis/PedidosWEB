@@ -17,6 +17,8 @@
 <link rel="stylesheet" href="/assets/ajuda-tour.css">
 <script src="/assets/ajuda-tour.js"></script>
 <script src="/assets/ajuda-tours.js"></script>
+<script src="/assets/mobile-app.js"></script>
+<link rel="stylesheet" href="/assets/mobile-app.css">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
@@ -103,17 +105,59 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
 .marker-cluster.mc-CANCELADA div{background:#6b7280!important}
 .marker-cluster.mc-PROSPECT{background:rgba(168,85,247,.25)!important;border-color:#a855f7!important}
 .marker-cluster.mc-PROSPECT div{background:#a855f7!important}
+
+/* App vendedor — filtros recolhíveis */
+html.sysrep-ms-embed.ms-page-mapa-operacoes .toolbar,
+html.ms-embedded-tech.ms-page-mapa-operacoes .toolbar{
+  flex-direction:column;align-items:stretch;gap:8px;padding:10px 12px!important;
+  background:var(--card);position:sticky;top:0;z-index:200
+}
+html.sysrep-ms-embed.ms-page-mapa-operacoes .toolbar-head,
+html.ms-embedded-tech.ms-page-mapa-operacoes .toolbar-head{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%
+}
+html.sysrep-ms-embed.ms-page-mapa-operacoes .toolbar-head .toolbar-title,
+html.ms-embedded-tech.ms-page-mapa-operacoes .toolbar-head .toolbar-title{font-size:12px}
+html.sysrep-ms-embed.ms-page-mapa-operacoes .ms-filter-toggle,
+html.ms-embedded-tech.ms-page-mapa-operacoes .ms-filter-toggle{
+  flex:0 0 auto;min-height:36px;padding:0 12px;border-radius:10px;
+  border:1.5px solid var(--border);background:var(--bg);color:var(--text);
+  font:inherit;font-size:11px;font-weight:700;cursor:pointer
+}
+html.sysrep-ms-embed.ms-page-mapa-operacoes.ms-filters-collapsed .toolbar-head .ms-filter-toggle,
+html.ms-embedded-tech.ms-page-mapa-operacoes.ms-filters-collapsed .toolbar-head .ms-filter-toggle{
+  flex:1 1 auto;width:100%;text-align:center
+}
+html.sysrep-ms-embed.ms-page-mapa-operacoes.ms-filters-collapsed .toolbar-filters,
+html.ms-embedded-tech.ms-page-mapa-operacoes.ms-filters-collapsed .toolbar-filters{display:none!important}
+html.sysrep-ms-embed.ms-page-mapa-operacoes #btnMapaTour,
+html.sysrep-ms-embed.ms-page-mapa-operacoes #btnMapaAjuda,
+html.ms-embedded-tech.ms-page-mapa-operacoes #btnMapaTour,
+html.ms-embedded-tech.ms-page-mapa-operacoes #btnMapaAjuda{display:none!important}
+html.sysrep-ms-embed.ms-page-mapa-operacoes.ms-filters-collapsed .main-layout,
+html.ms-embedded-tech.ms-page-mapa-operacoes.ms-filters-collapsed .main-layout{
+  grid-template-rows:auto minmax(260px,56vh)!important
+}
+html.sysrep-ms-embed.ms-page-mapa-operacoes.ms-filters-collapsed #map,
+html.ms-embedded-tech.ms-page-mapa-operacoes.ms-filters-collapsed #map{
+  min-height:260px!important;height:56vh!important
+}
+html.sysrep-ms-embed.ms-page-mapa-operacoes.ms-filters-collapsed .left-panel,
+html.ms-embedded-tech.ms-page-mapa-operacoes.ms-filters-collapsed .left-panel{max-height:36vh!important}
 </style>
 </head>
 <body>
 
 <div class="toolbar">
-  <span class="toolbar-title">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px">
-      <path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
-    </svg>
-    Mapa de Operações
-  </span>
+  <div class="toolbar-head">
+    <span class="toolbar-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px">
+        <path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
+      </svg>
+      Mapa de Operações
+    </span>
+  </div>
+  <div class="toolbar-filters" id="mapaOpToolbarFilters">
   <div class="sep"></div>
   <div class="filter-tabs" id="statusTabs">
     <button type="button" class="filter-tab active" data-status="" onclick="setStatusFiltro('',this)">Todos<span class="tab-ct" id="ct-todos"></span></button>
@@ -157,14 +201,15 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
   <button type="button" class="btn btn-neutral" onclick="reenquadrarMapa()" title="Reenquadrar mapa">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7V4h3M20 7V4h-3M4 17v3h3M20 17v3h-3M8 12h8M12 8v8"/></svg>
   </button>
-  <button type="button" class="btn btn-primary" onclick="SysRepTour && SysRepTour.start('mapa-operacoes')" title="Tour — Mapa de Operações">
+  <button type="button" class="btn btn-primary" id="btnMapaTour" onclick="SysRepTour && SysRepTour.start('mapa-operacoes')" title="Tour — Mapa de Operações">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3" stroke-linejoin="round"/></svg>
     Tour
   </button>
-  <button type="button" class="btn btn-outline" onclick="abrirAjudaMapa()" title="Passo a passo">
+  <button type="button" class="btn btn-outline" id="btnMapaAjuda" onclick="abrirAjudaMapa()" title="Passo a passo">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
     Ajuda
   </button>
+  </div>
 </div>
 
 <div class="intro-banner">
@@ -331,6 +376,7 @@ function initMapa() {
   });
   mapa.addLayer(clusterLayer);
   mapa.on('moveend', () => { _mapaAjustado = true; });
+  window.mapa = mapa;
 }
 
 function limparMarcadores() {
@@ -647,7 +693,60 @@ function iniciarAutoRefresh() {
   }, sec * 1000);
 }
 
+function isMapaOperacoesMobileEmbed() {
+  try {
+    if (window.self !== window.top) return true;
+  } catch (_) {
+    return true;
+  }
+  try {
+    if (new URLSearchParams(window.location.search).has('_ms')) return true;
+  } catch (_) {}
+  return document.documentElement.classList.contains('sysrep-ms-embed')
+    || document.documentElement.classList.contains('ms-embedded-tech');
+}
+
+function setMapaOperacoesFiltersCollapsed(collapsed) {
+  document.documentElement.classList.toggle('ms-filters-collapsed', !!collapsed);
+  var toggle = document.getElementById('msMapaOpFilterToggle');
+  if (toggle) toggle.textContent = collapsed ? 'Mostrar filtros' : 'Ocultar filtros';
+  setTimeout(function () {
+    if (mapa) mapa.invalidateSize();
+  }, collapsed ? 80 : 400);
+}
+window.setMapaOperacoesFiltersCollapsed = setMapaOperacoesFiltersCollapsed;
+
+function initMapaOperacoesMobileEmbed() {
+  if (!isMapaOperacoesMobileEmbed()) return;
+  document.documentElement.classList.add('ms-page-mapa-operacoes');
+  var head = document.querySelector('.toolbar-head');
+  if (!head || document.getElementById('msMapaOpFilterToggle')) return;
+  var toggle = document.createElement('button');
+  toggle.type = 'button';
+  toggle.id = 'msMapaOpFilterToggle';
+  toggle.className = 'ms-filter-toggle';
+  toggle.textContent = 'Mostrar filtros';
+  toggle.addEventListener('click', function () {
+    setMapaOperacoesFiltersCollapsed(!document.documentElement.classList.contains('ms-filters-collapsed'));
+  });
+  head.appendChild(toggle);
+  var titleEl = head.querySelector('.toolbar-title');
+  if (titleEl) {
+    var svg = titleEl.querySelector('svg');
+    titleEl.replaceChildren(svg || '', document.createTextNode(' Operações'));
+  }
+  setMapaOperacoesFiltersCollapsed(true);
+  var btnRefresh = document.querySelector('.toolbar-filters .btn-neutral[title="Atualizar"]');
+  if (btnRefresh && !btnRefresh.dataset.msCollapseBound) {
+    btnRefresh.dataset.msCollapseBound = '1';
+    btnRefresh.addEventListener('click', function () {
+      setTimeout(function () { setMapaOperacoesFiltersCollapsed(true); }, 120);
+    });
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+  initMapaOperacoesMobileEmbed();
   const prefs = loadPrefs();
   if (typeof prefs.auto === 'boolean') document.getElementById('chkAuto').checked = prefs.auto;
   if (typeof prefs.vendedores === 'boolean') document.getElementById('chkVendedores').checked = prefs.vendedores;

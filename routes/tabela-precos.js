@@ -331,6 +331,89 @@ router.get('/disponiveis-para/:cliId/:forId/:venId', async (req, res) => {
   }
 });
 
+/** Tabelas liberadas (cliente > fornecedor > vendedor) — mesma regra de disponiveis-para. */
+async function buscarTabelasLiberadas(pool, cliId, forId, venId) {
+  const priorities = [
+    { id: cliId, tipo: 'CLIENTE' },
+    { id: forId, tipo: 'FORNECEDOR' },
+    { id: venId, tipo: 'VENDEDOR' },
+  ];
+  for (const p of priorities) {
+    if (!p.id || p.id === 'null' || p.id === '0') continue;
+    try {
+      const [rows] = await pool.query(`
+        SELECT v.id_tabela, c.Descricao AS descricao
+        FROM tabela_preco_vinculo v
+        JOIN tabela_preco_cabecalho c ON c.id = v.id_tabela
+        WHERE v.id_entidade = ? AND v.tipo_entidade = ? AND v.excluido = 'N'
+          AND c.excluido = 'N' AND c.Tabela_Ativa = 'S'
+        ORDER BY c.Descricao
+      `, [p.id, p.tipo]);
+      if (rows.length > 0) return { tabelas: rows, origem: p.tipo };
+    } catch (_) { /* tabela pode não existir em bases legadas */ }
+  }
+  return { tabelas: [], origem: null };
+}
+
+// ─── GET /api/tabela-precos/opcoes-item/:produtoId ───────────────────────
+// Opções de preço por item (Tabela Padrão + tabelas liberadas com valor do produto)
+router.get('/opcoes-item/:produtoId', async (req, res) => {
+  try {
+    const pool = getPool();
+    const { produtoId } = req.params;
+    const { cliId = '0', forId = '0', venId = '0' } = req.query;
+
+    const [tbRows] = await pool.query(`SHOW TABLES LIKE 'produto'`);
+    const tb = tbRows.length ? 'produto' : 'produtos';
+    const [prodRow] = await pool.query(
+      `SELECT vlr_venda FROM ${tb} WHERE id = ? LIMIT 1`,
+      [produtoId]
+    );
+    const vlrPadrao = parseFloat(prodRow[0]?.vlr_venda) || 0;
+
+    const { tabelas, origem } = await buscarTabelasLiberadas(pool, cliId, forId, venId);
+
+    const opcoes = [{
+      id_tabela: '',
+      descricao: 'Tabela Padrão',
+      valor: vlrPadrao,
+      tipo: 'venda',
+    }];
+
+    if (tabelas.length) {
+      const ids = tabelas.map(t => t.id_tabela);
+      const [precos] = await pool.query(
+        `SELECT id_tabela,
+                COALESCE(valor_tabela, preco_venda, 0) AS valor
+         FROM tabela_preco_itens
+         WHERE cod_produto = ? AND id_tabela IN (?)
+           AND excluido = 'N' AND ativo = 'S'`,
+        [produtoId, ids]
+      ).catch(() => [[]]);
+
+      const precoMap = {};
+      (precos || []).forEach((p) => {
+        precoMap[String(p.id_tabela)] = parseFloat(p.valor) || 0;
+      });
+
+      tabelas.forEach((t) => {
+        const val = precoMap[String(t.id_tabela)];
+        opcoes.push({
+          id_tabela: t.id_tabela,
+          descricao: t.descricao,
+          valor: Number.isFinite(val) ? val : vlrPadrao,
+          tipo: 'tabela',
+          is_fallback: !Number.isFinite(val),
+        });
+      });
+    }
+
+    res.json({ opcoes, origem });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── GET /api/tabela-precos/vlr-venda/:tabelaId/:produtoId ──────────────
 router.get('/vlr-venda/:tabelaId/:produtoId', async (req, res) => {
   try {
