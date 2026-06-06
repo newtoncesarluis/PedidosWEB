@@ -1,6 +1,6 @@
 'use strict';
 
-const PROMO_SELECT_COLS = `id, cod_produto, cod_cliente, id_regiao, cod_fornecedor, id_tabela_preco,
+const PROMO_SELECT_COLS = `id, cod_produto, id_campanha, cod_cliente, id_regiao, cod_fornecedor, id_tabela_preco, tabelas_preco,
   descricao, tipo, valor, qtd_minima, data_inicio, data_fim, destaque, ativo, sync_precopromo`;
 
 let _tabelaOk = null;
@@ -20,6 +20,44 @@ function parseOptInt(v) {
   if (v == null || v === '' || v === '0') return null;
   const n = parseInt(v, 10);
   return n > 0 ? n : null;
+}
+
+function parseTabelasPrecoLista(raw) {
+  if (raw == null || raw === '') return [];
+  if (Array.isArray(raw)) {
+    return [...new Set(raw.map((x) => parseInt(x, 10)).filter((n) => n > 0))];
+  }
+  const s = String(raw).trim();
+  if (!s) return [];
+  if (s.startsWith('[')) {
+    try { return parseTabelasPrecoLista(JSON.parse(s)); } catch (_) { /* ignora */ }
+  }
+  return [...new Set(s.split(/[\s,;]+/).map((x) => parseInt(x, 10)).filter((n) => n > 0))];
+}
+
+function normalizarEscopoTabelasPreco(body) {
+  let lista = parseTabelasPrecoLista(body?.tabelas_preco);
+  const one = parseOptInt(body?.id_tabela_preco);
+  if (!lista.length && one) lista = [one];
+  return {
+    tabelasPrecoLista: lista,
+    tabelasPrecoStr: lista.length ? lista.join(',') : null,
+    idTabelaPreco: lista.length === 1 ? lista[0] : null,
+  };
+}
+
+function promoRestringeTabelas(row) {
+  const lista = parseTabelasPrecoLista(row?.tabelas_preco);
+  if (lista.length) return lista;
+  const one = parseOptInt(row?.id_tabela_preco);
+  return one ? [one] : [];
+}
+
+function promocaoCombinaTabela(row, tab) {
+  const restritas = promoRestringeTabelas(row);
+  if (!restritas.length) return true;
+  if (!tab) return false;
+  return restritas.includes(parseInt(tab, 10));
 }
 
 function validarPayloadPromocao(body, vlrVenda = null) {
@@ -54,6 +92,8 @@ function validarPayloadPromocao(body, vlrVenda = null) {
     erros.push('Preço promocional parece muito acima do preço de venda — confira o valor');
   }
 
+  const tabNorm = normalizarEscopoTabelasPreco(body);
+
   return {
     ok: !erros.length,
     erros,
@@ -64,7 +104,9 @@ function validarPayloadPromocao(body, vlrVenda = null) {
     codCliente: parseOptInt(body?.cod_cliente),
     idRegiao: parseOptInt(body?.id_regiao),
     codFornecedor: parseOptInt(body?.cod_fornecedor),
-    idTabelaPreco: parseOptInt(body?.id_tabela_preco),
+    idTabelaPreco: tabNorm.idTabelaPreco,
+    tabelasPrecoLista: tabNorm.tabelasPrecoLista,
+    tabelasPrecoStr: tabNorm.tabelasPrecoStr,
     syncPrecopromo: body?.sync_precopromo === 'S' || body?.sync_precopromo === true ? 'S' : 'N',
   };
 }
@@ -86,6 +128,7 @@ function formatarPromocaoRow(row, vlrBase, qtd = 1) {
   const precoPromo = calcularPrecoPromocao(row.tipo, row.valor, vlrBase);
   return {
     id: row.id,
+    id_campanha: row.id_campanha != null ? parseInt(row.id_campanha, 10) : null,
     descricao: row.descricao,
     tipo: row.tipo,
     valor: parseFloat(row.valor) || 0,
@@ -95,6 +138,7 @@ function formatarPromocaoRow(row, vlrBase, qtd = 1) {
     id_regiao: row.id_regiao != null ? parseInt(row.id_regiao, 10) : null,
     cod_fornecedor: row.cod_fornecedor != null ? parseInt(row.cod_fornecedor, 10) : null,
     id_tabela_preco: row.id_tabela_preco != null ? parseInt(row.id_tabela_preco, 10) : null,
+    tabelas_preco: promoRestringeTabelas(row),
     sync_precopromo: row.sync_precopromo === 'S',
     data_inicio: row.data_inicio || null,
     data_fim: row.data_fim || null,
@@ -110,6 +154,7 @@ function scoreEspecificidadePromo(row) {
   if (row.id_regiao != null && row.id_regiao !== '') s += 100;
   if (row.cod_fornecedor != null && row.cod_fornecedor !== '') s += 10;
   if (row.id_tabela_preco != null && row.id_tabela_preco !== '') s += 1;
+  if (parseTabelasPrecoLista(row.tabelas_preco).length > 1) s += 1;
   return s;
 }
 
@@ -137,11 +182,7 @@ function promocaoCombinaContexto(row, ctx = {}) {
     /* ok */
   }
 
-  if (row.id_tabela_preco != null && row.id_tabela_preco !== '') {
-    if (!tab || parseInt(row.id_tabela_preco, 10) !== tab) return false;
-  } else if (!tab) {
-    /* ok */
-  }
+  if (!promocaoCombinaTabela(row, tab)) return false;
 
   return true;
 }
@@ -167,14 +208,12 @@ function filtrarPromocoesPorContexto(rows, ctx = {}) {
       if (!forn || parseInt(r.cod_fornecedor, 10) !== forn) return false;
     }
 
-    if (r.id_tabela_preco != null && r.id_tabela_preco !== '') {
-      if (!tab || parseInt(r.id_tabela_preco, 10) !== tab) return false;
-    }
+    if (!promocaoCombinaTabela(r, tab)) return false;
 
     if (!cid && r.cod_cliente != null && r.cod_cliente !== '') return false;
     if (!reg && r.id_regiao != null && r.id_regiao !== '') return false;
     if (!forn && r.cod_fornecedor != null && r.cod_fornecedor !== '') return false;
-    if (!tab && r.id_tabela_preco != null && r.id_tabela_preco !== '') return false;
+    if (!tab && promoRestringeTabelas(r).length) return false;
 
     return true;
   });
@@ -319,6 +358,10 @@ module.exports = {
   PROMO_SELECT_COLS,
   tabelaPromocoesExiste,
   parseOptInt,
+  parseTabelasPrecoLista,
+  promoRestringeTabelas,
+  promocaoCombinaTabela,
+  normalizarEscopoTabelasPreco,
   validarPayloadPromocao,
   calcularPrecoPromocao,
   formatarPromocaoRow,

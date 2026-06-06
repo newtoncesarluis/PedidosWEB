@@ -41,7 +41,9 @@ const MIGRATIONS = [
   { table: 'itensped', column: 'peso',                   type: "DECIMAL(15,4) DEFAULT 0" },
   { table: 'itensped', column: 'multiplo_sigla',         type: "VARCHAR(20) NULL" },
   { table: 'itensped', column: 'multiplo_fator',         type: "DECIMAL(10,4) DEFAULT 1" },
-  { table: 'itensped', column: 'tipo_preco',             type: "VARCHAR(10) DEFAULT 'venda'" },
+  { table: 'itensped', column: 'tipo_preco',             type: "VARCHAR(30) DEFAULT 'venda'" },
+  { table: 'itensped', column: 'id_promocao',            type: 'INT NULL DEFAULT NULL' },
+  { table: 'itensped', column: 'promocao_descricao',     type: 'VARCHAR(200) NULL DEFAULT NULL' },
   { table: 'itensped', column: 'vlr_padrao',             type: "DECIMAL(15,4) DEFAULT NULL" },
   { table: 'itensped', column: 'acrescimo',              type: "DECIMAL(15,2) DEFAULT 0" },
   { table: 'itensped', column: 'valor_cliente',          type: "DECIMAL(15,4) DEFAULT 0" },
@@ -133,7 +135,10 @@ const MIGRATIONS = [
   { table: 'produto_promocoes', column: 'id_regiao', type: 'INT NULL DEFAULT NULL' },
   { table: 'produto_promocoes', column: 'cod_fornecedor', type: 'INT NULL DEFAULT NULL' },
   { table: 'produto_promocoes', column: 'id_tabela_preco', type: 'INT NULL DEFAULT NULL' },
+  { table: 'produto_promocoes', column: 'tabelas_preco', type: 'VARCHAR(500) NULL DEFAULT NULL' },
   { table: 'produto_promocoes', column: 'sync_precopromo', type: "CHAR(1) NOT NULL DEFAULT 'N'" },
+  { table: 'produto_promocoes', column: 'id_campanha', type: 'INT NULL DEFAULT NULL' },
+  { table: 'promocoes_campanha', column: 'tabelas_preco', type: 'VARCHAR(500) NULL DEFAULT NULL' },
 
   // ── PEDIDOS — controle de envio de emails ────────────────────────────────────
   { table: 'pedidos', column: 'emailclienteenviado', type: "CHAR(1) DEFAULT 'N'" },
@@ -224,11 +229,53 @@ const CREATE_IF_NOT_EXISTS = [
       id_regiao INT NULL DEFAULT NULL,
       cod_fornecedor INT NULL DEFAULT NULL,
       id_tabela_preco INT NULL DEFAULT NULL,
+      tabelas_preco VARCHAR(500) NULL DEFAULT NULL,
       sync_precopromo CHAR(1) NOT NULL DEFAULT 'N',
+      id_campanha INT NULL DEFAULT NULL,
       INDEX idx_pp_produto (cod_produto),
       INDEX idx_pp_cliente (cod_cliente),
       INDEX idx_pp_regiao (id_regiao),
       INDEX idx_pp_vigencia (data_inicio, data_fim)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  },
+  {
+    name: 'promocoes_campanha',
+    sql: `CREATE TABLE IF NOT EXISTS promocoes_campanha (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      descricao VARCHAR(200) NOT NULL,
+      tipo VARCHAR(20) NOT NULL DEFAULT 'DESCONTO_PERC',
+      valor DECIMAL(15,4) NOT NULL DEFAULT 0,
+      qtd_minima DECIMAL(15,4) NOT NULL DEFAULT 1,
+      data_inicio DATE NULL DEFAULT NULL,
+      data_fim DATE NULL DEFAULT NULL,
+      destaque CHAR(1) NOT NULL DEFAULT 'N',
+      ativo CHAR(1) NOT NULL DEFAULT 'S',
+      excluido CHAR(1) NOT NULL DEFAULT 'N',
+      cod_cliente INT NULL DEFAULT NULL,
+      id_regiao INT NULL DEFAULT NULL,
+      cod_fornecedor INT NULL DEFAULT NULL,
+      id_tabela_preco INT NULL DEFAULT NULL,
+      tabelas_preco VARCHAR(500) NULL DEFAULT NULL,
+      sync_precopromo CHAR(1) NOT NULL DEFAULT 'N',
+      prioridade INT NOT NULL DEFAULT 0,
+      dtcadastro DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_pcamp_vigencia (data_inicio, data_fim),
+      INDEX idx_pcamp_ativo (ativo, excluido)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  },
+  {
+    name: 'promocoes_campanha_escopo',
+    sql: `CREATE TABLE IF NOT EXISTS promocoes_campanha_escopo (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      id_campanha INT NOT NULL,
+      tipo VARCHAR(20) NOT NULL DEFAULT 'PRODUTO',
+      ref_id INT NULL DEFAULT NULL,
+      ref_valor VARCHAR(120) NULL DEFAULT NULL,
+      valor_override DECIMAL(15,4) NULL DEFAULT NULL,
+      excluido CHAR(1) NOT NULL DEFAULT 'N',
+      dtcadastro DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_pces_campanha (id_campanha),
+      INDEX idx_pces_tipo (tipo, ref_valor(40))
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   },
   {
@@ -370,6 +417,9 @@ async function runMigrations(pool) {
       }
     }
 
+    // 2c. itensped.tipo_preco — legado Delphi VARCHAR(10); promo campanha precisa caber
+    await ensureItenspedTipoPrecoWidth(pool);
+
     // 2b. despesas: copia descricao → nome quando ambas existem (legado Delphi)
     try {
       const [dCols] = await pool.query('SHOW COLUMNS FROM despesas');
@@ -415,7 +465,11 @@ async function runMigrations(pool) {
 
     // 4. Cria tabelas novas se não existirem
     for (const t of CREATE_IF_NOT_EXISTS) {
-      await pool.query(t.sql).catch(() => {});
+      try {
+        await pool.query(t.sql);
+      } catch (e) {
+        console.warn(`[schema] CREATE ${t.name}:`, e.message);
+      }
     }
 
     if (adicionadas.length > 0) {
@@ -431,4 +485,112 @@ async function runMigrations(pool) {
   }
 }
 
-module.exports = { runMigrations };
+const PROMOCOES_TABLE_NAMES = ['produto_promocoes', 'promocoes_campanha', 'promocoes_campanha_escopo'];
+
+/** Cache por base (DATABASE.table.column) — evita SHOW COLUMNS repetido */
+const _ensureColCache = new Set();
+
+/**
+ * Garante colunas do array MIGRATIONS em runtime (sem reiniciar o servidor).
+ * @param {object} poolOrConn — pool ou connection MySQL (ambos têm .query)
+ * @param {string} tableName
+ * @param {string[]|null} columnNames — se null, todas as colunas da tabela em MIGRATIONS
+ */
+async function ensureTableColumns(poolOrConn, tableName, columnNames = null) {
+  if (!poolOrConn?.query) return false;
+  let dbName = '';
+  try {
+    const [[r]] = await poolOrConn.query('SELECT DATABASE() AS db');
+    dbName = r?.db || '';
+  } catch { /* ignora */ }
+
+  const targets = MIGRATIONS.filter((m) => {
+    if (m.table !== tableName) return false;
+    if (columnNames && !columnNames.includes(m.column)) return false;
+    return true;
+  });
+
+  let ok = true;
+  for (const m of targets) {
+    const cacheKey = `${dbName}.${m.table}.${m.column}`;
+    if (_ensureColCache.has(cacheKey)) continue;
+    try {
+      const [cols] = await poolOrConn.query(`SHOW COLUMNS FROM \`${m.table}\` LIKE ?`, [m.column]);
+      if (cols.length) {
+        _ensureColCache.add(cacheKey);
+        continue;
+      }
+      await poolOrConn.query(`ALTER TABLE \`${m.table}\` ADD COLUMN \`${m.column}\` ${m.type}`);
+      console.log(`[schema] ensure + ${m.table}.${m.column}`);
+      _ensureColCache.add(cacheKey);
+    } catch (e) {
+      if (String(e.message || '').includes('Duplicate column')) {
+        _ensureColCache.add(cacheKey);
+      } else {
+        console.warn(`[schema] ensure ${m.table}.${m.column}:`, e.message);
+        ok = false;
+      }
+    }
+  }
+  return ok;
+}
+
+/** Colunas de promoção em itensped — chamada antes de INSERT/SELECT que usa id_promocao */
+async function ensureItenspedTipoPrecoWidth(poolOrConn) {
+  if (!poolOrConn?.query) return;
+  try {
+    const [info] = await poolOrConn.query(
+      `SELECT CHARACTER_MAXIMUM_LENGTH AS len FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'itensped' AND COLUMN_NAME = 'tipo_preco'`
+    );
+    const len = info[0]?.len;
+    if (len != null && len < 30) {
+      await poolOrConn.query(
+        `ALTER TABLE \`itensped\` MODIFY COLUMN \`tipo_preco\` VARCHAR(30) NOT NULL DEFAULT 'venda'`
+      );
+      console.log('[schema] widen itensped.tipo_preco -> VARCHAR(30)');
+    }
+  } catch (e) {
+    console.warn('[schema] widen itensped.tipo_preco:', e.message);
+  }
+}
+
+async function ensureItenspedPromoColumns(poolOrConn) {
+  const ok = await ensureTableColumns(poolOrConn, 'itensped', ['tipo_preco', 'id_promocao', 'promocao_descricao']);
+  await ensureItenspedTipoPrecoWidth(poolOrConn);
+  return ok;
+}
+
+async function ensurePromocoesCampanhaTables(pool) {
+  if (!pool) return false;
+  try {
+    for (const t of CREATE_IF_NOT_EXISTS) {
+      if (!PROMOCOES_TABLE_NAMES.includes(t.name)) continue;
+      try {
+        await pool.query(t.sql);
+      } catch (e) {
+        console.warn(`[schema] ensure ${t.name}:`, e.message);
+      }
+    }
+    for (const m of MIGRATIONS) {
+      if (!PROMOCOES_TABLE_NAMES.includes(m.table)) continue;
+      try {
+        const [cols] = await pool.query(`SHOW COLUMNS FROM \`${m.table}\` LIKE ?`, [m.column]);
+        if (cols.length) continue;
+        await pool.query(`ALTER TABLE \`${m.table}\` ADD COLUMN \`${m.column}\` ${m.type}`);
+        console.log(`[schema] ensure + ${m.table}.${m.column}`);
+      } catch (e) {
+        if (!e.message?.includes('Duplicate column')) {
+          console.warn(`[schema] ensure ${m.table}.${m.column}:`, e.message);
+        }
+      }
+    }
+    const [rows] = await pool.query("SHOW TABLES LIKE 'promocoes_campanha'");
+    return rows.length > 0;
+  } catch (e) {
+    console.warn('[schema] ensurePromocoesCampanhaTables:', e.message);
+    return false;
+  }
+}
+
+module.exports = { runMigrations, ensurePromocoesCampanhaTables, ensureTableColumns, ensureItenspedPromoColumns, ensureItenspedTipoPrecoWidth };

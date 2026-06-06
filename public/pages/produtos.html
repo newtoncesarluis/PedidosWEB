@@ -390,12 +390,38 @@ tbody td { padding:10px 12px; vertical-align:middle; }
 .promo-check input { width:16px; height:16px; margin:0; flex-shrink:0; accent-color:var(--accent); }
 
 /* ── IMPORTAR FOTOS ── */
-#modalImportFotos { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:9000;
-  align-items:center; justify-content:center; }
-#modalImportFotos.open { display:flex; }
-.if-box { background:var(--card); border-radius:12px; width:680px; max-width:96vw;
-  max-height:88vh; display:flex; flex-direction:column; overflow:hidden;
-  box-shadow:0 20px 60px rgba(0,0,0,.2); }
+#modalImportFotos {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .45);
+  z-index: 9000;
+  overflow: hidden;
+}
+#modalImportFotos.open {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 16px;
+  box-sizing: border-box;
+}
+.if-box {
+  position: relative;
+  top: auto;
+  left: auto;
+  transform: none;
+  background: var(--card);
+  border-radius: 12px;
+  width: 680px;
+  max-width: calc(100vw - 32px);
+  max-height: min(88dvh, calc(100dvh - 40px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .2);
+  margin: 0;
+  flex-shrink: 0;
+}
 .if-head { padding:16px 20px; border-bottom:1px solid var(--border); display:flex; align-items:center;
   justify-content:space-between; font-weight:700; font-size:15px; }
 .if-body { padding:20px; overflow-y:auto; display:flex; flex-direction:column; gap:14px; }
@@ -447,10 +473,30 @@ tbody td { padding:10px 12px; vertical-align:middle; }
 .toast.error   { background:#991b1b; }
 
 /* modal */
-#modalConfirm { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:10000;
-  align-items:center; justify-content:center; }
-#modalConfirm.show { display:flex; }
-.modal-box { background:var(--card); border-radius:12px; padding:24px; max-width:380px; width:90%; border: 1px solid var(--border); box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+#modalConfirm {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .45);
+  z-index: 10000;
+  overflow: hidden;
+}
+#modalConfirm.show { display: block !important; }
+.modal-box {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--card);
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 380px;
+  width: calc(100vw - 32px);
+  border: 1px solid var(--border);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  margin: 0;
+  z-index: 1;
+}
 .modal-title { font-size:14px; font-weight:800; margin-bottom:8px; }
 .modal-msg { font-size:13px; color:var(--text2); margin-bottom:20px; }
 .modal-btns { display:flex; gap:8px; justify-content:flex-end; }
@@ -460,6 +506,13 @@ tbody td { padding:10px 12px; vertical-align:middle; }
 
 <!-- ── TOOLBAR ──────────────────────────────────────────────────────────────── -->
 <div class="toolbar" id="toolbar">
+
+  <button type="button" class="btn btn-outline" id="btnVoltarPromocoes" onclick="voltarParaPromocoes()" style="display:none" title="Voltar para Promoções de Produtos">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+    </svg>
+    Promoções
+  </button>
 
   <div class="chip" id="chip-total" onclick="setStatus('todos')" title="Ver todos">
     <span class="chip-label">Total</span>
@@ -662,12 +715,20 @@ tbody td { padding:10px 12px; vertical-align:middle; }
   <div class="form-card">
     <div class="form-header">
       <span class="form-header-title" id="formTitulo">Novo Produto</span>
+      <div class="form-header-actions" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button type="button" class="btn btn-outline" id="btnVoltarPromocoesForm" onclick="voltarParaPromocoes()" style="display:none" title="Voltar para Promoções de Produtos">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+        </svg>
+        Voltar às Promoções
+      </button>
       <button class="btn btn-ghost" onclick="fecharFormulario()">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
         </svg>
         Cancelar
       </button>
+      </div>
     </div>
 
     <div class="form-tabs">
@@ -1517,6 +1578,13 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('vt-cards').classList.add('active');
   }
 
+  if (new URLSearchParams(window.location.search).get('from') === 'promocoes') {
+    marcarRetornoPromocoes();
+  } else {
+    atualizarBtnVoltarPromocoes();
+    if (temRetornoPromocoes()) _notificarTabLabelProdutos();
+  }
+
   carregarPermissoesProdutos();
   carregarPrefsLista().then(() => {
     atualizarCabecalhoTabela();
@@ -1525,13 +1593,24 @@ document.addEventListener('DOMContentLoaded', () => {
   carregarNotificacoes();
   carregarLookups();
 
-  // Permite abrir edição vindo de outras telas (ex: Pedidos → Pesquisa Avançada)
+  // Permite abrir edição vindo de outras telas (ex: Pedidos → Pesquisa Avançada, Promoções → item)
   try {
-    const pid = parseInt(localStorage.getItem('sysrep_open_produto_id') || '0', 10);
+    let pid = 0;
+    let abaPromo = false;
+    try {
+      pid = parseInt(sessionStorage.getItem('sysrep_open_produto_id') || '0', 10);
+      abaPromo = sessionStorage.getItem('sysrep_open_produto_aba') === 'promocoes';
+      if (pid) {
+        sessionStorage.removeItem('sysrep_open_produto_id');
+        sessionStorage.removeItem('sysrep_open_produto_aba');
+      }
+    } catch (_) {}
+    if (!pid) {
+      pid = parseInt(localStorage.getItem('sysrep_open_produto_id') || '0', 10);
+      if (pid) localStorage.removeItem('sysrep_open_produto_id');
+    }
     if (pid) {
-      localStorage.removeItem('sysrep_open_produto_id');
-      // aguarda um tick para garantir que handlers/estado básico já foram inicializados
-      setTimeout(() => abrirEdicao(pid), 50);
+      setTimeout(() => abrirEdicao(pid, abaPromo ? { aba: 'promocoes' } : {}), 50);
     }
   } catch(_) {}
 
@@ -1952,6 +2031,64 @@ function atualizarBotoesQuickView() {
     btnClone.disabled = !!_semPermAlterar;
     btnClone.title = _semPermAlterar ? 'Sem permissão para incluir' : 'Clonar produto';
   }
+}
+
+const LS_RETORNO_PROMO = 'sysrep_retorno_promocoes';
+
+function temRetornoPromocoes() {
+  try {
+    if (sessionStorage.getItem(LS_RETORNO_PROMO) === '1') return true;
+  } catch (_) {}
+  try {
+    return new URLSearchParams(window.location.search).get('from') === 'promocoes';
+  } catch (_) {}
+  return false;
+}
+
+function marcarRetornoPromocoes() {
+  try { sessionStorage.setItem(LS_RETORNO_PROMO, '1'); } catch (_) {}
+  try {
+    const u = new URL(window.location.href);
+    if (u.searchParams.get('from') !== 'promocoes') {
+      u.searchParams.set('from', 'promocoes');
+      history.replaceState(null, '', u.pathname + u.search);
+    }
+  } catch (_) {}
+  atualizarBtnVoltarPromocoes();
+  _notificarTabLabelProdutos();
+}
+
+function _notificarTabLabelProdutos() {
+  try {
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: 'sysrep-tab-label', label: 'Produtos' }, '*');
+    }
+  } catch (_) {}
+}
+
+function limparRetornoPromocoes() {
+  try { sessionStorage.removeItem(LS_RETORNO_PROMO); } catch (_) {}
+  atualizarBtnVoltarPromocoes();
+}
+
+function atualizarBtnVoltarPromocoes() {
+  const show = temRetornoPromocoes();
+  ['btnVoltarPromocoes', 'btnVoltarPromocoesForm'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = show ? '' : 'none';
+  });
+}
+
+function voltarParaPromocoes() {
+  fecharFormulario();
+  limparRetornoPromocoes();
+  const page = '/pages/comercial-promocoes.html';
+  try {
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: 'sysrep-tab-label', label: 'Promoções de Produtos' }, '*');
+    }
+  } catch (_) {}
+  window.location.href = page;
 }
 
 function abrirCentralPromocoes() {
@@ -2783,6 +2920,80 @@ async function exportarCSV() {
 // ══════════════════════════════════════════════════════════════
 let _ifFiles = []; // { file, objectUrl, code, ordem }
 
+const _IF_MODAL_HOME_CSS = `
+#modalImportFotos{display:none;position:fixed;inset:0;z-index:2147483646;background:rgba(0,0,0,.45);
+  align-items:center;justify-content:center;padding:20px 16px;box-sizing:border-box;overflow:hidden}
+#modalImportFotos.open{display:flex!important}
+#modalImportFotos .if-box{background:var(--card-bg,#fff);color:var(--content-text,#0f172a);border-radius:12px;
+  width:680px;max-width:calc(100vw - 32px);max-height:min(88dvh,calc(100dvh - 40px));display:flex;flex-direction:column;
+  overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.25);border:1px solid var(--card-border,#e2e8f0);margin:0}
+#modalImportFotos .if-head{padding:16px 20px;border-bottom:1px solid var(--card-border,#e2e8f0);display:flex;
+  align-items:center;justify-content:space-between;font-weight:700;font-size:15px}
+#modalImportFotos .if-body{padding:20px;overflow-y:auto;display:flex;flex-direction:column;gap:14px;flex:1;min-height:0}
+#modalImportFotos .if-dropzone{border:2px dashed var(--accent,#4361ee);border-radius:10px;padding:36px 20px;
+  text-align:center;cursor:pointer;color:var(--text2,#64748b)}
+#modalImportFotos .if-dropzone:hover,#modalImportFotos .if-dropzone.drag-over{background:color-mix(in srgb,var(--accent,#4361ee) 12%,transparent)}
+#modalImportFotos .if-dropzone svg{width:36px;height:36px;margin-bottom:8px;color:var(--accent,#4361ee)}
+#modalImportFotos .if-dropzone strong{display:block;color:var(--content-text,#0f172a);font-size:14px;margin-bottom:4px}
+#modalImportFotos .if-file-list{display:flex;flex-direction:column;gap:4px;max-height:220px;overflow-y:auto}
+#modalImportFotos .if-file-row{display:flex;align-items:center;gap:10px;padding:5px 8px;border-radius:6px;
+  background:var(--content-bg,#f8fafc);font-size:12px}
+#modalImportFotos .if-file-thumb{width:36px;height:36px;border-radius:5px;object-fit:cover;border:1px solid var(--card-border,#e2e8f0);flex-shrink:0}
+#modalImportFotos .if-file-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#modalImportFotos .if-file-code{font-weight:700;color:var(--accent,#4361ee)}
+#modalImportFotos .if-file-rm{cursor:pointer;color:#ef4444;font-size:16px;flex-shrink:0;opacity:.7}
+#modalImportFotos .if-result-table{width:100%;border-collapse:collapse;font-size:12px}
+#modalImportFotos .if-result-table th{padding:6px 8px;background:var(--content-bg,#f8fafc);text-align:left;font-weight:700;border-bottom:2px solid var(--card-border,#e2e8f0)}
+#modalImportFotos .if-result-table td{padding:5px 8px;border-bottom:1px solid var(--card-border,#e2e8f0)}
+#modalImportFotos .if-ok{color:#16a34a;font-weight:700}
+#modalImportFotos .if-err{color:#dc2626;font-weight:700}
+#modalImportFotos .if-foot{padding:14px 20px;border-top:1px solid var(--card-border,#e2e8f0);display:flex;gap:8px;justify-content:flex-end;background:var(--card-bg,#fff)}
+#modalImportFotos .if-hint{font-size:11px;color:var(--text2,#64748b);line-height:1.5;background:var(--content-bg,#f8fafc);
+  border:1px solid var(--card-border,#e2e8f0);border-radius:7px;padding:10px 12px}
+#modalImportFotos .if-select-row{display:flex;align-items:center;gap:10px;font-size:13px}
+#modalImportFotos .if-select-row label{white-space:nowrap;font-weight:600;min-width:80px}
+#modalImportFotos .if-select-row select{flex:1;padding:7px 10px;border-radius:7px;border:1px solid var(--card-border,#e2e8f0);
+  background:var(--card-bg,#fff);color:var(--content-text,#0f172a);font-size:13px}
+#modalImportFotos .btn{display:inline-flex;align-items:center;justify-content:center;padding:8px 14px;border-radius:8px;
+  font-size:13px;font-weight:600;border:1.5px solid transparent;cursor:pointer;font-family:inherit}
+#modalImportFotos .btn-primary{background:var(--accent,#4361ee);color:#fff;border-color:var(--accent,#4361ee)}
+#modalImportFotos .btn-ghost{background:transparent;color:var(--content-text,#0f172a);border-color:var(--card-border,#e2e8f0)}
+`;
+
+function _ifDoc() {
+  return window.sysrep?.modalDoc?.('modalImportFotos') || document;
+}
+
+function _ifEl(id) {
+  return _ifDoc().getElementById(id);
+}
+
+function _ifModalEl() {
+  return _ifEl('modalImportFotos') || document.getElementById('modalImportFotos');
+}
+
+let _ifScrollY = 0;
+
+function _ifLockScroll() {
+  if (window.sysrep?.isHomeEmbed?.()) return;
+  _ifScrollY = window.scrollY || 0;
+  document.body.style.position = 'fixed';
+  document.body.style.top = `-${_ifScrollY}px`;
+  document.body.style.left = '0';
+  document.body.style.right = '0';
+  document.body.style.width = '100%';
+}
+
+function _ifUnlockScroll() {
+  if (window.sysrep?.isHomeEmbed?.()) return;
+  document.body.style.position = '';
+  document.body.style.top = '';
+  document.body.style.left = '';
+  document.body.style.right = '';
+  document.body.style.width = '';
+  window.scrollTo(0, _ifScrollY);
+}
+
 function _ifParseNome(filename) {
   const base = filename.replace(/\.[^.]+$/, '');
   const m    = base.match(/^(.+?)(?:\((\d+)\))?$/);
@@ -2791,20 +3002,25 @@ function _ifParseNome(filename) {
 
 async function abrirImportFotos() {
   _ifFiles = [];
-  document.getElementById('ifList').innerHTML = '';
-  document.getElementById('ifResultado').style.display = 'none';
-  document.getElementById('ifResultado').innerHTML = '';
-  document.getElementById('btnIfEnviar').disabled = true;
-  document.getElementById('modalImportFotos').classList.add('open');
+  const modal = document.getElementById('modalImportFotos');
+  window.sysrep?.teleportModalToHome?.(modal, 'sysrep-import-fotos-css', _IF_MODAL_HOME_CSS);
+  _ifBindModalEvents();
 
-  // Carrega fabricantes no select (somente na 1ª vez ou se vazio)
-  const sel = document.getElementById('ifFornecedor');
-  if (sel.options.length <= 1) {
+  _ifEl('ifList').innerHTML = '';
+  _ifEl('ifResultado').style.display = 'none';
+  _ifEl('ifResultado').innerHTML = '';
+  _ifEl('btnIfEnviar').disabled = true;
+  _ifModalEl().classList.add('open');
+  document.body.style.overflow = 'hidden';
+  _ifLockScroll();
+
+  const sel = _ifEl('ifFornecedor');
+  if (sel && sel.options.length <= 1) {
     try {
       const r = await api('/api/lookups/fornecedores');
       const lista = await r.json();
       lista.forEach(f => {
-        const o = document.createElement('option');
+        const o = _ifDoc().createElement('option');
         o.value = f.id;
         o.textContent = f.nome;
         sel.appendChild(o);
@@ -2816,20 +3032,27 @@ async function abrirImportFotos() {
 function fecharImportFotos() {
   _ifFiles.forEach(f => URL.revokeObjectURL(f.objectUrl));
   _ifFiles = [];
-  document.getElementById('ifFornecedor').value = '';
-  document.getElementById('modalImportFotos').classList.remove('open');
+  const modal = _ifModalEl();
+  if (modal) {
+    modal.classList.remove('open');
+    window.sysrep?.restoreModalFromHome?.(modal);
+  }
+  const sel = _ifEl('ifFornecedor');
+  if (sel) sel.value = '';
+  document.body.style.overflow = '';
+  _ifUnlockScroll();
 }
 
 function _ifRenderList() {
-  const list = document.getElementById('ifList');
-  if (!_ifFiles.length) { list.innerHTML = ''; document.getElementById('btnIfEnviar').disabled = true; return; }
-  document.getElementById('btnIfEnviar').disabled = false;
+  const list = _ifEl('ifList');
+  if (!_ifFiles.length) { list.innerHTML = ''; _ifEl('btnIfEnviar').disabled = true; return; }
+  _ifEl('btnIfEnviar').disabled = false;
   list.innerHTML = _ifFiles.map((f, i) => `
     <div class="if-file-row">
       <img class="if-file-thumb" src="${f.objectUrl}" alt="">
       <span class="if-file-name">${escHtml(f.file.name)}</span>
       <span class="if-file-code">${escHtml(f.code)}${f.ordem ? `(${f.ordem})` : ''}</span>
-      <span class="if-file-rm" onclick="_ifRemover(${i})" title="Remover">✕</span>
+      <span class="if-file-rm" data-idx="${i}" title="Remover">✕</span>
     </div>`).join('');
 }
 
@@ -2850,34 +3073,66 @@ function _ifAddFiles(files) {
   _ifRenderList();
 }
 
-// Drop zone
+function _ifBindModalEvents() {
+  const modal = _ifModalEl();
+  if (!modal) return;
+
+  if (modal.dataset.ifBound !== '1') {
+    modal.dataset.ifBound = '1';
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) fecharImportFotos();
+    });
+  }
+
+  function _ifOnceClick(el, key, fn) {
+    if (!el || el.dataset['ifEv' + key] === '1') return;
+    el.dataset['ifEv' + key] = '1';
+    el.addEventListener('click', fn);
+  }
+
+  _ifOnceClick(_ifEl('ifBtnFechar'), 'Fechar', (e) => { e.preventDefault(); fecharImportFotos(); });
+  _ifOnceClick(_ifEl('ifBtnCancelar'), 'Cancelar', (e) => { e.preventDefault(); fecharImportFotos(); });
+  _ifOnceClick(_ifEl('btnIfEnviar'), 'Enviar', (e) => { e.preventDefault(); enviarImportFotos(); });
+
+  const dz = _ifEl('ifDropzone');
+  const inp = _ifEl('ifInput');
+  if (dz && inp && dz.dataset.ifDzBound !== '1') {
+    dz.dataset.ifDzBound = '1';
+    dz.addEventListener('click', () => inp.click());
+    inp.addEventListener('change', () => { _ifAddFiles(inp.files); inp.value = ''; });
+    dz.addEventListener('dragover', (e) => { e.preventDefault(); dz.classList.add('drag-over'); });
+    dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+    dz.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dz.classList.remove('drag-over');
+      _ifAddFiles(e.dataTransfer.files);
+    });
+  }
+
+  const list = _ifEl('ifList');
+  if (list && list.dataset.ifListBound !== '1') {
+    list.dataset.ifListBound = '1';
+    list.addEventListener('click', (e) => {
+      const rm = e.target.closest('.if-file-rm');
+      if (!rm) return;
+      const idx = parseInt(rm.dataset.idx, 10);
+      if (!Number.isNaN(idx)) _ifRemover(idx);
+    });
+  }
+}
+
+// Drop zone — bind inicial (iframe); reforço após teleport em abrirImportFotos
 document.addEventListener('DOMContentLoaded', () => {
-  const dz = document.getElementById('ifDropzone');
-  const inp = document.getElementById('ifInput');
-
-  dz.addEventListener('click', () => inp.click());
-  inp.addEventListener('change', () => { _ifAddFiles(inp.files); inp.value = ''; });
-
-  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
-  dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
-  dz.addEventListener('drop', e => {
-    e.preventDefault();
-    dz.classList.remove('drag-over');
-    _ifAddFiles(e.dataTransfer.files);
-  });
-
-  document.getElementById('modalImportFotos').addEventListener('click', e => {
-    if (e.target === document.getElementById('modalImportFotos')) fecharImportFotos();
-  });
+  _ifBindModalEvents();
 });
 
 async function enviarImportFotos() {
   if (!_ifFiles.length) return;
-  const btn = document.getElementById('btnIfEnviar');
+  const btn = _ifEl('btnIfEnviar');
   btn.disabled = true;
   btn.textContent = 'Enviando…';
 
-  const fornecedorId = document.getElementById('ifFornecedor').value;
+  const fornecedorId = _ifEl('ifFornecedor').value;
   const fd = new FormData();
   if (fornecedorId) fd.append('fornecedor_id', fornecedorId);
   _ifFiles.forEach(f => fd.append('files', f.file));
@@ -2891,7 +3146,7 @@ async function enviarImportFotos() {
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || 'Erro no envio');
 
-    const res = document.getElementById('ifResultado');
+    const res = _ifEl('ifResultado');
     res.style.display = '';
 
     const okRows  = j.ok.map(x  => `<tr><td>${escHtml(x.arquivo)}</td><td>${x.produto_id}</td><td>${escHtml(x.descricao)}</td><td class="if-ok">✔ Associado</td></tr>`).join('');
@@ -2910,7 +3165,7 @@ async function enviarImportFotos() {
     if (j.ok.length) {
       _ifFiles.forEach(f => URL.revokeObjectURL(f.objectUrl));
       _ifFiles = [];
-      document.getElementById('ifList').innerHTML = '';
+      _ifEl('ifList').innerHTML = '';
       showToast(`${j.ok.length} foto(s) importada(s)!`, 'success');
       carregar();
     }
@@ -2929,7 +3184,7 @@ async function enviarImportFotos() {
   <div class="if-box">
     <div class="if-head">
       <span>Importar Fotos em Lote</span>
-      <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px" onclick="fecharImportFotos()">✕ Fechar</button>
+      <button type="button" class="btn btn-ghost" id="ifBtnFechar" style="padding:4px 10px;font-size:12px">✕ Fechar</button>
     </div>
     <div class="if-body">
       <div class="if-select-row">
@@ -2957,8 +3212,8 @@ async function enviarImportFotos() {
       <div id="ifResultado" style="display:none"></div>
     </div>
     <div class="if-foot">
-      <button class="btn btn-ghost" onclick="fecharImportFotos()">Cancelar</button>
-      <button class="btn btn-primary" id="btnIfEnviar" disabled onclick="enviarImportFotos()">Importar</button>
+      <button type="button" class="btn btn-ghost" id="ifBtnCancelar">Cancelar</button>
+      <button type="button" class="btn btn-primary" id="btnIfEnviar" disabled>Importar</button>
     </div>
   </div>
 </div>

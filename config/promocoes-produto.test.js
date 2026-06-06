@@ -7,6 +7,8 @@ const {
   escolherMelhorPromocao,
   filtrarPromocoesPorCliente,
   filtrarPromocoesPorContexto,
+  parseTabelasPrecoLista,
+  promocaoCombinaTabela,
 } = require('./promocoes-produto');
 
 function testCalcularPreco() {
@@ -29,6 +31,18 @@ function testValidarPayload() {
   assert.strictEqual(ok.ok, true);
   assert.strictEqual(ok.idRegiao, 3);
   assert.strictEqual(ok.syncPrecopromo, 'S');
+
+  const multi = validarPayloadPromocao({
+    descricao: 'Multi tab',
+    tipo: 'PRECO_FIXO',
+    valor: 10,
+    qtd_minima: 1,
+    tabelas_preco: [10, 11, 10],
+  }, 100);
+  assert.strictEqual(multi.ok, true);
+  assert.deepStrictEqual(multi.tabelasPrecoLista, [10, 11]);
+  assert.strictEqual(multi.tabelasPrecoStr, '10,11');
+  assert.strictEqual(multi.idTabelaPreco, null);
 
   const bad = validarPayloadPromocao({
     descricao: '',
@@ -70,6 +84,23 @@ function testFiltroContexto() {
   const semCtx = filtrarPromocoesPorContexto(rows, {});
   assert.strictEqual(semCtx.length, 1);
   assert.strictEqual(semCtx[0].descricao, 'Geral');
+}
+
+function testTabelasMultiplas() {
+  const rows = [
+    { cod_cliente: null, id_regiao: null, cod_fornecedor: null, id_tabela_preco: null, tabelas_preco: '10,11', descricao: 'Tab10-11' },
+    { cod_cliente: null, id_regiao: null, cod_fornecedor: null, id_tabela_preco: 12, tabelas_preco: null, descricao: 'Tab12' },
+  ];
+  assert.strictEqual(filtrarPromocoesPorContexto(rows, { idTabelaPreco: 10 }).length, 1);
+  assert.strictEqual(filtrarPromocoesPorContexto(rows, { idTabelaPreco: 11 }).length, 1);
+  assert.strictEqual(filtrarPromocoesPorContexto(rows, { idTabelaPreco: 12 }).length, 1);
+  assert.strictEqual(filtrarPromocoesPorContexto(rows, { idTabelaPreco: 99 }).length, 0);
+  assert.strictEqual(filtrarPromocoesPorContexto(rows, {}).length, 0);
+
+  assert.strictEqual(promocaoCombinaTabela({ tabelas_preco: '10,11' }, 10), true);
+  assert.strictEqual(promocaoCombinaTabela({ tabelas_preco: '10,11' }, 12), false);
+  assert.strictEqual(promocaoCombinaTabela({ id_tabela_preco: 5 }, 5), true);
+  assert.strictEqual(parseTabelasPrecoLista('10, 11;12').join(','), '10,11,12');
 }
 
 function testEscolherMelhor() {
@@ -114,8 +145,9 @@ function run() {
   testValidarPayload();
   testFiltroCliente();
   testFiltroContexto();
+  testTabelasMultiplas();
   testEscolherMelhor();
-  console.log('promocoes-produto.test.js: OK (5 suites)');
+  console.log('promocoes-produto.test.js: OK (6 suites)');
 }
 
 run();

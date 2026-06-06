@@ -121,6 +121,12 @@ app.get('/vitrine/:token', (_req, res) => {
 });
 app.use('/api/vitrine', require('./routes/vitrine'));
 
+// Catálogo público de promoções — /promocoes/:token
+app.get('/promocoes/:token', (_req, res) => {
+  res.sendFile(path.join(ROOT_DIR, 'public', 'promocoes.html'));
+});
+app.use('/api/promocoes-share', require('./routes/promocoes-share'));
+
 function sendServiceWorkerFile(_req, res) {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
   res.set('Pragma', 'no-cache');
@@ -650,10 +656,12 @@ app.get('/api/dashboard/home', authMiddleware, async (req, res) => {
         COUNT(CASE WHEN DATE(data_abertura) = CURDATE() AND tipo_pedido NOT LIKE '%ORCA%' THEN 1 END) AS qtdHoje,
         IFNULL(SUM(CASE WHEN DATE(data_abertura) = CURDATE() AND tipo_pedido NOT LIKE '%ORCA%' THEN vlrtotalpedido ELSE 0 END), 0) AS valorHoje,
         COUNT(CASE WHEN situacao_pedido NOT IN ('CANCELADO','ENVIADO') AND tipo_pedido NOT LIKE '%ORCA%' THEN 1 END) AS pedidosAbertos,
-        COUNT(CASE WHEN tipo_pedido LIKE '%ORCA%' AND situacao_pedido != 'CANCELADO' THEN 1 END) AS orcamentosPendentes
+        COUNT(CASE WHEN tipo_pedido LIKE '%ORCA%' AND situacao_pedido != 'CANCELADO' THEN 1 END) AS orcamentosPendentes,
+        COUNT(CASE WHEN origem = 'PROMO_SHARE' AND tipo_pedido LIKE '%ORCA%'
+          AND situacao_pedido NOT IN ('CANCELADO','ENVIADO') THEN 1 END) AS promoSharePendentes
       FROM pedidos
       WHERE excluido = 'N' ${whereUser}
-    `).catch(() => [[{ qtdHoje:0, valorHoje:0, pedidosAbertos:0, orcamentosPendentes:0 }]]);
+    `).catch(() => [[{ qtdHoje:0, valorHoje:0, pedidosAbertos:0, orcamentosPendentes:0, promoSharePendentes:0 }]]);
 
     // 5. Visitas e Atividades Reais (Nova Tabela)
     const [visitas] = await pool.query(`
@@ -685,7 +693,8 @@ app.get('/api/dashboard/home', authMiddleware, async (req, res) => {
       qtdHoje: mobileKpi?.qtdHoje || 0,
       valorHoje: mobileKpi?.valorHoje || 0,
       pedidosAbertos: mobileKpi?.pedidosAbertos || 0,
-      orcamentosPendentes: mobileKpi?.orcamentosPendentes || 0
+      orcamentosPendentes: mobileKpi?.orcamentosPendentes || 0,
+      promoSharePendentes: mobileKpi?.promoSharePendentes || 0
     });
   } catch (err) {
     console.error('Dash Error:', err);

@@ -15,6 +15,21 @@ const {
   sincronizarPrecopromoLegado,
   parseOptInt,
 } = require('../config/promocoes-produto');
+const {
+  tabelaCampanhaExiste,
+  listarCampanhas,
+  getCampanha,
+  gravarCampanha,
+  excluirCampanha,
+  adicionarProdutosCampanha,
+  adicionarEscopoCampanha,
+  materializarCampanha,
+  listarProdutosCampanha,
+  acoesLotePromocoes,
+  previewDescontoCampanha,
+} = require('../config/promocoes-campanha');
+const { relatorioDashboard } = require('../config/promocoes-dashboard');
+const { ensureItenspedPromoColumns } = require('../config/schema-migrations');
 
 function _parseCodCliente(v) {
   return parseOptInt(v);
@@ -71,16 +86,19 @@ async function _gravarPromocao(pool, prodId, body, promoId = null) {
     val.idRegiao,
     val.codFornecedor,
     val.idTabelaPreco,
+    val.tabelasPrecoStr,
     val.syncPrecopromo,
   ];
+
+  const idCampanha = parseOptInt(body?.id_campanha);
 
   if (promoId) {
     await pool.query(
       `UPDATE produto_promocoes SET
          descricao=?, tipo=?, valor=?, qtd_minima=?, data_inicio=?, data_fim=?, destaque=?, ativo=?,
-         cod_cliente=?, id_regiao=?, cod_fornecedor=?, id_tabela_preco=?, sync_precopromo=?
+         cod_cliente=?, id_regiao=?, cod_fornecedor=?, id_tabela_preco=?, tabelas_preco=?, sync_precopromo=?, id_campanha=?
        WHERE id=? AND cod_produto=?`,
-      [...params, promoId, prodId]
+      [...params, idCampanha, promoId, prodId]
     );
     if (val.syncPrecopromo === 'S' && body.ativo !== 'N') {
       await sincronizarPrecopromoLegado(pool, tb, prodId, {
@@ -93,9 +111,9 @@ async function _gravarPromocao(pool, prodId, body, promoId = null) {
   const [r] = await pool.query(
     `INSERT INTO produto_promocoes
        (cod_produto, descricao, tipo, valor, qtd_minima, data_inicio, data_fim, destaque, ativo,
-        cod_cliente, id_regiao, cod_fornecedor, id_tabela_preco, sync_precopromo)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    [prodId, ...params]
+        cod_cliente, id_regiao, cod_fornecedor, id_tabela_preco, tabelas_preco, sync_precopromo, id_campanha)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [prodId, ...params, idCampanha]
   );
   if (val.syncPrecopromo === 'S' && body.ativo !== 'N') {
     await sincronizarPrecopromoLegado(pool, tb, prodId, {
@@ -650,6 +668,137 @@ router.post('/importar-fotos',
   }
 });
 
+// ─── Promoções — campanhas centralizadas (estilo Mercos) ─────────────────────
+router.get('/promocoes/campanhas', async (req, res) => {
+  try {
+    const pool = getPool();
+    const out = await listarCampanhas(pool, {
+      q: req.query.q,
+      ativo: req.query.ativo,
+      limit: req.query.limit,
+      offset: req.query.offset,
+    });
+    res.json(out);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/promocoes/campanhas/:campanhaId', async (req, res) => {
+  try {
+    const pool = getPool();
+    const id = parseInt(req.params.campanhaId, 10);
+    const camp = await getCampanha(pool, id);
+    if (!camp) return res.status(404).json({ error: 'Campanha não encontrada' });
+    res.json(camp);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/promocoes/campanhas/:campanhaId/produtos', async (req, res) => {
+  try {
+    const pool = getPool();
+    const id = parseInt(req.params.campanhaId, 10);
+    const out = await listarProdutosCampanha(pool, getTabela, id, req.query);
+    res.status(out.status).json(out.json);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/promocoes/campanhas/:campanhaId/preview', async (req, res) => {
+  try {
+    const pool = getPool();
+    const id = parseInt(req.params.campanhaId, 10);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+    const body = req.body || {};
+    const out = await previewDescontoCampanha(pool, getTabela, id, {
+      descricao: body.descricao,
+      tipo: body.tipo,
+      valor: body.valor,
+      qtd_minima: body.qtd_minima,
+      qtd_simulada: body.qtd_simulada,
+      data_inicio: body.data_inicio,
+      data_fim: body.data_fim,
+      ativo: body.ativo,
+      limit: req.query.limit,
+      offset: req.query.offset,
+    });
+    res.status(out.status).json(out.json);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/promocoes/campanhas', async (req, res) => {
+  try {
+    const pool = getPool();
+    const out = await gravarCampanha(pool, req.body || {});
+    res.status(out.status).json(out.json);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.put('/promocoes/campanhas/:campanhaId', async (req, res) => {
+  try {
+    const pool = getPool();
+    const id = parseInt(req.params.campanhaId, 10);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+    const out = await gravarCampanha(pool, req.body || {}, id);
+    res.status(out.status).json(out.json);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.delete('/promocoes/campanhas/:campanhaId', async (req, res) => {
+  try {
+    const pool = getPool();
+    const id = parseInt(req.params.campanhaId, 10);
+    const out = await excluirCampanha(pool, id);
+    res.status(out.status).json(out.json);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/promocoes/campanhas/:campanhaId/produtos', async (req, res) => {
+  try {
+    const pool = getPool();
+    const id = parseInt(req.params.campanhaId, 10);
+    const prodIds = req.body?.produtos || req.body?.prod_ids || req.body?.ids || [];
+    const out = await adicionarProdutosCampanha(pool, getTabela, id, prodIds);
+    res.status(out.status).json(out.json);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/promocoes/campanhas/:campanhaId/escopo', async (req, res) => {
+  try {
+    const pool = getPool();
+    const id = parseInt(req.params.campanhaId, 10);
+    const escopos = req.body?.escopos || (req.body?.tipo ? [req.body] : []);
+    const out = await adicionarEscopoCampanha(pool, getTabela, id, escopos);
+    res.status(out.status).json(out.json);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/promocoes/campanhas/:campanhaId/materializar', async (req, res) => {
+  try {
+    const pool = getPool();
+    const id = parseInt(req.params.campanhaId, 10);
+    const out = await materializarCampanha(pool, getTabela, id);
+    res.status(out.status).json(out.json);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/promocoes/acoes-lote', async (req, res) => {
+  try {
+    const pool = getPool();
+    const out = await acoesLotePromocoes(pool, req.body || {});
+    res.status(out.status).json(out.json);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/promocoes/dashboard', async (req, res) => {
+  try {
+    const pool = getPool();
+    const out = await relatorioDashboard(pool, getTabela, {
+      dt_inicio: req.query.dt_inicio,
+      dt_fim: req.query.dt_fim,
+      id_campanha: req.query.id_campanha,
+    });
+    res.status(out.status).json(out.json);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ─── Promoções — lista central e relatório ────────────────────────────────────
 router.get('/promocoes/lista', async (req, res) => {
   try {
@@ -703,6 +852,7 @@ router.get('/promocoes/lista', async (req, res) => {
       ...formatarPromocaoRow(r, parseFloat(r.vlr_venda) || 0, parseFloat(r.qtd_minima) || 1),
       cod_produto: r.cod_produto,
       nome_produto: r.nome_produto,
+      vlr_venda: parseFloat(r.vlr_venda) || 0,
       nome_regiao: r.nome_regiao || null,
       nome_fornecedor: r.nome_fornecedor || null,
       nome_cliente: r.nome_cliente || null,
@@ -716,6 +866,7 @@ router.get('/promocoes/lista', async (req, res) => {
 router.get('/promocoes/relatorio-vendas', async (req, res) => {
   try {
     const pool = getPool();
+    await ensureItenspedPromoColumns(pool);
     const tb = await getTabela(pool);
     const dtIni = req.query.dt_inicio || null;
     const dtFim = req.query.dt_fim || null;
@@ -728,16 +879,25 @@ router.get('/promocoes/relatorio-vendas', async (req, res) => {
               i.cod_produto, prod.descricao AS nome_produto,
               i.quantidade, i.valor_unitario, i.vlr_padrao,
               prod.vlr_venda,
-              ROUND(i.quantidade * i.valor_unitario, 2) AS total_item
+              i.id_promocao, i.promocao_descricao,
+              pp.descricao AS promocao_cadastro, pp.tipo AS promocao_tipo,
+              ROUND(i.quantidade * i.valor_unitario, 2) AS total_item,
+              CASE WHEN i.id_promocao IS NOT NULL THEN 'campanha'
+                   WHEN i.valor_unitario < prod.vlr_venda * 0.995 THEN 'estimado'
+                   ELSE 'normal' END AS origem_desconto
        FROM itensped i
        INNER JOIN pedidos p ON p.id = i.id_pedido AND p.excluido = 'N'
        LEFT JOIN clientes c ON c.id = p.cod_cliente
        INNER JOIN ${tb} prod ON prod.ID = i.cod_produto
+       LEFT JOIN produto_promocoes pp ON pp.id = i.id_promocao AND pp.excluido = 'N'
        WHERE (i.excluido = 'N' OR i.excluido IS NULL)
          AND p.data_abertura >= ? AND p.data_abertura <= ?
          AND i.valor_unitario > 0
          AND prod.vlr_venda > 0
-         AND i.valor_unitario < prod.vlr_venda * 0.995
+         AND (
+           i.id_promocao IS NOT NULL
+           OR i.valor_unitario < prod.vlr_venda * 0.995
+         )
        ORDER BY p.data_abertura DESC, p.numero DESC, i.id DESC
        LIMIT 2000`,
       [dtIni, dtFim]
@@ -745,6 +905,8 @@ router.get('/promocoes/relatorio-vendas', async (req, res) => {
 
     const resumo = {
       itens: rows.length,
+      itens_campanha: rows.filter((r) => r.id_promocao).length,
+      itens_estimados: rows.filter((r) => !r.id_promocao).length,
       total_vendido: rows.reduce((s, r) => s + (parseFloat(r.total_item) || 0), 0),
       economia_estimada: rows.reduce((s, r) => {
         const diff = (parseFloat(r.vlr_venda) || 0) - (parseFloat(r.valor_unitario) || 0);

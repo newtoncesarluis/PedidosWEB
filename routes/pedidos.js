@@ -2,7 +2,8 @@ const express = require('express');
 const router = express.Router();
 const { getPool } = require('../config/database');
 const { sanitizeEmpresaRow } = require('../services/empresa-logo');
-const { enrichProdutosComPromocao, parseOptInt } = require('../config/promocoes-produto');
+const { enrichProdutosComPromocao, parseOptInt, tabelaPromocoesExiste } = require('../config/promocoes-produto');
+const { ensureItenspedPromoColumns } = require('../config/schema-migrations');
 
 async function _promoCtxFromPedidoQuery(pool, query) {
   const codCliente = parseOptInt(query.cod_cliente);
@@ -477,7 +478,7 @@ const ITENSPED_INSERT_COLS = [
   'sequencia', 'vlr_unitariosemimposto', 'vlr_totalsemimposto', 'vlr_descontototal', 'peso',
   'multiplo_sigla', 'multiplo_fator',
   'id_grade', 'solado', 'tipo_grade', 'grade_resumo',
-  'tipo_preco',
+  'tipo_preco', 'id_promocao', 'promocao_descricao',
   'data_inclusao', 'sincronizar', 'excluido',
 ].join(', ');
 
@@ -496,6 +497,14 @@ function _normItemImpostosGravacao(item) {
   }
   const obsitem = String(item.obsitem ?? item.obs_item ?? '').trim().slice(0, 100);
   return { icmsPct, vlrIcms, vlrTotalComImp, obsitem };
+}
+
+/** Legado itensped.tipo_preco VARCHAR(10) — promo campanha grava como promo */
+function normalizeTipoPrecoItensped(tipo) {
+  const t = String(tipo || 'venda').trim().toLowerCase();
+  if (t === 'promocao_campanha' || t === 'promo_camp') return 'promo';
+  if (t.length > 10) return t.slice(0, 10);
+  return t || 'venda';
 }
 
 function buildItenspedInsertParams(item, ctx) {
@@ -530,11 +539,14 @@ function buildItenspedInsertParams(item, ctx) {
     seqItem + 1, vlrUnitSemImp, item.vlrtotal_itens || 0, vlrDescTotal, pesoItem,
     item.multiplo_sigla || null, item.multiplo_fator || 1,
     item.id_grade || null, item.solado || null, item.tipo_grade || null, gradeResumo || null,
-    item.tipo_preco || 'venda',
+    normalizeTipoPrecoItensped(item.tipo_preco),
+    parseOptInt(item.id_promocao) || null,
+    item.promocao_descricao ? String(item.promocao_descricao).slice(0, 200) : null,
   ];
 }
 
 async function insertItenspedItem(conn, item, ctx) {
+  await ensureItenspedPromoColumns(conn);
   const vals = buildItenspedInsertParams(item, ctx);
   const ph = vals.map(() => '?').join(', ');
   const iResult = await conn.query(
@@ -1249,9 +1261,11 @@ router.get('/produtos/busca', async (req, res) => {
     const pool = getPool();
     const tb = await _getProdTabela(pool);
     await _ensureProdCols(pool);
-    const { q = '', limit = 15, id_fornecedor, id_tabela, catalogo } = req.query;
+    const { q = '', limit = 15, id_fornecedor, id_tabela, catalogo, somente_promocao, somente_destaque } = req.query;
     const tabelaId = (id_tabela && id_tabela !== 'null' && id_tabela !== '0') ? parseInt(id_tabela) : null;
     const isCatalogo = catalogo === '1' || catalogo === 'true';
+    const filtrarPromo = somente_promocao === '1' || somente_promocao === 'true' || somente_promocao === 'S';
+    const filtrarDestaque = somente_destaque === '1' || somente_destaque === 'true' || somente_destaque === 'S';
 
     const [sysRows] = await pool.query('SELECT itenspedidofornecedor FROM sistemas ORDER BY id DESC LIMIT 1').catch(() => [[]]);
     const itensForn = sysRows[0]?.itenspedidofornecedor || 'N';
@@ -1314,6 +1328,16 @@ router.get('/produtos/busca', async (req, res) => {
       }
     }
 
+    if ((filtrarPromo || filtrarDestaque) && (await tabelaPromocoesExiste(pool))) {
+      whereExtra += ` AND EXISTS (
+        SELECT 1 FROM produto_promocoes pp
+        WHERE pp.cod_produto = p.ID AND pp.excluido = 'N' AND pp.ativo = 'S'
+          AND (pp.data_inicio IS NULL OR pp.data_inicio <= CURDATE())
+          AND (pp.data_fim IS NULL OR pp.data_fim >= CURDATE())
+          ${filtrarDestaque ? " AND pp.destaque = 'S' " : ''}
+      )`;
+    }
+
     const [rows] = await pool.query(
       `SELECT p.ID as id, p.ID as cod_produto,
               p.cod_fabricante, p.cod_barras, p.descricao, p.descricao as desc_produto,
@@ -1349,10 +1373,87 @@ router.get('/produtos/busca', async (req, res) => {
     );
     const promoCtx = await _promoCtxFromPedidoQuery(pool, req.query);
     const qtdPromo = parseFloat(req.query.qtd) || 1;
-    const data = await enrichProdutosComPromocao(pool, rows, { qtd: qtdPromo, ...promoCtx });
+    let data = await enrichProdutosComPromocao(pool, rows, { qtd: qtdPromo, ...promoCtx });
+    if (filtrarPromo || filtrarDestaque) {
+      data = data.filter((p) => p.tem_promocao || p.promocao_ativa);
+      if (filtrarDestaque) {
+        data = data.filter((p) => p.promocao_ativa?.destaque || p.promocoes?.some((x) => x.destaque));
+      }
+    }
     res.json({ data });
   } catch (err) {
     console.error('[/produtos/busca] ERRO:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/pedidos/produtos/promocoes-resumo — qtd produtos em promoção da fábrica
+router.get('/produtos/promocoes-resumo', async (req, res) => {
+  try {
+    const pool = getPool();
+    const tb = await _getProdTabela(pool);
+    const fId = parseInt(req.query.id_fornecedor, 10);
+    if (!fId || !(await tabelaPromocoesExiste(pool))) {
+      return res.json({ total: 0, destaques: 0 });
+    }
+
+    const [sysRows] = await pool.query('SELECT itenspedidofornecedor FROM sistemas ORDER BY id DESC LIMIT 1').catch(() => [[]]);
+    const itensForn = sysRows[0]?.itenspedidofornecedor || 'N';
+
+    let fornWhere = '';
+    const params = [];
+    if (itensForn === 'S') {
+      fornWhere = 'AND CAST(p.cod_fornecedorpadrao AS UNSIGNED) = ?';
+      params.push(fId);
+    } else {
+      fornWhere = `AND (
+        CAST(p.cod_fornecedorpadrao AS UNSIGNED) = ?
+        OR EXISTS (
+          SELECT 1 FROM produtofornecedor pf
+          WHERE CAST(pf.cod_produto AS UNSIGNED) = p.ID
+            AND CAST(pf.cod_fornecedor AS UNSIGNED) = ?
+            AND (pf.excluido = 'N' OR pf.excluido IS NULL OR pf.excluido = '')
+            AND pf.status = 'A'
+        )
+      )`;
+      params.push(fId, fId);
+    }
+
+    const promoExists = `EXISTS (
+      SELECT 1 FROM produto_promocoes pp
+      WHERE pp.cod_produto = p.ID AND pp.excluido = 'N' AND pp.ativo = 'S'
+        AND (pp.data_inicio IS NULL OR pp.data_inicio <= CURDATE())
+        AND (pp.data_fim IS NULL OR pp.data_fim >= CURDATE())
+    )`;
+
+    const [[{ total }]] = await pool.query(
+      `SELECT COUNT(DISTINCT p.ID) AS total
+       FROM ${tb} p
+       WHERE (p.excluido = 'N' OR p.excluido IS NULL OR p.excluido = '')
+         AND p.situacao = 'A'
+         ${fornWhere}
+         AND ${promoExists}`,
+      params
+    );
+
+    const [[{ destaques }]] = await pool.query(
+      `SELECT COUNT(DISTINCT p.ID) AS destaques
+       FROM ${tb} p
+       WHERE (p.excluido = 'N' OR p.excluido IS NULL OR p.excluido = '')
+         AND p.situacao = 'A'
+         ${fornWhere}
+         AND EXISTS (
+           SELECT 1 FROM produto_promocoes pp
+           WHERE pp.cod_produto = p.ID AND pp.excluido = 'N' AND pp.ativo = 'S'
+             AND pp.destaque = 'S'
+             AND (pp.data_inicio IS NULL OR pp.data_inicio <= CURDATE())
+             AND (pp.data_fim IS NULL OR pp.data_fim >= CURDATE())
+         )`,
+      params
+    );
+
+    res.json({ total: Number(total) || 0, destaques: Number(destaques) || 0 });
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });

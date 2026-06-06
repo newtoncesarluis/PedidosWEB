@@ -555,6 +555,11 @@
   .trend-up { background: #ecfdf5; color: #10b981; }
   .trend-down { background: #fef2f2; color: #ef4444; }
   .kpi-sub { font-size: 12px; color: var(--text2); opacity: 0.5; }
+  .kpi-promo-badge {
+    display: inline-flex; align-items: center; margin-left: 6px; padding: 2px 8px;
+    border-radius: 999px; font-size: 10px; font-weight: 800; letter-spacing: .02em;
+    background: rgba(234,88,12,.15); color: #c2410c; border: 1px solid rgba(234,88,12,.35);
+  }
 
   /* ALERTA ROTAS */
   #alerta-rotas { display:none; flex-direction:column; gap:8px; }
@@ -2055,7 +2060,10 @@
              <div class="kpi-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg></div>
            </div>
            <div class="kpi-value" id="dash_orcamentos">0</div>
-           <div class="kpi-footer"><span class="kpi-sub">Pendentes</span></div>
+           <div class="kpi-footer">
+             <span class="kpi-sub" id="dash_orcamentos_sub">Pendentes</span>
+             <span class="kpi-promo-badge" id="dash_promo_share" style="display:none" title="Orçamentos via link de promoções">0 promo</span>
+           </div>
          </div>
          <div class="kpi-card" style="--kpi-color:#10b981; --kpi-bg:rgba(16,185,129,0.1)">
            <div class="kpi-top">
@@ -2727,6 +2735,17 @@ const PAGES_PRONTAS = {
 window.addEventListener('message', (ev) => {
   if (!ev.data) return;
 
+  if (ev.data.type === 'sysrep-tab-label' && ev.data.label) {
+    try {
+      const tab = _tabs.find((t) => t.iframe && t.iframe.contentWindow === ev.source);
+      if (tab) {
+        tab.label = String(ev.data.label);
+        renderTabBar();
+      }
+    } catch (_) {}
+    return;
+  }
+
   if (ev.data.type === 'navigate') {
     const url = ev.data.url || '';
     const label = ev.data.label || (() => {
@@ -2807,6 +2826,11 @@ window.addEventListener('message', (ev) => {
     return;
   }
 
+  if (ev.data.type === 'sysrep-home-embed-modal') {
+    _setHomeEmbedModal(!!ev.data.open, ev.source);
+    return;
+  }
+
   if (ev.data.type === 'sysrep-pedidos-salvar-sair') {
     try {
       const src = ev.source;
@@ -2821,6 +2845,60 @@ window.addEventListener('message', (ev) => {
     return;
   }
 });
+
+function _setHomeEmbedModal(open, source) {
+  const ic = document.getElementById('iframe-container');
+  if (!ic) return;
+  const tab = Array.isArray(_tabs)
+    ? _tabs.find((t) => t.iframe && t.iframe.contentWindow === source)
+    : null;
+  const iframe = tab?.iframe || ic.querySelector('iframe.tab-ativa');
+  if (!iframe) return;
+
+  if (open) {
+    if (!iframe.dataset.embedModalPrev) {
+      iframe.dataset.embedModalPrev = JSON.stringify({
+        position: iframe.style.position || '',
+        inset: iframe.style.inset || '',
+        top: iframe.style.top || '',
+        left: iframe.style.left || '',
+        right: iframe.style.right || '',
+        bottom: iframe.style.bottom || '',
+        width: iframe.style.width || '',
+        height: iframe.style.height || '',
+        zIndex: iframe.style.zIndex || '',
+        border: iframe.style.border || '',
+      });
+    }
+    ic.style.display = 'block';
+    iframe.style.position = 'fixed';
+    iframe.style.inset = '0';
+    iframe.style.top = '0';
+    iframe.style.left = '0';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '100%';
+    iframe.style.height = '100%';
+    iframe.style.zIndex = '2147483000';
+    iframe.style.border = 'none';
+    return;
+  }
+
+  try {
+    const prev = JSON.parse(iframe.dataset.embedModalPrev || '{}');
+    iframe.style.position = prev.position || '';
+    iframe.style.inset = prev.inset || '';
+    iframe.style.top = prev.top || '';
+    iframe.style.left = prev.left || '';
+    iframe.style.right = prev.right || '';
+    iframe.style.bottom = prev.bottom || '';
+    iframe.style.width = prev.width || '';
+    iframe.style.height = prev.height || '';
+    iframe.style.zIndex = prev.zIndex || '';
+    iframe.style.border = prev.border || '';
+    delete iframe.dataset.embedModalPrev;
+  } catch (_) {}
+}
 
 // ═══ HELPERS DOM SEGURANÇA ══════════════════════════════════════════════════
 function _setElText(id, text) {
@@ -3263,9 +3341,22 @@ function notifyShellChromeState() {
 function openTab(page, label) {
   if (navigateInMobileApp(page, label)) return;
 
-  // Se já existe uma aba com essa page, só ativa
+  // Se já existe uma aba com essa page, ativa — recarrega se o iframe foi navegado para outra URL
   const existing = _tabs.find(t => t.page === page);
-  if (existing) { switchTab(existing.id); notifyShellChromeState(); return; }
+  if (existing) {
+    const wantPath = String(page).split('?')[0];
+    try {
+      const cur = existing.iframe?.contentWindow?.location?.pathname || '';
+      if (cur && cur !== wantPath) {
+        existing.iframe.src = page + (page.includes('?') ? '&' : '?') + '_v=' + Date.now() + '&_nc=' + Date.now();
+      }
+    } catch (_) {
+      existing.iframe.src = page + (page.includes('?') ? '&' : '?') + '_v=' + Date.now() + '&_nc=' + Date.now();
+    }
+    switchTab(existing.id);
+    notifyShellChromeState();
+    return;
+  }
 
   const id = 'tab_' + Date.now();
   const container = document.getElementById('iframe-container');
@@ -4000,7 +4091,9 @@ function fecharModalVitrineHome() {
 function abrirModalVitrineHome() {
   const back = document.getElementById('modalVitrineHomeBack');
   const body = document.getElementById('modalVitrineHomeBody');
+  const sub = document.getElementById('vitrineHomeSub');
   if (!back || !body) return;
+  if (sub) sub.textContent = 'Busque o cliente e gere o link do catálogo';
   back.style.display = 'flex';
   body.innerHTML = `
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:0 12px;height:42px;border:1.5px solid var(--card-border);border-radius:10px;background:var(--content-bg)">
@@ -4065,35 +4158,60 @@ async function buscarClientesVitrineHome(q) {
 function _vitrineHomeIframeLoading() {
   const back = document.getElementById('modalVitrineHomeBack');
   const body = document.getElementById('modalVitrineHomeBody');
+  const sub = document.getElementById('vitrineHomeSub');
   if (!back || !body) return;
+  if (sub) sub.textContent = 'Link de catálogo para o cliente';
   back.style.display = 'flex';
   body.innerHTML = '<div style="padding:32px 0;text-align:center;color:var(--text2)">Gerando link…</div>';
+}
+
+function _gerarQrVitrineHome(url) {
+  const el = document.getElementById('vitrineHomeQr');
+  if (!el) return;
+  el.innerHTML = '';
+  function render() {
+    try {
+      new QRCode(el, { text: url, width: 140, height: 140, correctLevel: QRCode.CorrectLevel.M });
+    } catch (_) {}
+  }
+  if (typeof QRCode !== 'undefined') { render(); return; }
+  const s = document.createElement('script');
+  s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+  s.onload = render;
+  document.head.appendChild(s);
 }
 
 function _vitrineHomeIframeShow(data) {
   const body = document.getElementById('modalVitrineHomeBody');
   if (!body) return;
   const back = document.getElementById('modalVitrineHomeBack');
+  const sub = document.getElementById('vitrineHomeSub');
   if (back) back.style.display = 'flex';
+  if (sub) sub.textContent = 'Link de catálogo para o cliente';
   const link   = String(data.link || '');
   const expira = String(data.expira || '');
   const waUrl  = String(data.waUrl || ('https://wa.me/?text=' + encodeURIComponent('Olá! Acesse o catálogo: ' + link)));
   const linkSafe = link.replace(/"/g, '&quot;');
   body.innerHTML = `
-    <div style="margin-bottom:12px;font-size:13px;color:var(--text2)">
-      Link válido até <strong>${expira}</strong>. Compartilhe com o cliente.
+    <div style="margin-bottom:12px;font-size:13px;color:var(--text2);line-height:1.45">
+      Link válido até <strong>${expira}</strong>. Compartilhe com o cliente para que ele consulte produtos e faça pedidos.
     </div>
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
       <input id="vitrineHomeLink" value="${linkSafe}" readonly
         style="flex:1;padding:10px 12px;border:1.5px solid var(--card-border);border-radius:8px;font-size:11px;background:var(--content-bg);color:var(--content-text);font-family:monospace;outline:none">
       <button type="button" onclick="copiarVitrineHome()" style="flex-shrink:0;height:38px;padding:0 14px;border:none;border-radius:8px;background:#0284c7;color:#fff;font:inherit;font-size:12px;font-weight:700;cursor:pointer">Copiar</button>
     </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
       <a href="${linkSafe}" target="_blank" rel="noopener"
         style="flex:1;min-width:120px;height:36px;border:1.5px solid var(--card-border);border-radius:8px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--content-text);text-decoration:none;background:var(--content-bg)">Abrir vitrine</a>
       <a href="${waUrl.replace(/"/g,'&quot;')}" target="_blank" rel="noopener"
-        style="flex:1;min-width:120px;height:36px;border:1.5px solid #bbf7d0;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#16a34a;text-decoration:none;background:#f0fdf4">WhatsApp</a>
+        style="flex:1;min-width:120px;height:36px;border:1.5px solid #bbf7d0;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#16a34a;text-decoration:none;background:#f0fdf4">Enviar WhatsApp</a>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+      <div id="vitrineHomeQr" style="border:1px solid var(--card-border);border-radius:12px;padding:8px;background:#fff;display:inline-block"></div>
+      <span style="font-size:10px;color:var(--text2)">QR Code — aponte a câmera do cliente</span>
     </div>`;
+  _gerarQrVitrineHome(link);
 }
 
 function _vitrineHomeIframeError(msg) {
@@ -4217,6 +4335,17 @@ async function carregarDashboard(token) {
       else el[attr] = val;
     }
   };
+  const _setPromoBadge = (n) => {
+    const el = document.getElementById('dash_promo_share');
+    const sub = document.getElementById('dash_orcamentos_sub');
+    const v = parseInt(n, 10) || 0;
+    if (el) {
+      el.style.display = v > 0 ? 'inline-flex' : 'none';
+      el.textContent = v === 1 ? '1 promo' : `${v} promo`;
+    }
+    if (sub && v > 0) sub.textContent = `Pendentes · ${v} via promoções`;
+    else if (sub) sub.textContent = 'Pendentes';
+  };
 
   try {
     const r = await fetch('/api/dashboard/home', { headers: { Authorization:'Bearer ' + token } });
@@ -4234,6 +4363,7 @@ async function carregarDashboard(token) {
       _set('dash_hoje_valor', fmtCur(d.valorHoje || 0));
       _set('dash_abertos',   d.pedidosAbertos       || 0);
       _set('dash_orcamentos', d.orcamentosPendentes || 0);
+      _setPromoBadge(d.promoSharePendentes);
       _set('dash_qtd', d.qtdPedidos || 0);
       _set('dash_mes_label', (d.mesNome || 'Este Mês').toUpperCase());
       carregarPainelMobile(token);
@@ -4261,6 +4391,7 @@ async function carregarDashboard(token) {
     _set('dash_hoje_valor', fmtCur(d.valorHoje || 0));
     _set('dash_abertos',   d.pedidosAbertos       || 0);
     _set('dash_orcamentos',d.orcamentosPendentes   || 0);
+    _setPromoBadge(d.promoSharePendentes);
     carregarPainelMobile(token);
 
     // Badges de Tendência (vs Mês Anterior)
@@ -5272,7 +5403,7 @@ document.addEventListener('keydown', e => {
         </span>
         <div style="min-width:0">
           <div style="font-size:15px;font-weight:900">Vitrine Digital</div>
-          <div style="font-size:11px;color:var(--text2);margin-top:2px">Busque o cliente e gere o link do catálogo</div>
+          <div id="vitrineHomeSub" style="font-size:11px;color:var(--text2);margin-top:2px">Busque o cliente e gere o link do catálogo</div>
         </div>
       </div>
       <button type="button" onclick="fecharModalVitrineHome()" style="height:30px;border:1.5px solid var(--card-border);border-radius:8px;padding:0 10px;background:transparent;color:var(--content-text);font:inherit;font-size:12px;cursor:pointer;flex-shrink:0">Fechar</button>
