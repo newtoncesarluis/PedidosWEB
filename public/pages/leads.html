@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="/assets/themes.css">
 <script src="/assets/themes.js"></script>
 <script src="/assets/mobile-app.js"></script>
+<script src="/assets/comissao-preposto-ui.js"></script>
 <link rel="stylesheet" href="/assets/mobile-app.css">
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -801,12 +802,19 @@ function toast(msg, type = '') {
 }
 
 function fillVendedorSelects() {
+  const vendFilter = document.getElementById('vendFilter');
+  const formSel = document.getElementById('f_vendedor');
+  if (window.ComissaoPrepostoUi) {
+    ComissaoPrepostoUi.populateVendedorSelect(vendFilter, state.vendedores, { emptyLabel: 'Todos os vendedores' });
+    ComissaoPrepostoUi.populateVendedorSelect(formSel, state.vendedores, { emptyLabel: 'Selecione' });
+    return;
+  }
   const filterOpts = ['<option value="">Todos os vendedores</option>']
     .concat(state.vendedores.map(v => `<option value="${v.id}">${esc(v.nome)}</option>`)).join('');
-  document.getElementById('vendFilter').innerHTML = filterOpts;
+  vendFilter.innerHTML = filterOpts;
   const formOpts = ['<option value="">Selecione</option>']
     .concat(state.vendedores.map(v => `<option value="${v.id}">${esc(v.nome)}</option>`)).join('');
-  document.getElementById('f_vendedor').innerHTML = formOpts;
+  formSel.innerHTML = formOpts;
 }
 
 async function loadVendedores() {
@@ -1049,7 +1057,9 @@ async function loadLeads() {
   params.set('limit', '500');
   const q = document.getElementById('q').value.trim();
   const status = document.getElementById('statusFilter').value;
-  const vendedor = document.getElementById('vendFilter').value;
+  const vendedor = window.ComissaoPrepostoUi
+    ? ComissaoPrepostoUi.resolveVendedorFilterId(document.getElementById('vendFilter'))
+    : document.getElementById('vendFilter').value;
   const origem = document.getElementById('originFilter').value;
   const prioridade = document.getElementById('priorityFilter').value;
   const temperatura = document.getElementById('tempFilter').value;
@@ -1131,7 +1141,9 @@ function collectForm() {
     interesse: document.getElementById('f_interesse').value.trim(),
     produto_interesse: document.getElementById('f_produto_interesse').value.trim(),
     status_funil: document.getElementById('f_status').value,
-    id_vendedor: document.getElementById('f_vendedor').value || null,
+    id_vendedor: (window.ComissaoPrepostoUi
+      ? ComissaoPrepostoUi.resolveVendedorFilterId(document.getElementById('f_vendedor'))
+      : document.getElementById('f_vendedor').value) || null,
     prioridade: document.getElementById('f_prioridade').value,
     temperatura_lead: document.getElementById('f_temperatura').value,
     score: document.getElementById('f_score').value || 0,

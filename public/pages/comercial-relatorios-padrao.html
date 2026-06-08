@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="/assets/themes.css">
 <script src="/assets/themes.js"></script>
 <script src="/assets/mobile-app.js"></script>
+<script src="/assets/comissao-preposto-ui.js"></script>
 <link rel="stylesheet" href="/assets/mobile-app.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
@@ -325,13 +326,17 @@ function setMode(m){
 }
 
 function getFilters(){
+  const idVendEl = byId('idVendedor');
+  const idVendedor = window.ComissaoPrepostoUi
+    ? ComissaoPrepostoUi.resolveVendedorFilterId(idVendEl)
+    : (idVendEl.value || '');
   return {
     ano_ini: byId('anoIni').value || '',
     ano_fim: byId('anoFim').value || '',
     dt_inicio: byId('dtInicio').value || '',
     dt_fim: byId('dtFim').value || '',
     id_cliente: byId('idCliente').value || '',
-    id_vendedor: byId('idVendedor').value || '',
+    id_vendedor: idVendedor,
     id_fornecedor: byId('idFornecedor').value || '',
   };
 }
@@ -604,7 +609,12 @@ async function loadLookups(){
   try {
     const data = await api('/api/pedidos/lookups');
     fillSelect('idCliente', data.clientes || [], 'Selecione');
-    fillSelect('idVendedor', data.vendedores || [], 'Todos');
+    const vendSel = byId('idVendedor');
+    if (window.ComissaoPrepostoUi) {
+      ComissaoPrepostoUi.populateVendedorSelect(vendSel, data.vendedores || [], { emptyLabel: 'Todos' });
+    } else {
+      fillSelect('idVendedor', data.vendedores || [], 'Todos');
+    }
     fillSelect('idFornecedor', data.fornecedores || [], 'Selecione');
   } catch (_) {
     // Tela continua funcional para relatorios agregados mesmo sem lookups.

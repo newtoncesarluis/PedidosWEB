@@ -557,12 +557,15 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script src="/assets/comissao-preposto-ui.js"></script>
 
 <script>
     let charts = {};
     let dtDrill = null;
+    let _jwtComissao = { isPreposto: false };
 
     $(document).ready(function() {
+        _jwtComissao = (window.ComissaoPrepostoUi && ComissaoPrepostoUi.readJwtComissao()) || { isPreposto: false };
         // Set Default Dates (Current Month)
         const now = new Date();
         const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
@@ -586,6 +589,10 @@
             populate('filter_vendedor', res.vendedores || []);
             populate('filter_fornecedor', res.fornecedores || []);
             populate('filter_cliente', res.clientes || []);
+            const selVend = document.getElementById('filter_vendedor');
+        if (selVend && window.ComissaoPrepostoUi) {
+            ComissaoPrepostoUi.applyVendedorSelectLock(selVend, { wrapId: 'wrap-filter-vendedor' });
+        }
         } catch(e) { console.error("Erro lookups:", e); }
     }
 
@@ -600,7 +607,7 @@
                     responsive: true, 
                     maintainAspectRatio: false, 
                     resizeDelay: 0,
-                    animation: { duration: 400 }, // Animação curta, mas sem loop de resize
+                    animation: { duration: 400 },
                     plugins: { legend: { display: type === 'pie' || type === 'doughnut' } },
                     onClick: (e, elements, chart) => {
                         if (elements.length > 0) {
@@ -633,9 +640,12 @@
 
     async function refreshDashboard() {
         $("#loading").fadeIn();
+        let idVendedor = window.ComissaoPrepostoUi
+            ? ComissaoPrepostoUi.resolveVendedorFilterId(document.getElementById('filter_vendedor'), _jwtComissao)
+            : $('#filter_vendedor').val();
         const params = new URLSearchParams({
             dt_ini: $('#filter_inicio').val(), dt_fim: $('#filter_fim').val(),
-            id_vendedor: $('#filter_vendedor').val(), id_fornecedor: $('#filter_fornecedor').val(),
+            id_vendedor: idVendedor, id_fornecedor: $('#filter_fornecedor').val(),
             id_cliente: $('#filter_cliente').val(), tipo_data: $('#filter_tipo_data').val()
         });
 
@@ -712,6 +722,11 @@
             dt_fim: $('#filter_fim').val(),
             tipo_data: $('#filter_tipo_data').val()
         };
+        if (_jwtComissao.isPreposto && _jwtComissao.userId) {
+            params.id_vendedor = String(_jwtComissao.userId);
+        } else if (_jwtComissao.mustLockVendedorSelect && _jwtComissao.userId) {
+            params.id_vendedor = String(_jwtComissao.userId);
+        }
 
         // Aplica filtro específico do clique
         if (chartId === 'chartVendedor') params.id_vendedor = filterId;

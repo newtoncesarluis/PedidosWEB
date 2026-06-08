@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="/assets/themes.css">
 <script src="/assets/themes.js"></script>
+<script src="/assets/comissao-preposto-ui.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
@@ -482,10 +483,18 @@ async function carregarVendedores() {
     const r = await fetch('/api/vendedores');
     const d = await r.json();
     const sel = document.getElementById('selVendedor');
-    (d.vendedores || []).forEach(v => {
+    const list = (d.vendedores || []).map(v => ({
+      id: v.idusuario || v.id,
+      nome: v.nomeusu || v.nome,
+    }));
+    if (window.ComissaoPrepostoUi) {
+      ComissaoPrepostoUi.populateVendedorSelect(sel, list, { emptyLabel: 'Todos os vendedores' });
+      return;
+    }
+    list.forEach(v => {
       const opt = document.createElement('option');
-      opt.value = v.idusuario || v.id;
-      opt.textContent = v.nomeusu || v.nome;
+      opt.value = v.id;
+      opt.textContent = v.nome;
       sel.appendChild(opt);
     });
   } catch {}
@@ -504,7 +513,9 @@ function initDatas() {
 async function analisar() {
   const dtini = document.getElementById('dtini').value;
   const dtfim = document.getElementById('dtfim').value;
-  const vend  = document.getElementById('selVendedor').value;
+  const vend  = window.ComissaoPrepostoUi
+    ? ComissaoPrepostoUi.resolveVendedorFilterId(document.getElementById('selVendedor'))
+    : document.getElementById('selVendedor').value;
 
   let qs = `?dtini=${dtini}&dtfim=${dtfim}`;
   if (vend) qs += `&id_vendedor=${vend}`;
@@ -647,7 +658,9 @@ function renderInsights(insights) {
 let mapaLeaflet = null;
 
 async function verMapa() {
-  const vend  = document.getElementById('selVendedor').value;
+  const vend  = window.ComissaoPrepostoUi
+    ? ComissaoPrepostoUi.resolveVendedorFilterId(document.getElementById('selVendedor'))
+    : document.getElementById('selVendedor').value;
   let qs = vend ? `?id_vendedor=${vend}` : '';
 
   document.getElementById('mapaSection').style.display = '';

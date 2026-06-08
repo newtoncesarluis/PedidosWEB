@@ -11,6 +11,7 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <link rel="stylesheet" href="/assets/themes.css">
 <script src="/assets/themes.js"></script>
+<script src="/assets/comissao-preposto-ui.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{--bg:var(--content-bg);--card:var(--card-bg);--border:var(--card-border);--text:var(--content-text);--text2:var(--text2);--accent:var(--accent);--accent-hover:var(--accent-hover);--input-bg:var(--card-bg)}
@@ -341,7 +342,10 @@ async function carregarMapaCalor(){
 }
 
 function buildParams(){
-  const iv=document.getElementById('selVendedor').value;
+  const sel = document.getElementById('selVendedor');
+  const iv = window.ComissaoPrepostoUi
+    ? ComissaoPrepostoUi.resolveVendedorFilterId(sel)
+    : sel.value;
   const di=document.getElementById('dtInicio').value;
   const df=document.getElementById('dtFim').value;
   const params=new URLSearchParams();
@@ -355,6 +359,10 @@ async function carregarVendedores(){
   try{
     const d=await api('/api/vendedores');
     const sel=document.getElementById('selVendedor');
+    if (window.ComissaoPrepostoUi) {
+      ComissaoPrepostoUi.populateVendedorSelect(sel, d.vendedores || [], { emptyLabel: 'Todos os vendedores' });
+      return;
+    }
     (d.vendedores||[]).forEach(v=>{
       const o=document.createElement('option');
       o.value=v.id; o.textContent=v.nome;

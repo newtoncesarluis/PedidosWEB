@@ -124,6 +124,8 @@ const MIGRATIONS = [
   { table: 'clientes', column: 'id_parceiro',       type: 'VARCHAR(36) NULL DEFAULT NULL' },
   { table: 'produto',  column: 'id_parceiro',       type: 'VARCHAR(36) NULL DEFAULT NULL' },
   { table: 'produtos', column: 'id_parceiro',       type: 'VARCHAR(36) NULL DEFAULT NULL' },
+  { table: 'produto',  column: 'precopeso',         type: "CHAR(1) NOT NULL DEFAULT 'N'" },
+  { table: 'produtos', column: 'precopeso',         type: "CHAR(1) NOT NULL DEFAULT 'N'" },
 
   // ── TELE_CAMPANHAS (colunas novas em base existente) ─────────────────────────
   { table: 'tele_campanhas', column: 'max_tentativas', type: 'INT NOT NULL DEFAULT 3' },
@@ -140,10 +142,33 @@ const MIGRATIONS = [
   { table: 'produto_promocoes', column: 'id_campanha', type: 'INT NULL DEFAULT NULL' },
   { table: 'promocoes_campanha', column: 'tabelas_preco', type: 'VARCHAR(500) NULL DEFAULT NULL' },
 
+  // ── PERFIL — promoções comerciais ────────────────────────────────────────────
+  { table: 'perfil', column: 'incluir_promocoes', type: "CHAR(1) NOT NULL DEFAULT 'S'" },
+  { table: 'perfil', column: 'alterar_promocoes', type: "CHAR(1) NOT NULL DEFAULT 'S'" },
+  { table: 'perfil', column: 'excluir_promocoes', type: "CHAR(1) NOT NULL DEFAULT 'S'" },
+  { table: 'perfil', column: 'prorrogar_promocoes', type: "CHAR(1) NOT NULL DEFAULT 'S'" },
+  { table: 'perfil', column: 'manutencao_promocoes', type: "CHAR(1) NOT NULL DEFAULT 'S'" },
+  { table: 'perfil', column: 'acessar_cadastros', type: "CHAR(1) NOT NULL DEFAULT 'S'" },
+  { table: 'perfil', column: 'tela_clientes', type: "CHAR(1) NOT NULL DEFAULT 'S'" },
+  { table: 'perfil', column: 'tela_fornecedores', type: "CHAR(1) NOT NULL DEFAULT 'S'" },
+  { table: 'perfil', column: 'tela_produtos', type: "CHAR(1) NOT NULL DEFAULT 'S'" },
+  ...require('./cadastros-permissoes').migrationEntriesForCadastros(),
+
   // ── PEDIDOS — controle de envio de emails ────────────────────────────────────
   { table: 'pedidos', column: 'emailclienteenviado', type: "CHAR(1) DEFAULT 'N'" },
   { table: 'pedidos', column: 'emailforenviado',     type: "CHAR(1) DEFAULT 'N'" },
   { table: 'pedidos', column: 'emailvendenviado',    type: "CHAR(1) DEFAULT 'N'" },
+
+  // ── FORNECEDORES — módulo Kit Feirinha / preço médio de revenda ─────────────
+  { table: 'fornecedores', column: 'habilita_feirinha', type: "CHAR(1) NOT NULL DEFAULT 'N'" },
+
+  // ── PEDIDOS — campanha Feirinha vinculada ───────────────────────────────────
+  { table: 'pedidos', column: 'id_campanha_feirinha', type: 'INT NULL DEFAULT NULL' },
+  { table: 'pedidos', column: 'preco_medio_feirinha', type: 'DECIMAL(15,4) NULL DEFAULT NULL' },
+  { table: 'pedidos', column: 'preco_revenda_feirinha', type: 'DECIMAL(15,2) NULL DEFAULT NULL' },
+
+  // ── CAMPANHAS FEIRINHA — banner / tema visual ───────────────────────────────
+  { table: 'campanhas_feirinha', column: 'tema_banner', type: "VARCHAR(200) NULL DEFAULT NULL" },
 ];
 
 // Tabelas novas — cria se não existir (apenas estrutura mínima)
@@ -276,6 +301,77 @@ const CREATE_IF_NOT_EXISTS = [
       dtcadastro DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       INDEX idx_pces_campanha (id_campanha),
       INDEX idx_pces_tipo (tipo, ref_valor(40))
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  },
+  {
+    name: 'produtos_destaque',
+    sql: `CREATE TABLE IF NOT EXISTS produtos_destaque (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      cod_produto INT NOT NULL,
+      cod_fornecedor INT NULL DEFAULT NULL,
+      titulo VARCHAR(200) NULL DEFAULT NULL,
+      texto_marketing VARCHAR(500) NULL DEFAULT NULL,
+      prioridade INT NOT NULL DEFAULT 0,
+      data_inicio DATE NULL DEFAULT NULL,
+      data_fim DATE NULL DEFAULT NULL,
+      ativo CHAR(1) NOT NULL DEFAULT 'S',
+      excluido CHAR(1) NOT NULL DEFAULT 'N',
+      dtcadastro DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_pd_produto (cod_produto),
+      INDEX idx_pd_fornecedor (cod_fornecedor),
+      INDEX idx_pd_vigencia (data_inicio, data_fim),
+      INDEX idx_pd_ativo (ativo, excluido)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  },
+  {
+    name: 'campanhas_feirinha',
+    sql: `CREATE TABLE IF NOT EXISTS campanhas_feirinha (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      descricao VARCHAR(200) NOT NULL,
+      cod_fornecedor INT NOT NULL,
+      faixa_codigo VARCHAR(20) NOT NULL DEFAULT 'R10',
+      preco_revenda_alvo DECIMAL(15,2) NULL DEFAULT NULL,
+      preco_medio_meta DECIMAL(15,4) NULL DEFAULT NULL,
+      data_inicio DATE NULL DEFAULT NULL,
+      data_fim DATE NULL DEFAULT NULL,
+      ativo CHAR(1) NOT NULL DEFAULT 'S',
+      excluido CHAR(1) NOT NULL DEFAULT 'N',
+      observacoes TEXT NULL,
+      dtcadastro DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_cf_forn (cod_fornecedor),
+      INDEX idx_cf_vigencia (data_inicio, data_fim),
+      INDEX idx_cf_ativo (ativo, excluido)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  },
+  {
+    name: 'campanhas_feirinha_itens',
+    sql: `CREATE TABLE IF NOT EXISTS campanhas_feirinha_itens (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      id_campanha INT NOT NULL,
+      cod_produto INT NOT NULL,
+      quantidade DECIMAL(15,4) NOT NULL DEFAULT 1,
+      ordem INT NOT NULL DEFAULT 0,
+      excluido CHAR(1) NOT NULL DEFAULT 'N',
+      INDEX idx_cfi_camp (id_campanha),
+      INDEX idx_cfi_prod (cod_produto)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  },
+  {
+    name: 'feirinha_share_tokens',
+    sql: `CREATE TABLE IF NOT EXISTS feirinha_share_tokens (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      token VARCHAR(64) NOT NULL UNIQUE,
+      id_campanha INT NOT NULL,
+      id_cliente INT NULL,
+      id_usuario INT NOT NULL,
+      nome_usuario VARCHAR(255) NULL,
+      nome_campanha VARCHAR(255) NULL,
+      nome_cliente VARCHAR(255) NULL,
+      criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      expira_em TIMESTAMP NULL,
+      ativo TINYINT(1) DEFAULT 1,
+      INDEX idx_fst_token (token),
+      INDEX idx_fst_camp (id_campanha)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   },
   {
@@ -419,6 +515,7 @@ async function runMigrations(pool) {
 
     // 2c. itensped.tipo_preco — legado Delphi VARCHAR(10); promo campanha precisa caber
     await ensureItenspedTipoPrecoWidth(pool);
+    await ensureTabelaPrecoCondPagamentoNullable(pool);
 
     // 2b. despesas: copia descricao → nome quando ambas existem (legado Delphi)
     try {
@@ -485,7 +582,8 @@ async function runMigrations(pool) {
   }
 }
 
-const PROMOCOES_TABLE_NAMES = ['produto_promocoes', 'promocoes_campanha', 'promocoes_campanha_escopo'];
+const PROMOCOES_TABLE_NAMES = ['produto_promocoes', 'promocoes_campanha', 'promocoes_campanha_escopo', 'produtos_destaque'];
+const FEIRINHA_TABLE_NAMES = ['campanhas_feirinha', 'campanhas_feirinha_itens', 'feirinha_share_tokens'];
 
 /** Cache por base (DATABASE.table.column) — evita SHOW COLUMNS repetido */
 const _ensureColCache = new Set();
@@ -555,6 +653,134 @@ async function ensureItenspedTipoPrecoWidth(poolOrConn) {
   }
 }
 
+/** tabela_preco_cabecalho.Cond_Pagamento — legado NOT NULL; FK impede MODIFY silencioso */
+async function ensureTabelaPrecoCondPagamentoNullable(poolOrConn) {
+  if (!poolOrConn?.query) return;
+  try {
+    const [tables] = await poolOrConn.query("SHOW TABLES LIKE 'tabela_preco_cabecalho'");
+    if (!tables.length) return;
+
+    const [info] = await poolOrConn.query(
+      `SELECT IS_NULLABLE AS nullable FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tabela_preco_cabecalho' AND COLUMN_NAME = 'Cond_Pagamento'`
+    );
+    if (!info.length || info[0].nullable === 'YES') return;
+
+    const [fks] = await poolOrConn.query(
+      `SELECT CONSTRAINT_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME
+       FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tabela_preco_cabecalho'
+         AND COLUMN_NAME = 'Cond_Pagamento' AND REFERENCED_TABLE_NAME IS NOT NULL`
+    );
+
+    for (const fk of fks) {
+      await poolOrConn.query(
+        `ALTER TABLE \`tabela_preco_cabecalho\` DROP FOREIGN KEY \`${fk.CONSTRAINT_NAME}\``
+      );
+    }
+
+    await poolOrConn.query(
+      `ALTER TABLE \`tabela_preco_cabecalho\` MODIFY COLUMN \`Cond_Pagamento\` INT NULL DEFAULT NULL`
+    );
+
+    for (const fk of fks) {
+      const refTable = fk.REFERENCED_TABLE_NAME || 'forma_pagto';
+      const refCol = fk.REFERENCED_COLUMN_NAME || 'id';
+      await poolOrConn.query(
+        `ALTER TABLE \`tabela_preco_cabecalho\` ADD CONSTRAINT \`${fk.CONSTRAINT_NAME}\`
+         FOREIGN KEY (\`Cond_Pagamento\`) REFERENCES \`${refTable}\` (\`${refCol}\`)`
+      ).catch(() => {});
+    }
+
+    console.log('[schema] tabela_preco_cabecalho.Cond_Pagamento -> NULL');
+  } catch (e) {
+    console.warn('[schema] ensureTabelaPrecoCondPagamentoNullable:', e.message);
+  }
+}
+
+/** Colunas legadas do perfil que podem faltar em bases antigas (fora do array MIGRATIONS). */
+const PERFIL_EXTRA_ENSURE = [
+  ['incluir_formas_pagamento', "CHAR(1) NOT NULL DEFAULT 'N'"],
+  ['alterar_formas_pagamento', "CHAR(1) NOT NULL DEFAULT 'N'"],
+  ['excluir_formas_pagamento', "CHAR(1) NOT NULL DEFAULT 'N'"],
+  ['incluir_bancos', "CHAR(1) NOT NULL DEFAULT 'N'"],
+  ['alterar_bancos', "CHAR(1) NOT NULL DEFAULT 'N'"],
+  ['excluir_bancos', "CHAR(1) NOT NULL DEFAULT 'N'"],
+  ['incluir_despesas', "CHAR(1) NOT NULL DEFAULT 'N'"],
+  ['alterar_despesas', "CHAR(1) NOT NULL DEFAULT 'N'"],
+  ['excluir_despesas', "CHAR(1) NOT NULL DEFAULT 'N'"],
+  ['incluir_segmentos', "CHAR(1) NOT NULL DEFAULT 'N'"],
+  ['alterar_segmentos', "CHAR(1) NOT NULL DEFAULT 'N'"],
+  ['excluir_segmentos', "CHAR(1) NOT NULL DEFAULT 'N'"],
+  ['incluir_regioes', "CHAR(1) NOT NULL DEFAULT 'N'"],
+  ['alterar_regioes', "CHAR(1) NOT NULL DEFAULT 'N'"],
+  ['excluir_regioes', "CHAR(1) NOT NULL DEFAULT 'N'"],
+  ['incluir_natureza', "CHAR(1) NOT NULL DEFAULT 'N'"],
+  ['alterar_natureza', "CHAR(1) NOT NULL DEFAULT 'N'"],
+  ['excluir_natureza', "CHAR(1) NOT NULL DEFAULT 'N'"],
+  ['incluir_tipo_frete', "CHAR(1) NOT NULL DEFAULT 'N'"],
+  ['alterar_tipo_frete', "CHAR(1) NOT NULL DEFAULT 'N'"],
+  ['excluir_tipo_frete', "CHAR(1) NOT NULL DEFAULT 'N'"],
+  ['incluir_locais_armazenamento', "CHAR(1) NOT NULL DEFAULT 'N'"],
+  ['alterar_locais_armazenamento', "CHAR(1) NOT NULL DEFAULT 'N'"],
+  ['excluir_locais_armazenamento', "CHAR(1) NOT NULL DEFAULT 'N'"],
+  ['incluir_motivo_visitas', "CHAR(1) NOT NULL DEFAULT 'N'"],
+  ['alterar_motivo_visitas', "CHAR(1) NOT NULL DEFAULT 'N'"],
+  ['excluir_motivo_visitas', "CHAR(1) NOT NULL DEFAULT 'N'"],
+  ['incluir_hoteis', "CHAR(1) NOT NULL DEFAULT 'N'"],
+  ['alterar_hoteis', "CHAR(1) NOT NULL DEFAULT 'N'"],
+  ['excluir_hoteis', "CHAR(1) NOT NULL DEFAULT 'N'"],
+  ['incluir_promocoes', "CHAR(1) NOT NULL DEFAULT 'S'"],
+  ['alterar_promocoes', "CHAR(1) NOT NULL DEFAULT 'S'"],
+  ['excluir_promocoes', "CHAR(1) NOT NULL DEFAULT 'S'"],
+  ['prorrogar_promocoes', "CHAR(1) NOT NULL DEFAULT 'S'"],
+  ['manutencao_promocoes', "CHAR(1) NOT NULL DEFAULT 'S'"],
+  ['p_alterarcomissao', "CHAR(1) NOT NULL DEFAULT 'S'"],
+  ['alterar_emb', "CHAR(1) NOT NULL DEFAULT 'S'"],
+  ['alterardatapedido', "CHAR(1) NOT NULL DEFAULT 'S'"],
+  ['trocarvendedorpedido', "CHAR(1) NOT NULL DEFAULT 'S'"],
+  ['alteraprecovenda', "CHAR(1) NOT NULL DEFAULT 'S'"],
+  ['acessar_cadastros', "CHAR(1) NOT NULL DEFAULT 'S'"],
+  ['tela_clientes', "CHAR(1) NOT NULL DEFAULT 'S'"],
+  ['tela_fornecedores', "CHAR(1) NOT NULL DEFAULT 'S'"],
+  ['tela_produtos', "CHAR(1) NOT NULL DEFAULT 'S'"],
+];
+
+/** Garante colunas S/N de cadastros no perfil (runtime, sem reiniciar o servidor). */
+async function ensurePerfilCadastroColumns(pool) {
+  if (!pool?.query) return false;
+  const { PERFIL_SN_CADASTRO } = require('./cadastros-permissoes');
+  await ensureTableColumns(pool, 'perfil', PERFIL_SN_CADASTRO);
+
+  let dbName = '';
+  try {
+    const [[r]] = await pool.query('SELECT DATABASE() AS db');
+    dbName = r?.db || '';
+  } catch { /* ignora */ }
+
+  for (const [column, type] of PERFIL_EXTRA_ENSURE) {
+    const cacheKey = `${dbName}.perfil.${column}`;
+    if (_ensureColCache.has(cacheKey)) continue;
+    try {
+      const [cols] = await pool.query('SHOW COLUMNS FROM `perfil` LIKE ?', [column]);
+      if (cols.length) {
+        _ensureColCache.add(cacheKey);
+        continue;
+      }
+      await pool.query(`ALTER TABLE \`perfil\` ADD COLUMN \`${column}\` ${type}`);
+      console.log(`[schema] ensure + perfil.${column}`);
+      _ensureColCache.add(cacheKey);
+    } catch (e) {
+      if (String(e.message || '').includes('Duplicate column')) {
+        _ensureColCache.add(cacheKey);
+      } else {
+        console.warn(`[schema] ensure perfil.${column}:`, e.message);
+      }
+    }
+  }
+  return true;
+}
+
 async function ensureItenspedPromoColumns(poolOrConn) {
   const ok = await ensureTableColumns(poolOrConn, 'itensped', ['tipo_preco', 'id_promocao', 'promocao_descricao']);
   await ensureItenspedTipoPrecoWidth(poolOrConn);
@@ -593,4 +819,39 @@ async function ensurePromocoesCampanhaTables(pool) {
   }
 }
 
-module.exports = { runMigrations, ensurePromocoesCampanhaTables, ensureTableColumns, ensureItenspedPromoColumns, ensureItenspedTipoPrecoWidth };
+async function ensureFeirinhaTables(pool) {
+  if (!pool) return false;
+  try {
+    for (const t of CREATE_IF_NOT_EXISTS) {
+      if (!FEIRINHA_TABLE_NAMES.includes(t.name)) continue;
+      try {
+        await pool.query(t.sql);
+      } catch (e) {
+        console.warn(`[schema] ensure ${t.name}:`, e.message);
+      }
+    }
+    const feirinhaCols = MIGRATIONS.filter((m) =>
+      (m.table === 'pedidos' && ['id_campanha_feirinha', 'preco_medio_feirinha', 'preco_revenda_feirinha'].includes(m.column))
+      || (m.table === 'campanhas_feirinha' && m.column === 'tema_banner')
+    );
+    for (const m of feirinhaCols) {
+      try {
+        const [cols] = await pool.query(`SHOW COLUMNS FROM \`${m.table}\` LIKE ?`, [m.column]);
+        if (cols.length) continue;
+        await pool.query(`ALTER TABLE \`${m.table}\` ADD COLUMN \`${m.column}\` ${m.type}`);
+        console.log(`[schema] ensure + ${m.table}.${m.column}`);
+      } catch (e) {
+        if (!e.message?.includes('Duplicate column')) {
+          console.warn(`[schema] ensure ${m.table}.${m.column}:`, e.message);
+        }
+      }
+    }
+    const [rows] = await pool.query("SHOW TABLES LIKE 'campanhas_feirinha'");
+    return rows.length > 0;
+  } catch (e) {
+    console.warn('[schema] ensureFeirinhaTables:', e.message);
+    return false;
+  }
+}
+
+module.exports = { runMigrations, ensurePromocoesCampanhaTables, ensureFeirinhaTables, ensureTableColumns, ensurePerfilCadastroColumns, ensureItenspedPromoColumns, ensureItenspedTipoPrecoWidth, ensureTabelaPrecoCondPagamentoNullable };

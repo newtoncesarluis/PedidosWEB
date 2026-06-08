@@ -2,6 +2,16 @@ const mysql = require('mysql2/promise');
 
 let licensePool = null;
 
+// Protege contra MariaDB local (XAMPP) que usa auth_gssapi_client — dá erro claro em vez de "unknown plugin"
+const _LICENSE_AUTH_PLUGINS = {
+  auth_gssapi_client: () => () => {
+    throw new Error(
+      'O servidor de licenças usa autenticação Windows/GSSAPI, não suportada pelo driver. ' +
+      'Verifique LICENSE_DB_HOST no .env — o pool está conectando ao MariaDB local em vez do servidor remoto.'
+    );
+  },
+};
+
 function createLicensePool() {
   return mysql.createPool({
     host:                  process.env.LICENSE_DB_HOST     || process.env.DB_HOST || 'localhost',
@@ -17,6 +27,8 @@ function createLicensePool() {
     connectTimeout:        10000,
     enableKeepAlive:       true,
     keepAliveInitialDelay: 30000,
+    dateStrings:           ['DATE'],
+    authPlugins:           _LICENSE_AUTH_PLUGINS,
   });
 }
 

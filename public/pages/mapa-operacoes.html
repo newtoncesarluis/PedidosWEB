@@ -18,6 +18,7 @@
 <script src="/assets/ajuda-tour.js"></script>
 <script src="/assets/ajuda-tours.js"></script>
 <script src="/assets/mobile-app.js"></script>
+<script src="/assets/comissao-preposto-ui.js"></script>
 <link rel="stylesheet" href="/assets/mobile-app.css">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -584,7 +585,10 @@ function debounceBusca() {
 function buildParams(semStatus) {
   const p = new URLSearchParams();
   p.set('data', document.getElementById('dtRef').value || hojeStr());
-  const v = document.getElementById('selVendedor').value;
+  const selV = document.getElementById('selVendedor');
+  const v = window.ComissaoPrepostoUi
+    ? ComissaoPrepostoUi.resolveVendedorFilterId(selV)
+    : selV.value;
   if (v) p.set('id_vendedor', v);
   p.set('tipo', document.getElementById('selTipo').value || 'todos');
   const q = document.getElementById('inpBusca').value.trim();
@@ -650,7 +654,10 @@ async function processarGeo(tipo) {
       limite: 10,
       data: document.getElementById('dtRef').value || hojeStr(),
     };
-    const v = document.getElementById('selVendedor').value;
+    const selV = document.getElementById('selVendedor');
+    const v = window.ComissaoPrepostoUi
+      ? ComissaoPrepostoUi.resolveVendedorFilterId(selV)
+      : selV.value;
     if (v) body.id_vendedor = parseInt(v, 10);
     const r = await apiPost('/api/mapa-operacoes/processar-geo', body);
     const c = r.resultado?.clientes || {};
@@ -672,6 +679,10 @@ async function carregarVendedores() {
   try {
     const d = await api('/api/vendedores');
     const sel = document.getElementById('selVendedor');
+    if (window.ComissaoPrepostoUi) {
+      ComissaoPrepostoUi.populateVendedorSelect(sel, d.vendedores || [], { emptyLabel: 'Todos vendedores' });
+      return;
+    }
     (d.vendedores || []).forEach(v => {
       const o = document.createElement('option');
       o.value = v.id;

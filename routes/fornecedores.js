@@ -1,6 +1,7 @@
 const express = require('express');
 const router  = express.Router();
 const { getPool, runWithRequestPool } = require('../config/database');
+const { isPrepostoUser, stripFornecedorComissaoRep } = require('../config/comissao-preposto-guard');
 const multer  = require('multer');
 const path    = require('path');
 const fs      = require('fs');
@@ -108,6 +109,10 @@ async function ensureColumns(pool) {
   }
   if (!cols.has('enviar_pedido_fabrica')) {
     await pool.query(`ALTER TABLE fornecedores ADD COLUMN enviar_pedido_fabrica CHAR(1) DEFAULT 'N'`).catch(() => {});
+    _colunasCache = null;
+  }
+  if (!cols.has('habilita_feirinha')) {
+    await pool.query(`ALTER TABLE fornecedores ADD COLUMN habilita_feirinha CHAR(1) NOT NULL DEFAULT 'N'`).catch(() => {});
     _colunasCache = null;
   }
   // Tabela de e-mails da fábrica
@@ -465,13 +470,15 @@ async function resolveFornecedorLogoCaminho(pool, idFornecedor) {
 router.get('/:id', async (req, res) => {
   try {
     const pool = getPool();
+    await ensureColumns(pool);
     const [rows] = await pool.query(
       `SELECT * FROM fornecedores WHERE id = ? AND (excluido='N' OR excluido IS NULL OR excluido='') LIMIT 1`,
       [req.params.id]
     );
     if (!rows[0]) return res.status(404).json({ error: 'Fornecedor não encontrado' });
-    const row = rows[0];
+    let row = rows[0];
     row.logo_imagem = await resolveFornecedorLogoCaminho(pool, row.id);
+    if (isPrepostoUser(req)) row = stripFornecedorComissaoRep(row);
     res.json(row);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -482,6 +489,7 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const pool  = getPool();
+    await ensureColumns(pool);
     const body  = aplicarUpper(req.body);
     if (!body.nome?.trim()) return res.status(400).json({ error: 'Nome obrigatório' });
 
@@ -511,7 +519,7 @@ router.post('/', async (req, res) => {
       'pedidos_codfabricante',
       'tipo',
       'ipi_frete_base','com_sobre_ipi','com_sobre_st','com_tipo','tipo_num_pedido','base_conciliacao',
-      'min_cx_pedido','recalc_comissao_fatur','enviar_pedido_fabrica'
+      'min_cx_pedido','recalc_comissao_fatur','enviar_pedido_fabrica','habilita_feirinha'
     ];
 
     const campos = todosCampos.filter(c => body[c] !== undefined && colunasReais.has(c));
@@ -535,6 +543,7 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const pool = getPool();
+    await ensureColumns(pool);
     const { id } = req.params;
     const body = aplicarUpper(req.body);
     if (!body.nome?.trim()) return res.status(400).json({ error: 'Nome obrigatório' });
@@ -570,7 +579,7 @@ router.put('/:id', async (req, res) => {
       'pedidos_codfabricante',
       'tipo',
       'ipi_frete_base','com_sobre_ipi','com_sobre_st','com_tipo','tipo_num_pedido','base_conciliacao',
-      'min_cx_pedido','recalc_comissao_fatur','enviar_pedido_fabrica'
+      'min_cx_pedido','recalc_comissao_fatur','enviar_pedido_fabrica','habilita_feirinha'
     ];
 
     const campos = todosCampos.filter(c => body[c] !== undefined && colunasReais.has(c));

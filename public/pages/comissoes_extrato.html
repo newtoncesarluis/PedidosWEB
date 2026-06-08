@@ -171,32 +171,38 @@ tbody tr:hover{background:var(--accent-soft);}
   </div>
 </div>
 
+<script src="/assets/comissao-preposto-ui.js"></script>
+
 <script>
 const fmtR = v => 'R$ ' + parseFloat(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtD = d => d ? new Date(d+'T12:00:00').toLocaleDateString('pt-BR') : '—';
 let _dados = [];
 let _isAdmin = false;
+let _jwtComissao = { isPreposto: false };
 
 async function init() {
+  _jwtComissao = (window.ComissaoPrepostoUi && ComissaoPrepostoUi.readJwtComissao()) || { isPreposto: false };
   const hoje = new Date();
   const ini  = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
   document.getElementById('dt-ini').value = ini.toISOString().slice(0,10);
   document.getElementById('dt-fim').value = hoje.toISOString().slice(0,10);
 
-  // verifica se é admin
-  try {
-    const r = await fetch('/api/comissoes/admin/vendedores', {credentials:'include'});
-    if (r.ok) {
-      const vends = await r.json();
-      if (vends.length > 1) {
-        _isAdmin = true;
-        document.getElementById('wrap-vendedor').style.display = '';
-        const sel = document.getElementById('sel-vendedor');
-        sel.innerHTML = '<option value="">Todos</option>';
-        vends.forEach(v => { const o = document.createElement('option'); o.value=v.id; o.textContent=v.nome; sel.appendChild(o); });
+  // verifica se é admin (representante com múltiplos vendedores)
+  if (!_jwtComissao.isPreposto) {
+    try {
+      const r = await fetch('/api/comissoes/admin/vendedores', {credentials:'include'});
+      if (r.ok) {
+        const vends = await r.json();
+        if (vends.length > 1) {
+          _isAdmin = true;
+          document.getElementById('wrap-vendedor').style.display = '';
+          const sel = document.getElementById('sel-vendedor');
+          sel.innerHTML = '<option value="">Todos</option>';
+          vends.forEach(v => { const o = document.createElement('option'); o.value=v.id; o.textContent=v.nome; sel.appendChild(o); });
+        }
       }
-    }
-  } catch(_) {}
+    } catch(_) {}
+  }
 
   // carrega fornecedores via lookups (leve — não faz full-scan na pagtocomissao)
   try {
@@ -222,7 +228,9 @@ async function carregar() {
   const dtIni  = document.getElementById('dt-ini').value;
   const dtFim  = document.getElementById('dt-fim').value;
   const forn   = document.getElementById('sel-forn').value;
-  const vend   = document.getElementById('sel-vendedor').value;
+  const vend   = window.ComissaoPrepostoUi
+    ? ComissaoPrepostoUi.resolveVendedorFilterId(document.getElementById('sel-vendedor'), _jwtComissao)
+    : document.getElementById('sel-vendedor').value;
 
   const params = new URLSearchParams({ dt_ini: dtIni, dt_fim: dtFim });
   if (forn) params.set('id_fornecedor', forn);

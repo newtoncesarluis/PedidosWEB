@@ -1,6 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const { getPool } = require('../config/database');
+const { isPrepostoUser, buildPagtoComissaoFilter } = require('../config/comissao-preposto-guard');
+const {
+  canAccessAllVendors,
+  canPickOtherVendors,
+  listVendedoresVisiveis,
+  resolveVendedorIdForFilter,
+} = require('../config/vendedor-visibilidade');
 
 // ─── Rota /extrato — consolida tudo em uma única chamada (compatibilidade) ───
 router.get('/extrato', async (req, res) => {
@@ -97,22 +104,14 @@ router.get('/extrato', async (req, res) => {
 // Helper: true se o usuário logado é administrador
 function _isAdmin(req) { return req.user?.role === 'admin'; }
 // Helper: true se o usuário logado é preposto
-function _isPreposto(req) { return req.user?.tipo_usuario === 'PREPOSTO'; }
+function _isPreposto(req) { return isPrepostoUser(req); }
 
 // ─── Rota /admin/vendedores — lista todos os usuários vendedores ─────────────
 router.get('/admin/vendedores', async (req, res) => {
   const pool = getPool();
-  // Não-admin só enxerga a si mesmo
-  if (!_isAdmin(req)) {
-    return res.json([{ id: req.user.id, nome: req.user.name || req.user.login || 'Você' }]);
-  }
   try {
-    const [rows] = await pool.query(
-      `SELECT idusuario as id, nomeusu as nome FROM usuarios
-       WHERE situacao = 'ATIVO' AND excluido = 'N'
-       ORDER BY nomeusu`
-    );
-    res.json(rows);
+    const rows = await listVendedoresVisiveis(pool, req);
+    res.json(rows.map(r => ({ id: r.id, nome: r.nome || r.nome_vendedor })));
   } catch (e) {
     res.json([]);
   }
@@ -125,13 +124,19 @@ router.get('/admin/extrato', async (req, res) => {
   const dtIni = dt_ini || '2000-01-01';
   const dtFim = dt_fim || '2100-01-01';
 
-  // Não-admin só pode ver as próprias comissões
-  const id_vendedor = _isAdmin(req) ? req.query.id_vendedor : String(req.user.id);
+  // Filtro por vendedor conforme permissão (preposto → id_preposto via buildPagtoComissaoFilter)
+  let userFilter = { clause: '', params: [], isPrep: false };
+  const idResolved = await resolveVendedorIdForFilter(pool, req, req.query.id_vendedor);
+  if (canPickOtherVendors(req)) {
+    if (idResolved) userFilter = await buildPagtoComissaoFilter(pool, req, idResolved);
+  } else {
+    userFilter = await buildPagtoComissaoFilter(pool, req, null);
+  }
+  const isPrep = userFilter.isPrep;
 
   const params = [dtIni, dtFim];
-  let where = `pc.excluido = 'N' AND pc.data_lancamento BETWEEN ? AND ?`;
-
-  if (id_vendedor) { where += ' AND pc.cod_user = ?'; params.push(id_vendedor); }
+  let where = `pc.excluido = 'N' AND pc.data_lancamento BETWEEN ? AND ?${userFilter.clause}`;
+  params.push(...userFilter.params);
   if (id_fornecedor) { where += ' AND ped.cod_fornecedor = ?'; params.push(id_fornecedor); }
   if (q_cliente) { where += ' AND ped.nome_cliente LIKE ?'; params.push('%' + q_cliente + '%'); }
   if (id_pedido) { where += ' AND ped.numero = ?'; params.push(id_pedido); }
@@ -142,11 +147,33 @@ router.get('/admin/extrato', async (req, res) => {
 
   const lim = parseInt(limit) || 500;
 
+  const comissaoSel = isPrep
+    ? `COALESCE(pcf.pct_comissao, usr_prep.comissao_preposto_pct, 6) AS comissao`
+    : `COALESCE(rec.comissao, ped.comissao, 0) AS comissao`;
+  const origemSel = isPrep
+    ? `'PREPOSTO' AS label_origem`
+    : `CASE
+          WHEN UPPER(COALESCE(ped.origem_comissao,'')) LIKE '%FABRICA%'
+            OR UPPER(COALESCE(ped.origem_comissao,'')) LIKE '%FORNECEDOR%'
+            OR ped.origem_comissao = 'F' THEN 'FÁBRICA'
+          WHEN UPPER(COALESCE(ped.origem_comissao,'')) LIKE '%PRODUTO%'
+            OR ped.origem_comissao = 'P' THEN 'PRODUTO'
+          ELSE 'VENDEDOR'
+        END AS label_origem`;
+  const nomeVendSel = isPrep
+    ? `COALESCE(usr_prep.nomeusu, u.nomeusu) AS nome_vendedor`
+    : `u.nomeusu AS nome_vendedor`;
+  const extraJoins = isPrep ? `
+      LEFT JOIN usuarios usr_prep ON usr_prep.idusuario = pc.id_preposto
+      LEFT JOIN preposto_comissao_fornecedor pcf
+             ON pcf.id_usuario = pc.id_preposto AND pcf.id_fornecedor = ped.cod_fornecedor
+  ` : '';
+
   try {
     const [rows] = await pool.query(`
       SELECT
         pc.id,
-        u.nomeusu                                          AS nome_vendedor,
+        ${nomeVendSel},
         ped.nome_cliente,
         ped.nome_fornecedor,
         COALESCE(
@@ -157,21 +184,14 @@ router.get('/admin/extrato', async (req, res) => {
         ped.numero,
         COALESCE(rec.parcela, 1)                           AS parcela,
         COALESCE(rec.qt_parcelas, ped.qt_parcelas, 1)      AS qt_parcelas,
-        COALESCE(rec.comissao, ped.comissao, 0)            AS comissao,
+        ${comissaoSel},
         COALESCE(ped.vlrtotalpedido, 0)                    AS vlr_total_pedido,
         COALESCE(rec.vencimento, pc.data_pagar)            AS vencimento,
         COALESCE(rec.valor, pc.vlr_pago, 0)                AS valor_parcela,
         pc.vlr_pago                                        AS vlr_comissao,
         pc.status                                          AS status_comissao,
         ped.data_abertura                                  AS data_pedido,
-        CASE
-          WHEN UPPER(COALESCE(ped.origem_comissao,'')) LIKE '%FABRICA%'
-            OR UPPER(COALESCE(ped.origem_comissao,'')) LIKE '%FORNECEDOR%'
-            OR ped.origem_comissao = 'F' THEN 'FÁBRICA'
-          WHEN UPPER(COALESCE(ped.origem_comissao,'')) LIKE '%PRODUTO%'
-            OR ped.origem_comissao = 'P' THEN 'PRODUTO'
-          ELSE 'VENDEDOR'
-        END AS label_origem,
+        ${origemSel},
         COALESCE(forn.com_tipo, 'PARCELADA')   AS com_tipo,
         COALESCE(forn.com_sobre_ipi, 'S')      AS com_sobre_ipi,
         COALESCE(forn.com_sobre_st, 'S')       AS com_sobre_st
@@ -182,14 +202,14 @@ router.get('/admin/extrato', async (req, res) => {
       LEFT JOIN fornecedores forn ON forn.id = ped.cod_fornecedor
       LEFT JOIN empresa emp ON emp.id_empresa = COALESCE(ped.id_empresa, ped.id_filial)
         AND COALESCE(emp.excluido, 'N') = 'N'
+      ${extraJoins}
       WHERE ${where}
       ORDER BY pc.data_lancamento DESC
       LIMIT ${lim}
     `, params);
 
-    const statsParams = [dtIni, dtFim];
-    let statsWhere = `pc.excluido = 'N' AND pc.data_lancamento BETWEEN ? AND ?`;
-    if (id_vendedor) { statsWhere += ' AND pc.cod_user = ?'; statsParams.push(id_vendedor); }
+    const statsParams = [dtIni, dtFim, ...userFilter.params];
+    const statsWhere = `pc.excluido = 'N' AND pc.data_lancamento BETWEEN ? AND ?${userFilter.clause}`;
 
     const [[stats]] = await pool.query(`
       SELECT
@@ -492,13 +512,21 @@ router.get('/dashboard', async (req, res) => {
   const dtIni = dt_ini || new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10);
   const dtFim = dt_fim || new Date().toISOString().slice(0, 10);
 
-  // Não-admin só vê os próprios dados
-  const id_vendedor = _isAdmin(req) ? req.query.id_vendedor : String(req.user.id);
+  // Filtro por vendedor conforme permissão
+  let userFilter = { clause: '', params: [], isPrep: false };
+  const idResolved = await resolveVendedorIdForFilter(pool, req, req.query.id_vendedor);
+  if (canPickOtherVendors(req)) {
+    if (idResolved) userFilter = await buildPagtoComissaoFilter(pool, req, idResolved);
+  } else {
+    userFilter = await buildPagtoComissaoFilter(pool, req, null);
+  }
 
   const baseWhere = [`pc.excluido = 'N'`, `pc.data_lancamento BETWEEN ? AND ?`];
   const baseParams = [dtIni, dtFim];
-
-  if (id_vendedor) { baseWhere.push('pc.cod_user = ?'); baseParams.push(id_vendedor); }
+  if (userFilter.clause) {
+    baseWhere.push(userFilter.clause.replace(/^ AND /, ''));
+    baseParams.push(...userFilter.params);
+  }
   if (id_fornecedor) { baseWhere.push('ped.cod_fornecedor = ?'); baseParams.push(id_fornecedor); }
   if (status && status !== 'T') {
     if (status === 'Q') baseWhere.push(`pc.status IN ('R','C')`);
@@ -1294,16 +1322,17 @@ router.get('/extrato-unificado', async (req, res) => {
   const { dt_ini, dt_fim, id_fornecedor } = req.query;
   const dtIni = dt_ini || '2000-01-01';
   const dtFim = dt_fim || '2100-01-01';
-  const isPrep = _isPreposto(req);
-  const id_vendedor = _isAdmin(req) ? (req.query.id_vendedor || null) : String(userId);
 
-  const params = [dtIni, dtFim];
-  let where = `pc.excluido = 'N' AND pc.data_lancamento BETWEEN ? AND ?`;
-  if (isPrep) {
-    where += ' AND pc.id_preposto = ?'; params.push(userId);
-  } else if (id_vendedor) {
-    where += ' AND pc.cod_user = ?'; params.push(id_vendedor);
+  const idAlvo = await resolveVendedorIdForFilter(pool, req, req.query.id_vendedor);
+  let userFilter = { clause: '', params: [], isPrep: false };
+  if (canPickOtherVendors(req)) {
+    if (idAlvo) userFilter = await buildPagtoComissaoFilter(pool, req, idAlvo);
+  } else {
+    userFilter = await buildPagtoComissaoFilter(pool, req, null);
   }
+
+  const params = [dtIni, dtFim, ...userFilter.params];
+  let where = `pc.excluido = 'N' AND pc.data_lancamento BETWEEN ? AND ?${userFilter.clause}`;
   if (id_fornecedor) { where += ' AND ped.cod_fornecedor = ?'; params.push(id_fornecedor); }
 
   try {

@@ -288,6 +288,9 @@
     <button class="nav-btn" data-section="config" onclick="App.show('config')">
       <i class="fa-solid fa-sliders"></i><span>Config</span>
     </button>
+    <button class="nav-btn" id="nav-solicitacoes" data-section="solicitacoes" onclick="App.show('solicitacoes')" style="display:none">
+      <i class="fa-solid fa-headset"></i><span>Suporte</span>
+    </button>
     <button class="nav-btn" onclick="Login.logout()" style="flex:none;padding:8px 14px">
       <i class="fa-solid fa-right-from-bracket"></i><span>Sair</span>
     </button>
@@ -476,6 +479,61 @@
     <div id="sessoes-list"><div class="skeleton" style="height:80px;margin-bottom:8px"></div></div>
   </div>
 
+  <!-- ── SOLICITAÇÕES DE MELHORIA (apenas dev) ─── -->
+  <div id="s-solicitacoes" class="section">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+      <div class="section-title" style="margin-bottom:0"><i class="fa-solid fa-headset"></i>Solicitações de Melhoria</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select id="sol-filter-status" class="finput" style="width:auto;font-size:.82rem;padding:6px 10px" onchange="Solicitacoes.load()">
+          <option value="">Todos os status</option>
+          <option value="pendente">Pendente</option>
+          <option value="em_analise">Em Análise</option>
+          <option value="em_desenvolvimento">Em Desenvolvimento</option>
+          <option value="concluido">Concluído</option>
+          <option value="recusado">Recusado</option>
+        </select>
+        <button class="hdr-btn" onclick="Solicitacoes.load()" title="Atualizar"><i class="fa-solid fa-rotate"></i></button>
+      </div>
+    </div>
+    <!-- Counters -->
+    <div id="sol-stats" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px"></div>
+    <!-- List -->
+    <div id="sol-list"><div class="skeleton" style="height:80px;margin-bottom:8px"></div><div class="skeleton" style="height:80px"></div></div>
+    <!-- Detail panel -->
+    <div id="sol-detail" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:600;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;width:100%;max-width:680px;margin:auto">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:20px 24px;border-bottom:1px solid var(--border)">
+          <div id="sol-detail-title" style="font-size:1rem;font-weight:700"></div>
+          <button onclick="Solicitacoes.closeDetail()" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:1.2rem"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div id="sol-detail-body" style="padding:24px"></div>
+        <!-- Resposta + Status -->
+        <div style="padding:0 24px 24px;border-top:1px solid var(--border);padding-top:20px;margin-top:4px">
+          <div style="font-size:.8rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Atualizar Solicitação</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+            <div style="flex:1;min-width:140px">
+              <label style="font-size:.75rem;color:var(--muted);display:block;margin-bottom:4px">Status</label>
+              <select id="sol-edit-status" class="finput" style="width:100%">
+                <option value="pendente">Pendente</option>
+                <option value="em_analise">Em Análise</option>
+                <option value="em_desenvolvimento">Em Desenvolvimento</option>
+                <option value="concluido">Concluído</option>
+                <option value="recusado">Recusado</option>
+              </select>
+            </div>
+            <div style="flex:3;min-width:220px">
+              <label style="font-size:.75rem;color:var(--muted);display:block;margin-bottom:4px">Resposta para o cliente</label>
+              <textarea id="sol-edit-resposta" class="finput" style="width:100%;resize:vertical;min-height:80px;font-size:.85rem" placeholder="Deixe em branco para não alterar a resposta existente..."></textarea>
+            </div>
+            <button class="act-btn green" onclick="Solicitacoes.save()" style="padding:10px 20px;font-size:.85rem;white-space:nowrap">
+              <i class="fa-solid fa-check me-1"></i>Salvar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ── CONFIGURAÇÕES ─── -->
   <div id="s-config" class="section">
     <div class="section-title"><i class="fa-solid fa-sliders"></i>Configurações</div>
@@ -536,6 +594,45 @@
     <button class="btn-enter" onclick="Config.save()">
       <i class="fa-solid fa-floppy-disk me-2"></i>Salvar Configurações
     </button>
+
+    <!-- Seção Evolution API — visível apenas para o dev -->
+    <div id="config-nre-section" style="display:none;margin-top:24px">
+      <div class="form-section">
+        <h6><i class="fa-brands fa-whatsapp me-1" style="color:#25d366"></i>Evolution API — Notificações do Servidor</h6>
+        <p style="font-size:.75rem;color:var(--muted);margin-bottom:14px">
+          Credenciais usadas pelo bot de suporte para te notificar de novas solicitações e atualizações.
+          Salvas no banco <code>db_nresolutions</code> — sem necessidade de mexer no <code>.env</code>.
+        </p>
+        <div class="form-row mb-2">
+          <div>
+            <label class="lbl">Número destino (seu celular)</label>
+            <input class="finput" id="nre-wa-numero" placeholder="5514999999999" autocomplete="off">
+          </div>
+          <div>
+            <label class="lbl">Nome da instância</label>
+            <input class="finput" id="nre-wa-instancia" placeholder="MinhaInstancia" autocomplete="off">
+          </div>
+        </div>
+        <div class="form-row mb-2">
+          <div>
+            <label class="lbl">URL da Evolution API</label>
+            <input class="finput" id="nre-wa-url" placeholder="https://api.example.com" autocomplete="off">
+          </div>
+          <div>
+            <label class="lbl">API Key</label>
+            <input class="finput" id="nre-wa-apikey" type="password" placeholder="••••••••" autocomplete="new-password">
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn-enter" style="flex:1;min-width:160px" onclick="NreConfig.save()">
+            <i class="fa-solid fa-floppy-disk me-2"></i>Salvar API Config
+          </button>
+          <button class="act-btn" style="flex:none;padding:10px 18px;font-size:.85rem" onclick="NreConfig.testar()">
+            <i class="fa-solid fa-paper-plane me-1"></i>Testar WA
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 
 </div><!-- /app -->
@@ -743,6 +840,7 @@ const Login = {
       document.getElementById('login-screen').style.display = 'none';
       document.getElementById('app').style.display = 'block';
       _initResponsavelSelects();
+      _checkDevAccess(d.email || email);
       App.show('dashboard');
     } catch (e) {
       document.getElementById('err-msg').textContent = e.message;
@@ -761,6 +859,7 @@ const Login = {
 };
 document.getElementById('email-input').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('pass-input').focus(); });
 document.getElementById('pass-input').addEventListener('keydown', e => { if (e.key === 'Enter') Login.submit(); });
+document.getElementById('sol-detail').addEventListener('click', e => { if (e.target === document.getElementById('sol-detail')) Solicitacoes.closeDetail(); });
 
 // ── APP NAV ────────────────────────────────────────────────
 const App = {
@@ -769,14 +868,21 @@ const App = {
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
     document.getElementById('s-' + name).classList.add('active');
     document.querySelectorAll(`[data-section="${name}"]`).forEach(b => b.classList.add('active'));
-    if (name === 'dashboard') Dashboard.load();
-    if (name === 'list')      Licenses.load();
-    if (name === 'create')    Create.init();
-    if (name === 'config')    Config.load();
-    if (name === 'minhas')    Minhas.load();
-    if (name === 'sessoes')   Sessoes.load();
+    if (name === 'dashboard')    Dashboard.load();
+    if (name === 'list')         Licenses.load();
+    if (name === 'create')       Create.init();
+    if (name === 'config')       { Config.load(); NreConfig.load(); }
+    if (name === 'minhas')       Minhas.load();
+    if (name === 'sessoes')      Sessoes.load();
+    if (name === 'solicitacoes') Solicitacoes.load();
   }
 };
+
+function _checkDevAccess(email) {
+  const isDevEmail = (email || '').toLowerCase().trim() === 'newton.bauru@gmail.com';
+  document.getElementById('nav-solicitacoes').style.display = isDevEmail ? '' : 'none';
+  document.getElementById('config-nre-section').style.display = isDevEmail ? '' : 'none';
+}
 
 // ── DASHBOARD ──────────────────────────────────────────────
 const Dashboard = {
@@ -1477,6 +1583,45 @@ const Config = {
   }
 };
 
+// ── NRE CONFIG (Evolution API) — apenas dev ──────────────
+const NreConfig = {
+  async load() {
+    try {
+      const rows = await api('/nre-config');
+      const map  = {};
+      rows.forEach(r => { map[r.chave] = r.valor || ''; });
+      document.getElementById('nre-wa-numero').value    = map.wa_numero    || '';
+      document.getElementById('nre-wa-instancia').value = map.wa_instancia || '';
+      document.getElementById('nre-wa-url').value        = map.wa_url       || '';
+      document.getElementById('nre-wa-apikey').value     = map.wa_apikey    || '';
+    } catch (e) {
+      toast('Erro ao carregar config NRE: ' + e.message, false);
+    }
+  },
+  async save() {
+    const body = {
+      wa_numero:    document.getElementById('nre-wa-numero').value.trim(),
+      wa_instancia: document.getElementById('nre-wa-instancia').value.trim(),
+      wa_url:       document.getElementById('nre-wa-url').value.trim(),
+      wa_apikey:    document.getElementById('nre-wa-apikey').value.trim(),
+    };
+    try {
+      await api('/nre-config', { method: 'PUT', body: JSON.stringify(body) });
+      toast('Config Evolution API salva!');
+    } catch (e) {
+      toast(e.message, false);
+    }
+  },
+  async testar() {
+    try {
+      await api('/nre-config/testar', { method: 'POST' });
+      toast('Mensagem de teste enviada!');
+    } catch (e) {
+      toast('Erro no teste: ' + e.message, false);
+    }
+  }
+};
+
 // ── PREENCHE SELECTS DE RESPONSÁVEL ──────────────────────
 function _initResponsavelSelects() {
   const email = sessionStorage.getItem('licEmail') || '';
@@ -1487,6 +1632,135 @@ function _initResponsavelSelects() {
     if (sel && sel.options.length < 2) sel.innerHTML += opt;
   });
 }
+
+// ── SOLICITAÇÕES DE MELHORIA (apenas dev) ─────────────────────────────────
+function _esc(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+const Solicitacoes = {
+  _current: null,
+
+  _badgeHtml(status) {
+    const map = {
+      pendente:           ['#64748b', 'Pendente'],
+      em_analise:         ['#3b82f6', 'Em Análise'],
+      em_desenvolvimento: ['#f59e0b', 'Em Desenvolvimento'],
+      concluido:          ['#22c55e', 'Concluído'],
+      recusado:           ['#ef4444', 'Recusado'],
+    };
+    const [cor, label] = map[status] || ['#64748b', status];
+    return `<span style="padding:2px 10px;border-radius:20px;font-size:.72rem;font-weight:700;background:${cor}22;color:${cor}">${label}</span>`;
+  },
+
+  _tipoIcon(tipo) {
+    return { melhoria:'💡', bug:'🐛', duvida:'❓', ideia:'✨' }[tipo] || '📌';
+  },
+
+  async loadStats() {
+    try {
+      const s = await api('/solicitacoes/stats');
+      const colors = { pendente:'#64748b', em_analise:'#3b82f6', em_desenvolvimento:'#f59e0b', concluido:'#22c55e', recusado:'#ef4444' };
+      const labels = { pendente:'Pendente', em_analise:'Em Análise', em_desenvolvimento:'Em Desenv.', concluido:'Concluído', recusado:'Recusado' };
+      document.getElementById('sol-stats').innerHTML = Object.entries(labels).map(([k, v]) =>
+        `<div style="background:${colors[k]}22;border:1px solid ${colors[k]}44;border-radius:8px;padding:6px 14px;font-size:.8rem;cursor:pointer" onclick="document.getElementById('sol-filter-status').value='${k}';Solicitacoes.load()">
+           <span style="font-weight:700;color:${colors[k]}">${s[k]||0}</span> <span style="color:var(--muted)">${v}</span>
+         </div>`
+      ).join('') + `<div style="background:rgba(14,165,233,.1);border:1px solid var(--border);border-radius:8px;padding:6px 14px;font-size:.8rem;cursor:pointer" onclick="document.getElementById('sol-filter-status').value='';Solicitacoes.load()"><span style="font-weight:700;color:var(--accent)">${s.total||0}</span> <span style="color:var(--muted)">Total</span></div>`;
+    } catch {}
+  },
+
+  async load() {
+    this.loadStats();
+    const el = document.getElementById('sol-list');
+    el.innerHTML = '<div class="skeleton" style="height:80px;margin-bottom:8px"></div><div class="skeleton" style="height:80px"></div>';
+    const status = document.getElementById('sol-filter-status').value;
+    try {
+      const rows = await api('/solicitacoes' + (status ? `?status=${status}` : ''));
+      if (!rows.length) {
+        el.innerHTML = `<div style="text-align:center;padding:40px;color:var(--muted);font-size:.88rem"><i class="fa-solid fa-inbox fa-2x" style="margin-bottom:12px;display:block;opacity:.4"></i>Nenhuma solicitação encontrada.</div>`;
+        return;
+      }
+      el.innerHTML = rows.map(s => `
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:8px;cursor:pointer;transition:.15s" onclick="Solicitacoes.openDetail(${s.id})" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
+            <div>
+              <div style="font-weight:600;font-size:.9rem">${this._tipoIcon(s.tipo)} #${s.id} — ${_esc(s.titulo)}</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:5px;font-size:.72rem;color:var(--muted)">
+                <span><i class="fa-solid fa-key"></i> <strong>${_esc(s.chave_licenca)}</strong></span>
+                <span><i class="fa-solid fa-${s.origem==='mobile'?'mobile-screen-button':'desktop'}"></i> ${_esc(s.origem)}</span>
+                <span><i class="fa-solid fa-calendar"></i> ${new Date(s.data_criacao).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})}</span>
+                ${s.qtd_anexos>0?`<span><i class="fa-solid fa-paperclip"></i> ${s.qtd_anexos} anexo(s)</span>`:''}
+              </div>
+            </div>
+            ${this._badgeHtml(s.status)}
+          </div>
+        </div>`).join('');
+    } catch (err) {
+      el.innerHTML = `<div style="text-align:center;padding:24px;color:var(--red);font-size:.85rem">${err.message}</div>`;
+    }
+  },
+
+  async openDetail(id) {
+    const overlay = document.getElementById('sol-detail');
+    overlay.style.display = 'flex';
+    document.getElementById('sol-detail-title').textContent = `Solicitação #${id}`;
+    document.getElementById('sol-detail-body').innerHTML = '<div style="text-align:center;padding:32px;color:var(--muted)"><i class="fa-solid fa-spinner fa-spin fa-2x"></i></div>';
+    try {
+      const s = await api(`/solicitacoes/${id}`);
+      this._current = s;
+      document.getElementById('sol-edit-status').value   = s.status || 'pendente';
+      document.getElementById('sol-edit-resposta').value = s.resposta_dev || '';
+      document.getElementById('sol-detail-title').innerHTML = `Solicitação #${s.id} &nbsp; ${this._badgeHtml(s.status)}`;
+
+      let anexosHtml = '';
+      if (s.anexos?.length) {
+        anexosHtml = `<div style="margin-bottom:14px">
+          <div style="font-size:.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Anexos</div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px">
+            ${s.anexos.map(a => {
+              if (a.tipo==='imagem') return `<a href="${_esc(a.caminho)}" target="_blank" style="display:block;width:80px;height:80px;border:1px solid var(--border);border-radius:8px;overflow:hidden"><img src="${_esc(a.caminho)}" style="width:100%;height:100%;object-fit:cover" title="${_esc(a.nome_original)}"></a>`;
+              const icon = a.tipo==='video' ? 'fa-video' : 'fa-music';
+              return `<a href="${_esc(a.caminho)}" target="_blank" style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:80px;height:80px;border:1px solid var(--border);border-radius:8px;font-size:.7rem;color:var(--accent);text-decoration:none;gap:4px;padding:8px;text-align:center"><i class="fa-solid ${icon} fa-xl"></i><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%">${_esc(a.nome_original)}</span></a>`;
+            }).join('')}
+          </div></div>`;
+      }
+
+      document.getElementById('sol-detail-body').innerHTML = `
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+          <span style="font-size:.78rem;background:var(--border);padding:2px 8px;border-radius:20px">${this._tipoIcon(s.tipo)} ${_esc(s.tipo)}</span>
+          <span style="font-size:.78rem;color:var(--muted)"><i class="fa-solid fa-key"></i> ${_esc(s.chave_licenca)}</span>
+          <span style="font-size:.78rem;color:var(--muted)"><i class="fa-solid fa-${s.origem==='mobile'?'mobile-screen-button':'desktop'}"></i> ${_esc(s.origem)}</span>
+          <span style="font-size:.78rem;color:var(--muted)"><i class="fa-solid fa-calendar"></i> ${new Date(s.data_criacao).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})}</span>
+        </div>
+        <div style="font-weight:600;margin-bottom:8px">${_esc(s.titulo)}</div>
+        <div style="background:var(--bg);padding:12px;border-radius:8px;border:1px solid var(--border);font-size:.85rem;white-space:pre-wrap;margin-bottom:12px">${_esc(s.descricao)}</div>
+        ${anexosHtml}
+        ${s.resposta_dev ? `<div style="background:rgba(14,165,233,.1);border-left:3px solid var(--accent);border-radius:0 8px 8px 0;padding:12px;font-size:.85rem;white-space:pre-wrap"><strong>Resposta atual:</strong><br>${_esc(s.resposta_dev)}</div>` : ''}
+      `;
+    } catch (err) {
+      document.getElementById('sol-detail-body').innerHTML = `<div style="text-align:center;padding:24px;color:var(--red)">${err.message}</div>`;
+    }
+  },
+
+  closeDetail() {
+    document.getElementById('sol-detail').style.display = 'none';
+    this._current = null;
+  },
+
+  async save() {
+    if (!this._current) return;
+    const status      = document.getElementById('sol-edit-status').value;
+    const resposta_dev= document.getElementById('sol-edit-resposta').value.trim() || null;
+    try {
+      await api(`/solicitacoes/${this._current.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status, resposta_dev }),
+      });
+      toast('Solicitação atualizada!');
+      this.closeDetail();
+      this.load();
+    } catch (e) { toast(e.message, false); }
+  },
+};
 
 // ── AUTO-LOGIN (session) — uma verificação antes do dashboard (evita rajada de 401) ──
 (async function initSession() {
@@ -1501,6 +1775,7 @@ function _initResponsavelSelects() {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('app').style.display = 'block';
     _initResponsavelSelects();
+    _checkDevAccess(sessionStorage.getItem('licEmail') || '');
     App.show('dashboard');
   } catch {
     sessionStorage.removeItem('licPass');

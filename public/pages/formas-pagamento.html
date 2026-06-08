@@ -324,6 +324,7 @@ function toggleFiltroStatus(st) {
 }
 
 function abrirNovo() {
+  if (!guardCadIncluir('Sem permissão para incluir formas de pagamento')) return;
   S.registroId = null;
   document.getElementById('mainForm').reset();
   document.getElementById('f_id').value = '';
@@ -352,6 +353,7 @@ async function abrirEditar(id) {
     document.getElementById('formTitle').textContent = `Editar: ${f.descricao}`;
     document.getElementById('listSection').style.display = 'none';
     document.getElementById('formSection').style.display = 'block';
+    if (!podeAlterarCad()) aplicarFormSomenteLeituraCad();
   } catch(e) { toast('Erro ao carregar dados','err'); }
 }
 
@@ -362,6 +364,7 @@ function voltarLista() {
 }
 
 async function salvar() {
+  if (!guardCadSalvar(!!S.registroId, 'Sem permissão para incluir formas de pagamento', 'Sem permissão para alterar formas de pagamento')) return;
   const payload = {
     descricao: document.getElementById('f_descricao').value.trim(),
     tipo_pagto: document.getElementById('f_tipo_pagto').value,
@@ -389,7 +392,8 @@ async function salvar() {
 function abrirDrop(e, id) {
   e.stopPropagation();
   const m = document.getElementById('dropMenu');
-  m.innerHTML = `<button class="dropdown-item danger" onclick="excluir(${id})">Excluir</button>`;
+  m.innerHTML = podeExcluirCad() ? `<button class="dropdown-item danger" onclick="excluir(${id})">Excluir</button>` : '';
+  if (!m.innerHTML.trim()) return;
   m.style.display = 'block';
   const rect = e.currentTarget.getBoundingClientRect();
   m.style.top = (rect.bottom + 5) + 'px';
@@ -399,6 +403,7 @@ function abrirDrop(e, id) {
 function fecharDrop() { document.getElementById('dropMenu').style.display = 'none'; }
 
 async function excluir(id) {
+  if (!guardCadExcluir('Sem permissão para excluir formas de pagamento')) return;
   if (!confirm('Excluir forma de pagamento?')) return;
   try {
     const r = await fetch(`/api/formas-pagamento/${id}`, {method:'DELETE'});
@@ -414,7 +419,7 @@ function toast(msg, tipo='ok') {
   setTimeout(()=>t.remove(), 3000);
 }
 
-document.addEventListener('DOMContentLoaded', buscar);
+document.addEventListener('cad-perm-ready', () => { if (typeof aplicarUiPermissoesCad === 'function') aplicarUiPermissoesCad(); });
 
 /* ★ Card View — padrão compartilhado */
 CardView.attach({
@@ -445,5 +450,6 @@ CardView.attach({
   }
 });
 </script>
+<script src="/assets/cadastros-permissao.js"></script>
 </body>
 </html>

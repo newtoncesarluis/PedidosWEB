@@ -360,9 +360,9 @@ let S = {
 /* ══════════════════════════════════
    INIT
 ══════════════════════════════════ */
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('cad-perm-ready', () => {
   carregarNotificacoes();
-  buscar();
+  if (typeof aplicarUiPermissoesCad === 'function') aplicarUiPermissoesCad();
   document.addEventListener('click', e => {
     if (!e.target.closest('#notifWrap'))    document.getElementById('notifPanel').classList.remove('show');
     if (!e.target.closest('#menuMoreWrap')) fecharMenuMore();
@@ -490,6 +490,7 @@ function abrirDrop(e, id, status) {
 function fecharDrop() { document.getElementById('dropMenu').style.display = 'none'; }
 
 async function ativarInativarLinha(id, acao) {
+  if (!guardCadAlterar('Sem permissão para alterar cores')) return;
   const verbo = acao === 'A' ? 'ativar' : 'inativar';
   const r = await fetch(`/api/cores/${id}/${verbo}`, { method:'PUT' });
   if (!r.ok) { toast('Erro','err'); return; }
@@ -498,6 +499,7 @@ async function ativarInativarLinha(id, acao) {
 }
 
 async function excluirLinha(id) {
+  if (!guardCadExcluir('Sem permissão para excluir cores')) return;
   confirmar('Excluir cor?', 'Esta ação não pode ser desfeita.', async () => {
     const r = await fetch(`/api/cores/${id}`, { method:'DELETE' });
     const d = await r.json();
@@ -563,6 +565,7 @@ function exportCSV() {
    FORM
 ══════════════════════════════════ */
 function abrirNovo() {
+  if (!guardCadIncluir('Sem permissão para incluir cores')) return;
   S.registroId = null; S.dados = null;
   document.getElementById('f_descricao').value = '';
   document.getElementById('f_status').value    = 'A';
@@ -592,6 +595,7 @@ async function abrirEditar(id) {
     document.getElementById('btnAtivarMenu').style.display   = (temStatus && inativo)  ? '' : 'none';
     document.getElementById('btnInativarMenu').style.display = (temStatus && !inativo) ? '' : 'none';
     showForm();
+    if (!podeAlterarCad()) aplicarFormSomenteLeituraCad();
     document.getElementById('f_descricao').focus();
   } catch(e) { toast(e.message,'err'); }
 }
@@ -607,6 +611,7 @@ function voltarLista() {
 }
 
 async function salvar() {
+  if (!guardCadSalvar(!!S.registroId, 'Sem permissão para incluir cores', 'Sem permissão para alterar cores')) return;
   const descricao = document.getElementById('f_descricao').value.trim();
   if (!descricao) {
     document.getElementById('f_descricao').classList.add('err');
@@ -647,6 +652,7 @@ async function salvar() {
 }
 
 async function ativarInativar(acao) {
+  if (!guardCadAlterar('Sem permissão para alterar cores')) return;
   fecharMenuMore();
   const id = S.registroId; if (!id) return;
   const verbo = acao === 'A' ? 'ativar' : 'inativar';
@@ -660,6 +666,7 @@ async function ativarInativar(acao) {
 }
 
 async function excluirAtual() {
+  if (!guardCadExcluir('Sem permissão para excluir cores')) return;
   fecharMenuMore();
   if (!S.registroId) return;
   confirmar('Excluir cor?', 'Esta ação não pode ser desfeita.', async () => {
@@ -719,5 +726,6 @@ function confirmar(titulo, msg, onOk) {
   bd.onclick = e=>{if(e.target===bd)bd.remove();};
 }
 </script>
+<script src="/assets/cadastros-permissao.js"></script>
 </body>
 </html>

@@ -449,9 +449,9 @@ let S = {
 /* ══════════════════════════════════
    INIT
 ══════════════════════════════════ */
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('cad-perm-ready', () => {
   carregarNotificacoes();
-  buscar();
+  if (typeof aplicarUiPermissoesCad === 'function') aplicarUiPermissoesCad();
   document.addEventListener('click', e => {
     if (!e.target.closest('#notifWrap'))    document.getElementById('notifPanel').classList.remove('show');
     if (!e.target.closest('#menuMoreWrap')) fecharMenuMore();
@@ -582,6 +582,7 @@ function abrirDrop(e, id, status) {
 function fecharDrop() { document.getElementById('dropMenu').style.display = 'none'; }
 
 async function ativarInativarLinha(id, acao) {
+  if (!guardCadAlterar('Sem permissão para alterar grades')) return;
   const verbo = acao === 'A' ? 'ativar' : 'inativar';
   const r = await fetch(`/api/grades/${id}/${verbo}`, { method:'PUT' });
   if (!r.ok) { toast('Erro', 'err'); return; }
@@ -590,6 +591,7 @@ async function ativarInativarLinha(id, acao) {
 }
 
 async function excluirLinha(id) {
+  if (!guardCadExcluir('Sem permissão para excluir grades')) return;
   confirmar('Excluir grade?', 'Esta ação não pode ser desfeita.', async () => {
     const r = await fetch(`/api/grades/${id}`, { method:'DELETE' });
     const d = await r.json();
@@ -726,6 +728,7 @@ function removerItem(idx) {
    FORM
 ══════════════════════════════════ */
 function abrirNovo() {
+  if (!guardCadIncluir('Sem permissão para incluir grades')) return;
   S.registroId = null; S.dados = null; S.itens = [];
   document.getElementById('f_nome').value      = '';
   document.getElementById('f_apelido').value   = '';
@@ -768,6 +771,7 @@ async function abrirEditar(id) {
     document.getElementById('btnInativarMenu').style.display = (d.status === 'I' || d.status === 'S') ? 'none' : '';
 
     showForm();
+    if (!podeAlterarCad()) aplicarFormSomenteLeituraCad();
     document.getElementById('f_nome').focus();
   } catch(e) { toast(e.message,'err'); }
 }
@@ -783,6 +787,7 @@ function voltarLista() {
 }
 
 async function salvar() {
+  if (!guardCadSalvar(!!S.registroId, 'Sem permissão para incluir grades', 'Sem permissão para alterar grades')) return;
   const nome     = document.getElementById('f_nome').value.trim();
   const apelido  = document.getElementById('f_apelido').value.trim();
   const tipo     = document.getElementById('f_tipo').value;
@@ -843,6 +848,7 @@ async function salvar() {
 }
 
 async function ativarInativar(acao) {
+  if (!guardCadAlterar('Sem permissão para alterar grades')) return;
   fecharMenuMore();
   const id = S.registroId; if (!id) return;
   const verbo = acao === 'A' ? 'ativar' : 'inativar';
@@ -856,6 +862,7 @@ async function ativarInativar(acao) {
 }
 
 async function excluirAtual() {
+  if (!guardCadExcluir('Sem permissão para excluir grades')) return;
   fecharMenuMore();
   if (!S.registroId) return;
   confirmar('Excluir grade?', 'Esta ação não pode ser desfeita.', async () => {
@@ -920,5 +927,6 @@ function confirmar(titulo, msg, onOk) {
   bd.onclick = e=>{if(e.target===bd)bd.remove();};
 }
 </script>
+<script src="/assets/cadastros-permissao.js"></script>
 </body>
 </html>

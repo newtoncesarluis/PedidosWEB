@@ -8,7 +8,7 @@
 set -e
 
 SLUG="$1"
-INSTANCES_DIR="${INSTANCES_DIR:-/home/ubuntu/pedidosweb-clients}"
+INSTANCES_DIR="${INSTANCES_DIR:-/root/pedidosweb-clients}"
 NGINX_AVAIL="/etc/nginx/sites-available"
 NGINX_ENABLED="/etc/nginx/sites-enabled"
 

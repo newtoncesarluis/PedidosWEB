@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="/assets/themes.css">
 <script src="/assets/themes.js"></script>
 <script src="/assets/mobile-app.js"></script>
+<script src="/assets/comissao-preposto-ui.js"></script>
 <link rel="stylesheet" href="/assets/mobile-app.css">
 <style>
 :root{
@@ -388,7 +389,10 @@ async function loadData() {
   });
 
   try {
-    const vendedor = document.getElementById('sel-vendedor').value;
+    const selEl = document.getElementById('sel-vendedor');
+    const vendedor = window.ComissaoPrepostoUi
+      ? ComissaoPrepostoUi.resolveVendedorFilterId(selEl)
+      : selEl.value;
     const dias     = document.getElementById('sel-inatividade').value;
     const params   = new URLSearchParams({ dias_inatividade: dias, ...(vendedor ? { vendedor_id: vendedor } : {}) });
     const r = await fetch(`/api/panico-vendedor/analise?${params}`, { headers: H, credentials: 'include' });
@@ -417,10 +421,18 @@ async function loadVendedores() {
     if (!r.ok) return;
     const data = await r.json();
     const sel = document.getElementById('sel-vendedor');
-    (data.vendedores || data || []).forEach(v => {
+    const list = (data.vendedores || data || []).map(v => ({
+      id: v.idusuario || v.id,
+      nome: v.nome || v.loginusu || v.nome_usuario || v.nomeusu,
+    }));
+    if (window.ComissaoPrepostoUi) {
+      ComissaoPrepostoUi.populateVendedorSelect(sel, list, { emptyLabel: 'Todos os vendedores' });
+      return;
+    }
+    list.forEach(v => {
       const opt = document.createElement('option');
-      opt.value = v.idusuario || v.id;
-      opt.textContent = v.nome || v.loginusu || v.nome_usuario;
+      opt.value = v.id;
+      opt.textContent = v.nome;
       sel.appendChild(opt);
     });
   } catch {}

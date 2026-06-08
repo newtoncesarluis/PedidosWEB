@@ -377,9 +377,9 @@ let S = {
 /* ══════════════════════════════════
    INIT
 ══════════════════════════════════ */
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('cad-perm-ready', () => {
   carregarNotificacoes();
-  buscar();
+  if (typeof aplicarUiPermissoesCad === 'function') aplicarUiPermissoesCad();
   document.addEventListener('click', e => {
     if (!e.target.closest('#notifWrap'))    document.getElementById('notifPanel').classList.remove('show');
     if (!e.target.closest('#menuMoreWrap')) fecharMenuMore();
@@ -507,6 +507,7 @@ async function ativarInativarLinha(id, acao) {
   buscar(); carregarNotificacoes();
 }
 async function excluirLinha(id) {
+  if (!guardCadExcluir('Sem permissão para excluir família de produtos')) return;
   fecharDrop();
   confirmar('Excluir família?', 'Esta ação não pode ser desfeita.', async () => {
     const r = await fetch(`/api/familia-produtos/${id}`, { method:'DELETE' });
@@ -573,6 +574,7 @@ function exportCSV() {
    FORM
 ══════════════════════════════════ */
 function abrirNovo() {
+  if (!guardCadIncluir('Sem permissão para incluir família de produtos')) return;
   S.registroId = null; S.dados = null;
   document.getElementById('f_nome').value   = '';
   document.getElementById('f_status').value = 'A';
@@ -598,6 +600,7 @@ async function abrirEditar(id) {
     document.getElementById('btnAtivarMenu').style.display   = d.status === 'N' ? '' : 'none';
     document.getElementById('btnInativarMenu').style.display = d.status !== 'N' ? '' : 'none';
     showForm();
+    if (!podeAlterarCad()) aplicarFormSomenteLeituraCad();
   } catch(e) { toast(e.message,'err'); }
 }
 
@@ -619,6 +622,7 @@ function setNotaFiscal(val) {
 }
 
 async function salvar() {
+  if (!guardCadSalvar(!!S.registroId, 'Sem permissão para incluir família de produtos', 'Sem permissão para alterar família de produtos')) return;
   const nome = document.getElementById('f_nome').value.trim();
   if (!nome) {
     document.getElementById('f_nome').classList.add('err');
@@ -660,6 +664,7 @@ async function salvar() {
 }
 
 async function ativarInativar(acao) {
+  if (!guardCadAlterar('Sem permissão para alterar família de produtos')) return;
   fecharMenuMore();
   const id = S.registroId; if (!id) return;
   const verbo = acao === 'A' ? 'ativar' : 'inativar';
@@ -673,6 +678,7 @@ async function ativarInativar(acao) {
 }
 
 async function excluirAtual() {
+  if (!guardCadExcluir('Sem permissão para excluir família de produtos')) return;
   fecharMenuMore();
   if (!S.registroId) return;
   confirmar('Excluir família?', 'Esta ação não pode ser desfeita.', async () => {
@@ -730,5 +736,6 @@ function confirmar(titulo, msg, onOk) {
   bd.onclick = e=>{if(e.target===bd)bd.remove();};
 }
 </script>
+<script src="/assets/cadastros-permissao.js"></script>
 </body>
 </html>

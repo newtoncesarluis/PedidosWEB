@@ -1,6 +1,7 @@
 const express = require('express');
 const router  = express.Router();
 const { getPool } = require('../config/database');
+const { listVendedoresVisiveis } = require('../config/vendedor-visibilidade');
 
 function visFilter(user) {
   const isAdmin    = user?.perfil == 1;
@@ -247,9 +248,8 @@ router.get('/lista', async (req, res) => {
 // ── LOOKUP VENDEDORES (para o filtro) ─────────────────────────────────────────
 router.get('/lookup/vendedores', async (req, res) => {
   try {
-    const [rows] = await getPool().query(
-      `SELECT idusuario AS id, nomeusu AS nome FROM usuarios WHERE excluido='N' ORDER BY nomeusu`
-    );
+    const pool = getPool();
+    const rows = await listVendedoresVisiveis(pool, req);
     res.json({ rows });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

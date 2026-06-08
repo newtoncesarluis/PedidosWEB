@@ -15,6 +15,7 @@
 <link rel="stylesheet" href="/assets/ajuda-tour.css">
 <script src="/assets/ajuda-tour.js"></script>
 <script src="/assets/ajuda-tours.js"></script>
+<script src="/assets/preco-peso-produto.js"></script>
 <style>
 * { margin:0;padding:0;box-sizing:border-box; }
 :root {
@@ -131,25 +132,8 @@ body { font-family:var(--font); background:var(--bg); color:var(--text); min-hei
   border-radius:6px; font-size:12px; font-family:inherit; background:var(--card); color:var(--text); outline:none; }
 .fp-group input:focus, .fp-group select:focus { border-color:var(--accent); }
 
-/* FAB & BULK BAR DIAMOND FLOW */
-.btn-new-float {
-  position: fixed; bottom: 30px; right: 30px; 
-  width: 60px; height: 60px; border-radius: 30px;
-  background: linear-gradient(135deg, var(--accent), var(--accent-hover)); 
-  color: #fff; border: none;
-  box-shadow: 0 12px 24px rgba(0,0,0,0.15);
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer; z-index: 900; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  animation: floatPulse 3s infinite;
-}
-.btn-new-float:hover { transform: scale(1.15) rotate(90deg); box-shadow: 0 15px 30px rgba(0,0,0,0.2); }
-.btn-new-float svg { width: 28px; height: 28px; }
-
-@keyframes floatPulse {
-  0% { box-shadow: 0 12px 24px rgba(13,148,136,0.2); }
-  50% { box-shadow: 0 12px 35px rgba(13,148,136,0.4); }
-  100% { box-shadow: 0 12px 24px rgba(13,148,136,0.2); }
-}
+/* BULK BAR */
+body.prod-form-open { overflow: hidden; }
 
 .bulk-bar {
   position: fixed; bottom: -100px; left: 50%; transform: translateX(-50%);
@@ -248,6 +232,10 @@ tbody td { padding:10px 12px; vertical-align:middle; }
   .tableWrap-wrap, #tableWrap { display:none !important; }
   .subbar { padding:8px 12px; }
   .chip-label { display:none; }
+  #formSection.prod-form-visible { padding:8px; }
+  .form-body { padding:14px 12px; }
+  .form-footer { padding:10px 12px; padding-bottom:calc(10px + env(safe-area-inset-bottom, 0px)); }
+  .form-footer .btn { flex:1; min-width:0; }
 }
 /* avatar colors by first char */
 .av-A,.av-H,.av-O,.av-V { background:var(--accent); }
@@ -320,16 +308,50 @@ tbody td { padding:10px 12px; vertical-align:middle; }
 #qvOverlay.show { display:block; }
 
 /* ── FORM SECTION ── */
-#formSection { display:none; padding:16px; }
-.form-card { background:var(--card); border-radius:10px; border:1px solid var(--border); overflow:hidden; }
+#formSection {
+  display:none;
+  padding:16px;
+  box-sizing:border-box;
+  flex-direction:column;
+  min-height:0;
+  overflow:hidden;
+}
+#formSection.prod-form-visible {
+  display:flex;
+  position:fixed;
+  left:0;
+  right:0;
+  bottom:0;
+  z-index:400;
+  background:var(--bg);
+}
+.form-card {
+  background:var(--card);
+  border-radius:10px;
+  border:1px solid var(--border);
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+  flex:1;
+  min-height:0;
+}
 .form-header { padding:12px 20px; border-bottom:1px solid var(--border); display:flex;
-  align-items:center; justify-content:space-between; background:var(--card); }
-.form-header-title { font-size:13px; font-weight:800; color:var(--text); text-transform:uppercase; letter-spacing:.5px; }
-.form-tabs { display:flex; gap:0; border-bottom:1px solid var(--border); background:var(--card); padding:0 20px; overflow-x:auto; }
+  align-items:center; justify-content:space-between; gap:12px; background:var(--card); flex-shrink:0; }
+.form-header-title { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  font-size:13px; font-weight:800; color:var(--text); text-transform:uppercase; letter-spacing:.5px; }
+.form-header-actions { display:flex; gap:8px; align-items:center; flex-shrink:0; flex-wrap:nowrap; }
+.form-tabs { display:flex; gap:0; border-bottom:1px solid var(--border); background:var(--card); padding:0 20px; overflow-x:auto; flex-shrink:0; }
 .form-tab { padding:9px 14px; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap;
   border-bottom:2px solid transparent; color:var(--text2); transition:.15s; }
 .form-tab.active { color:var(--accent); border-bottom-color:var(--accent); }
-.form-body { padding:18px 20px; }
+.form-body {
+  padding:18px 20px;
+  flex:1;
+  min-height:0;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior:contain;
+}
 .tab-pane { display:none; }
 .tab-pane.active { display:block; }
 .form-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
@@ -344,8 +366,18 @@ tbody td { padding:10px 12px; vertical-align:middle; }
 .form-group input[readonly] { background:#f9fafb; color:var(--text2); cursor:default; }
 .col-span-2 { grid-column:span 2; }
 .col-span-3 { grid-column:span 3; }
-.form-footer { padding:12px 20px; border-top:1px solid var(--border); display:flex; gap:8px;
-  justify-content:flex-end; background:var(--card); }
+.form-footer {
+  padding:12px 20px;
+  padding-bottom:calc(12px + env(safe-area-inset-bottom, 0px));
+  border-top:1px solid var(--border);
+  display:flex;
+  gap:8px;
+  justify-content:flex-end;
+  flex-shrink:0;
+  background:var(--card);
+  box-shadow:0 -6px 20px rgba(0,0,0,.08);
+}
+.form-footer .btn { min-width:100px; justify-content:center; }
 .form-section-sep { grid-column:1/-1; border-top:1px solid var(--border); margin-top:4px; }
 .calc-hint { font-size:10px; color:var(--accent); margin-top:2px; }
 
@@ -671,13 +703,6 @@ tbody td { padding:10px 12px; vertical-align:middle; }
   </div>
 </div>
 
-<!-- Botão Flutuante (FAB) -->
-<button class="btn-new-float" onclick="novoRegistro()" title="Novo Produto (Alt+N)">
-  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
-  </svg>
-</button>
-
 <!-- ── LIST SECTION ────────────────────────────────────────────────────────── -->
 <div class="content" id="listSection">
   <div class="card" id="tableWrap">
@@ -715,7 +740,7 @@ tbody td { padding:10px 12px; vertical-align:middle; }
   <div class="form-card">
     <div class="form-header">
       <span class="form-header-title" id="formTitulo">Novo Produto</span>
-      <div class="form-header-actions" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <div class="form-header-actions">
       <button type="button" class="btn btn-outline" id="btnVoltarPromocoesForm" onclick="voltarParaPromocoes()" style="display:none" title="Voltar para Promoções de Produtos">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
@@ -727,6 +752,12 @@ tbody td { padding:10px 12px; vertical-align:middle; }
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
         </svg>
         Cancelar
+      </button>
+      <button class="btn btn-primary" id="btnSalvarHeader" onclick="salvar()">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:13px;height:13px">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+        </svg>
+        Salvar
       </button>
       </div>
     </div>
@@ -768,7 +799,7 @@ tbody td { padding:10px 12px; vertical-align:middle; }
           </div>
           <div class="form-group">
             <label>Unidade</label>
-            <select id="f_unidade">
+            <select id="f_unidade" onchange="atualizarHintPrecoPesoCadastro()">
               <option value="">—</option>
               <option value="UN">UN — Unidade</option>
               <option value="CX">CX — Caixa</option>
@@ -861,8 +892,9 @@ tbody td { padding:10px 12px; vertical-align:middle; }
               oninput="calcVlrVenda()">
           </div>
           <div class="form-group">
-            <label>Vlr. Venda (R$)</label>
-            <input type="number" id="f_vlr_venda" step="0.01" min="0" placeholder="0,00">
+            <label id="lbl_f_vlr_venda">Vlr. Venda (R$)</label>
+            <input type="number" id="f_vlr_venda" step="0.01" min="0" placeholder="0,00"
+              oninput="atualizarHintPrecoPesoCadastro()">
           </div>
           <div class="form-group">
             <label>Preço B (R$)</label>
@@ -913,9 +945,19 @@ tbody td { padding:10px 12px; vertical-align:middle; }
             <input type="number" id="f_estoque_maximo" step="0.001" min="0" placeholder="0">
           </div>
           <div class="form-group">
-            <label>Kilo / Embalagem (kg)</label>
-            <input type="number" id="f_kilo_embalagem" step="0.001" min="0" placeholder="0.000">
+            <label>Preço por peso</label>
+            <select id="f_precopeso" onchange="syncPrecoPesoProdutoForm()">
+              <option value="N">Não — preço por unidade de venda</option>
+              <option value="S">Sim — preço por kg (quilograma)</option>
+            </select>
+            <span class="calc-hint">Desmarcado: total = Qtd × Preço. Marcado: total = Qtd × Peso (kg) × Preço/kg.</span>
           </div>
+          <div class="form-group" id="wrap_f_kilo_embalagem" style="display:none">
+            <label id="lbl_f_kilo_embalagem">Peso por unidade (kg)</label>
+            <input type="number" id="f_kilo_embalagem" step="0.001" min="0" placeholder="0,000"
+              oninput="atualizarHintPrecoPesoCadastro()">
+          </div>
+          <p id="hint_precopeso_cadastro" class="calc-hint" style="grid-column:1/-1;display:none;margin:0"></p>
           <div class="form-group">
             <label>Embalagem Master</label>
             <input type="number" id="f_embalagemmaster" step="1" min="0" placeholder="0">
@@ -1372,10 +1414,45 @@ function limparFormPromocao() {
   if (btnCancel) btnCancel.style.display = 'none';
 }
 
+function atualizarUiPromocoesProduto() {
+  document.querySelectorAll('.form-tab').forEach((tab) => {
+    if (tab.textContent.trim() === 'Promoções') {
+      tab.style.display = _semPermPromoAcesso ? 'none' : '';
+    }
+  });
+  const promoContent = document.getElementById('promoContent');
+  const promoForm = document.getElementById('promoFormTitulo')?.closest('.promo-form-wrap') || document.querySelector('#tab-promocoes .promo-form');
+  const btnSalvar = document.getElementById('btnSalvarPromo');
+  const semForm = _semPermPromoIncluir && _semPermPromoAlterar;
+  if (promoForm) promoForm.style.display = semForm ? 'none' : '';
+  if (btnSalvar) {
+    btnSalvar.disabled = _promoEditId ? _semPermPromoAlterar : _semPermPromoIncluir;
+    btnSalvar.title = btnSalvar.disabled ? 'Sem permissão para gravar promoção' : '';
+  }
+  if (_semPermPromoAcesso && promoContent) promoContent.style.display = 'none';
+}
+
 function carregarPromocoes(prodId) {
   const hint = document.getElementById('promoHintNovo');
   const content = document.getElementById('promoContent');
   if (!hint || !content) return;
+
+  const list = document.getElementById('promoList');
+
+  if (_semPermPromoAcesso) {
+    hint.style.display = 'none';
+    content.style.display = prodId ? '' : 'none';
+    if (list) {
+      list.innerHTML = prodId
+        ? '<p style="font-size:13px;color:var(--text2)">Sem permissão para visualizar promoções.</p>'
+        : '';
+    }
+    if (!prodId) {
+      hint.style.display = '';
+      content.style.display = 'none';
+    }
+    return;
+  }
 
   if (!prodId) {
     hint.style.display = '';
@@ -1385,7 +1462,6 @@ function carregarPromocoes(prodId) {
 
   hint.style.display = 'none';
   content.style.display = '';
-  const list = document.getElementById('promoList');
   if (list) list.innerHTML = '<p style="font-size:13px;color:var(--text2)">Carregando…</p>';
 
   api(`/api/produtos/${prodId}/promocoes`)
@@ -1420,8 +1496,8 @@ function carregarPromocoes(prodId) {
               <div class="promo-card-meta">${escHtml(regra)} · ${escHtml(qtd)} · ${escHtml(escopoTxt)}${syncTxt ? escHtml(syncTxt) : ''}<br>Vigência: ${escHtml(vig)}</div>
             </div>
             <div class="promo-card-actions">
-              <button type="button" onclick="editarPromocao(${p.id})" title="Editar">Editar</button>
-              <button type="button" class="del" onclick="excluirPromocao(${prodId},${p.id})" title="Excluir">Excluir</button>
+              ${_semPermPromoAlterar ? '' : `<button type="button" onclick="editarPromocao(${p.id})" title="Editar">Editar</button>`}
+              ${_semPermPromoExcluir ? '' : `<button type="button" class="del" onclick="excluirPromocao(${prodId},${p.id})" title="Excluir">Excluir</button>`}
             </div>
           </div>`;
       }).join('');
@@ -1974,9 +2050,21 @@ function isAdminUser() {
   return p.perfil == 1 || p.role === 'admin';
 }
 
+function temAcessoPromoProduto(p) {
+  const admin = isAdminUser() || !!p?.isAdmin;
+  if (admin) return true;
+  const perm = p || getPermissoes();
+  return ['incluir_promocoes', 'alterar_promocoes', 'excluir_promocoes', 'prorrogar_promocoes', 'manutencao_promocoes']
+    .some((k) => perm[k] === 'S');
+}
+
 function aplicarPermissoes(permOverride) {
   _semPermAlterar = false;
   _semPermExcluir = false;
+  _semPermPromoIncluir = false;
+  _semPermPromoAlterar = false;
+  _semPermPromoExcluir = false;
+  _semPermPromoAcesso = false;
 
   const admin = isAdminUser() || !!permOverride?.isAdmin;
   const p = permOverride || getPermissoes();
@@ -1996,19 +2084,55 @@ function aplicarPermissoes(permOverride) {
     _semPermAlterar = true;
   }
 
+  if (!admin) {
+    _semPermPromoAcesso = !temAcessoPromoProduto(p);
+    _semPermPromoIncluir = p.incluir_promocoes === 'N';
+    _semPermPromoAlterar = p.alterar_promocoes === 'N';
+    _semPermPromoExcluir = p.excluir_promocoes === 'N';
+  }
+
   atualizarBotoesQuickView();
+  atualizarUiPromocoesProduto();
 }
 
 async function carregarPermissoesProdutos() {
+  const user = JSON.parse(sessionStorage.getItem('user') || '{}');
+  const permLocal = user.permissoes || {};
+  if (permLocal.gtela_produtos !== 'S' && user.perfil != 1) {
+    document.body.innerHTML = `
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;color:var(--text2);text-align:center;padding:20px">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:64px;height:64px;margin-bottom:16px;opacity:0.5">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+        </svg>
+        <h2 style="color:var(--text)">Acesso Restrito</h2>
+        <p>Você não tem permissão para acessar o Cadastro de Produtos.</p>
+        <button class="btn btn-outline" style="margin-top:20px" onclick="window.parent.postMessage({type:'close-tab',id:'produtos'}, '*')">Fechar Aba</button>
+      </div>`;
+    return;
+  }
+
   aplicarPermissoes();
   try {
     const r = await api('/api/auth/minhas-permissoes');
     if (!r.ok) return;
     const d = await r.json();
+    if (d.gtela_produtos === 'N' && !d.isAdmin) {
+      document.body.innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;color:var(--text2);text-align:center;padding:20px">
+          <h2 style="color:var(--text)">Acesso Restrito</h2>
+          <p>Você não tem permissão para acessar o Cadastro de Produtos.</p>
+        </div>`;
+      return;
+    }
     aplicarPermissoes({
       incluir_produtos: d.incluir_produtos,
       alterar_produtos: d.alterar_produtos,
       excluir_produtos: d.excluir_produtos,
+      incluir_promocoes: d.incluir_promocoes,
+      alterar_promocoes: d.alterar_promocoes,
+      excluir_promocoes: d.excluir_promocoes,
+      prorrogar_promocoes: d.prorrogar_promocoes,
+      manutencao_promocoes: d.manutencao_promocoes,
       isAdmin: !!d.isAdmin,
     });
   } catch (_) {}
@@ -2023,9 +2147,10 @@ function atualizarBotoesQuickView() {
     btnEdit.title = _semPermAlterar ? 'Sem permissão para editar' : 'Abrir cadastro do produto';
   }
   if (btnPromo) {
-    btnPromo.disabled = !!_semPermAlterar;
-    btnPromo.style.display = _semPermAlterar ? 'none' : '';
-    btnPromo.title = _semPermAlterar ? 'Sem permissão para alterar produtos' : 'Abrir aba de promoções';
+    const semPromo = _semPermPromoAcesso || _semPermPromoAlterar;
+    btnPromo.disabled = semPromo;
+    btnPromo.style.display = semPromo ? 'none' : '';
+    btnPromo.title = semPromo ? 'Sem permissão para promoções' : 'Abrir aba de promoções';
   }
   if (btnClone) {
     btnClone.disabled = !!_semPermAlterar;
@@ -2109,6 +2234,10 @@ function abrirCentralPromocoes() {
 
 let _semPermExcluir = false;
 let _semPermAlterar = false;
+let _semPermPromoIncluir = false;
+let _semPermPromoAlterar = false;
+let _semPermPromoExcluir = false;
+let _semPermPromoAcesso = false;
 
 // ── Lookups ───────────────────────────────────────────────────────────────────
 function _populaSelect(selId, itens, valField, txtField, placeholder = '— Selecione —') {
@@ -2528,6 +2657,39 @@ async function clonarRegistro(id) {
   } catch { showToast('Erro ao clonar', 'error'); }
 }
 
+function syncPrecoPesoProdutoForm() {
+  const on = document.getElementById('f_precopeso')?.value === 'S';
+  const wrap = document.getElementById('wrap_f_kilo_embalagem');
+  const lblVenda = document.getElementById('lbl_f_vlr_venda');
+  if (wrap) wrap.style.display = on ? '' : 'none';
+  if (lblVenda) lblVenda.textContent = on ? 'Vlr. Venda (R$/kg)' : 'Vlr. Venda (R$)';
+  atualizarHintPrecoPesoCadastro();
+}
+
+function atualizarHintPrecoPesoCadastro() {
+  const hint = document.getElementById('hint_precopeso_cadastro');
+  if (!hint) return;
+  const on = document.getElementById('f_precopeso')?.value === 'S';
+  if (!on) {
+    hint.style.display = 'none';
+    hint.textContent = '';
+    return;
+  }
+  const un = (document.getElementById('f_unidade')?.value || 'un').toLowerCase();
+  const kilo = parseFloat(document.getElementById('f_kilo_embalagem')?.value) || 0;
+  const v = parseFloat(document.getElementById('f_vlr_venda')?.value) || 0;
+  hint.style.display = '';
+  const fmt = n => (parseFloat(n) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  if (kilo > 0 && v > 0) {
+    const tot = kilo * v;
+    hint.innerHTML = `Vendido em <strong>${un}</strong>, preço por <strong>kg</strong>. `
+      + `1 ${un} (${kilo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 3 })} kg) × ${fmt(v)} = `
+      + `<strong>${fmt(tot)}</strong> por unidade no pedido.`;
+  } else {
+    hint.textContent = 'Informe o peso (kg) e o preço por kg. No pedido: Total = Quantidade × Peso × Preço/kg.';
+  }
+}
+
 function limparForm() {
   const ids = ['f_id','f_descricao','f_apelido','f_situacao','f_unidade','f_marca',
     'f_id_grupo','f_nome_grupo','f_id_familiaproduto','f_segmento','f_cod_interno',
@@ -2545,6 +2707,9 @@ function limparForm() {
   });
   const hintCf = document.getElementById('hintCustoFinal');
   if (hintCf) hintCf.textContent = '';
+  const elPp = document.getElementById('f_precopeso');
+  if (elPp) elPp.value = 'N';
+  syncPrecoPesoProdutoForm();
   abrirAba('geral', document.querySelector('.form-tab'));
 }
 
@@ -2582,8 +2747,10 @@ function preencherForm(p) {
   set('f_estoque_minimo',     p.estoque_minimo);
   set('f_estoque_maximo',     p.estoque_maximo);
   set('f_estoque_seguranca',  p.estoque_seguranca);
+  set('f_precopeso',          p.precopeso || 'N');
   set('f_kilo_embalagem',     p.kilo_embalagem);
   set('f_embalagemmaster',    p.embalagemmaster);
+  syncPrecoPesoProdutoForm();
   set('f_multiplo_venda',     p.multiplo_venda ?? 1);
   set('f_id_endereco',        p.id_endereco);
   set('f_ncm',                p.ncm);
@@ -2608,6 +2775,15 @@ function preencherForm(p) {
 async function salvar() {
   const descricao = document.getElementById('f_descricao').value.trim();
   if (!descricao) { showToast('Descrição é obrigatória','error'); abrirAba('geral',document.querySelector('.form-tab')); return; }
+  if (document.getElementById('f_precopeso')?.value === 'S') {
+    const kiloPp = parseFloat(document.getElementById('f_kilo_embalagem')?.value) || 0;
+    if (kiloPp <= 0) {
+      showToast('Informe o peso (kg) quando Preço por peso estiver ativo', 'error');
+      abrirAba('estoque', document.querySelector('.form-tab[onclick*="estoque"]'));
+      document.getElementById('f_kilo_embalagem')?.focus();
+      return;
+    }
+  }
 
   const v = id => document.getElementById(id)?.value || undefined;
   // ao mudar o grupo, sincroniza nome_grupo com o texto da option selecionada
@@ -2645,6 +2821,7 @@ async function salvar() {
     estoque_minimo:       v('f_estoque_minimo'),
     estoque_maximo:       v('f_estoque_maximo'),
     estoque_seguranca:    v('f_estoque_seguranca'),
+    precopeso:            document.getElementById('f_precopeso')?.value || 'N',
     kilo_embalagem:       v('f_kilo_embalagem'),
     embalagemmaster:      v('f_embalagemmaster'),
     multiplo_venda:       v('f_multiplo_venda') || '1',
@@ -2669,8 +2846,9 @@ async function salvar() {
   };
 
   const btn = document.getElementById('btnSalvar');
-  btn.disabled = true;
-  btn.textContent = 'Salvando…';
+  const btnHdr = document.getElementById('btnSalvarHeader');
+  if (btn) { btn.disabled = true; btn.textContent = 'Salvando…'; }
+  if (btnHdr) { btnHdr.disabled = true; btnHdr.textContent = 'Salvando…'; }
 
   try {
     const url = _editandoId ? `/api/produtos/${_editandoId}` : '/api/produtos';
@@ -2686,22 +2864,63 @@ async function salvar() {
   } catch(err) {
     showToast(err.message, 'error');
   } finally {
-    btn.disabled = false;
-    btn.innerHTML = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:13px;height:13px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Salvar`;
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:13px;height:13px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Salvar`;
+    }
+    if (btnHdr) {
+      btnHdr.disabled = false;
+      btnHdr.innerHTML = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:13px;height:13px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Salvar`;
+    }
   }
+}
+
+function _syncFormSectionTop() {
+  const tb = document.getElementById('toolbar');
+  const top = tb ? Math.ceil(tb.getBoundingClientRect().bottom) : 56;
+  const fs = document.getElementById('formSection');
+  if (fs) fs.style.top = top + 'px';
 }
 
 function mostrarForm() {
   document.getElementById('listSection').style.display = 'none';
-  document.getElementById('formSection').style.display = 'block';
+  const sub = document.getElementById('subbar');
+  if (sub) {
+    sub.dataset.wasVisible = sub.style.display === 'none' ? '0' : '1';
+    sub.style.display = 'none';
+  }
+  const fp = document.getElementById('filterPanel');
+  if (fp) fp.style.display = 'none';
+  const fs = document.getElementById('formSection');
+  _syncFormSectionTop();
+  fs.classList.add('prod-form-visible');
+  fs.style.display = 'flex';
+  document.body.classList.add('prod-form-open');
+
+  const body = fs.querySelector('.form-body');
+  if (body) body.scrollTop = 0;
   fecharQuickView();
 }
 
 function fecharFormulario() {
-  document.getElementById('formSection').style.display = 'none';
+  const fs = document.getElementById('formSection');
+  fs.style.display = 'none';
+  fs.classList.remove('prod-form-visible');
+  fs.style.top = '';
+  document.body.classList.remove('prod-form-open');
+
+  const sub = document.getElementById('subbar');
+  if (sub && sub.dataset.wasVisible !== '0') sub.style.display = '';
+
   document.getElementById('listSection').style.display = '';
   _editandoId = null;
 }
+
+window.addEventListener('resize', () => {
+  if (document.getElementById('formSection')?.classList.contains('prod-form-visible')) {
+    _syncFormSectionTop();
+  }
+});
 
 // ── MÚLTIPLOS DE VENDA ─────────────────────────────────────────────────────────
 async function carregarMultiplos(prodId) {

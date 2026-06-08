@@ -10,6 +10,8 @@ const LicenseCache = require('../services/license-cache');
 const { extractMysqlConfigFromLicenseRow } = require('../config/customer-db-from-license');
 const parametroLocaisRouter = require('./parametro-locais');
 const { resolveEmpresaLogoRelatorio, sanitizeEmpresaRow } = require('../services/empresa-logo');
+const { buildGtelaFromPerfil, PERFIL_SN_CADASTRO } = require('../config/cadastros-permissoes');
+const { ensurePerfilCadastroColumns } = require('../config/schema-migrations');
 
 const EMPRESA_NAO_EXCLUIDA = `COALESCE(NULLIF(TRIM(excluido), ''), 'N') = 'N'`;
 const E_EMPRESA_NAO_EXCLUIDA = `COALESCE(NULLIF(TRIM(e.excluido), ''), 'N') = 'N'`;
@@ -215,7 +217,8 @@ router.post('/login', async (req, res) => {
     }
 
     // Validação de senha case-insensitive (igual ao Delphi: UpperCase = UpperCase)
-    if (user.senhausu.toUpperCase() !== senhausu.toUpperCase()) {
+    // trim() necessário: MySQL PADSPACE ignora espaços finais mas JS não
+    if (user.senhausu.trim().toUpperCase() !== senhausu.trim().toUpperCase()) {
       return res.status(401).json({ error: 'Usuário ou senha inválidos' });
     }
 
@@ -360,7 +363,7 @@ router.post('/empresas-usuario', async (req, res) => {
     );
 
     const user = rows[0];
-    if (!user || user.senhausu.toUpperCase() !== senhausu.toUpperCase()) {
+    if (!user || user.senhausu.trim().toUpperCase() !== senhausu.trim().toUpperCase()) {
       return res.json({ ok: false, empresas: [] });
     }
 
@@ -376,7 +379,7 @@ router.post('/empresas-usuario', async (req, res) => {
 
     // 3. Carrega empresas vinculadas ao usuário (EmpresasUsuarios do Delphi)
     // id_usuario é varchar(15) na tabela, por isso converte para string
-    const [empresas] = await pool.query(
+    let [empresas] = await pool.query(
       `SELECT e.id_empresa, e.Razao_empresa, e.logo_relatorio, e.logo_tamanho_relatorio
        FROM usuario_empresas t
        INNER JOIN empresa e ON e.id_empresa = t.cod_empresa
@@ -386,6 +389,31 @@ router.post('/empresas-usuario', async (req, res) => {
        ORDER BY e.Razao_empresa`,
       [String(user.idusuario)]
     );
+
+    // Auto-seed: banco Delphi recém-migrado pode ter usuario_empresas vazio.
+    // Se admin (idperfil=1) não tiver nenhuma empresa vinculada, vincula todas automaticamente.
+    if ((!empresas || empresas.length === 0) && user.idperfil == 1) {
+      const [todasEmpresas] = await pool.query(
+        `SELECT id_empresa FROM empresa WHERE excluido IS NULL OR excluido = 'N' ORDER BY id_empresa`
+      ).catch(() => [[]]);
+      for (const emp of todasEmpresas) {
+        await pool.query(
+          `INSERT IGNORE INTO usuario_empresas (cod_empresa, id_usuario, status, excluido)
+           VALUES (?, ?, 'SIM', 'N')`,
+          [String(emp.id_empresa), String(user.idusuario)]
+        ).catch(() => {});
+      }
+      if (todasEmpresas.length > 0) {
+        [empresas] = await pool.query(
+          `SELECT e.id_empresa, e.Razao_empresa, e.logo_relatorio, e.logo_tamanho_relatorio
+           FROM usuario_empresas t
+           INNER JOIN empresa e ON e.id_empresa = t.cod_empresa
+           WHERE t.excluido = 'N' AND t.status = 'SIM' AND t.id_usuario = ?
+           ORDER BY e.Razao_empresa`,
+          [String(user.idusuario)]
+        );
+      }
+    }
 
     const empresasOut = [];
     for (const row of empresas || []) {
@@ -748,11 +776,17 @@ router.get('/minhas-permissoes', async (req, res) => {
   }
 
   try {
+    await ensurePerfilCadastroColumns(pool);
+    const [perfilColRows] = await pool.query('SHOW COLUMNS FROM perfil');
+    const perfilColSet = new Set(perfilColRows.map((r) => r.Field));
+    const cadSelect = PERFIL_SN_CADASTRO.filter((c) => perfilColSet.has(c)).map((c) => `p.${c}`).join(', ');
+    const cadPart = cadSelect ? `, ${cadSelect}` : '';
     const [rows] = await pool.query(
       `SELECT p.acessar_configuracoes, p.alterar_configuracoes, p.manutencaocadastros,
+              p.acessar_cadastros, p.tela_fornecedores, p.tela_produtos,
               p.acessogerenciais, p.acessoperfil, p.mudarempresa, p.tela_usuarios,
               p.alterardatapedido, p.trocarvendedorpedido, p.p_vender,
-              p.incluir_produtos, p.alterar_produtos, p.excluir_produtos
+              p.alteravendedorcadastrocli${cadPart}
        FROM usuarios u
        INNER JOIN perfil p ON p.id = u.idperfil
        WHERE u.idusuario = ? AND u.excluido = 'N' LIMIT 1`,
@@ -760,11 +794,16 @@ router.get('/minhas-permissoes', async (req, res) => {
     );
     const perm = rows[0] || {};
     const isAdmin = decoded.perfil == 1;
+    const cadastroPerm = buildGtelaFromPerfil(perm, isAdmin);
     res.json({
       acessar_configuracoes:  isAdmin ? 'S' : (perm.acessar_configuracoes || 'N'),
       alterar_configuracoes:  isAdmin ? 'S' : (perm.alterar_configuracoes || 'N'),
       manutencaocadastros:    isAdmin ? 'S' : (perm.manutencaocadastros   || 'N'),
+      acessar_cadastros:      isAdmin ? 'S' : (perm.acessar_cadastros     || 'N'),
+      gtela_fornecedores:     isAdmin ? 'S' : (perm.tela_fornecedores     || 'N'),
+      gtela_produtos:         isAdmin ? 'S' : (perm.tela_produtos         || 'N'),
       gtela_usuarios:         isAdmin ? 'S' : (perm.tela_usuarios         || 'N'),
+      alteravendedorcadastrocli: isAdmin ? 'S' : (perm.alteravendedorcadastrocli || 'N'),
       mudarempresa:           isAdmin ? 'S' : (perm.mudarempresa          || 'N'),
       alterardatapedido:      isAdmin ? 'S' : (perm.alterardatapedido     || 'N'),
       trocarvendedorpedido:   isAdmin ? 'S' : (perm.trocarvendedorpedido  || 'N'),
@@ -772,6 +811,7 @@ router.get('/minhas-permissoes', async (req, res) => {
       incluir_produtos:       isAdmin ? 'S' : (perm.incluir_produtos      || 'N'),
       alterar_produtos:       isAdmin ? 'S' : (perm.alterar_produtos      || 'N'),
       excluir_produtos:       isAdmin ? 'S' : (perm.excluir_produtos      || 'N'),
+      ...cadastroPerm,
       isAdmin
     });
   } catch (e) {
@@ -872,6 +912,12 @@ function buildPermissoes(user) {
     incluir_produtos: s('incluir_produtos'),
     alterar_produtos: s('alterar_produtos'),
     excluir_produtos: s('excluir_produtos'),
+    // Promoções comerciais
+    incluir_promocoes: s('incluir_promocoes'),
+    alterar_promocoes: s('alterar_promocoes'),
+    excluir_promocoes: s('excluir_promocoes'),
+    prorrogar_promocoes: s('prorrogar_promocoes'),
+    manutencao_promocoes: s('manutencao_promocoes'),
     // Transportadoras
     transportadora_incluir: s('transportadora_incluir'),
     transportadora_alterar: s('transportadora_alterar'),
@@ -881,6 +927,7 @@ function buildPermissoes(user) {
     p_comprar: isAdmin ? 'S' : (user.p_comprar || 'N'),
     acessogerenciais: s('acessogerenciais'),
     manutencaocadastros: s('manutencaocadastros'),
+    acessar_cadastros: s('acessar_cadastros'),
     // acessartodosclientes e gerentecomercial usam sb (blank = ignorar)
     acessartodosclientes: sb('acessartodosclientes'),
     gerentecomercial: sb('gerentecomercial'),
@@ -889,6 +936,9 @@ function buildPermissoes(user) {
     acesso_financeiro: isAdmin ? 'S' : (user.acesso_financeiro || 'N'),
     acessoperfil: isAdmin ? 'S' : (user.acessoperfil || 'N'),
     gtela_usuarios: s('tela_usuarios'),
+    gtela_clientes: s('tela_clientes'),
+    gtela_fornecedores: s('tela_fornecedores'),
+    gtela_produtos: s('tela_produtos'),
     // Pedidos — permissões adicionais
     alteraprecovenda: isAdmin ? 'S' : (user.alteraprecovenda || 'S'),
     alertarpainelempresapedvenda: s('alertarpainelempresapedvenda'),
@@ -898,6 +948,7 @@ function buildPermissoes(user) {
     alterar_emb: s('alterar_emb'),
     alterardatapedido: s('alterardatapedido'),
     alteravendedorcadastrocli: s('alteravendedorcadastrocli'),
+    ...buildGtelaFromPerfil(user, isAdmin),
   };
 }
 

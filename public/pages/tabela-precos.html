@@ -74,7 +74,8 @@ tbody td { padding:10px 12px; vertical-align:middle; }
 .header-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:15px; margin-bottom:20px; border-bottom:1px dashed var(--border); padding-bottom:20px; }
 .form-group { display:flex; flex-direction:column; gap:4px; }
 .form-group label { font-size:11px; font-weight:700; color:var(--text2); text-transform:uppercase; }
-.form-group label span { color:var(--danger); }
+.form-group label span.req { color:var(--danger); }
+.form-group label span.opt { color:var(--text2); font-weight:500; text-transform:none; }
 .form-group input, .form-group select {
   padding:8px 9px; border:1px solid #d1d5db; border-radius:6px;
   font-size:12px; font-family:inherit; background:#fff; outline:none; transition:.15s; }
@@ -193,29 +194,29 @@ tbody td { padding:10px 12px; vertical-align:middle; }
           <input type="text" id="f_id" readonly placeholder="Auto">
         </div>
         <div class="form-group" style="grid-column: span 2">
-          <label>Descrição <span>*</span></label>
+          <label>Descrição <span class="req">*</span></label>
           <input type="text" id="f_descricao" placeholder="Ex: TABELA VAREJO SUL">
         </div>
         <div class="form-group">
-          <label>Data Inicial <span>*</span></label>
+          <label>Data Inicial <span class="req">*</span></label>
           <input type="date" id="f_data_inicial">
         </div>
         <div class="form-group">
-          <label>Hora Inicial <span>*</span></label>
+          <label>Hora Inicial <span class="req">*</span></label>
           <input type="time" id="f_hora_inicial" value="00:00">
         </div>
         <div class="form-group">
-          <label>Data Final <span>*</span></label>
+          <label>Data Final <span class="req">*</span></label>
           <input type="date" id="f_data_final">
         </div>
         <div class="form-group">
-          <label>Hora Final <span>*</span></label>
+          <label>Hora Final <span class="req">*</span></label>
           <input type="time" id="f_hora_final" value="23:59">
         </div>
         <div class="form-group" style="grid-column: span 2">
-          <label>Condição Pagamento <span>*</span></label>
+          <label>Condições Pagamento <span class="opt">(opcional)</span></label>
           <select id="f_cond_pagamento">
-            <option value="">Carregando...</option>
+            <option value="">— Selecione —</option>
           </select>
         </div>
         <div class="form-group">
@@ -354,8 +355,19 @@ tbody td { padding:10px 12px; vertical-align:middle; }
 
 <div class="toast" id="toast"></div>
 
+<script src="/assets/cadastros-permissao.js"></script>
 <script>
-let _token = sessionStorage.getItem('token') || localStorage.getItem('token') || '';
+function getToken() {
+  try {
+    return sessionStorage.getItem('token') || localStorage.getItem('token')
+      || (window.parent !== window && window.parent.sessionStorage?.getItem('token'))
+      || localStorage.getItem('sysrep_token') || '';
+  } catch (_) {
+    return sessionStorage.getItem('token') || localStorage.getItem('token') || '';
+  }
+}
+
+let _token = getToken();
 let _user = JSON.parse(localStorage.getItem('user') || sessionStorage.getItem('user') || '{}');
 let _editandoId = null;
 let _itensTabela = []; // Array de objetos { cod_produto, descricao, ... }
@@ -365,7 +377,9 @@ let _modalCurrentPage = 1;
  * API WRAPPER
  */
 function api(url, opts = {}) {
+  _token = getToken();
   return fetch(url, {
+    credentials: 'same-origin',
     ...opts,
     headers: { 
       'Content-Type':'application/json', 
@@ -386,6 +400,7 @@ function showToast(msg, tipo = '') {
 function mostrarForm() {
   document.getElementById('listSection').style.display = 'none';
   document.getElementById('formSection').style.display = 'block';
+  carregarLookups();
 }
 
 function fecharFormulario() {
@@ -396,14 +411,64 @@ function fecharFormulario() {
 }
 
 // ─── CARREGAMENTO INICIAL ───
+function escOpt(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+}
+
+function popularCondPagamentoSelect(lista) {
+  const sel = document.getElementById('f_cond_pagamento');
+  if (!sel) return;
+  const atual = sel.value;
+  const opts = (Array.isArray(lista) ? lista : [])
+    .filter(c => c && c.id != null && c.descricao)
+    .map(c => `<option value="${c.id}">${escOpt(c.descricao)}</option>`).join('');
+  sel.innerHTML = '<option value="">— Selecione —</option>' + opts;
+  if (atual && [...sel.options].some(o => o.value === String(atual))) sel.value = String(atual);
+}
+
+async function fetchJsonCondPagamento(url) {
+  _token = getToken();
+  const r = await fetch(url, {
+    credentials: 'same-origin',
+    headers: {
+      Accept: 'application/json',
+      ...( _token ? { Authorization: 'Bearer ' + _token } : {} ),
+    },
+  });
+  if (!r.ok) return null;
+  const j = await r.json();
+  if (Array.isArray(j)) return j;
+  if (Array.isArray(j.formas)) return j.formas;
+  if (Array.isArray(j.data)) return j.data;
+  return null;
+}
+
 async function carregarLookups() {
-  try {
-    const r = await api('/api/tabela-precos/condicoes-pagamento');
-    const data = await r.json();
-    const sel = document.getElementById('f_cond_pagamento');
-    sel.innerHTML = '<option value="">Selecione...</option>' + 
-      data.map(c => `<option value="${c.id}">${c.descricao}</option>`).join('');
-  } catch (err) { console.error('Erro lookups', err); }
+  const sel = document.getElementById('f_cond_pagamento');
+  if (!sel) return;
+  const atual = sel.value;
+
+  const urls = [
+    '/api/lookups/condicoes-pagamento',
+    '/api/formas-pagamento',
+    '/api/tabela-precos/condicoes-pagamento',
+  ];
+
+  for (const url of urls) {
+    try {
+      const lista = await fetchJsonCondPagamento(url);
+      if (lista && lista.length) {
+        popularCondPagamentoSelect(lista);
+        if (atual) sel.value = atual;
+        return;
+      }
+    } catch (err) {
+      console.warn('[tabela-precos]', url, err);
+    }
+  }
+
+  popularCondPagamentoSelect([]);
+  showToast('Condições de pagamento não carregaram. Verifique login ou reinicie o servidor.', 'error');
 }
 
 async function carregar() {
@@ -428,17 +493,19 @@ async function carregar() {
         <td><span style="color:${t.Tabela_Ativa==='S'? 'var(--success)':'var(--danger)'};font-weight:800">${t.Tabela_Ativa==='S'?'SIM':'NÃO'}</span></td>
         <td onclick="event.stopPropagation()">
           <div style="display:flex;gap:4px">
-            ${t.Tabela_Ativa === 'N' ? `
+            ${t.Tabela_Ativa === 'N' && (typeof podeAlterarCad === 'function' ? podeAlterarCad() : true) ? `
               <button type="button" class="btn-remove" style="color:var(--success)" onclick="event.stopPropagation(); liberarTabela(${t.id})" title="Liberar/Ativar Tabela">
                 <svg style="width:16px;height:16px" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
               </button>
             ` : ''}
+            ${(typeof podeIncluirCad === 'function' ? podeIncluirCad() : true) ? `
             <button type="button" class="btn-remove" style="color:var(--accent)" onclick="event.stopPropagation(); clonarTabela(${t.id})" title="Clonar Tabela">
               <svg style="width:16px;height:16px" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"/></svg>
-            </button>
+            </button>` : ''}
+            ${(typeof podeExcluirCad === 'function' ? podeExcluirCad() : true) ? `
             <button type="button" class="btn-remove" onclick="event.stopPropagation(); confirmarExclusao(${t.id})" title="Excluir">
               <svg style="width:16px;height:16px" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-            </button>
+            </button>` : ''}
           </div>
         </td>
       </tr>
@@ -448,6 +515,7 @@ async function carregar() {
 
 // ─── CRUD ───
 function novoRegistro() {
+  if (!guardCadIncluir('Sem permissão para incluir tabela de preços')) return;
   _editandoId = null;
   _itensTabela = [];
   document.getElementById('formTitulo').textContent = 'Nova Tabela de Preços';
@@ -458,6 +526,7 @@ function novoRegistro() {
   document.getElementById('f_cond_pagamento').value = '';
   document.getElementById('f_ativa').value = 'S';
   renderItens();
+  carregarLookups();
   mostrarForm();
 }
 
@@ -475,29 +544,33 @@ async function editarTabela(id) {
     document.getElementById('f_hora_inicial').value = data.Hora_Inicial.substring(0,5);
     document.getElementById('f_data_final').value = data.Data_Final.split('T')[0];
     document.getElementById('f_hora_final').value = data.Hora_Final.substring(0,5);
-    document.getElementById('f_cond_pagamento').value = data.Cond_Pagamento;
+    document.getElementById('f_cond_pagamento').value = data.Cond_Pagamento || '';
     document.getElementById('f_ativa').value = data.Tabela_Ativa;
 
     _itensTabela = data.itens || [];
     renderItens();
+    carregarLookups();
     mostrarForm();
+    if (!podeAlterarCad()) aplicarFormSomenteLeituraCad();
   } catch (err) { showToast('Erro ao buscar dados', 'error'); }
 }
 
 async function salvarTabela() {
+  if (!guardCadSalvar(!!_editandoId, 'Sem permissão para incluir tabela de preços', 'Sem permissão para alterar tabela de preços')) return;
+  const condRaw = document.getElementById('f_cond_pagamento').value;
+  const condParsed = condRaw ? parseInt(condRaw, 10) : null;
   const body = {
     Descricao: document.getElementById('f_descricao').value.trim(),
     Data_Inicial: document.getElementById('f_data_inicial').value,
     Hora_Inicial: document.getElementById('f_hora_inicial').value,
     Data_Final: document.getElementById('f_data_final').value,
     Hora_Final: document.getElementById('f_hora_final').value,
-    Cond_Pagamento: parseInt(document.getElementById('f_cond_pagamento').value),
+    Cond_Pagamento: Number.isFinite(condParsed) ? condParsed : null,
     Tabela_Ativa: document.getElementById('f_ativa').value,
     itens: _itensTabela
   };
 
   if (!body.Descricao) return showToast('Descrição é obrigatória', 'error');
-  if (!body.Cond_Pagamento) return showToast('Condição de Pagamento é obrigatória', 'error');
   const btn = document.getElementById('btnSalvar');
   btn.disabled = true;
 
@@ -664,6 +737,7 @@ function selecionarProdutoModal(p) {
 // ─── EXCLUSÃO ───
 let _excluindoId = null;
 function confirmarExclusao(id) {
+  if (!guardCadExcluir('Sem permissão para excluir tabela de preços')) return;
   _excluindoId = id;
   document.getElementById('modalConfirm').classList.add('show');
 }
@@ -683,6 +757,7 @@ document.getElementById('btnConfirmarExclusao').onclick = async () => {
 // ─── NOVAS FUNÇÕES MANUTENÇÃO ───
 
 async function clonarTabela(id) {
+  if (!guardCadIncluir('Sem permissão para incluir tabela de preços')) return;
   if (!confirm('Deseja clonar esta tabela? Ela será criada como INATIVA.')) return;
   try {
     const r = await api(`/api/tabela-precos/${id}/clonar`, { method: 'POST' });
@@ -701,6 +776,7 @@ async function clonarTabela(id) {
 }
 
 async function liberarTabela(id) {
+  if (!guardCadAlterar('Sem permissão para alterar tabela de preços')) return;
   if (!confirm('Deseja LIBERAR (Ativar) esta tabela para uso comercial?')) return;
   try {
     const r = await api(`/api/tabela-precos/${id}/liberar`, { method: 'PATCH' });
@@ -751,11 +827,16 @@ async function executarManutencao() {
   } catch (err) { showToast('Erro interno', 'error'); }
 }
 
-// Start
-document.addEventListener('DOMContentLoaded', () => {
+// Start — não depender só de cad-perm-ready (evita ficar "Carregando...")
+(function bootTabelaPrecos() {
   carregarLookups();
-  carregar();
+  if (typeof carregar === 'function') carregar();
+})();
+document.addEventListener('cad-perm-ready', () => {
+  carregarLookups();
+  if (typeof aplicarUiPermissoesCad === 'function') aplicarUiPermissoesCad();
 });
+window.addEventListener('load', () => setTimeout(carregarLookups, 300));
 
 </script>
 </body>

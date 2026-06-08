@@ -1,6 +1,13 @@
 const express = require('express');
 const router  = express.Router();
 const { getPool } = require('../config/database');
+const { permCrud, negarCad } = require('../config/cadastros-permissoes');
+
+const _permGrades = (req) => permCrud(req, {
+  incluir: 'incluir_grades',
+  alterar: 'alterar_grades',
+  excluir: 'excluir_grades',
+});
 
 // ─── GET /api/grades ─────────────────────────────────────────────────────────
 router.get('/', async (req, res) => {
@@ -80,6 +87,8 @@ router.get('/:id', async (req, res) => {
 
 // ─── POST /api/grades ────────────────────────────────────────────────────────
 router.post('/', async (req, res) => {
+  const pc = _permGrades(req);
+  if (pc.incluir !== 'S') return negarCad(res, 'Sem permissão para incluir grades');
   const pool = getPool();
   const conn = await pool.getConnection();
   try {
@@ -116,6 +125,8 @@ router.post('/', async (req, res) => {
 
 // ─── PUT /api/grades/:id ─────────────────────────────────────────────────────
 router.put('/:id', async (req, res) => {
+  const pc = _permGrades(req);
+  if (pc.alterar !== 'S') return negarCad(res, 'Sem permissão para alterar grades');
   const pool = getPool();
   const conn = await pool.getConnection();
   try {
@@ -190,6 +201,8 @@ router.put('/:id', async (req, res) => {
 // ─── PUT /api/grades/:id/ativar ──────────────────────────────────────────────
 router.put('/:id/ativar', async (req, res) => {
   try {
+    const pc = _permGrades(req);
+    if (pc.alterar !== 'S') return negarCad(res, 'Sem permissão para alterar grades');
     await getPool().query(`UPDATE tipograde SET status='A' WHERE id=?`, [req.params.id]);
     res.json({ ok: true });
   } catch (err) {
@@ -200,6 +213,8 @@ router.put('/:id/ativar', async (req, res) => {
 // ─── PUT /api/grades/:id/inativar ────────────────────────────────────────────
 router.put('/:id/inativar', async (req, res) => {
   try {
+    const pc = _permGrades(req);
+    if (pc.alterar !== 'S') return negarCad(res, 'Sem permissão para alterar grades');
     await getPool().query(`UPDATE tipograde SET status='I' WHERE id=?`, [req.params.id]);
     res.json({ ok: true });
   } catch (err) {
@@ -210,6 +225,8 @@ router.put('/:id/inativar', async (req, res) => {
 // ─── DELETE /api/grades/:id ──────────────────────────────────────────────────
 router.delete('/:id', async (req, res) => {
   try {
+    const pc = _permGrades(req);
+    if (pc.excluir !== 'S') return negarCad(res, 'Sem permissão para excluir grades');
     const pool = getPool();
     const [[uso]] = await pool.query(
       `SELECT COUNT(*) AS n FROM itenspedgrade WHERE id_grade = ?`,

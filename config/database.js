@@ -84,6 +84,48 @@ async function createPoolFromLicenseBinding() {
   return { ok: true };
 }
 
+/**
+ * Banco Delphi recém-migrado pode vir com empresa e usuario_empresas vazios.
+ * Usa os dados da licença (sistema_licencas) para criar o registro da empresa
+ * e vincular o ADMIN ao primeiro login funcionar sem configuração manual.
+ */
+async function _seedEmpresaFromLicense(targetPool, licRow) {
+  try {
+    const [[{ cnt }]] = await targetPool.query('SELECT COUNT(*) AS cnt FROM empresa');
+    if (cnt > 0) return;
+
+    const razao = (licRow.razao_social || '').trim();
+    if (!razao) return;
+
+    await targetPool.query(
+      `INSERT IGNORE INTO empresa
+         (id_empresa, Razao_empresa, nome_fantasia, cnpj, cidade, uf, telefone, email, responsavel)
+       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        razao,
+        razao,
+        (licRow.cnpj_cpf   || '').trim(),
+        (licRow.cidade      || '').trim(),
+        (licRow.estado      || '').trim(),
+        (licRow.telefone    || licRow.whatsapp || '').trim(),
+        (licRow.email       || '').trim(),
+        (licRow.responsavel || '').trim(),
+      ]
+    );
+
+    // Vincula todos os admins (idperfil=1) à empresa recém-criada
+    await targetPool.query(
+      `INSERT IGNORE INTO usuario_empresas (cod_empresa, id_usuario, status, excluido)
+       SELECT '1', CAST(idusuario AS CHAR), 'SIM', 'N'
+       FROM usuarios WHERE idperfil = 1 AND excluido = 'N'`
+    );
+
+    console.log(`[DB] Seed empresa: "${razao}" + vínculo ADMIN criados.`);
+  } catch (e) {
+    console.warn('[DB] Seed empresa ignorado:', e.message);
+  }
+}
+
 async function initCustomerDatabase() {
   const boundChave = getBoundChave();
 
@@ -118,6 +160,7 @@ async function initCustomerDatabase() {
     } catch (e) {
       console.warn('[DB] Migração:', e.message);
     }
+    await _seedEmpresaFromLicense(pool, rows[0]);
     console.log(`[DB] Conectado: ${cfg.database}@${cfg.host}`);
     return;
   }
@@ -167,13 +210,30 @@ async function ensureCustomerPoolFromLicenseIfNeeded() {
   if (!r.ok) throw new Error(r.error);
 }
 
+// Plugins de autenticação que o mysql2 nativo não suporta — dão erro claro em vez de "unknown plugin"
+const _UNSUPPORTED_AUTH_PLUGINS = {
+  auth_gssapi_client: () => () => {
+    throw new Error(
+      'O banco de dados usa autenticação Windows/GSSAPI, não suportada pelo driver. ' +
+      'Corrija o usuário MySQL executando: ' +
+      "ALTER USER 'usuario'@'%' IDENTIFIED WITH mysql_native_password BY 'senha'; FLUSH PRIVILEGES;"
+    );
+  },
+};
+
+function _applyPoolDefaults(config) {
+  if (!config.dateStrings) config.dateStrings = ['DATE'];
+  if (!config.authPlugins) config.authPlugins = _UNSUPPORTED_AUTH_PLUGINS;
+  return config;
+}
+
 function createPool(config = null, chave_licenca = null) {
   // Multi-tenant mode: each license gets its own isolated pool
   if (customerDbFromLicense() && chave_licenca) {
     const oldPool = _poolMap.get(chave_licenca) || null;
     if (oldPool) oldPool.end().catch(() => {});
     if (!config) throw new Error('createPool em modo multi-tenant requer config');
-    if (!config.dateStrings) config.dateStrings = ['DATE'];
+    _applyPoolDefaults(config);
     const newPool = mysql.createPool(config);
     _poolMap.set(chave_licenca, newPool);
     // fail-closed multi-tenant: pool global nunca aponta para tenant específico
@@ -199,13 +259,9 @@ function createPool(config = null, chave_licenca = null) {
       connectionLimit: 10,
       queueLimit: 0,
       timezone: '-03:00',
-      // DATE como string 'YYYY-MM-DD' — evita Date UTC deslocar dia (30 virar 31)
-      dateStrings: ['DATE'],
     };
   }
-  if (config && !config.dateStrings) {
-    config.dateStrings = ['DATE'];
-  }
+  _applyPoolDefaults(config);
   pool = mysql.createPool(config);
   return pool;
 }
@@ -215,7 +271,7 @@ function getPool() {
   const ctxPool = _als.getStore();
   if (ctxPool) return ctxPool;
 
-  if (!pool) {
+  if (!pool || pool.pool._closed) {
     if (customerDbFromLicense()) {
       throw new Error('Banco do cliente ainda não conectado. Ative a licença na tela de login ou reinicie o servidor.');
     }
@@ -239,7 +295,7 @@ function resolvePool(req) {
   }
 
   if (getBoundChave() || !customerDbFromLicense()) {
-    if (!pool) {
+    if (!pool || pool.pool._closed) {
       if (customerDbFromLicense()) {
         throw new Error('Banco do cliente ainda não conectado. Ative a licença na tela de login ou reinicie o servidor.');
       }
@@ -258,10 +314,15 @@ function runWithRequestPool(req, fn) {
   return runWithPool(tenantPool, fn);
 }
 
-/** Retorna o pool registrado para a chave, ou null se não encontrado. */
+/** Retorna o pool registrado para a chave, ou null se não encontrado ou fechado. */
 function getPoolForLicense(chave) {
   if (!chave) return null;
-  return _poolMap.get(String(chave).trim()) || null;
+  const p = _poolMap.get(String(chave).trim()) || null;
+  if (p && p.pool._closed) {
+    _poolMap.delete(String(chave).trim());
+    return null;
+  }
+  return p;
 }
 
 /** Destrói e remove o pool da chave — força recriação com credenciais atuais. */

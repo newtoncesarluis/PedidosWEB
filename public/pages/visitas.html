@@ -189,6 +189,7 @@ html.sysrep-ms-embed #visitas-cards-mobile { padding:0; }
 <link rel="stylesheet" href="/assets/themes.css">
 <script src="/assets/themes.js"></script>
 <script src="/assets/mobile-app.js"></script>
+<script src="/assets/comissao-preposto-ui.js"></script>
 <link rel="stylesheet" href="/assets/mobile-app.css">
 </head>
 <body>
@@ -499,11 +500,16 @@ async function carregarVendedores() {
   try {
     const r = await fetch('/api/vendedores');
     S.vendedores = (await r.json()).vendedores || [];
+    const fSel = document.getElementById('f_vendedor_filtro');
+    const formSel = document.getElementById('f_id_vendedor');
+    if (window.ComissaoPrepostoUi) {
+      ComissaoPrepostoUi.populateVendedorSelect(fSel, S.vendedores, { emptyLabel: 'Todos os vendedores' });
+      ComissaoPrepostoUi.populateVendedorSelect(formSel, S.vendedores, { emptyLabel: '— Selecione —' });
+      return;
+    }
     const opts = '<option value="">— Selecione —</option>' +
       S.vendedores.map(v => `<option value="${v.id}">${escHtml(v.nome)}</option>`).join('');
-    document.getElementById('f_id_vendedor').innerHTML = opts;
-    // filtro
-    const fSel = document.getElementById('f_vendedor_filtro');
+    formSel.innerHTML = opts;
     fSel.innerHTML = '<option value="">Todos os vendedores</option>' +
       S.vendedores.map(v => `<option value="${v.id}">${escHtml(v.nome)}</option>`).join('');
   } catch(e) {}
@@ -545,11 +551,15 @@ function setFiltroStatus(st) {
 }
 
 async function buscar() {
+  const fSel = document.getElementById('f_vendedor_filtro');
+  const idVend = window.ComissaoPrepostoUi
+    ? ComissaoPrepostoUi.resolveVendedorFilterId(fSel)
+    : fSel.value;
   const params = new URLSearchParams({
     page: S.pagina,
     limit: S.limite,
     q: document.getElementById('inputBusca').value,
-    id_vendedor: document.getElementById('f_vendedor_filtro').value,
+    id_vendedor: idVend,
     status: S.filtroStatus,
     data_de: document.getElementById('f_data_de').value,
     data_ate: document.getElementById('f_data_ate').value,

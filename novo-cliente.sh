@@ -30,8 +30,8 @@ SLUG="$1"
 CHAVE="$2"
 DOMAIN_BASE="${3:-pedidos.nresolutions.com.br}"
 
-APP_DIR="${APP_DIR:-/home/ubuntu/pedidosweb}"
-INSTANCES_DIR="${INSTANCES_DIR:-/home/ubuntu/pedidosweb-clients}"
+APP_DIR="${APP_DIR:-/root/pedidosweb}"
+INSTANCES_DIR="${INSTANCES_DIR:-/root/pedidosweb-clients}"
 NGINX_AVAIL="/etc/nginx/sites-available"
 NGINX_ENABLED="/etc/nginx/sites-enabled"
 PORT_START=3100
@@ -227,6 +227,9 @@ server {
         proxy_set_header   X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header   X-Forwarded-Proto \$scheme;
         proxy_read_timeout 120s;
+        proxy_buffer_size          128k;
+        proxy_buffers              4 256k;
+        proxy_busy_buffers_size    256k;
     }
 }'''
 open('${NGINX_AVAIL}/sysrep-${SLUG}','w').write(content)

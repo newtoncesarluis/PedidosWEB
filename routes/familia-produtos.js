@@ -1,6 +1,13 @@
 const express = require('express');
 const router  = express.Router();
 const { getPool } = require('../config/database');
+const { permCrud, negarCad } = require('../config/cadastros-permissoes');
+
+const _permFamilia = (req) => permCrud(req, {
+  incluir: 'incluir_familia_produtos',
+  alterar: 'alterar_familia_produtos',
+  excluir: 'excluir_familia_produtos',
+});
 
 // ─── GET /api/familia-produtos ───────────────────────────────────────────────
 router.get('/', async (req, res) => {
@@ -64,6 +71,8 @@ router.get('/:id', async (req, res) => {
 // ─── POST /api/familia-produtos ──────────────────────────────────────────────
 router.post('/', async (req, res) => {
   try {
+    const pc = _permFamilia(req);
+    if (pc.incluir !== 'S') return negarCad(res, 'Sem permissão para incluir família de produtos');
     const pool = getPool();
     const { nome, informar_nota = 'N' } = req.body;
     if (!nome?.trim()) return res.status(400).json({ error: 'Nome é obrigatório' });
@@ -80,6 +89,8 @@ router.post('/', async (req, res) => {
 // ─── PUT /api/familia-produtos/:id ──────────────────────────────────────────
 router.put('/:id', async (req, res) => {
   try {
+    const pc = _permFamilia(req);
+    if (pc.alterar !== 'S') return negarCad(res, 'Sem permissão para alterar família de produtos');
     const pool = getPool();
     const { nome, status, informar_nota } = req.body;
     if (!nome?.trim()) return res.status(400).json({ error: 'Nome é obrigatório' });
@@ -96,6 +107,8 @@ router.put('/:id', async (req, res) => {
 // ─── PUT /api/familia-produtos/:id/ativar ────────────────────────────────────
 router.put('/:id/ativar', async (req, res) => {
   try {
+    const pc = _permFamilia(req);
+    if (pc.alterar !== 'S') return negarCad(res, 'Sem permissão para alterar família de produtos');
     await getPool().query(`UPDATE familia_produtos SET status='A' WHERE id=?`, [req.params.id]);
     res.json({ ok: true });
   } catch (err) {
@@ -106,6 +119,8 @@ router.put('/:id/ativar', async (req, res) => {
 // ─── PUT /api/familia-produtos/:id/inativar ──────────────────────────────────
 router.put('/:id/inativar', async (req, res) => {
   try {
+    const pc = _permFamilia(req);
+    if (pc.alterar !== 'S') return negarCad(res, 'Sem permissão para alterar família de produtos');
     await getPool().query(`UPDATE familia_produtos SET status='N' WHERE id=?`, [req.params.id]);
     res.json({ ok: true });
   } catch (err) {
@@ -116,6 +131,8 @@ router.put('/:id/inativar', async (req, res) => {
 // ─── DELETE /api/familia-produtos/:id ───────────────────────────────────────
 router.delete('/:id', async (req, res) => {
   try {
+    const pc = _permFamilia(req);
+    if (pc.excluir !== 'S') return negarCad(res, 'Sem permissão para excluir família de produtos');
     const pool = getPool();
     // Bloqueia se houver produtos vinculados
     const [[uso]] = await pool.query(

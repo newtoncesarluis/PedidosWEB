@@ -1,6 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const { getPool } = require('../config/database');
+const {
+  resolveVendedorIdForFilter,
+  buildPedidosVendedorWhereSync,
+} = require('../config/vendedor-visibilidade');
 
 // --- Listar Motivos ---
 router.get('/motivos', async (req, res) => {
@@ -29,7 +33,13 @@ router.get('/', async (req, res) => {
       params.push(`%${q}%`, `%${q}%`);
     }
     if (status) { conds.push('v.status = ?'); params.push(status); }
-    if (id_vendedor) { conds.push('v.id_vendedor = ?'); params.push(id_vendedor); }
+
+    const vendScope = buildPedidosVendedorWhereSync(req, id_vendedor, 'v.id_vendedor');
+    if (vendScope.clause) {
+      conds.push(vendScope.clause.replace(/^ AND /, ''));
+      params.push(...vendScope.params);
+    }
+
     if (data_de) { conds.push('v.data_visita >= ?'); params.push(data_de); }
     if (data_ate) { conds.push('v.data_visita <= ?'); params.push(data_ate); }
 

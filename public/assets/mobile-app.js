@@ -25,8 +25,76 @@
   window.sysrep = window.sysrep || {};
   window.sysrep.isMobileShellEmbed = isMobileShellEmbed;
 
+  function isHomeEmbed() {
+    try {
+      if (window.self === window.top) return false;
+      var parentPath = window.parent.location.pathname || '';
+      return parentPath === '/' || parentPath.endsWith('/home.html');
+    } catch (_) {
+      return false;
+    }
+  }
+
+  window.sysrep.isHomeEmbed = isHomeEmbed;
+
+  /** Documento onde o modal está renderizado (iframe ou home.html pai). */
+  window.sysrep.modalDoc = function (modalId) {
+    try {
+      if (isHomeEmbed()) {
+        var pel = window.parent.document.getElementById(modalId);
+        if (pel) return window.parent.document;
+      }
+    } catch (_) {}
+    return document;
+  };
+
+  /**
+   * Move modal para o body do home.html — centralização correta fora do iframe.
+   * cssText: regras CSS necessárias no documento pai.
+   */
+  window.sysrep.teleportModalToHome = function (modalEl, styleId, cssText) {
+    if (!isHomeEmbed() || !modalEl) return false;
+    try {
+      var pdoc = window.parent.document;
+      if (styleId && cssText && !pdoc.getElementById(styleId)) {
+        var st = pdoc.createElement('style');
+        st.id = styleId;
+        st.textContent = cssText;
+        pdoc.head.appendChild(st);
+      }
+      if (modalEl.dataset.sysrepHomeTeleported === '1') return true;
+      var ph = document.createComment('sysrep-ph-' + (modalEl.id || 'modal'));
+      if (modalEl.parentNode) modalEl.parentNode.replaceChild(ph, modalEl);
+      modalEl._sysrepPlaceholder = ph;
+      modalEl.dataset.sysrepHomeTeleported = '1';
+      pdoc.body.appendChild(modalEl);
+      pdoc.body.style.overflow = 'hidden';
+      return true;
+    } catch (_) {
+      return false;
+    }
+  };
+
+  window.sysrep.restoreModalFromHome = function (modalEl) {
+    if (!modalEl || modalEl.dataset.sysrepHomeTeleported !== '1') return;
+    try {
+      var ph = modalEl._sysrepPlaceholder;
+      if (ph && ph.parentNode) ph.parentNode.replaceChild(modalEl, ph);
+      else document.body.appendChild(modalEl);
+      delete modalEl.dataset.sysrepHomeTeleported;
+      delete modalEl._sysrepPlaceholder;
+      var pdoc = window.parent.document;
+      if (!pdoc.querySelector('[data-sysrep-home-teleported="1"]')) {
+        pdoc.body.style.overflow = '';
+      }
+    } catch (_) {}
+  };
+
   if (isMobileShellEmbed()) {
     document.documentElement.classList.add('sysrep-ms-embed');
+  }
+  if (isHomeEmbed()) {
+    document.documentElement.classList.add('sysrep-home-embed');
   }
 })();
 

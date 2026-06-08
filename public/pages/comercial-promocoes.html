@@ -241,6 +241,7 @@
       <label>Aba</label>
       <div class="seg" id="segAba">
         <button type="button" data-v="campanhas" class="active">Campanhas</button>
+        <button type="button" data-v="destaques">Destaques</button>
         <button type="button" data-v="itens">Itens</button>
         <button type="button" data-v="dashboard">Dashboard</button>
         <button type="button" data-v="relatorio">Relatório</button>
@@ -254,8 +255,11 @@
     <div class="filter" id="filtroDtFim" style="display:none"><label for="dt_fim">Até</label><input id="dt_fim" type="date"></div>
     <div class="filter" id="filtroCampDash" style="display:none"><label for="dash_campanha">Campanha</label>
       <select id="dash_campanha"><option value="">Todas (com auditoria)</option></select></div>
+    <div class="filter" id="filtroFornDest" style="display:none"><label for="dc_filtro_forn">Fábrica</label>
+      <select id="dc_filtro_forn"><option value="">Todas</option></select></div>
     <button class="btn btn-primary" id="btnAplicar">Atualizar</button>
     <button class="btn btn-secondary" id="btnNovaCampanha" type="button">+ Nova campanha</button>
+    <button class="btn btn-secondary" id="btnNovoDestaque" type="button" style="display:none">+ Novo destaque</button>
     <button class="btn btn-secondary" id="btnCompartilharGeral" type="button" title="Link público com todas as promoções ativas">Compartilhar</button>
     <button class="btn btn-secondary" type="button" onclick="irParaCadastroProdutos()">Produtos</button>
   </div>
@@ -266,6 +270,11 @@
       <h2>Campanhas comerciais</h2>
       <div class="panel-sub" id="campanhasSub">Crie a campanha, escolha categoria ou grupo (opcional) e salve — os produtos entram automaticamente na promoção.</div>
       <div class="list" id="campanhaList"></div>
+    </div>
+    <div id="painelDestaquesCom" style="display:none" class="panel">
+      <h2>Destaques comerciais</h2>
+      <div class="panel-sub">Marketing no catálogo do pedido <strong>sem desconto</strong> — lançamentos, estratégicos ou estoque. Badge <strong>DESTAQUE</strong> na aba Destaques (diferente de <strong>PROMO</strong>).</div>
+      <div class="list" id="destaqueComList"></div>
     </div>
     <div id="painelLista" style="display:none" class="panel">
       <h2>Promoções por produto</h2>
@@ -639,6 +648,57 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="modalDestaqueCom">
+  <div class="modal" style="max-width:560px">
+    <h3 id="modalDestaqueComTitulo">Novo destaque comercial</h3>
+    <p class="modal-campanha-intro">Destaque de marketing no catálogo — não altera preço.</p>
+    <div class="campanha-grid campanha-grid-2">
+      <div class="campo full">
+        <label for="dc_busca">Buscar produto</label>
+        <input id="dc_busca" type="text" autocomplete="off" placeholder="Nome ou código">
+        <div id="dc_busca_res" class="share-ac-list" style="position:relative;max-height:140px;display:none;margin-top:6px"></div>
+      </div>
+      <div class="campo">
+        <label for="dc_cod_produto">Código produto *</label>
+        <input id="dc_cod_produto" type="number" min="1" step="1" autocomplete="off">
+      </div>
+      <div class="campo">
+        <label for="dc_cod_fornecedor">Fábrica (opc.)</label>
+        <select id="dc_cod_fornecedor"><option value="">Todas / qualquer</option></select>
+      </div>
+      <div class="campo full">
+        <label for="dc_titulo">Título curto</label>
+        <input id="dc_titulo" type="text" maxlength="200" autocomplete="off">
+      </div>
+      <div class="campo full">
+        <label for="dc_texto">Texto marketing</label>
+        <textarea id="dc_texto" rows="3" maxlength="500"></textarea>
+      </div>
+      <div class="campo">
+        <label for="dc_prioridade">Prioridade</label>
+        <input id="dc_prioridade" type="number" step="1" value="0" autocomplete="off">
+      </div>
+      <div class="campo">
+        <label for="dc_data_inicio">Início</label>
+        <input id="dc_data_inicio" type="date">
+      </div>
+      <div class="campo">
+        <label for="dc_data_fim">Fim</label>
+        <input id="dc_data_fim" type="date">
+      </div>
+      <div class="campo">
+        <label style="display:flex;align-items:center;gap:8px;margin-top:22px;font-size:12px;font-weight:700">
+          <input type="checkbox" id="dc_ativo" checked> Ativo
+        </label>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" type="button" onclick="fecharModalDestaqueCom()">Cancelar</button>
+      <button class="btn btn-primary" type="button" id="btnSalvarDestaqueCom">Salvar</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modalProrrogar">
   <div class="modal" style="max-width:420px">
     <h3>Prorrogar campanha</h3>
@@ -691,9 +751,56 @@
 </div>
 
 <script>
+const PROMO_PERM_KEYS = ['incluir_promocoes', 'alterar_promocoes', 'excluir_promocoes', 'prorrogar_promocoes', 'manutencao_promocoes'];
+let _permPromo = {};
+
 const fmtMoeda = v => 'R$ ' + (parseFloat(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtData = d => d ? String(d).slice(0, 10).split('-').reverse().join('/') : '—';
 function token(){ return localStorage.getItem('token') || sessionStorage.getItem('token') || ''; }
+
+function isAdminPromo() {
+  try {
+    const t = token();
+    if (!t) return false;
+    const p = JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    return p.perfil == 1 || p.role === 'admin';
+  } catch (_) { return false; }
+}
+
+function podePromo(k) {
+  if (isAdminPromo() || _permPromo.isAdmin) return true;
+  return _permPromo[k] === 'S';
+}
+
+function temAcessoPromocoes() {
+  if (isAdminPromo() || _permPromo.isAdmin) return true;
+  return PROMO_PERM_KEYS.some((k) => _permPromo[k] === 'S');
+}
+
+function aplicarPermissoesPromocoes() {
+  if (!temAcessoPromocoes()) {
+    document.body.innerHTML = '<div style="padding:48px 24px;text-align:center;color:var(--text)"><h2 style="margin:0 0 12px">Acesso negado</h2><p style="color:var(--text2)">Seu perfil não possui permissão para Promoções de Produtos.</p></div>';
+    return false;
+  }
+  const show = (id, ok) => { const el = document.getElementById(id); if (el) el.style.display = ok ? '' : 'none'; };
+  show('btnNovaCampanha', podePromo('incluir_promocoes'));
+  show('btnNovoDestaque', podePromo('incluir_promocoes'));
+  show('btnCompartilharGeral', podePromo('alterar_promocoes'));
+  return true;
+}
+
+async function carregarPermissoesPromocoes() {
+  try {
+    const parentPerm = window.parent?.App?.perm;
+    if (parentPerm) _permPromo = { ..._permPromo, ...parentPerm };
+  } catch (_) {}
+  try {
+    const r = await fetch('/api/auth/minhas-permissoes', { headers: { Authorization: 'Bearer ' + token() } });
+    if (r.ok) _permPromo = { ..._permPromo, ...(await r.json()) };
+  } catch (_) {}
+  return aplicarPermissoesPromocoes();
+}
+
 async function api(url, opts = {}) {
   const r = await fetch(url, {
     ...opts,
@@ -767,16 +874,20 @@ function setAba(v) {
   _aba = v;
   document.querySelectorAll('#segAba button').forEach(b => b.classList.toggle('active', b.dataset.v === v));
   const isPeriodo = v === 'relatorio' || v === 'dashboard';
+  const isDest = v === 'destaques';
   document.getElementById('filtroBusca').style.display = (v === 'relatorio' || v === 'dashboard') ? 'none' : '';
-  document.getElementById('filtroAtivo').style.display = (v === 'campanhas' || v === 'itens') ? '' : 'none';
+  document.getElementById('filtroAtivo').style.display = (v === 'campanhas' || v === 'itens' || isDest) ? '' : 'none';
+  document.getElementById('filtroFornDest').style.display = isDest ? '' : 'none';
   document.getElementById('filtroDtIni').style.display = isPeriodo ? '' : 'none';
   document.getElementById('filtroDtFim').style.display = isPeriodo ? '' : 'none';
   document.getElementById('filtroCampDash').style.display = v === 'dashboard' ? '' : 'none';
   document.getElementById('painelCampanhas').style.display = v === 'campanhas' ? '' : 'none';
+  document.getElementById('painelDestaquesCom').style.display = isDest ? '' : 'none';
   document.getElementById('painelLista').style.display = v === 'itens' ? '' : 'none';
   document.getElementById('painelDashboard').style.display = v === 'dashboard' ? '' : 'none';
   document.getElementById('painelRelatorio').style.display = v === 'relatorio' ? '' : 'none';
   document.getElementById('btnNovaCampanha').style.display = v === 'campanhas' ? '' : 'none';
+  document.getElementById('btnNovoDestaque').style.display = isDest && podePromo('incluir_promocoes') ? '' : 'none';
   _offset = 0;
   carregar();
 }
@@ -979,6 +1090,8 @@ async function carregarLookups() {
     ['mc_id_regiao', '/api/lookups/regioes', 'id', 'descricao'],
     ['mc_cod_fornecedor', '/api/lookups/fornecedores', 'id', 'nome'],
     ['mp_fornecedor', '/api/lookups/fornecedores', 'id', 'nome'],
+    ['dc_cod_fornecedor', '/api/lookups/fornecedores', 'id', 'nome'],
+    ['dc_filtro_forn', '/api/lookups/fornecedores', 'id', 'nome'],
     ['mc_categoria', '/api/lookups/categorias', 'id', 'descricao'],
     ['mp_categoria', '/api/lookups/categorias', 'id', 'descricao'],
     ['mp_grupo', '/api/produtos/grupos', null, null, true],
@@ -1870,13 +1983,13 @@ async function carregarCampanhas() {
             <strong>${c.qtd_produtos || 0}</strong> produto(s) · <strong>${c.qtd_escopos || 0}</strong> escopo(s)</div>
         </div>
         <div class="item-actions">
-          <button class="btn btn-secondary btn-sm btn-share-campanha" type="button" data-share-campanha="${c.id}" data-share-titulo="${escHtml(c.descricao || '')}" data-share-qtd="${c.qtd_produtos || 0}" ${(c.qtd_produtos || 0) > 0 ? '' : 'disabled title="Inclua produtos na campanha"'}>Compartilhar</button>
-          <button class="btn btn-secondary btn-sm" type="button" onclick="acaoCampanha(${c.id},'conferir')" ${(c.qtd_produtos || 0) > 0 ? '' : 'disabled title="Inclua produtos com + Produtos"'}>Conferir</button>
-          <button class="btn btn-secondary btn-sm" type="button" onclick="acaoCampanha(${c.id},'produtos')">+ Produtos</button>
-          <button class="btn btn-secondary btn-sm" type="button" onclick="acaoCampanha(${c.id},'editar')">Editar</button>
-          <button class="btn btn-secondary btn-sm" type="button" onclick="acaoCampanha(${c.id},'prorrogar')">Prorrogar</button>
-          <button class="btn btn-secondary btn-sm" type="button" onclick="acaoCampanha(${c.id},'${c.ativo ? 'inativar' : 'ativar'}')">${c.ativo ? 'Inativar' : 'Ativar'}</button>
-          <button class="btn btn-danger btn-sm" type="button" onclick="acaoCampanha(${c.id},'excluir')">Excluir</button>
+          ${podePromo('alterar_promocoes') ? `<button class="btn btn-secondary btn-sm btn-share-campanha" type="button" data-share-campanha="${c.id}" data-share-titulo="${escHtml(c.descricao || '')}" data-share-qtd="${c.qtd_produtos || 0}" ${(c.qtd_produtos || 0) > 0 ? '' : 'disabled title="Inclua produtos na campanha"'}>Compartilhar</button>` : ''}
+          ${podePromo('alterar_promocoes') ? `<button class="btn btn-secondary btn-sm" type="button" onclick="acaoCampanha(${c.id},'conferir')" ${(c.qtd_produtos || 0) > 0 ? '' : 'disabled title="Inclua produtos com + Produtos"'}>Conferir</button>` : ''}
+          ${podePromo('alterar_promocoes') ? `<button class="btn btn-secondary btn-sm" type="button" onclick="acaoCampanha(${c.id},'produtos')">+ Produtos</button>` : ''}
+          ${podePromo('alterar_promocoes') ? `<button class="btn btn-secondary btn-sm" type="button" onclick="acaoCampanha(${c.id},'editar')">Editar</button>` : ''}
+          ${podePromo('prorrogar_promocoes') ? `<button class="btn btn-secondary btn-sm" type="button" onclick="acaoCampanha(${c.id},'prorrogar')">Prorrogar</button>` : ''}
+          ${podePromo('manutencao_promocoes') ? `<button class="btn btn-secondary btn-sm" type="button" onclick="acaoCampanha(${c.id},'${c.ativo ? 'inativar' : 'ativar'}')">${c.ativo ? 'Inativar' : 'Ativar'}</button>` : ''}
+          ${podePromo('excluir_promocoes') ? `<button class="btn btn-danger btn-sm" type="button" onclick="acaoCampanha(${c.id},'excluir')">Excluir</button>` : ''}
         </div>
       </div>
     </div>`;
@@ -2054,6 +2167,7 @@ async function carregar() {
   try {
     await carregarLookups();
     if (_aba === 'campanhas') await carregarCampanhas();
+    else if (_aba === 'destaques') await carregarDestaquesComerciais();
     else if (_aba === 'itens') await carregarLista();
     else if (_aba === 'dashboard') await carregarDashboard();
     else await carregarRelatorio();
@@ -2062,6 +2176,145 @@ async function carregar() {
     box.className = 'error';
     box.textContent = e.message || 'Erro ao carregar';
   }
+}
+
+let _editDestaqueId = null;
+let _dcBuscaTimer = null;
+
+function fmtDataCurta(d) {
+  if (!d) return '—';
+  const s = String(d).slice(0, 10);
+  const [y, m, day] = s.split('-');
+  return y && m && day ? `${day}/${m}/${y}` : s;
+}
+
+async function carregarDestaquesComerciais() {
+  const list = document.getElementById('destaqueComList');
+  if (!list) return;
+  const q = encodeURIComponent(document.getElementById('q')?.value || '');
+  const ativo = document.getElementById('ativo')?.value || 'S';
+  const forn = document.getElementById('dc_filtro_forn')?.value || '';
+  let url = `/api/produtos/destaques-comerciais?q=${q}&ativo=${ativo}&limit=200`;
+  if (forn) url += `&cod_fornecedor=${forn}`;
+  const r = await api(url);
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.error || 'Erro ao listar destaques');
+  const rows = d.data || [];
+  if (!rows.length) {
+    list.innerHTML = '<div class="loading" style="padding:24px">Nenhum destaque comercial cadastrado.</div>';
+    return;
+  }
+  list.innerHTML = rows.map(row => {
+    const vig = `${fmtDataCurta(row.data_inicio)} → ${fmtDataCurta(row.data_fim)}`;
+    const fornTxt = row.nome_fornecedor ? escHtml(row.nome_fornecedor) : 'Todas as fábricas';
+    return `<div class="item">
+      <div class="item-top">
+        <div>
+          <div class="name">${escHtml(row.desc_produto || 'Produto')} <span class="badge${row.ativo === 'S' ? '' : ' off'}">${row.ativo === 'S' ? 'Ativo' : 'Inativo'}</span></div>
+          <div class="meta">Cód. ${row.cod_produto}${row.cod_fabricante ? ' · Ref. ' + escHtml(row.cod_fabricante) : ''} · ${fornTxt}</div>
+          <div class="meta">${escHtml(row.titulo || row.texto_marketing || 'Sem título')} · Prioridade ${row.prioridade || 0} · ${vig}</div>
+        </div>
+        <div class="item-actions">
+          ${podePromo('alterar_promocoes') ? `<button type="button" class="btn btn-secondary btn-sm" data-dc-edit="${row.id}">Editar</button>` : ''}
+          ${podePromo('excluir_promocoes') ? `<button type="button" class="btn btn-danger btn-sm" data-dc-del="${row.id}">Excluir</button>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  list.querySelectorAll('[data-dc-edit]').forEach(btn => {
+    btn.addEventListener('click', () => abrirModalDestaqueCom(parseInt(btn.dataset.dcEdit, 10)));
+  });
+  list.querySelectorAll('[data-dc-del]').forEach(btn => {
+    btn.addEventListener('click', () => excluirDestaqueCom(parseInt(btn.dataset.dcDel, 10)));
+  });
+}
+
+function fecharModalDestaqueCom() {
+  document.getElementById('modalDestaqueCom')?.classList.remove('show');
+  _editDestaqueId = null;
+}
+
+async function abrirModalDestaqueCom(id = null) {
+  _editDestaqueId = id || null;
+  document.getElementById('modalDestaqueComTitulo').textContent = id ? 'Editar destaque comercial' : 'Novo destaque comercial';
+  document.getElementById('dc_busca').value = '';
+  document.getElementById('dc_busca_res').style.display = 'none';
+  document.getElementById('dc_cod_produto').value = '';
+  document.getElementById('dc_cod_fornecedor').value = '';
+  document.getElementById('dc_titulo').value = '';
+  document.getElementById('dc_texto').value = '';
+  document.getElementById('dc_prioridade').value = '0';
+  document.getElementById('dc_data_inicio').value = '';
+  document.getElementById('dc_data_fim').value = '';
+  document.getElementById('dc_ativo').checked = true;
+  if (id) {
+    const r = await api(`/api/produtos/destaques-comerciais/${id}`);
+    const row = await r.json();
+    if (!r.ok) { alert(row.error || 'Erro'); return; }
+    document.getElementById('dc_cod_produto').value = row.cod_produto || '';
+    document.getElementById('dc_cod_fornecedor').value = row.cod_fornecedor || '';
+    document.getElementById('dc_titulo').value = row.titulo || '';
+    document.getElementById('dc_texto').value = row.texto_marketing || '';
+    document.getElementById('dc_prioridade').value = row.prioridade || 0;
+    document.getElementById('dc_data_inicio').value = row.data_inicio ? String(row.data_inicio).slice(0, 10) : '';
+    document.getElementById('dc_data_fim').value = row.data_fim ? String(row.data_fim).slice(0, 10) : '';
+    document.getElementById('dc_ativo').checked = row.ativo !== 'N';
+    document.getElementById('dc_busca').value = row.desc_produto || '';
+  }
+  document.getElementById('modalDestaqueCom').classList.add('show');
+}
+
+async function salvarDestaqueCom() {
+  const body = {
+    cod_produto: parseInt(document.getElementById('dc_cod_produto').value, 10),
+    cod_fornecedor: document.getElementById('dc_cod_fornecedor').value || null,
+    titulo: document.getElementById('dc_titulo').value,
+    texto_marketing: document.getElementById('dc_texto').value,
+    prioridade: parseInt(document.getElementById('dc_prioridade').value, 10) || 0,
+    data_inicio: document.getElementById('dc_data_inicio').value || null,
+    data_fim: document.getElementById('dc_data_fim').value || null,
+    ativo: document.getElementById('dc_ativo').checked ? 'S' : 'N',
+  };
+  const url = _editDestaqueId ? `/api/produtos/destaques-comerciais/${_editDestaqueId}` : '/api/produtos/destaques-comerciais';
+  const r = await api(url, { method: _editDestaqueId ? 'PUT' : 'POST', body: JSON.stringify(body) });
+  const d = await r.json();
+  if (!r.ok) { alert(d.error || 'Erro ao salvar'); return; }
+  fecharModalDestaqueCom();
+  if (_aba === 'destaques') await carregarDestaquesComerciais();
+}
+
+async function excluirDestaqueCom(id) {
+  if (!confirm('Excluir este destaque comercial?')) return;
+  const r = await api(`/api/produtos/destaques-comerciais/${id}`, { method: 'DELETE' });
+  const d = await r.json();
+  if (!r.ok) { alert(d.error || 'Erro'); return; }
+  await carregarDestaquesComerciais();
+}
+
+function buscarProdutoDestaqueCom(q) {
+  clearTimeout(_dcBuscaTimer);
+  const box = document.getElementById('dc_busca_res');
+  if (!box) return;
+  const term = String(q || '').trim();
+  if (term.length < 2) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  _dcBuscaTimer = setTimeout(async () => {
+    try {
+      const r = await api(`/api/produtos?q=${encodeURIComponent(term)}&limit=12`);
+      const d = await r.json();
+      const items = d.data || d.produtos || d || [];
+      const arr = Array.isArray(items) ? items : [];
+      if (!arr.length) { box.innerHTML = '<div class="share-ac-item">Nenhum produto</div>'; box.style.display = ''; return; }
+      box.innerHTML = arr.map(p => `<div class="share-ac-item" data-dc-pid="${p.ID || p.id || p.cod_produto}">${escHtml(p.descricao || p.desc_produto || '')}<small>Cód. ${p.ID || p.id}</small></div>`).join('');
+      box.style.display = '';
+      box.querySelectorAll('[data-dc-pid]').forEach(el => {
+        el.addEventListener('click', () => {
+          document.getElementById('dc_cod_produto').value = el.dataset.dcPid;
+          document.getElementById('dc_busca').value = el.textContent.trim().split('\n')[0];
+          box.style.display = 'none';
+        });
+      });
+    } catch (_) { box.style.display = 'none'; }
+  }, 350);
 }
 
 document.getElementById('segAba').addEventListener('click', e => {
@@ -2074,6 +2327,9 @@ document.getElementById('btnPrev').addEventListener('click', () => { _offset = M
 document.getElementById('btnNext').addEventListener('click', () => { _offset += _limit; carregar(); });
 document.getElementById('q').addEventListener('keydown', e => { if (e.key === 'Enter') { _offset = 0; carregar(); } });
 document.getElementById('btnNovaCampanha').addEventListener('click', () => abrirModalCampanha());
+document.getElementById('btnNovoDestaque')?.addEventListener('click', () => abrirModalDestaqueCom());
+document.getElementById('btnSalvarDestaqueCom')?.addEventListener('click', () => salvarDestaqueCom());
+document.getElementById('dc_busca')?.addEventListener('input', e => buscarProdutoDestaqueCom(e.target.value));
 document.getElementById('btnSalvarCampanha').addEventListener('click', () => salvarCampanha());
 document.getElementById('btnConferirCampanhaForm')?.addEventListener('click', () => conferirCampanhaAtualForm());
 document.getElementById('btnConfVoltar')?.addEventListener('click', () => fecharModalConferir());
@@ -2329,7 +2585,12 @@ function irPromocoesDoProduto(codProduto) {
 }
 
 defaultDatas();
-setAba('campanhas');
+carregarPermissoesPromocoes().then((ok) => {
+  if (!ok) return;
+  setAba('campanhas');
+  carregar();
+});
 </script>
+<script src="/assets/cadastros-permissao.js"></script>
 </body>
 </html>

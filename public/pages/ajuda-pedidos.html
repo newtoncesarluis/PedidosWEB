@@ -30,7 +30,11 @@
           <a class="nav-link" href="?sec=visao-geral">Visao geral da tela</a>
           <a class="nav-link" href="?sec=novo-pedido">Como criar um pedido</a>
           <a class="nav-link" href="?sec=itens">Cadastro de itens</a>
+          <a class="nav-link" href="?sec=promocoes-pedido">Promoções no pedido</a>
+          <a class="nav-link" href="?sec=feirinha-pedido">Resumo da Feirinha</a>
+          <a class="nav-link" href="?sec=motor-catalogo-pedido">Motor do catálogo</a>
           <a class="nav-link" href="?sec=preco-colunas-itens">Preco padrao e colunas</a>
+          <a class="nav-link" href="?sec=preco-por-peso">Preço por peso</a>
           <a class="nav-link" href="?sec=importacao">Importar XML ou Excel</a>
           <a class="nav-link" href="?sec=financeiro">Financeiro e validacoes</a>
           <a class="nav-link" href="?sec=envio-faturamento">Envio e faturamento</a>
@@ -73,7 +77,223 @@
             <li>Algumas fabricas nao aceitam item duplicado na mesma lista.</li>
             <li>Quando a tabela de preco ativa nao encontra valor especifico, a tela pode aplicar preco base e avisar o usuario.</li>
             <li>Para comparar preco de tabela/catalogo com o preco negociado e personalizar colunas na grade, veja <a href="?sec=preco-colunas-itens">Preco padrao, Ocultar padrao e Colunas</a>.</li>
+            <li>Produtos em promocao, abas do catalogo e simulador de quantidade: veja <a href="?sec=promocoes-pedido">Promoções no pedido</a> e <a href="?sec=motor-catalogo-pedido">Motor do catálogo</a>.</li>
+            <li>Produtos vendidos por quilograma (caixa com peso fixo): veja <a href="?sec=preco-por-peso">Preço por peso</a>.</li>
           </ul>
+        </section>
+        <section class="section help-section" id="preco-por-peso">
+          <h3>Preço por peso no item do pedido</h3>
+          <p>
+            Quando o produto está cadastrado com <strong>Preço por peso = Sim</strong>
+            (<a href="/pages/ajuda-produtos.html?sec=preco-por-peso">Ajuda Produtos › Preço por peso</a>),
+            o preço informado no item é <strong>R$/kg</strong> e o total segue a mesma regra do Gestão Pedidos:
+          </p>
+          <div class="callout">
+            <code>Total do item = Quantidade × Peso (kg) × Preço/kg</code>
+            <br>Ex.: 2 cx × 18 kg × R$ 75,90/kg = <strong>R$ 2.732,40</strong>
+          </div>
+
+          <h4 style="margin:16px 0 8px;font-size:13px;font-weight:700;color:var(--text)">Ao incluir o produto</h4>
+          <ul class="rules">
+            <li>O campo <strong>Peso (kg)</strong> aparece no formulário do item (antes chamado Embalagem).</li>
+            <li>O peso é preenchido automaticamente com o valor do cadastro (<code>kilo_embalagem</code>).</li>
+            <li>Uma dica abaixo do campo mostra o cálculo para 1 unidade e para a quantidade informada.</li>
+            <li>Alterar quantidade, preço, desconto ou peso recalcula o total na hora.</li>
+          </ul>
+
+          <h4 style="margin:16px 0 8px;font-size:13px;font-weight:700;color:var(--text)">Produtos sem preço por peso</h4>
+          <p>
+            Continuam com <code>Total = Qtd × Preço</code>. Se a configuração global
+            <strong>Somar Embalagem no Pedido</strong> estiver ativa (Configurações do sistema),
+            o campo <strong>Embalagem</strong> volta a multiplicar o total — comportamento legado, independente de <code>precopeso</code>.
+          </p>
+
+          <h4 style="margin:16px 0 8px;font-size:13px;font-weight:700;color:var(--text)">Peso total do pedido</h4>
+          <p>
+            Quando a fábrica tem <strong>Exibir peso na tela do pedido</strong> ligado, a barra de totais
+            e o rodapé da aba Itens somam o peso dos itens (para preço por peso: Qtd × peso do item).
+          </p>
+
+          <h4 style="margin:16px 0 8px;font-size:13px;font-weight:700;color:var(--text)">Gravação no banco</h4>
+          <p>
+            O peso usado no cálculo grava em <code>itensped.kilo_embalagem</code> (legado Delphi).
+            O flag <code>precopeso</code> vem do cadastro do produto no momento do pedido.
+            Ao salvar, o servidor recalcula o total com a mesma fórmula do navegador.
+          </p>
+
+          <h4 style="margin:16px 0 8px;font-size:13px;font-weight:700;color:var(--text)">Na impressão e no PDF</h4>
+          <ul class="rules">
+            <li>Se o pedido <strong>não tiver</strong> nenhum produto com preço por peso, a impressão permanece igual à de sempre (sem coluna de peso).</li>
+            <li>Se houver ao menos um item com <code>precopeso=S</code>, aparece a coluna <strong>Peso (kg)</strong> — preenchida só nessas linhas.</li>
+            <li>Na descrição do item, uma linha auxiliar mostra o cálculo (ex.: <code>1 cx × 18,000 kg × R$ 75,90/kg</code>).</li>
+            <li>O preço unitário exibe o sufixo <strong>/kg</strong> apenas nos itens por peso; os demais itens do mesmo pedido não são alterados.</li>
+            <li>O <strong>Vlr Total</strong> de cada linha e os totais do pedido vêm do valor já gravado — a impressão não recalcula itens comuns.</li>
+          </ul>
+        </section>
+        <section class="section help-section" id="promocoes-pedido">
+          <h3>Promoções no pedido</h3>
+          <p>
+            Quando existem campanhas ativas (<code>produto_promocoes</code>), o pedido aplica preço promocional
+            automaticamente, destaca itens na busca e ajuda o vendedor a atingir a quantidade mínima da promoção.
+            A gestão das campanhas (criar, categoria, grupo) fica em
+            <a href="/pages/ajuda-produtos.html?sec=campanhas-centralizadas">Ajuda Produtos › Campanhas centralizadas</a>.
+          </p>
+
+          <h4 style="margin:16px 0 8px;font-size:13px;font-weight:700;color:var(--text)">Promoções da fábrica</h4>
+          <p>Com a <strong>fábrica</strong> selecionada no cabeçalho do pedido:</p>
+          <ul class="rules">
+            <li>Aparece o botão <strong>Promoções (N)</strong> nas ações rápidas da fábrica — <em>N</em> é a quantidade de produtos em promoção daquela representada.</li>
+            <li>Na aba <strong>Itens</strong>, o botão <strong>Promoções fábrica</strong> abre o mesmo catálogo filtrado.</li>
+            <li>Ao clicar, abre a busca de produtos já na aba <strong>Promoções</strong>, listando só itens com campanha vigente para aquela fábrica.</li>
+          </ul>
+
+          <h4 style="margin:16px 0 8px;font-size:13px;font-weight:700;color:var(--text)">Abas do catálogo na busca de produtos</h4>
+          <p>Ao buscar produtos (botão de lupa ou <strong>Adicionar Item</strong>), seis filtros rápidos:</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Aba</th><th>O que mostra</th></tr></thead>
+              <tbody>
+                <tr><td><strong>Todos</strong></td><td>Catálogo completo (badges PROMO, DESTAQUE e NOVO quando aplicável).</td></tr>
+                <tr><td><strong>Reposição</strong></td><td>Sugestão de recompra pelo histórico do cliente: última compra, média/mês, qtd sugerida, semáforo e <strong>+ Incluir sugeridos</strong>.</td></tr>
+                <tr><td><strong>Promoções</strong></td><td>Somente produtos com promoção ativa para cliente, região, fornecedor e tabela do pedido.</td></tr>
+                <tr><td><strong>Destaques</strong></td><td>Destaques comerciais (badge <strong>DESTAQUE</strong>, sem desconto) + promos marcadas como destaque (badge <strong>PROMO</strong>).</td></tr>
+                <tr><td><strong>Oportunidades</strong></td><td>Produtos populares na região do cliente que ele ainda não comprou.</td></tr>
+                <tr><td><strong>Lançamentos</strong></td><td>Produtos cadastrados nos últimos 90 dias (badge <strong>NOVO</strong>).</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>Cadastro de destaques comerciais: <a href="/pages/ajuda-produtos.html?sec=destaques-comerciais">Ajuda Produtos › Destaques comerciais</a>.</p>
+
+          <h4 style="margin:16px 0 8px;font-size:13px;font-weight:700;color:var(--text)">Preço promocional e simulador de quantidade</h4>
+          <ul class="rules">
+            <li>Na lista, produtos em promo mostram preço riscado + preço promocional quando a qtd. mínima já é atendida.</li>
+            <li>Se a qtd. mínima for maior que 1, aparece <em>promo a partir de X un</em> ou <em>+N un para promo…</em> com economia estimada.</li>
+            <li>Ao editar a <strong>quantidade</strong> do item (drawer/subformulário), o hint abaixo do campo avisa se falta unidade para liberar a promo ou se a campanha já foi aplicada.</li>
+            <li>Na aba Itens, a barra de dicas (<strong>promoSimBar</strong>) resume itens do pedido que estão perto de atingir a quantidade mínima — ex.: “Produto X: +2 un para promo…”.</li>
+            <li>No catálogo mobile (+/−), novos itens já entram com preço promocional quando a regra permite.</li>
+            <li>A pill <strong>Campanha</strong> no item permite escolher manualmente a promo; quantidade abaixo do mínimo gera aviso.</li>
+          </ul>
+          <div class="callout">
+            Campanhas com <strong>tabelas de preço</strong> marcadas só aparecem e só aplicam preço promocional quando
+            a tabela ativa no pedido for uma delas. Campanhas sem tabela marcada valem para qualquer tabela.
+            Detalhes em <a href="/pages/ajuda-produtos.html?sec=campanhas-centralizadas">Ajuda Produtos › Campanhas centralizadas › Tabelas de preço</a>.
+          </div>
+          <div class="callout warn">
+            Com <strong>tabela de preço</strong> ativa no pedido, a promoção <strong>não substitui</strong> o preço da tabela.
+            O simulador e a aplicação automática ficam desligados enquanto houver tabela selecionada.
+          </div>
+          <div class="callout">
+            Itens salvos com promo gravam <code>id_promocao</code> e <code>promocao_descricao</code> no pedido — isso alimenta
+            o dashboard de campanhas em Comercial › Promoções.
+            Orçamentos enviados pelo <strong>link publico de promocoes</strong> entram com origem
+            <code>PROMO_SHARE</code> e tipo <strong>ORÇAMENTO</strong>. Detalhes em
+            <a href="/pages/ajuda-produtos.html?sec=link-publico-promocoes">Ajuda Produtos › Link publico de promocoes</a>.
+          </div>
+        </section>
+        <section class="section help-section" id="motor-catalogo-pedido">
+          <h3>Motor do catálogo — Reposição, Oportunidades e Lançamentos</h3>
+          <p>Além de promoções, o catálogo do pedido orienta o vendedor com dados do ERP.</p>
+
+          <h4 style="margin:16px 0 8px;font-size:13px;font-weight:700;color:var(--text)">Reposição</h4>
+          <ul class="rules">
+            <li>Exige <strong>cliente</strong> selecionado (e fábrica, se o sistema exigir).</li>
+            <li>Analisa compras dos últimos 18 meses filtradas pela fábrica do pedido.</li>
+            <li>Colunas: produto, dias desde a última compra, média mensal, quantidade sugerida e semáforo (🟢 em dia · 🟡 atenção · 🔴 atrasado).</li>
+            <li>Hint por item: <em>Comprou X un. há N dias</em>.</li>
+            <li><strong>+ Incluir sugeridos</strong> adiciona todos os itens com quantidade sugerida ao pedido (com confirmação).</li>
+            <li>Cliente sem histórico: mensagem explicativa — mesma ideia de recompra por histórico de compras.</li>
+          </ul>
+
+          <h4 style="margin:16px 0 8px;font-size:13px;font-weight:700;color:var(--text)">Oportunidades</h4>
+          <ul class="rules">
+            <li>Produtos que clientes da <strong>mesma região</strong> compram nos últimos 12 meses e este cliente <strong>nunca comprou</strong>.</li>
+            <li>Badge <strong>OPORTUNIDADE</strong> e contagem de clientes similares na região.</li>
+            <li>Cliente precisa ter região cadastrada para resultados mais precisos.</li>
+          </ul>
+
+          <h4 style="margin:16px 0 8px;font-size:13px;font-weight:700;color:var(--text)">Lançamentos</h4>
+          <ul class="rules">
+            <li>Produtos com <code>dt_cadastro</code> nos últimos <strong>90 dias</strong> da fábrica selecionada.</li>
+            <li>Badge <strong>NOVO</strong> na listagem (também visível na aba Todos).</li>
+          </ul>
+
+          <h4 style="margin:16px 0 8px;font-size:13px;font-weight:700;color:var(--text)">Destaques comerciais</h4>
+          <p>
+            Na aba <strong>Destaques</strong>, entram tanto promos marcadas como destaque (PROMO) quanto
+            <strong>destaques comerciais</strong> cadastrados em Comercial › Promoções › Destaques — marketing sem desconto (DESTAQUE).
+            Veja <a href="/pages/ajuda-produtos.html?sec=destaques-comerciais">Ajuda Produtos › Destaques comerciais</a>.
+          </p>
+        </section>
+        <section class="section help-section" id="feirinha-pedido">
+          <h3>Resumo da Feirinha (preco medio de revenda)</h3>
+          <p>
+            Ferramenta de <strong>consultoria comercial</strong> para montar kits estilo «Feirinha R$ 7,60»:
+            varios produtos no pedido, embalagens diferentes, e o sistema mostra o <strong>preco medio por peca</strong>
+            para o lojista revender tudo na mesma faixa (R$ 10, R$ 15, R$ 20…).
+          </p>
+          <div class="callout">
+            O painel so aparece quando a fabrica do pedido tem
+            <strong>Kit Feirinha / Preco medio de revenda</strong> ligado na ficha do fornecedor
+            (<a href="/pages/ajuda-fornecedores.html?sec=feirinha">Ajuda Fornecedores › Kit Feirinha</a>).
+          </div>
+          <h4 style="margin:16px 0 8px;font-size:13px;font-weight:700">Onde fica</h4>
+          <ul class="rules">
+            <li>Aba <strong>Itens</strong> — card lateral <strong>Resumo da Feirinha</strong> (no celular, acima da lista de itens).</li>
+            <li>Recolha o painel com o botao <strong>▲</strong> no canto do card.</li>
+          </ul>
+          <h4 style="margin:16px 0 8px;font-size:13px;font-weight:700">Indicadores (tempo real)</h4>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Campo</th><th>Calculo</th></tr></thead>
+              <tbody>
+                <tr><td>Quantidade total</td><td>Soma das quantidades dos itens ativos.</td></tr>
+                <tr><td>Valor total</td><td>Soma do total liquido de cada linha (preco negociado × qtd, com desconto/acrescimo da linha).</td></tr>
+                <tr><td>Preco medio unitario</td><td><code>Valor total ÷ Quantidade total</code></td></tr>
+                <tr><td>Selo de faixa</td><td>Classificacao automatica conforme a media de custo (veja tabela abaixo).</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <h4 style="margin:16px 0 8px;font-size:13px;font-weight:700">Faixas automaticas</h4>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Preco medio (custo)</th><th>Selo</th><th>Revenda tipica</th></tr></thead>
+              <tbody>
+                <tr><td>ate R$ 3,99</td><td>🟢 Feirinha R$ 5</td><td>R$ 5,00</td></tr>
+                <tr><td>R$ 4,00 a R$ 7,99</td><td>🟢 Feirinha R$ 10</td><td>R$ 10,00</td></tr>
+                <tr><td>R$ 8,00 a R$ 12,99</td><td>🟡 Feirinha R$ 15</td><td>R$ 15,00</td></tr>
+                <tr><td>R$ 13,00 a R$ 17,99</td><td>🟡 Feirinha R$ 20</td><td>R$ 20,00</td></tr>
+                <tr><td>acima de R$ 18,00</td><td>🔴 Feirinha Premium</td><td>definir manualmente</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <h4 style="margin:16px 0 8px;font-size:13px;font-weight:700">Simulador de revenda</h4>
+          <p>Campo <strong>Preco de venda pretendido</strong> — informe quanto o lojista quer cobrar na prateleira (ex.: R$ 10,00). O sistema calcula:</p>
+          <ul class="rules">
+            <li><strong>Margem estimada</strong> — <code>(Venda − Media) ÷ Venda × 100</code></li>
+            <li><strong>Lucro unitario</strong> — diferenca entre venda e preco medio.</li>
+            <li><strong>Lucro total</strong> — lucro unitario × quantidade total de pecas.</li>
+          </ul>
+          <div class="callout">
+            Exemplo: 730 pecas, total R$ 5.548,00 → media R$ 7,60. Revenda R$ 10,00 → margem 24% e lucro total R$ 1.752,00.
+            Nao e necessario salvar o pedido: qualquer alteracao nos itens recalcula na hora.
+          </div>
+
+          <h4 style="margin:16px 0 8px;font-size:13px;font-weight:700">Campanha, banner e kit</h4>
+          <ul class="rules">
+            <li><strong>Campanha Feirinha</strong> — combo no painel; gravada em <code>pedidos.id_campanha_feirinha</code>. Cadastro em <a href="/pages/comercial-feirinha.html">Comercial › Campanhas Feirinha</a> — veja <a href="/pages/ajuda-produtos.html?sec=campanhas-feirinha">Ajuda Produtos › Campanhas Feirinha</a>.</li>
+            <li><strong>Banner visual</strong> — ao selecionar campanha, aparece faixa verde com nome, tema, meta de média e vigência.</li>
+            <li><strong>Aplicar kit sugerido</strong> — inclui de uma vez os produtos e quantidades cadastrados na campanha.</li>
+            <li><strong>Snapshot ao salvar</strong> — <code>preco_medio_feirinha</code> e <code>preco_revenda_feirinha</code> registram a média e a revenda simulada no momento do pedido (útil para relatório e impressão histórica).</li>
+          </ul>
+
+          <h4 style="margin:16px 0 8px;font-size:13px;font-weight:700">Catálogo e sugestões</h4>
+          <ul class="rules">
+            <li><strong>Catálogo › aba Feirinha</strong> — lista produtos com preço de custo dentro da faixa (ex.: até R$ 7,99 para revenda R$ 10).</li>
+            <li><strong>Sugestões</strong> — quando a média está acima da meta, o painel indica produtos baratos e quantidade para diluir a média.</li>
+            <li><strong>Impressão</strong> — bloco «Resumo Feirinha» com nome da campanha, faixa, totais e snapshot quando disponível.</li>
+            <li><strong>Link público</strong> — compartilhar campanha com QR Code; com cliente, histórico de orçamentos no link. Detalhes em <a href="/pages/ajuda-produtos.html?sec=campanhas-feirinha">Ajuda Produtos › Campanhas Feirinha</a>.</li>
+          </ul>
+          <p><strong>Importante:</strong> o painel não altera preços dos itens automaticamente — é consultoria visual. Promoções continuam independentes.</p>
         </section>
         <section class="section help-section" id="preco-colunas-itens">
           <h3>Preco padrao, Ocultar padrao e Colunas (aba Itens)</h3>
@@ -175,11 +395,50 @@
           <h3>Envio e faturamento</h3>
           <ol class="steps">
             <li>Depois de salvo, o pedido pode ser aberto para <strong>Imprimir / Enviar</strong>.</li>
-            <li>O sistema pode gerar PDF do pedido antes do envio.</li>
-            <li>O envio pode seguir por e-mail ou WhatsApp, conforme configuracao.</li>
+            <li>O sistema gera o PDF do pedido antes do envio.</li>
+            <li>Escolha enviar por <strong>e-mail</strong>, <strong>WhatsApp</strong> ou ambos.</li>
             <li>Para faturar, use a acao <strong>Informar Faturamento</strong> e preencha ao menos a data.</li>
           </ol>
           <p>O faturamento registra os dados da nota sem precisar reconstruir o pedido inteiro e ainda pode recalcular parcelas de comissao quando essa regra estiver ativa.</p>
+
+          <h4 style="margin:20px 0 8px;font-size:13px;font-weight:700;color:var(--text)">Configurar o remetente (SMTP)</h4>
+          <p>
+            Todo envio por e-mail usa a conta SMTP do <strong>usuario logado</strong>. Configure em
+            <strong>Cadastros → Usuarios</strong>, aba <strong>Permissoes / E-mail</strong>, ou pelo botao
+            <strong>Reconfigurar SMTP</strong> dentro do modal de envio.
+          </p>
+          <div class="callout">
+            Ordem de busca: <strong>1.</strong> SMTP do vendedor logado → <strong>2.</strong> SMTP da empresa.
+            Se nenhum estiver preenchido, o sistema exibe erro e abre o modal de configuracao.
+            Guia completo: <a href="/pages/ajuda-usuarios.html?sec=email-smtp">Ajuda › Usuarios › E-mail SMTP</a>.
+          </div>
+
+          <h4 style="margin:20px 0 8px;font-size:13px;font-weight:700;color:var(--text)">Enviar pedido para a fabrica</h4>
+          <p>
+            Alem do envio ao cliente, e possivel disparar o PDF diretamente para os e-mails cadastrados na
+            <strong>ficha do fornecedor</strong>. Esse fluxo e independente do e-mail do cliente.
+          </p>
+          <ol class="steps">
+            <li>No cadastro do fornecedor, aba <strong>E-mails Fabrica</strong>, marque <strong>Enviar pedido para fabrica</strong> e cadastre um ou mais e-mails destino.</li>
+            <li>Salve o fornecedor. No pedido, ao selecionar essa fabrica, aparece o badge <strong>Envia para fabrica</strong>.</li>
+            <li>Salve o pedido e abra <strong>Imprimir / Enviar</strong>.</li>
+            <li>Use o botao <strong>Enviar para Fabrica</strong> (visivel so quando a fabrica tem envio ativo).</li>
+          </ol>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Requisito</th><th>Onde configurar</th></tr></thead>
+              <tbody>
+                <tr><td>Remetente SMTP</td><td>Usuario logado — aba <strong>Permissoes / E-mail</strong> (<a href="/pages/ajuda-usuarios.html?sec=email-smtp">ajuda</a>)</td></tr>
+                <tr><td>Destinatarios da fabrica</td><td>Fornecedor — aba <strong>E-mails Fabrica</strong> (<a href="/pages/ajuda-fornecedores.html?sec=emails-fabrica">ajuda</a>)</td></tr>
+                <tr><td>Flag de envio ativa</td><td>Checkbox <strong>Enviar pedido para fabrica</strong> na mesma aba do fornecedor</td></tr>
+                <tr><td>Pedido salvo</td><td>O envio so funciona apos gravar o pedido (precisa de ID e PDF)</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            O e-mail leva o PDF anexado, assunto «Pedido Nº …», mensagem opcional e assinatura configurada no SMTP do vendedor.
+            Apos o envio, o pedido pode ser marcado com indicador de e-mail enviado a fabrica.
+          </p>
         </section>
         <section class="section help-section" id="cadastro-rapido">
           <h3>Cadastro rapido dentro do pedido</h3>

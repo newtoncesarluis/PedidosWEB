@@ -242,6 +242,7 @@ function toggleFiltroStatus(st) {
 }
 
 function abrirNovo() {
+  if (!guardCadIncluir('Sem permissão para incluir segmentos')) return;
   S.registroId = null;
   document.getElementById('mainForm').reset();
   document.getElementById('formSub').textContent = 'Novo Registro';
@@ -263,6 +264,7 @@ async function abrirEditar(id) {
     document.getElementById('formSub').textContent = `Editando ID: ${f.id}`;
     document.getElementById('listSection').style.display = 'none';
     document.getElementById('formSection').style.display = 'block';
+    if (!podeAlterarCad()) aplicarFormSomenteLeituraCad();
   } catch(e) { toast('Erro ao carregar dados','err'); }
 }
 
@@ -273,6 +275,7 @@ function voltarLista() {
 }
 
 async function salvar() {
+  if (!guardCadSalvar(!!S.registroId, 'Sem permissão para incluir segmentos', 'Sem permissão para alterar segmentos')) return;
   const payload = {
     descricao: document.getElementById('f_descricao').value.trim(),
     status: document.getElementById('f_status').value
@@ -294,7 +297,8 @@ async function salvar() {
 function abrirDrop(e, id) {
   e.stopPropagation();
   const m = document.getElementById('dropMenu');
-  m.innerHTML = `<button class="dropdown-item" style="color:var(--danger)" onclick="excluir(${id})">Excluir</button>`;
+  m.innerHTML = podeExcluirCad() ? `<button class="dropdown-item" style="color:var(--danger)" onclick="excluir(${id})">Excluir</button>` : '';
+  if (!m.innerHTML.trim()) return;
   m.style.display = 'block';
   const rect = e.currentTarget.getBoundingClientRect();
   m.style.top = (rect.bottom + 5) + 'px';
@@ -303,6 +307,7 @@ function abrirDrop(e, id) {
 }
 
 async function excluir(id) {
+  if (!guardCadExcluir('Sem permissão para excluir segmentos')) return;
   if (!confirm('Deseja excluir este segmento?')) return;
   try {
     const r = await fetch(`/api/segmentos/${id}`, { method: 'DELETE' });
@@ -318,7 +323,8 @@ function toast(msg, tipo='ok') {
   setTimeout(()=>t.remove(), 3000);
 }
 
-document.addEventListener('DOMContentLoaded', buscar);
+document.addEventListener('cad-perm-ready', () => { if (typeof aplicarUiPermissoesCad === 'function') aplicarUiPermissoesCad(); });
 </script>
+<script src="/assets/cadastros-permissao.js"></script>
 </body>
 </html>

@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0d9488">
+<title>Campanha Feirinha</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --accent:#0d9488;--accent-dark:#0f766e;--accent-soft:rgba(13,148,136,.12);
+  --bg:#f0fdfa;--card:#fff;--border:#ccfbf1;--text:#134e4a;--text2:#5eead4;
+  --pad:clamp(14px,2.2vw,24px);--bar-h:72px;
+}
+html,body{min-height:100%;font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);color:var(--text)}
+.wrap{min-height:100vh;display:flex;flex-direction:column}
+.banner{background:linear-gradient(135deg,#0d9488 0%,#115e59 100%);color:#fff;padding:20px var(--pad);text-align:center}
+.banner-title{font-size:clamp(20px,4vw,28px);font-weight:900;letter-spacing:-.02em;line-height:1.2}
+.banner-tema{font-size:13px;opacity:.9;margin-top:6px;font-weight:600}
+.banner-meta{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:12px}
+.banner-chip{font-size:10px;font-weight:800;text-transform:uppercase;padding:4px 10px;border-radius:999px;background:rgba(255,255,255,.18)}
+.resumo-bar{margin:0 var(--pad);margin-top:-14px;position:relative;z-index:2;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px 16px;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;box-shadow:0 8px 24px rgba(13,148,136,.12)}
+.resumo-bar .lbl{font-size:9px;text-transform:uppercase;font-weight:800;color:var(--text2);opacity:.7;margin-bottom:3px}
+.resumo-bar .val{font-size:16px;font-weight:900;font-variant-numeric:tabular-nums}
+.resumo-bar .val.highlight{color:var(--accent);font-size:20px}
+.toolbar{padding:14px var(--pad);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.search{flex:1 1 200px;display:flex;align-items:center;gap:8px;background:#fff;border:1.5px solid var(--border);border-radius:12px;padding:0 12px;height:42px}
+.search input{flex:1;border:none;background:none;outline:none;font:inherit;font-size:14px;color:var(--text)}
+.main{flex:1;padding:0 var(--pad) calc(var(--bar-h) + 24px + env(safe-area-inset-bottom))}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,168px),1fr));gap:12px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 2px 8px rgba(13,148,136,.06)}
+.card.in-cart{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent-soft)}
+.card-img{aspect-ratio:1;background:#f0fdfa;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
+.card-img img{width:100%;height:100%;object-fit:contain}
+.card-qty-badge{position:absolute;top:8px;right:8px;background:var(--accent);color:#fff;font-size:11px;font-weight:800;padding:4px 10px;border-radius:999px}
+.card-body{padding:10px 12px 12px;flex:1;display:flex;flex-direction:column;gap:5px}
+.card-ref{font-size:10px;color:var(--accent-dark);font-weight:800}
+.card-name{font-size:12px;font-weight:700;line-height:1.35;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.card-meta{font-size:11px;color:#64748b}
+.price{font-size:16px;font-weight:800;color:var(--accent-dark)}
+.card-actions{margin-top:auto;padding-top:8px}
+.btn-add{width:100%;height:36px;border:1.5px solid var(--accent);border-radius:10px;background:var(--accent-soft);color:var(--accent-dark);font:inherit;font-size:12px;font-weight:800;cursor:pointer}
+.btn-add:hover{background:var(--accent);color:#fff}
+.qty-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.qty-btns{display:flex;align-items:center;border:1.5px solid var(--border);border-radius:10px;overflow:hidden;background:#fff}
+.qty-btns button{width:34px;height:32px;border:none;background:none;font:inherit;font-size:16px;font-weight:700;color:var(--accent-dark);cursor:pointer}
+.qty-btns span{min-width:28px;text-align:center;font-size:13px;font-weight:800}
+.empty,.err,.load{padding:48px 20px;text-align:center;color:#64748b;font-size:14px;line-height:1.5}
+.err{color:#dc2626}
+.price-note{margin:12px var(--pad) 0;padding:10px 14px;border-radius:10px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:12px;line-height:1.45}
+.cart-bar{position:fixed;left:0;right:0;bottom:0;z-index:50;background:#fff;border-top:1px solid var(--border);box-shadow:0 -4px 24px rgba(0,0,0,.08);padding:10px var(--pad) calc(10px + env(safe-area-inset-bottom));display:none;align-items:center;gap:12px}
+.cart-bar.show{display:flex}
+.cart-bar-info{flex:1;min-width:0}
+.cart-bar-info span{display:block;font-size:11px;color:#64748b;font-weight:600}
+.cart-bar-info strong{font-size:17px;font-weight:800;color:var(--accent-dark)}
+.btn-bar{height:44px;padding:0 18px;border:none;border-radius:12px;font:inherit;font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap;background:var(--accent);color:#fff}
+.overlay{position:fixed;inset:0;z-index:60;background:rgba(19,78,74,.5);backdrop-filter:blur(6px);display:none;align-items:flex-end;justify-content:center}
+.overlay.open{display:flex}
+.panel{width:100%;max-height:min(94dvh,100%);background:#fff;border-radius:20px 20px 0 0;padding:20px;display:flex;flex-direction:column;gap:12px}
+.panel h2{font-size:17px;font-weight:800}
+.panel input{width:100%;height:42px;border:1.5px solid var(--border);border-radius:10px;padding:0 12px;font:inherit;margin-top:4px}
+.panel label{font-size:11px;font-weight:800;text-transform:uppercase;color:#64748b}
+.panel-foot{display:flex;gap:8px;justify-content:flex-end;margin-top:8px}
+.btn-sec{height:40px;padding:0 16px;border:1.5px solid var(--border);border-radius:10px;background:#fff;font:inherit;font-weight:700;cursor:pointer}
+.btn-hist{flex-shrink:0;width:42px;height:42px;border:1.5px solid var(--border);border-radius:12px;background:#fff;color:#64748b;cursor:pointer;display:none;align-items:center;justify-content:center}
+.btn-hist:hover{border-color:var(--accent);color:var(--accent-dark);background:var(--accent-soft)}
+.hist-overlay{position:fixed;inset:0;z-index:65;background:rgba(19,78,74,.5);backdrop-filter:blur(6px);display:none;align-items:flex-end;justify-content:center}
+.hist-overlay.open{display:flex}
+@media(min-width:640px){.hist-overlay{align-items:stretch;justify-content:flex-end}}
+.hist-panel{width:100%;max-width:100%;height:min(88dvh,100%);background:#fff;border-radius:20px 20px 0 0;display:flex;flex-direction:column}
+@media(min-width:640px){.hist-panel{width:min(400px,100vw);height:100%;border-radius:0}}
+.hist-hdr{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.hist-hdr h2{font-size:16px;font-weight:800;color:var(--text)}
+.panel-close{width:36px;height:36px;border:none;border-radius:10px;background:var(--bg);font-size:22px;line-height:1;cursor:pointer;color:var(--text)}
+.hist-list{flex:1;overflow-y:auto;padding:8px 12px;-webkit-overflow-scrolling:touch}
+.hist-item{border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:8px;cursor:pointer;transition:border-color .15s,background .15s}
+.hist-item:hover{border-color:var(--accent);background:#f0fdfa}
+.hist-item-top{display:flex;align-items:flex-start;gap:10px}
+.hist-num{font-size:13px;font-weight:800;color:var(--text)}
+.hist-info{font-size:11px;color:#64748b;margin-top:3px;line-height:1.35}
+.hist-val{font-size:14px;font-weight:800;color:var(--accent-dark);white-space:nowrap}
+.hist-badge{display:inline-block;margin-top:6px;font-size:9px;font-weight:800;text-transform:uppercase;padding:2px 8px;border-radius:999px;background:#f0fdfa;color:#64748b}
+.hist-badge.pendente{background:#fef3c7;color:#92400e}
+.hist-expand{margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);font-size:11px;line-height:1.5;color:#64748b}
+.hist-empty{padding:32px;text-align:center;color:#64748b;font-size:13px;line-height:1.5}
+.hist-medio{font-size:10px;color:var(--accent-dark);font-weight:700;margin-top:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="banner" class="banner" style="display:none">
+    <div class="banner-title" id="campTitulo">Feirinha</div>
+    <div class="banner-tema" id="campTema"></div>
+    <div class="banner-meta">
+      <span class="banner-chip" id="campFaixa"></span>
+      <span class="banner-chip" id="campVigencia"></span>
+      <span class="banner-chip" id="campForn"></span>
+    </div>
+  </div>
+  <div id="resumoBar" class="resumo-bar" style="display:none">
+    <div><div class="lbl">Peças</div><div class="val" id="rQtd">0</div></div>
+    <div><div class="lbl">Total</div><div class="val" id="rTotal">R$ 0</div></div>
+    <div><div class="lbl">Preço médio</div><div class="val highlight" id="rMedio">R$ 0</div></div>
+  </div>
+  <div id="priceNote" class="price-note" style="display:none"></div>
+  <div class="toolbar">
+    <div class="search">
+      <input type="search" id="busca" placeholder="Buscar produto…" autocomplete="off">
+    </div>
+    <button type="button" class="btn-hist" id="btnHist" title="Meus orçamentos" aria-label="Histórico">
+      <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    </button>
+    <button type="button" class="btn-add" id="btnAddAll" style="width:auto;padding:0 14px;height:42px;display:none">+ Kit completo</button>
+  </div>
+  <main class="main">
+    <div id="grid" class="grid"><div class="load">Carregando campanha…</div></div>
+  </main>
+</div>
+<div class="hist-overlay" id="histOverlay">
+  <div class="hist-panel">
+    <div class="hist-hdr">
+      <h2>Meus orçamentos</h2>
+      <button type="button" class="panel-close" id="btnCloseHist" aria-label="Fechar">×</button>
+    </div>
+    <div class="hist-list" id="histList"><div class="hist-empty">Carregando…</div></div>
+  </div>
+</div>
+<div class="cart-bar" id="cartBar">
+  <div class="cart-bar-info">
+    <span id="cartLbl">0 itens selecionados</span>
+    <strong id="cartTotal">R$ 0,00</strong>
+  </div>
+  <button type="button" class="btn-bar" id="btnOrcamento">Solicitar orçamento</button>
+</div>
+<div class="overlay" id="overlay">
+  <div class="panel">
+    <h2>Solicitar orçamento</h2>
+    <p style="font-size:13px;color:#64748b;line-height:1.45">Informe seus dados. O representante receberá o pedido no sistema.</p>
+    <div><label>Nome</label><input type="text" id="fNome" autocomplete="off"></div>
+    <div><label>Telefone / WhatsApp</label><input type="tel" id="fTel" autocomplete="off"></div>
+    <div><label>Cidade (opcional)</label><input type="text" id="fCidade" autocomplete="off"></div>
+    <div class="panel-foot">
+      <button type="button" class="btn-sec" id="btnFechar">Cancelar</button>
+      <button type="button" class="btn-bar" id="btnEnviar">Enviar</button>
+    </div>
+  </div>
+</div>
+<script>
+const token = location.pathname.split('/').filter(Boolean).pop();
+const fmtBRL = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const fmtData = (d) => d ? new Date(String(d).slice(0, 10) + 'T12:00:00').toLocaleDateString('pt-BR') : '';
+let _data = null;
+let _cart = new Map();
+let _historico = false;
+const _histItensCache = {};
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; }
+
+function recalcResumo() {
+  let qtd = 0, total = 0;
+  _cart.forEach((q, id) => {
+    const p = (_data?.produtos || []).find(x => String(x.cod_produto) === String(id));
+    if (!p) return;
+    qtd += q;
+    total += p.preco_unitario * q;
+  });
+  const medio = qtd > 0 ? total / qtd : 0;
+  document.getElementById('rQtd').textContent = qtd.toLocaleString('pt-BR');
+  document.getElementById('rTotal').textContent = fmtBRL(total);
+  document.getElementById('rMedio').textContent = fmtBRL(medio);
+  const meta = _data?.campanha?.preco_medio_meta;
+  const bar = document.getElementById('resumoBar');
+  if (bar) bar.style.display = qtd > 0 ? 'grid' : (_data?.produtos?.length ? 'grid' : 'none');
+  if (meta && qtd > 0) {
+    const ok = medio <= meta + 0.001;
+    document.getElementById('rMedio').style.color = ok ? 'var(--accent)' : '#dc2626';
+  }
+}
+
+function syncCartBar() {
+  let qtdItens = 0, total = 0;
+  _cart.forEach((q, id) => {
+    const p = (_data?.produtos || []).find(x => String(x.cod_produto) === String(id));
+    if (!p) return;
+    qtdItens += q;
+    total += p.preco_unitario * q;
+  });
+  const bar = document.getElementById('cartBar');
+  if (qtdItens > 0) {
+    bar.classList.add('show');
+    document.getElementById('cartLbl').textContent = `${_cart.size} produto(s) · ${qtdItens} un.`;
+    document.getElementById('cartTotal').textContent = fmtBRL(total);
+  } else bar.classList.remove('show');
+  recalcResumo();
+}
+
+function renderGrid(filtro = '') {
+  const el = document.getElementById('grid');
+  const prods = (_data?.produtos || []).filter(p => {
+    if (!filtro) return true;
+    const q = filtro.toLowerCase();
+    return String(p.descricao || '').toLowerCase().includes(q)
+      || String(p.cod_fabricante || '').toLowerCase().includes(q);
+  });
+  if (!prods.length) {
+    el.innerHTML = '<div class="empty">Nenhum produto nesta campanha. Cadastre o kit em Comercial › Campanhas Feirinha.</div>';
+    return;
+  }
+  el.innerHTML = prods.map(p => {
+    const id = p.cod_produto;
+    const q = _cart.get(id) || 0;
+    const sug = p.quantidade_sugerida || 1;
+    return `<article class="card ${q > 0 ? 'in-cart' : ''}" data-id="${id}">
+      <div class="card-img">
+        ${p.foto ? `<img src="${esc(p.foto)}" alt="" loading="lazy">` : '<span style="opacity:.3;font-size:28px">📦</span>'}
+        <span class="card-qty-badge">Sug: ${sug}</span>
+      </div>
+      <div class="card-body">
+        <div class="card-ref">${esc(p.cod_fabricante || '')}</div>
+        <div class="card-name">${esc(p.descricao)}</div>
+        <div class="card-meta">Emb. ${esc(String(p.multiplo_venda || 1))} un.</div>
+        <div class="price">${fmtBRL(p.preco_unitario)}</div>
+        <div class="card-actions">
+          ${q > 0 ? `<div class="qty-row">
+            <div class="qty-btns">
+              <button type="button" data-act="minus">−</button>
+              <span>${q}</span>
+              <button type="button" data-act="plus">+</button>
+            </div>
+          </div>` : `<button type="button" class="btn-add" data-act="add">+ Adicionar (${sug})</button>`}
+        </div>
+      </div>
+    </article>`;
+  }).join('');
+  el.querySelectorAll('.card').forEach(card => {
+    const id = parseInt(card.dataset.id, 10);
+    const p = prods.find(x => x.cod_produto === id);
+    const mult = Math.max(parseFloat(p?.multiplo_venda) || 1, 1);
+    card.querySelector('[data-act="add"]')?.addEventListener('click', () => {
+      _cart.set(id, p.quantidade_sugerida || mult);
+      syncCartBar(); renderGrid(document.getElementById('busca').value.trim());
+    });
+    card.querySelector('[data-act="plus"]')?.addEventListener('click', () => {
+      _cart.set(id, (_cart.get(id) || 0) + mult);
+      syncCartBar(); renderGrid(document.getElementById('busca').value.trim());
+    });
+    card.querySelector('[data-act="minus"]')?.addEventListener('click', () => {
+      const n = (_cart.get(id) || 0) - mult;
+      if (n <= 0) _cart.delete(id); else _cart.set(id, n);
+      syncCartBar(); renderGrid(document.getElementById('busca').value.trim());
+    });
+  });
+}
+
+async function carregarHistorico() {
+  const list = document.getElementById('histList');
+  if (!list) return;
+  list.innerHTML = '<div class="hist-empty">Carregando…</div>';
+  try {
+    const r = await fetch(`/api/feirinha-share/${encodeURIComponent(token)}/historico`);
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.erro || 'Erro ao carregar');
+    renderHistoricoLista(Array.isArray(data) ? data : []);
+  } catch (e) {
+    list.innerHTML = `<div class="hist-empty">${esc(e.message)}</div>`;
+  }
+}
+
+async function loadHistItens(pedidoId) {
+  if (_histItensCache[pedidoId]) return _histItensCache[pedidoId];
+  const r = await fetch(`/api/feirinha-share/${encodeURIComponent(token)}/historico/${pedidoId}/itens`);
+  const data = await r.json();
+  if (!r.ok) throw new Error(data.erro || 'Erro');
+  _histItensCache[pedidoId] = data;
+  return data;
+}
+
+function renderHistoricoLista(pedidos) {
+  const list = document.getElementById('histList');
+  if (!pedidos.length) {
+    list.innerHTML = '<div class="hist-empty">Nenhum orçamento enviado ainda.<br>Monte o kit e solicite o primeiro.</div>';
+    return;
+  }
+  const badgeCls = (s) => ({ PENDENTE: 'pendente', ABERTO: 'pendente' }[(s || '').toUpperCase()] || '');
+  list.innerHTML = pedidos.map((p) => {
+    const data = p.data_abertura ? fmtData(p.data_abertura) : '';
+    const status = p.situacao_pedido || p.status || '';
+    const itens = p.qtd_itens ? ` · ${p.qtd_itens} item${p.qtd_itens === 1 ? '' : 's'}` : '';
+    const camp = p.campanha_nome ? esc(p.campanha_nome) : '';
+    const medio = p.preco_medio_feirinha != null
+      ? `<div class="hist-medio">Preço médio: ${fmtBRL(p.preco_medio_feirinha)}</div>` : '';
+    return `<article class="hist-item" data-pid="${p.id}">
+      <div class="hist-item-top">
+        <div style="flex:1;min-width:0">
+          <div class="hist-num">Nº ${esc(String(p.numero))}</div>
+          <div class="hist-info">${data}${camp ? ' · ' + camp : ''}${p.nome_fornecedor ? ' · ' + esc(p.nome_fornecedor) : ''}${itens}</div>
+          ${medio}
+          ${status ? `<span class="hist-badge ${badgeCls(status)}">${esc(status)}</span>` : ''}
+        </div>
+        <div class="hist-val">${fmtBRL(p.vlrtotalpedido || 0)}</div>
+      </div>
+    </article>`;
+  }).join('');
+
+  list.querySelectorAll('.hist-item').forEach((el) => {
+    el.addEventListener('click', async () => {
+      const pid = el.dataset.pid;
+      const exp = el.querySelector('.hist-expand');
+      if (exp) { exp.remove(); return; }
+      el.insertAdjacentHTML('beforeend', '<div class="hist-expand">Carregando itens…</div>');
+      try {
+        const itens = await loadHistItens(pid);
+        const box = el.querySelector('.hist-expand');
+        box.innerHTML = itens.map((it) =>
+          `<div style="display:flex;justify-content:space-between;gap:8px;padding:2px 0">
+            <span>${esc(it.desc_prod)} · ${it.quantidade} ${esc(it.unidade || 'UN')}</span>
+            <strong>${fmtBRL(it.vlrtotal_itens || 0)}</strong>
+          </div>`
+        ).join('') || 'Sem itens';
+      } catch (e) {
+        const box = el.querySelector('.hist-expand');
+        if (box) box.textContent = e.message;
+      }
+    });
+  });
+}
+
+function openHistorico() {
+  document.getElementById('histOverlay').classList.add('open');
+  carregarHistorico();
+}
+
+async function load() {
+  try {
+    const r = await fetch(`/api/feirinha-share/${encodeURIComponent(token)}`);
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.erro || 'Link inválido');
+    _data = d;
+    document.title = d.campanha?.descricao || 'Feirinha';
+    const b = document.getElementById('banner');
+    b.style.display = 'block';
+    document.getElementById('campTitulo').textContent = d.campanha?.descricao || 'Feirinha';
+    document.getElementById('campTema').textContent = d.campanha?.tema_banner || '';
+    document.getElementById('campFaixa').textContent = (d.campanha?.faixa_emoji || '') + ' ' + (d.campanha?.faixa_label || '');
+    const vi = [fmtData(d.campanha?.data_inicio), fmtData(d.campanha?.data_fim)].filter(x => x).join(' — ');
+    document.getElementById('campVigencia').textContent = vi ? 'Vigência ' + vi : '';
+    document.getElementById('campForn').textContent = d.campanha?.nome_fornecedor || '';
+    if (d.resumo_kit) {
+      document.getElementById('rQtd').textContent = (d.resumo_kit.qtd_total || 0).toLocaleString('pt-BR');
+      document.getElementById('rTotal').textContent = fmtBRL(d.resumo_kit.valor_total);
+      document.getElementById('rMedio').textContent = fmtBRL(d.resumo_kit.preco_medio);
+      document.getElementById('resumoBar').style.display = 'grid';
+    }
+    const note = document.getElementById('priceNote');
+    if (d.preco_referencia === 'tabela_cliente') {
+      note.style.display = 'block';
+      note.textContent = 'Preços da tabela do cliente' + (d.cliente?.nome ? ` (${d.cliente.nome})` : '') + '.';
+    } else if (d.campanha?.preco_medio_meta) {
+      note.style.display = 'block';
+      note.textContent = `Meta de preço médio de custo: ${fmtBRL(d.campanha.preco_medio_meta)} · Revenda sugerida: ${fmtBRL(d.campanha.preco_revenda_alvo || 0)}`;
+    }
+    document.getElementById('btnAddAll').style.display = d.produtos?.length ? 'inline-flex' : 'none';
+    _historico = !!d.historico_disponivel;
+    const btnHist = document.getElementById('btnHist');
+    if (btnHist) btnHist.style.display = _historico ? 'flex' : 'none';
+    syncCartBar();
+    renderGrid();
+  } catch (e) {
+    document.getElementById('grid').innerHTML = `<div class="err">${esc(e.message)}</div>`;
+  }
+}
+
+document.getElementById('busca').addEventListener('input', e => renderGrid(e.target.value.trim()));
+document.getElementById('btnAddAll').addEventListener('click', () => {
+  (_data?.produtos || []).forEach(p => _cart.set(p.cod_produto, p.quantidade_sugerida || 1));
+  syncCartBar(); renderGrid(document.getElementById('busca').value.trim());
+});
+document.getElementById('btnOrcamento').addEventListener('click', () => {
+  if (_data?.cliente) enviarOrcamento({});
+  else document.getElementById('overlay').classList.add('open');
+});
+document.getElementById('btnHist')?.addEventListener('click', openHistorico);
+document.getElementById('btnCloseHist')?.addEventListener('click', () => document.getElementById('histOverlay').classList.remove('open'));
+document.getElementById('histOverlay')?.addEventListener('click', (e) => {
+  if (e.target.id === 'histOverlay') document.getElementById('histOverlay').classList.remove('open');
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') document.getElementById('histOverlay')?.classList.remove('open');
+});
+document.getElementById('btnFechar').addEventListener('click', () => document.getElementById('overlay').classList.remove('open'));
+document.getElementById('btnEnviar').addEventListener('click', () => enviarOrcamento({
+  nome: document.getElementById('fNome').value.trim(),
+  telefone: document.getElementById('fTel').value.trim(),
+  cidade: document.getElementById('fCidade').value.trim(),
+}));
+
+async function enviarOrcamento(contato) {
+  const itens = [];
+  _cart.forEach((q, id) => itens.push({ id, quantidade: q }));
+  if (!itens.length) return alert('Selecione ao menos um produto');
+  const btn = document.getElementById('btnEnviar') || document.getElementById('btnOrcamento');
+  btn.disabled = true;
+  try {
+    const r = await fetch(`/api/feirinha-share/${encodeURIComponent(token)}/orcamento`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ itens, contato }),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.erro || 'Erro ao enviar');
+    document.getElementById('overlay').classList.remove('open');
+    const rep = _data?.representante;
+    let msg = `Orçamento #${d.numero} registrado!\nPreço médio: ${fmtBRL(d.preco_medio)}\nTotal: ${fmtBRL(d.total)}`;
+    if (rep?.whatsapp) {
+      const wa = rep.whatsapp.startsWith('55') ? rep.whatsapp : '55' + rep.whatsapp;
+      const txt = encodeURIComponent(`Olá! Solicitei orçamento Feirinha #${d.numero} — ${fmtBRL(d.total)}`);
+      msg += '\n\nAbrir WhatsApp do representante?';
+      if (confirm(msg)) window.open(`https://wa.me/${wa}?text=${txt}`, '_blank');
+    } else alert(msg);
+    _cart.clear();
+    syncCartBar();
+    renderGrid();
+    if (_historico) {
+      Object.keys(_histItensCache).forEach((k) => delete _histItensCache[k]);
+    }
+  } catch (e) {
+    alert(e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+load();
+</script>
+</body>
+</html>

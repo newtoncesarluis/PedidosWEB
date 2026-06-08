@@ -12,6 +12,8 @@ const { getLicensePool }     = require('../config/db-license');
 const LicenseService         = require('../services/license-service');
 const { invalidateLicenseCache } = require('../middleware/license');
 const axios                  = require('axios');
+const { sendWaAtualizacao }  = require('../config/suporte-notificador');
+const { invalidateWaCache }  = require('../config/wa-licenca');
 
 const DEV_EMAIL     = (process.env.DEV_EMAIL || '').toLowerCase().trim();
 const DEV_PASSWORD  = process.env.DEV_PASSWORD || 'mudar@123';
@@ -142,7 +144,7 @@ router.post('/auth', (req, res) => {
   }
   delete failedAttempts[ip];
   const token = crypto.createHmac('sha256', DEV_PASSWORD).update(Date.now().toString()).digest('hex');
-  res.json({ sucesso: true, token, expira_em: Date.now() + 7200000 });
+  res.json({ sucesso: true, token, email: (email || '').toLowerCase().trim(), expira_em: Date.now() + 7200000 });
 });
 
 // GET /api/licencas/license/remote/ping — público: só testa conectividade com o servidor de licenças
@@ -658,6 +660,131 @@ router.delete('/api-keys/:id', async (req, res) => {
     const licPool = getLicensePool();
     await licPool.query('DELETE FROM api_keys WHERE id = ?', [req.params.id]);
     res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── SOLICITAÇÕES DE MELHORIA ─────────────────────────────────────────────────
+const { getNREPool } = require('../config/db-nresolution');
+
+// GET /api/licencas/solicitacoes — lista todas (admin)
+router.get('/solicitacoes', async (req, res) => {
+  try {
+    const { status, chave } = req.query;
+    let where = '1=1';
+    const params = [];
+    if (status) { where += ' AND s.status = ?'; params.push(status); }
+    if (chave)  { where += ' AND s.chave_licenca LIKE ?'; params.push(`%${chave}%`); }
+    const [rows] = await getNREPool().query(
+      `SELECT s.*,
+              (SELECT COUNT(*) FROM solicitacoes_anexos WHERE id_solicitacao = s.id) AS qtd_anexos
+       FROM solicitacoes s
+       WHERE ${where}
+       ORDER BY FIELD(s.status,'pendente','em_analise','em_desenvolvimento','concluido','recusado'), s.data_criacao DESC`,
+      params
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/licencas/solicitacoes/stats — contadores por status
+router.get('/solicitacoes/stats', async (req, res) => {
+  try {
+    const [rows] = await getNREPool().query(
+      `SELECT status, COUNT(*) as total FROM solicitacoes GROUP BY status`
+    );
+    const stats = { pendente: 0, em_analise: 0, em_desenvolvimento: 0, concluido: 0, recusado: 0 };
+    rows.forEach(r => { stats[r.status] = r.total; });
+    stats.total = Object.values(stats).reduce((a, b) => a + b, 0);
+    res.json(stats);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/licencas/solicitacoes/:id — detalhe com anexos
+router.get('/solicitacoes/:id', async (req, res) => {
+  try {
+    const pool = getNREPool();
+    const [[sol]] = await pool.query(`SELECT * FROM solicitacoes WHERE id = ?`, [req.params.id]);
+    if (!sol) return res.status(404).json({ error: 'Não encontrada' });
+    const [anexos] = await pool.query(
+      `SELECT id, tipo, caminho, nome_original, tamanho FROM solicitacoes_anexos WHERE id_solicitacao = ? ORDER BY id`,
+      [sol.id]
+    );
+    res.json({ ...sol, anexos });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/licencas/nre-config — lê configurações NRE (Evolution API, etc.)
+router.get('/nre-config', async (req, res) => {
+  try {
+    const [rows] = await getNREPool().query(
+      `SELECT chave, valor, descricao FROM nre_config ORDER BY chave`
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/licencas/nre-config — salva configurações NRE
+router.put('/nre-config', async (req, res) => {
+  const allowed = ['wa_numero', 'wa_instancia', 'wa_url', 'wa_apikey'];
+  try {
+    const pool = getNREPool();
+    for (const chave of allowed) {
+      if (chave in req.body) {
+        await pool.query(
+          `UPDATE nre_config SET valor = ? WHERE chave = ?`,
+          [req.body[chave]?.trim() || null, chave]
+        );
+      }
+    }
+    invalidateWaCache();
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/licencas/nre-config/testar — envia mensagem de teste
+router.post('/nre-config/testar', async (req, res) => {
+  try {
+    const { sendWaLicenca } = require('../config/wa-licenca');
+    const hora = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' });
+    await sendWaLicenca(`✅ *Teste de configuração NRE*\nEvolution API configurada com sucesso!\n🕐 ${hora}`);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/licencas/solicitacoes/:id — atualiza status e/ou resposta
+router.patch('/solicitacoes/:id', async (req, res) => {
+  const { status, resposta_dev } = req.body;
+  const allowed = ['pendente','em_analise','em_desenvolvimento','concluido','recusado'];
+  if (status && !allowed.includes(status)) {
+    return res.status(400).json({ error: 'Status inválido' });
+  }
+  try {
+    const pool = getNREPool();
+    const sets = [];
+    const params = [];
+    if (status)       { sets.push('status = ?');       params.push(status); }
+    if (resposta_dev !== undefined) { sets.push('resposta_dev = ?'); params.push(resposta_dev || null); }
+    if (!sets.length) return res.status(400).json({ error: 'Nenhum campo para atualizar' });
+    params.push(req.params.id);
+    await pool.query(`UPDATE solicitacoes SET ${sets.join(', ')} WHERE id = ?`, params);
+    const [[updated]] = await pool.query(`SELECT * FROM solicitacoes WHERE id = ?`, [req.params.id]);
+    res.json(updated);
+    // Notifica via WA (fire-and-forget)
+    sendWaAtualizacao(updated, updated.status, updated.resposta_dev).catch(() => {});
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -1,6 +1,13 @@
 const express = require('express');
 const router  = express.Router();
 const { getPool } = require('../config/database');
+const { permCrud, negarCad } = require('../config/cadastros-permissoes');
+
+const _permCores = (req) => permCrud(req, {
+  incluir: 'incluir_cores',
+  alterar: 'alterar_cores',
+  excluir: 'excluir_cores',
+});
 
 // ─── Cache de colunas reais da tabela cores ───────────────────────────────────
 let _cols = null;
@@ -92,6 +99,8 @@ router.get('/:id', async (req, res) => {
 // ─── POST /api/cores ─────────────────────────────────────────────────────────
 router.post('/', async (req, res) => {
   try {
+    const pc = _permCores(req);
+    if (pc.incluir !== 'S') return negarCad(res, 'Sem permissão para incluir cores');
     const pool = getPool();
     const cols = await getColunas(pool);
     const { descricao } = req.body;
@@ -115,6 +124,8 @@ router.post('/', async (req, res) => {
 // ─── PUT /api/cores/:id ──────────────────────────────────────────────────────
 router.put('/:id', async (req, res) => {
   try {
+    const pc = _permCores(req);
+    if (pc.alterar !== 'S') return negarCad(res, 'Sem permissão para alterar cores');
     const pool = getPool();
     const cols = await getColunas(pool);
     const { descricao, status } = req.body;
@@ -139,6 +150,8 @@ router.put('/:id', async (req, res) => {
 // ─── PUT /api/cores/:id/ativar ───────────────────────────────────────────────
 router.put('/:id/ativar', async (req, res) => {
   try {
+    const pc = _permCores(req);
+    if (pc.alterar !== 'S') return negarCad(res, 'Sem permissão para alterar cores');
     const pool = getPool();
     const cols = await getColunas(pool);
     if (cols.has('status')) {
@@ -153,6 +166,8 @@ router.put('/:id/ativar', async (req, res) => {
 // ─── PUT /api/cores/:id/inativar ─────────────────────────────────────────────
 router.put('/:id/inativar', async (req, res) => {
   try {
+    const pc = _permCores(req);
+    if (pc.alterar !== 'S') return negarCad(res, 'Sem permissão para alterar cores');
     const pool = getPool();
     const cols = await getColunas(pool);
     if (cols.has('status')) {
@@ -167,6 +182,8 @@ router.put('/:id/inativar', async (req, res) => {
 // ─── DELETE /api/cores/:id ───────────────────────────────────────────────────
 router.delete('/:id', async (req, res) => {
   try {
+    const pc = _permCores(req);
+    if (pc.excluir !== 'S') return negarCad(res, 'Sem permissão para excluir cores');
     const pool = getPool();
     const [[uso]] = await pool.query(
       `SELECT COUNT(*) AS n FROM dependentes WHERE id_cor = ?`,

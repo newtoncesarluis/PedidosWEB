@@ -70,18 +70,30 @@ app.get('/favicon.ico', (req, res) => {
   res.send(FAVICON_PNG);
 });
 
+/** Páginas do app mobile — cache no navegador para abrir offline sem HTTPS/SW */
+const PWA_OFFLINE_HTML = new Set([
+  '/mobile-shell.html',
+  '/home.html',
+  '/login.html',
+  '/pages/pedidos.html',
+  '/pages/clientes.html',
+  '/pages/mapa-operacoes.html',
+  '/pages/visitas.html',
+  '/pages/ajuda-pedidos-offline.html',
+]);
+
+function setPwaOfflineCacheHeaders(res) {
+  res.set('Cache-Control', 'private, max-age=604800, stale-while-revalidate=86400');
+}
+
 app.get('/home.html', (req, res) => {
-  res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
-  res.set('Pragma', 'no-cache');
-  res.set('Expires', '0');
-  res.sendFile(path.join(ROOT_DIR, 'public', 'home.html'), { etag: false, lastModified: false });
+  setPwaOfflineCacheHeaders(res);
+  res.sendFile(path.join(ROOT_DIR, 'public', 'home.html'), { etag: true, lastModified: true });
 });
 
 app.get('/mobile-shell.html', (req, res) => {
-  res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
-  res.set('Pragma', 'no-cache');
-  res.set('Expires', '0');
-  res.sendFile(path.join(ROOT_DIR, 'public', 'mobile-shell.html'), { etag: false, lastModified: false });
+  setPwaOfflineCacheHeaders(res);
+  res.sendFile(path.join(ROOT_DIR, 'public', 'mobile-shell.html'), { etag: true, lastModified: true });
 });
 
 /** Legado: favoritos / links antigos apontavam para mobile.html */
@@ -91,11 +103,9 @@ app.get('/mobile.html', (req, res) => {
   res.redirect(302, '/mobile-shell.html' + q);
 });
 
-// login.html — sem cache para garantir verificação de licença sempre atualizada
 app.get('/login.html', (req, res) => {
-  res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
-  res.set('Pragma', 'no-cache');
-  res.sendFile(path.join(ROOT_DIR, 'public', 'login.html'));
+  setPwaOfflineCacheHeaders(res);
+  res.sendFile(path.join(ROOT_DIR, 'public', 'login.html'), { etag: true, lastModified: true });
 });
 
 // Painel de licenças — rota explícita (evita CDN/proxy entregar SPA ou login por engano)
@@ -125,7 +135,14 @@ app.use('/api/vitrine', require('./routes/vitrine'));
 app.get('/promocoes/:token', (_req, res) => {
   res.sendFile(path.join(ROOT_DIR, 'public', 'promocoes.html'));
 });
+app.get('/feirinha/:token', (_req, res) => {
+  res.sendFile(path.join(ROOT_DIR, 'public', 'feirinha.html'));
+});
 app.use('/api/promocoes-share', require('./routes/promocoes-share'));
+app.use('/api/feirinha-share', require('./routes/feirinha-share'));
+
+// Portal de suporte/solicitações de melhoria
+app.use('/api/suporte', require('./routes/suporte'));
 
 function sendServiceWorkerFile(_req, res) {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
@@ -142,10 +159,20 @@ app.get('/sw-v3.js', sendServiceWorkerFile);
 // Versão atual do servidor — cliente compara para detectar novo deploy
 app.get('/api/version', (_req, res) => res.json({ v: BUILD_ID }));
 
-// HTML: nunca cachear — F5 sempre pega a versão mais nova do disco
+// HTML administrativo: no-store. Telas PWA/mobile: cache para uso offline no celular (HTTP sem SW).
 app.use((req, res, next) => {
   if (req.path.endsWith('.html') || req.path === '/') {
-    res.set('Cache-Control', 'no-store');
+    if (PWA_OFFLINE_HTML.has(req.path)) {
+      setPwaOfflineCacheHeaders(res);
+    } else {
+      res.set('Cache-Control', 'no-store');
+    }
+  } else if (
+    req.path.startsWith('/assets/') || req.path.startsWith('/vendor/')
+  ) {
+    if (/\.(js|css|png|svg|woff2?|ico)$/i.test(req.path)) {
+      res.set('Cache-Control', 'private, max-age=604800, stale-while-revalidate=86400');
+    }
   }
   next();
 });
@@ -512,9 +539,17 @@ app.get('/api/categorias', authMiddleware, async (req, res) => {
 // ─── GET /api/vendedores — acesso global para outros módulos ─────────────────
 app.get('/api/vendedores', authMiddleware, async (req, res) => {
   try {
-    const svc = require('./modules/clientes/clientes.service');
-    const dados = await svc.listarAuxiliares('vendedores', req.user);
-    res.json({ vendedores: dados });
+    const { getPool } = require('./config/database');
+    const { listVendedoresVisiveis } = require('./config/vendedor-visibilidade');
+    const rows = await listVendedoresVisiveis(getPool(), req, { onlyPVender: true });
+    res.json({
+      vendedores: rows.map(r => ({
+        id: r.id,
+        idusuario: r.id,
+        nome: r.nome || r.nome_vendedor,
+        nomeusu: r.nome || r.nome_vendedor,
+      })),
+    });
   } catch (err) {
     res.json({ vendedores: [] });
   }
@@ -535,6 +570,7 @@ app.get('/api/pedidos/pdf-download/:token', (req, res) => {
   res.send(item.buf);
 });
 app.use('/api/pedidos',   authMiddleware, require('./routes/pedidos'));
+app.use('/api/feirinha',  authMiddleware, require('./routes/feirinha'));
 app.use('/api/xml',       authMiddleware, require('./routes/xml'));
 app.use('/api/excel',     authMiddleware, require('./routes/excel'));
 app.use('/api/analytics', authMiddleware, require('./routes/analytics'));
@@ -658,10 +694,12 @@ app.get('/api/dashboard/home', authMiddleware, async (req, res) => {
         COUNT(CASE WHEN situacao_pedido NOT IN ('CANCELADO','ENVIADO') AND tipo_pedido NOT LIKE '%ORCA%' THEN 1 END) AS pedidosAbertos,
         COUNT(CASE WHEN tipo_pedido LIKE '%ORCA%' AND situacao_pedido != 'CANCELADO' THEN 1 END) AS orcamentosPendentes,
         COUNT(CASE WHEN origem = 'PROMO_SHARE' AND tipo_pedido LIKE '%ORCA%'
-          AND situacao_pedido NOT IN ('CANCELADO','ENVIADO') THEN 1 END) AS promoSharePendentes
+          AND situacao_pedido NOT IN ('CANCELADO','ENVIADO') THEN 1 END) AS promoSharePendentes,
+        COUNT(CASE WHEN origem = 'FEIRINHA_SHARE' AND tipo_pedido LIKE '%ORCA%'
+          AND situacao_pedido NOT IN ('CANCELADO','ENVIADO') THEN 1 END) AS feirinhaSharePendentes
       FROM pedidos
       WHERE excluido = 'N' ${whereUser}
-    `).catch(() => [[{ qtdHoje:0, valorHoje:0, pedidosAbertos:0, orcamentosPendentes:0, promoSharePendentes:0 }]]);
+    `).catch(() => [[{ qtdHoje:0, valorHoje:0, pedidosAbertos:0, orcamentosPendentes:0, promoSharePendentes:0, feirinhaSharePendentes:0 }]]);
 
     // 5. Visitas e Atividades Reais (Nova Tabela)
     const [visitas] = await pool.query(`
@@ -694,7 +732,8 @@ app.get('/api/dashboard/home', authMiddleware, async (req, res) => {
       valorHoje: mobileKpi?.valorHoje || 0,
       pedidosAbertos: mobileKpi?.pedidosAbertos || 0,
       orcamentosPendentes: mobileKpi?.orcamentosPendentes || 0,
-      promoSharePendentes: mobileKpi?.promoSharePendentes || 0
+      promoSharePendentes: mobileKpi?.promoSharePendentes || 0,
+      feirinhaSharePendentes: mobileKpi?.feirinhaSharePendentes || 0
     });
   } catch (err) {
     console.error('Dash Error:', err);
@@ -764,6 +803,11 @@ function startServer() {
 initCustomerDatabase()
   .then(startServer)
   .then(() => {
+    try {
+      require('./config/db-nresolution').initSolicitacoesSchema()
+        .then(() => { try { require('./config/suporte-notificador').startNotificador(); } catch (e) { console.warn('[notificador]', e.message); } })
+        .catch(e => console.warn('[nre-schema]', e.message));
+    } catch (e) { console.warn('[nre-schema]', e.message); }
     try { require('./config/daily-report').startScheduler(); } catch {}
     try { require('./config/push-lembretes-vendedor').startPushLembretesScheduler(); } catch (e) {
       console.warn('[push-lembretes] init:', e.message);

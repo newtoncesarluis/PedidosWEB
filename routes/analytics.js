@@ -1,8 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const { getPool } = require('../config/database');
+const {
+  canPickOtherVendors,
+  canAccessAllVendors,
+  buildPedidosVendedorWhereSync,
+} = require('../config/vendedor-visibilidade');
 
-function buildPedidosWhereFromQuery(query, user) {
+function buildPedidosWhereFromQuery(query, user, reqOpt) {
   const { dt_inicio, dt_fim, situacao, tipo_pedido, id_vendedor } = query || {};
   const where = [`COALESCE(p.excluido, 'N') = 'N'`];
   const params = [];
@@ -27,24 +32,23 @@ function buildPedidosWhereFromQuery(query, user) {
     params.push(tipo_pedido);
   }
 
-  const isAdmin = user?.role === 'admin';
-  if (isAdmin && id_vendedor) {
-    where.push('p.id_usuario = ?');
-    params.push(parseInt(id_vendedor, 10));
-  } else if (!isAdmin && user?.id) {
-    where.push('p.id_usuario = ?');
-    params.push(user.id);
+  const req = reqOpt || { user };
+  const vendScope = buildPedidosVendedorWhereSync(req, id_vendedor, 'p');
+  if (vendScope.clause) {
+    where.push(vendScope.clause.replace(/^ AND /, ''));
+    params.push(...vendScope.params);
   }
 
   return {
     clause: where.length ? `WHERE ${where.join(' AND ')}` : '',
     params,
-    isAdmin,
+    isAdmin: vendScope.canPickOthers,
+    canPickOthers: vendScope.canPickOthers,
   };
 }
 
 function buildPedidosWhere(req) {
-  return buildPedidosWhereFromQuery(req.query, req.user);
+  return buildPedidosWhereFromQuery(req.query, req.user, req);
 }
 
 function formatDateLocal(date) {
@@ -101,7 +105,7 @@ function buildClientesScope(req) {
   const { id_vendedor, cidade, uf, segmento } = req.query;
   const where = [`COALESCE(c.excluido, 'N') = 'N'`];
   const params = [];
-  const isAdmin = req.user?.role === 'admin';
+  const canPickOthers = canPickOtherVendors(req);
 
   if (cidade) {
     where.push('LOWER(COALESCE(c.cidade, \'\')) LIKE ?');
@@ -118,18 +122,17 @@ function buildClientesScope(req) {
     params.push(segmento);
   }
 
-  if (isAdmin && id_vendedor) {
-    where.push('c.cod_vendedor = ?');
-    params.push(parseInt(id_vendedor, 10));
-  } else if (!isAdmin && req.user?.id) {
-    where.push('c.cod_vendedor = ?');
-    params.push(req.user.id);
+  const vendScope = buildPedidosVendedorWhereSync(req, id_vendedor, 'c.cod_vendedor');
+  if (vendScope.clause) {
+    where.push(vendScope.clause.replace(/^ AND /, ''));
+    params.push(...vendScope.params);
   }
 
   return {
     clause: `WHERE ${where.join(' AND ')}`,
     params,
-    isAdmin,
+    isAdmin: canPickOthers,
+    canPickOthers,
   };
 }
 
@@ -137,7 +140,7 @@ function buildVisitasWhere(req) {
   const { dt_inicio, dt_fim, status, id_vendedor, id_motivo } = req.query;
   const where = [`COALESCE(v.excluido, 'N') = 'N'`];
   const params = [];
-  const isAdmin = req.user?.role === 'admin';
+  const canPickOthers = canPickOtherVendors(req);
 
   if (dt_inicio) {
     where.push('v.data_visita >= ?');
@@ -159,18 +162,17 @@ function buildVisitasWhere(req) {
     params.push(parseInt(id_motivo, 10));
   }
 
-  if (isAdmin && id_vendedor) {
-    where.push('v.id_vendedor = ?');
-    params.push(parseInt(id_vendedor, 10));
-  } else if (!isAdmin && req.user?.id) {
-    where.push('v.id_vendedor = ?');
-    params.push(req.user.id);
+  const vendScope = buildPedidosVendedorWhereSync(req, id_vendedor, 'v.id_vendedor');
+  if (vendScope.clause) {
+    where.push(vendScope.clause.replace(/^ AND /, ''));
+    params.push(...vendScope.params);
   }
 
   return {
     clause: `WHERE ${where.join(' AND ')}`,
     params,
-    isAdmin,
+    isAdmin: canPickOthers,
+    canPickOthers,
   };
 }
 

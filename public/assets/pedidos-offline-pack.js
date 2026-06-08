@@ -6,8 +6,16 @@
   'use strict';
 
   const DB_NAME = 'sysrep_pedidos_offline_v1';
+  const DB_VERSION = 2;
   const STORE = 'pack';
+  const SHELL_STORE = 'shell';
   const OFFLINE_DAYS = 7;
+
+  const SHELL_PAGES = [
+    '/pages/pedidos.html',
+    '/mobile-shell.html',
+    '/login.html',
+  ];
 
   let _packCache = null;
   let _packPromise = null;
@@ -48,26 +56,181 @@
     t = t || token();
     if (!t) return false;
     const uid = userIdFromToken(t);
-    if (!uid) return false;
-    const until = getOfflineUntil(uid);
-    if (until > Date.now()) return true;
+    if (uid && getOfflineUntil(uid) > Date.now()) return true;
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.indexOf('sysrep_offline_until_') === 0) {
+          const v = parseInt(localStorage.getItem(k) || '0', 10);
+          if (v > Date.now()) return true;
+        }
+      }
+    } catch (_) {}
+    if (localStorage.getItem('sysrep_offline_ready') === '1') {
+      const n = parseInt(localStorage.getItem('sysrep_offline_clientes_count') || '0', 10);
+      if (n > 0) return true;
+    }
     const p = decodeJwtPayload(t);
     if (!p || !p.exp) return false;
     return p.exp * 1000 > Date.now();
   }
 
+  function normProdutoDesc(p) {
+    const desc = String(p.descricao || p.desc_produto || p.desc_prod || p.nome || '').trim();
+    return Object.assign({}, p, {
+      descricao: desc,
+      desc_produto: desc,
+      desc_prod: desc,
+      nome: desc,
+      referencia: p.cod_fabricante || p.referencia || '',
+      preco_venda: p.vlr_venda != null ? p.vlr_venda : (p.preco_venda != null ? p.preco_venda : 0)
+    });
+  }
+
+  async function syncPackToOfflineDb(pack) {
+    if (!global.OfflineDB || !pack) return 0;
+    const clientes = pack.clientes || [];
+    let produtos = [];
+    Object.values(pack.produtosPorTabela || {}).forEach((arr) => {
+      (arr || []).forEach((p) => {
+        const norm = normProdutoDesc(p);
+        if (!produtos.some((x) => String(x.id) === String(norm.id))) produtos.push(norm);
+      });
+    });
+    await global.OfflineDB.salvarClientes(clientes);
+    if (produtos.length) await global.OfflineDB.salvarProdutos(produtos);
+    await global.OfflineDB.setMeta('last_sync', pack.meta?.generatedAt || new Date().toISOString());
+    await global.OfflineDB.setMeta('pack_user_id', pack.meta?.userId || userIdFromToken());
+    await global.OfflineDB.setMeta('total_clientes', clientes.length);
+    await global.OfflineDB.setMeta('total_produtos', produtos.length);
+    return clientes.length;
+  }
+
+  async function loadPackFromOfflineDb() {
+    if (!global.OfflineDB) return null;
+    try {
+      const n = await global.OfflineDB.contarClientes();
+      if (!n) return null;
+      const clientes = await global.OfflineDB.getAllClientes();
+      return {
+        meta: {
+          version: 1,
+          generatedAt: (await global.OfflineDB.getMeta('last_sync')) || new Date().toISOString(),
+          userId: userIdFromToken(),
+          offlineDays: OFFLINE_DAYS,
+          stats: { clientes: clientes.length }
+        },
+        clientes,
+        fornecedores: [],
+        produtosPorTabela: {},
+        sistema: {},
+        permissoes: {}
+      };
+    } catch (_) {
+      return null;
+    }
+  }
+
   function openDb() {
     return new Promise((resolve, reject) => {
-      const req = indexedDB.open(DB_NAME, 1);
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
       req.onerror = () => reject(req.error);
       req.onupgradeneeded = () => {
         const db = req.result;
         if (!db.objectStoreNames.contains(STORE)) {
           db.createObjectStore(STORE, { keyPath: 'userId' });
         }
+        if (!db.objectStoreNames.contains(SHELL_STORE)) {
+          db.createObjectStore(SHELL_STORE, { keyPath: 'path' });
+        }
       };
       req.onsuccess = () => resolve(req.result);
     });
+  }
+
+  async function saveShellPage(path, html) {
+    if (!path || !html) return;
+    let db;
+    try {
+      db = await openDb();
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(SHELL_STORE, 'readwrite');
+        tx.objectStore(SHELL_STORE).put({ path, html, savedAt: Date.now() });
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    } catch (_) {
+    } finally {
+      if (db) db.close();
+    }
+  }
+
+  async function loadShellPage(path) {
+    if (!path) return null;
+    let db;
+    try {
+      db = await openDb();
+      const row = await new Promise((resolve, reject) => {
+        const tx = db.transaction(SHELL_STORE, 'readonly');
+        const req = tx.objectStore(SHELL_STORE).get(path);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
+      });
+      return row?.html || null;
+    } catch (_) {
+      return null;
+    } finally {
+      if (db) db.close();
+    }
+  }
+
+  async function cacheShellPages() {
+    if (!navigator.onLine) return;
+    try { localStorage.setItem('sysrep_app_origin', location.origin); } catch (_) {}
+    for (const path of SHELL_PAGES) {
+      try {
+        const r = await fetch(path, { credentials: 'same-origin', cache: 'force-cache' });
+        if (!r.ok) continue;
+        const html = await r.text();
+        if (html && html.length > 500) await saveShellPage(path, html);
+      } catch (_) {}
+    }
+  }
+
+  const WARM_CACHE_URLS = [
+    '/mobile-shell.html',
+    '/home.html',
+    '/login.html',
+    '/pages/pedidos.html',
+    '/pages/clientes.html',
+    '/pages/mapa-operacoes.html',
+    '/pages/visitas.html',
+    '/assets/mobile-vendedor.js',
+    '/assets/feirinha-calc.js',
+    '/assets/preco-peso-produto.js',
+    '/assets/comissao-preposto-ui.js',
+    '/assets/ajuda-tour.css',
+    '/assets/ajuda-tour.js',
+    '/assets/ajuda-tours.js',
+    '/vendor/leaflet/leaflet.css',
+    '/vendor/leaflet/leaflet.js',
+  ];
+
+  function warmAppShellCache() {
+    if (!navigator.onLine) return;
+    WARM_CACHE_URLS.forEach((url) => {
+      fetch(url, { credentials: 'same-origin' }).catch(() => {});
+    });
+    if (!('serviceWorker' in navigator)) return;
+    const post = (sw) => {
+      if (!sw) return;
+      sw.postMessage({ type: 'CACHE_URLS', urls: WARM_CACHE_URLS });
+    };
+    if (navigator.serviceWorker.controller) {
+      post(navigator.serviceWorker.controller);
+      return;
+    }
+    navigator.serviceWorker.ready.then((reg) => post(reg.active)).catch(() => {});
   }
 
   async function savePack(pack) {
@@ -83,7 +246,13 @@
     _packCache = pack;
     setOfflineUntil(uid, pack.meta?.offlineDays || OFFLINE_DAYS);
     db.close();
+    const nCli = (pack.clientes || []).length;
+    localStorage.setItem('sysrep_offline_ready', '1');
+    localStorage.setItem('sysrep_offline_clientes_count', String(nCli));
+    try { await syncPackToOfflineDb(pack); } catch (_) {}
     updatePackBadge();
+    warmAppShellCache();
+    try { await cacheShellPages(); } catch (_) {}
     return pack;
   }
 
@@ -93,20 +262,40 @@
 
     _packPromise = (async () => {
       const uid = userIdFromToken();
-      if (!uid) return null;
       try {
         const db = await openDb();
-        const row = await new Promise((resolve, reject) => {
-          const tx = db.transaction(STORE, 'readonly');
-          const req = tx.objectStore(STORE).get(uid);
-          req.onsuccess = () => resolve(req.result || null);
-          req.onerror = () => reject(req.error);
-        });
+        let row = null;
+        if (uid) {
+          row = await new Promise((resolve, reject) => {
+            const tx = db.transaction(STORE, 'readonly');
+            const req = tx.objectStore(STORE).get(uid);
+            req.onsuccess = () => resolve(req.result || null);
+            req.onerror = () => reject(req.error);
+          });
+        }
+        if (!row?.pack) {
+          const rows = await new Promise((resolve, reject) => {
+            const acc = [];
+            const tx = db.transaction(STORE, 'readonly');
+            const req = tx.objectStore(STORE).openCursor();
+            req.onsuccess = () => {
+              const c = req.result;
+              if (!c) return resolve(acc);
+              acc.push(c.value);
+              c.continue();
+            };
+            req.onerror = () => reject(req.error);
+          });
+          rows.sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+          row = rows[0] || null;
+        }
         db.close();
         _packCache = row?.pack || null;
+        if (!_packCache) _packCache = await loadPackFromOfflineDb();
         return _packCache;
       } catch (_) {
-        return null;
+        _packCache = await loadPackFromOfflineDb();
+        return _packCache;
       } finally {
         _packPromise = null;
       }
@@ -151,6 +340,95 @@
       nome: c.nome,
       cpf_cnpj: c.cpf_cnpj || c.cpf || c.cnpj || ''
     }));
+  }
+
+  function distKmKm(lat1, lng1, lat2, lng2) {
+    const r = Math.PI / 180;
+    const a = 0.5 - Math.cos((lat2 - lat1) * r) / 2
+      + Math.cos(lat1 * r) * Math.cos(lat2 * r) * (1 - Math.cos((lng2 - lng1) * r)) / 2;
+    return 12742 * Math.asin(Math.min(1, Math.sqrt(a)));
+  }
+
+  function listClientesScreen(pack, opts) {
+    opts = opts || {};
+    const statusRaw = String(opts.status || 'A').toLowerCase();
+    const status = statusRaw === 'todos' ? 'TODOS' : String(opts.status || 'A').toUpperCase();
+    const qRaw = String(opts.q || '').trim();
+    const qt = norm(qRaw);
+    const limit = Math.max(1, parseInt(opts.limit, 10) || 50);
+    const offset = Math.max(0, parseInt(opts.offset, 10) || 0);
+
+    let list = (pack.clientes || []).filter((c) => {
+      const excl = String(c.excluido || 'N').toUpperCase();
+      if (excl === 'S') return false;
+      const st = String(c.status || 'A').toUpperCase();
+      if (status === 'TODOS') return true;
+      if (status === 'A') return st === 'A' || st === '' || c.status == null;
+      if (status === 'I') return st === 'I';
+      return true;
+    });
+
+    if (qt) {
+      const isNum = /^\d+$/.test(qRaw);
+      list = list.filter((c) => {
+        if (isNum && String(c.id) === qRaw) return true;
+        return norm(c.nome).includes(qt)
+          || norm(c.apelido).includes(qt)
+          || norm(c.cpf || c.cpf_cnpj).includes(qt)
+          || norm(c.foneprincipal || c.fone).includes(qt)
+          || norm(c.cidade).includes(qt)
+          || norm(c.bairro).includes(qt);
+      });
+    }
+
+    if (opts.tipo_cliente) {
+      const t = norm(opts.tipo_cliente);
+      list = list.filter((c) => norm(c.tipo_cliente).includes(t));
+    }
+    if (opts.cidade) {
+      const t = norm(opts.cidade);
+      list = list.filter((c) => norm(c.cidade).includes(t));
+    }
+    if (opts.suspensa === 'S') {
+      list = list.filter((c) => String(c.venda_suspensa || '').toUpperCase() === 'S');
+    }
+    if (opts.sem_compra_dias && parseInt(opts.sem_compra_dias, 10) > 0) {
+      const lim = Date.now() - parseInt(opts.sem_compra_dias, 10) * 86400000;
+      list = list.filter((c) => {
+        if (!c.dtultimacompra) return true;
+        const t = new Date(c.dtultimacompra).getTime();
+        return !Number.isFinite(t) || t < lim;
+      });
+    }
+
+    const lat = parseFloat(opts.lat);
+    const lng = parseFloat(opts.lng);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      const raio = parseFloat(opts.raio || 50);
+      list = list
+        .map((c) => {
+          const clat = parseFloat(c.latitude);
+          const clng = parseFloat(c.longitude);
+          const distancia = Number.isFinite(clat) && Number.isFinite(clng)
+            ? distKmKm(lat, lng, clat, clng) : null;
+          return { c, distancia };
+        })
+        .filter((row) => row.distancia != null && row.distancia <= raio)
+        .sort((a, b) => a.distancia - b.distancia)
+        .map((row) => ({ ...row.c, distancia: row.distancia }));
+    } else {
+      list.sort((a, b) => norm(a.nome).localeCompare(norm(b.nome), 'pt-BR'));
+    }
+
+    const total = list.length;
+    const page = list.slice(offset, offset + limit).map((c) => ({
+      ...c,
+      foneprincipal: c.foneprincipal || c.fone || c.celularcomprador || '',
+      cpf: c.cpf || c.cpf_cnpj || '',
+      total_pedidos: c.total_pedidos || 0
+    }));
+
+    return { clientes: page, total };
   }
 
   function searchFornecedores(pack, q, limit, somenteFabricas) {
@@ -227,7 +505,90 @@
       }
     }
 
-    return list.slice(0, limit);
+    return list.slice(0, limit).map((p) => normProdutoDesc(p));
+  }
+
+  function matchesTipoPack(tipoPedido, filterTipo) {
+    const f = String(filterTipo || '').trim().toUpperCase();
+    if (!f || f === 'ALL' || f === 'TODOS' || f === 'TODAS') return true;
+    const t = String(tipoPedido || '').toUpperCase();
+    if (f === 'ORÇAMENTO' || f === 'ORCAMENTO') {
+      return t.includes('ORC') || t.includes('ORÇ');
+    }
+    if (f === 'PEDIDO') return !t.includes('ORC') && !t.includes('ORÇ');
+    return t.includes(f);
+  }
+
+  function filterPedidosPack(pack, filtros) {
+    filtros = filtros || {};
+    let rows = (pack.pedidosRecentes || []).slice();
+    const q = String(filtros.q || '').trim().toLowerCase();
+    const status = String(filtros.status || '').trim().toUpperCase();
+    if (status && status !== 'TODOS' && status !== 'TODAS' && status !== 'TODO') {
+      rows = rows.filter((r) => {
+        const sit = String(r.situacao_pedido || '').toUpperCase();
+        const st = String(r.status || '').toUpperCase();
+        return sit === status || st === status;
+      });
+    }
+    const tipo = filtros.tipo || '';
+    if (tipo && tipo !== 'ALL') {
+      rows = rows.filter((r) => matchesTipoPack(r.tipo_pedido, tipo));
+    }
+    const origem = String(filtros.origem || '').trim().toUpperCase();
+    if (origem) {
+      rows = rows.filter((r) => String(r.origem || '').toUpperCase() === origem);
+    }
+    if (filtros.dt_ini) {
+      rows = rows.filter((r) => !r.data_abertura || r.data_abertura >= filtros.dt_ini);
+    }
+    if (filtros.dt_fim) {
+      rows = rows.filter((r) => !r.data_abertura || r.data_abertura <= filtros.dt_fim);
+    }
+    const idVend = String(filtros.id_vendedor || '').trim();
+    if (idVend && idVend !== '0' && idVend !== 'TODOS' && idVend !== 'TODAS') {
+      rows = rows.filter((r) => String(r.id_usuario || '') === idVend);
+    }
+    if (q) {
+      rows = rows.filter((r) => {
+        const hay = [r.numero, r.nome_cliente, r.nome_fornecedor, r.nomeusu, r.nome_vendedor]
+          .join(' ').toLowerCase();
+        return hay.includes(q);
+      });
+    }
+    return rows;
+  }
+
+  function loadQueueRowsDirect(filtros) {
+    try {
+      if (global.SysRepPedidosOffline && typeof global.SysRepPedidosOffline.queueAsPedidoRows === 'function') {
+        return global.SysRepPedidosOffline.queueAsPedidoRows(filtros) || [];
+      }
+      const raw = localStorage.getItem('sysrep_pedidos_offline_v1');
+      const queue = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(queue)) return [];
+      return queue.map((entry) => {
+        const p = entry.body?.pedido || {};
+        const itens = (entry.body?.itens || []).filter((i) => !i._delete);
+        return {
+          id: entry.localId,
+          _offlineLocal: true,
+          numero: p.numero_off || '—',
+          data_abertura: p.data_abertura || (entry.createdAt ? entry.createdAt.slice(0, 10) : ''),
+          nome_cliente: p.nome_cliente || '',
+          id_usuario: p.id_usuario,
+          nome_fornecedor: p.nome_fornecedor || '',
+          nomeusu: p.nome_vendedor || '',
+          vlrtotalpedido: parseFloat(p.vlrtotalpedido) || 0,
+          total_qt: p.total_qt || itens.length,
+          tipo_pedido: p.tipo_pedido || 'PEDIDO',
+          situacao_pedido: 'OFFLINE',
+          origem: p.origem || 'MOBILE'
+        };
+      });
+    } catch (_) {
+      return [];
+    }
   }
 
   function tabelasDisponiveis(pack, cliId, forId, venId) {
@@ -261,20 +622,67 @@
   }
 
   async function fetchOffline(url, method) {
-    if (method && method !== 'GET') return null;
-    const pack = await loadPack();
-    if (!pack || !isTokenUsableOffline()) return null;
+    if (!isTokenUsableOffline()) return null;
+    let pack = _packCache;
+    if (!pack) pack = await loadPack();
+    if (!pack) pack = await loadPackFromOfflineDb();
+    if (!pack) return null;
 
     let u;
     try { u = new URL(url, global.location?.origin || 'http://localhost'); } catch (_) { return null; }
     const path = u.pathname;
     const q = u.searchParams;
 
+    if (method && method !== 'GET') {
+      // edit-lock: offline não tem concorrência — simular sucesso para permitir abrir pedidos existentes
+      if (/^\/api\/pedidos\/\d+\/edit-lock$/.test(path)) {
+        return jsonResp({ acquired: true, ok: true });
+      }
+      if (path === '/api/clientes' || /^\/api\/clientes\//.test(path)) {
+        return jsonResp({
+          error: 'Sem internet. Cadastro de cliente só sincroniza online. Para pedido offline, use o menu Pedidos.',
+          offline: true
+        }, 503);
+      }
+      return null;
+    }
+
+    // GET /api/pedidos/:id — abre pedido existente do pack (apenas cabeçalho, itens vazios offline)
+    const mPedidoDetalhe = path.match(/^\/api\/pedidos\/(\d+)$/);
+    if (mPedidoDetalhe) {
+      const pedido = (pack.pedidosRecentes || []).find(p => String(p.id) === mPedidoDetalhe[1]);
+      if (!pedido) return jsonResp({ error: 'Pedido não disponível offline' }, 404);
+      return jsonResp({ pedido, itens: [], parcelas: [], logs: [], offline: true });
+    }
+
     if (path === '/api/pedidos' || path.startsWith('/api/pedidos?')) {
+      const filtros = {
+        q: q.get('q') || '',
+        status: q.get('status') || '',
+        tipo: q.get('tipo') || '',
+        origem: q.get('origem') || '',
+        dt_ini: q.get('dt_ini') || '',
+        dt_fim: q.get('dt_fim') || '',
+        id_vendedor: q.get('id_vendedor') || ''
+      };
+      const queueRows = loadQueueRowsDirect(filtros);
+      const packRows = filterPedidosPack(pack, filtros);
+      const queueIds = new Set(queueRows.map((r) => String(r.id)));
+      const merged = [...queueRows, ...packRows.filter((r) => !queueIds.has(String(r.id)))];
+      const limit = parseInt(q.get('limit'), 10) || 50;
+      const page = parseInt(q.get('page'), 10) || 1;
+      const offset = (page - 1) * limit;
+      const pageRows = merged.slice(offset, offset + limit);
+      const total = merged.length;
       return jsonResp({
-        pedidos: [],
-        total: 0,
-        pagination: { totalPages: 0, currentPage: 1, limit: 50 }
+        pedidos: pageRows,
+        total,
+        pagination: {
+          totalItems: total,
+          totalPages: total > 0 ? Math.ceil(total / limit) : 0,
+          currentPage: page,
+          limit
+        }
       });
     }
 
@@ -324,11 +732,119 @@
     }
 
     if (path === '/api/clientes') {
-      const items = searchClientes(pack, q.get('q'), parseInt(q.get('limit'), 10) || 10);
+      if (global.OfflineDB && (!pack.clientes || !pack.clientes.length)) {
+        try {
+          const fromDb = await global.OfflineDB.listarClientes({
+            q: q.get('q'),
+            status: q.get('status') || 'A',
+            limit: q.get('limit'),
+            offset: q.get('offset'),
+            cidade: q.get('cidade')
+          });
+          if (fromDb.total > 0) {
+            if (q.get('padrao') === 'S') {
+              const items = fromDb.clientes.slice(0, parseInt(q.get('limit'), 10) || 10);
+              return jsonResp({ clientes: items, total: items.length });
+            }
+            return jsonResp(fromDb);
+          }
+        } catch (_) {}
+      }
+      const listed = listClientesScreen(pack, {
+        q: q.get('q'),
+        status: q.get('status') || 'A',
+        limit: q.get('limit'),
+        offset: q.get('offset'),
+        tipo_cliente: q.get('tipo_cliente'),
+        cidade: q.get('cidade'),
+        sem_compra_dias: q.get('sem_compra_dias'),
+        suspensa: q.get('suspensa'),
+        lat: q.get('lat'),
+        lng: q.get('lng'),
+        raio: q.get('raio')
+      });
       if (q.get('padrao') === 'S') {
+        const items = listed.clientes.slice(0, parseInt(q.get('limit'), 10) || 10);
         return jsonResp({ clientes: items, total: items.length });
       }
-      return jsonResp({ clientes: items, total: items.length });
+      return jsonResp(listed);
+    }
+
+    if (path === '/api/config/flags') {
+      return jsonResp({});
+    }
+
+    if (path === '/api/categorias') {
+      return jsonResp({ categorias: [] });
+    }
+
+    if (path === '/api/clientes/auxiliares/vendedores') {
+      const vendedores = (pack.vendedores || []).map((v) => ({
+        id: v.id,
+        nome: v.nome || v.nome_vendedor || ''
+      }));
+      return jsonResp({ vendedores });
+    }
+
+    if (path === '/api/clientes/auxiliares/ramo-atividades') {
+      return jsonResp({ ramos: [] });
+    }
+
+    if (path.startsWith('/api/clientes/auxiliares/clientes-principais')) {
+      const items = searchClientes(pack, q.get('q'), parseInt(q.get('limit'), 10) || 20);
+      return jsonResp({ clientes: items });
+    }
+
+    if (path === '/api/clientes/auxiliares/campos-cadastro') {
+      return jsonResp({ campos: [] });
+    }
+
+    if (path === '/api/clientes/auxiliares/cores') {
+      return jsonResp({ cores: [] });
+    }
+
+    if (path === '/api/clientes/auxiliares/racas') {
+      return jsonResp({ racas: [] });
+    }
+
+    if (path === '/api/lookups/regioes') {
+      return jsonResp([]);
+    }
+
+    if (path === '/api/tabela-precos/ativas') {
+      return jsonResp({ tabelas: [] });
+    }
+
+    if (path === '/api/teleatendimento/clientes-com-ligacoes') {
+      return jsonResp({ clientes: [] });
+    }
+
+    if (path === '/api/regiao-rota/rotas-vendedor/clientes-em-rota') {
+      return jsonResp({ items: [] });
+    }
+
+    if (/^\/api\/visitas\/hoje\/\d+$/.test(path)) {
+      return jsonResp([]);
+    }
+
+    const mCliLig = path.match(/^\/api\/clientes\/(\d+)\/ligacoes$/);
+    if (mCliLig) {
+      return jsonResp({ ligacoes: [] });
+    }
+
+    const mCliFotos = path.match(/^\/api\/clientes\/(\d+)\/fotos$/);
+    if (mCliFotos) {
+      return jsonResp({ fotos: [] });
+    }
+
+    const mCliCheck = path.match(/^\/api\/clientes\/check-cnpj$/);
+    if (mCliCheck || path === '/api/clientes/check-cnpj') {
+      return jsonResp({ duplicado: false, clientes: [] });
+    }
+
+    const mTabVinc = path.match(/^\/api\/tabela-precos\/vinculos\/CLIENTE\/(\d+)$/);
+    if (mTabVinc) {
+      return jsonResp({ vinculos: [] });
     }
 
     if (path === '/api/fornecedores') {
@@ -382,8 +898,33 @@
       return jsonResp({ itens: pack.gradesPorGrade?.[mGrade[1]] || [] });
     }
 
-    if (path === '/api/pedidos/config/grid') {
+    if (path === '/api/pedidos/config/grid' || path === '/api/pedidos/config/itens-colunas') {
       return jsonResp({ config: null });
+    }
+
+    if (path === '/api/feirinha/campanhas' || path.startsWith('/api/feirinha/campanhas?')) {
+      return jsonResp({ campanhas: [], total: 0 });
+    }
+
+    const mFeirinhaKit = path.match(/^\/api\/feirinha\/campanhas\/(\d+)\/kit$/);
+    if (mFeirinhaKit) {
+      return jsonResp({ itens: [], campanha: null });
+    }
+
+    if (path.startsWith('/api/pedidos/produtos/promocoes-resumo')) {
+      return jsonResp({ promocoes: [], total: 0 });
+    }
+
+    if (path.startsWith('/api/pedidos/ultimo-por-cliente/')) {
+      return jsonResp({ pedido: null });
+    }
+
+    if (path.startsWith('/api/pedidos/comissoes-faturamento/')) {
+      return jsonResp({ comissoes: [] });
+    }
+
+    if (path.startsWith('/api/tabela-precos/opcoes-item/')) {
+      return jsonResp({ opcoes: [] });
     }
 
     if (/^\/api\/pedidos\/grade-historico\//.test(path) || /^\/api\/pedidos\/grade-sugestao\//.test(path)) {
@@ -408,8 +949,45 @@
       onProgress(`Salvando ${st.clientes || 0} clientes, ${st.produtos || 0} produtos…`);
     }
     await savePack(pack);
-    if (typeof onProgress === 'function') onProgress('Pronto para uso offline');
+    const n = (pack.clientes || []).length;
+    if (typeof onProgress === 'function') {
+      onProgress('Pronto — ' + n + ' clientes no banco local');
+    }
     return pack;
+  }
+
+  function formatPrepareSummary(pack) {
+    const st = pack?.meta?.stats || {};
+    const nCli = st.clientes != null ? st.clientes : (pack?.clientes || []).length;
+    const nProd = st.produtos != null ? st.produtos : 0;
+    const nTab = st.tabelas != null ? st.tabelas : 0;
+    if (!nCli) {
+      return 'Offline gravado, porém 0 clientes na carteira — confira vínculo vendedor no cadastro de clientes.';
+    }
+    const nPed = st.pedidos != null ? st.pedidos : (pack?.pedidosRecentes || []).length;
+    return 'Banco local: ' + nCli + ' clientes · ' + nProd + ' produtos · ' + nPed + ' pedidos · válido 7 dias ✓';
+  }
+
+  function formatPrepareDetailLines(pack) {
+    const st = pack?.meta?.stats || {};
+    const nCli = st.clientes != null ? st.clientes : (pack?.clientes || []).length;
+    const nProd = st.produtos != null ? st.produtos : 0;
+    const nTab = st.tabelas != null ? st.tabelas : 0;
+    const nPed = st.pedidos != null ? st.pedidos : (pack?.pedidosRecentes || []).length;
+    const nForn = st.fornecedores != null ? st.fornecedores : (pack?.fornecedores || []).length;
+    const lines = [
+      'Será gravado neste aparelho para uso sem internet:',
+      '• ' + nCli + ' clientes da sua carteira',
+      '• ' + nProd + ' produtos em ' + nTab + ' tabelas de preço',
+      '• ' + nForn + ' fábricas / fornecedores',
+      '• ' + nPed + ' pedidos recentes (consulta na lista offline)',
+      '• Condições, grades e vínculos de tabela',
+      'Pedidos novos criados offline ficam na fila e são enviados quando você tocar em sincronizar.'
+    ];
+    if (!nCli) {
+      lines.push('⚠ Nenhum cliente na carteira — verifique vínculo do vendedor no cadastro.');
+    }
+    return lines;
   }
 
   function formatPackAge(pack) {
@@ -421,6 +999,11 @@
   function updatePackBadge() {
     const el = document.getElementById('offlinePackBadge');
     if (!el) return;
+    if (document.documentElement.classList.contains('sysrep-ms-embed')) {
+      el.style.display = 'none';
+      el.textContent = '';
+      return;
+    }
     loadPack().then(pack => {
       const uid = userIdFromToken();
       const valid = pack && getOfflineUntil(uid) > Date.now();
@@ -452,8 +1035,11 @@
       const lbl = btn.querySelector('.pm-prep-label') || btn;
       const orig = lbl.textContent;
       try {
-        await preparePack(apiFn, (msg) => { lbl.textContent = msg; });
-        if (typeof global.toast === 'function') global.toast('App preparado para uso offline (7 dias)', 'ok');
+        const pack = await preparePack(apiFn, (msg) => { lbl.textContent = msg; });
+        if (typeof global.toast === 'function' && !document.documentElement.classList.contains('sysrep-ms-embed')) {
+          const sum = formatPrepareSummary(pack);
+          global.toast(sum, (pack?.meta?.stats?.clientes || (pack?.clientes || []).length) > 0 ? 'ok' : 'warn');
+        }
       } catch (e) {
         if (typeof global.toast === 'function') global.toast(e.message || 'Erro ao preparar offline', 'err');
       } finally {
@@ -478,13 +1064,20 @@
     savePack,
     hasValidPack,
     preparePack,
+    formatPrepareSummary,
+    formatPrepareDetailLines,
     fetchOffline,
     isTokenUsableOffline,
     userIdFromToken,
     getOfflineUntil,
     updatePackBadge,
     bindPrepareButton,
+    warmAppShellCache,
+    cacheShellPages,
+    loadShellPage,
+    syncPackToOfflineDb,
     searchClientes,
+    listClientesScreen,
     searchFornecedores,
     searchProdutos,
     getHistoricoCliente,

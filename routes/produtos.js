@@ -29,7 +29,18 @@ const {
   previewDescontoCampanha,
 } = require('../config/promocoes-campanha');
 const { relatorioDashboard } = require('../config/promocoes-dashboard');
-const { ensureItenspedPromoColumns } = require('../config/schema-migrations');
+const { ensureItenspedPromoColumns, ensurePromocoesCampanhaTables } = require('../config/schema-migrations');
+const {
+  requirePromoAccess,
+  requirePromoPerm,
+  requirePromoLote,
+} = require('../config/promocoes-permissoes');
+const {
+  listarDestaquesComerciais,
+  getDestaqueComercial,
+  gravarDestaqueComercial,
+  excluirDestaqueComercial,
+} = require('../config/produtos-destaque');
 
 function _parseCodCliente(v) {
   return parseOptInt(v);
@@ -670,6 +681,7 @@ router.post('/importar-fotos',
 
 // ─── Promoções — campanhas centralizadas (estilo Mercos) ─────────────────────
 router.get('/promocoes/campanhas', async (req, res) => {
+  if (!requirePromoAccess(req, res)) return;
   try {
     const pool = getPool();
     const out = await listarCampanhas(pool, {
@@ -683,6 +695,7 @@ router.get('/promocoes/campanhas', async (req, res) => {
 });
 
 router.get('/promocoes/campanhas/:campanhaId', async (req, res) => {
+  if (!requirePromoAccess(req, res)) return;
   try {
     const pool = getPool();
     const id = parseInt(req.params.campanhaId, 10);
@@ -693,6 +706,7 @@ router.get('/promocoes/campanhas/:campanhaId', async (req, res) => {
 });
 
 router.get('/promocoes/campanhas/:campanhaId/produtos', async (req, res) => {
+  if (!requirePromoAccess(req, res)) return;
   try {
     const pool = getPool();
     const id = parseInt(req.params.campanhaId, 10);
@@ -702,6 +716,7 @@ router.get('/promocoes/campanhas/:campanhaId/produtos', async (req, res) => {
 });
 
 router.post('/promocoes/campanhas/:campanhaId/preview', async (req, res) => {
+  if (!requirePromoAccess(req, res)) return;
   try {
     const pool = getPool();
     const id = parseInt(req.params.campanhaId, 10);
@@ -724,6 +739,7 @@ router.post('/promocoes/campanhas/:campanhaId/preview', async (req, res) => {
 });
 
 router.post('/promocoes/campanhas', async (req, res) => {
+  if (!requirePromoPerm(req, res, 'incluir_promocoes', 'Sem permissão para incluir campanhas de promoção')) return;
   try {
     const pool = getPool();
     const out = await gravarCampanha(pool, req.body || {});
@@ -732,6 +748,7 @@ router.post('/promocoes/campanhas', async (req, res) => {
 });
 
 router.put('/promocoes/campanhas/:campanhaId', async (req, res) => {
+  if (!requirePromoPerm(req, res, 'alterar_promocoes', 'Sem permissão para alterar campanhas de promoção')) return;
   try {
     const pool = getPool();
     const id = parseInt(req.params.campanhaId, 10);
@@ -742,6 +759,7 @@ router.put('/promocoes/campanhas/:campanhaId', async (req, res) => {
 });
 
 router.delete('/promocoes/campanhas/:campanhaId', async (req, res) => {
+  if (!requirePromoPerm(req, res, 'excluir_promocoes', 'Sem permissão para excluir campanhas de promoção')) return;
   try {
     const pool = getPool();
     const id = parseInt(req.params.campanhaId, 10);
@@ -751,6 +769,7 @@ router.delete('/promocoes/campanhas/:campanhaId', async (req, res) => {
 });
 
 router.post('/promocoes/campanhas/:campanhaId/produtos', async (req, res) => {
+  if (!requirePromoPerm(req, res, 'alterar_promocoes', 'Sem permissão para alterar produtos da campanha')) return;
   try {
     const pool = getPool();
     const id = parseInt(req.params.campanhaId, 10);
@@ -761,6 +780,7 @@ router.post('/promocoes/campanhas/:campanhaId/produtos', async (req, res) => {
 });
 
 router.post('/promocoes/campanhas/:campanhaId/escopo', async (req, res) => {
+  if (!requirePromoPerm(req, res, 'alterar_promocoes', 'Sem permissão para alterar escopo da campanha')) return;
   try {
     const pool = getPool();
     const id = parseInt(req.params.campanhaId, 10);
@@ -771,6 +791,7 @@ router.post('/promocoes/campanhas/:campanhaId/escopo', async (req, res) => {
 });
 
 router.post('/promocoes/campanhas/:campanhaId/materializar', async (req, res) => {
+  if (!requirePromoPerm(req, res, 'alterar_promocoes', 'Sem permissão para materializar campanha')) return;
   try {
     const pool = getPool();
     const id = parseInt(req.params.campanhaId, 10);
@@ -780,6 +801,7 @@ router.post('/promocoes/campanhas/:campanhaId/materializar', async (req, res) =>
 });
 
 router.post('/promocoes/acoes-lote', async (req, res) => {
+  if (!requirePromoLote(req, res, req.body?.acao)) return;
   try {
     const pool = getPool();
     const out = await acoesLotePromocoes(pool, req.body || {});
@@ -788,6 +810,7 @@ router.post('/promocoes/acoes-lote', async (req, res) => {
 });
 
 router.get('/promocoes/dashboard', async (req, res) => {
+  if (!requirePromoAccess(req, res)) return;
   try {
     const pool = getPool();
     const out = await relatorioDashboard(pool, getTabela, {
@@ -799,8 +822,64 @@ router.get('/promocoes/dashboard', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ─── Destaques comerciais (marketing sem desconto) ───────────────────────────
+router.get('/destaques-comerciais', async (req, res) => {
+  if (!requirePromoAccess(req, res)) return;
+  try {
+    const pool = getPool();
+    await ensurePromocoesCampanhaTables(pool);
+    const out = await listarDestaquesComerciais(pool, getTabela, req.query);
+    res.json(out);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/destaques-comerciais/:id', async (req, res) => {
+  if (!requirePromoAccess(req, res)) return;
+  try {
+    const pool = getPool();
+    await ensurePromocoesCampanhaTables(pool);
+    const row = await getDestaqueComercial(pool, getTabela, req.params.id);
+    if (!row) return res.status(404).json({ error: 'Destaque não encontrado' });
+    res.json(row);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/destaques-comerciais', async (req, res) => {
+  if (!requirePromoPerm(req, res, 'incluir_promocoes')) return;
+  try {
+    const pool = getPool();
+    await ensurePromocoesCampanhaTables(pool);
+    const out = await gravarDestaqueComercial(pool, getTabela, req.body || {});
+    if (out.error) return res.status(400).json({ error: out.error });
+    res.status(201).json(out);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.put('/destaques-comerciais/:id', async (req, res) => {
+  if (!requirePromoPerm(req, res, 'alterar_promocoes')) return;
+  try {
+    const pool = getPool();
+    await ensurePromocoesCampanhaTables(pool);
+    const id = parseInt(req.params.id, 10);
+    const out = await gravarDestaqueComercial(pool, getTabela, req.body || {}, id);
+    if (out.error) return res.status(400).json({ error: out.error });
+    res.json(out);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.delete('/destaques-comerciais/:id', async (req, res) => {
+  if (!requirePromoPerm(req, res, 'excluir_promocoes')) return;
+  try {
+    const pool = getPool();
+    await ensurePromocoesCampanhaTables(pool);
+    await excluirDestaqueComercial(pool, req.params.id);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ─── Promoções — lista central e relatório ────────────────────────────────────
 router.get('/promocoes/lista', async (req, res) => {
+  if (!requirePromoAccess(req, res)) return;
   try {
     const pool = getPool();
     if (!(await tabelaPromocoesExiste(pool))) return res.json({ data: [], total: 0 });
@@ -864,6 +943,7 @@ router.get('/promocoes/lista', async (req, res) => {
 });
 
 router.get('/promocoes/relatorio-vendas', async (req, res) => {
+  if (!requirePromoAccess(req, res)) return;
   try {
     const pool = getPool();
     await ensureItenspedPromoColumns(pool);
@@ -942,6 +1022,7 @@ router.get('/:id/promocoes/resolve', async (req, res) => {
 });
 
 router.get('/:id/promocoes', async (req, res) => {
+  if (!requirePromoAccess(req, res)) return;
   try {
     const pool = getPool();
     const prodId = parseInt(req.params.id, 10);
@@ -971,6 +1052,7 @@ router.get('/:id/promocoes', async (req, res) => {
 });
 
 router.post('/:id/promocoes', async (req, res) => {
+  if (!requirePromoPerm(req, res, 'incluir_promocoes', 'Sem permissão para incluir promoções')) return;
   try {
     const pool = getPool();
     const prodId = parseInt(req.params.id, 10);
@@ -984,6 +1066,7 @@ router.post('/:id/promocoes', async (req, res) => {
 });
 
 router.put('/:id/promocoes/:promoId', async (req, res) => {
+  if (!requirePromoPerm(req, res, 'alterar_promocoes', 'Sem permissão para alterar promoções')) return;
   try {
     const pool = getPool();
     const prodId = parseInt(req.params.id, 10);
@@ -1005,6 +1088,7 @@ router.put('/:id/promocoes/:promoId', async (req, res) => {
 });
 
 router.delete('/:id/promocoes/:promoId', async (req, res) => {
+  if (!requirePromoPerm(req, res, 'excluir_promocoes', 'Sem permissão para excluir promoções')) return;
   try {
     const pool = getPool();
     const prodId = parseInt(req.params.id, 10);

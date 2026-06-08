@@ -24,14 +24,16 @@
   window.sysrepInitServiceWorker = async function () {
     if (!('serviceWorker' in navigator)) return null;
 
-    await unregisterAll();
-
     if (IS_LOCAL) {
+      await unregisterAll();
       await clearAppCaches();
       return null;
     }
 
-    const reg = await navigator.serviceWorker.register('/sw-v3.js', { updateViaCache: 'none' });
+    let reg = await navigator.serviceWorker.getRegistration('/');
+    if (!reg) {
+      reg = await navigator.serviceWorker.register('/sw-v3.js', { updateViaCache: 'none', scope: '/' });
+    }
     try {
       await reg.update();
     } catch (_) {}
@@ -40,9 +42,15 @@
 
   window.sysrepAttachSwReload = function (onReload) {
     if (IS_LOCAL || typeof onReload !== 'function') return;
-    navigator.serviceWorker.addEventListener('controllerchange', onReload);
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+      onReload();
+    });
     navigator.serviceWorker.addEventListener('message', (e) => {
-      if (e.data && e.data.type === 'SW_UPDATED') onReload();
+      if (e.data && e.data.type === 'SW_UPDATED') {
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+        onReload();
+      }
     });
   };
 })();

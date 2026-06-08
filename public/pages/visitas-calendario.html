@@ -9,6 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/themes.css">
 <script src="/assets/themes.js"></script>
+<script src="/assets/comissao-preposto-ui.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:var(--font,'Inter','Segoe UI',sans-serif);background:var(--content-bg);color:var(--content-text);height:100vh;display:flex;flex-direction:column;overflow:hidden}
@@ -303,6 +304,13 @@ async function fillVendedores(){
     _vendedores = d.vendedores || [];
     const sel1 = document.getElementById('filtVendedor');
     const sel2 = document.getElementById('mVendedor');
+    if (window.ComissaoPrepostoUi) {
+      sel1.style.display = '';
+      ComissaoPrepostoUi.populateVendedorSelect(sel1, _vendedores, { emptyLabel: 'Todos os vendedores' });
+      ComissaoPrepostoUi.populateVendedorSelect(sel2, _vendedores, { emptyLabel: '— selecionar —' });
+      _filtVendedor = ComissaoPrepostoUi.resolveVendedorFilterId(sel1) || '';
+      return;
+    }
     if (_vendedores.length > 1){
       sel1.style.display = '';
       sel1.innerHTML = '<option value="">Todos os vendedores</option>' +
@@ -311,6 +319,15 @@ async function fillVendedores(){
     sel2.innerHTML = '<option value="">— selecionar —</option>' +
       _vendedores.map(v=>`<option value="${v.id}">${v.nome||v.nome_vendedor}</option>`).join('');
   }catch(_){}
+}
+
+function _vendedorFiltroAtivo() {
+  if (_filtVendedor) return _filtVendedor;
+  const sel1 = document.getElementById('filtVendedor');
+  if (window.ComissaoPrepostoUi && sel1) {
+    return ComissaoPrepostoUi.resolveVendedorFilterId(sel1) || '';
+  }
+  return '';
 }
 
 async function fillMotivos(){
@@ -325,7 +342,7 @@ async function fillMotivos(){
 // ── Calendário mensal ─────────────────────────────────────────────────────────
 async function loadCalendario(){
   const qs = new URLSearchParams({ ano:_ano, mes:_mes });
-  if (_filtVendedor) qs.set('id_vendedor', _filtVendedor);
+  if (_vendedorFiltroAtivo()) qs.set('id_vendedor', _vendedorFiltroAtivo());
   try{
     const d = await apiFetch('/api/visitas/calendario?'+qs);
     _diasData = d.dias || {};
@@ -467,7 +484,7 @@ async function loadWeekVisits(){
   const fim = new Date(_weekStart);
   fim.setDate(fim.getDate()+6);
   const qs = new URLSearchParams({ data_de: isoDate(_weekStart), data_ate: isoDate(fim), limit:500 });
-  if(_filtVendedor) qs.set('id_vendedor',_filtVendedor);
+  if (_vendedorFiltroAtivo()) qs.set('id_vendedor', _vendedorFiltroAtivo());
   try{
     const d = await apiFetch('/api/visitas?'+qs);
     _weekVisits = d.visitas || [];
@@ -522,7 +539,7 @@ async function selectDay(dateStr){
 
   try{
     const qs = new URLSearchParams({ data_de:dateStr, data_ate:dateStr, limit:100 });
-    if(_filtVendedor) qs.set('id_vendedor',_filtVendedor);
+    if (_vendedorFiltroAtivo()) qs.set('id_vendedor', _vendedorFiltroAtivo());
     const d = await apiFetch('/api/visitas?'+qs);
     renderPanelVisits(d.visitas||[], dateStr);
   }catch(e){

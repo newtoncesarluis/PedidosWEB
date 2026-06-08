@@ -177,10 +177,13 @@ async function obterIdTabelaPadraoAuto(pool) {
 function mergeTabelaPadraoEmUpdates(updates, idPadrao, isInsert, precoRef) {
   const list = [...updates];
   if (!isInsert || !idPadrao) return list;
-  if (list.some((u) => u.id_tabela === idPadrao)) return list;
+  // Preços explícitos por tabela: não duplicar na tabela padrão via coluna base
+  if (list.length > 0) return list;
+  const idPadraoNum = Number(idPadrao);
+  if (list.some((u) => Number(u.id_tabela) === idPadraoNum)) return list;
   const v = parseFloat(String(precoRef ?? '').replace(',', '.'));
   if (!(v > 0)) return list;
-  list.push({ id_tabela: idPadrao, valor_final: v, tipo_desconto: 'R', vlr_desconto: 0 });
+  list.push({ id_tabela: idPadraoNum, valor_final: v, tipo_desconto: 'R', vlr_desconto: 0 });
   return list;
 }
 

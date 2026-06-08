@@ -9,6 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300..700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/assets/themes.css">
   <script src="/assets/themes.js"></script>
+  <script src="/assets/comissao-preposto-ui.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
@@ -310,6 +311,10 @@ async function loadVendedores() {
     const r = await fetch('/api/leads/lookup/vendedores');
     const d = await r.json();
     const sel = document.getElementById('sel-vend');
+    if (window.ComissaoPrepostoUi) {
+      ComissaoPrepostoUi.populateVendedorSelect(sel, d.vendedores || [], { emptyLabel: 'Todos' });
+      return;
+    }
     (d.vendedores || []).forEach(v => {
       const o = document.createElement('option');
       o.value = v.id; o.textContent = v.nome;
@@ -319,7 +324,10 @@ async function loadVendedores() {
 }
 
 async function loadDash() {
-  const vend  = document.getElementById('sel-vend').value;
+  const selV = document.getElementById('sel-vend');
+  const vend  = window.ComissaoPrepostoUi
+    ? ComissaoPrepostoUi.resolveVendedorFilterId(selV)
+    : selV.value;
   const stale = document.getElementById('sel-stale').value;
   const p = new URLSearchParams({ stale_dias: stale });
   if (vend) p.set('id_vendedor', vend);

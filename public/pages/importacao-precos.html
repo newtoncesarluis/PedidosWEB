@@ -222,6 +222,12 @@
     /* Bars */
     .sheet-bar { display:flex; gap:.5rem; flex-wrap:wrap; margin-bottom:.7rem; align-items:center; }
     .sheet-bar label { color:var(--muted); font-family:var(--font-body); font-size:.88rem; letter-spacing:.01em; font-weight:600; }
+    #currencyBar { display:flex; gap:.5rem; flex-wrap:wrap; margin-bottom:.7rem; align-items:center; }
+    #currencyBar label { color:var(--muted); font-family:var(--font-body); font-size:.88rem; font-weight:600; }
+    .currency-btn { padding:6px 12px; border-radius:var(--radius-md); border:1px solid var(--border); background:var(--card); color:var(--text2); font-size:.82rem; cursor:pointer; }
+    .currency-btn.active { border-color:var(--accent); color:var(--accent); font-weight:700; }
+    .detected-info { font-size:.82rem; color:var(--text2); }
+    .detected-info span { color:var(--accent); font-weight:700; }
     .sheet-btn { padding:.52rem 1rem; border-radius:999px; border:1px solid var(--border); background:var(--surface); color:var(--muted); font-family:var(--font-body); font-size:.9rem; font-weight:600; cursor:pointer; transition:all .15s; }
     .sheet-btn:hover { border-color:var(--accent2); color:var(--accent2); }
     .sheet-btn.active { background:var(--accent); border-color:var(--accent); color:#ffffff; font-weight:700; }
@@ -938,7 +944,6 @@
     </div>
     <!-- Cards de status (aparecem após verificação) -->
     <div class="status-cards" id="statusCards"></div>
-    <!-- currency-bar oculto — detecção mantida, seletor não exibido -->
     <div id="currencyBar" style="display:none;"></div>
     <!-- statsBar oculto — info vai para o rodapé -->
     <div id="statsBar" style="display:none;"></div>
@@ -1100,7 +1105,7 @@
   let verificado   = false;
 
   const CURRENCIES   = [{code:'BRL',locale:'pt-BR',label:'R$ BRL'},{code:'USD',locale:'en-US',label:'$ USD'},{code:'EUR',locale:'de-DE',label:'€ EUR'}];
-  const MONEY_KEYWORDS = ['valor','value','price','preco','preço','custo','cost','total','subtotal','receita','revenue','despesa','expense','salario','salary','wage','pagamento','payment','fee','taxa','tarifa','lucro','profit','discount','desconto','amount','montante','saldo','balance','venda','sale','compra','purchase','comissao','commission'];
+  const MONEY_KEYWORDS = ['valor','value','price','preco','preço','custo','cost','total','subtotal','receita','revenue','despesa','expense','salario','salary','wage','pagamento','payment','fee','taxa','tarifa','lucro','profit','discount','desconto','amount','montante','saldo','balance','venda','sale','compra','purchase','comissao','commission','tab','tabela','vlr','pvp','pvl'];
 
   let fornecedorSelecionado = { id: null, nome: null, descontos: null, precoprincipal: '' };
   let importPrecoCtx = null;
@@ -1283,12 +1288,12 @@
       }
 
       setPainelPrecoAtivo(true, true);
-      let h = 'Após importar o arquivo, escolha a(s) coluna(s) da planilha com preço para cada tabela. Desconto é opcional (marque «desc. %» para percentual; desmarque para valor em R$).';
+      let h = 'Para cada tabela vinculada, escolha a coluna da planilha com o preço correspondente (obrigatório em todas). Desconto é opcional (marque «desc. %» para percentual; desmarque para valor em R$).';
       if (d.tabela_padrao_auto) {
         h +=
-          ' Tabela padrão «' +
+          ' A tabela padrão «' +
           escHtml(String(d.tabela_padrao_auto.descricao)) +
-          '»: novos produtos podem ser incluídos automaticamente usando o preço da coluna base (preço principal do fornecedor), se não estiver já mapeada.';
+          '» também precisa de coluna própria — não usa automaticamente o preço principal do fornecedor quando há mais de uma tabela.';
       }
       if (hint) hint.textContent = h;
       seedTabelaPrecoRowsFromVinculos();
@@ -1326,29 +1331,55 @@
     }
     tabelaPrecoMapeamentos = tabs.map((t) => ({
       id_tabela: String(t.id),
+      descricao: String(t.descricao || ''),
       colPreco: -1,
       colDesconto: -1,
       descontoPercentual: true
     }));
     renderTabelaPrecoRows();
+    autoMapearTabelaPrecos();
     atualizarEstadoFormulario();
   }
 
   /** Próxima tabela ainda sem linha de mapeamento (ou a última, se todas já tiverem linha). */
-  function getProximaTabelaId() {
+  function getProximaTabela() {
     const tabs = importPrecoCtx && importPrecoCtx.tabelas_vinculadas ? importPrecoCtx.tabelas_vinculadas : [];
-    if (!tabs.length) return '';
+    if (!tabs.length) return null;
     const used = new Set(tabelaPrecoMapeamentos.map((m) => String(m.id_tabela)));
-    const livre = tabs.find((t) => !used.has(String(t.id)));
-    return String((livre || tabs[tabs.length - 1]).id);
+    return tabs.find((t) => !used.has(String(t.id))) || tabs[tabs.length - 1];
+  }
+  function getProximaTabelaId() {
+    const t = getProximaTabela();
+    return t ? String(t.id) : '';
+  }
+
+  /**
+   * Tenta cruzar o nome de cada tabela vinculada com os cabeçalhos da planilha.
+   * Ex: tabela "POA" → coluna "TAB. POA" (contém "POA").
+   * Só pré-seleciona se ainda não estiver mapeada (colPreco === -1).
+   */
+  function autoMapearTabelaPrecos() {
+    if (!headers.length || !tabelaPrecoMapeamentos.length) return;
+    let changed = false;
+    tabelaPrecoMapeamentos.forEach((m) => {
+      if (m.colPreco >= 0) return;
+      const tNorm = String(m.descricao || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (!tNorm) return;
+      const idx = headers.findIndex((h) => {
+        const hNorm = String(h).toLowerCase().replace(/[^a-z0-9]/g, '');
+        return hNorm.includes(tNorm) || tNorm.includes(hNorm);
+      });
+      if (idx >= 0) { m.colPreco = idx; m._autoMapped = true; changed = true; }
+    });
+    if (changed) renderTabelaPrecoRows();
   }
 
   function calcPrecoFinalTabelaLinha(brutoRaw, descRaw, descontoEhPercentual) {
-    let b = parseFloat(String(brutoRaw ?? '').replace(',', '.'));
+    let b = parseNumeroMoeda(brutoRaw);
     if (isNaN(b) || b <= 0) return null;
     const ds = String(descRaw ?? '').trim();
     if (!ds) return { valor: Number(b.toFixed(2)), tipo_desconto: 'R', vlr_desconto: 0 };
-    const d = parseFloat(ds.replace(',', '.'));
+    const d = parseNumeroMoeda(ds);
     if (isNaN(d) || d <= 0) return { valor: Number(b.toFixed(2)), tipo_desconto: 'R', vlr_desconto: 0 };
     if (descontoEhPercentual) {
       const f = b * (1 - d / 100);
@@ -1382,10 +1413,12 @@
         headers.map((h, i) =>
           '<option value="' + i + '"' + (m.colDesconto === i ? ' selected' : '') + '>Desc: ' + esc(String(h).slice(0, 40)) + '</option>'
         ).join('');
+      const autoDetectado = m.colPreco >= 0 && m._autoMapped;
       html +=
         '<div class="tp-row" data-i="' + idx + '">' +
         '<select class="tp-sel-tab" data-i="' + idx + '"' + (noHead ? ' disabled' : '') + '>' + optsTab + '</select>' +
-        '<select class="tp-sel-preco" data-i="' + idx + '"' + (noHead ? ' disabled' : '') + '>' + optsCol + '</select>' +
+        '<select class="tp-sel-preco" data-i="' + idx + '"' + (noHead ? ' disabled' : '') + ' style="' + (m.colPreco >= 0 ? 'border-color:var(--accent);color:var(--accent);font-weight:700;' : '') + '">' + optsCol + '</select>' +
+        (autoDetectado ? '<span style="font-size:11px;font-weight:700;color:var(--accent);white-space:nowrap;padding:0 4px;border:1px solid currentColor;border-radius:4px;">auto</span>' : '') +
         '<select class="tp-sel-desc" data-i="' + idx + '"' + (noHead ? ' disabled' : '') + '>' + optsDesc + '</select>' +
         '<label style="font-size:13px;display:inline-flex;align-items:center;gap:6px;color:var(--text2);font-weight:600;">' +
         '<input type="checkbox" class="tp-chk-pct" data-i="' + idx + '"' + (m.descontoPercentual !== false ? ' checked' : '') + '/> desc. %' +
@@ -1400,7 +1433,7 @@
     host.querySelectorAll('.tp-chk-pct').forEach((el) => el.addEventListener('change', syncTabelaPrecoRowFromDom));
   }
 
-  function syncTabelaPrecoRowFromDom() {
+  function lerTabelaPrecoRowsDoDom() {
     const host = document.getElementById('tabelaPrecoRows');
     if (!host) return;
     host.querySelectorAll('.tp-row').forEach((row) => {
@@ -1410,11 +1443,20 @@
       const pr = row.querySelector('.tp-sel-preco');
       const ds = row.querySelector('.tp-sel-desc');
       const pct = row.querySelector('.tp-chk-pct');
-      if (tab) tabelaPrecoMapeamentos[idx].id_tabela = tab.value;
-      if (pr) tabelaPrecoMapeamentos[idx].colPreco = parseInt(pr.value, 10);
+      if (tab) {
+        tabelaPrecoMapeamentos[idx].id_tabela = tab.value;
+        const tabs = importPrecoCtx && importPrecoCtx.tabelas_vinculadas ? importPrecoCtx.tabelas_vinculadas : [];
+        const found = tabs.find((t) => String(t.id) === tab.value);
+        tabelaPrecoMapeamentos[idx].descricao = found ? String(found.descricao || '') : '';
+      }
+      if (pr) { tabelaPrecoMapeamentos[idx].colPreco = parseInt(pr.value, 10); tabelaPrecoMapeamentos[idx]._autoMapped = false; }
       if (ds) tabelaPrecoMapeamentos[idx].colDesconto = parseInt(ds.value, 10);
       if (pct) tabelaPrecoMapeamentos[idx].descontoPercentual = !!pct.checked;
     });
+  }
+
+  function syncTabelaPrecoRowFromDom() {
+    lerTabelaPrecoRowsDoDom();
     atualizarEstadoFormulario();
   }
 
@@ -1425,8 +1467,10 @@
       seedTabelaPrecoRowsFromVinculos();
       return;
     }
+    const proxTab = getProximaTabela();
     tabelaPrecoMapeamentos.push({
-      id_tabela: getProximaTabelaId(),
+      id_tabela: proxTab ? String(proxTab.id) : '',
+      descricao: proxTab ? String(proxTab.descricao || '') : '',
       colPreco: -1,
       colDesconto: -1,
       descontoPercentual: true
@@ -1450,7 +1494,7 @@
   }
 
   function buildTabelaPrecosUpdatesForRow(row) {
-    syncTabelaPrecoRowFromDom();
+    lerTabelaPrecoRowsDoDom();
     const out = [];
     if (!modoTabelaPrecoAtivo()) return out;
     for (const m of tabelaPrecoMapeamentos) {
@@ -1476,13 +1520,13 @@
     const idx = getVlrBaseColIdx();
     if (idx < 0) return '';
     const vlrBase = row[idx];
-    const vlrBaseStr = String(vlrBase ?? '').replace(',', '.');
-    if (vlrBaseStr === '' || !(parseFloat(vlrBaseStr) > 0)) return '';
+    const n = parseNumeroMoeda(vlrBase);
+    if (isNaN(n) || !(n > 0)) return '';
     if (fornecedorSelecionado.descontos) {
       const calc = calcDescontoCascata(vlrBase);
       if (calc !== null) return calc.toFixed(2);
     }
-    return parseFloat(vlrBaseStr).toFixed(2);
+    return n.toFixed(2);
   }
 
   function checarFornecedor() {
@@ -1545,19 +1589,20 @@
   }
 
   function camposCriticosFaltando() {
+    lerTabelaPrecoRowsDoDom();
     const mappedFields = Object.values(colMapping).map(v => v.nome_campo);
     const faltando = [];
     if (!mappedFields.includes('cod_fabricante')) faltando.push('cod_fabricante');
     if (!mappedFields.includes('descricao') && !mappedFields.includes('desc_produto') && !mappedFields.includes('produto')) faltando.push('descricao');
     if (modoTabelaPrecoAtivo()) {
-      const mapsOk = tabelaPrecoMapeamentos.some(m => parseInt(String(m.id_tabela), 10) > 0 && m.colPreco >= 0);
-      const temPadrao = importPrecoCtx && importPrecoCtx.tabela_padrao_auto;
-      const baseIdx = typeof getVlrBaseColIdx === 'function' ? getVlrBaseColIdx() : -1;
-      if (!mapsOk) {
-        if (temPadrao) {
-          if (baseIdx < 0) faltando.push('coluna preço base (tabela padrão)');
-        } else {
-          faltando.push('preço por tabela');
+      const tabs = (importPrecoCtx && importPrecoCtx.tabelas_vinculadas) ? importPrecoCtx.tabelas_vinculadas : [];
+      for (const t of tabs) {
+        const m = tabelaPrecoMapeamentos.find(
+          (x) => String(x.id_tabela) === String(t.id) && parseInt(String(x.colPreco), 10) >= 0
+        );
+        if (!m) {
+          const nome = String(t.descricao || t.id || '').slice(0, 45);
+          faltando.push('coluna de preço para «' + nome + '»');
         }
       }
       if (tabelasPrecoDuplicadasNoMapeamento()) {
@@ -1633,6 +1678,11 @@
   async function verificarLote() {
     if (!checarFornecedor()) return;
     if (!allRows.length) { showToast('Importe um arquivo primeiro.','warn'); return; }
+    const criticosVer = camposCriticosFaltando();
+    if (criticosVer.length) {
+      showToast('Mapeamento incompleto: ' + criticosVer.join(', '), 'warn');
+      return;
+    }
 
     const cfEntry = Object.entries(colMapping).find(([,v]) => v.nome_campo === 'cod_fabricante');
     if (!cfEntry) { showToast('Mapeie a coluna cod_fabricante antes de verificar.','warn'); return; }
@@ -1707,6 +1757,11 @@
     if (isImportando) return;
     if (!checarFornecedor()) return;
     if (!verificado) { showToast('Verifique os dados antes de importar.','warn'); return; }
+    const criticosImp = camposCriticosFaltando();
+    if (criticosImp.length) {
+      showToast('Mapeamento incompleto: ' + criticosImp.join(', '), 'warn');
+      return;
+    }
 
     const descricao = document.getElementById('descricaoInput').value.trim();
     const skipSemCadastro = document.getElementById('skipSemCadastro').checked;
@@ -1812,9 +1867,9 @@
         const vlrBaseIdx = getVlrBaseColIdx();
         if (vlrBaseIdx >= 0) {
           const vlrBase = row[vlrBaseIdx];
-          const vlrBaseStr = String(vlrBase ?? '').replace(',', '.');
-          if (vlrBaseStr !== '' && parseFloat(vlrBaseStr) > 0) {
-            campos['vlr_venda'] = vlrBaseStr;
+          const vlrNum = parseNumeroMoeda(vlrBase);
+          if (!isNaN(vlrNum) && vlrNum > 0) {
+            campos['vlr_venda'] = String(vlrNum);
           }
           if (fornecedorSelecionado.descontos) {
             const calc = calcDescontoCascata(vlrBase);
@@ -1996,21 +2051,53 @@
     });
   }
 
-  // ── Currency detection ─────────────────────────────────────────────────────
-  function detectCurrencyCols(sheetName,headers,rows) {
-    const sheet=workbook.Sheets[sheetName]; const detected=new Set();
-    headers.forEach((header,ci)=>{
-      const h=header.toLowerCase().replace(/[_\-\s]/g,'');
-      const keywordHit=MONEY_KEYWORDS.some(kw=>h.includes(kw));
-      let formatHit=false;
-      const range=XLSX.utils.decode_range(sheet['!ref']||'A1');
-      for(let ri=range.s.r+1;ri<=Math.min(range.s.r+6,range.e.r);ri++){
-        const cell=sheet[XLSX.utils.encode_cell({r:ri,c:ci+range.s.c})];
-        if(cell&&cell.z&&(/[$€£¥]|"r\$"/.test(cell.z.toLowerCase())||cell.z.toLowerCase().includes('currency'))){formatHit=true;break;}
+  // ── Valores monetários (leitura + exibição) ────────────────────────────────
+  /** Valor numérico real da célula — evita perder centavos quando o Excel formata com 1 decimal. */
+  function parseNumeroMoeda(val) {
+    if (val == null || val === '') return NaN;
+    if (typeof val === 'number') return isFinite(val) ? val : NaN;
+    let s = String(val).trim().replace(/\s/g, '');
+    if (!s) return NaN;
+    if (/^\d{1,3}(\.\d{3})+,\d+$/.test(s)) s = s.replace(/\./g, '').replace(',', '.');
+    else if (/^\d+,\d+$/.test(s)) s = s.replace(',', '.');
+    else if (/^\d{1,3}(,\d{3})+\.\d+$/.test(s)) s = s.replace(/,/g, '');
+    else if (s.includes(',') && s.includes('.')) {
+      if (s.lastIndexOf(',') > s.lastIndexOf('.')) s = s.replace(/\./g, '').replace(',', '.');
+      else s = s.replace(/,/g, '');
+    }
+    const n = parseFloat(s);
+    return isFinite(n) ? n : NaN;
+  }
+
+  const COD_KEYWORDS = ['cod','codigo','código','ref','referencia','referência','codfab','codigofab','codprod','idprod','idproduto','ean','barras','codb','numitem','item','seq','sequencia','sequência'];
+
+  function detectCurrencyCols(sheetName, headers, rows) {
+    const sheet = workbook.Sheets[sheetName];
+    const detected = new Set();
+    headers.forEach((header, ci) => {
+      const h = String(header).toLowerCase().replace(/[_\-\s\.]/g, '');
+      // Colunas de código/referência nunca são monetárias
+      if (COD_KEYWORDS.some((kw) => h === kw || h.startsWith(kw))) return;
+      const keywordHit = MONEY_KEYWORDS.some((kw) => h.includes(kw.replace(/[\s_\-]/g, '')));
+      let formatHit = false;
+      const range = XLSX.utils.decode_range(sheet['!ref'] || 'A1');
+      for (let ri = range.s.r + 1; ri <= Math.min(range.s.r + 10, range.e.r); ri++) {
+        const cell = sheet[XLSX.utils.encode_cell({ r: ri, c: ci + range.s.c })];
+        if (!cell) continue;
+        const z = String(cell.z || '').toLowerCase();
+        if (/[$€£¥]|"r\$"|currency|#,##0?\.?0+|0\.00|0,00/.test(z)) { formatHit = true; break; }
       }
-      const nonEmpty=rows.map(r=>r[ci]).filter(v=>v!==''&&v!==null&&v!==undefined);
-      const numRatio=nonEmpty.length>0?nonEmpty.filter(v=>!isNaN(parseFloat(v))&&isFinite(v)).length/nonEmpty.length:0;
-      if(formatHit||keywordHit||(keywordHit&&numRatio>=.6))detected.add(ci);
+      const nonEmpty = rows.map((r) => r[ci]).filter((v) => v !== '' && v != null && v !== undefined);
+      const nums = nonEmpty.map((v) => parseNumeroMoeda(v)).filter((n) => !isNaN(n));
+      const numRatio = nonEmpty.length > 0 ? nums.length / nonEmpty.length : 0;
+      // priceLike: além de numérico, exige que pelo menos 30% dos valores tenham parte decimal
+      // (evita confundir códigos inteiros como 651, 761 com preços)
+      const comDecimal = nums.filter((n) => n !== Math.floor(n)).length;
+      const decimalRatio = nums.length > 0 ? comDecimal / nums.length : 0;
+      const priceLike = nonEmpty.length >= 2 && numRatio >= 0.85
+        && nums.every((n) => n >= 0 && n < 1e8)
+        && (decimalRatio >= 0.3 || formatHit);
+      if (formatHit || keywordHit || priceLike) detected.add(ci);
     });
     return detected;
   }
@@ -2023,18 +2110,26 @@
       currencyBar.appendChild(btn);
     });
     const info=document.createElement('span'); info.className='detected-info'; info.innerHTML=`<span>${count}</span> col. monetária${count!==1?'s':''} detectada${count!==1?'s':''}`;
-    currencyBar.appendChild(info); currencyBar.style.display='none';
+    currencyBar.appendChild(info);
+    currencyBar.style.display = count > 0 ? 'flex' : 'none';
   }
 
   function formatCurrency(val) {
-    const n=parseFloat(val); if(isNaN(n))return escHtml(String(val));
-    return new Intl.NumberFormat(currentLocale,{minimumFractionDigits:2,maximumFractionDigits:2}).format(n);
+    const n = parseNumeroMoeda(val);
+    if (isNaN(n)) return escHtml(String(val ?? ''));
+    return new Intl.NumberFormat(currentLocale, {
+      style: 'currency',
+      currency: currentCurrency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(n);
   }
 
   // ── Load sheet ─────────────────────────────────────────────────────────────
   function loadSheet(sheetName) {
     const sheet=workbook.Sheets[sheetName];
-    const json=XLSX.utils.sheet_to_json(sheet,{header:1,defval:''});
+    // raw:true = valor real da célula (ex.: 15.94), não o texto formatado (ex.: "15,9")
+    const json=XLSX.utils.sheet_to_json(sheet,{header:1,defval:'',raw:true});
     if(!json.length){tableBody.innerHTML='<tr><td class="state-msg">Planilha vazia</td></tr>';return;}
     headers=json[0].map(h=>String(h));
     allRows=json.slice(1).filter(r=>r.some(c=>c!==''));
@@ -2045,6 +2140,7 @@
     resetarStatus();
     renderHead(); renderRows(allRows); renderStats(allRows); atualizarMapBar();
     renderTabelaPrecoRows();
+    autoMapearTabelaPrecos();
     output.style.display='block';
     output.scrollIntoView({behavior:'smooth',block:'start'});
   }
@@ -2069,7 +2165,7 @@
   function calcDescontoCascata(vlrVenda) {
     const d = fornecedorSelecionado.descontos;
     if (!d) return null;
-    let v = parseFloat(String(vlrVenda).replace(',', '.'));
+    let v = parseNumeroMoeda(vlrVenda);
     if (isNaN(v) || v <= 0) return null;
     // Aplica cada desconto sobre o resultado anterior, arredondando 2 casas (igual ao Delphi FormatCurr)
     v = parseFloat((v - (v * d.d1) / 100).toFixed(2));
@@ -2291,10 +2387,10 @@
         if(hiddenCols.has(ci)) return;
         const td=document.createElement('td');
         const raw=row[ci]!==undefined?row[ci]:'';
-        const isMoney=currencyCols.has(ci); const n=parseFloat(raw);
+        const isMoney=currencyCols.has(ci); const n=parseNumeroMoeda(raw);
         if(isMoney&&!isNaN(n)&&raw!==''){
-          const fmt=formatCurrency(raw);
-          td.classList.add(n<0?'currency-neg':'currency'); td.title=String(raw);
+          const fmt=formatCurrency(n);
+          td.classList.add(n<0?'currency-neg':'currency'); td.title=String(n);
           td.innerHTML=(q&&fmt.toLowerCase().includes(q))?highlight(fmt,q):fmt;
         } else {
           const val=String(raw); td.title=val;
@@ -2681,5 +2777,6 @@
     init();
   }
 </script>
+<script src="/assets/cadastros-permissao.js"></script>
 </body>
 </html>

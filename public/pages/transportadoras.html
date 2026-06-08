@@ -696,31 +696,18 @@ const _campos = [
 ];
 
 /* ══════════════════════════════════════════════════════════
-   PERMISSÕES
-══════════════════════════════════════════════════════════ */
-let _perm = {};
-function aplicarPermissoesTransp() {
-  try { _perm = JSON.parse(sessionStorage.getItem('user') || '{}').permissoes || {}; } catch {}
-  if (_perm.transportadora_incluir === 'N') {
-    const btn = document.querySelector('[onclick*="abrirNovo"]');
-    if (btn) { btn.disabled = true; btn.style.opacity = '0.4'; btn.style.cursor = 'not-allowed'; btn.title = 'Sem permissão para incluir'; }
-  }
-}
-
-/* ══════════════════════════════════════════════════════════
    INIT
 ══════════════════════════════════════════════════════════ */
-document.addEventListener('DOMContentLoaded', () => {
-  aplicarPermissoesTransp();
+document.addEventListener('cad-perm-ready', () => {
+  if (typeof aplicarUiPermissoesCad === 'function') aplicarUiPermissoesCad();
   carregarCombos();
   carregarNotificacoes();
-  buscar();
-  initTabsScroll();
   document.addEventListener('click', e => {
     if (!e.target.closest('#notifWrap'))      document.getElementById('notifPanel').classList.remove('show');
     if (!e.target.closest('#menuMoreWrap'))   fecharMenuMore();
     if (!e.target.closest('#dropMenu') && !e.target.closest('.btn-acoes')) fecharDrop();
   });
+  initTabsScroll();
 });
 
 function initTabsScroll() {
@@ -882,7 +869,7 @@ async function ativarInativarLinha(id, acao) {
   buscar(); carregarNotificacoes();
 }
 async function excluirLinha(id) {
-  if (_perm.transportadora_excluir === 'N') { toast('Sem permissão para excluir transportadoras', 'err'); return; }
+  if (!guardCadExcluir('Sem permissão para excluir transportadoras')) return;
   fecharDrop();
   confirmar('Excluir transportadora?', 'Esta ação não pode ser desfeita.', async () => {
     const r = await fetch(`/api/transportadoras/${id}`, { method:'DELETE' });
@@ -959,7 +946,7 @@ function exportCSV() {
    FORM OPEN / CLOSE
 ══════════════════════════════════════════════════════════ */
 function abrirNovo() {
-  if (_perm.transportadora_incluir === 'N') { toast('Sem permissão para incluir transportadoras', 'err'); return; }
+  if (!guardCadIncluir('Sem permissão para incluir transportadoras')) return;
   S.registroId = null; S.dados = null;
   limparForm();
   document.getElementById('formTitle').textContent = 'Nova Transportadora';
@@ -981,6 +968,7 @@ async function abrirEditar(id) {
     document.getElementById('btnAtivarMenu').style.display   = d.status === 'I' ? '' : 'none';
     document.getElementById('btnInativarMenu').style.display = d.status === 'A' ? '' : 'none';
     showForm();
+    if (!podeAlterarCad()) aplicarFormSomenteLeituraCad();
     carregarContatos();
   } catch(e) { toast('Erro: '+e.message,'err'); }
 }
@@ -1038,8 +1026,7 @@ function trocarTipoPessoa() {
    SALVAR
 ══════════════════════════════════════════════════════════ */
 async function salvarTransportadora() {
-  if (S.registroId && _perm.transportadora_alterar === 'N') { toast('Sem permissão para alterar transportadoras', 'err'); return; }
-  if (!S.registroId && _perm.transportadora_incluir === 'N') { toast('Sem permissão para incluir transportadoras', 'err'); return; }
+  if (!guardCadSalvar(!!S.registroId, 'Sem permissão para incluir transportadoras', 'Sem permissão para alterar transportadoras')) return;
   const nome = document.getElementById('f_nome').value.trim();
   if (!nome) {
     document.getElementById('f_nome').classList.add('err');
@@ -1097,7 +1084,7 @@ async function ativarInativar(acao) {
 }
 
 async function excluirAtual() {
-  if (_perm.transportadora_excluir === 'N') { toast('Sem permissão para excluir transportadoras', 'err'); return; }
+  if (!guardCadExcluir('Sem permissão para excluir transportadoras')) return;
   fecharMenuMore();
   const id = S.registroId; if (!id) return;
   confirmar('Excluir transportadora?', 'Esta ação não pode ser desfeita.', async () => {
@@ -1167,8 +1154,9 @@ function editarContato(id,comprador,telefone,ramal,setor,email) {
   document.getElementById('contatoForm').style.display = 'block';
 }
 async function salvarContato() {
-  const id   = S.registroId;
   const ctId = document.getElementById('ct_id').value;
+  if (!guardCadSalvar(!!ctId, 'Sem permissão para incluir contatos', 'Sem permissão para alterar contatos')) return;
+  const id   = S.registroId;
   const body = {
     comprador: document.getElementById('ct_comprador').value,
     telefone:  document.getElementById('ct_telefone').value,
@@ -1183,6 +1171,7 @@ async function salvarContato() {
   toast('Contato salvo!','ok'); fecharFormContato(); carregarContatos();
 }
 async function excluirContato(ctId) {
+  if (!guardCadExcluir('Sem permissão para excluir contatos')) return;
   confirmar('Excluir contato?','O contato será removido.',async()=>{
     const r=await fetch(`/api/transportadoras/${S.registroId}/contatos/${ctId}`,{method:'DELETE'});
     if(!r.ok){toast('Erro','err');return;} toast('Excluído!','ok'); carregarContatos();
@@ -1340,5 +1329,6 @@ CardView.attach({
   }
 });
 </script>
+<script src="/assets/cadastros-permissao.js"></script>
 </body>
 </html>

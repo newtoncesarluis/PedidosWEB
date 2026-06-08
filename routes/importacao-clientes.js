@@ -5,6 +5,7 @@ const { getPool } = require('../config/database');
 const CAMPOS_DATA = new Set([
   'dt_cadastro', 'dt_atualizacao', 'dt_validade', 'dt_vencimento',
   'data_cadastro', 'data_atualizacao', 'data_nascimento', 'dt_nascimento',
+  'dtnascimento', 'data_abertura', 'data_situacaocnpj',
   'dtcadastro', 'dtalterado',
 ]);
 const _MESES = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];

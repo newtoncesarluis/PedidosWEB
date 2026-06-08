@@ -1,6 +1,23 @@
 const express = require('express');
 const router = express.Router();
 const { getPool } = require('../config/database');
+const {
+  resolveVendedorIdForFilter,
+  canAccessAllVendors,
+  isGerenteComercial,
+} = require('../config/vendedor-visibilidade');
+
+async function vendScopeClause(pool, req, idFromQuery, col = 'u.idusuario') {
+  const uid = req.user?.id;
+  const resolved = await resolveVendedorIdForFilter(pool, req, idFromQuery);
+  if (resolved) return { extra: `AND ${col} = ?`, params: [resolved] };
+  if (canAccessAllVendors(req)) return { extra: '', params: [] };
+  if (isGerenteComercial(req) && uid) {
+    return { extra: `AND (${col} = ? OR u.id_gerente = ?)`, params: [uid, uid] };
+  }
+  if (uid) return { extra: `AND ${col} = ?`, params: [uid] };
+  return { extra: ' AND 1=0', params: [] };
+}
 
 // Detecta tabela de produtos (produto ou produtos)
 let _prodTb = null;
@@ -84,8 +101,7 @@ router.get('/', async (req, res) => {
     const diAnt = subtrairAno(dtini);
     const dfAnt = subtrairAno(dtfim);
 
-    const extra = id_vendedor ? 'AND u.idusuario = ?' : '';
-    const extraParams = id_vendedor ? [id_vendedor] : [];
+    const { extra, params: extraParams } = await vendScopeClause(pool, req, id_vendedor, 'u.idusuario');
 
     const sql = `
       SELECT
@@ -217,8 +233,11 @@ router.get('/mapa', async (req, res) => {
     const pool = getPool();
     const { id_vendedor } = req.query;
 
-    const extra    = id_vendedor ? 'AND c.cod_vendedor = ?' : '';
-    const params   = id_vendedor ? [id_vendedor] : [];
+    const scope = await vendScopeClause(pool, req, id_vendedor, 'c.cod_vendedor');
+    const extra = scope.extra;
+    const params = [...scope.params];
+    const vendSub = scope.params.length === 1 ? 'AND v.id_vendedor = ?' : '';
+    const queryParams = vendSub ? [scope.params[0], ...params] : params;
 
     const [rows] = await pool.query(`
       SELECT
@@ -234,7 +253,7 @@ router.get('/mapa', async (req, res) => {
          FROM visitas v
          INNER JOIN clientes cv ON cv.id = v.id_cliente AND cv.cidade = c.cidade AND (cv.uf = c.uf OR cv.uf IS NULL)
          WHERE v.exluido = 'N'
-           ${id_vendedor ? 'AND v.id_vendedor = ?' : ''}
+           ${vendSub}
         ) AS ultima_visita,
 
         COUNT(DISTINCT CASE
@@ -253,7 +272,7 @@ router.get('/mapa', async (req, res) => {
       HAVING COUNT(DISTINCT c.id) > 0
       ORDER BY total_clientes DESC
       LIMIT 500
-    `, id_vendedor ? [id_vendedor, ...params] : params);
+    `, queryParams);
 
     const hoje = new Date();
     const cidades = rows.map(r => {

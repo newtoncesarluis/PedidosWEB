@@ -345,6 +345,30 @@ const aniversariantes = async (req, res) => {
   }
 };
 
+// ─── LIGAÇÕES (teleatendimento) ───────────────────────────────────────────────
+const ligacoes = async (req, res) => {
+  try {
+    const pool = getPool();
+    const [rows] = await pool.query(`
+      SELECT ch.id, ch.data_hora_inicio, ch.data_hora_fim, ch.duracao_seg,
+             ch.resultado, ch.observacao, ch.id_pedido, ch.id_lead,
+             tc.nome AS nome_campanha,
+             u.nomeusu AS nome_operador
+      FROM tele_chamadas ch
+      LEFT JOIN tele_campanhas tc ON tc.id = ch.id_campanha
+      LEFT JOIN usuarios u ON u.idusuario = ch.id_operador
+      WHERE ch.id_cliente = ?
+      ORDER BY ch.data_hora_inicio DESC
+      LIMIT 50
+    `, [req.params.id]);
+    res.json(rows);
+  } catch (err) {
+    if (err.code === 'ER_NO_SUCH_TABLE') return res.json([]);
+    console.error('[clientes/ligacoes]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+};
+
 module.exports = {
   listar,
   buscar,
@@ -366,6 +390,7 @@ module.exports = {
   historicoLista,
   historicoDetalhe,
   financeiro,
+  ligacoes,
   notificacoes,
   checkCnpj,
   aniversariantes,

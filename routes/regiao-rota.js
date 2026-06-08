@@ -2,6 +2,13 @@ const express = require('express');
 const router  = express.Router();
 const axios   = require('axios');
 const { getPool } = require('../config/database');
+const { permCrud, negarCad } = require('../config/cadastros-permissoes');
+
+const _permRegiao = (req) => permCrud(req, {
+  incluir: 'incluir_regioes',
+  alterar: 'alterar_regioes',
+  excluir: 'excluir_regioes',
+});
 
 // ─── Push PWA helper ──────────────────────────────────────────────────────────
 let _webpush = null;
@@ -230,6 +237,8 @@ router.get('/:id/clientes', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
+    const pc = _permRegiao(req);
+    if (pc.incluir !== 'S') return negarCad(res, 'Sem permissão para incluir regiões');
     const pool = getPool();
     await ensureRegiaoRotaCols(pool);
     const { descricao, sigla, distancia = 0, cor = '#3b82f6', observacao = null, id_vendedor_padrao = null, status = 'A' } = req.body;
@@ -244,6 +253,8 @@ router.post('/', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   try {
+    const pc = _permRegiao(req);
+    if (pc.alterar !== 'S') return negarCad(res, 'Sem permissão para alterar regiões');
     const pool = getPool();
     await ensureRegiaoRotaCols(pool);
     const { descricao, sigla, distancia, cor, observacao, id_vendedor_padrao, status } = req.body;
@@ -257,6 +268,8 @@ router.put('/:id', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
+    const pc = _permRegiao(req);
+    if (pc.excluir !== 'S') return negarCad(res, 'Sem permissão para excluir regiões');
     const pool = getPool();
     await pool.query(`UPDATE regiao_rota SET excluido='S' WHERE id=?`, [req.params.id]);
     res.json({ ok: true });

@@ -17,6 +17,7 @@
 <script src="/assets/ajuda-tour.js"></script>
 <script src="/assets/ajuda-tours.js"></script>
 <script src="/assets/mobile-app.js"></script>
+<script src="/assets/comissao-preposto-ui.js"></script>
 <link rel="stylesheet" href="/assets/mobile-app.css">
 
 <style>
@@ -674,9 +675,11 @@ html.ms-embedded-tech.ms-page-comissoes-gestao .base-table tbody tr.ms-comissao-
 <script>
 let _items = [];
 let _selected = new Set();
+let _jwtComissao = { isPreposto: false };
 
 async function init() {
   initGestaoComissaoMobileEmbed();
+  _jwtComissao = (window.ComissaoPrepostoUi && ComissaoPrepostoUi.readJwtComissao()) || { isPreposto: false };
   try {
     const data = await fetch('/api/comissoes/admin/vendedores').then(r => r.json());
     const select = document.getElementById('f_vendedor');
@@ -686,12 +689,18 @@ async function init() {
       opt.textContent = v.nome;
       select.appendChild(opt);
     });
+    if (window.ComissaoPrepostoUi) {
+      ComissaoPrepostoUi.applyVendedorSelectLock(select, _jwtComissao);
+    }
   } catch(e) {}
   loadData();
 }
 
 async function loadData() {
-  const v = document.getElementById('f_vendedor').value;
+  const sel = document.getElementById('f_vendedor');
+  let v = window.ComissaoPrepostoUi
+    ? ComissaoPrepostoUi.resolveVendedorFilterId(sel, _jwtComissao)
+    : (sel?.value || '');
   const s = document.getElementById('f_status').value;
   const di = document.getElementById('f_dt_ini').value;
   const df = document.getElementById('f_dt_fim').value;

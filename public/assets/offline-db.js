@@ -120,6 +120,69 @@
     return tx('clientes', 'readonly').then(s => promReq(s.count()));
   }
 
+  function getAllClientes() {
+    return open().then(db => {
+      return new Promise((resolve, reject) => {
+        const out = [];
+        const req = db.transaction('clientes', 'readonly').objectStore('clientes').openCursor();
+        req.onsuccess = function (e) {
+          const cursor = e.target.result;
+          if (!cursor) return resolve(out);
+          out.push(cursor.value);
+          cursor.continue();
+        };
+        req.onerror = e => reject(e.target.error);
+      });
+    });
+  }
+
+  /** Lista paginada com filtros básicos (espelha GET /api/clientes offline). */
+  function listarClientes(opts) {
+    opts = opts || {};
+    const statusRaw = String(opts.status || 'A').toLowerCase();
+    const status = statusRaw === 'todos' ? 'TODOS' : String(opts.status || 'A').toUpperCase();
+    const qRaw = String(opts.q || '').trim().toLowerCase();
+    const limit = Math.max(1, parseInt(opts.limit, 10) || 50);
+    const offset = Math.max(0, parseInt(opts.offset, 10) || 0);
+
+    return getAllClientes().then((list) => {
+      list = list.filter((c) => {
+        const excl = String(c.excluido || 'N').toUpperCase();
+        if (excl === 'S') return false;
+        const st = String(c.status || 'A').toUpperCase();
+        if (status === 'A') return st === 'A' || st === '' || c.status == null;
+        if (status === 'I') return st === 'I';
+        if (status === 'TODOS') return true;
+        return true;
+      });
+
+      if (qRaw) {
+        list = list.filter((c) => {
+          const blob = [
+            c.nome, c.apelido, c.cpf, c.cpf_cnpj, c.foneprincipal, c.fone,
+            c.cidade, c.bairro, String(c.id || '')
+          ].join(' ').toLowerCase();
+          return blob.includes(qRaw);
+        });
+      }
+
+      if (opts.cidade) {
+        const t = String(opts.cidade).toLowerCase();
+        list = list.filter((c) => (c.cidade || '').toLowerCase().includes(t));
+      }
+
+      list.sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR'));
+      const total = list.length;
+      const page = list.slice(offset, offset + limit).map((c) => ({
+        ...c,
+        foneprincipal: c.foneprincipal || c.fone || c.celularcomprador || '',
+        cpf: c.cpf || c.cpf_cnpj || '',
+        total_pedidos: c.total_pedidos || 0
+      }));
+      return { clientes: page, total };
+    });
+  }
+
   // ── Produtos ───────────────────────────────────────────────────────────────
   function salvarProdutos(lista) {
     return open().then(db => {
@@ -127,7 +190,15 @@
         const t = db.transaction('produtos', 'readwrite');
         const s = t.objectStore('produtos');
         s.clear();
-        lista.forEach(p => s.put(p));
+        lista.forEach(p => {
+          const nome = String(p.nome || p.descricao || p.desc_produto || p.desc_prod || '').trim();
+          s.put(Object.assign({}, p, {
+            nome,
+            descricao: nome,
+            desc_produto: nome,
+            desc_prod: nome
+          }));
+        });
         t.oncomplete = () => resolve(lista.length);
         t.onerror    = e  => reject(e.target.error);
       });
@@ -150,10 +221,13 @@
             return resolve(resultados);
           }
           const p = cursor.value;
+          const desc = (p.nome || p.descricao || p.desc_produto || p.desc_prod || '').toLowerCase();
+          const ref = (p.referencia || p.cod_fabricante || '').toLowerCase();
           if (
             !termo ||
-            (p.nome       && p.nome.toLowerCase().includes(termo))  ||
-            (p.referencia && p.referencia.toLowerCase().includes(termo))
+            desc.includes(termo) ||
+            ref.includes(termo) ||
+            String(p.id || p.cod_produto || '').includes(termo)
           ) {
             resultados.push(p);
           }
@@ -270,7 +344,7 @@
     // meta
     getMeta, setMeta,
     // clientes
-    salvarClientes, buscarClientes, getCliente, contarClientes,
+    salvarClientes, buscarClientes, getCliente, contarClientes, getAllClientes, listarClientes,
     // produtos
     salvarProdutos, buscarProdutos, getProduto, contarProdutos,
     // fila

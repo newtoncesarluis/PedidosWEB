@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <script src="/assets/sw-kill.js"></script>
+<script src="/assets/sw-register.js"></script>
+<script>window.sysrepInitServiceWorker && sysrepInitServiceWorker().catch(function () {});</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#19324d">
 <title>PedidosWeb</title>
@@ -17,9 +19,22 @@
 <link rel="stylesheet" href="/assets/themes.css">
 <script src="/assets/themes.js"></script>
 <script src="/assets/mobile-client-log.js"></script>
-<script src="/assets/pedidos-offline.js"></script>
-<script src="/assets/pedidos-offline-pack.js"></script>
-<script src="/assets/offline-db.js"></script>
+<script src="/assets/pedidos-offline.js?v=20260607j"></script>
+<script src="/assets/pedidos-offline-pack.js?v=20260607j"></script>
+<script src="/assets/offline-db.js?v=20260607j"></script>
+<script>
+(function () {
+  if (navigator.onLine !== false) return;
+  var t = sessionStorage.getItem('token') || localStorage.getItem('token');
+  if (!t) {
+    location.replace('/login.html');
+    return;
+  }
+  if (!sessionStorage.getItem('token')) {
+    try { sessionStorage.setItem('token', t); } catch (_) {}
+  }
+})();
+</script>
 <script src="/assets/offline-sync.js"></script>
 <style>
   :root {
@@ -320,30 +335,8 @@
     vertical-align: middle;
   }
 
-  /* Banner offline */
-  #ms-offline-banner {
-    display: none;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 8px 6px 8px var(--ms-shell-pad);
-    font-size: 11px;
-    font-weight: 700;
-    background: #24384d;
-    color: var(--ms-surface);
-    border-bottom: 1px solid rgba(255,255,255,.08);
-    letter-spacing: 0.02em;
-    min-height: 30px;
-  }
-  #ms-offline-banner.show { display: flex; }
-  .ms-offline-banner-text {
-    flex: 1;
-    min-width: 0;
-    text-align: center;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
+  /* Banner offline legado — oculto; status no chip + painel */
+  #ms-offline-banner { display: none !important; }
   .ms-offline-banner-dismiss {
     flex-shrink: 0;
     display: none;
@@ -384,7 +377,86 @@
   #ms-offline-banner.pack-ready .ms-offline-banner-dismiss:active {
     background: rgba(6, 95, 70, .12);
   }
-  body.has-offline-banner { --offline-h: 30px; }
+  body.has-offline-banner { --offline-h: 0px; }
+
+  /* Painel de status (toque no chip do topo) */
+  #ms-status-sheet {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 1000004;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 0;
+  }
+  #ms-status-sheet.show { display: flex; }
+  .ms-status-sheet-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, .42);
+  }
+  .ms-status-sheet-panel {
+    position: relative;
+    width: min(480px, 100%);
+    max-height: min(72vh, 520px);
+    background: var(--ms-surface);
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -12px 40px rgba(15, 23, 42, .18);
+    display: flex;
+    flex-direction: column;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .ms-status-sheet-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 18px 10px;
+    border-bottom: 1px solid var(--ms-border);
+  }
+  .ms-status-sheet-head h3 { margin: 0; font-size: 17px; font-weight: 800; }
+  .ms-status-sheet-head button {
+    border: none; background: transparent; font-size: 24px; line-height: 1;
+    cursor: pointer; color: var(--ms-muted);
+  }
+  .ms-status-sheet-body {
+    overflow: auto;
+    padding: 14px 18px 8px;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--ms-fg);
+    -webkit-overflow-scrolling: touch;
+  }
+  .ms-status-line {
+    display: block;
+    padding: 6px 0;
+    border-bottom: 1px solid color-mix(in oklab, var(--ms-border) 70%, transparent);
+  }
+  .ms-status-line:last-child { border-bottom: none; }
+  .ms-status-sheet-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 18px 16px;
+    border-top: 1px solid var(--ms-border);
+  }
+  .ms-status-sheet-btn {
+    flex: 1 1 45%;
+    min-height: 44px;
+    border-radius: 12px;
+    border: 1px solid var(--ms-border);
+    background: var(--ms-surface-soft);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    color: var(--ms-fg);
+  }
+  .ms-status-sheet-btn.primary {
+    background: var(--ms-accent);
+    color: #fff;
+    border-color: transparent;
+    flex: 1 1 100%;
+  }
 
   /* Pull-to-refresh spinner */
   #ms-ptr {
@@ -1028,10 +1100,10 @@
   .ms-conn-pill {
     display: none;
     align-items: center;
-    gap: 5px;
-    min-height: 26px;
-    max-width: 136px;
-    padding: 0 9px;
+    gap: 4px;
+    min-height: 28px;
+    max-width: 128px;
+    padding: 0 10px;
     border-radius: 999px;
     border: 1px solid var(--ms-border);
     background: var(--ms-surface-soft);
@@ -1039,10 +1111,17 @@
     font-size: 10px;
     font-weight: 800;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    flex-shrink: 0;
   }
   .ms-conn-pill.show { display: inline-flex; }
+  .ms-conn-pill::after {
+    content: '›';
+    opacity: .55;
+    font-size: 12px;
+    margin-left: 1px;
+  }
   .ms-conn-pill.offline {
     background: #fee2e2;
     border-color: #fecaca;
@@ -1311,12 +1390,23 @@
       <span>Visitas</span>
     </div>
   </div>
-  <div id="ms-offline-banner" role="status" aria-live="polite">
-    <span id="ms-offline-banner-text" class="ms-offline-banner-text">Sem internet — usando dados locais</span>
+  <div id="ms-offline-banner" role="status" aria-live="polite" hidden>
+    <span id="ms-offline-banner-text" class="ms-offline-banner-text"></span>
+  </div>
+  <div id="ms-status-sheet" aria-hidden="true">
+    <div class="ms-status-sheet-backdrop" id="ms-status-sheet-backdrop"></div>
+    <div class="ms-status-sheet-panel" role="dialog" aria-labelledby="ms-status-sheet-title">
+      <div class="ms-status-sheet-head">
+        <h3 id="ms-status-sheet-title">Status offline</h3>
+        <button type="button" id="ms-status-sheet-close" aria-label="Fechar">×</button>
+      </div>
+      <div class="ms-status-sheet-body" id="ms-status-sheet-body"></div>
+      <div class="ms-status-sheet-foot" id="ms-status-sheet-foot"></div>
+    </div>
   </div>
   <div id="ms-frame-wrap">
     <div id="ms-ptr"><div id="ms-ptr-spinner"></div></div>
-    <iframe id="ms-frame" title="Conteúdo" src="/home.html?_ms=1"></iframe>
+    <iframe id="ms-frame" title="Conteúdo"></iframe>
   </div>
   <nav id="ms-nav" aria-label="Menu principal">
     <button type="button" class="ms-nav-item active" data-ms-href="/home.html" data-ms-label="Dashboard">
@@ -1528,12 +1618,6 @@ window.msToast = function (msg, type) {
     return;
   }
 
-  if (!navigator.onLine && typeof SysRepPedidosOfflinePack !== 'undefined'
-      && !SysRepPedidosOfflinePack.isTokenUsableOffline(token)) {
-    window.location.replace('/login.html');
-    return;
-  }
-
   if (!sessionStorage.getItem('token') && localStorage.getItem('token')) {
     try {
       sessionStorage.setItem('token', localStorage.getItem('token'));
@@ -1543,8 +1627,53 @@ window.msToast = function (msg, type) {
     } catch(_) {}
   }
 
-  // Redireciona ao login quando qualquer chamada API retornar 401
+  (async function _bootMsFrame() {
+    var fr = document.getElementById('ms-frame');
+    if (!fr || fr.getAttribute('src')) return;
+    var pack = window.SysRepPedidosOfflinePack;
+    var packOk = pack && pack.isTokenUsableOffline();
+    var semRede = !navigator.onLine;
+
+    function irPedidos() {
+      fr.src = '/pages/pedidos.html?_ms=' + Date.now();
+      var title = document.getElementById('ms-title');
+      if (title) title.textContent = 'Pedidos';
+      document.querySelectorAll('.ms-nav-item').forEach(function (b) {
+        b.classList.toggle('active', (b.getAttribute('data-ms-href') || '').indexOf('pedidos.html') >= 0);
+      });
+    }
+
+    if (semRede && packOk && typeof pack.loadShellPage === 'function') {
+      try {
+        var html = await pack.loadShellPage('/pages/pedidos.html');
+        if (html) {
+          var origin = localStorage.getItem('sysrep_app_origin') || location.origin;
+          if (!/<base\s/i.test(html)) {
+            html = html.replace(/<head([^>]*)>/i, '<head$1><base href="' + origin + '/">');
+          }
+          fr.srcdoc = html;
+          var titleEl = document.getElementById('ms-title');
+          if (titleEl) titleEl.textContent = 'Pedidos';
+          document.querySelectorAll('.ms-nav-item').forEach(function (b) {
+            b.classList.toggle('active', (b.getAttribute('data-ms-href') || '').indexOf('pedidos.html') >= 0);
+          });
+          return;
+        }
+      } catch (_) {}
+      irPedidos();
+      return;
+    }
+
+    if (semRede) {
+      irPedidos();
+      return;
+    }
+    fr.src = '/home.html?_ms=1';
+  })();
+
+  // Redireciona ao login quando qualquer chamada API retornar 401 (somente online)
   window.addEventListener('sysrep-auth-expired', function() {
+    if (!navigator.onLine) return;
     sessionStorage.removeItem('token');
     localStorage.removeItem('token');
     window.location.replace('/login.html');
@@ -1559,6 +1688,31 @@ window.msToast = function (msg, type) {
       });
     }
   } catch(_) {}
+
+  // Oculta nav Clientes se perfil não tem acesso à tela
+  (function () {
+    var tkn = sessionStorage.getItem('token') || localStorage.getItem('token') || '';
+    var user = {};
+    try { user = JSON.parse(sessionStorage.getItem('user') || localStorage.getItem('user') || '{}'); } catch (_) {}
+    var perms = user.permissoes || {};
+    var isAdmin = user.role === 'admin' || user.perfil == 1;
+    function permShell(k) { return isAdmin || perms[k] === 'S'; }
+    function aplicarNavClientes() {
+      var btnCli = document.querySelector('.ms-nav-item[data-ms-href="/pages/clientes.html"]');
+      if (btnCli) btnCli.style.display = permShell('gtela_clientes') ? '' : 'none';
+    }
+    aplicarNavClientes();
+    if (!tkn) return;
+    fetch('/api/auth/minhas-permissoes', { headers: { Authorization: 'Bearer ' + tkn } })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (!d) return;
+        perms = Object.assign(perms, d);
+        if (d.isAdmin) isAdmin = true;
+        aplicarNavClientes();
+      })
+      .catch(function () {});
+  })();
 
   // Revela botão de Estoque se habilitarestoque='S' na config do sistema
   (function() {
@@ -3212,16 +3366,22 @@ window.msToast = function (msg, type) {
   }
 
   // ── Preparar offline (event delegation no #ms-sheet) ─────────────────────
-  function _atualizarStatusOfflinePack() {
+  function _atualizarStatusOfflinePack(pack) {
     var span = document.getElementById('ms-offline-pack-status');
     if (!span || !window.SysRepPedidosOfflinePack) return;
     var tkn = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
     var uid = SysRepPedidosOfflinePack.userIdFromToken(tkn);
     var until = uid ? SysRepPedidosOfflinePack.getOfflineUntil(uid) : 0;
+    var nCli = parseInt(localStorage.getItem('sysrep_offline_clientes_count') || '0', 10);
+    if (pack && pack.meta && pack.meta.stats && pack.meta.stats.clientes != null) {
+      nCli = pack.meta.stats.clientes;
+    } else if (pack && pack.clientes) {
+      nCli = pack.clientes.length;
+    }
     if (until > Date.now()) {
       var vencDia = new Date(until).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-      span.textContent = 'OK até ' + vencDia;
-      span.style.cssText = 'margin-left:auto;font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;background:#d1fae5;color:#065f46;display:inline-block';
+      span.textContent = nCli > 0 ? (nCli + ' cli · até ' + vencDia) : ('0 cli · até ' + vencDia);
+      span.style.cssText = 'margin-left:auto;font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;background:' + (nCli > 0 ? '#d1fae5;color:#065f46' : '#fef3c7;color:#92400e') + ';display:inline-block';
     } else if (until > 0) {
       span.textContent = 'Expirado';
       span.style.cssText = 'margin-left:auto;font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;background:#fee2e2;color:#991b1b;display:inline-block';
@@ -3243,8 +3403,32 @@ window.msToast = function (msg, type) {
     }
   });
 
+  function _openMsPrepareSheet(title, lines, loading) {
+    var sheet = document.getElementById('ms-status-sheet');
+    var body = document.getElementById('ms-status-sheet-body');
+    var foot = document.getElementById('ms-status-sheet-foot');
+    var titleEl = document.getElementById('ms-status-sheet-title');
+    if (!sheet || !body || !foot) return;
+    if (titleEl) titleEl.textContent = title || 'Preparar offline';
+    body.innerHTML = (lines || []).map(function (l) {
+      return '<span class="ms-status-line">' + String(l || '').replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</span>';
+    }).join('') || '<span class="ms-status-line">Aguarde…</span>';
+    foot.innerHTML = '';
+    if (loading) {
+      foot.innerHTML = '<button type="button" class="ms-status-sheet-btn" id="ms-prepare-sheet-cancel">Fechar</button>'
+        + '<span style="display:block;padding:0 16px 16px;font-size:12px;font-weight:700;color:var(--ms-muted)">Baixando e gravando no aparelho…</span>';
+      var cancelBtn = document.getElementById('ms-prepare-sheet-cancel');
+      if (cancelBtn) cancelBtn.onclick = _closeMsStatusSheet;
+    } else {
+      foot.innerHTML = '<button type="button" class="ms-status-sheet-btn primary" id="ms-prepare-sheet-ok">OK, entendi</button>';
+      var okBtn = document.getElementById('ms-prepare-sheet-ok');
+      if (okBtn) okBtn.onclick = _closeMsStatusSheet;
+    }
+    sheet.classList.add('show');
+    sheet.setAttribute('aria-hidden', 'false');
+  }
+
   function _msPrepararOfflineClick(btn) {
-    console.log('[SysRep] preparar-offline: click, online=' + navigator.onLine + ', pack=' + !!window.SysRepPedidosOfflinePack);
     _fecharSheet();
     btn.disabled = true;
     if (!navigator.onLine) {
@@ -3257,18 +3441,30 @@ window.msToast = function (msg, type) {
       btn.disabled = false;
       return;
     }
-    window.msToast('Baixando dados para uso offline…', 'info');
+    var intro = [
+      'Será baixado do servidor e gravado neste aparelho:',
+      '• Clientes da sua carteira',
+      '• Produtos e tabelas de preço',
+      '• Fábricas, condições e grades',
+      '• Pedidos recentes para consulta offline',
+      'Pedidos novos criados sem internet entram na fila e são enviados ao voltar online.'
+    ];
+    _openMsPrepareSheet('Preparar offline', intro, true);
     var tkn = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
     SysRepPedidosOfflinePack.preparePack(function (url) {
       return fetch(url, { headers: { 'Authorization': 'Bearer ' + tkn } });
-    }).then(function () {
-      window.msToast('App pronto para uso offline por 7 dias ✓', 'ok');
-      _atualizarStatusOfflinePack();
+    }, function (msg) {
+      _openMsPrepareSheet('Preparando offline…', [msg], true);
+    }).then(function (pack) {
+      var sum = SysRepPedidosOfflinePack.formatPrepareSummary(pack);
+      var lines = [sum].concat(SysRepPedidosOfflinePack.formatPrepareDetailLines(pack) || []);
+      _openMsPrepareSheet('Pacote offline pronto', lines, false);
+      _atualizarStatusOfflinePack(pack);
       SysRepPedidosOfflinePack.updatePackBadge();
       if (typeof atualizarBotaoSync === 'function') atualizarBotaoSync();
     }).catch(function (e) {
       console.error('[SysRep] preparePack erro:', e);
-      window.msToast(e.message || 'Erro ao preparar offline', 'err');
+      _openMsPrepareSheet('Erro ao preparar', [e.message || 'Erro ao preparar offline'], false);
     }).finally(function () {
       btn.disabled = false;
     });
@@ -3424,6 +3620,10 @@ window.msToast = function (msg, type) {
     }
     if (data.type === 'mobile-pedidos-home-confirmed') {
       shellGoHome(true);
+      return;
+    }
+    if (data.type === 'offline-queue-changed') {
+      if (typeof atualizarBotaoSync === 'function') atualizarBotaoSync();
       return;
     }
     if (data.type === 'ms-chrome-state') {
@@ -4042,15 +4242,32 @@ window.msToast = function (msg, type) {
   });
 })();
 </script>
-<script src="/assets/sw-register.js"></script>
 <script>
   function safeReload() {
     if (window._msPedidosFormOpen) return;
     window.location.reload();
   }
 
-  sysrepInitServiceWorker().catch(function () {});
-  sysrepAttachSwReload(safeReload);
+  (function warmShellCache() {
+    function run() {
+      if (!navigator.onLine) return;
+      if (window.SysRepPedidosOfflinePack) {
+        if (typeof SysRepPedidosOfflinePack.warmAppShellCache === 'function') {
+          SysRepPedidosOfflinePack.warmAppShellCache();
+        }
+        if (SysRepPedidosOfflinePack.isTokenUsableOffline()
+            && typeof SysRepPedidosOfflinePack.cacheShellPages === 'function') {
+          SysRepPedidosOfflinePack.cacheShellPages().catch(function () {});
+        }
+      }
+    }
+    if (window.sysrepInitServiceWorker) {
+      sysrepInitServiceWorker().then(run).catch(run);
+    } else {
+      run();
+    }
+  })();
+  if (window.sysrepAttachSwReload) sysrepAttachSwReload(safeReload);
 
   // Polling: detecta novo deploy mesmo com tab aberta há muito tempo
   (function () {
@@ -4133,9 +4350,83 @@ window.msToast = function (msg, type) {
     }
   }
 
-  function _setOfflineBannerText(txt) {
-    var textEl = document.getElementById('ms-offline-banner-text');
-    if (textEl) textEl.textContent = txt;
+  window._msStatusDetail = { title: '', lines: [], mode: 'info', totalPend: 0 };
+
+  function _shellApiJ(url, method, body) {
+    var token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+    var opts = { method: method || 'GET', headers: { Authorization: 'Bearer ' + token } };
+    if (body && method && method !== 'GET') {
+      opts.headers['Content-Type'] = 'application/json';
+      opts.body = JSON.stringify(body);
+    }
+    return fetch(url, opts);
+  }
+
+  if (window.SysRepPedidosOffline && typeof window.SysRepPedidosOffline.bindEvents === 'function') {
+    window.SysRepPedidosOffline.bindEvents(_shellApiJ);
+  }
+
+  function _closeMsStatusSheet() {
+    var sheet = document.getElementById('ms-status-sheet');
+    if (sheet) {
+      sheet.classList.remove('show');
+      sheet.setAttribute('aria-hidden', 'true');
+    }
+  }
+
+  function _openMsStatusSheet() {
+    var st = window._msStatusDetail || {};
+    var sheet = document.getElementById('ms-status-sheet');
+    var body = document.getElementById('ms-status-sheet-body');
+    var foot = document.getElementById('ms-status-sheet-foot');
+    var title = document.getElementById('ms-status-sheet-title');
+    if (!sheet || !body || !foot) return;
+    if (title) title.textContent = st.title || 'Status';
+    body.innerHTML = (st.lines || []).map(function (l) {
+      return '<span class="ms-status-line">' + String(l || '').replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</span>';
+    }).join('') || '<span class="ms-status-line">Sem informações.</span>';
+    foot.innerHTML = '';
+    if (st.totalPend > 0) {
+      foot.innerHTML += '<button type="button" class="ms-status-sheet-btn primary" id="ms-status-open-queue">Ver pedidos pendentes (' + st.totalPend + ')</button>';
+    }
+    if (!navigator.onLine && window.SysRepPedidosOfflinePack) {
+      foot.innerHTML += '<button type="button" class="ms-status-sheet-btn" id="ms-status-prep-offline">Preparar / atualizar offline</button>';
+    }
+    foot.innerHTML += '<button type="button" class="ms-status-sheet-btn" id="ms-status-sheet-close2">Fechar</button>';
+    var qBtn = document.getElementById('ms-status-open-queue');
+    if (qBtn) {
+      qBtn.onclick = function () {
+        _closeMsStatusSheet();
+        if (window.SysRepPedidosOffline) SysRepPedidosOffline.openQueueModal(_shellApiJ);
+      };
+    }
+    var prepBtn = document.getElementById('ms-status-prep-offline');
+    if (prepBtn) {
+      prepBtn.onclick = function () {
+        _closeMsStatusSheet();
+        var btn = document.getElementById('ms-btn-preparar-offline');
+        if (btn) _msPrepararOfflineClick(btn);
+      };
+    }
+    var close2 = document.getElementById('ms-status-sheet-close2');
+    if (close2) close2.onclick = _closeMsStatusSheet;
+    sheet.classList.add('show');
+    sheet.setAttribute('aria-hidden', 'false');
+  }
+
+  function _msConnPillClick() {
+    var pend = _countPedidosOfflineLocal();
+    if (pend > 0 && window.SysRepPedidosOffline) {
+      SysRepPedidosOffline.openQueueModal(_shellApiJ);
+      return;
+    }
+    _openMsStatusSheet();
+  }
+
+  if (!window.__msStatusSheetBound) {
+    window.__msStatusSheetBound = true;
+    document.getElementById('ms-status-sheet-backdrop')?.addEventListener('click', _closeMsStatusSheet);
+    document.getElementById('ms-status-sheet-close')?.addEventListener('click', _closeMsStatusSheet);
   }
 
   function _ensureConnPill() {
@@ -4149,6 +4440,12 @@ window.msToast = function (msg, type) {
     var actionsEl = document.querySelector('.ms-actions');
     var syncBtn = document.getElementById('ms-btn-sync');
     if (actionsEl) actionsEl.insertBefore(pill, syncBtn || actionsEl.firstChild);
+    if (!pill.dataset.clickBound) {
+      pill.dataset.clickBound = '1';
+      pill.setAttribute('role', 'button');
+      pill.setAttribute('tabindex', '0');
+      pill.addEventListener('click', _msConnPillClick);
+    }
     return pill;
   }
 
@@ -4173,46 +4470,68 @@ window.msToast = function (msg, type) {
     var btnSync = document.getElementById('ms-btn-sync');
     var textoCurto = '';
     var titulo = '';
+    var detailLines = [];
+    var detailTitle = 'Status do app';
+    var detailMode = 'info';
 
-    if (offlineBanner) {
-      offlineBanner.classList.remove('show', 'pack-ready');
-    }
     document.body.classList.remove('has-offline-banner');
+    document.documentElement.style.setProperty('--offline-h', '0px');
 
-    if (off) {
+    if (totalPend > 0) {
+      textoCurto = totalPend + ' pend.';
+      titulo = 'Toque para ver e sincronizar pedidos pendentes';
+      detailTitle = 'Pedidos pendentes';
+      detailLines.push(totalPend + ' pedido(s) aguardando envio ao servidor.');
+      detailLines.push('Toque neste chip para abrir a lista e escolher o que sincronizar.');
+      pill.className = 'ms-conn-pill show pending';
+      detailMode = 'pending';
+    } else if (off) {
       if ((st.clientes || 0) > 0 || (st.produtos || 0) > 0 || packValid) {
-        textoCurto = 'Offline OK';
-        titulo = 'Offline com dados locais' + (packValid ? ' ate ' + _fmtDiaMes(packUntil) : '');
+        textoCurto = 'Sem rede';
+        titulo = 'Toque para detalhes do modo offline';
+        detailTitle = 'Modo offline';
+        detailLines.push('Sem conexão com a internet.');
+        if ((st.clientes || 0) > 0) detailLines.push(st.clientes + ' clientes no banco local.');
+        if ((st.produtos || 0) > 0) detailLines.push(st.produtos + ' produtos no banco local.');
+        if (packValid) detailLines.push('Backup válido até ' + _fmtDiaMes(packUntil) + '.');
       } else {
-        textoCurto = 'Offline sem dados';
-        titulo = 'Offline sem pacote preparado';
+        textoCurto = 'Sem dados';
+        titulo = 'Prepare o offline com internet';
+        detailTitle = 'Offline sem pacote';
+        detailLines.push('Sem internet e sem pacote preparado.');
+        detailLines.push('Conecte-se e use Menu → Preparar offline.');
       }
       pill.className = 'ms-conn-pill show offline';
-      if (offlineBanner) {
-        var partes = ['Sem internet'];
-        if ((st.clientes || 0) > 0) partes.push(st.clientes + ' clientes');
-        if ((st.produtos || 0) > 0) partes.push(st.produtos + ' produtos');
-        if (packValid) partes.push('backup ate ' + _fmtDiaMes(packUntil));
-        if (totalPend > 0) partes.push(totalPend + ' pendente(s)');
-        _setOfflineBannerText(partes.length > 1
-          ? partes.join(' · ')
-          : 'Sem internet · sem dados preparados · conecte-se para preparar');
-        offlineBanner.classList.add('show');
-      }
-      document.body.classList.add('has-offline-banner');
-    } else if (totalPend > 0) {
-      textoCurto = totalPend + ' pendente(s)';
-      titulo = totalPend + ' item(ns) aguardando sincronizacao';
-      pill.className = 'ms-conn-pill show pending';
+      detailMode = 'offline';
     } else if (packValid) {
-      textoCurto = 'Backup ate ' + _fmtDiaMes(packUntil);
-      titulo = 'Online · backup offline valido ate ' + _fmtDiaMes(packUntil) + ' (se ficar sem internet)';
+      var nCli = st.clientes || 0;
+      textoCurto = nCli > 0 ? ('Pronto · ' + nCli + ' cli') : 'Offline OK';
+      titulo = 'Pacote offline preparado — toque para detalhes';
+      detailTitle = 'Pacote offline pronto';
+      detailLines.push('Dados locais preparados para venda sem internet.');
+      if (nCli > 0) detailLines.push(nCli + ' clientes disponíveis offline.');
+      if ((st.produtos || 0) > 0) detailLines.push(st.produtos + ' produtos no catálogo local.');
+      if ((st.pedidos || 0) > 0) detailLines.push(st.pedidos + ' pedidos recentes na lista offline.');
+      detailLines.push('Válido até ' + _fmtDiaMes(packUntil) + '.');
       pill.className = 'ms-conn-pill show pack-ready';
+      detailMode = 'pack';
     } else {
       textoCurto = 'Online';
-      titulo = 'Online';
-      pill.className = 'ms-conn-pill';
+      titulo = 'Conectado';
+      detailLines.push('Online — sem pacote offline ativo.');
+      detailLines.push('Menu → Preparar offline antes de sair em campo.');
+      pill.className = 'ms-conn-pill show';
     }
+
+    window._msStatusDetail = {
+      title: detailTitle,
+      lines: detailLines,
+      mode: detailMode,
+      totalPend: totalPend,
+      packUntil: packUntil,
+      clientes: st.clientes || 0,
+      produtos: st.produtos || 0
+    };
 
     pill.textContent = textoCurto;
     pill.title = titulo;
@@ -4246,7 +4565,7 @@ window.msToast = function (msg, type) {
     try {
       var st = window.OfflineSync ? await window.OfflineSync.getStatus() : {};
       var lsCount = _countPedidosOfflineLocal();
-      var totalPend = (st.pendentes || 0) + (lsCount || 0);
+      var totalPend = lsCount || 0; // só conta fila localStorage (pedidos offline criados pelo vendedor)
       var badge = document.getElementById('ms-sync-badge');
       if (badge) {
         if (totalPend > 0) {
@@ -4258,11 +4577,8 @@ window.msToast = function (msg, type) {
       }
       st.totalPend = totalPend;
       st.packUntil = _getPackUntil();
+      st.clientes = st.clientes || parseInt(localStorage.getItem('sysrep_offline_clientes_count') || '0', 10) || 0;
       _renderConnectionStatus(st);
-      if (offlineBanner && !navigator.onLine && st.clientes > 0) {
-        var pend = totalPend > 0 ? ' · ' + totalPend + ' pedido(s) pendente(s)' : '';
-        _setOfflineBannerText('📵 Offline · ' + st.clientes + ' clientes · ' + st.produtos + ' produtos' + pend);
-      }
     } catch (_) {
       _renderConnectionStatus({
         totalPend: _countPedidosOfflineLocal(),
@@ -4274,6 +4590,11 @@ window.msToast = function (msg, type) {
   }
 
   async function msSyncManual() {
+    var pendLocal = _countPedidosOfflineLocal();
+    if (pendLocal > 0 && window.SysRepPedidosOffline) {
+      window.SysRepPedidosOffline.openQueueModal(_shellApiJ);
+      return;
+    }
     if (_syncSpinning) return;
     var icon = document.getElementById('ms-sync-icon');
     _syncSpinning = true;
@@ -4334,15 +4655,35 @@ window.msToast = function (msg, type) {
     if (until >= Date.now() + 6 * umDia) return;
     SysRepPedidosOfflinePack.preparePack(function(url) {
       return fetch(url, { headers: { 'Authorization': 'Bearer ' + tkn } });
-    }).then(function() {
-      window.msToast('Pacote offline atualizado automaticamente', 'ok');
-      if (typeof _atualizarStatusOfflinePack === 'function') _atualizarStatusOfflinePack();
+    }).then(function(pack) {
+      if (pack && window.SysRepPedidosOfflinePack.formatPrepareSummary) {
+        window.msToast('Atualizado: ' + SysRepPedidosOfflinePack.formatPrepareSummary(pack), 'ok');
+      } else {
+        window.msToast('Pacote offline atualizado automaticamente', 'ok');
+      }
+      if (typeof _atualizarStatusOfflinePack === 'function') _atualizarStatusOfflinePack(pack);
       if (typeof atualizarBotaoSync === 'function') atualizarBotaoSync();
     }).catch(function() {});
   }
 
+  window.atualizarBotaoSync = atualizarBotaoSync;
+
   window.addEventListener('online',  syncOffline);
   window.addEventListener('offline', syncOffline);
+  window.addEventListener('offline', function () {
+    if (!window.SysRepPedidosOfflinePack || !SysRepPedidosOfflinePack.isTokenUsableOffline()) return;
+    var fr = document.getElementById('ms-frame');
+    if (!fr) return;
+    var src = fr.src || '';
+    if (src.indexOf('home.html') >= 0) {
+      fr.src = '/pages/pedidos.html?_ms=' + Date.now();
+      var title = document.getElementById('ms-title');
+      if (title) title.textContent = 'Pedidos';
+      document.querySelectorAll('.ms-nav-item').forEach(function (b) {
+        b.classList.toggle('active', (b.getAttribute('data-ms-href') || '').indexOf('pedidos.html') >= 0);
+      });
+    }
+  });
   syncOffline();
   window.addEventListener('online', carregarResumoDia);
   window.addEventListener('online', function() { setTimeout(_autoAtualizarPack, 3000); });

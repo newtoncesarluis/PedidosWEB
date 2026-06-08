@@ -13,6 +13,7 @@ const {
   _poolMapKeys,
 } = require('../config/database');
 const { authMiddleware } = require('../middleware/auth');
+const { hojeIsoBrasil, horaBrasil, addDaysIsoBrasil } = require('../config/date-brasil');
 
 // Rastreia por pool para não repetir CREATE TABLE nem SHOW TABLES
 const _tableReadyPools = new Set();
@@ -133,9 +134,9 @@ router.post('/gerar', authMiddleware, async (req, res) => {
     );
     if (!cliente) return res.status(404).json({ erro: 'Cliente não encontrado' });
 
-    const token  = crypto.randomBytes(32).toString('hex');
-    const expira = new Date();
-    expira.setDate(expira.getDate() + parseInt(dias_validade));
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiraDate = addDaysIsoBrasil(parseInt(dias_validade, 10) || 60);
+    const expiraSql = `${expiraDate} 23:59:59`;
 
     const userId   = user.id || user.idusuario;
     const nomeUser = user.nome || user.nomeusu || '';
@@ -156,10 +157,10 @@ router.post('/gerar', authMiddleware, async (req, res) => {
     await pool.query(
       `INSERT INTO vitrine_tokens (token, id_cliente, id_usuario, nome_cliente, nome_usuario, expira_em, id_empresa, nome_empresa)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [token, id_cliente, userId, cliente.nome, nomeUser, expira, idEmpresa, nomeEmpresa]
+      [token, id_cliente, userId, cliente.nome, nomeUser, expiraSql, idEmpresa, nomeEmpresa]
     );
 
-    res.json({ token, expira, link: `/vitrine/${token}` });
+    res.json({ token, expira: expiraDate, link: `/vitrine/${token}` });
   } catch (err) {
     console.error('[vitrine/gerar]', err);
     res.status(500).json({ erro: err.message });
@@ -311,9 +312,8 @@ router.post('/:token/pedido', async (req, res) => {
         grupos.get(key).itens.push(item);
       }
 
-      const agora  = new Date();
-      const dataAb = agora.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-');
-      const horaAb = agora.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour12: false });
+      const dataAb = hojeIsoBrasil();
+      const horaAb = horaBrasil();
 
       const conn = await pool.getConnection();
       try {
@@ -361,13 +361,13 @@ router.post('/:token/pedido', async (req, res) => {
                 quantidade, valor_unitario, vlrtotal_itens,
                 desconto, comissao, st, vlr_st, ipi, vlr_ipi, icms, vlr_icms,
                 tipo_pedido, sequencia, cod_fornecedor, data_inclusao, sincronizar, excluido
-              ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURDATE(),'N','N')`,
+              ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'N','N')`,
               [
                 numero, pedidoId,
                 item.id, item.descricao || '', item.unidade || 'UN',
                 item.quantidade, item.preco, vlrItem,
                 0, 0, 0, 0, 0, 0, 0, 0,
-                tipo_pedido_str, i + 1, item.cod_fornecedor || null
+                tipo_pedido_str, i + 1, item.cod_fornecedor || null, dataAb
               ]
             );
           }

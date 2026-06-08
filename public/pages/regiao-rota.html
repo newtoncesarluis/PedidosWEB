@@ -291,12 +291,12 @@ function renderTabela(rows){
     <td><span class="badge ${r.status==='A'||!r.status?'badge-ativo':'badge-inativo'}">${r.status==='A'||!r.status?'Ativa':'Inativa'}</span></td>
     <td>
       <div style="display:flex;gap:6px">
-        <button class="btn btn-sm btn-outline btn-icon" title="Editar" onclick="editar(${r.id})">
+        ${(typeof podeAlterarCad === 'function' ? podeAlterarCad() : true) ? `<button class="btn btn-sm btn-outline btn-icon" title="Editar" onclick="editar(${r.id})">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-        </button>
-        <button class="btn btn-sm btn-danger btn-icon" title="Excluir" onclick="excluir(${r.id},'${escHtml(r.descricao)}')">
+        </button>` : ''}
+        ${(typeof podeExcluirCad === 'function' ? podeExcluirCad() : true) ? `<button class="btn btn-sm btn-danger btn-icon" title="Excluir" onclick="excluir(${r.id},'${escHtml(r.descricao)}')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-        </button>
+        </button>` : ''}
       </div>
     </td>
   </tr>`).join('')}</tbody></table>`;
@@ -327,6 +327,7 @@ async function carregarVendedores(){
 }
 
 function abrirModal(id=null){
+  if (!id && !guardCadIncluir('Sem permissão para incluir regiões')) return;
   editId=id;
   document.getElementById('modalTitulo').textContent=id?'Editar Região':'Nova Região';
   document.getElementById('fDescricao').value='';
@@ -353,6 +354,7 @@ async function carregarParaEdicao(id){
     document.getElementById('fStatus').value=d.status||'A';
     document.getElementById('fVendedor').value=d.id_vendedor_padrao||'';
     document.getElementById('fObs').value=d.observacao||'';
+    if (!podeAlterarCad()) aplicarFormSomenteLeituraCad(document.getElementById('modalOverlay'));
   } catch(e){ alert('Erro ao carregar: '+e.message); }
 }
 
@@ -365,6 +367,7 @@ document.getElementById('fCor').addEventListener('input',function(){ document.ge
 
 async function salvar(e){
   e.preventDefault();
+  if (!guardCadSalvar(!!editId, 'Sem permissão para incluir regiões', 'Sem permissão para alterar regiões')) return;
   const btn=document.getElementById('btnSalvar');
   btn.disabled=true;
   const body={
@@ -389,6 +392,7 @@ async function salvar(e){
 async function editar(id){ abrirModal(id); }
 
 async function excluir(id, nome){
+  if (!guardCadExcluir('Sem permissão para excluir regiões')) return;
   if(!confirm(`Excluir a região "${nome}"?`)) return;
   try {
     await api(`/api/regiao-rota/${id}`,{method:'DELETE'});
@@ -440,9 +444,12 @@ async function carregarClientes(id){
 }
 
 // Init
-carregarVendedores();
-carregarStats();
-carregar();
+document.addEventListener('cad-perm-ready', () => {
+  carregarVendedores();
+  carregarStats();
+  if (typeof aplicarUiPermissoesCad === 'function') aplicarUiPermissoesCad();
+});
 </script>
+<script src="/assets/cadastros-permissao.js"></script>
 </body>
 </html>

@@ -11,6 +11,9 @@
 <link rel="stylesheet" href="/assets/themes.css">
 <script src="/assets/themes.js"></script>
 <script src="/assets/mobile-app.js"></script>
+<script src="/assets/pedidos-offline.js"></script>
+<script src="/assets/offline-db.js"></script>
+<script src="/assets/pedidos-offline-pack.js"></script>
 <link rel="stylesheet" href="/assets/mobile-app.css">
 <link rel="stylesheet" href="/assets/ajuda-tour.css">
 <script src="/assets/ajuda-tour.js"></script>
@@ -347,18 +350,40 @@ tbody tr:last-child td { border-bottom:none; }
 .pag-ellipsis { padding:0 4px;color:var(--text2);font-size:13px;line-height:30px; }
 
 /* ── FORM SECTION (inline, replaces list) ─────────────────────────────────── */
+html.cli-form-open,
+html.cli-form-open body {
+  height: 100%;
+  overflow: hidden !important;
+}
 #formSection {
-  display:none;
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 7500;
+  background: var(--bg);
+  overflow: hidden;
+  flex-direction: column;
+  box-sizing: border-box;
+  padding: 0;
+}
+#formSection.form-open {
+  display: flex;
 }
 
 .form-card {
-  background:var(--card);
-  border:1px solid var(--border);
-  border-radius:10px;
-  overflow:hidden;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  max-height: 100%;
+  background: var(--card);
+  border: none;
+  border-radius: 0;
+  overflow: hidden;
 }
 
 .form-card-head {
+  flex-shrink: 0;
   padding:12px 18px;
   border-bottom:1px solid var(--border);
   background:var(--card);
@@ -375,8 +400,16 @@ tbody tr:last-child td { border-bottom:none; }
 /* TABS */
 .tabs-bar-wrap {
   position:relative;
+  flex-shrink:0;
   background:var(--card);
   border-bottom:2px solid var(--border);
+}
+.form-body {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .tabs-bar {
   display:flex;gap:0;
@@ -475,13 +508,26 @@ textarea { resize:vertical;min-height:64px; }
 /* FORM FOOTER */
 .form-footer {
   display:flex;align-items:center;justify-content:space-between;
-  padding:10px 18px;
+  padding:10px 18px calc(10px + env(safe-area-inset-bottom, 0px));
   border-top:1px solid var(--border);
   background:var(--card);
   gap:10px;flex-wrap:wrap;
+  flex-shrink:0;
+  position:relative;
+  z-index:2;
+  box-shadow:0 -6px 24px rgba(15, 23, 42, 0.08);
 }
-.form-footer-left  { display:flex;gap:8px; }
-.form-footer-right { display:flex;gap:8px; }
+.form-footer-left  { display:flex;gap:8px;flex-wrap:wrap; }
+.form-footer-right { display:flex;gap:8px;flex-wrap:wrap; }
+
+html.sysrep-home-embed #formSection.form-open {
+  display:flex !important;
+  flex-direction:column !important;
+}
+html.sysrep-ms-embed #formSection.form-open {
+  min-height:0 !important;
+  padding:0 !important;
+}
 
 /* SPINNER */
 .spinner {
@@ -530,6 +576,95 @@ textarea { resize:vertical;min-height:64px; }
 .confirm-box h3 { font-size:16px;font-weight:700;margin-bottom:9px; }
 .confirm-box p  { font-size:13px;color:var(--text2);line-height:1.5; }
 .confirm-btns   { display:flex;gap:10px;justify-content:center;margin-top:18px; }
+
+/* Modal Agendar Visita — centralizado na viewport (tela cheia ou iframe home) */
+#modalVisita {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 11000;
+  align-items: center;
+  justify-content: center;
+  padding: max(16px, env(safe-area-inset-top, 0px)) 16px max(16px, env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: rgba(0,0,0,.5);
+  backdrop-filter: blur(4px);
+}
+#modalVisita.open { display: flex; }
+#modalVisita .modal-visita-card {
+  background: var(--card, #fff);
+  color: var(--text, #111);
+  border-radius: 14px;
+  padding: 0;
+  width: min(480px, calc(100vw - 32px));
+  max-height: min(92dvh, calc(100vh - 32px));
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  margin: auto;
+  box-shadow: 0 20px 60px rgba(0,0,0,.22);
+  animation: mvModalIn .18s ease-out;
+}
+@keyframes mvModalIn { from { opacity: 0; } to { opacity: 1; } }
+#modalVisita .modal-visita-body {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+#modalVisita .modal-visita-foot {
+  padding: 16px 24px;
+  background: var(--bg, #f9fafb);
+  border-top: 1px solid var(--border, #e2e8f0);
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+#modalVisita .f-group label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text2, #64748b);
+  margin-bottom: 4px;
+  display: block;
+}
+#modalVisita .f-input {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border, #e2e8f0);
+  background: var(--card, #fff);
+  color: var(--text, #0f172a);
+  font-size: 13px;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+#modalVisita select.f-input {
+  appearance: auto;
+  min-height: 38px;
+  line-height: 1.35;
+  cursor: pointer;
+}
+#modalVisita select.f-input option {
+  background: var(--card, #fff);
+  color: var(--text, #0f172a);
+}
+#modalVisita .mv-datetime-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+#modalVisita .mv-obs {
+  height: 80px;
+  resize: none;
+}
 
 /* ── SUB-RECORD PANELS ────────────────────────────────────────────────────── */
 .subrec-toolbar { display:flex;justify-content:space-between;align-items:center;margin-bottom:10px; }
@@ -835,24 +970,26 @@ tr.row-selected { background:var(--accent-soft) !important; }
   inset: 0;
   z-index: 999999;
   background: rgba(15, 23, 42, 0.55);
-  align-items: center;
-  justify-content: center;
-  padding: 20px 16px;
-  -webkit-overflow-scrolling: touch;
-  overflow-y: auto;
+  overflow: hidden;
 }
-#modalVitrine.open { display: flex !important; }
+#modalVitrine.open {
+  display: block !important;
+}
 #modalVitrine .vitrine-panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   background: #ffffff;
   color: #0f172a;
   border-radius: 16px;
   width: 100%;
-  max-width: 520px;
-  max-height: min(88vh, calc(100vh - 40px));
+  max-width: min(520px, calc(100vw - 32px));
+  max-height: min(88dvh, calc(100dvh - 40px));
   overflow-y: auto;
   box-shadow: 0 20px 48px rgba(0, 0, 0, 0.28);
-  flex-shrink: 0;
-  margin: auto;
+  margin: 0;
+  z-index: 1;
 }
 html[data-theme="dark"] #modalVitrine .vitrine-panel,
 html[data-theme="charcoal"] #modalVitrine .vitrine-panel {
@@ -993,15 +1130,22 @@ html[data-theme="charcoal"] #modalVitrine .vitrine-panel {
     gap: 6px;
     border-radius: 12px;
   }
-  html.sysrep-ms-embed #btnNovoClienteTop {
-    background: var(--accent-soft, rgba(37, 99, 235, .1));
-    border-color: color-mix(in oklab, var(--accent, #2563eb) 40%, var(--border, #dfe5ec));
-    color: var(--accent, #2563eb);
+  html.sysrep-ms-embed #btnNovoClienteTop.cli-show-incluir {
+    background: var(--accent, #4361ee) !important;
+    border-color: var(--accent, #4361ee) !important;
+    color: #fff !important;
+    box-shadow: 0 6px 18px rgba(67, 97, 238, .28) !important;
+    font-weight: 800 !important;
+  }
+  html.sysrep-ms-embed #btnNovoClienteTop.cli-show-incluir svg {
+    stroke: #fff;
   }
   html.sysrep-ms-embed #btnPertoMimTop {
-    background: rgba(37, 99, 235, .08);
-    border-color: rgba(37, 99, 235, .25);
-    color: #1d4ed8;
+    background: var(--card, #fff) !important;
+    border-color: var(--border, #e2e8f0) !important;
+    color: var(--text2, #64748b) !important;
+    box-shadow: none !important;
+    font-weight: 700 !important;
   }
   html.sysrep-ms-embed #notifWrap {
     display: none !important;
@@ -1040,12 +1184,53 @@ html[data-theme="charcoal"] #modalVitrine .vitrine-panel {
     position: relative;
     z-index: 0;
   }
-  html.sysrep-ms-embed .btn-new-float {
+  html.sysrep-ms-embed #btnNovoClienteTop.cli-show-incluir {
+    display: flex !important;
+  }
+  html.sysrep-ms-embed #btnNovoClienteTop:not(.cli-show-incluir) {
+    display: none !important;
+  }
+  html.sysrep-ms-embed #btnNovoClienteFloat.cli-show-incluir {
+    display: flex !important;
+  }
+  html.sysrep-ms-embed #btnNovoClienteFloat:not(.cli-show-incluir) {
     display: none !important;
   }
   html.sysrep-ms-embed .btn-near-float {
     display: none !important;
   }
+}
+
+html.ms-embedded-tech.ms-page-clientes .toolbar-primary-actions {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+html.ms-embedded-tech.ms-page-clientes #btnNovoClienteTop.cli-show-incluir {
+  background: var(--accent, #4361ee) !important;
+  border-color: var(--accent, #4361ee) !important;
+  color: #fff !important;
+  box-shadow: 0 6px 18px rgba(67, 97, 238, .28) !important;
+  font-weight: 800 !important;
+}
+html.ms-embedded-tech.ms-page-clientes #btnNovoClienteTop.cli-show-incluir svg {
+  stroke: #fff;
+}
+html.ms-embedded-tech.ms-page-clientes #btnPertoMimTop {
+  background: var(--card, #fff) !important;
+  border-color: var(--border, #e2e8f0) !important;
+  color: var(--text2, #64748b) !important;
+  box-shadow: none !important;
+  font-weight: 700 !important;
+}
+html.ms-embedded-tech.ms-page-clientes #btnNovoClienteTop.cli-show-incluir,
+html.ms-embedded-tech.ms-page-clientes #btnNovoClienteFloat.cli-show-incluir {
+  display: flex !important;
+}
+html.ms-embedded-tech.ms-page-clientes #btnNovoClienteTop:not(.cli-show-incluir),
+html.ms-embedded-tech.ms-page-clientes #btnNovoClienteFloat:not(.cli-show-incluir) {
+  display: none !important;
 }
 
 /* App vendedor: somente cards (sem toggle tabela / sem grade espremida) */
@@ -1192,10 +1377,10 @@ html.ms-embedded-tech.ms-page-clientes .cards-grid {
     letter-spacing: -.5px;
   }
 
-  /* 2 — Table row actions: fade+slide in on hover only */
+  /* 2 — Table row actions: destaque suave no hover (sempre visíveis para clique) */
   tbody tr .td-actions > * {
-    opacity: 0;
-    transform: translateX(4px);
+    opacity: 0.72;
+    transform: translateX(0);
     transition: opacity .18s cubic-bezier(.4,0,.2,1),
                 transform .18s cubic-bezier(.4,0,.2,1);
   }
@@ -1373,36 +1558,35 @@ html.ms-embedded-tech.ms-page-clientes .cards-grid {
 </div>
 
 <!-- ── MODAL AGENDAR VISITA ────────────────────────────────────────────────── -->
-<div id="modalVisita" style="display:none;position:fixed;inset:0;z-index:11000;
-     align-items:center;justify-content:center;
-     background:rgba(0,0,0,.5);backdrop-filter:blur(4px)">
-  <div style="background:#fff;border-radius:14px;padding:0;max-width:480px;
-              width:92%;box-shadow:0 20px 60px rgba(0,0,0,.22);animation:slideUp .18s ease-out;overflow:hidden">
-    <div style="background:linear-gradient(135deg,#4361ee,#3f37c9);color:#fff;padding:18px 24px">
-       <h3 style="margin:0;font-size:16px;font-weight:700">Agendar Atividade</h3>
+<div id="modalVisita" role="dialog" aria-modal="true" aria-labelledby="mvTitulo">
+  <div class="modal-visita-card">
+    <div style="background:linear-gradient(135deg,#4361ee,#3f37c9);color:#fff;padding:18px 24px;flex-shrink:0">
+       <h3 id="mvTitulo" style="margin:0;font-size:16px;font-weight:700">Agendar Atividade</h3>
        <p id="mvClienteNome" style="margin:4px 0 0;font-size:12px;opacity:.8">—</p>
     </div>
     
-    <div style="padding:24px;display:flex;flex-direction:column;gap:16px">
+    <div class="modal-visita-body">
       <div class="f-group">
-        <label style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text2);margin-bottom:4px;display:block">Motivo da Visita</label>
-        <select id="mv_motivo" class="f-input" style="width:100%;padding:8px;border-radius:8px;border:1px solid var(--border)"></select>
+        <label for="mv_motivo">Motivo da Visita</label>
+        <select id="mv_motivo" class="f-input">
+          <option value="">Selecione o motivo...</option>
+        </select>
       </div>
       
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="mv-datetime-grid">
         <div class="f-group">
-          <label style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text2);margin-bottom:4px;display:block">Data</label>
-          <input type="date" id="mv_data" class="f-input" style="width:100%;padding:8px;border-radius:8px;border:1px solid var(--border)">
+          <label for="mv_data">Data</label>
+          <input type="date" id="mv_data" class="f-input">
         </div>
         <div class="f-group">
-          <label style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text2);margin-bottom:4px;display:block">Hora</label>
-          <input type="time" id="mv_hora" class="f-input" value="08:00" style="width:100%;padding:8px;border-radius:8px;border:1px solid var(--border)">
+          <label for="mv_hora">Hora</label>
+          <input type="time" id="mv_hora" class="f-input" value="08:00">
         </div>
       </div>
 
       <div class="f-group">
-        <label style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text2);margin-bottom:4px;display:block">Observações / Planejamento</label>
-        <textarea id="mv_obs" class="f-input" style="width:100%;padding:8px;border-radius:8px;border:1px solid var(--border);height:80px;resize:none" placeholder="O que pretende fazer nesta visita?"></textarea>
+        <label for="mv_obs">Observações / Planejamento</label>
+        <textarea id="mv_obs" class="f-input mv-obs" placeholder="O que pretende fazer nesta visita?"></textarea>
       </div>
 
       <div style="display:flex;align-items:center;gap:8px;padding:12px;background:#f0fdf4;border-radius:10px;border:1px solid #dcfce7">
@@ -1413,9 +1597,9 @@ html.ms-embedded-tech.ms-page-clientes .cards-grid {
       </div>
     </div>
 
-    <div style="padding:16px 24px;background:#f9fafb;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end">
-      <button onclick="fecharModalVisita()" class="btn btn-ghost">Cancelar</button>
-      <button onclick="salvarVisita()" class="btn btn-primary" id="btnSalvarVisita">Agendar Visita</button>
+    <div class="modal-visita-foot">
+      <button type="button" id="btnMvCancelar" class="btn btn-ghost">Cancelar</button>
+      <button type="button" class="btn btn-primary" id="btnSalvarVisita">Agendar Visita</button>
     </div>
   </div>
 </div>
@@ -1696,6 +1880,8 @@ html.ms-embedded-tech.ms-page-clientes .cards-grid {
         </div><!-- /tabs-bar -->
         <button class="tab-scroll right" id="tabScrollRight" onclick="scrollTabs(1)">&#8250;</button>
       </div><!-- /tabs-bar-wrap -->
+
+      <div class="form-body" id="formBodyScroll">
 
       <!-- ──── GERAL ──── -->
       <div class="tab-panel active" id="tab-principal">
@@ -2494,6 +2680,8 @@ html.ms-embedded-tech.ms-page-clientes .cards-grid {
         </div>
       </div>
 
+      </div><!-- /form-body -->
+
       <!-- FORM FOOTER -->
       <div class="form-footer">
         <div class="form-footer-left">
@@ -2540,11 +2728,70 @@ html.ms-embedded-tech.ms-page-clientes .cards-grid {
 <script>
 // ── GLOBALS ───────────────────────────────────────────────────────────────────
 const token = () => sessionStorage.getItem('token') || localStorage.getItem('token');
-const api   = path => fetch(path, { headers: { Authorization: 'Bearer ' + token() } });
-const apiJ  = (path, method, body) => fetch(path, {
-  method, headers: { 'Content-Type':'application/json', Authorization: 'Bearer ' + token() },
-  body: JSON.stringify(body)
-});
+
+function _cliAuthHeaders() {
+  const t = token();
+  return t ? { Authorization: 'Bearer ' + t } : {};
+}
+
+async function _cliTryOffline(url, method) {
+  if (typeof SysRepPedidosOfflinePack === 'undefined') return null;
+  if (!SysRepPedidosOfflinePack.isTokenUsableOffline()) return null;
+  return SysRepPedidosOfflinePack.fetchOffline(url, method || 'GET');
+}
+
+async function api(url) {
+  const opts = { credentials: 'include', headers: _cliAuthHeaders() };
+  if (!navigator.onLine) {
+    const mock = await _cliTryOffline(url, 'GET');
+    if (mock) return mock;
+  }
+  try {
+    const r = await fetch(url, opts);
+    if (r.status === 401) {
+      const mock = await _cliTryOffline(url, 'GET');
+      if (mock) return mock;
+      if (navigator.onLine) (window.top || window).location.replace('/login.html');
+      throw new Error('Sessão expirada');
+    }
+    if (!r.ok && (r.status === 503 || r.status >= 500)) {
+      const mock = await _cliTryOffline(url, 'GET');
+      if (mock) return mock;
+    }
+    return r;
+  } catch (err) {
+    const mock = await _cliTryOffline(url, 'GET');
+    if (mock) return mock;
+    throw err;
+  }
+}
+
+async function apiJ(path, method, body) {
+  if (method === 'GET' || !method) return api(path);
+  if (!navigator.onLine) {
+    const offlineMock = await _cliTryOffline(path, method);
+    if (offlineMock) return offlineMock;
+  }
+  try {
+    const r = await fetch(path, {
+      method,
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', ..._cliAuthHeaders() },
+      body: JSON.stringify(body)
+    });
+    if (r.status === 401) {
+      const mock = await _cliTryOffline(path, method);
+      if (mock) return mock;
+      if (navigator.onLine) (window.top || window).location.replace('/login.html');
+      throw new Error('Sessão expirada');
+    }
+    return r;
+  } catch (err) {
+    const mock = await _cliTryOffline(path, method);
+    if (mock) return mock;
+    throw err;
+  }
+}
 
 // Decodifica o payload do JWT sem verificar assinatura (uso local apenas)
 function parseJwt(t) {
@@ -2561,6 +2808,64 @@ let _totalRows = 0;
 let _sysConfig  = {};   // flags do sistema (gacessartodosclientes, etc.)
 let _usuLogado  = {};   // payload JWT decodificado
 let _perm       = {};   // permissões do perfil
+
+function isAdminCliente() {
+  return _usuLogado?.perfil == 1 || _usuLogado?.role === 'admin';
+}
+function permCliente(k) {
+  if (isAdminCliente()) return 'S';
+  return _perm[k] || 'N';
+}
+function podeVerClientes()     { return permCliente('gtela_clientes') === 'S'; }
+function podeIncluirClientes() { return permCliente('incluir_clientes') === 'S'; }
+function podeAlterarClientes() { return permCliente('alterar_clientes') === 'S'; }
+function podeExcluirClientes() { return permCliente('excluir_clientes') === 'S'; }
+
+function htmlAcessoRestritoClientes() {
+  return `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;color:var(--text2);text-align:center;padding:20px">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:64px;height:64px;margin-bottom:16px;opacity:0.5">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+    </svg>
+    <h2 style="color:var(--text)">Acesso Restrito</h2>
+    <p>Você não tem permissão para acessar o Cadastro de Clientes.</p>
+    <button class="btn btn-outline" style="margin-top:20px" onclick="window.parent.postMessage({type:'close-tab',id:'clientes'}, '*')">Fechar Aba</button>
+  </div>`;
+}
+
+async function carregarPermissoesClientes() {
+  try {
+    const u = JSON.parse(sessionStorage.getItem('user') || '{}');
+    if (u.perfil != null) _usuLogado.perfil = u.perfil;
+    if (u.role) _usuLogado.role = u.role;
+    if (u.permissoes) _perm = { ..._perm, ...u.permissoes };
+  } catch {}
+  try {
+    const r = await api('/api/auth/minhas-permissoes');
+    if (r.ok) {
+      const d = await r.json();
+      _perm = { ..._perm, ...d };
+      if (d.isAdmin) { _usuLogado.perfil = 1; _usuLogado.role = 'admin'; }
+    }
+  } catch {}
+}
+
+function aplicarFormEditavel(editavel) {
+  const sec = document.getElementById('formSection');
+  if (!sec) return;
+  sec.querySelectorAll('input:not([type=hidden]), select, textarea').forEach(el => {
+    if (el.id === 'f_cod_vendedor' && permCliente('alteravendedorcadastrocli') === 'N') return;
+    el.disabled = !editavel;
+  });
+  sec.querySelectorAll('input[type=checkbox], input[type=radio]').forEach(el => { el.disabled = !editavel; });
+  const btnSalvar = document.getElementById('btnSalvar');
+  if (btnSalvar) {
+    btnSalvar.style.display = editavel ? '' : 'none';
+    btnSalvar.disabled = !editavel;
+  }
+  sec.querySelectorAll('.sub-toolbar .btn, .sub-toolbar button, [onclick*="addSubrec"], [onclick*="editSubrec"], [onclick*="delSubrec"]').forEach(el => {
+    el.style.display = editavel ? '' : 'none';
+  });
+}
 
 function calcPerPage() {
   const fixedH = 180;
@@ -2639,6 +2944,12 @@ let _filtrosAvancados = { tipo:'', cidade:'', sem_compra:'', suspensa:false };
 document.addEventListener('DOMContentLoaded', async () => {
   _usuLogado = parseJwt(token() || '');
   try { _perm = JSON.parse(sessionStorage.getItem('user') || '{}').permissoes || {}; } catch {}
+  if (_usuLogado.permissoes) _perm = { ..._usuLogado.permissoes, ..._perm };
+  await carregarPermissoesClientes();
+  if (!podeVerClientes()) {
+    document.body.innerHTML = htmlAcessoRestritoClientes();
+    return;
+  }
   try {
     const r = await api('/api/config/flags');
     if (r.ok) _sysConfig = await r.json();
@@ -2688,6 +2999,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       try { el.setSelectionRange(pos, pos); } catch {}
     }
   });
+  _mvBindModalEvents();
 });
 
 // ── FILTROS / BUSCA ───────────────────────────────────────────────────────────
@@ -2745,9 +3057,47 @@ async function carregar() {
     if (isClientesMobileEmbed()) aplicarViewClientesCards();
     _viewMode === 'cards' ? renderCards(_cacheRows, offset) : renderTabela(_cacheRows, offset);
     renderInsights(_cacheRows, _totalRows);
+    aplicarPermissoesClientes();
   } catch (e) {
-    toast('Erro ao carregar clientes: ' + e.message, 'err');
+    const msg = String(e.message || '');
+    const nLocal = parseInt(localStorage.getItem('sysrep_offline_clientes_count') || '0', 10);
+    if (!navigator.onLine || /failed to fetch/i.test(msg)) {
+      if (nLocal > 0) {
+        toast('Banco local encontrado (' + nLocal + ' clientes) mas a leitura falhou — feche o app e abra de novo.', 'warn');
+      } else {
+        toast('Prepare o offline com Wi‑Fi: Mais → Preparar offline. Aguarde a mensagem com a quantidade de clientes.', 'warn');
+      }
+    } else {
+      toast('Erro ao carregar clientes: ' + msg, 'err');
+    }
   }
+}
+
+function _avatarClass(nome) {
+  const ch = (nome || '?')[0].toUpperCase();
+  if (/[A-Z]/.test(ch)) return `av-${ch}`;
+  if (/[0-9]/.test(ch)) return 'av-NUM';
+  return 'av-A';
+}
+
+function _nameInitials(nome) {
+  const partes = String(nome || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!partes.length) return 'CL';
+  if (partes.length === 1) return partes[0].slice(0, 2).toUpperCase();
+  return (partes[0][0] + partes[partes.length - 1][0]).toUpperCase();
+}
+
+function _avatarHtml(nome, fotoUrl, baseCls) {
+  const avCls = _avatarClass(nome);
+  const initials = _nameInitials(nome);
+  const safeInit = initials.replace(/'/g, '');
+  if (fotoUrl) {
+    return `<div class="${baseCls} has-img ${avCls}"><img src="${escHtml(fotoUrl)}" alt="" loading="lazy" onerror="this.onerror=null;this.parentElement.classList.remove('has-img');this.remove();this.parentElement.textContent='${safeInit}'"></div>`;
+  }
+  return `<div class="${baseCls} ${avCls}">${escHtml(initials)}</div>`;
 }
 
 function renderTabela(rows, offset) {
@@ -2850,7 +3200,7 @@ function renderTabela(rows, offset) {
             <span class="btn-visita-text">Agendar</span>
           </button>
           <button class="btn-sm btn-acoes" title="Mais Ações"
-                  onclick="abrirMenuAcoes(${c.id},'${escHtml(c.nome).replace(/'/g,"\\'")}',event)">
+                  onclick="event.stopPropagation();abrirMenuAcoes(${c.id},'${escHtml(c.nome).replace(/'/g,"\\'")}',event)">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
                 d="M12 5v.01M12 12v.01M12 19v.01"/>
@@ -2934,28 +3284,56 @@ function renderPagBtns(total) {
 
 // ── PERMISSÕES DO PERFIL ──────────────────────────────────────────────────────
 function aplicarPermissoesClientes() {
-  // incluir_clientes = 'N' → desabilita botão Novo
-  if (_perm.incluir_clientes === 'N') {
-    ['btnNovoClienteTop','btnNovoClienteFloat'].forEach(id => {
-      const btn = document.getElementById(id);
-      if (btn) { btn.disabled = true; btn.style.opacity = '0.4'; btn.style.cursor = 'not-allowed'; btn.title = 'Sem permissão para incluir clientes'; }
-    });
+  const showIncluir = podeIncluirClientes();
+
+  const btnTop = document.getElementById('btnNovoClienteTop');
+  if (btnTop) {
+    if (!showIncluir) {
+      btnTop.style.display = 'none';
+      btnTop.disabled = true;
+      btnTop.classList.remove('cli-show-incluir');
+    } else {
+      btnTop.disabled = false;
+      btnTop.classList.add('cli-show-incluir');
+      btnTop.style.removeProperty('display');
+    }
   }
-  // excluir_clientes = 'N' → oculta bulk excluir
-  if (_perm.excluir_clientes === 'N') {
-    const btn = document.querySelector('.btn-bulk-danger');
-    if (btn) btn.style.display = 'none';
+
+  const btnFloat = document.getElementById('btnNovoClienteFloat');
+  if (btnFloat) {
+    if (!showIncluir) {
+      btnFloat.style.display = 'none';
+      btnFloat.disabled = true;
+      btnFloat.classList.remove('cli-show-incluir');
+    } else {
+      btnFloat.disabled = false;
+      btnFloat.classList.add('cli-show-incluir');
+      btnFloat.style.removeProperty('display');
+    }
   }
-  // alteravendedorcadastrocli = 'N' → vendedor bloqueado no form
-  if (_perm.alteravendedorcadastrocli === 'N') {
+
+  document.querySelectorAll('.btn-bulk-danger').forEach(btn => {
+    btn.style.display = podeExcluirClientes() ? '' : 'none';
+  });
+
+  if (permCliente('alteravendedorcadastrocli') === 'N') {
     const el = document.getElementById('f_cod_vendedor');
     if (el) { el.disabled = true; el.title = 'Sem permissão para alterar vendedor'; }
   }
+
+  const qvEdit = document.getElementById('qvBtnEditar');
+  const qvClone = document.getElementById('qvBtnClonar');
+  if (qvEdit) {
+    qvEdit.style.display = '';
+    const lbl = podeAlterarClientes() ? 'Editar' : 'Consultar';
+    qvEdit.childNodes.forEach(n => { if (n.nodeType === 3) n.textContent = lbl; });
+  }
+  if (qvClone) qvClone.style.display = podeIncluirClientes() ? '' : 'none';
 }
 
 // ── ABRIR FORMULÁRIO ──────────────────────────────────────────────────────────
 function abrirNovo() {
-  if (_perm.incluir_clientes === 'N') { toast('Sem permissão para incluir clientes', 'err'); return; }
+  if (!podeIncluirClientes()) { toast('Sem permissão para incluir clientes', 'err'); return; }
   _modoEdit = false;
   _idEdit   = null;
   _cnpjDuplicadoBloqueado = false;
@@ -2966,6 +3344,7 @@ function abrirNovo() {
   document.getElementById('btnExcluir').style.display  = 'none';
   document.getElementById('btnVisitaForm').style.display = 'none';
   document.getElementById('btnSalvar').disabled = false;
+  aplicarFormEditavel(true);
   switchTab('tab-principal', document.querySelector('.tab-btn'));
   carregarClientesPrincipais(null, null);
   recarregarTabelasPreco();
@@ -3006,10 +3385,16 @@ async function abrirEdicao(id) {
       btnInat.textContent = 'Ativar';
       btnInat.className   = 'btn btn-success';
     }
-    document.getElementById('btnExcluir').style.display  = _perm.excluir_clientes === 'N' ? 'none' : 'inline-flex';
+    document.getElementById('btnExcluir').style.display  = podeExcluirClientes() ? 'inline-flex' : 'none';
     document.getElementById('btnVisitaForm').style.display = 'inline-flex';
-    document.getElementById('btnSalvar').disabled = _perm.alterar_clientes === 'N';
-    if (_perm.alterar_clientes === 'N') document.getElementById('btnSalvar').title = 'Sem permissão para alterar clientes';
+    const somenteLeitura = !podeAlterarClientes();
+    document.getElementById('btnSalvar').disabled = somenteLeitura;
+    document.getElementById('btnSalvar').style.display = somenteLeitura ? 'none' : '';
+    if (somenteLeitura) {
+      document.getElementById('btnInativar').style.display = 'none';
+      document.getElementById('formSub').textContent = `Código: ${c.id} · somente leitura`;
+    }
+    aplicarFormEditavel(!somenteLeitura);
 
     switchTab('tab-principal', document.querySelector('.tab-btn'));
     recarregarTabelasPreco();
@@ -3132,6 +3517,7 @@ const _CLONE_LIMPAR_CLI = [
 ];
 
 async function clonarRegistro(id) {
+  if (!podeIncluirClientes()) { toast('Sem permissão para incluir clientes', 'err'); return; }
   try {
     const r = await api(`/api/clientes/${id}`);
     if (!r.ok) throw new Error('Erro ao carregar cliente');
@@ -3181,6 +3567,7 @@ async function clonarRegistro(id) {
     document.getElementById('btnExcluir').style.display  = 'none';
     document.getElementById('btnVisitaForm').style.display = 'none';
     document.getElementById('btnSalvar').disabled = false;
+    aplicarFormEditavel(true);
 
     switchTab('tab-principal', document.querySelector('.tab-btn'));
     abrirDrawer();
@@ -3189,27 +3576,55 @@ async function clonarRegistro(id) {
 }
 
 function _setToolbarVisivel(visivel) {
-  const d = visivel ? '' : 'none';
-  ['btnNovoClienteTop','btnPertoMimTop','btnNovoClienteFloat','btnPertoMimFloat'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.style.display = d;
-  });
+  if (visivel) aplicarPermissoesClientes();
+  else {
+    ['btnNovoClienteTop','btnPertoMimTop','btnNovoClienteFloat','btnPertoMimFloat'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+  }
+  if (visivel) {
+    ['btnPertoMimTop','btnPertoMimFloat'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = '';
+    });
+  }
   try { window.parent.postMessage({ type: 'acesso-rapido-visible', visible: visivel }, '*'); } catch(_) {}
+}
+
+function _syncCliFormViewport() {
+  const fs = document.getElementById('formSection');
+  if (!fs?.classList.contains('form-open')) return;
+  const h = window.innerHeight || document.documentElement.clientHeight || 600;
+  fs.style.height = h + 'px';
+  fs.style.maxHeight = h + 'px';
 }
 
 function abrirDrawer() {
   document.getElementById('listSection').style.display = 'none';
-  document.getElementById('formSection').style.display = 'block';
+  const fs = document.getElementById('formSection');
+  fs.classList.add('form-open');
+  fs.style.display = 'flex';
+  document.documentElement.classList.add('cli-form-open');
   document.body.classList.add('form-mode');
+  _syncCliFormViewport();
+  window.addEventListener('resize', _syncCliFormViewport);
   _setToolbarVisivel(false);
   aplicarRegraVendedor();
+  document.getElementById('formBodyScroll')?.scrollTo(0, 0);
   window.scrollTo({ top: 0, behavior: 'smooth' });
   initSetasAbas();
 }
 
 function fecharDrawer() {
+  const fs = document.getElementById('formSection');
+  fs.classList.remove('form-open');
+  fs.style.display = 'none';
+  fs.style.height = '';
+  fs.style.maxHeight = '';
+  document.documentElement.classList.remove('cli-form-open');
+  window.removeEventListener('resize', _syncCliFormViewport);
   document.getElementById('listSection').style.display = 'block';
-  document.getElementById('formSection').style.display = 'none';
   document.body.classList.remove('form-mode');
   _setToolbarVisivel(true);
 }
@@ -3592,6 +4007,8 @@ async function salvarFotos(id) {
 
 // ── SALVAR ────────────────────────────────────────────────────────────────────
 async function salvar() {
+  if (_modoEdit && !podeAlterarClientes()) { toast('Sem permissão para alterar clientes', 'err'); return; }
+  if (!_modoEdit && !podeIncluirClientes()) { toast('Sem permissão para incluir clientes', 'err'); return; }
   const nome = document.getElementById('f_nome').value.trim();
   if (!nome) {
     document.getElementById('f_nome').classList.add('err');
@@ -3660,6 +4077,7 @@ async function salvar() {
 
 // ── ATIVAR / INATIVAR ─────────────────────────────────────────────────────────
 async function toggleAtivo() {
+  if (!podeAlterarClientes()) { toast('Sem permissão para alterar clientes', 'err'); return; }
   if (!_idEdit) return;
   const btnInat = document.getElementById('btnInativar');
   const ativando = btnInat.textContent.trim() === 'Ativar';
@@ -3684,6 +4102,7 @@ async function toggleAtivo() {
 
 // ── EXCLUIR ───────────────────────────────────────────────────────────────────
 function excluirCliente() {
+  if (!podeExcluirClientes()) { toast('Sem permissão para excluir clientes', 'err'); return; }
   if (!_idEdit) return;
   confirmar(
     'Excluir cliente?',
@@ -3707,6 +4126,7 @@ function excluirCliente() {
 
 // Excluir direto da linha da tabela (sem precisar abrir o formulário)
 function excluirClienteLinha(id, nome, evt) {
+  if (!podeExcluirClientes()) { toast('Sem permissão para excluir clientes', 'err'); return; }
   if (evt) evt.stopPropagation();
   confirmar(
     `Excluir "${nome}"?`,
@@ -4707,6 +5127,7 @@ function bulkClear() {
 
 // ── AÇÕES EM MASSA ────────────────────────────────────────────────────────────
 async function bulkAtivar() {
+  if (!podeAlterarClientes()) { toast('Sem permissão para alterar clientes', 'err'); return; }
   if (!_selecionados.size) return;
   confirmar(
     `Ativar ${_selecionados.size} cliente(s)?`,
@@ -4724,6 +5145,7 @@ async function bulkAtivar() {
 }
 
 async function bulkInativar() {
+  if (!podeAlterarClientes()) { toast('Sem permissão para alterar clientes', 'err'); return; }
   if (!_selecionados.size) return;
   confirmar(
     `Inativar ${_selecionados.size} cliente(s)?`,
@@ -4741,6 +5163,7 @@ async function bulkInativar() {
 }
 
 async function bulkExcluir() {
+  if (!podeExcluirClientes()) { toast('Sem permissão para excluir clientes', 'err'); return; }
   if (!_selecionados.size) return;
   confirmar(
     `Excluir ${_selecionados.size} cliente(s)?`,
@@ -4763,33 +5186,6 @@ async function bulkExcluir() {
 }
 
 // ── CARD VIEW ─────────────────────────────────────────────────────────────────
-function _avatarClass(nome) {
-  const ch = (nome || '?')[0].toUpperCase();
-  if (/[A-Z]/.test(ch)) return `av-${ch}`;
-  if (/[0-9]/.test(ch)) return 'av-NUM';
-  return 'av-A';
-}
-
-function _nameInitials(nome) {
-  const partes = String(nome || '')
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-  if (!partes.length) return 'CL';
-  if (partes.length === 1) return partes[0].slice(0, 2).toUpperCase();
-  return (partes[0][0] + partes[partes.length - 1][0]).toUpperCase();
-}
-
-function _avatarHtml(nome, fotoUrl, baseCls) {
-  const avCls = _avatarClass(nome);
-  const initials = _nameInitials(nome);
-  const safeInit = initials.replace(/'/g, '');
-  if (fotoUrl) {
-    return `<div class="${baseCls} has-img ${avCls}"><img src="${escHtml(fotoUrl)}" alt="" loading="lazy" onerror="this.onerror=null;this.parentElement.classList.remove('has-img');this.remove();this.parentElement.textContent='${safeInit}'"></div>`;
-  }
-  return `<div class="${baseCls} ${avCls}">${escHtml(initials)}</div>`;
-}
-
 function _applyAvatarEl(el, nome, fotoUrl) {
   if (!el) return;
   const avCls = _avatarClass(nome);
@@ -5027,14 +5423,14 @@ function renderCards(rows, offset) {
               <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
             </svg>
           </button>
-          <button class="btn-sm btn-sm-delete"
+          ${podeExcluirClientes() ? `<button class="btn-sm btn-sm-delete"
               onclick="excluirClienteLinha(${c.id},'${escHtml(c.nome).replace(/'/g,"\\'")}',event)"
               title="Excluir">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
             </svg>
-          </button>
+          </button>` : ''}
         </div>
       </div>
     </div>`;
@@ -5125,12 +5521,13 @@ function exportCSVSelecionados() {
 document.addEventListener('keydown', e => {
   const tag        = document.activeElement?.tagName;
   const inInput    = ['INPUT','SELECT','TEXTAREA'].includes(tag);
-  const formAberto = document.getElementById('formSection')?.style.display !== 'none';
+  const formAberto = document.getElementById('formSection')?.classList.contains('form-open');
 
   // Ctrl+N → Novo cliente (apenas na listagem)
   if (e.ctrlKey && e.key === 'n' && !formAberto && !inInput) {
     e.preventDefault();
-    abrirNovo();
+    if (podeIncluirClientes()) abrirNovo();
+    else toast('Sem permissão para incluir clientes', 'err');
     return;
   }
 
@@ -5180,7 +5577,8 @@ document.addEventListener('keydown', e => {
   // Delete → excluir selecionados (apenas se há seleção e nenhum input ativo)
   if (e.key === 'Delete' && _selecionados.size > 0 && !inInput && !formAberto) {
     e.preventDefault();
-    bulkExcluir();
+    if (podeExcluirClientes()) bulkExcluir();
+    else toast('Sem permissão para excluir clientes', 'err');
     return;
   }
 });
@@ -5191,92 +5589,121 @@ document.addEventListener('keydown', e => {
 let _dropdownIdAtual = null;
 
 function abrirMenuAcoes(id, nome, evt) {
-  evt.stopPropagation();
+  if (evt) {
+    evt.preventDefault();
+    evt.stopPropagation();
+  }
   fecharDropdown();
   _dropdownIdAtual = id;
 
-  const btn = evt.currentTarget;
+  const btn = evt?.currentTarget;
+  if (!btn) return;
   const rect = btn.getBoundingClientRect();
 
   const menu = document.createElement('div');
   menu.className = 'dropdown-menu';
   menu.id = 'dropdownMenu';
-  menu.style.cssText = `top:${rect.bottom + 4}px;left:${Math.max(4, rect.right - 164)}px`;
+  menu.style.cssText = `position:fixed;top:${rect.bottom + 4}px;left:${Math.max(4, rect.right - 164)}px;z-index:6500`;
 
   const nomeJs = nome.replace(/'/g,"\\'");
-  menu.innerHTML = `
-    <button class="dropdown-item" onclick="fecharDropdown();abrirQuickView(${id},null)">
+  const items = [
+    `<button class="dropdown-item" onclick="fecharDropdown();abrirQuickView(${id},null)">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
           d="M15 12a3 3 0 11-6 0 3 3 0 016 0M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
       </svg>
       Ver detalhes
-    </button>
-    <button class="dropdown-item" onclick="fecharDropdown();abrirEdicao(${id})">
+    </button>`
+  ];
+  if (podeAlterarClientes()) {
+    items.push(`<button class="dropdown-item" onclick="fecharDropdown();abrirEdicao(${id})">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
           d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
       </svg>
       Editar
-    </button>
-    <button class="dropdown-item" onclick="fecharDropdown();clonarRegistro(${id})">
+    </button>`);
+  } else {
+    items.push(`<button class="dropdown-item" onclick="fecharDropdown();abrirEdicao(${id})">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M15 12a3 3 0 11-6 0 3 3 0 016 0M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+      </svg>
+      Consultar
+    </button>`);
+  }
+  if (podeIncluirClientes()) {
+    items.push(`<button class="dropdown-item" onclick="fecharDropdown();clonarRegistro(${id})">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
           d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
       </svg>
       Clonar
-    </button>
-    <button class="dropdown-item" onclick="fecharDropdown();abrirHistorico(${id},'${nomeJs}',null)">
+    </button>`);
+  }
+  items.push(
+    `<button class="dropdown-item" onclick="fecharDropdown();abrirHistorico(${id},'${nomeJs}',null)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
       </svg>
       Histórico
-    </button>
-    <button class="dropdown-item" onclick="fecharDropdown();abrirModalVisita(${id},'${nomeJs}')">
+    </button>`,
+    `<button class="dropdown-item" onclick="fecharDropdown();abrirModalVisita(${id},'${nomeJs}')">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
           d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
       </svg>
       Agendar Visita
-    </button>
-    <button class="dropdown-item" onclick="fecharDropdown();abrirNovoPedidoCliente(${id},'${nomeJs}')">
+    </button>`,
+    `<button class="dropdown-item" onclick="fecharDropdown();abrirNovoPedidoCliente(${id},'${nomeJs}')">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
           d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
       </svg>
       Novo pedido
-    </button>
-    ${_waApiUrl ? `<button class="dropdown-item" onclick="fecharDropdown();enviarMsgWa(${id})">
+    </button>`
+  );
+  if (_waApiUrl) {
+    items.push(`<button class="dropdown-item" onclick="fecharDropdown();enviarMsgWa(${id})">
       <svg viewBox="0 0 32 32" fill="#16a34a" style="width:14px;height:14px">
         <path d="M16 3C9.4 3 4 8.4 4 15c0 2.4.7 4.6 1.8 6.5L4 29l7.8-1.8A13 13 0 0016 27c6.6 0 12-5.4 12-12S22.6 3 16 3z"/>
       </svg>
       Enviar WhatsApp
-    </button>` : ''}
-    <button class="dropdown-item" onclick="fecharDropdown();abrirFinanceiroCliente(${id},'${nomeJs}')">
+    </button>`);
+  }
+  items.push(
+    `<button class="dropdown-item" onclick="fecharDropdown();abrirFinanceiroCliente(${id},'${nomeJs}')">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
           d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
       </svg>
       Financeiro
-    </button>
-    <button class="dropdown-item" onclick="fecharDropdown();gerarVitrine(${id}, event)">
+    </button>`,
+    `<button class="dropdown-item" onclick="fecharDropdown();gerarVitrine(${id}, event)">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
           d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
       </svg>
       Vitrine Digital
-    </button>
-    <hr style="border:none;border-top:1px solid var(--border);margin:3px 0">
-    <button class="dropdown-item danger" onclick="fecharDropdown();excluirClienteLinha(${id},'${nomeJs}',null)">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-      </svg>
-      Excluir
-    </button>`;
+    </button>`
+  );
+  if (podeExcluirClientes()) {
+    items.push(
+      `<hr style="border:none;border-top:1px solid var(--border);margin:3px 0">`,
+      `<button class="dropdown-item danger" onclick="fecharDropdown();excluirClienteLinha(${id},'${nomeJs}',null)">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+        </svg>
+        Excluir
+      </button>`
+    );
+  }
+  menu.innerHTML = items.filter(Boolean).join('');
 
-  document.getElementById('dropdownContainer').appendChild(menu);
-  document.addEventListener('click', fecharDropdown, { once: true });
+  (document.getElementById('dropdownContainer') || document.body).appendChild(menu);
+  menu.addEventListener('click', (e) => e.stopPropagation());
+  setTimeout(() => document.addEventListener('click', fecharDropdown, { once: true }), 0);
 }
 
 function fecharDropdown() {
@@ -5294,6 +5721,7 @@ async function abrirQuickView(id, evt) {
   if (_qvDocHandler) document.removeEventListener('click', _qvDocHandler);
   _qvIdAtual = id;
   document.getElementById('quickViewPanel').classList.add('open');
+  aplicarPermissoesClientes();
 
   // Fecha ao clicar fora do painel
   setTimeout(() => {
@@ -6208,14 +6636,14 @@ async function enviarMsgWa(idCliente) {
       </svg>
       Novo pedido
     </button>
-    <button class="btn btn-outline" onclick="fecharQuickView();abrirEdicao(_qvIdAtual)">
+    <button class="btn btn-outline" id="qvBtnEditar" onclick="fecharQuickView();abrirEdicao(_qvIdAtual)">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:13px;height:13px">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
           d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
       </svg>
       Editar
     </button>
-    <button class="btn btn-ghost" onclick="fecharQuickView();clonarRegistro(_qvIdAtual)">
+    <button class="btn btn-ghost" id="qvBtnClonar" onclick="fecharQuickView();clonarRegistro(_qvIdAtual)">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:13px;height:13px">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
           d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
@@ -6487,39 +6915,158 @@ function toggleHistDet(sid, rowEl) {
 
 // ── CRM / VISITAS ───────────────────────────────────────────────────────────
 let _mvIdCliente = null;
+let _mvMotivosCarregados = false;
 
-async function abrirModalVisita(id, nome) {
-  _mvIdCliente = id;
-  document.getElementById('mvClienteNome').textContent = nome;
-  document.getElementById('mv_data').value = new Date().toISOString().split('T')[0];
-  document.getElementById('modalVisita').style.display = 'flex';
-  
-  const sel = document.getElementById('mv_motivo');
-  if (sel.options.length === 0) {
-    try {
-      const r = await api('/api/visitas/motivos');
-      const data = await r.json();
-      data.forEach(m => {
-        const opt = document.createElement('option');
-        opt.value = m.id;
-        opt.textContent = m.descricao;
-        sel.appendChild(opt);
-      });
-    } catch {}
+const _MV_MODAL_HOME_CSS = `
+#modalVisita{display:none;position:fixed;inset:0;z-index:2147483646;background:rgba(0,0,0,.5);
+  backdrop-filter:blur(4px);align-items:center;justify-content:center;
+  padding:max(16px,env(safe-area-inset-top,0px)) 16px max(16px,env(safe-area-inset-bottom,0px));
+  box-sizing:border-box;overflow-y:auto;overscroll-behavior:contain}
+#modalVisita.open{display:flex!important}
+#modalVisita .modal-visita-card{background:#fff;color:#111;border-radius:14px;padding:0;
+  width:min(480px,calc(100vw - 32px));max-height:min(92dvh,calc(100dvh - 32px));overflow:visible;
+  display:flex;flex-direction:column;margin:auto;box-shadow:0 20px 60px rgba(0,0,0,.22)}
+#modalVisita .modal-visita-body{padding:24px;display:flex;flex-direction:column;gap:16px;overflow-y:auto;flex:1;min-height:0}
+#modalVisita .modal-visita-foot{padding:16px 24px;background:#f9fafb;border-top:1px solid #e2e8f0;
+  display:flex;gap:10px;justify-content:flex-end;flex-shrink:0}
+#modalVisita .f-group label{font-size:11px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:4px;display:block}
+#modalVisita .f-input{width:100%;padding:8px 10px;border-radius:8px;border:1px solid #e2e8f0;
+  background:#fff;color:#0f172a;font-size:13px;font-family:inherit;box-sizing:border-box}
+#modalVisita select.f-input{appearance:auto;min-height:38px;line-height:1.35;cursor:pointer}
+#modalVisita select.f-input option{background:#fff;color:#0f172a}
+#modalVisita .mv-datetime-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+#modalVisita .mv-obs{height:80px;resize:none}
+#modalVisita .btn{display:inline-flex;align-items:center;justify-content:center;padding:8px 16px;
+  border-radius:8px;font-size:13px;font-weight:700;border:1.5px solid transparent;cursor:pointer;
+  font-family:inherit;transition:.15s;letter-spacing:.3px}
+#modalVisita .btn-primary{background:#4361ee;color:#fff;border-color:#4361ee}
+#modalVisita .btn-primary:hover:not(:disabled){background:#3f37c9;border-color:#3f37c9}
+#modalVisita .btn-ghost{background:#fff;color:#64748b;border-color:#e2e8f0}
+#modalVisita .btn-ghost:hover{background:#f8fafc;color:#0f172a}
+`;
+
+function _mvModalEl() {
+  try {
+    if (window.sysrep?.isHomeEmbed?.()) {
+      const pel = window.parent.document.getElementById('modalVisita');
+      if (pel) return pel;
+    }
+  } catch (_) {}
+  return document.getElementById('modalVisita');
+}
+
+function _mvEl(id) {
+  const modal = _mvModalEl();
+  if (modal) {
+    const el = modal.querySelector('#' + id);
+    if (el) return el;
+  }
+  return document.getElementById(id);
+}
+
+async function _mvCarregarMotivos(sel) {
+  if (!sel || _mvMotivosCarregados) return;
+  try {
+    const r = await api('/api/visitas/motivos');
+    const data = await r.json();
+    sel.innerHTML = '<option value="">Selecione o motivo...</option>';
+    (Array.isArray(data) ? data : []).forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m.id;
+      opt.textContent = m.descricao;
+      sel.appendChild(opt);
+    });
+    if (!data || !data.length) {
+      sel.innerHTML = '<option value="1">Visita de Rotina</option>';
+    }
+    _mvMotivosCarregados = true;
+  } catch (_) {
+    sel.innerHTML = '<option value="1">Visita de Rotina</option>';
+    _mvMotivosCarregados = true;
   }
 }
 
+function _mvBindModalEvents() {
+  const modal = _mvModalEl();
+  if (!modal) return;
+
+  if (modal.dataset.mvBound !== '1') {
+    modal.dataset.mvBound = '1';
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) fecharModalVisita();
+    });
+  }
+
+  function _mvOnceClick(el, key, fn) {
+    if (!el || el.dataset['mvEv' + key] === '1') return;
+    el.dataset['mvEv' + key] = '1';
+    el.addEventListener('click', fn);
+  }
+
+  _mvOnceClick(_mvEl('btnMvCancelar'), 'Cancelar', (e) => {
+    e.preventDefault();
+    fecharModalVisita();
+  });
+  _mvOnceClick(_mvEl('btnSalvarVisita'), 'Salvar', (e) => {
+    e.preventDefault();
+    salvarVisita();
+  });
+}
+
+function _mvAbrirEmbedModal(modal) {
+  if (!window.sysrep?.isHomeEmbed?.() || !modal) return false;
+  if (window.sysrep.teleportModalToHome(modal, 'sysrep-mv-visita-css-v3', _MV_MODAL_HOME_CSS)) {
+    return true;
+  }
+  try { window.parent.postMessage({ type: 'sysrep-home-embed-modal', open: true }, '*'); } catch (_) {}
+  return false;
+}
+
+function _mvFecharEmbedModal(modal) {
+  if (!window.sysrep?.isHomeEmbed?.()) return;
+  window.sysrep?.restoreModalFromHome?.(modal);
+  try { window.parent.postMessage({ type: 'sysrep-home-embed-modal', open: false }, '*'); } catch (_) {}
+}
+
+async function abrirModalVisita(id, nome) {
+  _mvIdCliente = id;
+  let modal = document.getElementById('modalVisita');
+  if (!modal) return;
+
+  const nomeEl = modal.querySelector('#mvClienteNome');
+  const dataEl = modal.querySelector('#mv_data');
+  if (nomeEl) nomeEl.textContent = nome;
+  if (dataEl) dataEl.value = new Date().toISOString().split('T')[0];
+
+  _mvAbrirEmbedModal(modal);
+  modal = _mvModalEl();
+  if (!modal) return;
+  _mvBindModalEvents();
+  modal.classList.add('open');
+  modal.scrollTop = 0;
+  if (!document.documentElement.classList.contains('cli-form-open')) {
+    document.body.style.overflow = 'hidden';
+  }
+
+  await _mvCarregarMotivos(modal.querySelector('#mv_motivo'));
+}
+
 function fecharModalVisita() {
-  document.getElementById('modalVisita').style.display = 'none';
+  const modal = _mvModalEl();
+  if (modal) modal.classList.remove('open');
+  _mvFecharEmbedModal(modal);
+  if (!document.documentElement.classList.contains('cli-form-open')) {
+    document.body.style.overflow = '';
+  }
 }
 
 async function salvarVisita() {
   const body = {
     id_cliente: _mvIdCliente,
-    id_motivo: document.getElementById('mv_motivo').value,
-    data_visita: document.getElementById('mv_data').value,
-    hora_visita: document.getElementById('mv_hora').value + ':00',
-    obs: document.getElementById('mv_obs').value,
+    id_motivo: _mvEl('mv_motivo')?.value,
+    data_visita: _mvEl('mv_data')?.value,
+    hora_visita: (_mvEl('mv_hora')?.value || '08:00') + ':00',
+    obs: _mvEl('mv_obs')?.value || '',
     id_vendedor: _usuLogado.idusuario || _usuLogado.id,
     id_usuario: _usuLogado.idusuario || _usuLogado.id,
     status: 'ABERTA'
@@ -6528,7 +7075,8 @@ async function salvarVisita() {
   if (!body.data_visita) return toast('Informe a data', 'err');
   if (!body.id_motivo) return toast('Selecione o motivo', 'warn');
 
-  const btn = document.getElementById('btnSalvarVisita');
+  const btn = _mvEl('btnSalvarVisita');
+  if (!btn) return;
   btn.disabled = true;
   btn.innerHTML = '<div class="spinner"></div> Salvando…';
 
@@ -6539,13 +7087,13 @@ async function salvarVisita() {
     
     toast('Visita agendada com sucesso', 'ok');
     
-    if (document.getElementById('mv_google').checked) {
-       abrirGoogleCalendar(body.data_visita, body.hora_visita, 'Visita: ' + document.getElementById('mvClienteNome').textContent, body.obs);
+    if (_mvEl('mv_google')?.checked) {
+       abrirGoogleCalendar(body.data_visita, body.hora_visita, 'Visita: ' + (_mvEl('mvClienteNome')?.textContent || ''), body.obs);
     }
 
     fecharModalVisita();
     // Se o Quick View de atividades estiver aberto, recarrega
-    if (document.getElementById('qvBodyAtividades').style.display !== 'none') {
+    if (document.getElementById('qvBodyAtividades')?.style.display !== 'none') {
       carregarAtividadesQuick(_mvIdCliente);
     }
   } catch (e) {
@@ -6747,11 +7295,14 @@ function _vitrineEmIframe() {
   return window.self !== window.top;
 }
 
-/** Só o mobile-shell exibe o modal em tela cheia via postMessage; no home.html usamos o modal local do iframe. */
+/** home.html e mobile-shell exibem o modal centralizado na janela via postMessage. */
 function _vitrineUsarModalPai() {
   if (!_vitrineEmIframe()) return false;
   try {
-    return (window.parent.location.pathname || '').indexOf('mobile-shell') >= 0;
+    const parentPath = window.parent.location.pathname || '';
+    if (parentPath.indexOf('mobile-shell') >= 0) return true;
+    if (parentPath === '/' || parentPath.endsWith('/home.html')) return true;
+    return false;
   } catch (_) {
     return false;
   }
@@ -6822,12 +7373,26 @@ function _renderModalVitrineErro(msg) {
 }
 
 function abrirFinanceiroCliente(id, nome) {
-  var url = '/pages/financeiro-cliente.html?cod_cliente=' + encodeURIComponent(id) + '&nome=' + encodeURIComponent(nome);
-  if (window.self !== window.top) {
-    window.parent.openUrl(url, 'Financeiro — ' + nome);
-  } else {
-    window.open(url, '_blank');
-  }
+  const url = '/pages/financeiro-cliente.html?cod_cliente=' + encodeURIComponent(id) + '&nome=' + encodeURIComponent(nome || '');
+  const label = 'Financeiro — ' + (nome || 'Cliente');
+  try {
+    if (window.parent && window.parent !== window) {
+      if (typeof window.parent.openTab === 'function') {
+        window.parent.openTab(url, label);
+        return;
+      }
+      window.parent.postMessage({ type: 'navigate', url, label }, '*');
+      return;
+    }
+  } catch (_) {}
+  window.open(url, '_blank');
+}
+
+function _isoToDisplayBr(v) {
+  if (v == null || v === '') return '';
+  const s = String(v).trim().slice(0, 10);
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : s;
 }
 
 async function gerarVitrine(idCliente, evt) {
@@ -6847,7 +7412,7 @@ async function gerarVitrine(idCliente, evt) {
     if (!r.ok) throw new Error(d.erro || 'Erro ao gerar link');
 
     const link = location.origin + d.link;
-    const expira = new Date(d.expira).toLocaleDateString('pt-BR');
+    const expira = _isoToDisplayBr(d.expira);
     const waUrl = 'https://wa.me/?text=' + encodeURIComponent(
       'Olá! Acesse aqui o catálogo de produtos com seus preços: ' + link
     );

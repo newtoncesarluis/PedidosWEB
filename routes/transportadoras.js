@@ -1,6 +1,13 @@
 const express = require('express');
 const router  = express.Router();
 const { getPool } = require('../config/database');
+const { permCrud, negarCad } = require('../config/cadastros-permissoes');
+
+const _permTransp = (req) => permCrud(req, {
+  incluir: 'transportadora_incluir',
+  alterar: 'transportadora_alterar',
+  excluir: 'transportadora_excluir',
+});
 
 // ─── Cache de colunas reais da tabela transportadora ─────────────────────────
 let _colunasCache = null;
@@ -137,6 +144,8 @@ router.get('/:id', async (req, res) => {
 // ─── POST /api/transportadoras ────────────────────────────────────────────────
 router.post('/', async (req, res) => {
   try {
+    const pc = _permTransp(req);
+    if (pc.incluir !== 'S') return negarCad(res, 'Sem permissão para incluir transportadoras');
     const pool    = getPool();
     const colunas = await getColunasReais(pool);
     const body    = aplicarUpper(req.body);
@@ -155,6 +164,8 @@ router.post('/', async (req, res) => {
 // ─── PUT /api/transportadoras/:id ─────────────────────────────────────────────
 router.put('/:id', async (req, res) => {
   try {
+    const pc = _permTransp(req);
+    if (pc.alterar !== 'S') return negarCad(res, 'Sem permissão para alterar transportadoras');
     const pool    = getPool();
     const colunas = await getColunasReais(pool);
     const body    = aplicarUpper(req.body);
@@ -173,6 +184,8 @@ router.put('/:id', async (req, res) => {
 // ─── PUT /api/transportadoras/:id/ativar ─────────────────────────────────────
 router.put('/:id/ativar', async (req, res) => {
   try {
+    const pc = _permTransp(req);
+    if (pc.alterar !== 'S') return negarCad(res, 'Sem permissão para alterar transportadoras');
     const pool = getPool();
     await pool.query(`UPDATE transportadora SET status='A' WHERE id=?`, [req.params.id]);
     res.json({ ok: true });
@@ -184,6 +197,8 @@ router.put('/:id/ativar', async (req, res) => {
 // ─── PUT /api/transportadoras/:id/inativar ───────────────────────────────────
 router.put('/:id/inativar', async (req, res) => {
   try {
+    const pc = _permTransp(req);
+    if (pc.alterar !== 'S') return negarCad(res, 'Sem permissão para alterar transportadoras');
     const pool = getPool();
     await pool.query(`UPDATE transportadora SET status='I' WHERE id=?`, [req.params.id]);
     res.json({ ok: true });
@@ -195,6 +210,8 @@ router.put('/:id/inativar', async (req, res) => {
 // ─── DELETE /api/transportadoras/:id ─────────────────────────────────────────
 router.delete('/:id', async (req, res) => {
   try {
+    const pc = _permTransp(req);
+    if (pc.excluir !== 'S') return negarCad(res, 'Sem permissão para excluir transportadoras');
     const pool = getPool();
 
     // Bloqueia se houver pedidos vinculados
@@ -234,6 +251,8 @@ router.get('/:id/contatos', async (req, res) => {
 // ─── POST /api/transportadoras/:id/contatos ──────────────────────────────────
 router.post('/:id/contatos', async (req, res) => {
   try {
+    const pc = _permTransp(req);
+    if (pc.incluir !== 'S') return negarCad(res, 'Sem permissão para incluir contatos');
     const pool = getPool();
     const { comprador = '', telefone = '', ramal = '', setor = '', email = '' } = req.body;
     const [result] = await pool.query(
@@ -250,6 +269,8 @@ router.post('/:id/contatos', async (req, res) => {
 // ─── PUT /api/transportadoras/:id/contatos/:cid ──────────────────────────────
 router.put('/:id/contatos/:cid', async (req, res) => {
   try {
+    const pc = _permTransp(req);
+    if (pc.alterar !== 'S') return negarCad(res, 'Sem permissão para alterar contatos');
     const pool = getPool();
     const { comprador = '', telefone = '', ramal = '', setor = '', email = '' } = req.body;
     await pool.query(
@@ -265,6 +286,8 @@ router.put('/:id/contatos/:cid', async (req, res) => {
 // ─── DELETE /api/transportadoras/:id/contatos/:cid ───────────────────────────
 router.delete('/:id/contatos/:cid', async (req, res) => {
   try {
+    const pc = _permTransp(req);
+    if (pc.excluir !== 'S') return negarCad(res, 'Sem permissão para excluir contatos');
     const pool = getPool();
     await pool.query(
       `UPDATE contato_clientes SET excluido='S' WHERE id=? AND id_cliente=?`,

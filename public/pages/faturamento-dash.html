@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="/assets/themes.css">
 <script src="/assets/themes.js"></script>
 <script src="/assets/mobile-app.js"></script>
+<script src="/assets/comissao-preposto-ui.js"></script>
 <link rel="stylesheet" href="/assets/mobile-app.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
@@ -291,10 +292,13 @@ let _pagAtual = 1;
 const PER_PAGE = 50;
 
 function filtros() {
+  const sel = document.getElementById('f_vendedor');
   return {
     dt_ini: document.getElementById('f_dt_ini').value,
     dt_fim: document.getElementById('f_dt_fim').value,
-    id_vendedor: document.getElementById('f_vendedor')?.value || '',
+    id_vendedor: window.ComissaoPrepostoUi
+      ? ComissaoPrepostoUi.resolveVendedorFilterId(sel)
+      : (sel?.value || ''),
     dias_sem_faturar: document.getElementById('f_dias_fat').value || 10,
     dias_sem_nota: document.getElementById('f_dias_nota').value || 15,
   };
@@ -577,16 +581,23 @@ async function carregarVendedoresLookup() {
   try {
     const r = await fetch('/api/faturamento/lookup/vendedores').then(x => x.json());
     const sel = document.getElementById('f_vendedor');
-    (r.rows || []).forEach(v => {
+    const wrap = document.getElementById('wrap_vendedor');
+    const list = r.rows || [];
+    if (window.ComissaoPrepostoUi && sel) {
+      ComissaoPrepostoUi.populateVendedorSelect(sel, list, { wrapId: 'wrap_vendedor', showWrap: true });
+      return;
+    }
+    list.forEach(v => {
       const o = document.createElement('option');
       o.value = v.id; o.textContent = v.nome;
       sel.appendChild(o);
     });
-    // Mostrar filtro de vendedor apenas para admin/gerente
-    const perm = window.App?.perm || {};
-    const isAdmin = window.App?.user?.perfil == 1;
-    if (isAdmin || perm.gerentecomercial === 'S' || perm.acessartodosclientes === 'S') {
-      document.getElementById('wrap_vendedor').style.display = '';
+    if (wrap && list.length <= 1 && list[0]) {
+      sel.value = String(list[0].id);
+      sel.disabled = true;
+      wrap.style.display = '';
+    } else if (wrap && (window.App?.user?.perfil == 1 || window.App?.perm?.gerentecomercial === 'S' || window.App?.perm?.acessartodosclientes === 'S')) {
+      wrap.style.display = '';
     }
   } catch(e) {}
 }

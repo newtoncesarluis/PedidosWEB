@@ -189,6 +189,74 @@ tbody tr:last-child td { border-bottom:none; }
 .td-name { font-weight:400; }
 .td-sub  { font-size:12px;color:var(--text2);margin-top:1px; }
 .td-actions { white-space:nowrap; }
+.td-name-wrap {
+  display:flex;
+  align-items:center;
+  gap:12px;
+  min-width:0;
+}
+.td-name-copy {
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+}
+.td-name-main {
+  display:flex;
+  align-items:center;
+  gap:6px;
+  min-width:0;
+  font-weight:700;
+  color:var(--text);
+}
+.td-name-main-text {
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.td-avatar {
+  width:40px;
+  height:40px;
+  border-radius:12px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex-shrink:0;
+  font-size:13px;
+  font-weight:800;
+  text-transform:uppercase;
+  color:#fff;
+  letter-spacing:-0.03em;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.18);
+}
+.td-avatar.has-img,
+.qv-avatar.has-img {
+  background:var(--bg);
+  padding:0;
+  overflow:hidden;
+  box-shadow:none;
+}
+.td-avatar.has-img img,
+.qv-avatar.has-img img {
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  display:block;
+}
+.av-A,.av-B{background:linear-gradient(135deg,var(--accent),var(--accent-hover))}
+.av-C,.av-D{background:linear-gradient(135deg,#3b82f6,#2563eb)}
+.av-E,.av-F{background:linear-gradient(135deg,#8b5cf6,#7c3aed)}
+.av-G,.av-H{background:linear-gradient(135deg,#f59e0b,#d97706)}
+.av-I,.av-J{background:linear-gradient(135deg,#ef4444,#dc2626)}
+.av-K,.av-L{background:linear-gradient(135deg,#10b981,#059669)}
+.av-M,.av-N{background:linear-gradient(135deg,#f97316,#ea580c)}
+.av-O,.av-P{background:linear-gradient(135deg,#06b6d4,#0891b2)}
+.av-Q,.av-R{background:linear-gradient(135deg,#84cc16,#65a30d)}
+.av-S,.av-T{background:linear-gradient(135deg,#ec4899,#db2777)}
+.av-U,.av-V{background:linear-gradient(135deg,#14b8a6,var(--accent))}
+.av-W,.av-X,.av-Y,.av-Z{background:linear-gradient(135deg,#6366f1,#4f46e5)}
+.av-NUM{background:linear-gradient(135deg,#64748b,#475569)}
 
 .badge {
   display:inline-flex;align-items:center;gap:4px;
@@ -742,7 +810,7 @@ select { cursor:pointer; }
             </div>
             <div class="form-group">
               <label>Perfil de Acesso <span class="req">*</span></label>
-              <select id="f-idperfil"><option value="">Carregando...</option></select>
+              <select id="f-idperfil" required><option value="">Carregando...</option></select>
             </div>
             <div class="form-group">
               <label>Grupo de Usuário</label>
@@ -1359,6 +1427,56 @@ function setFiltro(sit) {
   carregarUsuarios();
 }
 
+function _usrFotoUrl(url) {
+  if (!url) return '';
+  const s = String(url).trim();
+  if (s.startsWith('http') || s.startsWith('/')) return s;
+  return '/' + s;
+}
+
+function _avatarClass(nome) {
+  const ch = (nome || '?')[0].toUpperCase();
+  if (/[A-Z]/.test(ch)) return `av-${ch}`;
+  if (/[0-9]/.test(ch)) return 'av-NUM';
+  return 'av-A';
+}
+
+function _nameInitials(nome) {
+  const partes = String(nome || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!partes.length) return 'US';
+  if (partes.length === 1) return partes[0].slice(0, 2).toUpperCase();
+  return (partes[0][0] + partes[partes.length - 1][0]).toUpperCase();
+}
+
+function _avatarHtml(nome, fotoUrl, baseCls) {
+  const avCls = _avatarClass(nome);
+  const initials = _nameInitials(nome);
+  const safeInit = initials.replace(/'/g, '');
+  const src = _usrFotoUrl(fotoUrl);
+  if (src) {
+    return `<div class="${baseCls} has-img ${avCls}"><img src="${escHtml(src)}" alt="" loading="lazy" onerror="this.onerror=null;this.parentElement.classList.remove('has-img');this.remove();this.parentElement.textContent='${safeInit}'"></div>`;
+  }
+  return `<div class="${baseCls} ${avCls}">${escHtml(initials)}</div>`;
+}
+
+function _setQvAvatarUsr(el, nome, fotoUrl) {
+  if (!el) return;
+  const avCls = _avatarClass(nome);
+  const initials = _nameInitials(nome);
+  const src = _usrFotoUrl(fotoUrl);
+  el.className = `qv-avatar ${avCls}`;
+  if (src) {
+    el.classList.add('has-img');
+    el.innerHTML = `<img src="${escHtml(src)}" alt="" onerror="this.onerror=null;this.parentElement.classList.remove('has-img');this.parentElement.textContent='${initials.replace(/'/g, '')}'">`;
+  } else {
+    el.classList.remove('has-img');
+    el.textContent = initials;
+  }
+}
+
 function renderTabela(lista) {
   const tbody = document.getElementById('lista-usuarios');
   if (!lista.length) {
@@ -1370,13 +1488,13 @@ function renderTabela(lista) {
     <tr onclick="abrirQuickView(${u.idusuario})">
       <td class="td-chk" onclick="event.stopPropagation()"><input type="checkbox" class="chk-usr" data-id="${u.idusuario}"></td>
       <td class="td-num">#${String(u.idusuario).padStart(4,'0')}</td>
-      <td>
-        <div style="display:flex;align-items:center;gap:10px">
-          <div class="user-avatar-sm" style="width:32px;height:32px;border-radius:10px;background:#f3f4f6;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--accent);overflow:hidden;flex-shrink:0">
-            ${u.avatar_url ? `<img src="${u.avatar_url}" style="width:100%;height:100%;object-fit:cover">` : (u.nomeusu || '?')[0].toUpperCase()}
-          </div>
-          <div>
-            <div class="td-name">${escHtml(u.nomeusu)}</div>
+      <td class="td-name">
+        <div class="td-name-wrap">
+          ${_avatarHtml(u.nomeusu, u.avatar_url, 'td-avatar')}
+          <div class="td-name-copy">
+            <div class="td-name-main">
+              <span class="td-name-main-text">${escHtml(u.nomeusu)}</span>
+            </div>
             <div class="td-sub">${escHtml(u.loginusu)}</div>
           </div>
         </div>
@@ -1498,7 +1616,7 @@ async function abrirQuickView(id) {
   // Cabeçalho
   _setElText('qvNome', usr.nomeusu);
   _setElText('qvSub', `${usr.loginusu} | #${String(usr.idusuario).padStart(4, '0')}`);
-  avatar.innerHTML = usr.avatar_url ? `<img src="${usr.avatar_url}">` : (usr.nomeusu || '?')[0].toUpperCase();
+  _setQvAvatarUsr(avatar, usr.nomeusu, usr.avatar_url);
 
   panel.classList.add('open');
   overlay.classList.add('show');
@@ -1783,6 +1901,7 @@ async function salvar() {
     }
 
     if (!body.nomeusu || !body.loginusu) return toast('Nome e Login são obrigatórios', 'error');
+    if (!body.idperfil) return toast('Perfil de Acesso é obrigatório', 'error');
     if (!_editId && !body.senhausu) return toast('Senha é obrigatória para novo usuário', 'error');
 
     btn.disabled = true;

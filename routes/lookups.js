@@ -11,6 +11,8 @@ const {
   despesasLabelExpr,
   despesasOrderExpr,
 } = require('../config/despesas-label');
+const { listarTabelasVinculadas } = require('../config/tabela-preco-vinculo');
+const { listVendedoresVisiveis } = require('../config/vendedor-visibilidade');
 
 async function query(sql, params = []) {
   try {
@@ -60,12 +62,29 @@ router.get('/tipograde', async (req, res) => {
   res.json(rows);
 });
 
-// GET /api/lookups/tabela-preco → tabela: tabela_preco
+// GET /api/lookups/tabela-preco → cabecalho (+ legado). ?id_fornecedor= filtra vínculos FORNECEDOR
 router.get('/tabela-preco', async (req, res) => {
-  const rows = await query(
-    `SELECT id, descricao FROM tabela_preco WHERE excluido='N' AND tipo_regra<>'PRODUTO' ORDER BY descricao`
-  );
-  res.json(rows);
+  try {
+    const pool = getPool();
+    const fId = parseInt(req.query.id_fornecedor || req.query.cod_fornecedor, 10);
+    if (fId > 0) {
+      const rows = await listarTabelasVinculadas(pool, fId, 'FORNECEDOR');
+      return res.json(rows);
+    }
+
+    let rows = await query(
+      `SELECT id, Descricao AS descricao FROM tabela_preco_cabecalho
+       WHERE excluido = 'N' AND Tabela_Ativa = 'S' ORDER BY Descricao`
+    );
+    if (!rows?.length) {
+      rows = await query(
+        `SELECT id, descricao FROM tabela_preco WHERE excluido='N' AND tipo_regra<>'PRODUTO' ORDER BY descricao`
+      );
+    }
+    res.json(rows || []);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // GET /api/lookups/fornecedores → tabela: fornecedores (ativos, para select)
@@ -79,12 +98,15 @@ router.get('/fornecedores', async (req, res) => {
   res.json(rows);
 });
 
-// GET /api/lookups/vendedores → usuários que são vendedores
+// GET /api/lookups/vendedores → usuários visíveis ao logado
 router.get('/vendedores', async (req, res) => {
-  const rows = await query(
-    `SELECT idusuario AS id, nomeusu AS nome FROM usuarios WHERE excluido='N' AND (SITUACAO='ATIVO' OR SITUACAO IS NULL) ORDER BY nomeusu`
-  );
-  res.json(rows);
+  try {
+    const pool = getPool();
+    const rows = await listVendedoresVisiveis(pool, req);
+    res.json(rows);
+  } catch (_) {
+    res.json([]);
+  }
 });
 
 // GET /api/lookups/regioes → tabela: regiao_rota → fallback: regioes → fallback: distinct de clientes
@@ -148,6 +170,19 @@ router.get('/despesas', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// GET /api/lookups/condicoes-pagamento → forma_pagto (Condições de Pagamento)
+router.get('/condicoes-pagamento', async (req, res) => {
+  let rows = await query(
+    `SELECT id, descricao, prazopadrao FROM forma_pagto
+     WHERE (excluido = 'N' OR excluido IS NULL)
+     ORDER BY descricao`
+  );
+  if (!rows?.length) {
+    rows = await query(`SELECT id, descricao, prazopadrao FROM forma_pagto ORDER BY descricao`);
+  }
+  res.json(rows);
 });
 
 module.exports = router;

@@ -1,6 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const { getPool } = require('../config/database');
+const { listarTabelasVinculadas } = require('../config/tabela-preco-vinculo');
+const { permCrud, negarCad } = require('../config/cadastros-permissoes');
+const { ensureTabelaPrecoCondPagamentoNullable } = require('../config/schema-migrations');
+
+const _permTabelaPrecos = (req) => permCrud(req, {
+  incluir: 'incluir_tabela_precos',
+  alterar: 'alterar_tabela_precos',
+  excluir: 'excluir_tabela_precos',
+});
 
 /** 
  * Lógica de Autocriação de Tabelas (Opcional, mas seguro)
@@ -16,7 +25,7 @@ async function ensureTables() {
         Hora_Inicial TIME NOT NULL,
         Data_Final DATE NOT NULL,
         Hora_Final TIME NOT NULL,
-        Cond_Pagamento INT NOT NULL,
+        Cond_Pagamento INT NULL,
         Tabela_Ativa ENUM('S','N') DEFAULT 'S',
         excluido ENUM('S','N') DEFAULT 'N',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -56,7 +65,14 @@ async function ensureTables() {
         INDEX idx_entidade (id_entidade, tipo_entidade)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
+    await ensureTabelaPrecoCondPagamentoNullable(pool);
   } catch (err) { console.error('Erro ao garantir tabelas:', err); }
+}
+
+function normalizeCondPagamento(value) {
+  if (value == null || value === '') return null;
+  const n = parseInt(value, 10);
+  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
 // ─── GET /api/condicoes-pagamento ──────────────────────────────────────────
@@ -64,10 +80,23 @@ router.get('/condicoes-pagamento', async (req, res) => {
   try {
     const pool = getPool();
     const [rows] = await pool.query(
-      `SELECT id, descricao, prazopadrao FROM forma_pagto WHERE excluido = 'N' AND (status = 'S' OR status = 'A') ORDER BY descricao`
-    ).catch(() => [[], []]);
+      `SELECT id, descricao, prazopadrao
+       FROM forma_pagto
+       WHERE (excluido = 'N' OR excluido IS NULL)
+       ORDER BY descricao`
+    );
     res.json(rows);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    try {
+      const pool = getPool();
+      const [rows] = await pool.query(
+        `SELECT id, descricao, prazopadrao FROM forma_pagto ORDER BY descricao`
+      );
+      res.json(rows);
+    } catch (e2) {
+      res.status(500).json({ error: e2.message });
+    }
+  }
 });
 
 // ─── POST /api/condicoes-pagamento (cria nova se não existir) ──────────────
@@ -90,6 +119,8 @@ router.post('/condicoes-pagamento', async (req, res) => {
 
 // ─── POST /api/tabela-precos/:id/clonar ──────────────────────────────────
 router.post('/:id/clonar', async (req, res) => {
+  const pc = _permTabelaPrecos(req);
+  if (pc.incluir !== 'S') return negarCad(res, 'Sem permissão para incluir tabela de preços');
   const conn = await getPool().getConnection();
   try {
     await conn.beginTransaction();
@@ -131,6 +162,8 @@ router.post('/:id/clonar', async (req, res) => {
 // ─── PATCH /api/tabela-precos/:id/liberar ────────────────────────────────
 router.patch('/:id/liberar', async (req, res) => {
   try {
+    const pc = _permTabelaPrecos(req);
+    if (pc.alterar !== 'S') return negarCad(res, 'Sem permissão para alterar tabela de preços');
     const pool = getPool();
     await pool.query(`UPDATE tabela_preco_cabecalho SET Tabela_Ativa = 'S' WHERE id = ?`, [req.params.id]);
     res.json({ ok: true });
@@ -139,6 +172,8 @@ router.patch('/:id/liberar', async (req, res) => {
 
 // ─── POST /api/tabela-precos/:id/manutencao ─────────────────────────────
 router.post('/:id/manutencao', async (req, res) => {
+  const pc = _permTabelaPrecos(req);
+  if (pc.alterar !== 'S') return negarCad(res, 'Sem permissão para alterar tabela de preços');
   const conn = await getPool().getConnection();
   try {
     await conn.beginTransaction();
@@ -308,17 +343,14 @@ router.get('/disponiveis-para/:cliId/:forId/:venId', async (req, res) => {
     for (const p of priorities) {
       if (!p.id || p.id === 'null' || p.id === '0') continue;
       try {
-        const [rows] = await pool.query(`
-          SELECT v.id_tabela, c.Descricao as descricao
-          FROM tabela_preco_vinculo v
-          JOIN tabela_preco_cabecalho c ON c.id = v.id_tabela
-          WHERE v.id_entidade = ? AND v.tipo_entidade = ? AND v.excluido = 'N' AND c.excluido = 'N' AND c.Tabela_Ativa = 'S'
-        `, [p.id, p.tipo]);
-
+        const rows = await listarTabelasVinculadas(pool, p.id, p.tipo);
         if (rows.length > 0) {
-          tabelas = rows;
+          tabelas = rows.map((r) => ({
+            id_tabela: r.id_tabela,
+            descricao: r.descricao,
+          }));
           origemTabela = p.tipo;
-          break; // Se achou tabelas pra essa entidade, para por aqui
+          break;
         }
       } catch (tableErr) {
         continue;
@@ -341,15 +373,16 @@ async function buscarTabelasLiberadas(pool, cliId, forId, venId) {
   for (const p of priorities) {
     if (!p.id || p.id === 'null' || p.id === '0') continue;
     try {
-      const [rows] = await pool.query(`
-        SELECT v.id_tabela, c.Descricao AS descricao
-        FROM tabela_preco_vinculo v
-        JOIN tabela_preco_cabecalho c ON c.id = v.id_tabela
-        WHERE v.id_entidade = ? AND v.tipo_entidade = ? AND v.excluido = 'N'
-          AND c.excluido = 'N' AND c.Tabela_Ativa = 'S'
-        ORDER BY c.Descricao
-      `, [p.id, p.tipo]);
-      if (rows.length > 0) return { tabelas: rows, origem: p.tipo };
+      const rows = await listarTabelasVinculadas(pool, p.id, p.tipo);
+      if (rows.length > 0) {
+        return {
+          tabelas: rows.map((r) => ({
+            id_tabela: r.id_tabela,
+            descricao: r.descricao,
+          })),
+          origem: p.tipo,
+        };
+      }
     } catch (_) { /* tabela pode não existir em bases legadas */ }
   }
   return { tabelas: [], origem: null };
@@ -553,10 +586,15 @@ router.get('/:id', async (req, res) => {
 
 // ─── POST /api/tabelas-preco (Salvar Nova) ───────────────────────────────
 router.post('/', async (req, res) => {
+  await ensureTables();
+  const pc = _permTabelaPrecos(req);
+  if (pc.incluir !== 'S') return negarCad(res, 'Sem permissão para incluir tabela de preços');
   const conn = await getPool().getConnection();
   try {
     await conn.beginTransaction();
+    await ensureTabelaPrecoCondPagamentoNullable(conn);
     const { itens, ...cab } = req.body;
+    cab.Cond_Pagamento = normalizeCondPagamento(cab.Cond_Pagamento);
 
     // Validação básica
     if (new Date(cab.Data_Inicial) > new Date(cab.Data_Final)) {
@@ -594,11 +632,16 @@ router.post('/', async (req, res) => {
 
 // ─── PUT /api/tabelas-preco/:id (Atualizar) ──────────────────────────────
 router.put('/:id', async (req, res) => {
+  await ensureTables();
+  const pc = _permTabelaPrecos(req);
+  if (pc.alterar !== 'S') return negarCad(res, 'Sem permissão para alterar tabela de preços');
   const conn = await getPool().getConnection();
   try {
     await conn.beginTransaction();
+    await ensureTabelaPrecoCondPagamentoNullable(conn);
     const { itens, ...cab } = req.body;
     const idTabela = req.params.id;
+    cab.Cond_Pagamento = normalizeCondPagamento(cab.Cond_Pagamento);
 
     if (new Date(cab.Data_Inicial) > new Date(cab.Data_Final)) {
       throw new Error('Data Inicial não pode ser maior que a Data Final');
@@ -638,6 +681,8 @@ router.put('/:id', async (req, res) => {
 // ─── DELETE /api/tabelas-preco/:id (Soft Delete) ─────────────────────────
 router.delete('/:id', async (req, res) => {
   try {
+    const pc = _permTabelaPrecos(req);
+    if (pc.excluir !== 'S') return negarCad(res, 'Sem permissão para excluir tabela de preços');
     const pool = getPool();
     await pool.query(`UPDATE tabela_preco_cabecalho SET excluido = 'S' WHERE id = ?`, [req.params.id]);
     res.json({ ok: true });

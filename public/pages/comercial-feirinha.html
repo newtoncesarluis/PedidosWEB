@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Campanhas Feirinha</title>
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<style>
+  :root { --bg:var(--content-bg); --card:var(--card-bg); --border:var(--card-border); --text:var(--content-text); --text2:var(--text2); --accent:var(--accent); --accent-soft:var(--accent-soft); --danger:#dc2626; --shadow:0 10px 30px rgba(0,0,0,.08); }
+  *{box-sizing:border-box} body{margin:0;font-family:var(--font);background:var(--bg);color:var(--text)}
+  .page{min-height:100vh;display:flex;flex-direction:column}
+  .toolbar{position:sticky;top:0;z-index:20;background:var(--card);border-bottom:1px solid var(--border);padding:14px 18px;display:flex;flex-wrap:wrap;align-items:end;gap:12px}
+  .title-wrap{margin-right:auto}.eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--text2);font-weight:800} h1{margin:3px 0 0;font-size:22px}.subtitle{margin-top:6px;font-size:12px;color:var(--text2);max-width:520px;line-height:1.45}
+  .filter{display:flex;flex-direction:column;gap:5px;min-width:140px}.filter label{font-size:10px;text-transform:uppercase;color:var(--text2);font-weight:800}
+  .filter input,.filter select{height:36px;border:1.5px solid var(--border);border-radius:10px;padding:0 10px;background:var(--card);color:var(--text);font:inherit}
+  .filter select option{color:var(--text);background:var(--card)}
+  .btn{height:36px;border:none;border-radius:10px;padding:0 14px;font:inherit;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+  .btn-primary{background:var(--accent);color:var(--btn-text,#fff)}
+  .btn-secondary{background:var(--bg);color:var(--text);border:1.5px solid var(--border)}
+  .btn-danger{background:var(--danger);color:#fff}
+  .btn-sm{height:30px;padding:0 10px;font-size:11px}
+  .content{padding:18px;display:grid;gap:16px}
+  .panel{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:14px 16px;box-shadow:var(--shadow)}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px}
+  .kpi{border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--bg)}
+  .kpi-lbl{font-size:10px;text-transform:uppercase;color:var(--text2);font-weight:800}
+  .kpi-val{font-size:18px;font-weight:900;margin-top:4px}
+  .list{display:grid;gap:10px}
+  .item{border:1px solid var(--border);border-radius:8px;padding:12px;background:var(--bg);display:grid;gap:8px;cursor:pointer;transition:border-color .15s}
+  .item:hover{border-color:var(--accent)}
+  .item-top{display:flex;gap:10px;justify-content:space-between;flex-wrap:wrap;align-items:flex-start}
+  .name{font-size:14px;font-weight:800}
+  .meta{font-size:11px;color:var(--text2);line-height:1.45}
+  .badge{font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent);white-space:nowrap}
+  .badge.off{background:rgba(148,163,184,.15);color:var(--text2)}
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100;display:none;align-items:center;justify-content:center;padding:16px}
+  .modal-overlay.show{display:flex}
+  .modal{background:var(--card);border:1px solid var(--border);border-radius:12px;width:min(640px,100%);max-height:90vh;overflow:auto;padding:18px 20px;box-shadow:var(--shadow)}
+  .modal h3{margin:0 0 12px;font-size:17px}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .form-grid .full{grid-column:1/-1}
+  .form-grid label{font-size:10px;text-transform:uppercase;color:var(--text2);font-weight:800;display:block;margin-bottom:4px}
+  .form-grid input,.form-grid select,.form-grid textarea{width:100%;border:1.5px solid var(--border);border-radius:10px;padding:8px 10px;background:var(--card);color:var(--text);font:inherit}
+  .form-grid select option{color:var(--text);background:var(--card)}
+  .form-grid textarea{min-height:72px;resize:vertical}
+  .modal-foot{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+  .hint{font-size:12px;color:var(--text2);line-height:1.45;margin:0 0 12px}
+  .tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+  .tab{height:32px;padding:0 12px;border-radius:999px;border:1.5px solid var(--border);background:var(--bg);font:inherit;font-size:11px;font-weight:800;cursor:pointer;color:var(--text2)}
+  .tab.is-active{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+  .dash-tables{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+  .dash-table-wrap{border:1px solid var(--border);border-radius:10px;overflow:hidden}
+  .dash-table-wrap h4{font-size:11px;text-transform:uppercase;padding:10px 12px;background:var(--bg);margin:0;color:var(--text2)}
+  .dash-table{width:100%;border-collapse:collapse;font-size:11px}
+  .dash-table th,.dash-table td{padding:8px 10px;border-top:1px solid var(--border);text-align:left}
+  .kit-list{display:flex;flex-direction:column;gap:6px;max-height:200px;overflow:auto;margin-top:8px}
+  .kit-row{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);font-size:11px}
+  .kit-row input[type=number]{width:72px;height:32px;border:1.5px solid var(--border);border-radius:8px;padding:0 8px;background:var(--card);color:var(--text)}
+  .kit-search-wrap{position:relative;margin-top:8px}
+  .kit-ac{position:absolute;left:0;right:0;top:100%;z-index:10;background:var(--card);border:1px solid var(--border);border-radius:10px;max-height:180px;overflow:auto;display:none;box-shadow:var(--shadow)}
+  .kit-ac.show{display:block}
+  .kit-ac-item{padding:8px 10px;cursor:pointer;font-size:11px;border-bottom:1px solid var(--border)}
+  .kit-ac-item:hover{background:var(--accent-soft)}
+  .share-link{width:100%;height:38px;border:1.5px solid var(--border);border-radius:10px;padding:0 10px;font-size:12px;background:var(--bg);color:var(--text)}
+  .share-cliente-wrap{position:relative}
+  .share-ac-list{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:30;max-height:200px;overflow-y:auto;background:var(--card);border:1.5px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12)}
+  .share-ac-item{padding:10px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--border);color:var(--text)}
+  .share-ac-item small{display:block;font-size:10px;color:var(--text2);margin-top:2px}
+  .share-ac-item:hover{background:var(--accent-soft)}
+  .share-cliente-sel{display:flex;align-items:center;gap:8px;margin-top:8px;padding:8px 10px;border-radius:10px;background:var(--accent-soft);border:1px solid var(--border);font-size:12px;color:var(--text)}
+  .share-cliente-sel button{margin-left:auto;border:none;background:none;color:var(--accent);font:inherit;font-weight:700;cursor:pointer;font-size:11px}
+  @media(max-width:720px){.dash-tables{grid-template-columns:1fr}}
+  @media(max-width:560px){.form-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="toolbar">
+    <div class="title-wrap">
+      <div class="eyebrow">Comercial · Kit Feirinha</div>
+      <h1>Campanhas Feirinha</h1>
+      <div class="subtitle">Cadastre campanhas por fábrica (ex.: «Feirinha R$ 10»). No pedido, o vendedor vincula a campanha, filtra o catálogo por faixa e recebe sugestões para baixar o preço médio.</div>
+    </div>
+    <div class="filter">
+      <label>Fábrica</label>
+      <select id="f_fornecedor"><option value="">Todas</option></select>
+    </div>
+    <div class="filter">
+      <label>Buscar</label>
+      <input type="search" id="f_busca" placeholder="Nome da campanha…" autocomplete="off">
+    </div>
+    <button type="button" class="btn btn-secondary" id="btnCompartilhar" title="Link público da campanha">Compartilhar</button>
+    <button type="button" class="btn btn-primary" id="btnNova">+ Nova campanha</button>
+  </div>
+  <div class="content">
+    <div class="panel">
+      <div class="tabs">
+        <button type="button" class="tab is-active" data-tab="lista">Campanhas</button>
+        <button type="button" class="tab" data-tab="dashboard">Dashboard</button>
+      </div>
+      <div id="tabLista">
+      <div class="kpis" id="kpis">
+        <div class="kpi"><div class="kpi-lbl">Campanhas</div><div class="kpi-val" id="kpiCamp">—</div></div>
+        <div class="kpi"><div class="kpi-lbl">Pedidos vinculados</div><div class="kpi-val" id="kpiPed">—</div></div>
+      </div>
+      <div class="list" id="lista"><div class="meta">Carregando…</div></div>
+      </div>
+      <div id="tabDashboard" style="display:none">
+        <div class="filter" style="margin-bottom:12px">
+          <label>Período início</label>
+          <input type="date" id="d_ini">
+        </div>
+        <div class="filter" style="margin-bottom:12px">
+          <label>Período fim</label>
+          <input type="date" id="d_fim">
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" id="btnDashRefresh">Atualizar dashboard</button>
+        <div class="kpis" style="margin-top:14px">
+          <div class="kpi"><div class="kpi-lbl">Pedidos Feirinha</div><div class="kpi-val" id="dkPed">—</div></div>
+          <div class="kpi"><div class="kpi-lbl">Valor total</div><div class="kpi-val" id="dkVal">—</div></div>
+          <div class="kpi"><div class="kpi-lbl">Ticket médio</div><div class="kpi-val" id="dkTicket">—</div></div>
+          <div class="kpi"><div class="kpi-lbl">Média snapshot</div><div class="kpi-val" id="dkMedio">—</div></div>
+        </div>
+        <div class="dash-tables">
+          <div class="dash-table-wrap">
+            <h4>Top produtos</h4>
+            <table class="dash-table"><thead><tr><th>Produto</th><th>Qtd</th><th>Valor</th></tr></thead><tbody id="dashTopProd"></tbody></table>
+          </div>
+          <div class="dash-table-wrap">
+            <h4>Top clientes</h4>
+            <table class="dash-table"><thead><tr><th>Cliente</th><th>Ped.</th><th>Valor</th></tr></thead><tbody id="dashTopCli"></tbody></table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h3 id="modalTitle">Nova campanha</h3>
+    <p class="hint">A faixa define o teto de custo unitário no catálogo e a meta de preço médio no pedido. Ative <strong>Kit Feirinha</strong> na ficha da fábrica.</p>
+    <input type="hidden" id="m_id">
+    <div class="form-grid">
+      <div class="full">
+        <label>Nome da campanha</label>
+        <input type="text" id="m_descricao" maxlength="200" placeholder="Ex.: FEIRINHA R$ 7,60 — Março 2026" autocomplete="off">
+      </div>
+      <div>
+        <label>Fábrica</label>
+        <select id="m_fornecedor"><option value="">Selecione…</option></select>
+      </div>
+      <div>
+        <label>Faixa alvo</label>
+        <select id="m_faixa"></select>
+      </div>
+      <div>
+        <label>Preço revenda alvo (R$)</label>
+        <input type="number" id="m_revenda" step="0.01" min="0" placeholder="Auto pela faixa">
+      </div>
+      <div>
+        <label>Preço médio máx. custo (R$)</label>
+        <input type="number" id="m_meta" step="0.01" min="0" placeholder="Auto pela faixa">
+      </div>
+      <div>
+        <label>Início</label>
+        <input type="date" id="m_ini">
+      </div>
+      <div>
+        <label>Fim</label>
+        <input type="date" id="m_fim">
+      </div>
+      <div class="full">
+        <label>Tema / slogan (banner)</label>
+        <input type="text" id="m_tema" maxlength="200" placeholder="Ex.: É GOL DE VENDAS! · Copa 2026" autocomplete="off">
+      </div>
+      <div class="full">
+        <label>Observações</label>
+        <textarea id="m_obs" placeholder="Opcional"></textarea>
+      </div>
+      <div class="full">
+        <label>Kit sugerido (produtos + quantidades)</label>
+        <p class="hint" style="margin-top:0">Monte o mix da campanha — aparece no link público e no botão «Aplicar kit» do pedido.</p>
+        <div class="kit-search-wrap">
+          <input type="search" id="kit_busca" placeholder="Buscar produto por nome ou ref…" autocomplete="off">
+          <div class="kit-ac" id="kit_ac"></div>
+        </div>
+        <div class="kit-list" id="kit_list"></div>
+      </div>
+      <div>
+        <label>Ativa</label>
+        <select id="m_ativo"><option value="S">Sim</option><option value="N">Não</option></select>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn btn-secondary" id="btnFecharModal">Cancelar</button>
+      <button type="button" class="btn btn-primary" id="btnSalvarModal">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalShare">
+  <div class="modal" style="max-width:480px">
+    <h3>Compartilhar campanha Feirinha</h3>
+    <p class="hint">Gere um link público com o kit da campanha, preços e resumo de preço médio. O cliente pode solicitar orçamento.</p>
+    <input type="hidden" id="share_camp_id">
+    <div id="modalShareForm">
+      <div class="form-grid">
+        <div class="full">
+          <label>Campanha</label>
+          <select id="share_camp"><option value="">Selecione…</option></select>
+        </div>
+        <div class="full share-cliente-wrap">
+          <label for="share_cliente_busca">Cliente (opcional — preços da tabela + histórico)</label>
+          <input type="hidden" id="share_cliente_id" value="">
+          <input type="search" id="share_cliente_busca" placeholder="Buscar por nome, apelido ou CPF/CNPJ…" autocomplete="off">
+          <div id="share_cliente_list" class="share-ac-list" style="display:none"></div>
+          <div id="share_cliente_sel" class="share-cliente-sel" style="display:none">
+            <span id="share_cliente_sel_txt"></span>
+            <button type="button" id="share_cliente_limpar">Remover</button>
+          </div>
+        </div>
+        <div>
+          <label>Validade (dias)</label>
+          <input type="number" id="share_dias" value="30" min="1" max="365">
+        </div>
+      </div>
+      <div class="modal-foot" style="padding:0;margin-top:14px;justify-content:flex-start">
+        <button type="button" class="btn btn-primary" id="btnShareGerar">Gerar link</button>
+      </div>
+    </div>
+    <div id="modalShareResult" style="display:none;margin-top:12px"></div>
+    <div class="modal-foot">
+      <button type="button" class="btn btn-secondary" id="btnShareFechar">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const token = () => sessionStorage.getItem('token') || localStorage.getItem('token');
+async function api(url, opts = {}) {
+  const r = await fetch(url, {
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (token() || ''), ...(opts.headers || {}) },
+    ...opts,
+  });
+  return r;
+}
+
+let _faixas = [];
+let _fornecedores = [];
+let _campanhas = [];
+let _kitItens = [];
+let _shareBuscaTimer = null;
+
+function limparClienteShare() {
+  document.getElementById('share_cliente_id').value = '';
+  document.getElementById('share_cliente_busca').value = '';
+  document.getElementById('share_cliente_busca').style.display = '';
+  document.getElementById('share_cliente_sel').style.display = 'none';
+  document.getElementById('share_cliente_list').style.display = 'none';
+}
+
+function selecionarClienteShare(c) {
+  document.getElementById('share_cliente_id').value = c.id;
+  document.getElementById('share_cliente_busca').style.display = 'none';
+  document.getElementById('share_cliente_list').style.display = 'none';
+  document.getElementById('share_cliente_sel_txt').textContent = `#${c.id} — ${c.nome || c.apelido || 'Cliente'}`;
+  document.getElementById('share_cliente_sel').style.display = 'flex';
+}
+
+async function buscarClientesShare(q) {
+  const list = document.getElementById('share_cliente_list');
+  if (!list) return;
+  const termo = String(q || '').trim();
+  if (termo.length < 2) {
+    list.style.display = 'none';
+    list.innerHTML = '';
+    return;
+  }
+  list.style.display = 'block';
+  list.innerHTML = '<div class="share-ac-item">Buscando…</div>';
+  try {
+    const r = await api(`/api/clientes?q=${encodeURIComponent(termo)}&limit=12&status=A`);
+    const j = await r.json();
+    const rows = j.clientes || [];
+    if (!rows.length) {
+      list.innerHTML = '<div class="share-ac-item">Nenhum cliente encontrado</div>';
+      return;
+    }
+    list.innerHTML = rows.map((c) => {
+      const sub = [c.cidade, c.uf, c.cpf].filter(Boolean).join(' · ');
+      return `<div class="share-ac-item" data-id="${c.id}" data-nome="${esc(c.nome || '')}">${esc(c.nome || c.apelido || '—')}<small>${esc(sub)}</small></div>`;
+    }).join('');
+    list.querySelectorAll('.share-ac-item[data-id]').forEach((el) => {
+      el.addEventListener('click', () => {
+        selecionarClienteShare({ id: el.dataset.id, nome: el.dataset.nome });
+      });
+    });
+  } catch (_) {
+    list.innerHTML = '<div class="share-ac-item">Erro ao buscar clientes</div>';
+  }
+}
+
+function fmtBRL(v) { return Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; }
+
+function fmtData(d) {
+  if (!d) return '—';
+  try { return new Date(d + 'T12:00:00').toLocaleDateString('pt-BR'); } catch { return d; }
+}
+
+function faixaDefaults(codigo) {
+  const f = _faixas.find(x => x.codigo === codigo) || _faixas.find(x => x.codigo === 'R10');
+  if (!f) return;
+  const rev = document.getElementById('m_revenda');
+  const meta = document.getElementById('m_meta');
+  if (rev && !rev.dataset.userEdit) rev.value = f.precoSugerido || '';
+  if (meta && !meta.dataset.userEdit) meta.value = f.max != null ? f.max : '';
+}
+
+async function loadFaixas() {
+  const r = await api('/api/feirinha/faixas');
+  const d = await r.json();
+  _faixas = d.faixas || [];
+  const sel = document.getElementById('m_faixa');
+  sel.innerHTML = _faixas.map(f => `<option value="${f.codigo}">${f.emoji || ''} ${esc(f.label)}</option>`).join('');
+  sel.addEventListener('change', () => {
+    document.getElementById('m_revenda').dataset.userEdit = '';
+    document.getElementById('m_meta').dataset.userEdit = '';
+    faixaDefaults(sel.value);
+  });
+}
+
+async function loadFornecedores() {
+  const r = await api('/api/fornecedores?limit=500&status=A');
+  const d = await r.json();
+  _fornecedores = d.fornecedores || d.data || [];
+  const opts = _fornecedores.map(f => `<option value="${f.id}">${esc(f.nome || f.apelido)}</option>`).join('');
+  document.getElementById('f_fornecedor').innerHTML = '<option value="">Todas</option>' + opts;
+  document.getElementById('m_fornecedor').innerHTML = '<option value="">Selecione…</option>' + opts;
+}
+
+async function loadDashboardDetalhado() {
+  const forn = document.getElementById('f_fornecedor').value;
+  const params = new URLSearchParams();
+  if (forn) params.set('cod_fornecedor', forn);
+  const di = document.getElementById('d_ini')?.value;
+  const df = document.getElementById('d_fim')?.value;
+  if (di) params.set('dt_inicio', di);
+  if (df) params.set('dt_fim', df);
+  const r = await api('/api/feirinha/campanhas/dashboard?' + params);
+  const d = await r.json();
+  const k = d.kpis || {};
+  document.getElementById('dkPed').textContent = k.qtd_pedidos ?? '—';
+  document.getElementById('dkVal').textContent = fmtBRL(k.valor_total);
+  document.getElementById('dkTicket').textContent = fmtBRL(k.ticket_medio);
+  document.getElementById('dkMedio').textContent = k.media_snapshot ? fmtBRL(k.media_snapshot) : '—';
+  const tp = document.getElementById('dashTopProd');
+  tp.innerHTML = (d.top_produtos || []).slice(0, 10).map(p => `
+    <tr><td>${esc((p.desc_produto || '').slice(0, 40))}</td><td>${Number(p.qtd_total || 0).toLocaleString('pt-BR')}</td><td>${fmtBRL(p.valor_total)}</td></tr>`
+  ).join('') || '<tr><td colspan="3">Sem dados no período</td></tr>';
+  const tc = document.getElementById('dashTopCli');
+  tc.innerHTML = (d.top_clientes || []).slice(0, 10).map(c => `
+    <tr><td>${esc((c.nome_cliente || '').slice(0, 35))}</td><td>${c.qtd_pedidos || 0}</td><td>${fmtBRL(c.valor_total)}</td></tr>`
+  ).join('') || '<tr><td colspan="3">Sem dados no período</td></tr>';
+}
+
+async function loadDashboard() {
+  const forn = document.getElementById('f_fornecedor').value;
+  const q = forn ? `?cod_fornecedor=${encodeURIComponent(forn)}` : '';
+  const r = await api('/api/feirinha/campanhas/dashboard' + q);
+  const d = await r.json();
+  const pedTotal = (d.pedidos || []).reduce((s, p) => s + (parseInt(p.qtd_pedidos, 10) || 0), 0);
+  document.getElementById('kpiCamp').textContent = (d.campanhas || []).length;
+  document.getElementById('kpiPed').textContent = pedTotal;
+}
+
+async function loadLista() {
+  const el = document.getElementById('lista');
+  el.innerHTML = '<div class="meta">Carregando…</div>';
+  const forn = document.getElementById('f_fornecedor').value;
+  const q = document.getElementById('f_busca').value.trim();
+  const params = new URLSearchParams({ todos: '1', limit: '100' });
+  if (forn) params.set('cod_fornecedor', forn);
+  if (q) params.set('q', q);
+  const r = await api('/api/feirinha/campanhas?' + params);
+  const d = await r.json();
+  _campanhas = d.data || [];
+  if (!_campanhas.length) {
+    el.innerHTML = '<div class="meta">Nenhuma campanha. Clique em «Nova campanha».</div>';
+    return;
+  }
+  el.innerHTML = _campanhas.map(c => `
+    <div class="item" data-id="${c.id}">
+      <div class="item-top">
+        <div>
+          <div class="name">${esc(c.descricao)}</div>
+          <div class="meta">${esc(c.nome_fornecedor || 'Fábrica #' + c.cod_fornecedor)} · ${esc(c.faixa_label)} · Revenda ${c.preco_revenda_alvo != null ? 'R$ ' + Number(c.preco_revenda_alvo).toFixed(2) : '—'}</div>
+          <div class="meta">Vigência: ${fmtData(c.data_inicio)} — ${fmtData(c.data_fim)} · ${c.qtd_pedidos || 0} pedido(s)</div>
+        </div>
+        <span class="badge ${c.ativo ? '' : 'off'}">${c.ativo ? 'Ativa' : 'Inativa'}</span>
+      </div>
+    </div>`).join('');
+  el.querySelectorAll('.item').forEach(item => {
+    item.addEventListener('click', () => abrirModal(parseInt(item.dataset.id, 10)));
+  });
+}
+
+function renderKitList() {
+  const el = document.getElementById('kit_list');
+  if (!el) return;
+  if (!_kitItens.length) {
+    el.innerHTML = '<div class="meta">Nenhum produto no kit. Busque acima para adicionar.</div>';
+    return;
+  }
+  el.innerHTML = _kitItens.map((it, idx) => `
+    <div class="kit-row">
+      <div style="flex:1;min-width:0">
+        <strong>${esc(it.desc_produto || '#' + it.cod_produto)}</strong>
+        <div class="meta">${esc(it.cod_fabricante || '')}</div>
+      </div>
+      <input type="number" min="1" step="1" value="${it.quantidade}" data-kit-qtd="${idx}">
+      <button type="button" class="btn btn-danger btn-sm" data-kit-del="${idx}">×</button>
+    </div>`).join('');
+  el.querySelectorAll('[data-kit-qtd]').forEach(inp => {
+    inp.addEventListener('change', () => {
+      const i = parseInt(inp.dataset.kitQtd, 10);
+      _kitItens[i].quantidade = parseFloat(inp.value) || 1;
+    });
+  });
+  el.querySelectorAll('[data-kit-del]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      _kitItens.splice(parseInt(btn.dataset.kitDel, 10), 1);
+      renderKitList();
+    });
+  });
+}
+
+async function loadKitCampanha(id) {
+  _kitItens = [];
+  if (!id) { renderKitList(); return; }
+  try {
+    const r = await api(`/api/feirinha/campanhas/${id}/kit`);
+    const d = await r.json();
+    _kitItens = (d.itens || []).map(it => ({
+      cod_produto: it.cod_produto,
+      desc_produto: it.desc_produto,
+      cod_fabricante: it.cod_fabricante,
+      quantidade: it.quantidade || 1,
+    }));
+  } catch { _kitItens = []; }
+  renderKitList();
+}
+
+function abrirShareModal(campanhaId) {
+  document.getElementById('modalShare').classList.add('show');
+  document.getElementById('modalShareForm').style.display = '';
+  document.getElementById('modalShareResult').style.display = 'none';
+  document.getElementById('modalShareResult').innerHTML = '';
+  limparClienteShare();
+  const sel = document.getElementById('share_camp');
+  sel.innerHTML = '<option value="">Selecione…</option>'
+    + _campanhas.filter(c => c.ativo).map(c => `<option value="${c.id}">${esc(c.descricao)}</option>`).join('');
+  if (campanhaId) sel.value = String(campanhaId);
+}
+
+function _gerarQrShare(url) {
+  const el = document.getElementById('share-qr');
+  if (!el || !url) return;
+  const render = () => {
+    el.innerHTML = '';
+    try {
+      new QRCode(el, { text: url, width: 140, height: 140, correctLevel: QRCode.CorrectLevel.M });
+    } catch (_) { el.style.display = 'none'; }
+  };
+  if (typeof QRCode !== 'undefined') { render(); return; }
+  const s = document.createElement('script');
+  s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+  s.onload = render;
+  s.onerror = () => { el.style.display = 'none'; };
+  document.head.appendChild(s);
+}
+
+function _renderShareResult(link, path, expira, titulo, qtdProdutos) {
+  const box = document.getElementById('modalShareResult');
+  const linkAttr = link.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+  const waUrl = 'https://wa.me/?text=' + encodeURIComponent(
+    `Confira a campanha Feirinha${titulo ? ` "${titulo}"` : ''}: ${link}`
+  );
+  const qtd = parseInt(qtdProdutos, 10) || 0;
+  const warn = qtd === 0
+    ? '<p class="hint" style="color:var(--danger)">Esta campanha não tem produtos no kit — cadastre o kit antes de compartilhar.</p>'
+    : `<p class="hint"><strong>${qtd}</strong> produto(s) no link · válido até <strong>${expira}</strong></p>`;
+  box.style.display = 'block';
+  box.innerHTML = `
+    ${warn}
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+      <input id="share-link-input" value="${linkAttr}" readonly class="share-link" style="flex:1">
+      <button type="button" class="btn btn-primary" id="btnCopiarShare">Copiar</button>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+      <button type="button" class="btn btn-secondary" id="btnAbrirShare">Abrir</button>
+      <button type="button" class="btn btn-secondary" style="color:#16a34a" id="btnWaShare">WhatsApp</button>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+      <div id="share-qr" style="border:1px solid var(--border);border-radius:12px;padding:8px;background:var(--card)"></div>
+      <span style="font-size:10px;color:var(--text2)">QR Code para enviar ao cliente</span>
+    </div>`;
+  document.getElementById('modalShareForm').style.display = 'none';
+  document.getElementById('btnCopiarShare')?.addEventListener('click', () => {
+    const inp = document.getElementById('share-link-input');
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(inp.value).then(() => alert('Link copiado!'));
+    } else {
+      inp.select();
+      document.execCommand('copy');
+      alert('Link copiado!');
+    }
+  });
+  document.getElementById('btnAbrirShare')?.addEventListener('click', () => window.open(path || link, '_blank'));
+  document.getElementById('btnWaShare')?.addEventListener('click', () => window.open(waUrl, '_blank'));
+  _gerarQrShare(link);
+}
+
+async function gerarShareLink() {
+  const idCamp = parseInt(document.getElementById('share_camp').value, 10);
+  if (!idCamp) { alert('Selecione a campanha'); return; }
+  const idClienteRaw = String(document.getElementById('share_cliente_id')?.value || '').trim();
+  let idCliente = null;
+  if (idClienteRaw) {
+    idCliente = parseInt(idClienteRaw, 10);
+    if (!idCliente || idCliente <= 0) {
+      alert('Selecione um cliente na busca ou deixe em branco para link genérico.');
+      return;
+    }
+  }
+  const body = {
+    id_campanha: idCamp,
+    id_cliente: idCliente,
+    dias_validade: parseInt(document.getElementById('share_dias').value, 10) || 30,
+  };
+  const btn = document.getElementById('btnShareGerar');
+  if (btn) { btn.disabled = true; btn.textContent = 'Gerando…'; }
+  try {
+    const r = await api('/api/feirinha-share/gerar', { method: 'POST', body: JSON.stringify(body) });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.erro || d.error || 'Erro ao gerar link');
+    const link = location.origin + d.link;
+    const expira = new Date(d.expira).toLocaleDateString('pt-BR');
+    _renderShareResult(link, d.link, expira, d.nome_campanha, d.qtd_produtos);
+  } catch (e) {
+    alert(e.message || 'Erro ao gerar link');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Gerar link'; }
+  }
+}
+
+function abrirModal(id) {
+  document.getElementById('modalOverlay').classList.add('show');
+  document.getElementById('m_revenda').dataset.userEdit = '';
+  document.getElementById('m_meta').dataset.userEdit = '';
+  if (!id) {
+    document.getElementById('modalTitle').textContent = 'Nova campanha';
+    document.getElementById('m_id').value = '';
+    document.getElementById('m_descricao').value = '';
+    document.getElementById('m_fornecedor').value = document.getElementById('f_fornecedor').value || '';
+    document.getElementById('m_faixa').value = 'R10';
+    document.getElementById('m_ini').value = '';
+    document.getElementById('m_fim').value = '';
+    document.getElementById('m_obs').value = '';
+    document.getElementById('m_tema').value = '';
+    document.getElementById('m_ativo').value = 'S';
+    faixaDefaults('R10');
+    renderKitList();
+    return;
+  }
+  const c = _campanhas.find(x => x.id === id);
+  if (!c) return;
+  document.getElementById('modalTitle').textContent = 'Editar campanha';
+  document.getElementById('m_id').value = c.id;
+  document.getElementById('m_descricao').value = c.descricao || '';
+  document.getElementById('m_fornecedor').value = c.cod_fornecedor || '';
+  document.getElementById('m_faixa').value = c.faixa_codigo || 'R10';
+  document.getElementById('m_revenda').value = c.preco_revenda_alvo ?? '';
+  document.getElementById('m_meta').value = c.preco_medio_meta ?? '';
+  document.getElementById('m_ini').value = c.data_inicio ? String(c.data_inicio).slice(0, 10) : '';
+  document.getElementById('m_fim').value = c.data_fim ? String(c.data_fim).slice(0, 10) : '';
+  document.getElementById('m_obs').value = c.observacoes || '';
+  document.getElementById('m_tema').value = c.tema_banner || '';
+  document.getElementById('m_ativo').value = c.ativo ? 'S' : 'N';
+  loadKitCampanha(c.id);
+}
+
+async function salvarModal() {
+  const id = document.getElementById('m_id').value;
+  const body = {
+    descricao: document.getElementById('m_descricao').value.trim(),
+    cod_fornecedor: document.getElementById('m_fornecedor').value,
+    faixa_codigo: document.getElementById('m_faixa').value,
+    preco_revenda_alvo: document.getElementById('m_revenda').value || null,
+    preco_medio_meta: document.getElementById('m_meta').value || null,
+    data_inicio: document.getElementById('m_ini').value || null,
+    data_fim: document.getElementById('m_fim').value || null,
+    observacoes: document.getElementById('m_obs').value,
+    tema_banner: document.getElementById('m_tema').value.trim(),
+    ativo: document.getElementById('m_ativo').value,
+  };
+  const url = id ? `/api/feirinha/campanhas/${id}` : '/api/feirinha/campanhas';
+  const r = await api(url, { method: id ? 'PUT' : 'POST', body: JSON.stringify(body) });
+  const d = await r.json();
+  if (!r.ok) { alert(d.error || 'Erro ao salvar'); return; }
+  const campId = id || d.id;
+  await api(`/api/feirinha/campanhas/${campId}/kit`, {
+    method: 'PUT',
+    body: JSON.stringify({ itens: _kitItens.map(it => ({ cod_produto: it.cod_produto, quantidade: it.quantidade })) }),
+  });
+  document.getElementById('modalOverlay').classList.remove('show');
+  await refresh();
+}
+
+async function refresh() {
+  await Promise.all([loadLista(), loadDashboard()]);
+  const dashTab = document.querySelector('.tab[data-tab="dashboard"]');
+  if (dashTab?.classList.contains('is-active')) await loadDashboardDetalhado();
+}
+
+document.getElementById('btnNova').addEventListener('click', () => abrirModal(null));
+document.getElementById('btnFecharModal').addEventListener('click', () => document.getElementById('modalOverlay').classList.remove('show'));
+document.getElementById('btnSalvarModal').addEventListener('click', () => salvarModal());
+document.getElementById('btnCompartilhar').addEventListener('click', () => abrirShareModal());
+document.getElementById('btnShareFechar').addEventListener('click', () => document.getElementById('modalShare').classList.remove('show'));
+document.getElementById('btnShareGerar').addEventListener('click', () => gerarShareLink());
+document.getElementById('btnDashRefresh').addEventListener('click', () => loadDashboardDetalhado());
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('is-active'));
+    tab.classList.add('is-active');
+    const isDash = tab.dataset.tab === 'dashboard';
+    document.getElementById('tabLista').style.display = isDash ? 'none' : 'block';
+    document.getElementById('tabDashboard').style.display = isDash ? 'block' : 'none';
+    if (isDash) loadDashboardDetalhado();
+  });
+});
+document.getElementById('f_fornecedor').addEventListener('change', refresh);
+document.getElementById('f_busca').addEventListener('input', () => { clearTimeout(window._feirinhaDeb); window._feirinhaDeb = setTimeout(refresh, 350); });
+document.getElementById('m_revenda').addEventListener('input', e => { e.target.dataset.userEdit = '1'; });
+document.getElementById('m_meta').addEventListener('input', e => { e.target.dataset.userEdit = '1'; });
+let _kitDeb;
+document.getElementById('kit_busca').addEventListener('input', async (e) => {
+  clearTimeout(_kitDeb);
+  const q = e.target.value.trim();
+  const ac = document.getElementById('kit_ac');
+  if (q.length < 2) { ac.classList.remove('show'); return; }
+  _kitDeb = setTimeout(async () => {
+    const forn = document.getElementById('m_fornecedor').value;
+    if (!forn) { ac.innerHTML = '<div class="kit-ac-item">Selecione a fábrica primeiro</div>'; ac.classList.add('show'); return; }
+    const params = new URLSearchParams({ q, limit: '12', fornecedor: forn, status: 'A' });
+    const r = await api('/api/produtos?' + params);
+    const d = await r.json();
+    const prods = d.produtos || d.data || [];
+    ac.innerHTML = prods.map(p => `<div class="kit-ac-item" data-pid="${p.id || p.ID}" data-pdesc="${esc(p.descricao)}" data-pref="${esc(p.cod_fabricante || '')}">${esc(p.descricao)} <span class="meta">${esc(p.cod_fabricante || '')}</span></div>`).join('') || '<div class="kit-ac-item">Nenhum produto</div>';
+    ac.classList.add('show');
+    ac.querySelectorAll('[data-pid]').forEach(el => {
+      el.addEventListener('click', () => {
+        const pid = parseInt(el.dataset.pid, 10);
+        if (_kitItens.some(x => x.cod_produto === pid)) return;
+        _kitItens.push({ cod_produto: pid, desc_produto: el.dataset.pdesc, cod_fabricante: el.dataset.pref, quantidade: 1 });
+        document.getElementById('kit_busca').value = '';
+        ac.classList.remove('show');
+        renderKitList();
+      });
+    });
+  }, 300);
+});
+document.getElementById('share_cliente_busca')?.addEventListener('input', (e) => {
+  clearTimeout(_shareBuscaTimer);
+  _shareBuscaTimer = setTimeout(() => buscarClientesShare(e.target.value), 280);
+});
+document.getElementById('share_cliente_limpar')?.addEventListener('click', () => {
+  limparClienteShare();
+  document.getElementById('share_cliente_busca')?.focus();
+});
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.share-cliente-wrap')) {
+    const list = document.getElementById('share_cliente_list');
+    if (list) list.style.display = 'none';
+  }
+});
+
+(async () => {
+  if (!token()) { location.href = '/login.html'; return; }
+  await loadFaixas();
+  await loadFornecedores();
+  await refresh();
+})();
+</script>
+<script src="/assets/cadastros-permissao.js"></script>
+</body>
+</html>

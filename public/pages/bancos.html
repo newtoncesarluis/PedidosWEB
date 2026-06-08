@@ -241,6 +241,7 @@ function toggleFiltroStatus(st) {
   buscar();
 }
 function abrirNovo() {
+  if (!guardCadIncluir('Sem permissão para incluir bancos')) return;
   S.registroId = null; document.getElementById('mainForm').reset();
   document.getElementById('formSub').textContent = 'Novo Registro';
   document.getElementById('listSection').style.display = 'none'; document.getElementById('formSection').style.display = 'block';
@@ -261,10 +262,12 @@ async function abrirEditar(id) {
     document.getElementById('f_status').value = f.status || 'A';
     document.getElementById('formSub').textContent = `Editando ID: ${f.id}`;
     document.getElementById('listSection').style.display = 'none'; document.getElementById('formSection').style.display = 'block';
+    if (!podeAlterarCad()) aplicarFormSomenteLeituraCad();
   } catch(e) { toast('Erro ao carregar','err'); }
 }
 function voltarLista() { document.getElementById('formSection').style.display = 'none'; document.getElementById('listSection').style.display = 'block'; buscar(); }
 async function salvar() {
+  if (!guardCadSalvar(!!S.registroId, 'Sem permissão para incluir bancos', 'Sem permissão para alterar bancos')) return;
   const payload = {
     nome: document.getElementById('f_nome').value.trim(),
     apelido: document.getElementById('f_apelido').value.trim(),
@@ -285,12 +288,14 @@ async function salvar() {
 }
 function abrirDrop(e, id) {
   e.stopPropagation(); const m = document.getElementById('dropMenu');
-  m.innerHTML = `<button class="dropdown-item" style="color:var(--danger)" onclick="excluir(${id})">Excluir</button>`;
+  m.innerHTML = podeExcluirCad() ? `<button class="dropdown-item" style="color:var(--danger)" onclick="excluir(${id})">Excluir</button>` : '';
+  if (!m.innerHTML.trim()) return;
   m.style.display = 'block'; const rect = e.currentTarget.getBoundingClientRect();
   m.style.top = (rect.bottom + 5) + 'px'; m.style.left = (rect.left - 130) + 'px';
   window.onclick = () => { m.style.display = 'none'; };
 }
 async function excluir(id) {
+  if (!guardCadExcluir('Sem permissão para excluir bancos')) return;
   if (!confirm('Excluir?')) return;
   try {
     const r = await fetch(`/api/bancos/${id}`, { method: 'DELETE' });
@@ -301,7 +306,7 @@ function toast(msg, tipo='ok') {
   const t = document.createElement('div'); t.className = `toast toast-${tipo}`; t.textContent = msg;
   document.getElementById('toast-container').appendChild(t); setTimeout(()=>t.remove(), 3000);
 }
-document.addEventListener('DOMContentLoaded', buscar);
+document.addEventListener('cad-perm-ready', () => { if (typeof aplicarUiPermissoesCad === 'function') aplicarUiPermissoesCad(); });
 
 /* ★ Card View — padrão compartilhado */
 CardView.attach({
@@ -327,11 +332,12 @@ CardView.attach({
       onClick: () => abrirEditar(f.id),
       actions: [
         { label:'Editar',  icon:'edit',  onClick: () => abrirEditar(f.id) },
-        { label:'Excluir', icon:'trash', onClick: () => { if(confirm('Excluir?')) excluir(f.id); } }
+        ...(podeExcluirCad() ? [{ label:'Excluir', icon:'trash', onClick: () => { if(confirm('Excluir?')) excluir(f.id); } }] : [])
       ]
     };
   }
 });
 </script>
+<script src="/assets/cadastros-permissao.js"></script>
 </body>
 </html>

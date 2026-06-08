@@ -245,13 +245,9 @@ router.get('/lookup/vendedores', async (req, res) => {
   await ensureTable();
   try {
     const pool = getPool();
-    const [rows] = await pool.query(
-      `SELECT idusuario AS id, nomeusu AS nome
-       FROM usuarios
-       WHERE excluido='N' AND vendedor='S'
-       ORDER BY nomeusu`
-    ).catch(() => [[]]);
-    res.json({ vendedores: rows || [] });
+    const { listVendedoresVisiveis } = require('../config/vendedor-visibilidade');
+    const rows = await listVendedoresVisiveis(pool, req);
+    res.json({ vendedores: rows.map(r => ({ id: r.id, nome: r.nome || r.nome_vendedor })) });
   } catch (_) {
     res.json({ vendedores: [] });
   }
@@ -276,15 +272,17 @@ router.get('/', async (req, res) => {
     const conds = ["l.excluido='N'", 'l.id_empresa=?'];
     const params = [idEmpresa];
 
-    if (user.perfil !== '1' && user.role !== 'admin') {
-      const userId = parseInt(user.idusuario || user.id || 0, 10);
-      if (userId) {
-        conds.push('(l.id_vendedor = ? OR l.id_usuario = ?)');
-        params.push(userId, userId);
+    const { buildPedidosVendedorWhere, canPickOtherVendors } = require('../config/vendedor-visibilidade');
+    const uid = parseInt(user.idusuario || user.id || 0, 10);
+    if (!canPickOtherVendors(req) && uid) {
+      conds.push('(l.id_vendedor = ? OR l.id_usuario = ?)');
+      params.push(uid, uid);
+    } else {
+      const vendScope = await buildPedidosVendedorWhere(pool, req, idVendedor, 'l.id_vendedor');
+      if (vendScope.clause) {
+        conds.push(vendScope.clause.trim().replace(/^AND\s+/i, ''));
+        params.push(...vendScope.params);
       }
-    } else if (idVendedor) {
-      conds.push('l.id_vendedor = ?');
-      params.push(idVendedor);
     }
 
     if (q) {
@@ -378,13 +376,19 @@ router.get('/dashboard', async (req, res) => {
     const idEmpresa = parseInt(user.id_empresa || req.query.id_empresa || 1, 10);
     const staleThreshold = Math.max(parseInt(req.query.stale_dias || 15, 10), 1);
 
-    let vcond = '', vpar = [];
-    if (user.perfil !== '1' && user.role !== 'admin') {
-      const uid = parseInt(user.idusuario || user.id || 0, 10);
-      if (uid) { vcond = ' AND (l.id_vendedor=? OR l.id_usuario=?)'; vpar = [uid, uid]; }
-    } else if (req.query.id_vendedor) {
-      vcond = ' AND l.id_vendedor=?';
-      vpar = [parseInt(req.query.id_vendedor, 10)];
+    const { buildPedidosVendedorWhere, canPickOtherVendors } = require('../config/vendedor-visibilidade');
+    const uid = parseInt(user.idusuario || user.id || 0, 10);
+    let vcond = '';
+    let vpar = [];
+    if (!canPickOtherVendors(req) && uid) {
+      vcond = ' AND (l.id_vendedor=? OR l.id_usuario=?)';
+      vpar = [uid, uid];
+    } else {
+      const vendScope = await buildPedidosVendedorWhere(pool, req, req.query.id_vendedor, 'l.id_vendedor');
+      if (vendScope.clause) {
+        vcond = vendScope.clause;
+        vpar = vendScope.params;
+      }
     }
 
     const bw = `l.excluido='N' AND l.id_empresa=?${vcond}`;

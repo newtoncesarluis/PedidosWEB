@@ -10,6 +10,12 @@ const {
   tryUnlinkLogoFile,
   sanitizeEmpresaRow,
 } = require('../services/empresa-logo');
+const { ensurePerfilCadastroColumns } = require('../config/schema-migrations');
+const {
+  PERFIL_SN_FIELDS,
+  permCrud,
+  negarCad,
+} = require('../config/cadastros-permissoes');
 
 /** Legado Delphi: excluido pode ser NULL ou vazio em registros ativos. */
 const EMPRESA_NAO_EXCLUIDA = `COALESCE(NULLIF(TRIM(excluido), ''), 'N') = 'N'`;
@@ -78,71 +84,21 @@ router.get('/perfis', async (req, res) => {
 router.post('/perfis', async (req, res) => {
   try {
     const pool = getPool();
+    await ensurePerfilPermissions(pool);
     const n = v => v === 'S' || v === true ? 'S' : 'N';
-    const {
-      descricao,
-      incluir_pedvendas, alterar_pedvendas, excluir_pedvendas,
-      incluir_clientes, alterar_clientes, exclui_clientes,
-      incluir_fornecedor, alterar_fornecedor, excluir_fornecedor,
-      incluir_produtos, alterar_produtos, excluir_produtos,
-      incluir_formas_pagamento, alterar_formas_pagamento, excluir_formas_pagamento,
-      incluir_bancos, alterar_bancos, excluir_bancos,
-      incluir_despesas, alterar_despesas, excluir_despesas,
-      incluir_segmentos, alterar_segmentos, excluir_segmentos,
-      incluir_regioes, alterar_regioes, excluir_regioes,
-      incluir_natureza, alterar_natureza, excluir_natureza,
-      incluir_tipo_frete, alterar_tipo_frete, excluir_tipo_frete,
-      incluir_locais_armazenamento, alterar_locais_armazenamento, excluir_locais_armazenamento,
-      incluir_motivo_visitas, alterar_motivo_visitas, excluir_motivo_visitas,
-      incluir_hoteis, alterar_hoteis, excluir_hoteis,
-      p_vender, p_comprar, acessogerenciais, manutencaocadastros,
-      acessartodosclientes, mudarempresa, alterarbase,
-      acesso_financeiro, acessoperfil,
-      p_alterarcomissao, alterar_emb, alterardatapedido, trocarvendedorpedido, alteraprecovenda
-    } = req.body;
+    const { descricao } = req.body;
+    const defS = new Set(['p_alterarcomissao', 'alterar_emb', 'alterardatapedido', 'trocarvendedorpedido', 'alteraprecovenda']);
+    const values = PERFIL_SN_FIELDS.map((f) => {
+      const raw = req.body[f];
+      if (raw === undefined && defS.has(f)) return 'S';
+      return n(raw);
+    });
+    const ph = PERFIL_SN_FIELDS.map(() => '?').join(',');
     const [r] = await pool.query(
-      `INSERT INTO perfil (descricao,
-        incluir_pedvendas,alterar_pedvendas,excluir_pedvendas,
-        incluir_clientes,alterar_clientes,exclui_clientes,
-        incluir_fornecedor,alterar_fornecedor,excluir_fornecedor,
-        incluir_produtos,alterar_produtos,excluir_produtos,
-        incluir_formas_pagamento, alterar_formas_pagamento, excluir_formas_pagamento,
-        incluir_bancos, alterar_bancos, excluir_bancos,
-        incluir_despesas, alterar_despesas, excluir_despesas,
-        incluir_segmentos, alterar_segmentos, excluir_segmentos,
-        incluir_regioes, alterar_regioes, excluir_regioes,
-        incluir_natureza, alterar_natureza, excluir_natureza,
-        incluir_tipo_frete, alterar_tipo_frete, excluir_tipo_frete,
-        incluir_locais_armazenamento, alterar_locais_armazenamento, excluir_locais_armazenamento,
-        incluir_motivo_visitas, alterar_motivo_visitas, excluir_motivo_visitas,
-        incluir_hoteis, alterar_hoteis, excluir_hoteis,
-        p_vender,p_comprar,acessogerenciais,manutencaocadastros,
-        acessartodosclientes,mudarempresa,alterarbase,
-        acesso_financeiro,acessoperfil,
-        p_alterarcomissao,alterar_emb,alterardatapedido,trocarvendedorpedido,alteraprecovenda,
-        excluido)
-       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'N')`,
-      [descricao||null,
-       n(incluir_pedvendas),n(alterar_pedvendas),n(excluir_pedvendas),
-       n(incluir_clientes),n(alterar_clientes),n(exclui_clientes),
-       n(incluir_fornecedor),n(alterar_fornecedor),n(excluir_fornecedor),
-       n(incluir_produtos),n(alterar_produtos),n(excluir_produtos),
-       n(incluir_formas_pagamento),n(alterar_formas_pagamento),n(excluir_formas_pagamento),
-       n(incluir_bancos),n(alterar_bancos),n(excluir_bancos),
-       n(incluir_despesas),n(alterar_despesas),n(excluir_despesas),
-       n(incluir_segmentos),n(alterar_segmentos),n(excluir_segmentos),
-       n(incluir_regioes),n(alterar_regioes),n(excluir_regioes),
-       n(incluir_natureza),n(alterar_natureza),n(excluir_natureza),
-       n(incluir_tipo_frete),n(alterar_tipo_frete),n(excluir_tipo_frete),
-       n(incluir_locais_armazenamento),n(alterar_locais_armazenamento),n(excluir_locais_armazenamento),
-       n(incluir_motivo_visitas),n(alterar_motivo_visitas),n(excluir_motivo_visitas),
-       n(incluir_hoteis),n(alterar_hoteis),n(excluir_hoteis),
-       n(p_vender),n(p_comprar),n(acessogerenciais),n(manutencaocadastros),
-       n(acessartodosclientes),n(mudarempresa),n(alterarbase),
-       n(acesso_financeiro),n(acessoperfil),
-       n(p_alterarcomissao??'S'),n(alterar_emb??'S'),n(alterardatapedido??'S'),n(trocarvendedorpedido??'S'),n(alteraprecovenda??'S')]
+      `INSERT INTO perfil (descricao, ${PERFIL_SN_FIELDS.join(',')}, excluido) VALUES (?, ${ph}, 'N')`,
+      [descricao || null, ...values]
     );
-    res.status(201).json({ ok:true, id:r.insertId });
+    res.status(201).json({ ok: true, id: r.insertId });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -158,71 +114,21 @@ router.get('/perfis/:id', async (req, res) => {
 router.put('/perfis/:id', async (req, res) => {
   try {
     const pool = getPool();
+    await ensurePerfilPermissions(pool);
     const n = v => v === 'S' || v === true ? 'S' : 'N';
-    const {
-      descricao,
-      incluir_pedvendas, alterar_pedvendas, excluir_pedvendas,
-      incluir_clientes, alterar_clientes, exclui_clientes,
-      incluir_fornecedor, alterar_fornecedor, excluir_fornecedor,
-      incluir_produtos, alterar_produtos, excluir_produtos,
-      incluir_formas_pagamento, alterar_formas_pagamento, excluir_formas_pagamento,
-      incluir_bancos, alterar_bancos, excluir_bancos,
-      incluir_despesas, alterar_despesas, excluir_despesas,
-      incluir_segmentos, alterar_segmentos, excluir_segmentos,
-      incluir_regioes, alterar_regioes, excluir_regioes,
-      incluir_natureza, alterar_natureza, excluir_natureza,
-      incluir_tipo_frete, alterar_tipo_frete, excluir_tipo_frete,
-      incluir_locais_armazenamento, alterar_locais_armazenamento, excluir_locais_armazenamento,
-      incluir_motivo_visitas, alterar_motivo_visitas, excluir_motivo_visitas,
-      incluir_hoteis, alterar_hoteis, excluir_hoteis,
-      p_vender, p_comprar, acessogerenciais, manutencaocadastros,
-      acessartodosclientes, mudarempresa, alterarbase,
-      acesso_financeiro, acessoperfil,
-      p_alterarcomissao, alterar_emb, alterardatapedido, trocarvendedorpedido, alteraprecovenda
-    } = req.body;
+    const { descricao } = req.body;
+    const defS = new Set(['p_alterarcomissao', 'alterar_emb', 'alterardatapedido', 'trocarvendedorpedido', 'alteraprecovenda']);
+    const sets = PERFIL_SN_FIELDS.map((f) => `${f}=?`).join(',');
+    const values = PERFIL_SN_FIELDS.map((f) => {
+      const raw = req.body[f];
+      if (raw === undefined && defS.has(f)) return 'S';
+      return n(raw);
+    });
     await pool.query(
-      `UPDATE perfil SET descricao=?,
-        incluir_pedvendas=?,alterar_pedvendas=?,excluir_pedvendas=?,
-        incluir_clientes=?,alterar_clientes=?,exclui_clientes=?,
-        incluir_fornecedor=?,alterar_fornecedor=?,excluir_fornecedor=?,
-        incluir_produtos=?,alterar_produtos=?,excluir_produtos=?,
-        incluir_formas_pagamento=?, alterar_formas_pagamento=?, excluir_formas_pagamento=?,
-        incluir_bancos=?, alterar_bancos=?, excluir_bancos=?,
-        incluir_despesas=?, alterar_despesas=?, excluir_despesas=?,
-        incluir_segmentos=?, alterar_segmentos=?, excluir_segmentos=?,
-        incluir_regioes=?, alterar_regioes=?, excluir_regioes=?,
-        incluir_natureza=?, alterar_natureza=?, excluir_natureza=?,
-        incluir_tipo_frete=?, alterar_tipo_frete=?, excluir_tipo_frete=?,
-        incluir_locais_armazenamento=?, alterar_locais_armazenamento=?, excluir_locais_armazenamento=?,
-        incluir_motivo_visitas=?, alterar_motivo_visitas=?, excluir_motivo_visitas=?,
-        incluir_hoteis=?, alterar_hoteis=?, excluir_hoteis=?,
-        p_vender=?,p_comprar=?,acessogerenciais=?,manutencaocadastros=?,
-        acessartodosclientes=?,mudarempresa=?,alterarbase=?,
-        acesso_financeiro=?,acessoperfil=?,
-        p_alterarcomissao=?,alterar_emb=?,alterardatapedido=?,trocarvendedorpedido=?,alteraprecovenda=?
-       WHERE id=?`,
-      [descricao||null,
-       n(incluir_pedvendas),n(alterar_pedvendas),n(excluir_pedvendas),
-       n(incluir_clientes),n(alterar_clientes),n(exclui_clientes),
-       n(incluir_fornecedor),n(alterar_fornecedor),n(excluir_fornecedor),
-       n(incluir_produtos),n(alterar_produtos),n(excluir_produtos),
-       n(incluir_formas_pagamento),n(alterar_formas_pagamento),n(excluir_formas_pagamento),
-       n(incluir_bancos),n(alterar_bancos),n(excluir_bancos),
-       n(incluir_despesas),n(alterar_despesas),n(excluir_despesas),
-       n(incluir_segmentos),n(alterar_segmentos),n(excluir_segmentos),
-       n(incluir_regioes),n(alterar_regioes),n(excluir_regioes),
-       n(incluir_natureza),n(alterar_natureza),n(excluir_natureza),
-       n(incluir_tipo_frete),n(alterar_tipo_frete),n(excluir_tipo_frete),
-       n(incluir_locais_armazenamento),n(alterar_locais_armazenamento),n(excluir_locais_armazenamento),
-       n(incluir_motivo_visitas),n(alterar_motivo_visitas),n(excluir_motivo_visitas),
-       n(incluir_hoteis),n(alterar_hoteis),n(excluir_hoteis),
-       n(p_vender),n(p_comprar),n(acessogerenciais),n(manutencaocadastros),
-       n(acessartodosclientes),n(mudarempresa),n(alterarbase),
-       n(acesso_financeiro),n(acessoperfil),
-       n(p_alterarcomissao??'S'),n(alterar_emb??'S'),n(alterardatapedido??'S'),n(trocarvendedorpedido??'S'),n(alteraprecovenda??'S'),
-       req.params.id]
+      `UPDATE perfil SET descricao=?, ${sets} WHERE id=?`,
+      [descricao || null, ...values, req.params.id]
     );
-    res.json({ ok:true });
+    res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -582,6 +488,8 @@ router.post('/usuarios', async (req, res) => {
     const { nomeusu, loginusu, senhausu, SITUACAO, idperfil, email } = req.body;
     if (!nomeusu || !loginusu || !senhausu)
       return res.status(400).json({ error:'nomeusu, loginusu e senhausu são obrigatórios' });
+    if (!idperfil)
+      return res.status(400).json({ error:'Perfil de Acesso (idperfil) é obrigatório' });
 
     const [r] = await pool.query(
       `INSERT INTO usuarios (nomeusu,loginusu,senhausu,SITUACAO,excluido,idperfil,email)
@@ -665,8 +573,10 @@ router.put('/usuarios/:id', async (req, res) => {
     const pool = getPool();
     await ensureUsuarioColumns(pool);
     const { nomeusu, loginusu, senhausu, SITUACAO, idperfil, email } = req.body;
+    if (!idperfil)
+      return res.status(400).json({ error:'Perfil de Acesso (idperfil) é obrigatório' });
     const base = [`nomeusu=?`,`loginusu=?`,`SITUACAO=?`,`idperfil=?`,`email=?`];
-    const vals = [nomeusu||null, loginusu||null, SITUACAO||'ATIVO', idperfil||null, email||null];
+    const vals = [nomeusu||null, loginusu||null, SITUACAO||'ATIVO', idperfil, email||null];
     if (senhausu) { base.push(`senhausu=?`); vals.push(senhausu); }
     vals.push(req.params.id);
     await pool.query(`UPDATE usuarios SET ${base.join(',')} WHERE idusuario=? AND COALESCE(excluido, 'N')='N'`, vals);
@@ -1214,6 +1124,8 @@ router.get('/formas-pagamento', async (req, res) => {
 
 router.post('/formas-pagamento', async (req, res) => {
   try {
+    const pc = permCrud(req, { incluir: 'incluir_formas_pagamento', alterar: 'alterar_formas_pagamento', excluir: 'excluir_formas_pagamento' });
+    if (pc.incluir !== 'S') return negarCad(res, 'Sem permissão para incluir formas de pagamento');
     const pool = getPool();
     await ensureFormaPagtoTable(pool);
     const c = await formaPagtoColumns(pool);
@@ -1263,6 +1175,8 @@ router.post('/formas-pagamento', async (req, res) => {
 
 router.put('/formas-pagamento/:id', async (req, res) => {
   try {
+    const pc = permCrud(req, { incluir: 'incluir_formas_pagamento', alterar: 'alterar_formas_pagamento', excluir: 'excluir_formas_pagamento' });
+    if (pc.alterar !== 'S') return negarCad(res, 'Sem permissão para alterar formas de pagamento');
     const pool = getPool();
     await ensureFormaPagtoTable(pool);
     const c = await formaPagtoColumns(pool);
@@ -1291,6 +1205,8 @@ router.put('/formas-pagamento/:id', async (req, res) => {
 
 router.delete('/formas-pagamento/:id', async (req, res) => {
   try {
+    const pc = permCrud(req, { incluir: 'incluir_formas_pagamento', alterar: 'alterar_formas_pagamento', excluir: 'excluir_formas_pagamento' });
+    if (pc.excluir !== 'S') return negarCad(res, 'Sem permissão para excluir formas de pagamento');
     const pool = getPool();
     await ensureFormaPagtoTable(pool);
     await pool.query(`UPDATE forma_pagto SET excluido='S' WHERE id=?`, [req.params.id]);
@@ -1330,6 +1246,8 @@ router.get('/bancos', async (req, res) => {
 
 router.post('/bancos', async (req, res) => {
   try {
+    const pc = permCrud(req, { incluir: 'incluir_bancos', alterar: 'alterar_bancos', excluir: 'excluir_bancos' });
+    if (pc.incluir !== 'S') return negarCad(res, 'Sem permissão para incluir bancos');
     const pool = getPool();
     const { nome, apelido, num_banco, agencia, conta, observacao, saldo, status } = req.body;
     if (!nome) return res.status(400).json({ error: 'Nome é obrigatório' });
@@ -1343,6 +1261,8 @@ router.post('/bancos', async (req, res) => {
 
 router.put('/bancos/:id', async (req, res) => {
   try {
+    const pc = permCrud(req, { incluir: 'incluir_bancos', alterar: 'alterar_bancos', excluir: 'excluir_bancos' });
+    if (pc.alterar !== 'S') return negarCad(res, 'Sem permissão para alterar bancos');
     const pool = getPool();
     const { nome, apelido, num_banco, agencia, conta, observacao, saldo, status } = req.body;
     await pool.query(
@@ -1355,6 +1275,8 @@ router.put('/bancos/:id', async (req, res) => {
 
 router.delete('/bancos/:id', async (req, res) => {
   try {
+    const pc = permCrud(req, { incluir: 'incluir_bancos', alterar: 'alterar_bancos', excluir: 'excluir_bancos' });
+    if (pc.excluir !== 'S') return negarCad(res, 'Sem permissão para excluir bancos');
     const pool = getPool();
     await pool.query(`UPDATE bancos SET excluido='S' WHERE id=?`, [req.params.id]);
     res.json({ ok: true });
@@ -1416,6 +1338,8 @@ router.get('/despesas', async (req, res) => {
 
 router.post('/despesas', async (req, res) => {
   try {
+    const pc = permCrud(req, { incluir: 'incluir_despesas', alterar: 'alterar_despesas', excluir: 'excluir_despesas' });
+    if (pc.incluir !== 'S') return negarCad(res, 'Sem permissão para incluir despesas');
     const pool = getPool();
     await ensureDespesasTable(pool);
     const { descricao, tipo, id_planoconta, status } = req.body;
@@ -1430,6 +1354,8 @@ router.post('/despesas', async (req, res) => {
 
 router.put('/despesas/:id', async (req, res) => {
   try {
+    const pc = permCrud(req, { incluir: 'incluir_despesas', alterar: 'alterar_despesas', excluir: 'excluir_despesas' });
+    if (pc.alterar !== 'S') return negarCad(res, 'Sem permissão para alterar despesas');
     const pool = getPool();
     const { descricao, tipo, id_planoconta, status } = req.body;
     await pool.query(
@@ -1442,6 +1368,8 @@ router.put('/despesas/:id', async (req, res) => {
 
 router.delete('/despesas/:id', async (req, res) => {
   try {
+    const pc = permCrud(req, { incluir: 'incluir_despesas', alterar: 'alterar_despesas', excluir: 'excluir_despesas' });
+    if (pc.excluir !== 'S') return negarCad(res, 'Sem permissão para excluir despesas');
     const pool = getPool();
     await pool.query(`UPDATE despesas SET excluido='S' WHERE id=?`, [req.params.id]);
     res.json({ ok: true });
@@ -1474,6 +1402,8 @@ router.get('/segmentos', async (req, res) => {
 
 router.post('/segmentos', async (req, res) => {
   try {
+    const pc = permCrud(req, { incluir: 'incluir_segmentos', alterar: 'alterar_segmentos', excluir: 'excluir_segmentos' });
+    if (pc.incluir !== 'S') return negarCad(res, 'Sem permissão para incluir segmentos');
     const pool = getPool();
     const { descricao, status } = req.body;
     if (!descricao) return res.status(400).json({ error: 'Descrição é obrigatória' });
@@ -1484,6 +1414,8 @@ router.post('/segmentos', async (req, res) => {
 
 router.put('/segmentos/:id', async (req, res) => {
   try {
+    const pc = permCrud(req, { incluir: 'incluir_segmentos', alterar: 'alterar_segmentos', excluir: 'excluir_segmentos' });
+    if (pc.alterar !== 'S') return negarCad(res, 'Sem permissão para alterar segmentos');
     const pool = getPool();
     const { descricao, status } = req.body;
     await pool.query(`UPDATE categoria SET descricao=?, status=? WHERE id=?`, [descricao, status || 'A', req.params.id]);
@@ -1493,6 +1425,8 @@ router.put('/segmentos/:id', async (req, res) => {
 
 router.delete('/segmentos/:id', async (req, res) => {
   try {
+    const pc = permCrud(req, { incluir: 'incluir_segmentos', alterar: 'alterar_segmentos', excluir: 'excluir_segmentos' });
+    if (pc.excluir !== 'S') return negarCad(res, 'Sem permissão para excluir segmentos');
     const pool = getPool();
     await pool.query(`UPDATE categoria SET excluido='S' WHERE id=?`, [req.params.id]);
     res.json({ ok: true });
@@ -1652,6 +1586,8 @@ router.get('/eventos-cidades', async (req, res) => {
 
 router.post('/eventos-cidades', async (req, res) => {
   try {
+    const pc = permCrud(req, { incluir: 'incluir_eventos_cidades', alterar: 'alterar_eventos_cidades', excluir: 'excluir_eventos_cidades' });
+    if (pc.incluir !== 'S') return negarCad(res, 'Sem permissão para incluir eventos/cidades');
     const pool = getPool();
     const { descricao, cidade, uf, dtfesta, obs, status } = req.body;
     if (!cidade) return res.status(400).json({ error: 'Cidade é obrigatória' });
@@ -1670,6 +1606,8 @@ router.post('/eventos-cidades', async (req, res) => {
 
 router.put('/eventos-cidades/:id', async (req, res) => {
   try {
+    const pc = permCrud(req, { incluir: 'incluir_eventos_cidades', alterar: 'alterar_eventos_cidades', excluir: 'excluir_eventos_cidades' });
+    if (pc.alterar !== 'S') return negarCad(res, 'Sem permissão para alterar eventos/cidades');
     const pool = getPool();
     const { descricao, cidade, uf, dtfesta, obs, status } = req.body;
     await pool.query(
@@ -1682,6 +1620,8 @@ router.put('/eventos-cidades/:id', async (req, res) => {
 
 router.delete('/eventos-cidades/:id', async (req, res) => {
   try {
+    const pc = permCrud(req, { incluir: 'incluir_eventos_cidades', alterar: 'alterar_eventos_cidades', excluir: 'excluir_eventos_cidades' });
+    if (pc.excluir !== 'S') return negarCad(res, 'Sem permissão para excluir eventos/cidades');
     const pool = getPool();
     await pool.query(`UPDATE festas_cidades SET excluido='S' WHERE id=?`, [req.params.id]);
     res.json({ ok: true });
@@ -1700,30 +1640,8 @@ router.get('/plano-contas', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Helper para garantir colunas de permissão no perfil
 async function ensurePerfilPermissions(pool) {
-  const cols = [
-    ['incluir_formas_pagamento', 'CHAR(1) DEFAULT \'N\''], ['alterar_formas_pagamento', 'CHAR(1) DEFAULT \'N\''], ['excluir_formas_pagamento', 'CHAR(1) DEFAULT \'N\''],
-    ['incluir_bancos', 'CHAR(1) DEFAULT \'N\''], ['alterar_bancos', 'CHAR(1) DEFAULT \'N\''], ['excluir_bancos', 'CHAR(1) DEFAULT \'N\''],
-    ['incluir_despesas', 'CHAR(1) DEFAULT \'N\''], ['alterar_despesas', 'CHAR(1) DEFAULT \'N\''], ['excluir_despesas', 'CHAR(1) DEFAULT \'N\''],
-    ['incluir_segmentos', 'CHAR(1) DEFAULT \'N\''], ['alterar_segmentos', 'CHAR(1) DEFAULT \'N\''], ['excluir_segmentos', 'CHAR(1) DEFAULT \'N\''],
-    ['incluir_regioes', 'CHAR(1) DEFAULT \'N\''], ['alterar_regioes', 'CHAR(1) DEFAULT \'N\''], ['excluir_regioes', 'CHAR(1) DEFAULT \'N\''],
-    ['incluir_natureza', 'CHAR(1) DEFAULT \'N\''], ['alterar_natureza', 'CHAR(1) DEFAULT \'N\''], ['excluir_natureza', 'CHAR(1) DEFAULT \'N\''],
-    ['incluir_tipo_frete', 'CHAR(1) DEFAULT \'N\''], ['alterar_tipo_frete', 'CHAR(1) DEFAULT \'N\''], ['excluir_tipo_frete', 'CHAR(1) DEFAULT \'N\''],
-    ['incluir_locais_armazenamento', 'CHAR(1) DEFAULT \'N\''], ['alterar_locais_armazenamento', 'CHAR(1) DEFAULT \'N\''], ['excluir_locais_armazenamento', 'CHAR(1) DEFAULT \'N\''],
-    ['incluir_motivo_visitas', 'CHAR(1) DEFAULT \'N\''], ['alterar_motivo_visitas', 'CHAR(1) DEFAULT \'N\''], ['excluir_motivo_visitas', 'CHAR(1) DEFAULT \'N\''],
-    ['incluir_hoteis', 'CHAR(1) DEFAULT \'N\''], ['alterar_hoteis', 'CHAR(1) DEFAULT \'N\''], ['excluir_hoteis', 'CHAR(1) DEFAULT \'N\''],
-    ['p_alterarcomissao', 'CHAR(1) DEFAULT \'S\''],
-    ['alterar_emb',       'CHAR(1) DEFAULT \'S\''],
-    ['alterardatapedido', 'CHAR(1) DEFAULT \'S\''],
-    ['trocarvendedorpedido', 'CHAR(1) DEFAULT \'S\''],
-    ['alteraprecovenda',  'CHAR(1) DEFAULT \'S\'']
-  ];
-  for (const [col, type] of cols) {
-    await pool.query(`ALTER TABLE perfil ADD COLUMN ${col} ${type}`).catch(async () => {
-      try { await pool.query(`ALTER TABLE perfil ADD COLUMN ${col} ${type}`); } catch(e){}
-    });
-  }
+  return ensurePerfilCadastroColumns(pool);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

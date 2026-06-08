@@ -19,6 +19,7 @@ const {
   filtrarPromocoesPorContexto,
 } = require('../config/promocoes-produto');
 const { getCampanha } = require('../config/promocoes-campanha');
+const { requirePromoPerm } = require('../config/promocoes-permissoes');
 const { ensureItenspedPromoColumns } = require('../config/schema-migrations');
 const axios = require('axios');
 
@@ -308,6 +309,7 @@ async function listarProdutosPromoShare(pool, opts) {
 
 // POST /api/promocoes-share/gerar
 router.post('/gerar', authMiddleware, async (req, res) => {
+  if (!requirePromoPerm(req, res, 'alterar_promocoes', 'Sem permissão para compartilhar promoções')) return;
   const user = req.user;
   const idCampanha = parseInt(req.body?.id_campanha, 10) || null;
   const idCliente = parseInt(req.body?.id_cliente, 10) || null;

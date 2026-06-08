@@ -326,11 +326,26 @@
 </div>
 
 <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+<script src="/assets/comissao-preposto-ui.js"></script>
 
 <script>
     let lookupData = { vendedores: [] };
+    let _tipoUsuarioRel = 'REPRESENTANTE';
+    let _userIdRel = null;
+    let _jwtComissao = { mustLockVendedorSelect: false };
+
+    function _lerJwtRelatorio() {
+        try {
+            const raw = localStorage.getItem('token') || sessionStorage.getItem('sysrep_token') || '';
+            if (!raw) return;
+            const payload = JSON.parse(atob(raw.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+            _tipoUsuarioRel = payload.tipo_usuario || 'REPRESENTANTE';
+            _userIdRel = payload.id || payload.idusuario || null;
+        } catch (_) {}
+    }
 
     $(document).ready(function() {
+        _lerJwtRelatorio();
         const now = new Date();
         const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
         const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
@@ -342,6 +357,7 @@
     });
 
     async function loadLookups() {
+        _lerJwtRelatorio();
         const res = await fetch('/api/pedidos/lookups').then(r => r.json());
         lookupData = res;
         const pop = (id, list) => {
@@ -351,14 +367,24 @@
         pop('filter_vendedor', res.vendedores);
         pop('filter_fornecedor', res.fornecedores);
         pop('filter_cliente', res.clientes);
+        const selVend = document.getElementById('filter_vendedor');
+        if (window.ComissaoPrepostoUi) {
+            _jwtComissao = ComissaoPrepostoUi.applyVendedorSelectLock(selVend);
+        }
     }
 
     async function loadReport() {
-        const vId = $('#filter_vendedor').val();
-        if(!vId) return alert("Selecione um vendedor.");
+        _lerJwtRelatorio();
+        const selVend = document.getElementById('filter_vendedor');
+        let vId = window.ComissaoPrepostoUi
+            ? ComissaoPrepostoUi.resolveVendedorFilterId(selVend, _jwtComissao)
+            : $('#filter_vendedor').val();
+        if(!vId) return alert('Selecione um vendedor ou verifique sua sessão.');
 
-        const vendedor = lookupData.vendedores.find(v => v.id == vId);
-        $('#vendedor_nome').text("Vendedor: " + vendedor.nome);
+        const sessUser = JSON.parse(sessionStorage.getItem('user') || '{}');
+        const vendedor = lookupData.vendedores.find(v => v.id == vId) || { nome: sessUser.nome || 'Preposto' };
+        const rotulo = (_jwtComissao.isPreposto || _tipoUsuarioRel === 'PREPOSTO') ? 'Preposto: ' : 'Vendedor: ';
+        $('#vendedor_nome').text(rotulo + vendedor.nome);
         $('#sig_vendedor_nome').text(vendedor.nome);
         $('#regime_info').text($('#filter_tipo_data option:selected').text() || 'Liquidação (Parcela)');
         

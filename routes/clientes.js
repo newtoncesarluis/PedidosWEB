@@ -28,6 +28,23 @@ const upload = multer({
   }
 });
 
+function _permCli(req) {
+  const isAdmin = req.user?.perfil == 1;
+  const p = req.user?.permissoes || {};
+  const s = (k) => (isAdmin ? 'S' : (p[k] || 'N'));
+  return {
+    isAdmin,
+    ver: s('gtela_clientes'),
+    incluir: s('incluir_clientes'),
+    alterar: s('alterar_clientes'),
+    excluir: s('excluir_clientes'),
+  };
+}
+
+function _negarCli(res, msg) {
+  return res.status(403).json({ error: msg || 'Sem permissão' });
+}
+
 let _temClienteFotos = null;
 
 async function temClienteFotos(pool) {
@@ -394,6 +411,8 @@ router.get('/:id', async (req, res) => {
 // ─── POST /api/clientes ───────────────────────────────────────────────────────
 router.post('/', async (req, res) => {
   try {
+    const pc = _permCli(req);
+    if (pc.incluir !== 'S') return _negarCli(res, 'Sem permissão para incluir clientes');
     const pool  = getPool();
     const body  = req.body;
 
@@ -462,6 +481,8 @@ router.post('/', async (req, res) => {
 // ─── PUT /api/clientes/:id ────────────────────────────────────────────────────
 router.put('/:id', async (req, res) => {
   try {
+    const pc = _permCli(req);
+    if (pc.alterar !== 'S') return _negarCli(res, 'Sem permissão para alterar clientes');
     const pool  = getPool();
     const body  = req.body;
     const { id } = req.params;
@@ -520,6 +541,8 @@ router.put('/:id', async (req, res) => {
 // ─── PUT /api/clientes/:id/ativar ─────────────────────────────────────────────
 router.put('/:id/ativar', async (req, res) => {
   try {
+    const pc = _permCli(req);
+    if (pc.alterar !== 'S') return _negarCli(res, 'Sem permissão para alterar clientes');
     const pool = getPool();
     await pool.query(`UPDATE clientes SET status='A', dtalterado=NOW() WHERE id=?`, [req.params.id]);
     res.json({ ok: true });
@@ -531,6 +554,8 @@ router.put('/:id/ativar', async (req, res) => {
 // ─── PUT /api/clientes/:id/inativar ──────────────────────────────────────────
 router.put('/:id/inativar', async (req, res) => {
   try {
+    const pc = _permCli(req);
+    if (pc.alterar !== 'S') return _negarCli(res, 'Sem permissão para alterar clientes');
     const pool = getPool();
     await pool.query(`UPDATE clientes SET status='I', dtalterado=NOW() WHERE id=?`, [req.params.id]);
     res.json({ ok: true });
@@ -542,6 +567,8 @@ router.put('/:id/inativar', async (req, res) => {
 // ─── DELETE /api/clientes/:id (soft delete) ───────────────────────────────────
 router.delete('/:id', async (req, res) => {
   try {
+    const pc = _permCli(req);
+    if (pc.excluir !== 'S') return _negarCli(res, 'Sem permissão para excluir clientes');
     const pool = getPool();
     await pool.query(
       `UPDATE clientes SET excluido='S', status='E', dtalterado=NOW() WHERE id=?`,
@@ -575,6 +602,8 @@ router.get('/:id/financeiro', async (req, res) => {
 const PATCH_CAMPOS_PERMITIDOS = new Set(['dnd', 'venda_suspensa']);
 router.patch('/:id', async (req, res) => {
   try {
+    const pc = _permCli(req);
+    if (pc.alterar !== 'S') return _negarCli(res, 'Sem permissão para alterar clientes');
     const pool = getPool();
     const campos = Object.keys(req.body).filter(k => PATCH_CAMPOS_PERMITIDOS.has(k));
     if (!campos.length) return res.status(400).json({ error: 'Nenhum campo permitido informado' });
@@ -658,6 +687,8 @@ router.get('/:id/fotos', async (req, res) => {
 router.post('/:id/fotos', upload.single('arquivo'), async (req, res) => {
   const handler = async () => {
     try {
+      const pc = _permCli(req);
+      if (pc.alterar !== 'S') return _negarCli(res, 'Sem permissão para alterar clientes');
       if (!req.file) return res.status(400).json({ error: 'Arquivo não enviado' });
       const pool = getPool();
       if (!(await temClienteFotos(pool))) {
@@ -686,6 +717,8 @@ router.post('/:id/fotos', upload.single('arquivo'), async (req, res) => {
 // ─── DELETE /api/clientes/:id/fotos/:fotoId — soft delete ────────────────────
 router.delete('/:id/fotos/:fotoId', async (req, res) => {
   try {
+    const pc = _permCli(req);
+    if (pc.alterar !== 'S') return _negarCli(res, 'Sem permissão para alterar clientes');
     if (!(await temClienteFotos(getPool()))) return res.json({ ok: true });
     const pool = getPool();
     const [rows] = await pool.query(
