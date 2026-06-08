@@ -3,7 +3,37 @@ const router = express.Router();
 const { getPool } = require('../config/database');
 const { sanitizeEmpresaRow } = require('../services/empresa-logo');
 const { enrichProdutosComPromocao, parseOptInt, tabelaPromocoesExiste } = require('../config/promocoes-produto');
+const { listarReposicaoProdutos } = require('../config/reposicao-produtos');
+const { listarOportunidadesProdutos } = require('../config/oportunidades-produtos');
+const {
+  attachDestaquesComerciais,
+  sqlExistsDestaqueComercial,
+  tabelaProdutosDestaqueExiste,
+} = require('../config/produtos-destaque');
 const { ensureItenspedPromoColumns } = require('../config/schema-migrations');
+const { hojeIsoBrasil, addDaysIsoBrasil } = require('../config/date-brasil');
+const { calcFeirinhaResumo } = require('../config/feirinha-calc');
+const { listarProdutosFeirinha } = require('../config/feirinha-produtos');
+const {
+  isPrepostoUser,
+  stripPedidoComissaoRep,
+  stripFornecedorComissaoRep,
+  stripItensComissaoRep,
+  sanitizeComissoesFaturamentoForPreposto,
+  stripVendedorComissaoRep,
+  stripProdutosComissaoRep,
+} = require('../config/comissao-preposto-guard');
+const {
+  listVendedoresVisiveis,
+  resolveVendedorIdForFilter,
+  buildPedidosVendedorWhere,
+  buildPedidosVendedorWhereSync,
+  canPickOtherVendors,
+} = require('../config/vendedor-visibilidade');
+const {
+  calcBaseItemTotal,
+  calcPesoTotalExibir,
+} = require('../config/preco-peso-produto');
 
 async function _promoCtxFromPedidoQuery(pool, query) {
   const codCliente = parseOptInt(query.cod_cliente);
@@ -201,10 +231,11 @@ const PEDIDO_NUMERIC_FIELDS = new Set([
   'vlrtotalitenspuxada', 'vlr_totpuxada',
   'comissao', 'vlrcomissao', 'vlr_comissaonormal', 'vlr_total_comissao', 'comissaogerente',
   'vlr_faturado', 'vlr_faturamento', 'vlr_diferencafaturamento',
-  'vlr_comissao_preposto'
+  'vlr_comissao_preposto',
+  'preco_medio_feirinha', 'preco_revenda_feirinha',
 ]);
 
-const PEDIDO_ID_FIELDS = new Set(['id_empresa', 'id_filial', 'id_preposto']);
+const PEDIDO_ID_FIELDS = new Set(['id_empresa', 'id_filial', 'id_preposto', 'id_campanha_feirinha']);
 /** Campos DATE no MySQL: string vazia quebra o UPDATE — usar NULL */
 const PEDIDO_DATE_FIELDS = new Set(['data_entrega', 'data_faturado', 'data_faturadofabrica']);
 
@@ -507,6 +538,98 @@ function normalizeTipoPrecoItensped(tipo) {
   return t || 'venda';
 }
 
+async function _getSomaEmbalagemPedido(conn) {
+  const [rows] = await conn.query(
+    `SELECT COALESCE(soma_embalagempedido, 'N') AS v FROM sistemas ORDER BY id DESC LIMIT 1`
+  ).catch(() => [[{ v: 'N' }]]);
+  return rows[0]?.v || 'N';
+}
+
+async function _getPesoExibirFornecedor(conn, codFornecedor) {
+  if (!codFornecedor) return 'N';
+  const [rows] = await conn.query(
+    `SELECT COALESCE(peso_exibritelapedidos, 'N') AS v FROM fornecedores WHERE id = ? LIMIT 1`,
+    [codFornecedor]
+  ).catch(() => [[]]);
+  return rows[0]?.v || 'N';
+}
+
+/** Recalcula total e peso do item com a mesma regra do frontend (preço por peso / embalagem). */
+async function _normalizeItensPrecoPeso(conn, itens, codFornecedor) {
+  if (!Array.isArray(itens) || !itens.length) return itens;
+
+  const somaEmb = await _getSomaEmbalagemPedido(conn);
+  const pesoExibir = await _getPesoExibirFornecedor(conn, codFornecedor);
+  const pool = conn;
+  const tb = await _getProdTabela(pool);
+  const ids = [...new Set(itens.map((i) => parseInt(i.cod_produto, 10)).filter(Boolean))];
+  if (!ids.length) return itens;
+
+  const [prods] = await conn.query(
+    `SELECT ID, IFNULL(precopeso, 'N') AS precopeso, IFNULL(kilo_embalagem, 0) AS kilo_embalagem,
+            descricao
+     FROM ${tb} WHERE ID IN (?)`,
+    [ids]
+  );
+  const prodMap = new Map(prods.map((p) => [p.ID, p]));
+
+  return itens.map((item) => {
+    const prod = prodMap.get(parseInt(item.cod_produto, 10));
+    const precopeso = item.precopeso || prod?.precopeso || 'N';
+    const embalagem = parseFloat(item.embalagem ?? item.kilo_embalagem) || 0;
+    let kiloCat = parseFloat(prod?.kilo_embalagem) || 0;
+    if (item.embalagem != null && item.embalagem !== '' && item.kilo_embalagem != null) {
+      kiloCat = parseFloat(item.kilo_embalagem) || kiloCat;
+    }
+
+    const base = calcBaseItemTotal({
+      quantidade: item.quantidade,
+      valorUnitario: item.valor_unitario,
+      descontoPct: item.desconto_percentual ?? item.desconto ?? 0,
+      acrescimoPct: item.acrescimo_percentual ?? item.acrescimo ?? 0,
+      embalagem,
+      kilo_embalagem: kiloCat,
+      precopeso,
+      somaEmbalagempedido: somaEmb,
+    });
+
+    const vlrtotal = Math.round(base * 100) / 100;
+    const stPct = parseFloat(item.st_percentual ?? item.st) || 0;
+    const ipiPct = parseFloat(item.ipi_percentual ?? item.ipi) || 0;
+    const icmsPct = parseFloat(item.icms_percentual ?? item.icms) || 0;
+    const vlrSt = Math.round(vlrtotal * stPct / 100 * 100) / 100;
+    const vlrIpi = Math.round(vlrtotal * ipiPct / 100 * 100) / 100;
+    const vlrIcms = Math.round(vlrtotal * icmsPct / 100 * 1000) / 1000;
+    const vlrComImp = Math.round((vlrtotal + vlrSt + vlrIpi + vlrIcms) * 1000) / 1000;
+
+    return {
+      ...item,
+      desc_prod: resolveDescProdItem(item, prod?.descricao),
+      precopeso,
+      embalagem,
+      vlrtotal_itens: vlrtotal,
+      vlr_st: vlrSt,
+      vlr_ipi: vlrIpi,
+      vlr_icms: vlrIcms,
+      vlrtotal_com_imposto: vlrComImp,
+      vlrtotalcomimposto: vlrComImp,
+      total_peso: calcPesoTotalExibir({
+        quantidade: item.quantidade,
+        embalagem,
+        kilo_embalagem: kiloCat,
+        precopeso,
+        exibirPeso: pesoExibir,
+      }),
+    };
+  });
+}
+
+function resolveDescProdItem(item, prodDescricao) {
+  const raw = item.desc_prod || item.desc_produto || item.descricao || item.descProd || prodDescricao || '';
+  const s = String(raw).trim();
+  return s ? s.slice(0, 150) : null;
+}
+
 function buildItenspedInsertParams(item, ctx) {
   const {
     numpedido, idPedido, codFornecedor, tipoPedido, idTipoPedido, seqItem,
@@ -526,7 +649,7 @@ function buildItenspedInsertParams(item, ctx) {
   return [
     numpedido, idPedido,
     item.cod_produto, item.cod_fabricante || '', codFornecedor || null,
-    item.desc_prod, item.unidade || '', item.embalagem || 0,
+    resolveDescProdItem(item), item.unidade || '', item.embalagem || 0,
     item.quantidade, nPedidoField(item.vlr_padrao), item.valor_unitario, item.vlrtotal_itens,
     imp.vlrTotalComImp,
     item.desconto_percentual || 0, item.comissao_percentual || 0, item.acrescimo_percentual || 0,
@@ -695,7 +818,7 @@ async function _calcComissaoBackend(conn, codFornecedor, idUsuario, itens, idPre
 async function salvarParcelas(conn, num, pedidoId, pedido, parcelas) {
   if (!parcelas || !parcelas.length) return;
   await conn.query(`DELETE FROM receber WHERE numero = ? AND id_pedido = ?`, [num, pedidoId]).catch(() => {});
-  const dataBase = pedido.data_abertura || new Date().toISOString().slice(0, 10);
+  const dataBase = pedido.data_abertura || hojeIsoBrasil();
 
   // ── Config de comissão do fornecedor ────────────────────────────────────────
   let fornConfig = { com_sobre_ipi: 'S', com_sobre_st: 'S', com_tipo: 'PARCELADA' };
@@ -876,7 +999,7 @@ router.get('/lookups', async (req, res) => {
     const acessaTodos = isAdmin ? 'S' : (perm.acessartodosclientes || '');
     const eGerente    = !isAdmin && perm.gerentecomercial === 'S';
 
-    const [vendedores]   = await pool.query("SELECT idusuario as id, nomeusu as nome, pix_tipo, pix_chave FROM usuarios WHERE excluido='N' ORDER BY nomeusu");
+    const vendedores = await listVendedoresVisiveis(pool, req, { pix: true });
     const [fornecedores] = await pool.query("SELECT id as id, nome as nome FROM fornecedores WHERE (excluido='N' OR excluido IS NULL) AND COALESCE(tipo, 'FABRICA') = 'FABRICA' ORDER BY nome");
 
     let qClientes = `SELECT id as id, nome as nome FROM clientes WHERE (excluido='N' OR excluido IS NULL)`;
@@ -923,6 +1046,7 @@ router.get('/', async (req, res) => {
     const _perm      = req.user?.permissoes || {};
     const _acessaTodos = _isAdmin ? 'S' : (_perm.acessartodosclientes || '');
     const _eGerente    = !_isAdmin && _perm.gerentecomercial === 'S';
+    const _ePreposto   = isPrepostoUser(req);
 
     let visWhere = '';
     let visParams = [];
@@ -930,6 +1054,9 @@ router.get('/', async (req, res) => {
       if (_eGerente) {
         visWhere = ` AND (p.id_usuario = ? OR p.id_usuario IN (SELECT idusuario FROM usuarios WHERE id_gerente = ? AND excluido = 'N'))`;
         visParams = [_userId, _userId];
+      } else if (_ePreposto) {
+        visWhere = ` AND p.id_preposto = ?`;
+        visParams = [_userId];
       } else {
         visWhere = ` AND p.id_usuario = ?`;
         visParams = [_userId];
@@ -983,7 +1110,8 @@ router.get('/', async (req, res) => {
       params.push(dt_fim); paramsCards.push(dt_fim);
     }
 
-    if (id_vendedor) addFilter('p.id_usuario', id_vendedor);
+    const idVendFiltro = await resolveVendedorIdForFilter(pool, req, id_vendedor);
+    if (idVendFiltro) addFilter('p.id_usuario', idVendFiltro);
 
     // Filtros de Faixa
     if (min_total) { whereClause += ` AND p.vlrtotalpedido >= ?`; whereClauseCards += ` AND p.vlrtotalpedido >= ?`; params.push(parseFloat(min_total)); paramsCards.push(parseFloat(min_total)); }
@@ -1154,6 +1282,10 @@ router.get('/', async (req, res) => {
       }
     }
 
+    if (isPrepostoUser(req)) {
+      rows = rows.map(stripPedidoComissaoRep);
+    }
+
     res.json({ 
       pedidos: rows,
       pagination: {
@@ -1180,29 +1312,39 @@ router.get('/', async (req, res) => {
 router.get('/lookup/vendedores', async (req, res) => {
   try {
     const pool = getPool();
+    const visiveis = await listVendedoresVisiveis(pool, req, { onlyPVender: true });
+    const ids = visiveis.map(v => v.id).filter(Boolean);
+    if (!ids.length) return res.json({ vendedores: [] });
+
     const [rows] = await pool.query(`
-      SELECT 
-        u.idusuario AS id, 
-        u.nomeusu AS nome_vendedor, 
+      SELECT
+        u.idusuario AS id,
+        u.nomeusu AS nome_vendedor,
         u.nomeusu AS nome,
-        p.acessartodosclientes, 
+        p.acessartodosclientes,
         p.alterardatapedido,
-        u.rota_vendedor, 
-        u.email, 
-        u.comissaofixavendedor, 
-        u.comissaogerente, 
-        u.permitevendasemcomissao, 
+        u.rota_vendedor,
+        u.email,
+        u.comissaofixavendedor,
+        u.comissaogerente,
+        u.permitevendasemcomissao,
         u.compartilhacomissaogerente,
         u.fonesecundario
       FROM usuarios u
       INNER JOIN perfil p ON p.id = u.idperfil
-      WHERE u.excluido = 'N'
-      AND (u.situacao = 'ATIVO' OR u.situacao IS NULL)
-      AND p.excluido = 'N'
-      AND p.p_vender = 'S'
+      WHERE u.idusuario IN (?)
+        AND u.excluido = 'N'
+        AND (u.situacao = 'ATIVO' OR u.situacao IS NULL)
+        AND p.excluido = 'N'
+        AND p.p_vender = 'S'
       ORDER BY u.nomeusu
-    `).catch(() => [[]]);
-    res.json({ vendedores: rows });
+    `, [ids]).catch(() => [[]]);
+
+    let vendedores = rows;
+    if (isPrepostoUser(req)) {
+      vendedores = vendedores.map(stripVendedorComissaoRep);
+    }
+    res.json({ vendedores });
   } catch (err) {
     res.json({ vendedores: [] });
   }
@@ -1261,11 +1403,12 @@ router.get('/produtos/busca', async (req, res) => {
     const pool = getPool();
     const tb = await _getProdTabela(pool);
     await _ensureProdCols(pool);
-    const { q = '', limit = 15, id_fornecedor, id_tabela, catalogo, somente_promocao, somente_destaque } = req.query;
+    const { q = '', limit = 15, id_fornecedor, id_tabela, catalogo, somente_promocao, somente_destaque, somente_lancamento } = req.query;
     const tabelaId = (id_tabela && id_tabela !== 'null' && id_tabela !== '0') ? parseInt(id_tabela) : null;
     const isCatalogo = catalogo === '1' || catalogo === 'true';
     const filtrarPromo = somente_promocao === '1' || somente_promocao === 'true' || somente_promocao === 'S';
     const filtrarDestaque = somente_destaque === '1' || somente_destaque === 'true' || somente_destaque === 'S';
+    const filtrarLancamento = somente_lancamento === '1' || somente_lancamento === 'true' || somente_lancamento === 'S';
 
     const [sysRows] = await pool.query('SELECT itenspedidofornecedor FROM sistemas ORDER BY id DESC LIMIT 1').catch(() => [[]]);
     const itensForn = sysRows[0]?.itenspedidofornecedor || 'N';
@@ -1277,28 +1420,35 @@ router.get('/produtos/busca', async (req, res) => {
     let precoTabelaExpr = 'NULL';
     const fId = (id_fornecedor && id_fornecedor !== 'null' && id_fornecedor !== '0') ? parseInt(id_fornecedor) : null;
 
-    // Catálogo visual com tabela ativa: produtos cadastrados na tabela (estilo Mercos)
+    // Verifica se a tabela tem itens em tabela_preco_itens (tabelas legado podem não ter)
+    let tableHasItens = false;
     if (isCatalogo && tabelaId) {
+      const [[tblChk]] = await pool.query(
+        `SELECT 1 FROM tabela_preco_itens WHERE id_tabela = ? LIMIT 1`, [tabelaId]
+      ).catch(() => [[null]]);
+      tableHasItens = !!tblChk;
+    }
+
+    // Catálogo visual com tabela ativa: produtos cadastrados na tabela (estilo Mercos)
+    if (isCatalogo && tabelaId && tableHasItens) {
       join = ` INNER JOIN tabela_preco_itens tpi ON CAST(tpi.cod_produto AS UNSIGNED) = p.ID
                  AND tpi.id_tabela = ?
                  AND (tpi.excluido = 'N' OR tpi.excluido IS NULL OR tpi.excluido = '')
-                 AND tpi.ativo = 'S' `;
+                 AND (tpi.ativo = 'S' OR tpi.ativo IS NULL OR tpi.ativo = '') `;
       params.push(tabelaId);
       vlrVendaExpr = 'COALESCE(tpi.valor_tabela, tpi.preco_venda, p.vlr_venda)';
       precoTabelaExpr = 'tpi.valor_tabela';
     } else if (tabelaId) {
-      join += ` LEFT JOIN tabela_preco_itens tpi ON CAST(tpi.cod_produto AS UNSIGNED) = p.ID AND tpi.id_tabela = ? AND (tpi.excluido = 'N' OR tpi.excluido IS NULL OR tpi.excluido = '') AND tpi.ativo = 'S'`;
+      join += ` LEFT JOIN tabela_preco_itens tpi ON CAST(tpi.cod_produto AS UNSIGNED) = p.ID AND tpi.id_tabela = ? AND (tpi.excluido = 'N' OR tpi.excluido IS NULL OR tpi.excluido = '') AND (tpi.ativo = 'S' OR tpi.ativo IS NULL OR tpi.ativo = '')`;
       params.push(tabelaId);
       vlrVendaExpr = 'COALESCE(tpi.valor_tabela, p.vlr_venda)';
       precoTabelaExpr = 'tpi.valor_tabela';
     }
 
-    if (!(isCatalogo && tabelaId)) {
-      if (itensForn === 'S') {
-        if (!fId) return res.json({ data: [] });
-        whereExtra = 'AND CAST(p.cod_fornecedorpadrao AS UNSIGNED) = ?';
-        params.push(fId);
-      } else if (fId) {
+    // Filtro de fábrica: pulado quando INNER JOIN (tabela já limita ao fornecedor)
+    if (!(isCatalogo && tabelaId && tableHasItens)) {
+      if (itensForn === 'S' && !fId) return res.json({ data: [] });
+      if (fId) {
         whereExtra = `AND (
           CAST(p.cod_fornecedorpadrao AS UNSIGNED) = ?
           OR EXISTS (
@@ -1328,14 +1478,34 @@ router.get('/produtos/busca', async (req, res) => {
       }
     }
 
-    if ((filtrarPromo || filtrarDestaque) && (await tabelaPromocoesExiste(pool))) {
+    if (filtrarDestaque) {
+      const partesDestaque = [];
+      if (await tabelaPromocoesExiste(pool)) {
+        partesDestaque.push(`EXISTS (
+          SELECT 1 FROM produto_promocoes pp
+          WHERE pp.cod_produto = p.ID AND pp.excluido = 'N' AND pp.ativo = 'S'
+            AND (pp.data_inicio IS NULL OR pp.data_inicio <= CURDATE())
+            AND (pp.data_fim IS NULL OR pp.data_fim >= CURDATE())
+            AND pp.destaque = 'S'
+        )`);
+      }
+      if (await tabelaProdutosDestaqueExiste(pool)) {
+        partesDestaque.push(sqlExistsDestaqueComercial('p', { idFornecedor: fId }));
+      }
+      if (partesDestaque.length) {
+        whereExtra += ` AND (${partesDestaque.join(' OR ')})`;
+      }
+    } else if (filtrarPromo && (await tabelaPromocoesExiste(pool))) {
       whereExtra += ` AND EXISTS (
         SELECT 1 FROM produto_promocoes pp
         WHERE pp.cod_produto = p.ID AND pp.excluido = 'N' AND pp.ativo = 'S'
           AND (pp.data_inicio IS NULL OR pp.data_inicio <= CURDATE())
           AND (pp.data_fim IS NULL OR pp.data_fim >= CURDATE())
-          ${filtrarDestaque ? " AND pp.destaque = 'S' " : ''}
       )`;
+    }
+
+    if (filtrarLancamento) {
+      whereExtra += ` AND p.dt_cadastro IS NOT NULL AND p.dt_cadastro >= DATE_SUB(CURDATE(), INTERVAL 90 DAY) `;
     }
 
     const [rows] = await pool.query(
@@ -1348,6 +1518,7 @@ router.get('/produtos/busca', async (req, res) => {
               IFNULL(p.icms, 0) as icms,
               IFNULL(p.valor_puxada, 0) as valor_puxada,
               IFNULL(p.kilo_embalagem, 0) as kilo_embalagem,
+              IFNULL(p.precopeso, 'N') as precopeso,
               IFNULL(p.multiplo_venda, 1) as multiplo_venda,
               IFNULL(p.estoque_atual, 0) as estoque_atual,
               IFNULL(p.disponivel, 'S') as disponivel,
@@ -1374,11 +1545,19 @@ router.get('/produtos/busca', async (req, res) => {
     const promoCtx = await _promoCtxFromPedidoQuery(pool, req.query);
     const qtdPromo = parseFloat(req.query.qtd) || 1;
     let data = await enrichProdutosComPromocao(pool, rows, { qtd: qtdPromo, ...promoCtx });
-    if (filtrarPromo || filtrarDestaque) {
+    data = await attachDestaquesComerciais(pool, data, promoCtx);
+    if (filtrarPromo) {
       data = data.filter((p) => p.tem_promocao || p.promocao_ativa);
-      if (filtrarDestaque) {
-        data = data.filter((p) => p.promocao_ativa?.destaque || p.promocoes?.some((x) => x.destaque));
-      }
+    }
+    if (filtrarDestaque) {
+      data = data.filter((p) =>
+        p.destaque_comercial
+        || p.promocao_ativa?.destaque
+        || (p.promocoes || []).some((x) => x.destaque)
+      );
+    }
+    if (isPrepostoUser(req)) {
+      data = stripProdutosComissaoRep(data);
     }
     res.json({ data });
   } catch (err) {
@@ -1393,7 +1572,9 @@ router.get('/produtos/promocoes-resumo', async (req, res) => {
     const pool = getPool();
     const tb = await _getProdTabela(pool);
     const fId = parseInt(req.query.id_fornecedor, 10);
-    if (!fId || !(await tabelaPromocoesExiste(pool))) {
+    const temPromo = await tabelaPromocoesExiste(pool);
+    const temDestCom = await tabelaProdutosDestaqueExiste(pool);
+    if (!fId || (!temPromo && !temDestCom)) {
       return res.json({ total: 0, destaques: 0 });
     }
 
@@ -1426,7 +1607,7 @@ router.get('/produtos/promocoes-resumo', async (req, res) => {
         AND (pp.data_fim IS NULL OR pp.data_fim >= CURDATE())
     )`;
 
-    const [[{ total }]] = await pool.query(
+    const [[{ total }]] = temPromo ? await pool.query(
       `SELECT COUNT(DISTINCT p.ID) AS total
        FROM ${tb} p
        WHERE (p.excluido = 'N' OR p.excluido IS NULL OR p.excluido = '')
@@ -1434,7 +1615,16 @@ router.get('/produtos/promocoes-resumo', async (req, res) => {
          ${fornWhere}
          AND ${promoExists}`,
       params
-    );
+    ) : [{ total: 0 }];
+
+    const destPromoSql = temPromo ? `EXISTS (
+           SELECT 1 FROM produto_promocoes pp
+           WHERE pp.cod_produto = p.ID AND pp.excluido = 'N' AND pp.ativo = 'S'
+             AND pp.destaque = 'S'
+             AND (pp.data_inicio IS NULL OR pp.data_inicio <= CURDATE())
+             AND (pp.data_fim IS NULL OR pp.data_fim >= CURDATE())
+         )` : '0';
+    const destComSql = temDestCom ? sqlExistsDestaqueComercial('p', { idFornecedor: fId }) : '0';
 
     const [[{ destaques }]] = await pool.query(
       `SELECT COUNT(DISTINCT p.ID) AS destaques
@@ -1442,18 +1632,286 @@ router.get('/produtos/promocoes-resumo', async (req, res) => {
        WHERE (p.excluido = 'N' OR p.excluido IS NULL OR p.excluido = '')
          AND p.situacao = 'A'
          ${fornWhere}
-         AND EXISTS (
-           SELECT 1 FROM produto_promocoes pp
-           WHERE pp.cod_produto = p.ID AND pp.excluido = 'N' AND pp.ativo = 'S'
-             AND pp.destaque = 'S'
-             AND (pp.data_inicio IS NULL OR pp.data_inicio <= CURDATE())
-             AND (pp.data_fim IS NULL OR pp.data_fim >= CURDATE())
-         )`,
+         AND (${destPromoSql} OR ${destComSql})`,
       params
     );
 
     res.json({ total: Number(total) || 0, destaques: Number(destaques) || 0 });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+async function _fetchProdutosEnriquecidosPorIds(pool, tb, ids, req, { idFornecedor, tabelaId } = {}) {
+  if (!ids.length) return new Map();
+
+  const placeholders = ids.map(() => '?').join(',');
+  const [sysRows] = await pool.query('SELECT itenspedidofornecedor FROM sistemas ORDER BY id DESC LIMIT 1').catch(() => [[]]);
+  const itensForn = sysRows[0]?.itenspedidofornecedor || 'N';
+
+  const params = [...ids];
+  let join = '';
+  let vlrVendaExpr = 'p.vlr_venda';
+  let precoTabelaExpr = 'NULL';
+  if (tabelaId) {
+    join = ` LEFT JOIN tabela_preco_itens tpi ON CAST(tpi.cod_produto AS UNSIGNED) = p.ID AND tpi.id_tabela = ? AND (tpi.excluido = 'N' OR tpi.excluido IS NULL OR tpi.excluido = '') AND tpi.ativo = 'S'`;
+    params.unshift(tabelaId);
+    vlrVendaExpr = 'COALESCE(tpi.valor_tabela, p.vlr_venda)';
+    precoTabelaExpr = 'tpi.valor_tabela';
+  }
+
+  let fornWhere = '';
+  if (idFornecedor) {
+    if (itensForn === 'S') {
+      fornWhere = ' AND CAST(p.cod_fornecedorpadrao AS UNSIGNED) = ? ';
+      params.push(idFornecedor);
+    } else {
+      fornWhere = ` AND (
+        CAST(p.cod_fornecedorpadrao AS UNSIGNED) = ?
+        OR EXISTS (
+          SELECT 1 FROM produtofornecedor pf
+          WHERE CAST(pf.cod_produto AS UNSIGNED) = p.ID
+            AND CAST(pf.cod_fornecedor AS UNSIGNED) = ?
+            AND (pf.excluido = 'N' OR pf.excluido IS NULL OR pf.excluido = '')
+            AND pf.status = 'A'
+        )
+      )`;
+      params.push(idFornecedor, idFornecedor);
+    }
+  }
+
+  const [prodRows] = await pool.query(
+    `SELECT p.ID as id, p.ID as cod_produto,
+            p.cod_fabricante, p.cod_barras, p.descricao, p.descricao as desc_produto,
+            p.unidade, ${vlrVendaExpr} as vlr_venda, ${precoTabelaExpr} as preco_da_tabela, p.ipi, p.comissao,
+            IFNULL(p.precoa, 0) as precoa, IFNULL(p.precob, 0) as precob,
+            IFNULL(p.precoc, 0) as precoc, IFNULL(p.precopromo, 0) as precopromo,
+            IFNULL(p.st, 0) as st,
+            IFNULL(p.icms, 0) as icms,
+            IFNULL(p.valor_puxada, 0) as valor_puxada,
+            IFNULL(p.kilo_embalagem, 0) as kilo_embalagem,
+            IFNULL(p.precopeso, 'N') as precopeso,
+            IFNULL(p.multiplo_venda, 1) as multiplo_venda,
+            IFNULL(p.estoque_atual, 0) as estoque_atual,
+            IFNULL(p.disponivel, 'S') as disponivel,
+            p.dt_cadastro,
+            COALESCE(p.foto_principal, (
+              SELECT CONCAT('/uploads/produtos/', p.ID, '/', pi.filename)
+              FROM produto_imagens pi
+              WHERE CAST(pi.cod_produto AS UNSIGNED) = p.ID
+              ORDER BY pi.is_principal DESC, pi.id ASC
+              LIMIT 1
+            )) AS foto_principal,
+            IFNULL(p.tipograde, 0) as tipograde,
+            IFNULL(p.solado, '') as solado,
+            IFNULL(p.tipoprodutograde, '') as tipoprodutograde
+     FROM ${tb} p
+     ${join}
+     WHERE p.ID IN (${placeholders})
+       AND (p.excluido = 'N' OR p.excluido IS NULL OR p.excluido = '')
+       AND p.situacao = 'A'
+       ${fornWhere}`,
+    params
+  );
+
+  const promoCtx = await _promoCtxFromPedidoQuery(pool, req.query);
+  const enriched = await enrichProdutosComPromocao(pool, prodRows, { qtd: 1, ...promoCtx });
+  return new Map(enriched.map((p) => [parseInt(p.cod_produto, 10), p]));
+}
+
+// GET /api/pedidos/produtos/reposicao — sugestão de recompra pelo histórico do cliente
+router.get('/produtos/reposicao', async (req, res) => {
+  try {
+    const pool = getPool();
+    const tb = await _getProdTabela(pool);
+    await _ensureProdCols(pool);
+    const codCliente = parseOptInt(req.query.cod_cliente);
+    const idFornecedor = parseOptInt(req.query.id_fornecedor || req.query.cod_fornecedor);
+    const tabelaId = parseOptInt(req.query.id_tabela || req.query.id_tabela_preco);
+    const q = String(req.query.q || '').trim();
+
+    const resultado = await listarReposicaoProdutos(pool, _getProdTabela, {
+      codCliente,
+      idFornecedor,
+      q,
+    });
+
+    if (!resultado.data.length) {
+      return res.json({
+        data: [],
+        sem_historico: resultado.sem_historico,
+        mensagem: resultado.mensagem || null,
+        total: 0,
+      });
+    }
+
+    const ids = resultado.data.map((r) => parseInt(r.cod_produto, 10)).filter(Boolean);
+    const enrichedMap = await _fetchProdutosEnriquecidosPorIds(pool, tb, ids, req, {
+      idFornecedor,
+      tabelaId,
+    });
+
+    const data = resultado.data
+      .filter((r) => enrichedMap.has(parseInt(r.cod_produto, 10)))
+      .map((r) => {
+        const pid = parseInt(r.cod_produto, 10);
+        const prod = enrichedMap.get(pid) || {};
+        return {
+          ...prod,
+          cod_produto: pid,
+          desc_produto: prod.desc_produto || r.desc_produto,
+          ultima_compra: r.ultima_compra,
+          ultima_compra_fmt: r.ultima_compra_fmt,
+          dias_desde_ultima: r.dias_desde_ultima,
+          media_mensal: r.media_mensal,
+          qtd_sugerida: r.qtd_sugerida,
+          qtd_12m: r.qtd_12m,
+          qtd_historico: r.qtd_historico,
+          semaforo: r.semaforo,
+          semaforo_emoji: r.semaforo_emoji,
+          semaforo_label: r.semaforo_label,
+          hint_reposicao: r.hint_reposicao,
+        };
+      });
+
+    res.json({
+      data,
+      sem_historico: false,
+      total: data.length,
+    });
+  } catch (err) {
+    console.error('[/produtos/reposicao] ERRO:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/pedidos/produtos/oportunidades — complementares por região (cliente ainda não comprou)
+router.get('/produtos/oportunidades', async (req, res) => {
+  try {
+    const pool = getPool();
+    const tb = await _getProdTabela(pool);
+    await _ensureProdCols(pool);
+    const codCliente = parseOptInt(req.query.cod_cliente);
+    const idFornecedor = parseOptInt(req.query.id_fornecedor || req.query.cod_fornecedor);
+    const tabelaId = parseOptInt(req.query.id_tabela || req.query.id_tabela_preco);
+    const q = String(req.query.q || '').trim();
+
+    const resultado = await listarOportunidadesProdutos(pool, _getProdTabela, {
+      codCliente,
+      idFornecedor,
+      q,
+    });
+
+    if (!resultado.data.length) {
+      return res.json({
+        data: [],
+        sem_dados: resultado.sem_dados,
+        mensagem: resultado.mensagem || null,
+        total: 0,
+      });
+    }
+
+    const ids = resultado.data.map((r) => parseInt(r.cod_produto, 10)).filter(Boolean);
+    const enrichedMap = await _fetchProdutosEnriquecidosPorIds(pool, tb, ids, req, {
+      idFornecedor,
+      tabelaId,
+    });
+
+    const data = resultado.data
+      .filter((r) => enrichedMap.has(parseInt(r.cod_produto, 10)))
+      .map((r) => {
+        const pid = parseInt(r.cod_produto, 10);
+        const prod = enrichedMap.get(pid) || {};
+        return {
+          ...prod,
+          cod_produto: pid,
+          desc_produto: prod.desc_produto || r.desc_produto,
+          clientes_que_compram: r.clientes_que_compram,
+          qtd_total_regiao: r.qtd_total_regiao,
+          valor_total_regiao: r.valor_total_regiao,
+          qtd_sugerida: r.qtd_sugerida || 1,
+          hint_oportunidade: r.hint_oportunidade,
+        };
+      });
+
+    res.json({ data, sem_dados: false, total: data.length });
+  } catch (err) {
+    console.error('[/produtos/oportunidades] ERRO:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/pedidos/feirinha/calcular — preço médio, faixa e margem (espelha o painel do pedido)
+router.post('/feirinha/calcular', (req, res) => {
+  try {
+    const { itens, preco_revenda: precoRevenda, faixa_codigo, preco_medio_meta, preco_revenda_alvo } = req.body || {};
+    if (!Array.isArray(itens)) {
+      return res.status(400).json({ error: 'Campo itens (array) é obrigatório.' });
+    }
+    const resumo = calcFeirinhaResumo(itens, {
+      precoRevenda: precoRevenda != null ? parseFloat(precoRevenda) : null,
+      faixaCodigo: faixa_codigo,
+      precoMedioMeta: preco_medio_meta != null ? parseFloat(preco_medio_meta) : null,
+      precoRevendaAlvo: preco_revenda_alvo != null ? parseFloat(preco_revenda_alvo) : null,
+    });
+    res.json(resumo);
+  } catch (err) {
+    console.error('[/feirinha/calcular] ERRO:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/pedidos/produtos/feirinha — catálogo filtrado por faixa de preço médio
+router.get('/produtos/feirinha', async (req, res) => {
+  try {
+    const pool = getPool();
+    const tb = await _getProdTabela(pool);
+    await _ensureProdCols(pool);
+    const idFornecedor = parseOptInt(req.query.id_fornecedor || req.query.cod_fornecedor);
+    const tabelaId = parseOptInt(req.query.id_tabela || req.query.id_tabela_preco);
+    const resultado = await listarProdutosFeirinha(pool, _getProdTabela, {
+      idFornecedor,
+      tabelaId,
+      q: req.query.q,
+      faixa_codigo: req.query.faixa_codigo,
+      id_campanha: req.query.id_campanha,
+      preco_medio_meta: req.query.preco_medio_meta,
+      catalogo: req.query.catalogo !== '0',
+      limit: req.query.limit,
+    });
+    if (!resultado.data.length) {
+      return res.json({ data: [], total: 0, ...resultado });
+    }
+    const ids = resultado.data.map((r) => parseInt(r.cod_produto, 10)).filter(Boolean);
+    const enrichedMap = await _fetchProdutosEnriquecidosPorIds(pool, tb, ids, req, {
+      idFornecedor,
+      tabelaId,
+    });
+    const data = resultado.data
+      .filter((r) => enrichedMap.has(parseInt(r.cod_produto, 10)))
+      .map((r) => {
+        const pid = parseInt(r.cod_produto, 10);
+        const prod = enrichedMap.get(pid) || {};
+        return {
+          ...prod,
+          cod_produto: pid,
+          preco_unitario: r.preco_unitario,
+          faixa_codigo: r.faixa_codigo,
+          faixa_label: r.faixa_label,
+          preco_medio_meta: r.preco_medio_meta,
+          hint_feirinha: `Custo até ${r.preco_medio_meta != null ? Number(r.preco_medio_meta).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '—'} (${r.faixa_label})`,
+        };
+      });
+    res.json({
+      data,
+      total: data.length,
+      faixa_codigo: resultado.faixa_codigo,
+      faixa_label: resultado.faixa_label,
+      preco_medio_meta: resultado.preco_medio_meta,
+      mensagem: resultado.mensagem || null,
+    });
+  } catch (err) {
+    console.error('[/produtos/feirinha] ERRO:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -1620,7 +2078,10 @@ router.get('/lookup/produtos-avancado', async (req, res) => {
 
     const [rows] = await pool.query(sql, params);
     const promoCtx = await _promoCtxFromPedidoQuery(pool, req.query);
-    const produtos = await enrichProdutosComPromocao(pool, rows, { qtd: 1, ...promoCtx });
+    let produtos = await enrichProdutosComPromocao(pool, rows, { qtd: 1, ...promoCtx });
+    if (isPrepostoUser(req)) {
+      produtos = stripProdutosComissaoRep(produtos);
+    }
     res.json({ produtos });
   } catch (err) {
     console.error('Erro lookup produtos:', err);
@@ -1860,7 +2321,7 @@ async function getComissoesFaturamentoHandler(req, res) {
     const faturado = String(ped.informado_faturamento || '').toUpperCase() === 'S' ||
       String(ped.situacao_pedido || '').toUpperCase() === 'FATURADO';
 
-    res.json({
+    const payload = sanitizeComissoesFaturamentoForPreposto({
       pedido: {
         id: ped.id,
         numero: ped.numero,
@@ -1877,6 +2338,7 @@ async function getComissoesFaturamentoHandler(req, res) {
         situacao_pedido: ped.situacao_pedido,
         comissao: pctCom,
         vlr_total_comissao: parseFloat(ped.vlr_total_comissao) || totalComissao,
+        vlr_comissao_preposto: parseFloat(ped.vlr_comissao_preposto) || 0,
         condicao_pagto: ped.condicao_pagto
       },
       faturamento: {
@@ -1893,7 +2355,9 @@ async function getComissoesFaturamentoHandler(req, res) {
       total_comissao_prevista: Math.round(totalComissao * 100) / 100,
       nota_st: fornConfig.com_sobre_st !== 'S',
       nota_ipi: fornConfig.com_sobre_ipi !== 'S'
-    });
+    }, req, ped.id_preposto);
+
+    res.json(payload);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -2211,15 +2675,22 @@ router.get('/offline-pack', async (req, res) => {
     `, [idUsuario]).catch(() => [[]]);
     const permDb = permRows[0] || {};
 
-    const acessaTodos = isAdmin ? 'S' : (permDb.acessartodosclientes || '');
-    const eGerente = !isAdmin && permDb.gerentecomercial === 'S';
-    const veTodosClientes = isAdmin || acessaTodos === 'S' || eGerente;
+    const permJwt = req.user?.permissoes || {};
+    const acessaTodos = isAdmin ? 'S' : (permDb.acessartodosclientes || permJwt.acessartodosclientes || '');
+    const eGerente = !isAdmin && (permDb.gerentecomercial === 'S' || permJwt.gerentecomercial === 'S');
+    const veTodosClientes = isAdmin || acessaTodos === 'S';
 
     let qCli = `SELECT c.* FROM clientes c WHERE (c.excluido = 'N' OR c.excluido IS NULL OR c.excluido = '')`;
     const pCli = [];
     if (!veTodosClientes) {
-      qCli += ` AND (c.cod_vendedor IS NULL OR c.cod_vendedor = '' OR c.cod_vendedor = ?)`;
-      pCli.push(idUsuario);
+      if (eGerente) {
+        qCli += ` AND (c.cod_vendedor = ? OR CAST(c.cod_vendedor AS UNSIGNED) = ?
+          OR c.cod_vendedor IN (SELECT idusuario FROM usuarios WHERE id_gerente = ? AND excluido = 'N'))`;
+        pCli.push(idUsuario, idUsuario, idUsuario);
+      } else {
+        qCli += ` AND (c.cod_vendedor IS NULL OR c.cod_vendedor = '' OR c.cod_vendedor = ? OR CAST(c.cod_vendedor AS UNSIGNED) = ?)`;
+        pCli.push(idUsuario, idUsuario);
+      }
     }
     qCli += ` ORDER BY c.nome`;
     const [clientes] = await pool.query(qCli, pCli);
@@ -2307,6 +2778,7 @@ router.get('/offline-pack', async (req, res) => {
                IFNULL(p.icms, 0) AS icms,
                IFNULL(p.valor_puxada, 0) AS valor_puxada,
                IFNULL(p.kilo_embalagem, 0) AS kilo_embalagem,
+               IFNULL(p.precopeso, 'N') AS precopeso,
                IFNULL(p.multiplo_venda, 1) AS multiplo_venda,
                IFNULL(p.estoque_atual, 0) AS estoque_atual,
                IFNULL(p.disponivel, 'S') AS disponivel,
@@ -2429,6 +2901,35 @@ router.get('/offline-pack', async (req, res) => {
       }
     }
 
+    const vendWherePack = buildPedidosVendedorWhereSync(req, null);
+    const dtPedidosPack = addDaysIsoBrasil(-120);
+    const [pedidosRecentes] = await pool.query(`
+      SELECT p.id, p.numero, p.data_abertura, p.hora_abertura,
+             p.cod_cliente, p.nome_cliente, p.cod_fornecedor, p.nome_fornecedor,
+             p.id_usuario, p.nome_vendedor, p.vlrtotalpedido, p.total_qt, p.total_peso,
+             p.qt_parcelas, p.tipo_pedido, p.situacao_pedido, p.origem, p.status,
+             u.nomeusu
+      FROM pedidos p
+      LEFT JOIN usuarios u ON p.id_usuario = u.idusuario
+      WHERE (p.excluido = 'N' OR p.excluido IS NULL OR p.excluido = '')
+        AND p.data_abertura >= ?
+        ${vendWherePack.clause}
+      ORDER BY p.id DESC
+      LIMIT 200
+    `, [dtPedidosPack, ...vendWherePack.params]).catch(() => [[]]);
+
+    let fornOut = fornecedores;
+    let vendOut = vendedores;
+    let prodOut = produtosPorTabela;
+    if (isPrepostoUser(req)) {
+      fornOut = fornecedores.map(stripFornecedorComissaoRep);
+      vendOut = vendedores.map(stripVendedorComissaoRep);
+      prodOut = {};
+      for (const [k, arr] of Object.entries(produtosPorTabela)) {
+        prodOut[k] = stripProdutosComissaoRep(arr);
+      }
+    }
+
     res.json({
       meta: {
         version: 1,
@@ -2441,7 +2942,8 @@ router.get('/offline-pack', async (req, res) => {
           tabelas: tabelaIds.length,
           produtos: Object.values(produtosPorTabela).reduce((n, arr) => n + arr.length, 0),
           grades: gradeRows.length,
-          multiplos: multRows.length
+          multiplos: multRows.length,
+          pedidos: pedidosRecentes.length
         }
       },
       permissoes: {
@@ -2459,23 +2961,24 @@ router.get('/offline-pack', async (req, res) => {
       },
       sistema,
       clientes,
-      fornecedores,
+      fornecedores: fornOut,
       fornecedorCondicoes,
-      vendedores,
+      vendedores: vendOut,
       tiposPedido,
       tiposFrete,
       empresas,
       transportadoras,
       condicoesPagto,
       vinculosTabela,
-      produtosPorTabela,
+      produtosPorTabela: prodOut,
       produtoFornecedor,
       prepostos,
       fornecedorPadrao,
       gradesPorGrade,
       multiplosPorProduto,
       historicoClientes,
-      clienteInadimplente
+      clienteInadimplente,
+      pedidosRecentes
     });
   } catch (err) {
     console.error('[offline-pack]', err.message);
@@ -2502,7 +3005,9 @@ router.get('/:id', async (req, res) => {
     const _ptb = await _getProdTabela(pool);
     const [itens] = await pool.query(
       `SELECT i.*, p.foto_principal,
-              COALESCE(i.vlr_padrao, p.vlr_venda, 0) AS vlr_padrao_efetivo
+              COALESCE(i.vlr_padrao, p.vlr_venda, 0) AS vlr_padrao_efetivo,
+              IFNULL(p.precopeso, 'N') AS precopeso,
+              IFNULL(p.kilo_embalagem, 0) AS prod_kilo_embalagem
        FROM itensped i
        LEFT JOIN ${_ptb} p ON i.cod_produto = p.id
        WHERE i.numpedido = ? AND (i.excluido = 'N' OR i.excluido IS NULL)`,
@@ -2560,9 +3065,16 @@ router.get('/:id', async (req, res) => {
     ).catch(() => [[]]);
     const empresa = empRows[0] ? await sanitizeEmpresaRow(pool, empRows[0]) : {};
 
+    let pedidoOut = header[0];
+    let itensOut = itens;
+    if (isPrepostoUser(req)) {
+      pedidoOut = stripPedidoComissaoRep(pedidoOut);
+      itensOut = stripItensComissaoRep(itensOut);
+    }
+
     res.json({
-      pedido: header[0],
-      itens: itens,
+      pedido: pedidoOut,
+      itens: itensOut,
       parcelas: parcelas || [],
       logs: logs || [],
       cliente,
@@ -2599,7 +3111,7 @@ router.post('/', async (req, res) => {
     const sit = (pedido.situacao_pedido || 'ENTREGAR').toUpperCase();
     // Usa a data enviada pelo frontend (hora local do usuário) para evitar problema de fuso horário
     // CURDATE() no servidor MySQL pode ser um dia à frente do horário do Brasil (UTC vs BRT)
-    const dataAbertura = pedido.data_abertura || new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }).split('/').reverse().join('-');
+    const dataAbertura = pedido.data_abertura || hojeIsoBrasil();
     const idEmpresaPed = nPedidoId(pedido.id_empresa) ?? nPedidoId(pedido.id_filial);
 
     const [pResult] = await conn.query(
@@ -2676,9 +3188,22 @@ router.post('/', async (req, res) => {
 
     const pedidoId = pResult.insertId;
 
+    const idCampFeirinha = nPedidoId(pedido.id_campanha_feirinha);
+    const hasSnapMedio = pedido.preco_medio_feirinha != null && pedido.preco_medio_feirinha !== '';
+    const hasSnapRevenda = pedido.preco_revenda_feirinha != null && pedido.preco_revenda_feirinha !== '';
+    const snapMedio = hasSnapMedio ? nPedidoField(pedido.preco_medio_feirinha) : null;
+    const snapRevenda = hasSnapRevenda ? nPedidoField(pedido.preco_revenda_feirinha) : null;
+    if (idCampFeirinha != null || hasSnapMedio || hasSnapRevenda) {
+      await conn.query(
+        `UPDATE pedidos SET id_campanha_feirinha=?, preco_medio_feirinha=?, preco_revenda_feirinha=? WHERE id=?`,
+        [idCampFeirinha, snapMedio, snapRevenda, pedidoId]
+      ).catch(() => {});
+    }
+
     if (itens && itens.length > 0) {
-      for (let seqItem = 0; seqItem < itens.length; seqItem++) {
-        const item = itens[seqItem];
+      const itensNorm = await _normalizeItensPrecoPeso(conn, itens, pedido.cod_fornecedor);
+      for (let seqItem = 0; seqItem < itensNorm.length; seqItem++) {
+        const item = itensNorm[seqItem];
         await insertItenspedItem(conn, item, {
           numpedido: num,
           idPedido: pedidoId,
@@ -2781,7 +3306,9 @@ router.post('/:id', async (req, res) => {
         'chave_nfe', 'status_nfe',
         'informado_faturamento', 'data_faturado', 'data_faturadofabrica',
         'numeronf', 'nf_fabrica', 'serie_nf',
-        'vlr_faturado', 'vlr_faturamento', 'vlr_diferencafaturamento', 'notarecebida'
+        'vlr_faturado', 'vlr_faturamento', 'vlr_diferencafaturamento', 'notarecebida',
+        'id_campanha_feirinha',
+        'preco_medio_feirinha', 'preco_revenda_feirinha',
       ];
 
       for (const key of allowedFields) {
@@ -2824,12 +3351,14 @@ router.post('/:id', async (req, res) => {
         const numPedido = p[0].numero;
         await softDeleteItenspedByNumPedido(conn, numPedido);
 
-        for (let seqItem = 0; seqItem < itens.length; seqItem++) {
-          const item = itens[seqItem];
+        const codFornUpd = pedido?.cod_fornecedor;
+        const itensNorm = await _normalizeItensPrecoPeso(conn, itens, codFornUpd);
+        for (let seqItem = 0; seqItem < itensNorm.length; seqItem++) {
+          const item = itensNorm[seqItem];
           await insertItenspedItem(conn, item, {
             numpedido: numPedido,
             idPedido: id,
-            codFornecedor: pedido?.cod_fornecedor,
+            codFornecedor: codFornUpd,
             tipoPedido: pedido?.tipo_pedido,
             idTipoPedido: pedido?.id_tipopedido,
             seqItem,
