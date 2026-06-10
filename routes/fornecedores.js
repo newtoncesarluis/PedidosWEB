@@ -182,6 +182,19 @@ router.get('/', async (req, res) => {
     if (segmento.trim())  { where.push(`LOWER(f.segmento) LIKE ?`);  vals.push(`%${segmento.trim().toLowerCase()}%`); }
     if (padrao === 'S')   { where.push(`f.fornecedorpadraopedido = 'S'`); }
     if (somente_fabricas === 'true') { where.push(`COALESCE(f.tipo, 'FABRICA') = 'FABRICA'`); }
+
+    // Filtro de fornecedores bloqueados por usuário (blacklist — somente no contexto do pedido)
+    // Fornecedores marcados em fornecedor_vendedor ficam OCULTOS para o vendedor
+    const _isAdmin = req.user?.perfil == 1;
+    if (somente_fabricas === 'true' && !_isAdmin && req.user?.id) {
+      where.push(`f.id NOT IN (
+        SELECT fv.cod_fornecedor FROM fornecedor_vendedor fv
+        JOIN usuarios u ON fv.cod_vendedor = u.id_vendedor
+        WHERE u.idusuario = ? AND (fv.excluido = 'N' OR fv.excluido IS NULL)
+      )`);
+      vals.push(req.user.id);
+    }
+
     // Ocultar fábricas bloqueadas para o preposto informado
     if (preposto_id && parseInt(preposto_id)) {
       where.push(`NOT EXISTS (SELECT 1 FROM preposto_comissao_fornecedor pcf WHERE pcf.id_usuario = ? AND pcf.id_fornecedor = f.id AND pcf.oculta = 'S')`);

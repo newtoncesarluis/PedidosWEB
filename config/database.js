@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { AsyncLocalStorage } = require('async_hooks');
 const { extractMysqlConfigFromLicenseRow } = require('./customer-db-from-license');
+const { openTunnel, getTunnelConfig } = require('./ssh-tunnel');
 
 let pool = null;
 // Per-request pool isolation: map of chave_licenca → pool
@@ -61,7 +62,28 @@ async function createPoolFromLicenseBinding() {
   );
   if (!rows.length) return { ok: false, error: 'Chave do binding não encontrada no servidor de licenças' };
 
-  const cfg = extractMysqlConfigFromLicenseRow(rows[0]);
+  let cfg = extractMysqlConfigFromLicenseRow(rows[0]);
+
+  // Fallback: licença sem mysql_user cadastrado + credenciais no .env (dev local)
+  if (!cfg && process.env.DB_HOST && process.env.DB_USER) {
+    const row = rows[0];
+    const db = row.mysql_database ?? row.db_name ?? row.database_cliente ?? row.nome_banco ?? '';
+    if (db) {
+      cfg = {
+        host: process.env.DB_HOST,
+        port: parseInt(process.env.DB_PORT || '3306', 10),
+        user: process.env.DB_USER,
+        password: process.env.DB_PASSWORD || '',
+        database: String(db).trim(),
+        waitForConnections: true,
+        connectionLimit: 5,
+        queueLimit: 0,
+        timezone: '-03:00',
+      };
+      console.log(`[DB] Multi-tenant — credenciais do .env + banco da licença: ${cfg.database}`);
+    }
+  }
+
   if (!cfg) {
     return {
       ok: false,
@@ -69,6 +91,16 @@ async function createPoolFromLicenseBinding() {
         'Licença sem colunas de MySQL no cadastro (mysql_host, mysql_user, mysql_database, mysql_password). ' +
         'Altere a tabela sistema_licencas ou configure PAINEL_API_URL + PAINEL_API_KEY.',
     };
+  }
+
+  // Dev local: DB_HOST no .env sobrescreve o host/port da licença (túnel SSH)
+  if (process.env.DB_HOST) {
+    cfg.host = process.env.DB_HOST;
+    cfg.port = parseInt(process.env.DB_PORT || '3306', 10);
+    if (process.env.DB_USER)     cfg.user     = process.env.DB_USER;
+    if (process.env.DB_PASSWORD) cfg.password  = process.env.DB_PASSWORD;
+    if (process.env.DB_NAME)     cfg.database  = process.env.DB_NAME;
+    console.log(`[DB] Multi-tenant — override dev: ${cfg.host}:${cfg.port}/${cfg.database}`);
   }
 
   const newPool = createPool(cfg, binding.chave_licenca);
@@ -127,6 +159,9 @@ async function _seedEmpresaFromLicense(targetPool, licRow) {
 }
 
 async function initCustomerDatabase() {
+  // Abre túnel SSH automaticamente se TUNNEL_SSH_HOST estiver no .env
+  if (getTunnelConfig()) await openTunnel();
+
   const boundChave = getBoundChave();
 
   // ── Modo BOUND: CHAVE_LICENCA no .env ───────────────────────────────────────
@@ -151,6 +186,16 @@ async function initCustomerDatabase() {
       } else {
         throw new Error(`Licença ${boundChave} sem dados de conexão MySQL. Cadastre mysql_host/user/database na Oracle OU defina DB_HOST, DB_NAME, DB_USER no .env`);
       }
+    }
+
+    // Dev local: DB_HOST no .env sobrescreve o host/port da licença (túnel SSH)
+    if (cfg && process.env.DB_HOST) {
+      cfg.host = process.env.DB_HOST;
+      cfg.port = parseInt(process.env.DB_PORT || '3306', 10);
+      if (process.env.DB_USER)     cfg.user     = process.env.DB_USER;
+      if (process.env.DB_PASSWORD) cfg.password  = process.env.DB_PASSWORD;
+      if (process.env.DB_NAME)     cfg.database  = process.env.DB_NAME;
+      console.log(`[DB] Bound mode — override dev: ${cfg.host}:${cfg.port}/${cfg.database}`);
     }
     createPool(cfg); // sem chave_licenca → pool global
     await pool.query('SELECT 1');
@@ -212,12 +257,18 @@ async function ensureCustomerPoolFromLicenseIfNeeded() {
 
 // Plugins de autenticação que o mysql2 nativo não suporta — dão erro claro em vez de "unknown plugin"
 const _UNSUPPORTED_AUTH_PLUGINS = {
-  auth_gssapi_client: () => () => {
-    throw new Error(
-      'O banco de dados usa autenticação Windows/GSSAPI, não suportada pelo driver. ' +
-      'Corrija o usuário MySQL executando: ' +
-      "ALTER USER 'usuario'@'%' IDENTIFIED WITH mysql_native_password BY 'senha'; FLUSH PRIVILEGES;"
-    );
+  auth_gssapi_client: (pluginData, authPlugin, authPluginOutput, authSwitchHandler) => {
+    const cfg = authPlugin?.connection?._config || {};
+    const where = `${cfg.host || '?'}:${cfg.port || '?'} user=${cfg.user || '?'} db=${cfg.database || '?'}`;
+    console.error(`[DB] GSSAPI detectado! Conexão: ${where}`);
+    return () => {
+      throw new Error(
+        `O banco de dados usa autenticação Windows/GSSAPI, não suportada pelo driver. ` +
+        `Conexão: ${where}. ` +
+        `Corrija o usuário MySQL executando: ` +
+        `ALTER USER '${cfg.user || 'usuario'}'@'%' IDENTIFIED WITH mysql_native_password BY 'senha'; FLUSH PRIVILEGES;`
+      );
+    };
   },
 };
 
@@ -234,6 +285,16 @@ function createPool(config = null, chave_licenca = null) {
     if (oldPool) oldPool.end().catch(() => {});
     if (!config) throw new Error('createPool em modo multi-tenant requer config');
     _applyPoolDefaults(config);
+    // Dev local: se o host da licença é localhost/127.0.0.1 e há túnel configurado,
+    // redireciona para o túnel SSH. Hosts remotos (ex: 147.x.x.x) conectam direto.
+    const _cfgHostLocal = ['localhost', '127.0.0.1', ''].includes((config.host || '').toLowerCase());
+    if (process.env.DB_HOST && _cfgHostLocal) {
+      config.host = process.env.DB_HOST;
+      config.port = parseInt(process.env.DB_PORT || '3306', 10);
+      if (process.env.DB_USER)     config.user     = process.env.DB_USER;
+      if (process.env.DB_PASSWORD) config.password = process.env.DB_PASSWORD;
+    }
+    console.log(`[DB] createPool tenant ${chave_licenca.slice(0,8)}… → ${config.user}@${config.host}:${config.port}/${config.database}`);
     const newPool = mysql.createPool(config);
     _poolMap.set(chave_licenca, newPool);
     // fail-closed multi-tenant: pool global nunca aponta para tenant específico

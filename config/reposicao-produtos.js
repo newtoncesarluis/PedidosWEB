@@ -2,6 +2,8 @@
  * Sugestão de reposição por histórico de compras do cliente (aba Reposição no pedido).
  */
 
+const { andProdutoBuscaSql } = require('./produto-busca-texto');
+
 function calcSemaforoReposicao(diasDesdeUltima) {
   const d = parseInt(diasDesdeUltima, 10) || 0;
   if (d >= 60) return { codigo: 'vermelho', emoji: '🔴', label: 'Atrasado' };
@@ -74,9 +76,9 @@ async function listarReposicaoProdutos(pool, getProdTabela, opts = {}) {
 
   let buscaSql = '';
   if (q) {
-    buscaSql = ' AND (pr.descricao LIKE ? OR pr.cod_fabricante LIKE ? OR pr.cod_barras LIKE ?) ';
-    const lk = `%${q}%`;
-    params.push(lk, lk, lk);
+    const busca = andProdutoBuscaSql('pr', q, { includeId: true });
+    buscaSql = busca.sql;
+    params.push(...busca.params);
   }
 
   const [rows] = await pool.query(

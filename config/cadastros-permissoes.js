@@ -40,6 +40,10 @@ const CADASTROS_TELAS = [
   { col: 'tela_importacao_clientes', jwt: 'gtela_importacao_clientes', page: '/pages/importacao-clientes.html', label: 'Importação de Clientes' },
   { col: 'tela_importacao_fornecedores', jwt: 'gtela_importacao_fornecedores', page: '/pages/importacao-fornecedores.html', label: 'Importação de Fornecedores' },
   { col: 'tela_campos_importacao', jwt: 'gtela_campos_importacao', page: '/pages/campos-importacao.html', label: 'Configurar Campos de Importação' },
+  { col: 'tela_tipo_pedidos', jwt: 'gtela_tipo_pedidos', page: '/pages/tipo-pedidos.html', label: 'Tipos de Pedido',
+    crud: [{ col: 'incluir_tipo_pedidos', jwt: 'incluir_tipo_pedidos' }, { col: 'alterar_tipo_pedidos', jwt: 'alterar_tipo_pedidos' }, { col: 'excluir_tipo_pedidos', jwt: 'excluir_tipo_pedidos' }] },
+  { col: 'tela_estoque', jwt: 'gtela_estoque', page: '/pages/estoque.html', label: 'Gestão de Estoque',
+    crud: [{ col: 'incluir_estoque', jwt: 'incluir_estoque' }, { col: 'alterar_estoque', jwt: 'alterar_estoque' }, { col: 'excluir_estoque', jwt: 'excluir_estoque' }] },
 ];
 
 /** Campos S/N já existentes no POST de perfil (fora das telas acima) */

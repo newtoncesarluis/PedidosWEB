@@ -1,6 +1,7 @@
 'use strict';
 
 const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = rateLimit;
 const { sendMessage } = require('../config/alert');
 
 // IPs atualmente bloqueados (em memória) — usado para "liberar tudo"
@@ -74,6 +75,24 @@ const licenseLimiter = rateLimit({
   handler: _makeHandler(LICENSE_WINDOW_MS),
 });
 
+/** Rate limit para /api/v1 — identificado pela API Key (não por IP). */
+const API_WINDOW_MS = 60 * 1000;
+const apiLimiter = rateLimit({
+  windowMs: API_WINDOW_MS,
+  max: 600,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: _skipRateLimit,
+  keyGenerator: (req) => {
+    const auth = req.headers['authorization'] || '';
+    return auth.startsWith('Bearer ') ? auth.slice(7) : ipKeyGenerator(req);
+  },
+  message: { error: { code: 429, message: 'Muitas requisições. Limite: 600/min por API Key.' } },
+  handler: (req, res, _next, options) => {
+    res.status(429).json(options.message);
+  },
+});
+
 /** Libera um IP específico de todos os limiters. */
 function resetIP(ip) {
   authLimiter.resetKey(ip);
@@ -98,4 +117,4 @@ function resetAll() {
 
 function getBlockedCount() { return _blockedIPs.size; }
 
-module.exports = { authLimiter, empresasUsuarioLimiter, licenseLimiter, resetIP, resetAll, getBlockedCount };
+module.exports = { authLimiter, empresasUsuarioLimiter, licenseLimiter, apiLimiter, resetIP, resetAll, getBlockedCount };

@@ -322,19 +322,29 @@ tbody tr:last-child td { border-bottom:none; }
 .empty svg { width:44px;height:44px;opacity:.18;margin:0 auto 12px;display:block; }
 .empty p { font-size:13px; }
 
-/* PAGINATION */
+/* PAGINATION — rodapé sempre visível */
 .pagination {
   display:flex;align-items:center;justify-content:space-between;
-  padding:8px 14px;border-top:1px solid var(--border);
+  padding:10px 14px;border-top:1px solid var(--border);
   font-size:12px;color:var(--text2);gap:10px;flex-wrap:wrap;
+  flex-shrink:0;
+  position:sticky;
+  bottom:0;
+  z-index:25;
+  background:var(--card,#fff);
+  box-shadow:0 -4px 14px rgba(15,23,42,.07);
 }
-.pag-info { font-size:12px;color:var(--text2); }
+.pag-info { font-size:12px;color:var(--text2);font-weight:600; }
 .pag-btns { display:flex;align-items:center;gap:4px; }
 .pag-select {
   padding:4px 8px;border:1.5px solid var(--border);border-radius:6px;
-  font-size:12px;color:var(--text2);background:var(--card);
+  font-size:12px;color:var(--text);background:var(--card,#fff);
   font-family:inherit;cursor:pointer;outline:none;
   transition:border-color .12s;
+}
+.pag-select option {
+  color:var(--text);
+  background:var(--card,#fff);
 }
 .pag-select:focus { border-color:var(--accent); }
 .pag-btn {
@@ -793,11 +803,10 @@ tr.row-selected { background:var(--accent-soft) !important; }
 .dropdown-item svg { width:14px;height:14px;flex-shrink:0; }
 
 /* ── Quick View drawer ── */
-#quickViewPanel { position:fixed;top:0;right:-420px;width:400px;height:100vh;
+#quickViewPanel { display:none;position:fixed;top:0;right:0;width:400px;height:100vh;
   background:var(--card);border-left:1px solid var(--border);z-index:8000;
-  transition:right .28s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;
-  box-shadow:-12px 0 40px rgba(0,0,0,.3); }
-#quickViewPanel.open { right:0; }
+  flex-direction:column;box-shadow:-12px 0 40px rgba(0,0,0,.3);overflow:hidden; }
+#quickViewPanel.open { display:flex; }
 #qvOverlay { display:none;position:fixed;inset:0;z-index:7999;background:rgba(0,0,0,.22); }
 #qvOverlay.show { display:block; }
 .qv-head { padding:16px 18px;display:flex;align-items:flex-start;gap:12px;flex-shrink:0;
@@ -824,7 +833,7 @@ tr.row-selected { background:var(--accent-soft) !important; }
 .qv-tab { padding:10px 14px;border:none;background:none;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);cursor:pointer;transition:.15s;border-bottom:2px solid transparent;opacity:.6; }
 .qv-tab:hover { opacity:1;color:var(--accent); }
 .qv-tab.active { opacity:1;color:var(--accent); border-bottom-color:var(--accent); }
-@media(max-width:480px) { #quickViewPanel { width:100%;right:-100%; } }
+@media(max-width:480px) { #quickViewPanel { width:100%; } }
 
 /* ── BULK BAR (Glassmorphism) ────────────────────────────────────────────── */
 .bulk-bar {
@@ -1503,6 +1512,63 @@ html.ms-embedded-tech.ms-page-clientes .cards-grid {
     transition: transform .18s cubic-bezier(.4,0,.2,1), box-shadow .18s cubic-bezier(.4,0,.2,1);
   }
   body.form-mode #filterPanel { display: none !important; }
+
+  /* Lista: rolagem interna + paginação fixa na base da tela */
+  html:not(.cli-form-open) body {
+    display:flex;
+    flex-direction:column;
+    height:100dvh;
+    max-height:100dvh;
+    overflow:hidden;
+  }
+  html:not(.cli-form-open) #toolbar.toolbar-bar,
+  html:not(.cli-form-open) #subbar.subbar {
+    flex-shrink:0;
+  }
+  html:not(.cli-form-open) .content-area {
+    flex:1 1 auto;
+    min-height:0;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+    padding-bottom:0;
+  }
+  html:not(.cli-form-open) #filterPanel {
+    flex-shrink:0;
+  }
+  html:not(.cli-form-open) #listSection {
+    flex:1 1 auto;
+    min-height:0;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+  }
+  html:not(.cli-form-open) #listSection .table-card {
+    flex:1 1 auto;
+    min-height:0;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+  }
+  html:not(.cli-form-open) #listSection #tableWrap.table-wrap,
+  html:not(.cli-form-open) #listSection #cardsGrid.cards-grid {
+    flex:1 1 auto;
+    min-height:0;
+    overflow-x:auto;
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-gutter:stable;
+  }
+  html:not(.cli-form-open) #listSection #emptyMsg.empty {
+    flex:1 1 auto;
+    min-height:0;
+    overflow-y:auto;
+  }
+  html:not(.cli-form-open) #listSection .pagination {
+    position:relative;
+    bottom:auto;
+    flex-shrink:0;
+  }
 }
 
 @media (min-width: 1200px) {
@@ -1805,6 +1871,7 @@ html.ms-embedded-tech.ms-page-clientes .cards-grid {
               <th>Tipo</th>
               <th>Status</th>
               <th>Últ. Compra</th>
+              <th>Vendedor</th>
               <th class="td-actions">Ações</th>
             </tr>
           </thead>
@@ -2965,6 +3032,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.documentElement.style.setProperty('--toolbar-h', tbH + 'px');
   const sb = document.getElementById('subbar');
   if (sb) sb.style.top = tbH + 'px';
+  fecharQuickView();
   carregar();
   carregarNotificacoes();
   carregarWaConfig();
@@ -3189,6 +3257,7 @@ function renderTabela(rows, offset) {
           ${c.venda_suspensa === 'S' ? '<span class="badge badge-S" style="margin-left:4px">Suspenso</span>' : ''}
       </td>
       <td style="font-size:12px">${ultCompra}</td>
+      <td style="font-size:11px;white-space:nowrap">${escHtml(c.nome_vendedor || '—')}</td>
       <td class="td-actions" onclick="event.stopPropagation()">
         <div style="display:flex; gap:6px; align-items:center; justify-content:flex-end">
           <button class="btn-visita-inline" title="Agendar Visita"
@@ -3334,6 +3403,7 @@ function aplicarPermissoesClientes() {
 // ── ABRIR FORMULÁRIO ──────────────────────────────────────────────────────────
 function abrirNovo() {
   if (!podeIncluirClientes()) { toast('Sem permissão para incluir clientes', 'err'); return; }
+  fecharQuickView();
   _modoEdit = false;
   _idEdit   = null;
   _cnpjDuplicadoBloqueado = false;
@@ -3352,6 +3422,7 @@ function abrirNovo() {
 }
 
 async function abrirEdicao(id) {
+  fecharQuickView();
   try {
     const r = await api(`/api/clientes/${id}`);
     if (!r.ok) throw new Error('Erro ao carregar cliente');
@@ -3624,7 +3695,9 @@ function fecharDrawer() {
   fs.style.maxHeight = '';
   document.documentElement.classList.remove('cli-form-open');
   window.removeEventListener('resize', _syncCliFormViewport);
-  document.getElementById('listSection').style.display = 'block';
+  // Limpa inline — "block" quebrava o layout flex (scroll da tabela + rodapé fixo)
+  const ls = document.getElementById('listSection');
+  if (ls) ls.style.display = '';
   document.body.classList.remove('form-mode');
   _setToolbarVisivel(true);
 }
@@ -4344,9 +4417,9 @@ function checkUrlParams() {
     setTimeout(abrirMapaClientes, 1200);
   }
 
-  // 3. Abertura por ID
+  // 3. Abertura por ID (não abre quando mapa=1 — o id é usado pelo mapa, não pelo form)
   const id = urlParams.get('id');
-  if (id) {
+  if (id && urlParams.get('mapa') !== '1') {
     setTimeout(() => abrirEdicao(parseInt(id)), 500);
   }
 
@@ -4362,6 +4435,9 @@ function checkUrlParams() {
 
 // Chamar ao iniciar
 window.addEventListener('load', checkUrlParams);
+window.addEventListener('pageshow', (ev) => {
+  if (ev.persisted) fecharQuickView();
+});
 function onSelecionarGrupo(sel) {
   const opt = sel.options[sel.selectedIndex];
   document.getElementById('f_cod_clienteprincipal').value   = opt.value || '';
@@ -5721,6 +5797,7 @@ async function abrirQuickView(id, evt) {
   if (_qvDocHandler) document.removeEventListener('click', _qvDocHandler);
   _qvIdAtual = id;
   document.getElementById('quickViewPanel').classList.add('open');
+  document.getElementById('qvOverlay')?.classList.add('show');
   aplicarPermissoesClientes();
 
   // Fecha ao clicar fora do painel
@@ -6613,9 +6690,7 @@ async function enviarMsgWa(idCliente) {
     <button class="qv-tab" id="qvTabAtividades" onclick="switchQVTab('atividades')">Atividades</button>
   </div>
 
-  <div class="qv-body" id="qvBody">
-    <div style="text-align:center;padding:40px;color:var(--text2)">Carregando…</div>
-  </div>
+  <div class="qv-body" id="qvBody"></div>
 
   <div class="qv-body" id="qvBodyAtividades" style="display:none;background:#fafafa">
     <div id="qvAtividadesLista" style="display:flex;flex-direction:column;gap:10px"></div>
@@ -6677,6 +6752,8 @@ async function enviarMsgWa(idCliente) {
 <div id="dropdownContainer"></div>
 
 <script>
+if (typeof fecharQuickView === 'function') fecharQuickView();
+
 // Fecha ao clicar no backdrop ou pressionar Esc
 document.getElementById('modalHistorico').addEventListener('click', function(e){
   if (e.target === this) fecharHistorico();
@@ -7275,7 +7352,14 @@ async function processarGeocoding() {
 setTimeout(verificarGeocodingPendente, 2000);
 
 window.addEventListener('message', function (ev) {
-  if (ev.data && ev.data.type === 'mobile-refresh') carregar();
+  if (!ev.data) return;
+  if (ev.data.type === 'mobile-refresh') carregar();
+  if (ev.data.type === 'ms-vitrine-fechar-local') {
+    // Shell fechou → força fechamento local e registra timestamp anti-ghost-click
+    _vitrineModalBlockClose = false;
+    fecharModalVitrine();
+    _vitrineUltimoFechamento = Date.now();
+  }
 });
 
 function msNavCliente(url, label) {
@@ -7395,14 +7479,27 @@ function _isoToDisplayBr(v) {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : s;
 }
 
+let _gerarVitrineInProgress = false;
+let _vitrineUltimoFechamento = 0;
+const _vitrinePageLoadTs = Date.now();
 async function gerarVitrine(idCliente, evt) {
   if (evt) { evt.preventDefault(); evt.stopPropagation(); }
+  // Bloqueia se já em andamento
+  if (_gerarVitrineInProgress) return;
+  // Bloqueia ghost click de navegação: tablet/iOS propaga toque do shell para o iframe recém-carregado
+  if (Date.now() - _vitrinePageLoadTs < 800) return;
+  // Bloqueia ghost click: iOS/tablet dispara clique sintético ~300ms após toque no X
+  if (Date.now() - _vitrineUltimoFechamento < 600) return;
+
+  _gerarVitrineInProgress = true;
   if (typeof fecharDropdown === 'function') fecharDropdown();
 
   const usarModalPai = _vitrineUsarModalPai();
-  if (usarModalPai) _postVitrineShell({ type: 'ms-vitrine-loading' });
-  else if (!_abrirModalVitrineLocalLoading()) {
+  if (usarModalPai) {
+    _postVitrineShell({ type: 'ms-vitrine-loading' });
+  } else if (!_abrirModalVitrineLocalLoading()) {
     toast('Não foi possível abrir o painel da Vitrine Digital.', 'err');
+    _gerarVitrineInProgress = false;
     return;
   }
 
@@ -7430,6 +7527,8 @@ async function gerarVitrine(idCliente, evt) {
       _renderModalVitrineErro(msg);
     }
     toast(msg, 'err');
+  } finally {
+    _gerarVitrineInProgress = false;
   }
 }
 
@@ -7494,6 +7593,8 @@ function fecharModalVitrine() {
   const modal = document.getElementById('modalVitrine');
   if (modal) modal.classList.remove('open');
   document.body.style.overflow = '';
+  // Registra timestamp do fechamento para bloquear ghost click (iOS/tablet ~300ms)
+  _vitrineUltimoFechamento = Date.now();
 }
 </script>
 
@@ -7527,12 +7628,21 @@ function fecharModalVitrine() {
 (function () {
   var modal = document.getElementById('modalVitrine');
   if (!modal) return;
+  // No mobile-shell / home o modal real fica no pai — evita overlay fantasma no iframe
+  if (typeof _vitrineUsarModalPai === 'function' && _vitrineUsarModalPai()) {
+    _vitrineModalBlockClose = false;
+    modal.classList.remove('open');
+    document.body.style.overflow = '';
+    var body = document.getElementById('mv-body');
+    if (body) body.innerHTML = '';
+  }
   modal.addEventListener('click', function (e) {
     if (e.target === modal && !_vitrineModalBlockClose) fecharModalVitrine();
   });
   modal.querySelector('.vitrine-panel')?.addEventListener('click', function (e) { e.stopPropagation(); });
   modal.querySelector('.vitrine-close')?.addEventListener('click', function (e) {
     e.preventDefault();
+    _vitrineModalBlockClose = false;
     fecharModalVitrine();
   });
 })();

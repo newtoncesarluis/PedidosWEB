@@ -30,10 +30,13 @@ const {
   buildPedidosVendedorWhereSync,
   canPickOtherVendors,
 } = require('../config/vendedor-visibilidade');
+const { buildClienteVendedorWhere } = require('../config/cliente-visibilidade');
+const { produtoBuscaOrSql } = require('../config/produto-busca-texto');
 const {
   calcBaseItemTotal,
   calcPesoTotalExibir,
 } = require('../config/preco-peso-produto');
+const { pedidoEmitter, emitNovoPedido } = require('../config/pedido-events');
 
 async function _promoCtxFromPedidoQuery(pool, query) {
   const codCliente = parseOptInt(query.cod_cliente);
@@ -78,6 +81,8 @@ async function _ensureProdCols(pool) {
     await pool.query(`ALTER TABLE ${tb} ADD COLUMN st DECIMAL(5,2) NULL DEFAULT 0`).catch(() => {});
   if (!names.has('valor_puxada'))
     await pool.query(`ALTER TABLE ${tb} ADD COLUMN valor_puxada DECIMAL(15,4) NULL DEFAULT 0`).catch(() => {});
+  if (!names.has('segmento'))
+    await pool.query(`ALTER TABLE ${tb} ADD COLUMN segmento VARCHAR(100) NULL DEFAULT NULL`).catch(() => {});
   _prodColsOk = true;
 }
 
@@ -993,30 +998,13 @@ async function salvarParcelas(conn, num, pedidoId, pedido, parcelas) {
 router.get('/lookups', async (req, res) => {
   try {
     const pool = getPool();
-    const idUsuario  = req.user?.id || 0;
-    const isAdmin    = req.user?.perfil == 1;
-    const perm       = req.user?.permissoes || {};
-    const acessaTodos = isAdmin ? 'S' : (perm.acessartodosclientes || '');
-    const eGerente    = !isAdmin && perm.gerentecomercial === 'S';
 
     const vendedores = await listVendedoresVisiveis(pool, req, { pix: true });
     const [fornecedores] = await pool.query("SELECT id as id, nome as nome FROM fornecedores WHERE (excluido='N' OR excluido IS NULL) AND COALESCE(tipo, 'FABRICA') = 'FABRICA' ORDER BY nome");
 
-    let qClientes = `SELECT id as id, nome as nome FROM clientes WHERE (excluido='N' OR excluido IS NULL)`;
-    let pClientes = [];
-
-    if (!isAdmin && acessaTodos === 'N') {
-      if (eGerente) {
-        qClientes += ` AND (cod_vendedor = ? OR cod_vendedor IN (SELECT idusuario FROM usuarios WHERE id_gerente = ? AND excluido = 'N'))`;
-        pClientes.push(idUsuario, idUsuario);
-      } else {
-        qClientes += ` AND (cod_vendedor IS NULL OR cod_vendedor = '' OR cod_vendedor = ?)`;
-        pClientes.push(idUsuario);
-      }
-    }
-    qClientes += ` ORDER BY nome`;
-
-    const [clientes] = await pool.query(qClientes, pClientes);
+    const vendCli = buildClienteVendedorWhere(req.user, '');
+    const qClientes = `SELECT id as id, nome as nome FROM clientes WHERE (excluido='N' OR excluido IS NULL)${vendCli.clause} ORDER BY nome`;
+    const [clientes] = await pool.query(qClientes, vendCli.params);
 
     res.json({ vendedores, fornecedores, clientes });
   } catch (err) {
@@ -1028,9 +1016,9 @@ router.get('/lookups', async (req, res) => {
 router.get('/', async (req, res) => {
   try {
     const pool = getPool();
-    await ensureTablesOnce(pool);
-    
-    const { 
+    ensureTablesOnce(pool); // fire-and-forget: runMigrations já criou as tabelas no login
+
+    const {
       q, page = 1, limit = 50, status, tipo, dt_ini, dt_fim, id_vendedor,
       min_total, max_total, min_peso, max_peso,
       comprador, ped_compras, nome_transp, origem, nome_empresa,
@@ -1050,7 +1038,7 @@ router.get('/', async (req, res) => {
 
     let visWhere = '';
     let visParams = [];
-    if (!_isAdmin && _acessaTodos === 'N') {
+    if (!_isAdmin && _acessaTodos !== 'S') {
       if (_eGerente) {
         visWhere = ` AND (p.id_usuario = ? OR p.id_usuario IN (SELECT idusuario FROM usuarios WHERE id_gerente = ? AND excluido = 'N'))`;
         visParams = [_userId, _userId];
@@ -1391,7 +1379,11 @@ router.get('/lookup/empresas', async (req, res) => {
       WHERE excluido = 'N' 
       ORDER BY Razao_empresa desc
     `).catch(() => [[]]);
-    res.json({ empresas: rows });
+    const empresas = [];
+    for (const row of rows || []) {
+      empresas.push(await sanitizeEmpresaRow(pool, row));
+    }
+    res.json({ empresas });
   } catch (err) {
     res.json({ empresas: [] });
   }
@@ -1462,21 +1454,11 @@ router.get('/produtos/busca', async (req, res) => {
         params.push(fId, fId);
       }
     }
-    const qTrim = String(q || '').trim();
-    const lk = `%${qTrim}%`;
-    const isBarcodeLike = /^\d{8,}$/.test(qTrim);
-
-    let whereSearch = '1=1';
-    const searchParams = [];
-    if (qTrim) {
-      whereSearch = '(p.descricao LIKE ? OR p.cod_fabricante LIKE ? OR p.cod_barras LIKE ?)';
-      searchParams.push(lk, lk, lk);
-      if (isBarcodeLike) {
-        whereSearch = '(p.cod_barras = ? OR p.cod_fabricante = ? OR p.descricao LIKE ? OR p.cod_fabricante LIKE ? OR p.cod_barras LIKE ?)';
-        searchParams.length = 0;
-        searchParams.push(qTrim, qTrim, lk, lk, lk);
-      }
-    }
+    const busca = produtoBuscaOrSql('p', q, { includeId: true });
+    const whereSearch = busca.fragment;
+    const searchParams = busca.params;
+    const isBarcodeLike = busca.isBarcodeLike;
+    const qTrim = busca.qTrim;
 
     if (filtrarDestaque) {
       const partesDestaque = [];
@@ -1510,7 +1492,7 @@ router.get('/produtos/busca', async (req, res) => {
 
     const [rows] = await pool.query(
       `SELECT p.ID as id, p.ID as cod_produto,
-              p.cod_fabricante, p.cod_barras, p.descricao, p.descricao as desc_produto,
+              p.cod_fabricante, p.cod_barras, p.segmento, p.descricao, p.descricao as desc_produto,
               p.unidade, ${vlrVendaExpr} as vlr_venda, ${precoTabelaExpr} as preco_da_tabela, p.ipi, p.comissao,
               IFNULL(p.precoa, 0) as precoa, IFNULL(p.precob, 0) as precob,
               IFNULL(p.precoc, 0) as precoc, IFNULL(p.precopromo, 0) as precopromo,
@@ -2069,9 +2051,9 @@ router.get('/lookup/produtos-avancado', async (req, res) => {
     }
 
     if (q.trim()) {
-      sql += ` AND (p.descricao LIKE ? OR p.cod_fabricante LIKE ? OR p.cod_barras LIKE ? OR p.id = ?) `;
-      const lk = `%${q.trim()}%`;
-      params.push(lk, lk, lk, q.trim());
+      const busca = produtoBuscaOrSql('p', q, { includeId: true });
+      sql += ` AND ${busca.fragment} `;
+      params.push(...busca.params);
     }
 
     sql += ` ORDER BY p.descricao LIMIT 600 `;
@@ -2093,7 +2075,7 @@ router.get('/lookup/produtos-avancado', async (req, res) => {
 router.get('/config/grid', async (req, res) => {
   try {
     const pool = getPool();
-    await ensureTablesOnce(pool);
+    ensureTablesOnce(pool);
     const id_usuario = req.user?.id;
     if (!id_usuario) {
       return res.status(401).json({ error: 'Usuário não identificado no token' });
@@ -2113,7 +2095,7 @@ router.get('/config/grid', async (req, res) => {
 router.get('/config/itens-colunas', async (req, res) => {
   try {
     const pool = getPool();
-    await ensureTablesOnce(pool);
+    ensureTablesOnce(pool);
     const id_usuario = req.user?.id;
     if (!id_usuario) return res.status(401).json({ error: 'Usuário não identificado no token' });
     const [rows] = await pool.query(
@@ -2131,7 +2113,7 @@ router.get('/config/itens-colunas', async (req, res) => {
 router.post('/config/itens-colunas', async (req, res) => {
   try {
     const pool = getPool();
-    await ensureTablesOnce(pool);
+    ensureTablesOnce(pool);
     const id_usuario = req.user?.id;
     if (!id_usuario) return res.status(401).json({ error: 'Usuário não identificado no token' });
     const { config } = req.body;
@@ -2157,7 +2139,7 @@ router.post('/config/itens-colunas', async (req, res) => {
 router.post('/config/grid', async (req, res) => {
   try {
     const pool = getPool();
-    await ensureTablesOnce(pool);
+    ensureTablesOnce(pool);
     const id_usuario = req.user?.id;
     if (!id_usuario) {
       return res.status(401).json({ error: 'Usuário não identificado no token' });
@@ -2492,6 +2474,11 @@ router.post('/:id/faturar', async (req, res) => {
       ]
     );
 
+    // Débito automático de estoque ao faturar
+    const { debitarEstoquesPedido } = require('../config/estoque-movimentacao');
+    debitarEstoquesPedido(pool, id, req.user?.id, req.user?.name || req.user?.nomeusu || req.user?.nome)
+      .catch(e => console.warn('[estoque] faturamento:', e.message));
+
     // Ajustes manuais de comissão por parcela (modal Faturar pedido)
     if (Array.isArray(comissoes_parcelas) && comissoes_parcelas.length) {
       for (const cp of comissoes_parcelas) {
@@ -2624,7 +2611,7 @@ router.get('/ultimo-por-cliente/:id_cliente', async (req, res) => {
 
     let visWhere = '';
     const visParams = [];
-    if (!_isAdmin && _acessaTodos === 'N') {
+    if (!_isAdmin && _acessaTodos !== 'S') {
       if (_eGerente) {
         visWhere = ` AND (p.id_usuario = ? OR p.id_usuario IN (SELECT idusuario FROM usuarios WHERE id_gerente = ? AND excluido = 'N'))`;
         visParams.push(_userId, _userId);
@@ -2676,24 +2663,13 @@ router.get('/offline-pack', async (req, res) => {
     const permDb = permRows[0] || {};
 
     const permJwt = req.user?.permissoes || {};
-    const acessaTodos = isAdmin ? 'S' : (permDb.acessartodosclientes || permJwt.acessartodosclientes || '');
-    const eGerente = !isAdmin && (permDb.gerentecomercial === 'S' || permJwt.gerentecomercial === 'S');
-    const veTodosClientes = isAdmin || acessaTodos === 'S';
-
-    let qCli = `SELECT c.* FROM clientes c WHERE (c.excluido = 'N' OR c.excluido IS NULL OR c.excluido = '')`;
-    const pCli = [];
-    if (!veTodosClientes) {
-      if (eGerente) {
-        qCli += ` AND (c.cod_vendedor = ? OR CAST(c.cod_vendedor AS UNSIGNED) = ?
-          OR c.cod_vendedor IN (SELECT idusuario FROM usuarios WHERE id_gerente = ? AND excluido = 'N'))`;
-        pCli.push(idUsuario, idUsuario, idUsuario);
-      } else {
-        qCli += ` AND (c.cod_vendedor IS NULL OR c.cod_vendedor = '' OR c.cod_vendedor = ? OR CAST(c.cod_vendedor AS UNSIGNED) = ?)`;
-        pCli.push(idUsuario, idUsuario);
-      }
-    }
-    qCli += ` ORDER BY c.nome`;
-    const [clientes] = await pool.query(qCli, pCli);
+    const userCliente = {
+      ...req.user,
+      permissoes: { ...permJwt, ...permDb },
+    };
+    const vendCli = buildClienteVendedorWhere(userCliente, 'c');
+    const qCli = `SELECT c.* FROM clientes c WHERE (c.excluido = 'N' OR c.excluido IS NULL OR c.excluido = '')${vendCli.clause} ORDER BY c.nome`;
+    const [clientes] = await pool.query(qCli, vendCli.params);
 
     const [fornecedores] = await pool.query(`
       SELECT * FROM fornecedores
@@ -2770,7 +2746,7 @@ router.get('/offline-pack', async (req, res) => {
     for (const tid of tabelaIds) {
       const [prods] = await pool.query(`
         SELECT p.ID AS id, p.ID AS cod_produto,
-               p.cod_fabricante, p.cod_barras, p.descricao, p.descricao AS desc_produto,
+               p.cod_fabricante, p.cod_barras, p.segmento, p.descricao, p.descricao AS desc_produto,
                p.unidade,
                COALESCE(tpi.valor_tabela, tpi.preco_venda, p.vlr_venda) AS vlr_venda,
                p.ipi, p.comissao,
@@ -2984,6 +2960,27 @@ router.get('/offline-pack', async (req, res) => {
     console.error('[offline-pack]', err.message);
     res.status(500).json({ error: err.message });
   }
+});
+
+// GET /api/pedidos/events — SSE notificações de novos pedidos
+router.get('/events', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  const heartbeat = setInterval(() => res.write(': ping\n\n'), 25000);
+
+  const onNovoPedido = (info) => {
+    res.write(`event: novo-pedido\ndata: ${JSON.stringify(info)}\n\n`);
+  };
+
+  pedidoEmitter.on('novo-pedido', onNovoPedido);
+
+  req.on('close', () => {
+    clearInterval(heartbeat);
+    pedidoEmitter.off('novo-pedido', onNovoPedido);
+  });
 });
 
 // GET /api/pedidos/:id
@@ -3219,6 +3216,16 @@ router.post('/', async (req, res) => {
 
     await conn.commit();
     res.status(201).json({ ok: true, id: pedidoId });
+
+    emitNovoPedido({
+      numero: num,
+      id: pedidoId,
+      tipo_pedido: pedido.tipo_pedido || 'PEDIDO',
+      nome_cliente: pedido.nome_cliente || '',
+      nome_fornecedor: pedido.nome_fornecedor || '',
+      origem: pedido.origem || 'PEDIDO DE VENDA',
+      vlrtotalpedido: pedido.vlrtotalpedido || 0,
+    });
   } catch (err) {
     await conn.rollback();
     res.status(500).json({ error: err.message });

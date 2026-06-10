@@ -14,6 +14,7 @@ const {
 } = require('../config/database');
 const { authMiddleware } = require('../middleware/auth');
 const { hojeIsoBrasil, horaBrasil, addDaysIsoBrasil } = require('../config/date-brasil');
+const { emitNovoPedido } = require('../config/pedido-events');
 
 // Rastreia por pool para não repetir CREATE TABLE nem SHOW TABLES
 const _tableReadyPools = new Set();
@@ -211,7 +212,8 @@ router.get('/:token', async (req, res) => {
       const fornJoin = hasForn ? `LEFT JOIN fornecedores f ON f.id = p.cod_fornecedorpadrao` : '';
       const [produtos] = await pool.query(`
         SELECT p.ID AS id, p.descricao, p.apelido, p.cod_barras,
-               p.cod_fabricante, p.unidade, p.foto_principal, p.nome_grupo
+               p.cod_fabricante, p.unidade, p.foto_principal, p.nome_grupo,
+               COALESCE(p.multiplo_venda, 1) AS multiplo_venda
                ${fornSel}
         FROM ${prodTb} p ${fornJoin}
         WHERE p.excluido = 'N' AND p.situacao = 'A'
@@ -361,7 +363,7 @@ router.post('/:token/pedido', async (req, res) => {
                 quantidade, valor_unitario, vlrtotal_itens,
                 desconto, comissao, st, vlr_st, ipi, vlr_ipi, icms, vlr_icms,
                 tipo_pedido, sequencia, cod_fornecedor, data_inclusao, sincronizar, excluido
-              ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'N','N')`,
+              ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'N','N')`,
               [
                 numero, pedidoId,
                 item.id, item.descricao || '', item.unidade || 'UN',
@@ -377,6 +379,16 @@ router.post('/:token/pedido', async (req, res) => {
 
         await conn.commit();
         res.json({ ok: true, pedidos: pedidosCriados });
+
+        pedidosCriados.forEach(p => emitNovoPedido({
+          numero: p.numero,
+          id: p.pedido_id,
+          tipo_pedido: 'PEDIDO',
+          nome_cliente: cliente.nome || '',
+          nome_fornecedor: p.fornecedor || '',
+          origem: 'VITRINE',
+          vlrtotalpedido: p.total || 0,
+        }));
         _notificarRepresentante(pool, tk, pedidosCriados).catch(e => console.error('[vitrine/wpp]', e.message));
       } catch (e) {
         await conn.rollback();

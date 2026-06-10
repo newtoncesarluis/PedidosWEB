@@ -9,7 +9,7 @@ const { getPool, getBoundChave, customerDbFromLicense, getPoolForLicense, runWit
 const LicenseCache = require('../services/license-cache');
 const { extractMysqlConfigFromLicenseRow } = require('../config/customer-db-from-license');
 const parametroLocaisRouter = require('./parametro-locais');
-const { resolveEmpresaLogoRelatorio, sanitizeEmpresaRow } = require('../services/empresa-logo');
+const { resolveEmpresaLogoRelatorio, sanitizeEmpresaRow, fsPathFromLogoRelatorio } = require('../services/empresa-logo');
 const { buildGtelaFromPerfil, PERFIL_SN_CADASTRO } = require('../config/cadastros-permissoes');
 const { ensurePerfilCadastroColumns } = require('../config/schema-migrations');
 
@@ -116,10 +116,8 @@ router.get('/empresa/:id/brand-logo', async (req, res) => {
     let fileName = m[2];
     if (!fileName || fileName.includes('..') || /[\\/]/.test(fileName)) return res.status(404).end();
 
-    const abs = path.resolve(path.join(__dirname, '..', 'public', 'uploads', 'empresas', String(id), fileName));
-    const publicRoot = path.resolve(path.join(process.cwd(), 'public'));
-    if (!abs.startsWith(publicRoot + path.sep)) return res.status(404).end();
-    if (!fs.existsSync(abs)) return res.status(404).end();
+    const abs = fsPathFromLogoRelatorio(rel);
+    if (!abs || !fs.existsSync(abs)) return res.status(404).end();
 
     const ext = path.extname(abs).toLowerCase();
     const types = {
@@ -243,7 +241,13 @@ router.post('/login', async (req, res) => {
         `SELECT e.* FROM empresa e WHERE e.id_empresa = ? AND ${E_EMPRESA_NAO_EXCLUIDA} LIMIT 1`,
         [id_empresa]
       );
-      empresaData = emp[0] ? await sanitizeEmpresaRow(pool, emp[0]) : null;
+      if (emp[0]) {
+        const sanitized = await sanitizeEmpresaRow(pool, emp[0]);
+        empresaData = {
+          ...sanitized,
+          logo_url: publicAssetUrl(req, sanitized.logo_relatorio),
+        };
+      }
     }
 
     // Registra acesso do terminal (InformacoesMaquina)
@@ -302,6 +306,7 @@ router.post('/login', async (req, res) => {
         id_gerente: user.id_gerente || null,
         acessartodosclientes: user.acessartodosclientes,
         dash_avisofinanceiro: user.dash_avisofinanceiro || 'N',
+        empresapadrao: user.empresapadrao || null,
         permissoes
       },
       empresa: empresaData,
@@ -807,6 +812,9 @@ router.get('/minhas-permissoes', async (req, res) => {
       mudarempresa:           isAdmin ? 'S' : (perm.mudarempresa          || 'N'),
       alterardatapedido:      isAdmin ? 'S' : (perm.alterardatapedido     || 'N'),
       trocarvendedorpedido:   isAdmin ? 'S' : (perm.trocarvendedorpedido  || 'N'),
+      faturar_pedido:         isAdmin ? 'S' : (perm.faturar_pedido        || 'N'),
+      marcar_enviado_rep:     isAdmin ? 'S' : (perm.marcar_enviado_rep    || 'N'),
+      acessar_metas_vendas:   isAdmin ? 'S' : (perm.acessar_metas_vendas  || 'N'),
       p_vender:               isAdmin ? 'S' : (perm.p_vender              || 'N'),
       incluir_produtos:       isAdmin ? 'S' : (perm.incluir_produtos      || 'N'),
       alterar_produtos:       isAdmin ? 'S' : (perm.alterar_produtos      || 'N'),
@@ -922,6 +930,10 @@ function buildPermissoes(user) {
     transportadora_incluir: s('transportadora_incluir'),
     transportadora_alterar: s('transportadora_alterar'),
     transportadora_excluir: s('transportadora_excluir'),
+    // Ações no pedido
+    faturar_pedido: s('faturar_pedido'),
+    marcar_enviado_rep: s('marcar_enviado_rep'),
+    acessar_metas_vendas: s('acessar_metas_vendas'),
     // Gerais
     p_vender: s('p_vender'),
     p_comprar: isAdmin ? 'S' : (user.p_comprar || 'N'),

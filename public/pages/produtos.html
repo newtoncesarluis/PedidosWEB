@@ -154,12 +154,13 @@ body.prod-form-open { overflow: hidden; }
 .bulk-bar { display: none !important; }
 
 /* ── CONTENT ── */
-.content { padding:16px; }
-.card { background:#fff; border-radius:10px; border:1px solid var(--border); overflow:hidden; }
+.content { padding:16px; flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
+.card { background:var(--card,#fff); border-radius:10px; border:1px solid var(--border);
+  overflow:hidden; flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
 
 /* ── TABLE ── */
-.table-wrap { overflow-x:auto; }
-table { width:100%; border-collapse:collapse; font-size:15px; }
+.table-wrap { overflow-x:auto; overflow-y:auto; flex:1 1 auto; min-height:0; -webkit-overflow-scrolling:touch; }
+table { width:100%; border-collapse:collapse; font-size:15px; table-layout:auto; }
 thead th { padding:10px 12px; background:#f9fafb; border-bottom:2px solid var(--border);
   text-align:left; font-size:12px; font-weight:700; text-transform:uppercase;
   letter-spacing:.5px; color:var(--text2); white-space:nowrap; }
@@ -237,6 +238,32 @@ tbody td { padding:10px 12px; vertical-align:middle; }
   .form-footer { padding:10px 12px; padding-bottom:calc(10px + env(safe-area-inset-bottom, 0px)); }
   .form-footer .btn { flex:1; min-width:0; }
 }
+
+/* Desktop: lista com rolagem interna + paginação fixa na base */
+@media (min-width: 901px) {
+  body:not(.prod-form-open) {
+    display:flex; flex-direction:column; height:100dvh; max-height:100dvh; overflow:hidden;
+  }
+  body:not(.prod-form-open) .toolbar,
+  body:not(.prod-form-open) #subbar,
+  body:not(.prod-form-open) #filterPanel { flex-shrink:0; }
+  body:not(.prod-form-open) #listSection.content {
+    flex:1 1 auto; min-height:0; overflow:hidden; padding-bottom:0;
+  }
+  body:not(.prod-form-open) #listSection .card#tableWrap {
+    flex:1 1 auto; min-height:0; display:flex; flex-direction:column; overflow:hidden;
+  }
+  body:not(.prod-form-open) #listSection .table-wrap {
+    flex:1 1 auto; min-height:0; overflow-x:auto; overflow-y:auto; scrollbar-gutter:stable;
+  }
+  body:not(.prod-form-open) #prodCardsGrid.show {
+    flex:1 1 auto; min-height:0; overflow-y:auto; scrollbar-gutter:stable;
+  }
+  body:not(.prod-form-open) #listSection .pagination {
+    position:relative; bottom:auto; flex-shrink:0;
+  }
+}
+
 /* avatar colors by first char */
 .av-A,.av-H,.av-O,.av-V { background:var(--accent); }
 .av-B,.av-I,.av-P,.av-W { background:#6366f1; }
@@ -248,7 +275,9 @@ tbody td { padding:10px 12px; vertical-align:middle; }
 
 /* ── PAGINATION ── */
 .pagination { display:flex; align-items:center; justify-content:space-between;
-  padding:10px 16px; border-top:1px solid var(--border); font-size:11px; color:var(--text2); flex-wrap:wrap; gap:6px; }
+  padding:10px 16px; border-top:1px solid var(--border); font-size:11px; color:var(--text2);
+  flex-wrap:wrap; gap:6px; flex-shrink:0; background:var(--card,#fff);
+  position:sticky; bottom:0; z-index:25; box-shadow:0 -4px 14px rgba(15,23,42,.07); }
 .pag-btns { display:flex; gap:5px; }
 .pag-btn { padding:4px 10px; border:1.5px solid var(--border); border-radius:6px;
   background:var(--card); font-size:11px; font-family:inherit; cursor:pointer; color:var(--text); transition:.12s; }
@@ -272,12 +301,14 @@ tbody td { padding:10px 12px; vertical-align:middle; }
 .dropdown-divider { height:1px; background:var(--border); margin:3px 4px; }
 
 /* ── QUICK VIEW ── */
-#quickViewPanel { position:fixed; top:0; right:-420px; bottom:0; width:400px; max-height:100dvh;
+#quickViewPanel { display:none !important; position:fixed; top:0; right:0; bottom:0; left:auto;
+  width:min(420px,96vw); max-height:100dvh; height:100dvh;
   background:var(--card, #fff); border-left:1px solid var(--border); z-index:8000;
-  transition:right .28s cubic-bezier(.4,0,.2,1); display:flex; flex-direction:column;
-  box-shadow:-12px 0 40px rgba(0,0,0,.12);
-  visibility:hidden; pointer-events:none; opacity:0; overflow:hidden; }
-#quickViewPanel.open { right:0; visibility:visible; pointer-events:auto; opacity:1; }
+  flex-direction:column; box-shadow:-12px 0 40px rgba(0,0,0,.12); overflow:hidden;
+  visibility:hidden; pointer-events:none; }
+#quickViewPanel.open { display:flex !important; visibility:visible; pointer-events:auto; }
+#quickViewPanel:not(.open) { display:none !important; visibility:hidden !important; pointer-events:none !important; }
+#qvOverlay:not(.show) { display:none !important; }
 .qv-head { padding:16px 18px; display:flex; align-items:flex-start; gap:12px; flex-shrink:0;
   background:linear-gradient(135deg,var(--accent),var(--accent-hover)); color:#fff; }
 .qv-avatar { width:44px; height:44px; border-radius:11px; background:rgba(255,255,255,.2);
@@ -649,7 +680,7 @@ tbody td { padding:10px 12px; vertical-align:middle; }
     </label>
   </div>
   <div class="search-group">
-    <input type="text" id="searchInput" class="search-input" placeholder="Código, descrição, referência…"
+    <input type="text" id="searchInput" class="search-input" placeholder="Código, descrição, referência/SKU…"
       autocomplete="off" oninput="debounceSearch()" onkeydown="if(event.key==='Enter')carregar()">
     <button class="icon-btn" onclick="carregar()">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:13px;height:13px">
@@ -715,7 +746,7 @@ tbody td { padding:10px 12px; vertical-align:middle; }
             <th>Código</th>
             <th>Descrição / Apelido</th>
             <th>Cod.Barras</th>
-            <th>Referência</th>
+            <th>Referência/SKU</th>
             <th>Fabricante</th>
             <th>Un</th>
             <th>Vlr.Venda</th>
@@ -846,7 +877,7 @@ tbody td { padding:10px 12px; vertical-align:middle; }
             <input type="text" id="f_cod_barras" autocomplete="off" placeholder="EAN-13, DUN-14…">
           </div>
           <div class="form-group">
-            <label>Cód. Fabricante</label>
+            <label>Cód. Fabricante/SKU</label>
             <input type="text" id="f_cod_fabricante" autocomplete="off">
           </div>
           <div class="form-group">
@@ -1186,6 +1217,30 @@ tbody td { padding:10px 12px; vertical-align:middle; }
 
       <!-- ABA FOTOS -->
       <div class="tab-pane" id="tab-fotos">
+
+        <!-- URL de foto externa (campo importável) -->
+        <div style="margin-bottom:14px;padding:12px 14px;border:1px solid var(--card-border,#e2e8f0);border-radius:10px;background:var(--card-bg,#fff)">
+          <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text2,#64748b);display:block;margin-bottom:6px">URL de Imagem Externa</label>
+          <div style="display:flex;gap:8px;align-items:flex-start">
+            <input type="url" id="f_foto_principal" placeholder="https://..." autocomplete="off"
+              style="flex:1;padding:8px 10px;border:1px solid var(--card-border,#e2e8f0);border-radius:7px;font-size:13px;background:var(--card-bg,#fff);color:var(--content-text,#1e293b);outline:none"
+              oninput="atualizarPreviewFotoExterna(this.value)">
+            <button type="button" onclick="document.getElementById('f_foto_principal').value='';atualizarPreviewFotoExterna('')"
+              style="padding:8px 10px;border:1px solid var(--card-border,#e2e8f0);border-radius:7px;background:transparent;color:var(--text2,#64748b);cursor:pointer;font-size:13px;white-space:nowrap">
+              ✕ Limpar
+            </button>
+          </div>
+          <div id="previewFotoExterna" style="margin-top:10px;display:none;align-items:center;gap:12px">
+            <img id="previewFotoExternaImg" src="" alt="Preview" style="width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid var(--card-border,#e2e8f0)"
+              onerror="document.getElementById('previewFotoExternaErro').style.display='';this.style.display='none'">
+            <span id="previewFotoExternaErro" style="display:none;font-size:12px;color:#dc2626">URL não carregou uma imagem válida.<br>Verifique se é um link direto para .jpg/.png/.webp</span>
+          </div>
+          <p style="font-size:11px;color:var(--text2,#64748b);margin-top:6px;line-height:1.5">
+            Cole o link direto de uma imagem (deve terminar em .jpg, .png, .webp ou similar).<br>
+            Usada na lista de produtos, cards e vitrine quando não houver upload local.
+          </p>
+        </div>
+
         <div id="galeriaHintNovo" class="galeria-hint" style="display:none">
           Salve o produto primeiro para adicionar fotos.
         </div>
@@ -1214,7 +1269,7 @@ tbody td { padding:10px 12px; vertical-align:middle; }
 </div>
 
 <!-- ── QUICK VIEW ──────────────────────────────────────────────────────────── -->
-<div id="qvOverlay" onclick="fecharQuickView()"></div>
+<div id="qvOverlay"></div>
 <div id="quickViewPanel">
   <div class="qv-head">
     <div class="qv-avatar" id="qvAvatar">P</div>
@@ -1222,26 +1277,24 @@ tbody td { padding:10px 12px; vertical-align:middle; }
       <div class="qv-title" id="qvNome">—</div>
       <div class="qv-sub" id="qvSub">—</div>
     </div>
-    <button class="qv-close" onclick="fecharQuickView()">✕</button>
+    <button type="button" class="qv-close" data-qv-action="fechar" title="Fechar">✕</button>
   </div>
-  <div class="qv-body" id="qvBody">
-    <div style="text-align:center;padding:40px;color:var(--text2)">Carregando…</div>
-  </div>
-  <div class="qv-foot" onclick="event.stopPropagation()">
-    <button type="button" class="btn btn-primary" id="btnQvEditar" onclick="editarDoQuickView()">
+  <div class="qv-body" id="qvBody"></div>
+  <div class="qv-foot">
+    <button type="button" class="btn btn-primary" id="btnQvEditar" data-qv-action="editar">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
           d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
       </svg>
       Editar produto
     </button>
-    <button type="button" class="btn btn-ghost" id="btnQvPromo" onclick="promoDoQuickView()">
+    <button type="button" class="btn btn-ghost" id="btnQvPromo" data-qv-action="promo">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:13px;height:13px">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
       </svg>
       Promoções
     </button>
-    <button type="button" class="btn btn-ghost" id="btnQvClonar" onclick="clonarDoQuickView()">
+    <button type="button" class="btn btn-ghost" id="btnQvClonar" data-qv-action="clonar">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:13px;height:13px">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
           d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
@@ -1250,6 +1303,16 @@ tbody td { padding:10px 12px; vertical-align:middle; }
     </button>
   </div>
 </div>
+<script>
+(function () {
+  ['qvOverlay', 'quickViewPanel'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.classList.remove('open', 'show');
+    if (id === 'quickViewPanel') el.style.removeProperty('right');
+  });
+})();
+</script>
 
 <!-- ── MODAL CONFIRM ──────────────────────────────────────────────────────── -->
 <div id="modalConfirm">
@@ -1629,8 +1692,155 @@ let _listaCache = [];
 let _selecionados = new Set();
 let _editandoId = null;
 let _qvIdAtual = null;
+let _qvDocHandler = null;
 let _dropdownAtual = null;
 let _notifData = null;
+
+/** CSS completo no home.html — painel teleportado perde estilos do iframe */
+const _QV_HOME_CSS = `
+#qvOverlay{display:none!important;position:fixed;inset:0;z-index:2147483645;background:rgba(15,23,42,.45)}
+#qvOverlay.show{display:block!important}
+#quickViewPanel{display:none!important;position:fixed;z-index:2147483646;top:0;right:0;bottom:0;left:auto;
+  width:min(420px,96vw);max-width:96vw;height:100dvh;height:100vh;
+  background:var(--card-bg,#fff);color:var(--content-text,#0f172a);
+  border-left:1px solid var(--card-border,#e2e8f0);box-shadow:-12px 0 40px rgba(0,0,0,.25);
+  flex-direction:column;overflow:hidden;font-family:var(--font,system-ui,sans-serif);
+  visibility:hidden;pointer-events:none}
+#quickViewPanel.open{display:flex!important;visibility:visible!important;pointer-events:auto!important}
+#quickViewPanel:not(.open){display:none!important;visibility:hidden!important;pointer-events:none!important;opacity:0!important}
+#quickViewPanel .qv-head{padding:16px 18px;display:flex;align-items:flex-start;gap:12px;flex-shrink:0;
+  background:linear-gradient(135deg,var(--accent,#4361ee),var(--accent-hover,#3730a3));color:#fff}
+#quickViewPanel .qv-avatar{width:44px;height:44px;border-radius:11px;background:rgba(255,255,255,.2);
+  display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;flex-shrink:0;text-transform:uppercase}
+#quickViewPanel .qv-title{font-size:14px;font-weight:700;line-height:1.3;margin-bottom:2px}
+#quickViewPanel .qv-sub{font-size:11px;opacity:.75}
+#quickViewPanel .qv-close{margin-left:auto;background:rgba(255,255,255,.18);border:none;color:#fff;
+  width:28px;height:28px;border-radius:50%;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+#quickViewPanel .qv-body{flex:1 1 0;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  padding:14px 18px;display:flex;flex-direction:column;gap:12px}
+#quickViewPanel .qv-section-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;
+  color:var(--text2,#64748b);margin-bottom:7px;padding-bottom:4px;border-bottom:1px solid var(--card-border,#e2e8f0)}
+#quickViewPanel .qv-row{display:flex;gap:6px;margin-bottom:5px;font-size:12px;line-height:1.45;
+  color:var(--text2,#64748b);align-items:flex-start}
+#quickViewPanel .qv-row svg{width:13px!important;height:13px!important;max-width:13px!important;max-height:13px!important;
+  flex-shrink:0;margin-top:1px;display:block}
+#quickViewPanel .qv-row span{color:var(--content-text,#0f172a);font-weight:500;word-break:break-word;flex:1;min-width:0}
+#quickViewPanel .qv-edit-top{padding:0 0 10px;border-bottom:1px solid var(--card-border,#e2e8f0);margin-bottom:4px}
+#quickViewPanel .qv-edit-top .btn{width:100%;justify-content:center;font-size:12px;font-weight:700;padding:9px 12px}
+#quickViewPanel .qv-foot{padding:12px 18px;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px));
+  border-top:1px solid var(--card-border,#e2e8f0);display:flex;flex-wrap:wrap;gap:8px;flex-shrink:0;
+  background:var(--card-bg,#fff);box-shadow:0 -4px 16px rgba(0,0,0,.08)}
+#quickViewPanel .qv-foot .btn{flex:1;justify-content:center;font-size:11px;padding:8px 10px;min-width:100px}
+#quickViewPanel .qv-foot .btn-primary{flex:1 1 100%;font-size:12px;font-weight:800;padding:10px 12px}
+#quickViewPanel .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 12px;
+  border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;border:1.5px solid transparent;
+  white-space:nowrap;transition:.15s}
+#quickViewPanel .btn svg{width:13px!important;height:13px!important;flex-shrink:0}
+#quickViewPanel .btn-primary{background:var(--accent,#4361ee);color:#fff;border-color:var(--accent,#4361ee)}
+#quickViewPanel .btn-outline{background:var(--card-bg,#fff);color:var(--accent,#4361ee);border-color:var(--accent,#4361ee)}
+#quickViewPanel .btn-ghost{background:var(--card-bg,#fff);color:var(--content-text,#64748b);border-color:var(--card-border,#e2e8f0)}
+#quickViewPanel .empty-state{text-align:center;padding:24px 12px;color:var(--text2,#64748b);font-size:13px}
+`;
+
+function _qv$(id) {
+  let el = document.getElementById(id);
+  if (el) return el;
+  try {
+    if (window.sysrep?.isHomeEmbed?.()) return window.parent.document.getElementById(id);
+  } catch (_) {}
+  return null;
+}
+
+function _qvEnsureHomeCss() {
+  try {
+    const pdoc = window.parent.document;
+    let st = pdoc.getElementById('sysrep-prod-qv-css');
+    if (!st) {
+      st = pdoc.createElement('style');
+      st.id = 'sysrep-prod-qv-css';
+      pdoc.head.appendChild(st);
+    }
+    st.textContent = _QV_HOME_CSS;
+  } catch (_) {}
+}
+
+function _qvRestaurarDoHome() {
+  let panel = null;
+  let overlay = null;
+  try {
+    panel = window.parent.document.getElementById('quickViewPanel');
+    overlay = window.parent.document.getElementById('qvOverlay');
+  } catch (_) {}
+  if (!panel) panel = document.getElementById('quickViewPanel');
+  if (!overlay) overlay = document.getElementById('qvOverlay');
+  if (panel?.dataset?.sysrepHomeTeleported === '1') window.sysrep?.restoreModalFromHome?.(panel);
+  if (overlay?.dataset?.sysrepHomeTeleported === '1') window.sysrep?.restoreModalFromHome?.(overlay);
+  document.body.style.overflow = '';
+  try { window.parent.document.body.style.overflow = ''; } catch (_) {}
+}
+
+function _qvHandleAction(action) {
+  if (action === 'fechar') {
+    fecharQuickView();
+    return;
+  }
+  const id = _qvIdAtual;
+  if (!id) return;
+  if (action === 'editar') {
+    fecharQuickView();
+    abrirEdicao(id);
+  } else if (action === 'promo') {
+    fecharQuickView();
+    abrirPromocoesProduto(id);
+  } else if (action === 'clonar') {
+    fecharQuickView();
+    clonarRegistro(id);
+  }
+}
+
+function _qvBindActions() {
+  const panel = _qv$('quickViewPanel');
+  const overlay = _qv$('qvOverlay');
+  if (panel && panel.dataset.qvActionsBound !== '1') {
+    panel.dataset.qvActionsBound = '1';
+    panel.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-qv-action]');
+      if (!btn || btn.disabled) return;
+      e.preventDefault();
+      e.stopPropagation();
+      _qvHandleAction(btn.getAttribute('data-qv-action'));
+    });
+  }
+  if (overlay && overlay.dataset.qvActionsBound !== '1') {
+    overlay.dataset.qvActionsBound = '1';
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) fecharQuickView();
+    });
+  }
+}
+
+function ensureQuickViewPortal() {
+  if (window.sysrep?.isHomeEmbed?.()) {
+    _qvEnsureHomeCss();
+    let overlay = document.getElementById('qvOverlay');
+    let panel = document.getElementById('quickViewPanel');
+    if (!overlay) { try { overlay = window.parent.document.getElementById('qvOverlay'); } catch (_) {} }
+    if (!panel) { try { panel = window.parent.document.getElementById('quickViewPanel'); } catch (_) {} }
+    if (overlay && overlay.dataset.sysrepHomeTeleported !== '1') {
+      window.sysrep.teleportModalToHome(overlay, 'sysrep-prod-qv-css', null);
+    }
+    if (panel && panel.dataset.sysrepHomeTeleported !== '1') {
+      window.sysrep.teleportModalToHome(panel, 'sysrep-prod-qv-css', null);
+    }
+    _qvBindActions();
+    return;
+  }
+  ['qvOverlay', 'quickViewPanel'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el && el.parentElement !== document.body) document.body.appendChild(el);
+  });
+  _qvBindActions();
+}
 
 // ═══════════════════════════════════════════════════════════
 // INIT
@@ -1661,6 +1871,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (temRetornoPromocoes()) _notificarTabLabelProdutos();
   }
 
+  fecharQuickView();
+  if (window.sysrep?.isHomeEmbed?.()) _qvEnsureHomeCss();
+  ['qvOverlay', 'quickViewPanel'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el && el.parentElement !== document.body) document.body.appendChild(el);
+  });
+  _qvBindActions();
   carregarPermissoesProdutos();
   carregarPrefsLista().then(() => {
     atualizarCabecalhoTabela();
@@ -1695,6 +1912,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if ((e.ctrlKey||e.metaKey) && e.key === 'n') { e.preventDefault(); novoRegistro(); }
     if (e.key === 'Escape') { fecharFormulario(); fecharQuickView(); }
     if ((e.ctrlKey||e.metaKey) && e.key === 'f') { e.preventDefault(); document.getElementById('searchInput').focus(); }
+  });
+
+  window.addEventListener('pageshow', () => { fecharQuickView(); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') fecharQuickView();
   });
 });
 
@@ -1760,7 +1982,7 @@ function atualizarCabecalhoTabela() {
     <th>Código</th>
     <th>Descrição / Apelido</th>
     <th>Cod.Barras</th>
-    <th>Referência</th>
+    <th>Referência/SKU</th>
     <th>Fabricante</th>
     <th>Un</th>
     <th>Vlr.Venda</th>
@@ -2139,9 +2361,9 @@ async function carregarPermissoesProdutos() {
 }
 
 function atualizarBotoesQuickView() {
-  const btnEdit = document.getElementById('btnQvEditar');
-  const btnPromo = document.getElementById('btnQvPromo');
-  const btnClone = document.getElementById('btnQvClonar');
+  const btnEdit = _qv$('btnQvEditar');
+  const btnPromo = _qv$('btnQvPromo');
+  const btnClone = _qv$('btnQvClonar');
   if (btnEdit) {
     btnEdit.disabled = !!_semPermAlterar;
     btnEdit.title = _semPermAlterar ? 'Sem permissão para editar' : 'Abrir cadastro do produto';
@@ -2408,13 +2630,24 @@ function _notifOutsideHandler(e) {
 // ═══════════════════════════════════════════════════════════
 async function abrirQuickView(id, event) {
   if (event) event.stopPropagation();
+  fecharQuickView();
+  ensureQuickViewPortal();
+  _qvBindActions();
   _qvIdAtual = id;
-  document.getElementById('quickViewPanel').classList.add('open');
-  document.getElementById('qvOverlay').classList.add('show');
-  document.getElementById('qvBody').innerHTML = '<div style="text-align:center;padding:40px;color:var(--text2)">Carregando…</div>';
-  document.getElementById('qvAvatar').textContent = '…';
-  document.getElementById('qvNome').textContent = '…';
-  document.getElementById('qvSub').textContent = '';
+  const panel = _qv$('quickViewPanel');
+  const overlay = _qv$('qvOverlay');
+  panel?.classList.add('open');
+  overlay?.classList.add('show');
+  document.body.style.overflow = 'hidden';
+  try { window.parent.document.body.style.overflow = 'hidden'; } catch (_) {}
+  const qvBody = _qv$('qvBody');
+  const qvAvatar = _qv$('qvAvatar');
+  const qvNome = _qv$('qvNome');
+  const qvSub = _qv$('qvSub');
+  if (qvBody) qvBody.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text2)">Carregando…</div>';
+  if (qvAvatar) qvAvatar.textContent = '…';
+  if (qvNome) qvNome.textContent = '…';
+  if (qvSub) qvSub.textContent = '';
 
   try {
     const r = await api(`/api/produtos/${id}`);
@@ -2423,23 +2656,23 @@ async function abrirQuickView(id, event) {
     _qvIdAtual = prodId;
 
     const letra = (p.descricao||'?')[0].toUpperCase();
-    document.getElementById('qvAvatar').textContent = letra;
-    document.getElementById('qvNome').textContent   = p.descricao || '—';
-    document.getElementById('qvSub').textContent    = `Código: ${prodId}${p.apelido?' · '+p.apelido:''}`;
+    if (qvAvatar) qvAvatar.textContent = letra;
+    if (qvNome) qvNome.textContent = p.descricao || '—';
+    if (qvSub) qvSub.textContent = `Código: ${prodId}${p.apelido?' · '+p.apelido:''}`;
 
     const estBaixo = Number(p.estoque_minimo) > 0 && Number(p.estoque_atual) <= Number(p.estoque_minimo);
     const statusLabel = {'A':'Ativo','I':'Inativo','E':'Excluído'}[p.situacao]||'—';
 
     const editTop = _semPermAlterar ? '' : `
       <div class="qv-edit-top" style="display:flex;gap:8px;flex-wrap:wrap">
-        <button type="button" class="btn btn-primary" onclick="editarDoQuickView()" style="flex:1">
+        <button type="button" class="btn btn-primary" data-qv-action="editar" style="flex:1">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
           </svg>
           Editar produto
         </button>
-        <button type="button" class="btn btn-ghost" onclick="promoDoQuickView()" style="flex:1">
+        <button type="button" class="btn btn-ghost" data-qv-action="promo" style="flex:1">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:13px;height:13px">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
           </svg>
@@ -2447,7 +2680,7 @@ async function abrirQuickView(id, event) {
         </button>
       </div>`;
 
-    document.getElementById('qvBody').innerHTML = `
+    if (qvBody) qvBody.innerHTML = `
       ${editTop}
       <div>
         <div class="qv-section-title">Identificação</div>
@@ -2455,7 +2688,7 @@ async function abrirQuickView(id, event) {
         <div class="qv-row"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>Família: <span>${escHtml(p.nomefamilia||'—')}</span></div>
         <div class="qv-row"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>Status: <span>${statusLabel}</span></div>
         <div class="qv-row"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/></svg>Cód.Barras: <span>${escHtml(p.cod_barras||'—')}</span></div>
-        <div class="qv-row"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>Ref.Fabricante: <span>${escHtml(p.cod_fabricante||'—')}</span></div>
+        <div class="qv-row"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>Ref.Fabricante/SKU: <span>${escHtml(p.cod_fabricante||'—')}</span></div>
         <div class="qv-row"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"/></svg>Unidade: <span>${escHtml(p.unidade||'—')}</span></div>
       </div>
       <div>
@@ -2473,14 +2706,27 @@ async function abrirQuickView(id, event) {
     `;
     atualizarBotoesQuickView();
   } catch(err) {
-    document.getElementById('qvBody').innerHTML = `<div class="empty-state"><p>Erro ao carregar: ${escHtml(err.message)}</p></div>`;
+    if (qvBody) qvBody.innerHTML = `<div class="empty-state"><p>Erro ao carregar: ${escHtml(err.message)}</p></div>`;
     atualizarBotoesQuickView();
   }
 }
 
 function fecharQuickView() {
-  document.getElementById('quickViewPanel').classList.remove('open');
-  document.getElementById('qvOverlay').classList.remove('show');
+  const panel = _qv$('quickViewPanel');
+  const overlay = _qv$('qvOverlay');
+  panel?.classList.remove('open');
+  overlay?.classList.remove('show');
+  if (panel) {
+    panel.style.removeProperty('right');
+    panel.style.removeProperty('display');
+  }
+  _qvRestaurarDoHome();
+  document.body.style.overflow = '';
+  try { window.parent.document.body.style.overflow = ''; } catch (_) {}
+  if (_qvDocHandler) {
+    document.removeEventListener('click', _qvDocHandler);
+    _qvDocHandler = null;
+  }
   _qvIdAtual = null;
 }
 
@@ -2630,6 +2876,7 @@ const _CLONE_LIMPAR_PROD = [
   'f_cod_interno',      // código interno único
   'f_estoque_atual',    // estoque começa zerado no novo produto
   'f_obs', 'f_obs2',    // observações específicas do original
+  'f_foto_principal',   // URL de imagem é específica do produto original
 ];
 
 async function clonarRegistro(id) {
@@ -2650,6 +2897,7 @@ async function clonarRegistro(id) {
       const el = document.getElementById(fid);
       if (el) el.value = '';
     });
+    atualizarPreviewFotoExterna('');
 
     mostrarForm();
     showToast('Produto clonado — revise os dados e salve como novo', '');
@@ -2690,6 +2938,17 @@ function atualizarHintPrecoPesoCadastro() {
   }
 }
 
+function atualizarPreviewFotoExterna(url) {
+  const wrap = document.getElementById('previewFotoExterna');
+  const img  = document.getElementById('previewFotoExternaImg');
+  const erro = document.getElementById('previewFotoExternaErro');
+  if (!url || !url.trim()) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'flex';
+  erro.style.display = 'none';
+  img.style.display = '';
+  img.src = url.trim();
+}
+
 function limparForm() {
   const ids = ['f_id','f_descricao','f_apelido','f_situacao','f_unidade','f_marca',
     'f_id_grupo','f_nome_grupo','f_id_familiaproduto','f_segmento','f_cod_interno',
@@ -2700,7 +2959,7 @@ function limparForm() {
     'f_kilo_embalagem','f_embalagemmaster','f_multiplo_venda','f_id_endereco',
     'f_ncm','f_cest','f_icms','f_ipi','f_vlr_pis','f_vlr_confins','f_vlr_st','f_origem',
     'f_cor1','f_cor2','f_solado','f_peso_liquido','f_tipograde',
-    'f_cod_fornecedorpadrao','f_cod_fornecedorcusto','f_obs','f_obs2'];
+    'f_cod_fornecedorpadrao','f_cod_fornecedorcusto','f_obs','f_obs2','f_foto_principal'];
   ids.forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = el.tagName === 'SELECT' ? (el.options[0]?.value||'') : '';
@@ -2710,6 +2969,7 @@ function limparForm() {
   const elPp = document.getElementById('f_precopeso');
   if (elPp) elPp.value = 'N';
   syncPrecoPesoProdutoForm();
+  atualizarPreviewFotoExterna('');
   abrirAba('geral', document.querySelector('.form-tab'));
 }
 
@@ -2770,6 +3030,8 @@ function preencherForm(p) {
   set('f_cod_fornecedorcusto',  p.cod_fornecedorcusto);
   set('f_obs',                p.obs);
   set('f_obs2',               p.obs2);
+  set('f_foto_principal',     p.foto_principal);
+  atualizarPreviewFotoExterna(p.foto_principal || '');
 }
 
 async function salvar() {
@@ -2843,6 +3105,7 @@ async function salvar() {
     cod_fornecedorcusto:  v('f_cod_fornecedorcusto'),
     obs:                  v('f_obs'),
     obs2:                 v('f_obs2'),
+    foto_principal:       v('f_foto_principal') || undefined,
   };
 
   const btn = document.getElementById('btnSalvar');
@@ -3122,7 +3385,7 @@ async function exportarCSV() {
     if (!produtos.length) { showToast('Nenhum dado para exportar'); return; }
 
     const cols = ['id','descricao','apelido','cod_barras','cod_fabricante','unidade','vlr_venda','estoque_atual','estoque_minimo','nome_grupo','situacao'];
-    const header = ['ID','Descrição','Apelido','Cód.Barras','Ref.Fabricante','Un','Vlr.Venda','Estoque','Est.Mínimo','Grupo','Status'];
+    const header = ['ID','Descrição','Apelido','Cód.Barras','Ref.Fabricante/SKU','Un','Vlr.Venda','Estoque','Est.Mínimo','Grupo','Status'];
     const rows = [header, ...produtos.map(p => cols.map(c => String(p[c]??'').replace(/"/g,'""')))];
     const csv = rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n');
 
@@ -3396,6 +3659,8 @@ async function enviarImportFotos() {
     btn.disabled = false;
   }
 }
+
+fecharQuickView();
 </script>
 
 <!-- ── MODAL IMPORTAR FOTOS ───────────────────────────────────────────────── -->

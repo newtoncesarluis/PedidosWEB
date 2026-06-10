@@ -17,7 +17,7 @@ async function getProdTabela(pool) {
 router.get('/', async (req, res) => {
   try {
     const pool = getPool();
-    const { busca, id_fornecedor, page = 1, limit = 100 } = req.query;
+    const { busca, id_fornecedor, atualizado_apos, page = 1, limit = 100 } = req.query;
 
     const pageNum  = Math.max(1, parseInt(page)  || 1);
     const limitNum = Math.min(500, Math.max(1, parseInt(limit) || 100));
@@ -36,6 +36,10 @@ router.get('/', async (req, res) => {
       where += ` AND p.cod_fornecedor = ?`;
       params.push(id_fornecedor);
     }
+    if (atualizado_apos) {
+      where += ` AND p.updated_at >= ?`;
+      params.push(atualizado_apos);
+    }
 
     const [[{ total }]] = await pool.query(
       `SELECT COUNT(p.ID) AS total FROM \`${pt}\` p ${where}`,
@@ -53,6 +57,7 @@ router.get('/', async (req, res) => {
          p.preco3                AS preco_promocao,
          p.situacao,
          p.cod_fornecedor,
+         p.updated_at,
          f.nome                  AS nome_fornecedor
        FROM \`${pt}\` p
        LEFT JOIN fornecedores f ON f.id = p.cod_fornecedor AND f.excluido = 'N'
@@ -72,6 +77,7 @@ router.get('/', async (req, res) => {
       preco_promocao:Number(p.preco_promocao || 0),
       vlr_venda:    Number(p.preco_venda   || 0),
       situacao:     p.situacao,
+      updated_at:   p.updated_at || null,
       cod_fornecedor: p.cod_fornecedor || null,
       fornecedor: {
         id:   p.cod_fornecedor || null,
@@ -99,7 +105,8 @@ router.get('/', async (req, res) => {
         preco_venda: Number(p.preco_venda || 0),
         preco_atacado: Number(p.preco_atacado || 0),
         preco_promocao: Number(p.preco_promocao || 0),
-        situacao: p.situacao,
+        situacao:   p.situacao,
+        updated_at: p.updated_at || null,
         fornecedor: p.fornecedor,
         tem_promocao: !!p.tem_promocao,
       };

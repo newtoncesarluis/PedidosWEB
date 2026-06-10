@@ -70,6 +70,7 @@ const DEFAULT_CAMPOS_PRODUTO = [
   { nome_campo: 'st',               apelido: 'ST %',               tipo: 'decimal', ordem: 10, obrigatorio: 'N' },
   { nome_campo: 'icms',             apelido: 'ICMS %',             tipo: 'decimal', ordem: 11, obrigatorio: 'N' },
   { nome_campo: 'kilo_embalagem',   apelido: 'Peso Embalagem (kg)',tipo: 'decimal', ordem: 12, obrigatorio: 'N' },
+  { nome_campo: 'precopeso',        apelido: 'Preço por Peso (S/N)',tipo: 'texto',  ordem: 12.5, obrigatorio: 'N' },
   { nome_campo: 'embalagemmaster',  apelido: 'Embalagem Master',   tipo: 'inteiro', ordem: 13, obrigatorio: 'N' },
   { nome_campo: 'multiplo_venda',   apelido: 'Múltiplo de Venda',  tipo: 'inteiro', ordem: 14, obrigatorio: 'N' },
   { nome_campo: 'peso_liquido',     apelido: 'Peso Líquido',       tipo: 'decimal', ordem: 15, obrigatorio: 'N' },
@@ -77,6 +78,10 @@ const DEFAULT_CAMPOS_PRODUTO = [
   { nome_campo: 'cod_barras',       apelido: 'Cód. Barras',        tipo: 'texto',   ordem: 17, obrigatorio: 'N' },
   { nome_campo: 'marca',            apelido: 'Marca',              tipo: 'texto',   ordem: 18, obrigatorio: 'N' },
   { nome_campo: 'situacao',         apelido: 'Situação',           tipo: 'texto',   ordem: 19, obrigatorio: 'N' },
+  { nome_campo: 'estoque_atual',    apelido: 'Estoque Atual',      tipo: 'decimal', ordem: 20, obrigatorio: 'N' },
+  { nome_campo: 'estoque_minimo',   apelido: 'Estoque Mínimo',     tipo: 'decimal', ordem: 21, obrigatorio: 'N' },
+  { nome_campo: 'estoque_maximo',   apelido: 'Estoque Máximo',     tipo: 'decimal', ordem: 22, obrigatorio: 'N' },
+  { nome_campo: 'estoque_seguranca',apelido: 'Estoque Segurança',  tipo: 'decimal', ordem: 23, obrigatorio: 'N' },
 ];
 
 let _defaultCamposProdutoSeeded = false;
@@ -581,7 +586,8 @@ router.post('/importar-linha', async (req, res) => {
     const dadosParaSalvar = {};
     for (const [campo, valor] of Object.entries(campos)) {
       if (camposValidos.includes(campo)) {
-        dadosParaSalvar[campo] = valor == null ? '' : String(valor).toUpperCase();
+        const strVal = valor == null ? '' : String(valor);
+        dadosParaSalvar[campo] = /^https?:\/\//i.test(strVal.trim()) ? strVal.trim() : strVal.toUpperCase();
       }
     }
 
@@ -592,6 +598,7 @@ router.post('/importar-linha', async (req, res) => {
     for (const cn of CAMPOS_NUMERICOS) {
       if (!Object.prototype.hasOwnProperty.call(dadosParaSalvar, cn)) continue;
       const raw = String(dadosParaSalvar[cn]).replace(',', '.').trim();
+      if (!raw) { delete dadosParaSalvar[cn]; continue; }
       const num = parseFloat(raw);
       dadosParaSalvar[cn] = isFinite(num) ? String(num) : '0';
     }
@@ -603,10 +610,20 @@ router.post('/importar-linha', async (req, res) => {
       }
     }
 
-    // multiplo_venda deve ser no mínimo 1
+    // precopeso aceita apenas 'S' ou 'N'
+    if (Object.prototype.hasOwnProperty.call(dadosParaSalvar, 'precopeso')) {
+      const pp = String(dadosParaSalvar.precopeso).toUpperCase().trim();
+      dadosParaSalvar.precopeso = ['S', 'SIM', 'YES', 'TRUE', '1'].includes(pp) ? 'S' : 'N';
+    }
+
+    // multiplo_venda deve ser no mínimo 1 (só normaliza se veio com valor)
     if (Object.prototype.hasOwnProperty.call(dadosParaSalvar, 'multiplo_venda')) {
       const mv = parseInt(dadosParaSalvar.multiplo_venda, 10);
-      dadosParaSalvar.multiplo_venda = String(Number.isFinite(mv) && mv >= 1 ? mv : 1);
+      if (Number.isFinite(mv) && mv >= 1) {
+        dadosParaSalvar.multiplo_venda = String(mv);
+      } else {
+        delete dadosParaSalvar.multiplo_venda;
+      }
     }
 
     const metaTabela = getMetaProdutoTabela(campos);
@@ -620,6 +637,18 @@ router.post('/importar-linha', async (req, res) => {
       }
 
       const cols = Object.keys(dadosParaSalvar).filter((c) => c !== 'id');
+
+      // Captura saldo anterior ANTES de atualizar (para o movimento_estoque)
+      let saldoAnterior = null;
+      const atualizaEstoque = Object.prototype.hasOwnProperty.call(dadosParaSalvar, 'estoque_atual');
+      if (atualizaEstoque) {
+        const [[prodAtual]] = await conn.query(
+          `SELECT IFNULL(estoque_atual,0) AS estoque_atual, descricao FROM produto WHERE id = ? LIMIT 1`,
+          [cod_produto]
+        ).catch(() => [[null]]);
+        saldoAnterior = prodAtual ? parseFloat(prodAtual.estoque_atual) : 0;
+      }
+
       if (cols.length > 0) {
         const setParts = cols.map((c) => `\`${c}\` = ?`);
         const vals = cols.map((c) => dadosParaSalvar[c]);
@@ -630,6 +659,44 @@ router.post('/importar-linha', async (req, res) => {
          WHERE id = ?`,
           vals
         );
+      }
+
+      // Registra movimento de AJUSTE no histórico de estoque
+      if (atualizaEstoque && saldoAnterior !== null) {
+        const novoSaldo = parseFloat(dadosParaSalvar.estoque_atual) || 0;
+        const { hojeIsoBrasil, horaBrasil } = require('../config/date-brasil');
+        await conn.query(
+          `CREATE TABLE IF NOT EXISTS movimento_estoque (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            cod_produto INT NOT NULL, desc_produto VARCHAR(200),
+            tipo_movimento VARCHAR(20) NOT NULL, quantidade DECIMAL(15,4) NOT NULL,
+            saldo_anterior DECIMAL(15,4) DEFAULT 0, saldo_posterior DECIMAL(15,4) DEFAULT 0,
+            id_pedido INT NULL, numero_pedido VARCHAR(50) NULL,
+            id_usuario INT NULL, nome_usuario VARCHAR(100) NULL,
+            observacao VARCHAR(500) NULL, nota_fiscal VARCHAR(60) NULL,
+            chave_nfe VARCHAR(44) NULL, fornecedor_nome VARCHAR(150) NULL,
+            data_movimento DATE NOT NULL, hora_movimento TIME NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_me_produto (cod_produto), INDEX idx_me_data (data_movimento)
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3`
+        ).catch(() => {});
+        await conn.query(
+          `INSERT INTO movimento_estoque
+           (cod_produto, tipo_movimento, quantidade, saldo_anterior, saldo_posterior,
+            id_usuario, observacao, data_movimento, hora_movimento)
+           VALUES (?,?,?,?,?,?,?,?,?)`,
+          [
+            parseInt(cod_produto),
+            'AJUSTE',
+            Math.abs(novoSaldo - saldoAnterior),
+            saldoAnterior,
+            novoSaldo,
+            req.user?.id || null,
+            'Ajuste via importação de planilha',
+            hojeIsoBrasil(),
+            horaBrasil(),
+          ]
+        ).catch(() => {});
       }
 
       let ups = tabelaUpdatesRaw;

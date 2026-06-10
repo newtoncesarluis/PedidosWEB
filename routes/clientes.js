@@ -129,19 +129,18 @@ router.get('/', async (req, res) => {
     const isAdmin = req.user?.perfil == 1;
     const acessaTodos   = isAdmin ? 'S' : (perm.acessartodosclientes || '');
     const eGerente      = !isAdmin && perm.gerentecomercial === 'S';
-
-    if (!isAdmin && acessaTodos === 'N') {
+    if (!isAdmin && acessaTodos !== 'S') {
       if (eGerente) {
         // Gerente vê os próprios clientes + clientes da equipe subordinada
         where.push(`(c.cod_vendedor = ? OR c.cod_vendedor IN (SELECT idusuario FROM usuarios WHERE id_gerente = ? AND excluido = 'N'))`);
         vals.push(userId, userId);
       } else {
-        // Vendedor padrão: só seus clientes (ou sem vínculo)
-        where.push(`(c.cod_vendedor IS NULL OR c.cod_vendedor = '' OR c.cod_vendedor = ?)`);
-        vals.push(userId);
+        // Vendedor padrão: só clientes com cod_vendedor = usuário logado (sem vazio/nulo)
+        where.push(`(c.cod_vendedor = ? OR CAST(c.cod_vendedor AS UNSIGNED) = ?)`);
+        vals.push(userId, userId);
       }
     }
-    // acessaTodos = 'S' ou '' → sem filtro adicional
+    // acessaTodos !== 'S' → filtra por vendedor; 'S' = sem filtro adicional
 
     if (status === 'A') { where.push(`(c.status = 'A' OR c.status IS NULL OR c.status = '')`); }
     else if (status === 'I') { where.push(`c.status = 'I'`); }

@@ -3,6 +3,23 @@ const path = require('path');
 const ROOT_DIR = process.pkg ? path.dirname(process.execPath) : __dirname;
 if (process.pkg) process.chdir(ROOT_DIR);
 require('dotenv').config();
+
+// ── Proteção contra DB_NAME de template (armadilha recorrente) ───────────────
+// Se DB_NAME ainda tem o valor padrão de template e não é o processo da Ally,
+// o processo está apontando para o banco errado — abortar antes de causar dano.
+if (
+  process.env.DB_NAME === 'bdallyrepresentacoes' &&
+  process.env.CHAVE_LICENCA &&
+  process.env.CHAVE_LICENCA !== 'ALLY-CHAVE-AQUI' // chave real da Ally, se houver
+) {
+  const msg = `[FATAL] DB_NAME=bdallyrepresentacoes detectado em processo bound (CHAVE=${process.env.CHAVE_LICENCA}). ` +
+    'Este é o valor padrão de template — corrija o .env deste cliente antes de reiniciar.';
+  console.error(msg);
+  // Não fazer process.exit() para não entrar em loop de restart do PM2;
+  // apenas logar e deixar o processo iniciar com aviso visível nos logs.
+  // O problema será detectado nos logs de startup.
+}
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -263,8 +280,9 @@ const { authMiddleware } = require('./middleware/auth');
 app.get('/api/license/check', async (req, res) => {
   try {
     const LicenseService = require('./services/license-service');
-    const { customerDbFromLicense } = require('./config/database');
-    const chave  = (req.query.chave || '').trim().toUpperCase() || null;
+    const { customerDbFromLicense, getBoundChave } = require('./config/database');
+    // Em modo BOUND: usa a chave do processo se não vier na query
+    const chave  = (req.query.chave || '').trim().toUpperCase() || getBoundChave() || null;
     // Em multi-tenant: sem chave = tenant desconhecido → nunca cair no checkLocal() global
     const result = chave
       ? await LicenseService.checkByKey(chave)
@@ -503,6 +521,7 @@ app.use('/api/gamificacao',    authMiddleware, require('./routes/gamificacao'));
 app.use('/api/lgpd',           authMiddleware, require('./routes/lgpd'));
 app.use('/api/user-prefs',    authMiddleware, require('./routes/user-prefs'));
 app.use('/api/mobile',        authMiddleware, require('./routes/mobile'));
+app.use('/api/metas-vendas',  authMiddleware, require('./routes/metas-vendas'));
 
 // ─── GET /api/grupos-fab — grupos de fornecedores (tabela: grupos) ──────────
 app.get('/api/grupos-fab', authMiddleware, async (req, res) => {
@@ -569,6 +588,7 @@ app.get('/api/pedidos/pdf-download/:token', (req, res) => {
   res.setHeader('Cache-Control', 'private, max-age=300');
   res.send(item.buf);
 });
+app.use('/api/estoque',   authMiddleware, require('./routes/estoque'));
 app.use('/api/pedidos',   authMiddleware, require('./routes/pedidos'));
 app.use('/api/feirinha',  authMiddleware, require('./routes/feirinha'));
 app.use('/api/xml',       authMiddleware, require('./routes/xml'));

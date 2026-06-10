@@ -147,6 +147,7 @@ input:focus, select:focus { border-color:var(--accent); box-shadow:0 0 0 3px var
         <div class="form-tab" onclick="setTab(4,this)">Restrições Pedido</div>
         <div class="form-tab" onclick="setTab(5,this)">Permissões Gerais</div>
         <div class="form-tab" onclick="setTab(6,this)">Importação</div>
+        <div class="form-tab" onclick="setTab(7,this)">Estoque</div>
       </div>
       <div class="form-body">
         <input type="hidden" id="f_id">
@@ -164,6 +165,7 @@ input:focus, select:focus { border-color:var(--accent); box-shadow:0 0 0 3px var
         <div class="tab-pane" id="tab-4"></div>
         <div class="tab-pane" id="tab-5"></div>
         <div class="tab-pane" id="tab-6"></div>
+        <div class="tab-pane" id="tab-7"></div>
       </div>
       <div class="form-footer">
         <button class="btn btn-ghost" onclick="exibirLista()">Cancelar</button>
@@ -199,16 +201,20 @@ const CAMPOS_SN = [
   'tela_segmentos','incluir_segmentos','alterar_segmentos','excluir_segmentos',
   'tela_regiao_rota','incluir_regioes','alterar_regioes','excluir_regioes',
   'tela_eventos_cidades','incluir_eventos_cidades','alterar_eventos_cidades','excluir_eventos_cidades',
+  'tela_tipo_pedidos','incluir_tipo_pedidos','alterar_tipo_pedidos','excluir_tipo_pedidos',
   'tela_importacao_clientes','tela_importacao_fornecedores','tela_campos_importacao',
+  'tela_estoque','incluir_estoque','alterar_estoque','excluir_estoque',
   'incluir_natureza','alterar_natureza','excluir_natureza',
   'incluir_tipo_frete','alterar_tipo_frete','excluir_tipo_frete',
   'incluir_locais_armazenamento','alterar_locais_armazenamento','excluir_locais_armazenamento',
   'incluir_motivo_visitas','alterar_motivo_visitas','excluir_motivo_visitas',
   'incluir_hoteis','alterar_hoteis','excluir_hoteis',
   'p_vender','p_comprar','acessogerenciais','manutencaocadastros','acessar_cadastros','acessartodosclientes','mudarempresa','alterarbase',
-  'acesso_financeiro','acessoperfil','p_alterarcomissao','alterar_emb','alteraprecovenda','alterardatapedido','trocarvendedorpedido'
+  'acesso_financeiro','acessoperfil','p_alterarcomissao','alterar_emb','alteraprecovenda','alterardatapedido','trocarvendedorpedido',
+  'faturar_pedido','marcar_enviado_rep',
+  'acessar_metas_vendas'
 ];
-const CAMPOS_SN_DEFAULT_S = new Set(['p_alterarcomissao','alterar_emb','alteraprecovenda','alterardatapedido','trocarvendedorpedido','incluir_promocoes','alterar_promocoes','excluir_promocoes','prorrogar_promocoes','manutencao_promocoes']);
+const CAMPOS_SN_DEFAULT_S = new Set(['p_alterarcomissao','alterar_emb','alteraprecovenda','alterardatapedido','trocarvendedorpedido','faturar_pedido','marcar_enviado_rep','acessar_metas_vendas','incluir_promocoes','alterar_promocoes','excluir_promocoes','prorrogar_promocoes','manutencao_promocoes']);
 const PERM_SECTIONS = [
   { tab:1, sections:[
     { title:'Pedidos de Venda', fields:[{k:'incluir_pedvendas',l:'Incluir'},{k:'alterar_pedvendas',l:'Alterar'},{k:'excluir_pedvendas',l:'Excluir'}] },
@@ -237,22 +243,32 @@ const PERM_SECTIONS = [
     { title:'Tipos de Frete', fields:[{k:'incluir_tipo_frete',l:'Incluir'},{k:'alterar_tipo_frete',l:'Alterar'},{k:'excluir_tipo_frete',l:'Excluir'}] },
     { title:'Locais de Armazenamento', fields:[{k:'incluir_locais_armazenamento',l:'Incluir'},{k:'alterar_locais_armazenamento',l:'Alterar'},{k:'excluir_locais_armazenamento',l:'Excluir'}] },
     { title:'Motivo de Visitas', fields:[{k:'incluir_motivo_visitas',l:'Incluir'},{k:'alterar_motivo_visitas',l:'Alterar'},{k:'excluir_motivo_visitas',l:'Excluir'}] },
-    { title:'Hotéis', fields:[{k:'incluir_hoteis',l:'Incluir'},{k:'alterar_hoteis',l:'Alterar'},{k:'excluir_hoteis',l:'Excluir'}] }
+    { title:'Hotéis', fields:[{k:'incluir_hoteis',l:'Incluir'},{k:'alterar_hoteis',l:'Alterar'},{k:'excluir_hoteis',l:'Excluir'}] },
+    { title:'Tipos de Pedido', fields:[{k:'tela_tipo_pedidos',l:'Acessar tela'},{k:'incluir_tipo_pedidos',l:'Incluir'},{k:'alterar_tipo_pedidos',l:'Alterar'},{k:'excluir_tipo_pedidos',l:'Excluir'}] }
   ]},
   { tab:4, sections:[{ title:'Restrições no Pedido de Venda', fields:[
     {k:'p_alterarcomissao',l:'Alterar Comissão do Item',defS:true},{k:'alterar_emb',l:'Alterar Embalagem',defS:true},
     {k:'alteraprecovenda',l:'Alterar Preço de Venda',defS:true},{k:'alterardatapedido',l:'Alterar Data do Pedido',defS:true},
-    {k:'trocarvendedorpedido',l:'Trocar Vendedor',defS:true}
+    {k:'trocarvendedorpedido',l:'Trocar Vendedor',defS:true},
+    {k:'faturar_pedido',l:'Faturar Pedido',defS:true},{k:'marcar_enviado_rep',l:'Marcar Enviado p/ Representada',defS:true}
   ]}]},
   { tab:5, sections:[{ title:'Permissões Gerais', fields:[
     {k:'p_vender',l:'Vender'},{k:'p_comprar',l:'Comprar'},{k:'acessogerenciais',l:'Acesso Gerenciais'},{k:'acessar_cadastros',l:'Acesso Cadastros'},{k:'manutencaocadastros',l:'Manutenção Cadastros'},
     {k:'acessartodosclientes',l:'Acessar Todos Clientes'},{k:'mudarempresa',l:'Mudar Empresa'},{k:'alterarbase',l:'Alterar Base'},
-    {k:'acesso_financeiro',l:'Acesso Financeiro'},{k:'acessoperfil',l:'Acesso Perfis'}
+    {k:'acesso_financeiro',l:'Acesso Financeiro'},{k:'acessoperfil',l:'Acesso Perfis'},
+    {k:'acessar_metas_vendas',l:'Metas de Vendas por Indústria',defS:true}
   ]}]},
   { tab:6, sections:[
     { title:'Importação de Clientes', fields:[{k:'tela_importacao_clientes',l:'Acessar tela'}] },
     { title:'Importação de Fornecedores', fields:[{k:'tela_importacao_fornecedores',l:'Acessar tela'}] },
     { title:'Configurar Campos de Importação', fields:[{k:'tela_campos_importacao',l:'Acessar tela'}] }
+  ]},
+  { tab:7, sections:[
+    { title:'Gestão de Estoque', fields:[
+      {k:'tela_estoque',l:'Acessar tela (ver posição, histórico e lançar entrada)'},
+      {k:'alterar_estoque',l:'Ajustar Inventário (definir saldo absoluto)'},
+      {k:'excluir_estoque',l:'Estornar Movimentos do histórico'}
+    ]}
   ]}
 ];
 let _perfis = [], _editId = null;

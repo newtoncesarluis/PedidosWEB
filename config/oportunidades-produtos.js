@@ -3,6 +3,7 @@
  */
 
 const { buildProdutoFornecedorSql, getItensPedidoFornecedorFlag } = require('./reposicao-produtos');
+const { produtoBuscaOrSql } = require('./produto-busca-texto');
 
 async function listarOportunidadesProdutos(pool, getProdTabela, opts = {}) {
   const codCliente = parseInt(opts.codCliente, 10);
@@ -41,9 +42,9 @@ async function listarOportunidadesProdutos(pool, getProdTabela, opts = {}) {
 
   let buscaSql = '';
   if (q) {
-    buscaSql = ' AND (pr.descricao LIKE ? OR pr.cod_fabricante LIKE ? OR pr.cod_barras LIKE ? OR ip.desc_prod LIKE ?) ';
-    const lk = `%${q}%`;
-    params.push(lk, lk, lk, lk);
+    const busca = produtoBuscaOrSql('pr', q, { includeId: true });
+    buscaSql = ` AND (${busca.fragment.slice(1, -1)} OR ip.desc_prod LIKE ?) `;
+    params.push(...busca.params, `%${q}%`);
   }
 
   const [rows] = await pool.query(

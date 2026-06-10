@@ -1,6 +1,6 @@
 const express = require('express');
 const router  = express.Router();
-const { getPool } = require('../config/database');
+const { getPool, runWithRequestPool } = require('../config/database');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -11,6 +11,7 @@ const {
   sanitizeEmpresaRow,
 } = require('../services/empresa-logo');
 const { ensurePerfilCadastroColumns } = require('../config/schema-migrations');
+const { resolveNaturezaLabelColumn } = require('../config/natureza-label');
 const {
   PERFIL_SN_FIELDS,
   permCrud,
@@ -586,13 +587,21 @@ router.put('/usuarios/:id', async (req, res) => {
 });
 
 router.post('/usuarios/:id/avatar', uploadUsr.single('arquivo'), async (req, res) => {
+  const handler = async () => {
+    try {
+      if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
+      const pool = getPool();
+      const { id } = req.params;
+      const caminho = `uploads/usuarios/${id}/${req.file.filename}`;
+      await pool.query(`UPDATE usuarios SET avatar_url = ? WHERE idusuario = ?`, [caminho, id]);
+      res.json({ ok: true, avatar_url: caminho });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  };
+
   try {
-    if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo enviado' });
-    const pool = getPool();
-    const { id } = req.params;
-    const caminho = `uploads/usuarios/${id}/${req.file.filename}`;
-    await pool.query(`UPDATE usuarios SET avatar_url = ? WHERE idusuario = ?`, [caminho, id]);
-    res.json({ ok: true, avatar_url: caminho });
+    return runWithRequestPool(req, handler);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -887,23 +896,32 @@ router.get('/empresas/:id', async (req, res) => {
 
 // POST /api/empresas/:id/logo — upload da imagem (login + relatórios)
 router.post('/empresas/:id/logo', uploadEmpresaLogo.single('logo'), async (req, res) => {
-  try {
-    const pool = getPool();
-    await ensureEmpresaLogoColumn(pool);
-    if (!req.file) return res.status(400).json({ error: 'Arquivo não enviado (campo logo)' });
-    const id = req.params.id;
-    const [[emp]] = await pool.query(
-      `SELECT id_empresa, logo_relatorio FROM empresa WHERE id_empresa=? AND ${EMPRESA_NAO_EXCLUIDA} LIMIT 1`,
-      [id]
-    );
-    if (!emp) {
-      try { fs.unlinkSync(req.file.path); } catch (_) {}
-      return res.status(404).json({ error: 'Empresa não encontrada' });
+  const handler = async () => {
+    try {
+      const pool = getPool();
+      await ensureEmpresaLogoColumn(pool);
+      if (!req.file) return res.status(400).json({ error: 'Arquivo não enviado (campo logo)' });
+      const id = req.params.id;
+      const [[emp]] = await pool.query(
+        `SELECT id_empresa, logo_relatorio FROM empresa WHERE id_empresa=? AND ${EMPRESA_NAO_EXCLUIDA} LIMIT 1`,
+        [id]
+      );
+      if (!emp) {
+        try { fs.unlinkSync(req.file.path); } catch (_) {}
+        return res.status(404).json({ error: 'Empresa não encontrada' });
+      }
+      const webPath = webPathEmpresaLogo(id, req.file.filename);
+      if (emp.logo_relatorio) tryUnlinkLogoFile(emp.logo_relatorio);
+      await pool.query(`UPDATE empresa SET logo_relatorio=? WHERE id_empresa=? AND ${EMPRESA_NAO_EXCLUIDA}`, [webPath, id]);
+      res.json({ ok: true, logo_relatorio: webPath });
+    } catch (err) {
+      if (req.file?.path) { try { fs.unlinkSync(req.file.path); } catch (_) {} }
+      res.status(500).json({ error: err.message });
     }
-    const webPath = webPathEmpresaLogo(id, req.file.filename);
-    if (emp.logo_relatorio) tryUnlinkLogoFile(emp.logo_relatorio);
-    await pool.query(`UPDATE empresa SET logo_relatorio=? WHERE id_empresa=? AND ${EMPRESA_NAO_EXCLUIDA}`, [webPath, id]);
-    res.json({ ok: true, logo_relatorio: webPath });
+  };
+
+  try {
+    return runWithRequestPool(req, handler);
   } catch (err) {
     if (req.file?.path) { try { fs.unlinkSync(req.file.path); } catch (_) {} }
     res.status(500).json({ error: err.message });
@@ -1508,7 +1526,10 @@ router.get('/natureza', async (req, res) => {
   try {
     const pool = getPool();
     await ensureNaturezaTable(pool);
-    const [rows] = await pool.query(`SELECT * FROM natureza WHERE excluido='N' ORDER BY descricao`);
+    const col = await resolveNaturezaLabelColumn(pool);
+    const [rows] = await pool.query(
+      `SELECT *, \`${col}\` AS descricao FROM natureza WHERE excluido='N' ORDER BY \`${col}\``
+    );
     res.json({ natureza: rows });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -1517,9 +1538,13 @@ router.post('/natureza', async (req, res) => {
   try {
     const pool = getPool();
     const n = v => (v === 'S' || v === true) ? 'S' : 'N';
+    const col = await resolveNaturezaLabelColumn(pool);
     const { descricao, tipo, movimenta_estoque, status } = req.body;
     if (!descricao) return res.status(400).json({ error: 'Descrição é obrigatória' });
-    const [r] = await pool.query(`INSERT INTO natureza (descricao, tipo, movimenta_estoque, status, excluido) VALUES (?,?,?,?,'N')`, [descricao, tipo || null, n(movimenta_estoque), status || 'A']);
+    const [r] = await pool.query(
+      `INSERT INTO natureza (\`${col}\`, tipo, movimenta_estoque, status, excluido) VALUES (?,?,?,?,'N')`,
+      [descricao, tipo || null, n(movimenta_estoque), status || 'A']
+    );
     res.status(201).json({ ok: true, id: r.insertId });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -1528,8 +1553,12 @@ router.put('/natureza/:id', async (req, res) => {
   try {
     const pool = getPool();
     const n = v => (v === 'S' || v === true) ? 'S' : 'N';
+    const col = await resolveNaturezaLabelColumn(pool);
     const { descricao, tipo, movimenta_estoque, status } = req.body;
-    await pool.query(`UPDATE natureza SET descricao=?, tipo=?, movimenta_estoque=?, status=? WHERE id=?`, [descricao, tipo || null, n(movimenta_estoque), status || 'A', req.params.id]);
+    await pool.query(
+      `UPDATE natureza SET \`${col}\`=?, tipo=?, movimenta_estoque=?, status=? WHERE id=?`,
+      [descricao, tipo || null, n(movimenta_estoque), status || 'A', req.params.id]
+    );
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -1629,6 +1658,145 @@ router.delete('/eventos-cidades/:id', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// TIPO DE PEDIDO
+// ─────────────────────────────────────────────────────────────────────────────
+const _sn = v => (v === 'S' || v === true || v === 1) ? 'S' : 'N';
+
+const _tipoPedidosReady = new Set();
+async function ensureTipoPedidosColumns(pool) {
+  const db = pool.pool?.config?.connectionConfig?.database || 'default';
+  if (_tipoPedidosReady.has(db)) return;
+  const cols = [
+    ['excluido',        "CHAR(1) NOT NULL DEFAULT 'N'"],
+    ['situacao',        "CHAR(1) NOT NULL DEFAULT 'A'"],
+    ['obs',             'VARCHAR(255) DEFAULT NULL'],
+    ['puxada',          "CHAR(1) NOT NULL DEFAULT 'N'"],
+    ['gerafinanceiro',  "CHAR(1) NOT NULL DEFAULT 'S'"],
+    ['permiteprocesso', "CHAR(1) NOT NULL DEFAULT 'N'"],
+    ['movimentaestoque',"CHAR(1) NOT NULL DEFAULT 'S'"],
+    ['faturado',        "CHAR(1) NOT NULL DEFAULT 'N'"],
+    ['importacao',      "CHAR(1) NOT NULL DEFAULT 'N'"],
+    ['padrao_vitrine',  "CHAR(1) NOT NULL DEFAULT 'N'"],
+    ['cod_planoconta',  'INT DEFAULT NULL'],
+    ['tratamento',      'VARCHAR(50) DEFAULT NULL'],
+    ['id_receitas',     'INT DEFAULT NULL'],
+  ];
+  for (const [col, type] of cols) {
+    await pool.query(`ALTER TABLE tipo_pedidos ADD COLUMN ${col} ${type}`).catch(() => {});
+  }
+  _tipoPedidosReady.add(db);
+}
+
+router.get('/tipo-pedidos', async (req, res) => {
+  try {
+    const pool = getPool();
+    await ensureTipoPedidosColumns(pool);
+    const { q = '', situacao = '', limit = 200, offset = 0 } = req.query;
+    // where para a lista (com filtro de situação)
+    let where = `excluido = 'N'`;
+    const params = [];
+    if (situacao) { where += ` AND situacao = ?`; params.push(situacao); }
+    if (q)        { where += ` AND descricao LIKE ?`; params.push(`%${q}%`); }
+    // where para contadores (sem filtro de situação, só q)
+    let whereCount = `excluido = 'N'`;
+    const paramsCount = [];
+    if (q) { whereCount += ` AND descricao LIKE ?`; paramsCount.push(`%${q}%`); }
+    const [[{ total }]]   = await pool.query(`SELECT COUNT(*) AS total FROM tipo_pedidos WHERE ${where}`, params);
+    const [[{ total_a }]] = await pool.query(`SELECT COUNT(*) AS total_a FROM tipo_pedidos WHERE ${whereCount} AND situacao='A'`, paramsCount);
+    const [[{ total_i }]] = await pool.query(`SELECT COUNT(*) AS total_i FROM tipo_pedidos WHERE ${whereCount} AND situacao<>'A'`, paramsCount);
+    const [rows] = await pool.query(
+      `SELECT * FROM tipo_pedidos WHERE ${where} ORDER BY descricao LIMIT ? OFFSET ?`,
+      [...params, +limit, +offset]
+    );
+    res.json({ tipos: rows, total, total_a, total_i });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/tipo-pedidos/:id', async (req, res) => {
+  try {
+    const pool = getPool();
+    const [[row]] = await pool.query(`SELECT * FROM tipo_pedidos WHERE id = ? AND excluido = 'N'`, [req.params.id]);
+    if (!row) return res.status(404).json({ error: 'Não encontrado' });
+    res.json(row);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/tipo-pedidos', async (req, res) => {
+  try {
+    const pool = getPool();
+    await ensureTipoPedidosColumns(pool);
+    const { descricao, obs, situacao, puxada, gerafinanceiro, permiteprocesso,
+            movimentaestoque, faturado, importacao, padrao_vitrine,
+            cod_planoconta, tratamento, id_receitas } = req.body;
+    if (!descricao) return res.status(400).json({ error: 'Descrição é obrigatória' });
+    const [r] = await pool.query(
+      `INSERT INTO tipo_pedidos
+       (descricao, obs, situacao, puxada, gerafinanceiro, permiteprocesso,
+        movimentaestoque, faturado, importacao, padrao_vitrine,
+        cod_planoconta, tratamento, id_receitas, excluido)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,'N')`,
+      [ descricao.toUpperCase(), obs || null, situacao || 'A',
+        _sn(puxada), _sn(gerafinanceiro), _sn(permiteprocesso),
+        _sn(movimentaestoque), _sn(faturado), _sn(importacao), _sn(padrao_vitrine),
+        cod_planoconta || null, tratamento || null, id_receitas || null ]
+    );
+    res.status(201).json({ ok: true, id: r.insertId });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.put('/tipo-pedidos/:id', async (req, res) => {
+  try {
+    const pool = getPool();
+    await ensureTipoPedidosColumns(pool);
+    const { descricao, obs, situacao, puxada, gerafinanceiro, permiteprocesso,
+            movimentaestoque, faturado, importacao, padrao_vitrine,
+            cod_planoconta, tratamento, id_receitas } = req.body;
+    if (!descricao) return res.status(400).json({ error: 'Descrição é obrigatória' });
+    await pool.query(
+      `UPDATE tipo_pedidos SET
+       descricao=?, obs=?, situacao=?, puxada=?, gerafinanceiro=?, permiteprocesso=?,
+       movimentaestoque=?, faturado=?, importacao=?, padrao_vitrine=?,
+       cod_planoconta=?, tratamento=?, id_receitas=?
+       WHERE id=? AND excluido='N'`,
+      [ descricao.toUpperCase(), obs || null, situacao || 'A',
+        _sn(puxada), _sn(gerafinanceiro), _sn(permiteprocesso),
+        _sn(movimentaestoque), _sn(faturado), _sn(importacao), _sn(padrao_vitrine),
+        cod_planoconta || null, tratamento || null, id_receitas || null,
+        req.params.id ]
+    );
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.put('/tipo-pedidos/:id/ativar', async (req, res) => {
+  try {
+    const pool = getPool();
+    await pool.query(`UPDATE tipo_pedidos SET situacao='A' WHERE id=?`, [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.put('/tipo-pedidos/:id/inativar', async (req, res) => {
+  try {
+    const pool = getPool();
+    await pool.query(`UPDATE tipo_pedidos SET situacao='I' WHERE id=?`, [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.delete('/tipo-pedidos/:id', async (req, res) => {
+  try {
+    const pool = getPool();
+    const [[{ cnt }]] = await pool.query(
+      `SELECT COUNT(*) AS cnt FROM pedidos WHERE id_tipopedido = ? AND excluido='N'`, [req.params.id]
+    );
+    if (cnt > 0) return res.status(400).json({ error: `Não é possível excluir: ${cnt} pedido(s) vinculado(s)` });
+    await pool.query(`UPDATE tipo_pedidos SET excluido='S' WHERE id=?`, [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // PLANO DE CONTAS
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/plano-contas', async (req, res) => {
@@ -1664,7 +1832,7 @@ router.get('/tipo-frete', async (req, res) => {
   try {
     const pool = getPool();
     await ensureTipoFreteTable(pool);
-    const [rows] = await pool.query(`SELECT * FROM tipo_frete WHERE excluido='N' ORDER BY descricao`);
+    const [rows] = await pool.query(`SELECT * FROM tipo_frete WHERE excluido='N' ORDER BY nome`);
     res.json({ tipo_frete: rows });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -1672,9 +1840,10 @@ router.get('/tipo-frete', async (req, res) => {
 router.post('/tipo-frete', async (req, res) => {
   try {
     const pool = getPool();
-    const { descricao, valor, status } = req.body;
-    if (!descricao) return res.status(400).json({ error: 'Descrição é obrigatória' });
-    const [r] = await pool.query(`INSERT INTO tipo_frete (descricao, valor, status, excluido) VALUES (?,?,?,'N')`, [descricao, valor || 0, status || 'A']);
+    const { nome, descricao, valor, status } = req.body;
+    const _nome = nome || descricao;
+    if (!_nome) return res.status(400).json({ error: 'Nome é obrigatório' });
+    const [r] = await pool.query(`INSERT INTO tipo_frete (nome, valor, status, excluido) VALUES (?,?,?,'N')`, [_nome, valor || 0, status || 'A']);
     res.status(201).json({ ok: true, id: r.insertId });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -1682,8 +1851,8 @@ router.post('/tipo-frete', async (req, res) => {
 router.put('/tipo-frete/:id', async (req, res) => {
   try {
     const pool = getPool();
-    const { descricao, valor, status } = req.body;
-    await pool.query(`UPDATE tipo_frete SET descricao=?, valor=?, status=? WHERE id=?`, [descricao, valor || 0, status || 'A', req.params.id]);
+    const { nome, descricao, valor, status } = req.body;
+    await pool.query(`UPDATE tipo_frete SET nome=?, valor=?, status=? WHERE id=?`, [nome || descricao, valor || 0, status || 'A', req.params.id]);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

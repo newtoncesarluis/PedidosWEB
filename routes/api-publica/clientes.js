@@ -8,7 +8,7 @@ const { getPool } = require('../../config/database');
 router.get('/', async (req, res) => {
   try {
     const pool = getPool();
-    const { busca, page = 1, limit = 100 } = req.query;
+    const { busca, atualizado_apos, page = 1, limit = 100 } = req.query;
 
     const pageNum  = Math.max(1, parseInt(page)  || 1);
     const limitNum = Math.min(500, Math.max(1, parseInt(limit) || 100));
@@ -21,6 +21,10 @@ router.get('/', async (req, res) => {
       where += ` AND (c.nome LIKE ? OR c.apelido LIKE ? OR c.cpf LIKE ? OR c.cod_cliente LIKE ?)`;
       const b = `%${busca}%`;
       params.push(b, b, b, b);
+    }
+    if (atualizado_apos) {
+      where += ` AND c.updated_at >= ?`;
+      params.push(atualizado_apos);
     }
 
     const [[{ total }]] = await pool.query(
@@ -47,6 +51,8 @@ router.get('/', async (req, res) => {
          c.uf,
          c.cep,
          c.status,
+         c.id_parceiro,
+         c.updated_at,
          rr.descricao                           AS regiao
        FROM clientes c
        LEFT JOIN regiao_rota rr ON rr.id = c.regiao AND rr.excluido = 'N'
@@ -75,8 +81,10 @@ router.get('/', async (req, res) => {
         uf:          c.uf               || null,
         cep:         c.cep              || null,
       },
-      regiao:  c.regiao  || null,
-      status:  c.status,
+      regiao:       c.regiao      || null,
+      status:       c.status,
+      id_parceiro:  c.id_parceiro || null,
+      updated_at:   c.updated_at  || null,
     }));
 
     res.json({

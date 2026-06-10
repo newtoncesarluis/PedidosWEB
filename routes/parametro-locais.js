@@ -3,7 +3,7 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { getPool } = require('../config/database');
+const { getPool, runWithRequestPool } = require('../config/database');
 
 const _plUploadBase = path.join(process.cwd(), 'public', 'uploads', 'parametro_locais');
 const _plStorage = multer.diskStorage({
@@ -134,19 +134,28 @@ router.put('/', async (req, res) => {
 
 // POST /api/parametro-locais/logo
 router.post('/logo', uploadPlLogo.single('logo'), async (req, res) => {
+  const handler = async () => {
+    try {
+      const pool = getPool();
+      await ensureParametroLocaisTable(pool);
+      if (!req.file) return res.status(400).json({ error: 'Arquivo não enviado (campo logo)' });
+      const [[row]] = await pool.query(`SELECT logo_relatorio FROM parametro_locais WHERE id=1 LIMIT 1`).catch(() => [[]]);
+      if (row && row.logo_relatorio) tryUnlinkPlLogoFile(row.logo_relatorio);
+      const webPath = webPathPlLogo(req.file.filename);
+      const uid = req.user?.id || null;
+      await pool.query(
+        `UPDATE parametro_locais SET logo_relatorio=?, dt_alteracao=NOW(), id_usuario_alterou=? WHERE id=1`,
+        [webPath, uid]
+      );
+      res.json({ ok: true, logo_relatorio: webPath });
+    } catch (err) {
+      if (req.file?.path) { try { fs.unlinkSync(req.file.path); } catch (_) {} }
+      res.status(500).json({ error: err.message });
+    }
+  };
+
   try {
-    const pool = getPool();
-    await ensureParametroLocaisTable(pool);
-    if (!req.file) return res.status(400).json({ error: 'Arquivo não enviado (campo logo)' });
-    const [[row]] = await pool.query(`SELECT logo_relatorio FROM parametro_locais WHERE id=1 LIMIT 1`).catch(() => [[]]);
-    if (row && row.logo_relatorio) tryUnlinkPlLogoFile(row.logo_relatorio);
-    const webPath = webPathPlLogo(req.file.filename);
-    const uid = req.user?.id || null;
-    await pool.query(
-      `UPDATE parametro_locais SET logo_relatorio=?, dt_alteracao=NOW(), id_usuario_alterou=? WHERE id=1`,
-      [webPath, uid]
-    );
-    res.json({ ok: true, logo_relatorio: webPath });
+    return runWithRequestPool(req, handler);
   } catch (err) {
     if (req.file?.path) { try { fs.unlinkSync(req.file.path); } catch (_) {} }
     res.status(500).json({ error: err.message });

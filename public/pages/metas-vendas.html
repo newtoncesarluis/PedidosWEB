@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Metas de Vendas por Indústria</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font,'Inter',sans-serif); background: var(--bg,#f1f5f9); color: var(--text,#1e293b); min-height: 100vh; }
+
+.toolbar {
+  position: sticky; top: 0; z-index: 100;
+  background: var(--card,#fff); border-bottom: 1px solid var(--border,#e2e8f0);
+  padding: 0 20px; height: 52px; display: flex; align-items: center; gap: 12px;
+}
+.toolbar-title { font-size: 15px; font-weight: 800; flex: 1; }
+.btn-add {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--accent,#0ea5e9); color: #fff; border: none;
+  border-radius: 9px; padding: 8px 16px; font-size: 13px; font-weight: 700;
+  cursor: pointer; font-family: inherit;
+}
+.btn-add:hover { opacity:.88; }
+
+.page { padding: 20px 28px; }
+
+/* Abas */
+.view-tabs { display: flex; gap: 4px; background: var(--card,#fff); border: 1px solid var(--border,#e2e8f0); border-radius: 12px; padding: 4px; margin-bottom: 16px; }
+.view-tab { flex: 1; padding: 8px; border: none; border-radius: 9px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; color: var(--text2,#64748b); background: none; transition: all .15s; }
+.view-tab.active { background: var(--accent,#0ea5e9); color: #fff; }
+
+/* Período */
+.periodo-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; background: var(--card,#fff); border: 1px solid var(--border,#e2e8f0); border-radius: 12px; padding: 10px 16px; flex-wrap: wrap; }
+.periodo-bar label { font-size: 12px; font-weight: 700; color: var(--text2,#64748b); }
+.periodo-bar select { border: 1px solid var(--border,#e2e8f0); border-radius: 8px; padding: 5px 10px; font-size: 13px; font-weight: 600; background: var(--card,#fff); color: var(--text,#1e293b); cursor: pointer; }
+.spacer { flex: 1; }
+
+/* Filtro vendedor (aba Por Vendedor) */
+#filtro_vendedor_wrap { display: none; align-items: center; gap: 8px; }
+
+/* KPIs */
+.kpi-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 16px; }
+.kpi-box { background: var(--card,#fff); border: 1px solid var(--border,#e2e8f0); border-radius: 14px; padding: 14px 16px; }
+.kpi-box .label { font-size: 11px; font-weight: 700; color: var(--text2,#64748b); text-transform: uppercase; letter-spacing:.4px; }
+.kpi-box .value { font-size: 24px; font-weight: 900; margin-top: 4px; line-height: 1; }
+.kpi-box .sub { font-size: 11px; color: var(--text2,#64748b); margin-top: 3px; }
+.verde .value { color: #10b981; }
+.amarelo .value { color: #f59e0b; }
+
+/* Card tabela */
+.card { background: var(--card,#fff); border: 1px solid var(--border,#e2e8f0); border-radius: 14px; overflow: hidden; }
+table { width: 100%; border-collapse: collapse; }
+thead th { background: var(--bg,#f8fafc); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing:.4px; color: var(--text2,#64748b); padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border,#e2e8f0); white-space: nowrap; }
+thead th.right { text-align: right; }
+thead th.col-nome { width: 30%; }
+thead th.col-real { width: 14%; }
+thead th.col-meta { width: 12%; }
+thead th.col-prog { width: auto; }
+thead th.col-input { width: 180px; }
+thead th.col-acao { width: 110px; }
+tbody tr { border-bottom: 1px solid var(--border,#e2e8f0); }
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: var(--bg,#f8fafc); }
+td { padding: 11px 14px; font-size: 13px; vertical-align: middle; }
+td.right { text-align: right; font-variant-numeric: tabular-nums; }
+td.nome { font-weight: 700; }
+td.sub { font-size: 11px; color: var(--text2,#64748b); font-weight: 500; }
+
+/* Grupo vendedor (cabeçalho de agrupamento) */
+.tr-group { background: var(--bg,#f8fafc); }
+.tr-group td { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: var(--text2,#64748b); padding: 6px 14px; border-bottom: 1px solid var(--border,#e2e8f0); }
+
+/* Barra de progresso */
+.prog-wrap { display: flex; align-items: center; gap: 8px; }
+.prog-bar { flex: 1; height: 7px; background: var(--border,#e2e8f0); border-radius: 99px; overflow: hidden; min-width: 60px; }
+.prog-fill { height: 100%; border-radius: 99px; }
+.prog-pct { font-size: 11px; font-weight: 800; min-width: 36px; text-align: right; }
+
+/* Input inline */
+.meta-input { border: 1px solid var(--border,#e2e8f0); border-radius: 8px; padding: 5px 9px; font-size: 13px; font-weight: 600; width: 160px; background: var(--card,#fff); color: var(--text,#1e293b); font-family: inherit; text-align: right; }
+.meta-input:focus { outline: none; border-color: var(--accent,#0ea5e9); box-shadow: 0 0 0 3px color-mix(in srgb,var(--accent,#0ea5e9) 15%,transparent); }
+.btn-save-row { background: none; border: 1px solid var(--accent,#0ea5e9); color: var(--accent,#0ea5e9); border-radius: 7px; padding: 5px 10px; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; white-space: nowrap; }
+.btn-save-row:hover { background: var(--accent,#0ea5e9); color: #fff; }
+.btn-del-row { background: none; border: none; color: #f43f5e; cursor: pointer; font-size: 16px; padding: 3px 5px; border-radius: 6px; line-height: 1; }
+.btn-del-row:hover { background: #fff1f2; }
+
+.empty { text-align: center; padding: 48px 20px; color: var(--text2,#64748b); font-size: 14px; }
+.loading { text-align: center; padding: 32px; color: var(--text2,#64748b); }
+
+/* Toast */
+.toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+.toast { padding: 10px 18px; border-radius: 10px; font-size: 13px; font-weight: 700; color: #fff; box-shadow: 0 4px 16px rgba(0,0,0,.15); animation: tin .2s ease; }
+.toast.ok { background: #10b981; } .toast.err { background: #f43f5e; }
+@keyframes tin { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+
+@media (max-width: 640px) {
+  .kpi-row { grid-template-columns: 1fr 1fr; }
+  .kpi-row .kpi-box:last-child { grid-column: span 2; }
+  .hide-mob { display: none; }
+  .meta-input { width: 100px; }
+}
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <button onclick="history.back()" style="background:none;border:none;cursor:pointer;color:var(--text2,#64748b);display:flex;align-items:center;gap:4px;font-size:13px;font-weight:600;font-family:inherit;padding:0">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5m7-7-7 7 7 7"/></svg>
+    Voltar
+  </button>
+  <span class="toolbar-title">Metas de Vendas por Indústria</span>
+  <button class="btn-add" onclick="abrirModal()">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+    Nova Meta
+  </button>
+</div>
+
+<div class="page">
+
+  <!-- Abas -->
+  <div class="view-tabs">
+    <button class="view-tab active" onclick="setAba('geral')">🏭 Geral da Representada</button>
+    <button class="view-tab" onclick="setAba('vendedor')">👤 Por Vendedor</button>
+  </div>
+
+  <!-- Período + filtros -->
+  <div class="periodo-bar">
+    <label>Mês</label>
+    <select id="sel_mes" onchange="carregar()">
+      <option value="1">Janeiro</option><option value="2">Fevereiro</option>
+      <option value="3">Março</option><option value="4">Abril</option>
+      <option value="5">Maio</option><option value="6">Junho</option>
+      <option value="7">Julho</option><option value="8">Agosto</option>
+      <option value="9">Setembro</option><option value="10">Outubro</option>
+      <option value="11">Novembro</option><option value="12">Dezembro</option>
+    </select>
+    <label>Ano</label>
+    <select id="sel_ano" onchange="carregar()"></select>
+
+    <!-- Filtro indústria (aba vendedor) -->
+    <div id="filtro_vendedor_wrap">
+      <label>Indústria</label>
+      <select id="sel_fornecedor_filtro" onchange="carregar()" style="max-width:220px">
+        <option value="">Todas</option>
+      </select>
+    </div>
+
+    <div class="spacer"></div>
+    <span id="hint_dash" style="font-size:11px;color:var(--text2,#64748b);font-weight:600">Meta geral aparece no dashboard</span>
+  </div>
+
+  <!-- KPIs -->
+  <div class="kpi-row" id="kpi_row" style="display:none">
+    <div class="kpi-box">
+      <div class="label">Meta Total do Mês</div>
+      <div class="value" id="kpi_meta">R$ 0</div>
+      <div class="sub" id="kpi_qtd">—</div>
+    </div>
+    <div class="kpi-box verde">
+      <div class="label">Realizado</div>
+      <div class="value" id="kpi_real">R$ 0</div>
+      <div class="sub" id="kpi_pct">0% da meta</div>
+    </div>
+    <div class="kpi-box amarelo">
+      <div class="label">Falta para a Meta</div>
+      <div class="value" id="kpi_falta">R$ 0</div>
+      <div class="sub" id="kpi_falta_sub"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div id="corpo_tabela"><div class="loading">Carregando...</div></div>
+  </div>
+</div>
+
+<div class="toast-container" id="toasts"></div>
+
+<script>
+const MESES_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+let _aba = 'geral';
+let _dados = [];
+let _fornecedores = [];
+
+function fmtCur(v) { return 'R$ ' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function parseMoeda(s) { return parseFloat((s||'').replace(/\./g,'').replace(',','.')) || 0; }
+function mascaraMoeda(el) {
+  let v = el.value.replace(/\D/g,'');
+  if (!v) { el.value = ''; return; }
+  el.value = (parseInt(v)/100).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+function toast(msg, tipo='ok') {
+  const el = document.createElement('div');
+  el.className = 'toast ' + tipo; el.textContent = msg;
+  document.getElementById('toasts').appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+function authHeaders() {
+  const tok = document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith('token='))?.split('=')[1]||'';
+  return { 'Content-Type':'application/json','Authorization':'Bearer '+tok };
+}
+function corBarra(pct) { return pct>=100?'#10b981':pct>=70?'#f59e0b':'#f43f5e'; }
+
+// Init seletores
+(function() {
+  const now = new Date();
+  document.getElementById('sel_mes').value = now.getMonth()+1;
+  const selAno = document.getElementById('sel_ano');
+  const anoAtual = now.getFullYear();
+  for (let a=anoAtual-2;a<=anoAtual+1;a++) {
+    const o=document.createElement('option'); o.value=a; o.textContent=a;
+    if(a===anoAtual) o.selected=true; selAno.appendChild(o);
+  }
+})();
+
+function setAba(aba) {
+  _aba = aba;
+  document.querySelectorAll('.view-tab').forEach((t,i)=>t.classList.toggle('active',(aba==='geral')?(i===0):(i===1)));
+  document.getElementById('filtro_vendedor_wrap').style.display = aba==='vendedor' ? 'flex' : 'none';
+  document.getElementById('hint_dash').textContent = aba==='geral' ? 'Meta geral aparece no dashboard' : '';
+  carregar();
+}
+
+async function carregar() {
+  const mes = document.getElementById('sel_mes').value;
+  const ano = document.getElementById('sel_ano').value;
+  document.getElementById('corpo_tabela').innerHTML = '<div class="loading">Carregando...</div>';
+  document.getElementById('kpi_row').style.display = 'none';
+  try {
+    if (_aba === 'geral') await carregarGeral(mes, ano);
+    else await carregarVendedor(mes, ano);
+  } catch(e) {
+    document.getElementById('corpo_tabela').innerHTML = '<div class="empty">Erro ao carregar.</div>';
+  }
+}
+
+async function carregarGeral(mes, ano) {
+  const r = await fetch(`/api/metas-vendas?mes=${mes}&ano=${ano}`, { headers: authHeaders(), credentials:'include' });
+  const d = await r.json();
+  _dados = d.metas || [];
+  renderKpis(_dados.filter(m=>m.valor_meta>0), 'indústria', 'indústrias');
+  renderTabelaGeral();
+}
+
+async function carregarVendedor(mes, ano) {
+  const idForn = document.getElementById('sel_fornecedor_filtro').value;
+  const qs = `mes=${mes}&ano=${ano}${idForn?'&id_fornecedor='+idForn:''}`;
+  const r = await fetch(`/api/metas-vendas/vendedor?${qs}`, { headers: authHeaders(), credentials:'include' });
+  const d = await r.json();
+  _dados = d.metas || [];
+  renderKpis(_dados.filter(m=>m.valor_meta>0), 'combinação', 'combinações');
+  renderTabelaVendedor();
+}
+
+function renderKpis(comMeta, singLabel, plurLabel) {
+  if (!comMeta.length) return;
+  const totalMeta = comMeta.reduce((s,m)=>s+Number(m.valor_meta),0);
+  const totalReal = comMeta.reduce((s,m)=>s+Number(m.realizado),0);
+  const pct = totalMeta>0?Math.round(totalReal/totalMeta*100):0;
+  const falta = Math.max(0,totalMeta-totalReal);
+  document.getElementById('kpi_meta').textContent = fmtCur(totalMeta);
+  document.getElementById('kpi_qtd').textContent = comMeta.length + ' ' + (comMeta.length!==1?plurLabel:singLabel) + ' com meta';
+  document.getElementById('kpi_real').textContent = fmtCur(totalReal);
+  document.getElementById('kpi_pct').textContent = pct+'% da meta';
+  document.getElementById('kpi_falta').textContent = fmtCur(falta);
+  document.getElementById('kpi_falta_sub').textContent = falta<=0?'🎉 Meta atingida!':'para bater a meta';
+  document.getElementById('kpi_row').style.display = '';
+}
+
+function progHtml(meta, real) {
+  const pct = meta>0?Math.min(Math.round(real/meta*100),999):0;
+  const cor = corBarra(pct);
+  const larg = Math.min(pct,100);
+  return meta>0
+    ? `<div class="prog-wrap"><div class="prog-bar"><div class="prog-fill" style="width:${larg}%;background:${cor}"></div></div><span class="prog-pct" style="color:${cor}">${pct}%</span></div>`
+    : '<span style="color:var(--text2);font-size:12px">—</span>';
+}
+
+function renderTabelaGeral() {
+  if (!_dados.length) { document.getElementById('corpo_tabela').innerHTML = '<div class="empty">Nenhuma indústria encontrada.</div>'; return; }
+  const comMeta = _dados.filter(m=>m.valor_meta>0).sort((a,b)=>(b.realizado/b.valor_meta)-(a.realizado/a.valor_meta));
+  const semMeta = _dados.filter(m=>!(m.valor_meta>0));
+
+  let html = `<table><thead><tr>
+    <th class="col-nome">Indústria</th>
+    <th class="right hide-mob col-real">Realizado</th>
+    <th class="right hide-mob col-meta">Meta</th>
+    <th class="col-prog">Progresso</th>
+    <th class="right col-input">Meta (R$)</th>
+    <th class="col-acao"></th>
+  </tr></thead><tbody>`;
+
+  [...comMeta,...semMeta].forEach(m => {
+    const meta=Number(m.valor_meta)||0, real=Number(m.realizado)||0;
+    html += `<tr>
+      <td class="nome">${m.nome_fornecedor}</td>
+      <td class="right hide-mob" style="color:${real>0?'#10b981':'var(--text2)'}">${real>0?fmtCur(real):'—'}</td>
+      <td class="right hide-mob">${meta>0?fmtCur(meta):'<span style="color:var(--text2)">Sem meta</span>'}</td>
+      <td>${progHtml(meta,real)}</td>
+      <td class="right">
+        <input class="meta-input" type="text" value="${meta>0?meta.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):''}" placeholder="0,00" onfocus="this.select()" oninput="mascaraMoeda(this)" autocomplete="off">
+      </td>
+      <td style="display:flex;align-items:center;gap:4px;padding-right:10px">
+        <button class="btn-save-row" onclick="salvarGeral(${m.id_fornecedor},this)">Salvar</button>
+        ${meta>0?`<button class="btn-del-row" onclick="excluirGeral(${m.id_fornecedor})" title="Remover">×</button>`:''}
+      </td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  document.getElementById('corpo_tabela').innerHTML = html;
+}
+
+function renderTabelaVendedor() {
+  if (!_dados.length) { document.getElementById('corpo_tabela').innerHTML = '<div class="empty">Nenhum vendedor encontrado.</div>'; return; }
+
+  // Agrupar por vendedor
+  const porVendedor = {};
+  _dados.forEach(m => {
+    if (!porVendedor[m.id_usuario]) porVendedor[m.id_usuario] = { nome: m.nome_vendedor, itens: [] };
+    porVendedor[m.id_usuario].itens.push(m);
+  });
+
+  let html = `<table><thead><tr>
+    <th class="col-nome">Indústria</th>
+    <th class="right hide-mob col-real">Realizado</th>
+    <th class="right hide-mob col-meta">Meta</th>
+    <th class="col-prog">Progresso</th>
+    <th class="right col-input">Meta (R$)</th>
+    <th class="col-acao"></th>
+  </tr></thead><tbody>`;
+
+  Object.entries(porVendedor).forEach(([idUsu, vend]) => {
+    html += `<tr class="tr-group"><td colspan="6">👤 ${vend.nome}</td></tr>`;
+    vend.itens.forEach(m => {
+      const meta=Number(m.valor_meta)||0, real=Number(m.realizado)||0;
+      html += `<tr>
+        <td class="sub" style="padding-left:28px">${m.nome_fornecedor}</td>
+        <td class="right hide-mob" style="color:${real>0?'#10b981':'var(--text2)'}">${real>0?fmtCur(real):'—'}</td>
+        <td class="right hide-mob">${meta>0?fmtCur(meta):'<span style="color:var(--text2)">Sem meta</span>'}</td>
+        <td>${progHtml(meta,real)}</td>
+        <td class="right">
+          <input class="meta-input" type="text" value="${meta>0?meta.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):''}" placeholder="0,00" onfocus="this.select()" oninput="mascaraMoeda(this)" autocomplete="off">
+        </td>
+        <td style="display:flex;align-items:center;gap:4px;padding-right:10px">
+          <button class="btn-save-row" onclick="salvarVendedor(${m.id_usuario},${m.id_fornecedor},this)">Salvar</button>
+          ${meta>0?`<button class="btn-del-row" onclick="excluirVendedor(${m.id_usuario},${m.id_fornecedor})" title="Remover">×</button>`:''}
+        </td>
+      </tr>`;
+    });
+  });
+  html += '</tbody></table>';
+  document.getElementById('corpo_tabela').innerHTML = html;
+}
+
+// ── Ações Geral ───────────────────────────────────────────────────────────────
+async function salvarGeral(id_fornecedor, btn) {
+  const input = btn.closest('tr').querySelector('.meta-input');
+  const valor = parseMoeda(input.value);
+  if (valor <= 0) { toast('Informe um valor maior que zero','err'); return; }
+  btn.textContent='...'; btn.disabled=true;
+  try {
+    const r = await fetch(`/api/metas-vendas/${id_fornecedor}`, {
+      method:'PUT', headers:authHeaders(), credentials:'include',
+      body: JSON.stringify({ mes:parseInt(document.getElementById('sel_mes').value), ano:parseInt(document.getElementById('sel_ano').value), valor_meta:valor })
+    });
+    if(!r.ok) throw new Error();
+    toast('Meta salva!'); await carregar();
+  } catch(_) { toast('Erro ao salvar','err'); btn.textContent='Salvar'; btn.disabled=false; }
+}
+
+async function excluirGeral(id_fornecedor) {
+  if (!confirm('Remover a meta desta indústria?')) return;
+  const mes=document.getElementById('sel_mes').value, ano=document.getElementById('sel_ano').value;
+  try {
+    await fetch(`/api/metas-vendas/${id_fornecedor}?mes=${mes}&ano=${ano}`,{method:'DELETE',headers:authHeaders(),credentials:'include'});
+    toast('Meta removida'); await carregar();
+  } catch(_) { toast('Erro ao remover','err'); }
+}
+
+// ── Ações Vendedor ────────────────────────────────────────────────────────────
+async function salvarVendedor(id_usuario, id_fornecedor, btn) {
+  const input = btn.closest('tr').querySelector('.meta-input');
+  const valor = parseMoeda(input.value);
+  if (valor <= 0) { toast('Informe um valor maior que zero','err'); return; }
+  btn.textContent='...'; btn.disabled=true;
+  try {
+    const r = await fetch(`/api/metas-vendas/vendedor/${id_usuario}/${id_fornecedor}`, {
+      method:'PUT', headers:authHeaders(), credentials:'include',
+      body: JSON.stringify({ mes:parseInt(document.getElementById('sel_mes').value), ano:parseInt(document.getElementById('sel_ano').value), valor_meta:valor })
+    });
+    if(!r.ok) throw new Error();
+    toast('Meta salva!'); await carregar();
+  } catch(_) { toast('Erro ao salvar','err'); btn.textContent='Salvar'; btn.disabled=false; }
+}
+
+async function excluirVendedor(id_usuario, id_fornecedor) {
+  if (!confirm('Remover a meta deste vendedor nesta indústria?')) return;
+  const mes=document.getElementById('sel_mes').value, ano=document.getElementById('sel_ano').value;
+  try {
+    await fetch(`/api/metas-vendas/vendedor/${id_usuario}/${id_fornecedor}?mes=${mes}&ano=${ano}`,{method:'DELETE',headers:authHeaders(),credentials:'include'});
+    toast('Meta removida'); await carregar();
+  } catch(_) { toast('Erro ao remover','err'); }
+}
+
+// ── Modal nova meta (aba geral) ───────────────────────────────────────────────
+function abrirModal() {
+  const inputs = document.querySelectorAll('.meta-input');
+  if (!inputs.length) { toast('Nenhuma indústria na tabela. Verifique o cadastro de fornecedores.','err'); return; }
+  const vazio = [...inputs].find(i=>!i.value);
+  if (vazio) { vazio.focus(); vazio.scrollIntoView({behavior:'smooth',block:'center'}); }
+  else toast('Todas as indústrias já têm meta. Edite direto na tabela.','ok');
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+async function init() {
+  // Carregar fornecedores para filtro
+  try {
+    const r = await fetch('/api/fornecedores?status=A&limit=500', { headers: authHeaders(), credentials:'include' });
+    const d = await r.json();
+    _fornecedores = d.fornecedores || d || [];
+    const sel = document.getElementById('sel_fornecedor_filtro');
+    _fornecedores.forEach(f => {
+      const o = document.createElement('option'); o.value=f.id; o.textContent=f.nome; sel.appendChild(o);
+    });
+  } catch(_) {}
+  carregar();
+}
+
+init();
+</script>
+</body>
+</html>

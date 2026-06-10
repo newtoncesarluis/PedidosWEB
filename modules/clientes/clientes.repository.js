@@ -1,6 +1,10 @@
 'use strict';
 
 const { getPool } = require('../../config/database');
+const {
+  buildClienteVendedorWhere,
+  podeVerTodosClientes,
+} = require('../../config/cliente-visibilidade');
 
 /**
  * Cache de colunas existentes na tabela `clientes`.
@@ -79,6 +83,13 @@ async function listar(filters, config, user) {
   if (tipo_pessoa) { where.push(`c.tipo_pessoa = ?`); vals.push(tipo_pessoa); }
   if (cidade) { where.push(`LOWER(c.cidade) LIKE ?`); vals.push(`%${cidade.toLowerCase()}%`); }
   if (uf) { where.push(`c.uf = ?`); vals.push(uf.toUpperCase()); }
+
+  // ── Visibilidade: filtro por vendedor (config/cliente-visibilidade.js) ────────
+  const vendFiltro = buildClienteVendedorWhere(user, 'c');
+  if (vendFiltro.clause) {
+    where.push(vendFiltro.clause.replace(/^\s*AND\s+/i, ''));
+    vals.push(...vendFiltro.params);
+  }
 
   // Busca textual — inclui código do cliente (id)
   if (q && q.trim()) {
@@ -191,6 +202,17 @@ async function listar(filters, config, user) {
  * Busca cliente por ID (sem sub-registros)
  * Fallback sem LEFT JOIN regiao_rota caso a tabela não exista
  */
+/** Verifica se o usuário pode ver/editar o cliente (perfil acessartodosclientes). */
+async function usuarioPodeVerCliente(clienteId, user, pool) {
+  if (podeVerTodosClientes(user)) return true;
+  const vendFiltro = buildClienteVendedorWhere(user, 'c');
+  const [rows] = await pool.query(
+    `SELECT 1 FROM clientes c WHERE c.id = ?${vendFiltro.clause} LIMIT 1`,
+    [clienteId, ...vendFiltro.params]
+  );
+  return rows.length > 0;
+}
+
 async function buscarPorId(id, pool) {
   let rows;
   try {
@@ -475,6 +497,7 @@ async function atualizarUltimaCompra(pool) {
 module.exports = {
   getSistemaConfig,
   listar,
+  usuarioPodeVerCliente,
   buscarPorId,
   verificarDuplicadoCpfCnpj,
   inserirCliente,

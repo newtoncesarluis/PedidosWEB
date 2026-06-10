@@ -17,11 +17,11 @@ function findChrome() {
     '/snap/bin/chromium',
     '/usr/bin/google-chrome',
     '/usr/bin/google-chrome-stable',
-    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-    local ? pathMod.join(local, 'Google\\Chrome\\Application\\chrome.exe') : null,
-    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
-    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+    'C:/Program Files/Google/Chrome/Application/chrome.exe',
+    'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
+    local ? pathMod.join(local, 'Google/Chrome/Application/chrome.exe') : null,
+    'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
+    'C:/Program Files/Microsoft/Edge/Application/msedge.exe',
   ].filter(Boolean);
   return candidates.find(p => fsSync.existsSync(p)) || null;
 }

@@ -498,6 +498,35 @@
   }
   #iframe-container iframe.tab-ativa { display:block; }
 
+  /* Quick View teleportado de iframes (clientes, produtos, fornecedores…) */
+  body > #quickViewPanel:not(.open),
+  body > #qvOverlay:not(.show) {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    opacity: 0 !important;
+  }
+  body > #quickViewPanel.open {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  body > #quickViewPanel .qv-body {
+    flex: 1 1 0 !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+  }
+  body > #quickViewPanel .qv-row svg,
+  body > #quickViewPanel .btn svg {
+    width: 13px !important;
+    height: 13px !important;
+    max-width: 13px !important;
+    max-height: 13px !important;
+    flex-shrink: 0 !important;
+  }
+  body > #quickViewPanel .qv-foot {
+    flex-shrink: 0 !important;
+  }
+
   #dash_scroll {
     flex:1;overflow-y:auto;padding:20px;
     display:flex;flex-direction:column;gap:16px;
@@ -2237,6 +2266,18 @@
                  <canvas id="dash_chart_clientes"></canvas>
                </div>
             </div>
+
+            <!-- WIDGET METAS DE VENDAS POR INDÚSTRIA -->
+            <div class="chart-card" id="card_metas_vendas" style="display:none">
+              <div class="chart-title" style="display:flex;align-items:center;justify-content:space-between">
+                <div style="display:flex;align-items:center;gap:6px">
+                  <span style="background:#8b5cf6"></span>
+                  METAS POR INDÚSTRIA — <span id="dash_metas_periodo" style="font-weight:600"></span>
+                </div>
+                <a href="/pages/metas-vendas.html" style="font-size:10px;font-weight:700;color:var(--accent,#0ea5e9);text-decoration:none;letter-spacing:.2px">VER TUDO →</a>
+              </div>
+              <div id="dash_metas_lista" style="margin-top:12px;display:flex;flex-direction:column;gap:10px"></div>
+            </div>
          </div>
 
          <!-- COLUNA DIREITA: RANKINGS E ATIVIDADES -->
@@ -2618,6 +2659,8 @@ const SUBMENUS = {
           svg: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>' },
         { label: 'Eventos / Cidades', key: 'eventos-cidades', page: '/pages/eventos-cidades.html', perm: 'gtela_eventos_cidades',
           svg: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>' },
+        { label: 'Tipos de Pedido', key: 'tipo-pedidos', page: '/pages/tipo-pedidos.html', perm: 'gtela_tipo_pedidos',
+          svg: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>' },
       ]
     },
     {
@@ -2646,6 +2689,9 @@ const SUBMENUS = {
         { label: 'Campanhas Feirinha', key: 'comercial-feirinha', page: '/pages/comercial-feirinha.html',
           perm: 'gtela_feirinha',
           svg: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8c-2.21 0-4 1.343-4 3s1.79 3 4 3 4 1.343 4 3-1.79 3-4 3m0-12c2.21 0 4-1.343 4-3s-1.79-3-4-3-4 1.343-4 3 4 3 4 3M4 19h16"/>' },
+        { label: 'Metas de Vendas', key: 'metas-vendas', page: '/pages/metas-vendas.html',
+          perm: 'acessar_metas_vendas',
+          svg: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>' },
       ]
     },
     {
@@ -2722,6 +2768,19 @@ const SUBMENUS = {
           svg: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>' },
         { label: 'Suporte &amp; Melhorias', key: 'suporte', page: '/pages/suporte.html',
           svg: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z"/>' },
+      ]
+    }
+  ],
+  estoque: [
+    {
+      group: 'Controle de Estoque',
+      items: [
+        { label: 'Gestão de Estoque', key: 'gestao-estoque', page: '/pages/estoque.html',
+          svg: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>' },
+        { label: 'Consulta Mobile', key: 'estoque-mobile', page: '/pages/estoque-mobile.html',
+          svg: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/>' },
+        { label: 'Ajuda — Estoque', key: 'ajuda-estoque', page: '/pages/ajuda-estoque.html',
+          svg: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>' },
       ]
     }
   ],
@@ -3046,6 +3105,57 @@ function _homeGoLogin() {
   window.location.href = '/login.html?_=' + Date.now();
 }
 
+function _readJsonStore(key) {
+  try {
+    return JSON.parse(sessionStorage.getItem(key) || localStorage.getItem(key) || '{}');
+  } catch (_) {
+    return {};
+  }
+}
+
+function _syncAuthStoresFromLocal() {
+  ['token', 'user', 'empresa', 'parametros_locais'].forEach((key) => {
+    const v = localStorage.getItem(key);
+    if (v && !sessionStorage.getItem(key)) sessionStorage.setItem(key, v);
+  });
+}
+
+function _persistEmpresaSessao(empresa) {
+  const json = JSON.stringify(empresa || {});
+  sessionStorage.setItem('empresa', json);
+  localStorage.setItem('empresa', json);
+}
+
+async function _refreshEmpresaSessao(token, empresa) {
+  let emp = { ...(empresa || {}) };
+  let idEmp = emp.id_empresa;
+  if (!idEmp && token) {
+    try {
+      const p = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+      idEmp = p.id_empresa || null;
+    } catch (_) {}
+  }
+  if (!idEmp || !navigator.onLine) return emp;
+  try {
+    const r = await fetch(`/api/empresas/${idEmp}`, {
+      headers: { Authorization: 'Bearer ' + token },
+      credentials: 'include',
+    });
+    if (!r.ok) return emp;
+    const fresh = await r.json();
+    emp = {
+      ...emp,
+      ...fresh,
+      id_empresa: fresh.id_empresa || idEmp,
+      logo_url: fresh.logo_relatorio
+        ? (window.location.origin + (fresh.logo_relatorio.startsWith('/') ? fresh.logo_relatorio : '/' + fresh.logo_relatorio))
+        : (emp.logo_url || null),
+    };
+    _persistEmpresaSessao(emp);
+  } catch (_) {}
+  return emp;
+}
+
 // ═══ INIT ════════════════════════════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', async () => {
   // Cache-bust do próprio home.html (evita precisar Ctrl+R quando houver alterações no menu)
@@ -3058,6 +3168,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
   } catch {}
 
+  _syncAuthStoresFromLocal();
   const token = sessionStorage.getItem('token') || localStorage.getItem('token');
   if (!token) { _homeGoLogin(); return; }
 
@@ -3113,8 +3224,8 @@ window.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
-  const user    = JSON.parse(sessionStorage.getItem('user')    || '{}');
-  const empresa = JSON.parse(sessionStorage.getItem('empresa') || '{}');
+  const user = _readJsonStore('user');
+  let empresa = await _refreshEmpresaSessao(token, _readJsonStore('empresa'));
 
   window.App = { user, empresa, token, perm: user.permissoes || {} };
 
@@ -3462,7 +3573,19 @@ function openTab(page, label) {
   notifyShellChromeState();
 }
 
+function _fecharQuickViewsTeleportados() {
+  ['quickViewPanel', 'qvOverlay'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.remove('open', 'show');
+    el.style.removeProperty('right');
+    el.style.removeProperty('display');
+  });
+  document.body.style.overflow = '';
+}
+
 function switchTab(id) {
+  _fecharQuickViewsTeleportados();
   _activeTabId = id;
   _tabs.forEach(t => t.iframe.classList.remove('tab-ativa'));
   const tab = _tabs.find(t => t.id === id);
@@ -3474,6 +3597,7 @@ function switchTab(id) {
 
 function closeTab(id, e) {
   if (e) e.stopPropagation();
+  _fecharQuickViewsTeleportados();
   const idx = _tabs.findIndex(t => t.id === id);
   if (idx === -1) return;
   _tabs[idx].iframe.remove();
@@ -4474,7 +4598,7 @@ async function trocarUsuario() {
   if (!confirm('Deseja trocar de usuário? Você será redirecionado para o login.')) return;
   await fetch('/api/auth/logout', { method:'POST', credentials:'include' }).catch(()=>{});
   sessionStorage.clear();
-  localStorage.removeItem('token');
+  ['token', 'user', 'empresa', 'parametros_locais'].forEach((k) => localStorage.removeItem(k));
   window.location.href = '/login.html?_=' + Date.now();
 }
 
@@ -4646,7 +4770,10 @@ async function carregarDashboard(token) {
     // 4. Atividades e Visitas (Feed em Tempo Real)
     await carregarFeedAtividades(token, d.logs);
 
-    // 5. Layout e cards exclusivos mobile (chamado AQUI, depois que dash_bento já tem dados)
+    // 5. Metas de Vendas por Indústria
+    carregarWidgetMetas(token);
+
+    // 6. Layout e cards exclusivos mobile (chamado AQUI, depois que dash_bento já tem dados)
     if (window.innerWidth < 900) {
       applyMobileDashLayout();
       await loadCardVisitasMs(token);
@@ -4656,9 +4783,49 @@ async function carregarDashboard(token) {
   } catch(e) { console.error('Dashboard Error:', e); }
 }
 
+async function carregarWidgetMetas(token) {
+  const card = document.getElementById('card_metas_vendas');
+  const lista = document.getElementById('dash_metas_lista');
+  if (!card || !lista) return;
+  try {
+    const r = await fetch('/api/metas-vendas/dashboard', {
+      headers: { 'Authorization': 'Bearer ' + token },
+      credentials: 'include'
+    });
+    if (!r.ok) return;
+    const d = await r.json();
+    if (!d.metas || !d.metas.length) return;
+
+    const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    document.getElementById('dash_metas_periodo').textContent = MESES[(d.mes||1)-1] + '/' + d.ano;
+
+    lista.innerHTML = d.metas.map(m => {
+      const pct  = Math.min(Number(m.pct) || 0, 100);
+      const cor  = pct >= 100 ? '#10b981' : pct >= 70 ? '#f59e0b' : '#f43f5e';
+      const real = Number(m.realizado || 0);
+      const meta = Number(m.valor_meta || 0);
+      const fmtK = v => v >= 1000 ? 'R$ ' + (v/1000).toFixed(0) + 'k' : 'R$ ' + v.toFixed(0);
+      return `<div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <span style="font-size:12px;font-weight:700;color:var(--text,#1e293b);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60%">${m.nome_fornecedor}</span>
+          <span style="font-size:11px;font-weight:800;color:${cor};flex-shrink:0">${fmtK(real)} / ${fmtK(meta)}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="flex:1;height:7px;background:var(--border,#e2e8f0);border-radius:99px;overflow:hidden">
+            <div style="height:100%;width:${pct}%;background:${cor};border-radius:99px;transition:width .4s"></div>
+          </div>
+          <span style="font-size:11px;font-weight:800;color:${cor};min-width:34px;text-align:right">${pct}%</span>
+        </div>
+      </div>`;
+    }).join('');
+
+    card.style.display = '';
+  } catch(_) {}
+}
+
 /**
  * Carrega e renderiza o feed de atividades (Visitas de hoje + Logs)
- * @param {string} token 
+ * @param {string} token
  * @param {Array} logs - Logs vindos do dash/home
  */
 function applyMobileDashLayout() {
@@ -5235,6 +5402,7 @@ const SEARCH_INDEX = [
   { label:'Produtos',                                    sub:'Cadastros',  tag:'Cadastro', page:'/pages/produtos.html',           modKey:'cadastros', subKey:'produtos' },
   { label:'Promoções de Produtos',                       sub:'Comercial › Vendas', tag:'Comercial', page:'/pages/comercial-promocoes.html', modKey:'comercial', subKey:'comercial-promocoes' },
   { label:'Campanhas Feirinha',                          sub:'Comercial › Vendas', tag:'Comercial', page:'/pages/comercial-feirinha.html', modKey:'comercial', subKey:'comercial-feirinha' },
+  { label:'Metas de Vendas',                             sub:'Comercial › Vendas', tag:'Comercial', page:'/pages/metas-vendas.html',        modKey:'comercial', subKey:'metas-vendas' },
   { label:'Clientes',                                    sub:'Cadastros',  tag:'Cadastro', page:'/pages/clientes.html',           modKey:'cadastros', subKey:'clientes' },
   { label:'Segmento',                                    sub:'Cadastros',  tag:'Cadastro', page:'/pages/segmento.html',           modKey:'cadastros', subKey:'segmento' },
   { label:'Bancos',                                      sub:'Cadastros',  tag:'Cadastro', page:'/pages/bancos.html',             modKey:'cadastros', subKey:'bancos' },

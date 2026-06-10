@@ -8,6 +8,7 @@ const {
 } = require('./feirinha-calc');
 const { getCampanha } = require('./feirinha-campanhas');
 const { buildProdutoFornecedorSql, getItensPedidoFornecedorFlag } = require('./reposicao-produtos');
+const { andProdutoBuscaSql } = require('./produto-busca-texto');
 
 async function resolverFaixaFiltro(pool, opts = {}) {
   let faixaCodigo = String(opts.faixa_codigo || opts.faixaCodigo || 'R10').toUpperCase();
@@ -70,9 +71,9 @@ async function listarProdutosFeirinha(pool, getProdTabela, opts = {}) {
   params.push(precoMedioMeta);
   let buscaSql = '';
   if (q) {
-    buscaSql = ' AND (p.descricao LIKE ? OR p.cod_fabricante LIKE ? OR p.cod_barras LIKE ?) ';
-    const lk = `%${q}%`;
-    params.push(lk, lk, lk);
+    const busca = andProdutoBuscaSql('p', q, { includeId: true });
+    buscaSql = busca.sql;
+    params.push(...busca.params);
   }
 
   params.push(...fornProd.params, limit);

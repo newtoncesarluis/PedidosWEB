@@ -296,13 +296,16 @@ var FONT_KEY = 'sysrep_font_pref';
 var VISUAL_KEY = 'sysrep_visual_pref';
 
 var FONT_FAMILIES = [
-  { id:'dmsans',   name:'DM Sans',       value:"'DM Sans', sans-serif",          desc:'Elegante · SGI', spacing: '-0.02em' },
-  { id:'roboto',   name:'Roboto',        value:"'Roboto', sans-serif",          desc:'Google Sans Clean', spacing: '-0.01em' },
-  { id:'inter',    name:'Inter',         value:"'Inter', sans-serif",           desc:'Moderna · Padrão', spacing: '-0.02em' },
-  { id:'opensans', name:'Open Sans',     value:"'Open Sans', sans-serif",       desc:'Google Sans Soft', spacing: '-0.01em' },
-  { id:'poppins',  name:'Poppins',       value:"'Poppins', sans-serif",         desc:'Geométrica', spacing: '0' },
-  { id:'montserrat',name:'Montserrat',   value:"'Montserrat', sans-serif",      desc:'Elegante', spacing: '0' },
-  { id:'system',   name:'Sistema',       value:"system-ui, sans-serif",         desc:'Nativa do SO', spacing: '0' }
+  { id:'inter',       name:'Inter',              value:"'Inter', sans-serif",                desc:'Mercos · Moderna', spacing: '-0.02em' },
+  { id:'dmsans',      name:'DM Sans',            value:"'DM Sans', sans-serif",              desc:'Elegante · SGI', spacing: '-0.02em' },
+  { id:'figtree',     name:'Figtree',            value:"'Figtree', sans-serif",              desc:'Clean · Atual', spacing: '-0.02em' },
+  { id:'nunito',      name:'Nunito',             value:"'Nunito', sans-serif",               desc:'Amigável · Arredondada', spacing: '-0.01em' },
+  { id:'plusjakarta', name:'Plus Jakarta Sans',  value:"'Plus Jakarta Sans', sans-serif",    desc:'Premium · Moderna', spacing: '-0.02em' },
+  { id:'roboto',      name:'Roboto',             value:"'Roboto', sans-serif",               desc:'Google Sans Clean', spacing: '-0.01em' },
+  { id:'opensans',    name:'Open Sans',          value:"'Open Sans', sans-serif",            desc:'Google Sans Soft', spacing: '-0.01em' },
+  { id:'poppins',     name:'Poppins',            value:"'Poppins', sans-serif",              desc:'Geométrica', spacing: '0' },
+  { id:'montserrat',  name:'Montserrat',         value:"'Montserrat', sans-serif",           desc:'Elegante', spacing: '0' },
+  { id:'system',      name:'Sistema',            value:"system-ui, sans-serif",              desc:'Nativa do SO', spacing: '0' }
 ];
 
 var FONT_SIZES = [
@@ -325,14 +328,15 @@ function applyFont(familyId, sizeId) {
   const fam = FONT_FAMILIES.find(f => f.id === familyId) || FONT_FAMILIES[0];
   const size = FONT_SIZES.find(s => s.id === sizeId) || FONT_SIZES[1];
   
-  if (['roboto', 'opensans', 'poppins', 'montserrat', 'dmsans'].includes(familyId)) {
+  const GOOGLE_FONTS = ['inter','roboto','opensans','poppins','montserrat','dmsans','figtree','nunito','plusjakarta'];
+  if (GOOGLE_FONTS.includes(familyId)) {
     const linkId = 'google-font-' + familyId;
     if (!document.getElementById(linkId)) {
       const link = document.createElement('link');
       link.id = linkId;
       link.rel = 'stylesheet';
       const fontName = fam.value.split(',')[0].replace(/'/g, '').replace(/ /g, '+');
-      link.href = `https://fonts.googleapis.com/css2?family=${fontName}:wght@400;500;700&display=swap`;
+      link.href = `https://fonts.googleapis.com/css2?family=${fontName}:wght@400;500;600;700&display=swap`;
       document.head.appendChild(link);
     }
   }

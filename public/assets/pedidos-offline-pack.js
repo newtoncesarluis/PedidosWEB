@@ -489,12 +489,14 @@
 
     if (qTrim) {
       list = list.filter(p => {
+        const seg = norm(p.segmento);
         if (isBarcode) {
           return String(p.cod_barras) === qTrim || String(p.cod_fabricante) === qTrim
-            || norm(p.descricao).includes(qt) || norm(p.cod_fabricante).includes(qt);
+            || norm(p.descricao).includes(qt) || norm(p.cod_fabricante).includes(qt)
+            || norm(p.cod_barras).includes(qt) || seg.includes(qt);
         }
         return norm(p.descricao).includes(qt) || norm(p.cod_fabricante).includes(qt)
-          || norm(p.cod_barras).includes(qt) || String(p.id) === qTrim;
+          || norm(p.cod_barras).includes(qt) || seg.includes(qt) || String(p.id) === qTrim;
       });
       if (isBarcode) {
         list.sort((a, b) => {

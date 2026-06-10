@@ -44,6 +44,7 @@ Exemplos de erros passados por não fazer isso:
 - Lançamento pagar: `valor`, `valor_pagar` e `vlrcomjuros` recebem o mesmo valor informado no formulário
 - `forma_pagto` (combo condição pagamento): **não** filtrar `status IN ('S','A')` — legado pode não ter coluna `status` (SQL falha → combo vazio) ou `excluido IS NULL`; usar **`config/forma-pagto-lookup.js`** (`listFormasPagamentoLookup`); cadastro completo em **`GET /api/formas-pagamento`**
 - `tabela_preco_cabecalho.Cond_Pagamento` — **opcional** (`INT NULL`); migration **`ensureTabelaPrecoCondPagamentoNullable`** (FK impede MODIFY direto)
+- `pedidos` NÃO tem coluna `data_pedido` — coluna real é **`data_abertura`**; usar `MONTH(data_abertura)` e `YEAR(data_abertura)` em filtros de período
 
 **Nunca assumir nomes de coluna sem checar o código existente primeiro.**
 

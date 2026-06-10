@@ -22,6 +22,7 @@
     '/pages/importacao-clientes.html': { key: 'gtela_importacao_clientes', label: 'Importação de Clientes' },
     '/pages/importacao-fornecedores.html': { key: 'gtela_importacao_fornecedores', label: 'Importação de Fornecedores' },
     '/pages/campos-importacao.html': { key: 'gtela_campos_importacao', label: 'Configurar Campos de Importação' },
+    '/pages/tipo-pedidos.html': { key: 'gtela_tipo_pedidos', label: 'Tipos de Pedido' },
   };
 
   const PAGE_CRUD = {
@@ -36,6 +37,7 @@
     '/pages/segmentos.html': { incluir: 'incluir_segmentos', alterar: 'alterar_segmentos', excluir: 'excluir_segmentos' },
     '/pages/regiao-rota.html': { incluir: 'incluir_regioes', alterar: 'alterar_regioes', excluir: 'excluir_regioes' },
     '/pages/eventos-cidades.html': { incluir: 'incluir_eventos_cidades', alterar: 'alterar_eventos_cidades', excluir: 'excluir_eventos_cidades' },
+    '/pages/tipo-pedidos.html': { incluir: 'incluir_tipo_pedidos', alterar: 'alterar_tipo_pedidos', excluir: 'excluir_tipo_pedidos' },
   };
 
   function token() {
@@ -77,7 +79,6 @@
 
   async function guardCadastroTela() {
     const cfg = matchPage(PAGE_GTELA);
-    if (!cfg) return true;
 
     const jwt = parseJwt(token());
     let perm = {};
@@ -101,6 +102,8 @@
     };
 
     initCadCrudPermissoes();
+
+    if (!cfg) return true;
 
     if (!isAdmin && perm[cfg.key] !== 'S') {
       document.body.innerHTML = htmlRestrito(cfg.label);

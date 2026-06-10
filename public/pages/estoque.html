@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Gestão de Estoque | SysRepWeb</title>
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:var(--font,'Inter','Segoe UI',sans-serif);background:var(--content-bg);color:var(--content-text);min-height:100vh}
+.toolbar{background:var(--card-bg);border-bottom:1px solid var(--card-border);padding:12px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.05)}
+.toolbar-title{font-size:13px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;white-space:nowrap}
+.toolbar-title svg{width:16px;height:16px;vertical-align:middle;margin-right:6px}
+.spacer{flex:1}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 13px;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;transition:.15s;font-family:inherit;white-space:nowrap}
+.btn svg{width:14px;height:14px;flex-shrink:0}
+.btn-primary{background:var(--accent);color:var(--btn-text,#fff);border:1.5px solid var(--accent)}
+.btn-primary:hover{background:var(--accent-hover,#0d7a6e);border-color:var(--accent-hover,#0d7a6e)}
+.btn-ghost{background:var(--card-bg);color:var(--text2);border:1.5px solid var(--card-border)}
+.btn-ghost:hover{background:var(--content-bg);color:var(--content-text)}
+.btn-danger{background:#ef4444;color:#fff;border:1.5px solid #ef4444}
+.btn-danger:hover{background:#dc2626;border-color:#dc2626}
+.btn-sm{padding:5px 10px;font-size:11px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* Abas principais */
+.main-tabs{display:flex;gap:0;background:var(--card-bg);border-bottom:2px solid var(--card-border);padding:0 20px;overflow-x:auto;scrollbar-width:none}
+.main-tabs::-webkit-scrollbar{display:none}
+.tab-btn{padding:10px 16px;border:none;background:none;cursor:pointer;font-size:12px;font-weight:600;color:var(--text2);border-bottom:2px solid transparent;margin-bottom:-2px;white-space:nowrap;font-family:inherit;transition:.15s}
+.tab-btn:hover{color:var(--accent)}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab-pane{display:none;padding:16px 20px}
+.tab-pane.active{display:block}
+
+/* Cards de resumo */
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:16px}
+.kpi-card{background:var(--card-bg);border:1px solid var(--card-border);border-radius:10px;padding:14px 16px}
+.kpi-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);margin-bottom:4px}
+.kpi-val{font-size:22px;font-weight:800;color:var(--content-text)}
+.kpi-card.danger .kpi-val{color:#ef4444}
+.kpi-card.warn .kpi-val{color:#f59e0b}
+.kpi-card.ok .kpi-val{color:#22c55e}
+
+/* Filtro */
+.filter-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;background:var(--card-bg);border:1px solid var(--card-border);border-radius:8px;padding:10px 14px}
+.filter-bar input,.filter-bar select{padding:6px 10px;border:1.5px solid var(--card-border);border-radius:7px;font-size:12px;font-family:inherit;background:var(--card-bg);color:var(--content-text);outline:none}
+.filter-bar input:focus,.filter-bar select:focus{border-color:var(--accent)}
+.filter-bar select option{background:var(--card-bg);color:var(--content-text)}
+label.lbl{font-size:11px;font-weight:600;color:var(--text2);white-space:nowrap}
+
+/* Tabela */
+.table-card{background:var(--card-bg);border:1px solid var(--card-border);border-radius:10px;overflow:hidden}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead th{background:var(--content-bg);padding:9px 12px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2);border-bottom:1px solid var(--card-border);white-space:nowrap}
+tbody tr{border-left:3px solid transparent;transition:.12s}
+tbody tr:hover{background:var(--accent-soft,rgba(13,148,136,.07));border-left-color:var(--accent)}
+tbody td{padding:11px 12px;border-bottom:1px solid var(--card-border);vertical-align:middle}
+.td-num{color:var(--text2);font-size:11px}
+.td-bold{font-weight:600}
+.empty-row td{text-align:center;padding:40px;color:var(--text2);font-size:13px}
+
+/* Badges de estoque */
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap}
+.badge-ok{background:#d1fae5;color:#065f46}
+.badge-low{background:#fef3c7;color:#92400e}
+.badge-zero{background:#fee2e2;color:#991b1b}
+.badge-over{background:#e0e7ff;color:#3730a3}
+.badge-nd{background:var(--content-bg);color:var(--text2)}
+.badge-entrada{background:#d1fae5;color:#065f46}
+.badge-saida{background:#fee2e2;color:#991b1b}
+.badge-pedido{background:#fef3c7;color:#92400e}
+.badge-ajuste{background:#e0e7ff;color:#3730a3}
+.badge-xml{background:#e0f2fe;color:#0c4a6e}
+
+/* Paginação */
+.pag-row{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-top:1px solid var(--card-border);font-size:12px;color:var(--text2);flex-wrap:wrap;gap:8px}
+
+/* Modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:2000;display:none;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{background:var(--card-bg);border:1px solid var(--card-border);border-radius:12px;width:480px;max-width:96vw;max-height:92vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.modal-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--card-border)}
+.modal-title{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.6px}
+.modal-body{padding:20px}
+.modal-footer{padding:12px 20px;border-top:1px solid var(--card-border);display:flex;justify-content:flex-end;gap:8px}
+.form-group{display:flex;flex-direction:column;gap:4px;margin-bottom:14px}
+.form-group label{font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.4px}
+.form-group input,.form-group select,.form-group textarea{padding:8px 11px;border:1.5px solid var(--card-border);border-radius:8px;font-size:13px;font-family:inherit;background:var(--card-bg);color:var(--content-text);outline:none;width:100%}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft,rgba(13,148,136,.12))}
+.form-group select option{background:var(--card-bg);color:var(--content-text)}
+.produto-info{background:var(--content-bg);border:1px solid var(--card-border);border-radius:8px;padding:10px 12px;font-size:12px;margin-bottom:12px;display:none}
+.produto-info strong{display:block;font-weight:700;margin-bottom:2px}
+.saldo-atual{font-size:18px;font-weight:800;color:var(--accent)}
+.callout{background:var(--accent-soft,rgba(13,148,136,.1));border-left:3px solid var(--accent);padding:10px 14px;border-radius:0 6px 6px 0;font-size:12px;margin-bottom:14px}
+.callout.warn{background:#fef3c7;border-left-color:#f59e0b;color:#78350f}
+.callout.danger{background:#fee2e2;border-left-color:#ef4444;color:#7f1d1d}
+
+/* XML drop zone */
+.xml-zone{border:2px dashed var(--card-border);border-radius:10px;padding:32px 20px;text-align:center;cursor:pointer;transition:.15s;background:var(--card-bg)}
+.xml-zone:hover,.xml-zone.drag{border-color:var(--accent);background:var(--accent-soft,rgba(13,148,136,.07))}
+.xml-zone svg{width:36px;height:36px;color:var(--text2);margin:0 auto 10px;display:block}
+.xml-zone p{font-size:13px;color:var(--text2)}
+.xml-zone strong{color:var(--accent);cursor:pointer}
+#xml-file{display:none}
+.xml-result-table{margin-top:14px;font-size:12px;width:100%;border-collapse:collapse}
+.xml-result-table th{background:var(--content-bg);padding:7px 10px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text2);border-bottom:1px solid var(--card-border)}
+.xml-result-table td{padding:8px 10px;border-bottom:1px solid var(--card-border)}
+.xml-status-ok{color:#065f46;font-weight:700}
+.xml-status-nao{color:#92400e}
+.xml-status-erro{color:#991b1b;font-weight:700}
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <span class="toolbar-title">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+    Gestão de Estoque
+  </span>
+  <div class="spacer"></div>
+  <button class="btn btn-ghost btn-sm" onclick="window.open('/pages/ajuda-estoque.html','_blank')">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>Ajuda
+  </button>
+</div>
+
+<!-- KPIs -->
+<div style="padding:16px 20px 0">
+  <div class="kpi-row" id="kpiRow">
+    <div class="kpi-card"><div class="kpi-label">Total SKUs</div><div class="kpi-val" id="kpiSkus">—</div></div>
+    <div class="kpi-card warn"><div class="kpi-label">Abaixo do Mínimo</div><div class="kpi-val" id="kpiAbaixo">—</div></div>
+    <div class="kpi-card danger"><div class="kpi-label">Zerados</div><div class="kpi-val" id="kpiZerado">—</div></div>
+    <div class="kpi-card"><div class="kpi-label">Movimentos Hoje</div><div class="kpi-val" id="kpiMovHoje">—</div></div>
+    <div class="kpi-card ok"><div class="kpi-label">Entradas (total)</div><div class="kpi-val" id="kpiEntradas">—</div></div>
+    <div class="kpi-card danger"><div class="kpi-label">Saídas (total)</div><div class="kpi-val" id="kpiSaidas">—</div></div>
+  </div>
+</div>
+
+<!-- Abas -->
+<div class="main-tabs">
+  <button class="tab-btn active" onclick="trocarAba('saldos',this)">Posição de Estoque</button>
+  <button class="tab-btn" onclick="trocarAba('movimentos',this)">Histórico de Movimentos</button>
+  <button class="tab-btn" onclick="trocarAba('entrada',this)">Lançar Entrada</button>
+  <button class="tab-btn" onclick="trocarAba('ajuste',this)">Ajuste de Inventário</button>
+  <button class="tab-btn" onclick="trocarAba('xml',this)">Entrada por XML</button>
+</div>
+
+<!-- ABA: Posição de Estoque -->
+<div class="tab-pane active" id="aba-saldos">
+  <div class="filter-bar">
+    <label class="lbl">Busca</label>
+    <input id="f-saldo-q" type="text" placeholder="Produto ou código…" autocomplete="off" style="width:220px" oninput="debounce(()=>carregarSaldos(),400)">
+    <label class="lbl">Alerta</label>
+    <select id="f-saldo-alerta" onchange="carregarSaldos()">
+      <option value="">Todos</option>
+      <option value="baixo">Abaixo do Mínimo</option>
+      <option value="zero">Zerados</option>
+    </select>
+    <button class="btn btn-ghost btn-sm" onclick="carregarSaldos()">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+      Atualizar
+    </button>
+  </div>
+  <div class="table-card">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Produto</th>
+            <th>Fornecedor</th>
+            <th style="text-align:right">Atual</th>
+            <th style="text-align:right">Mínimo</th>
+            <th style="text-align:right">Máximo</th>
+            <th style="text-align:right">Segurança</th>
+            <th>Status</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody id="tbSaldos"><tr class="empty-row"><td colspan="9">Carregando…</td></tr></tbody>
+      </table>
+    </div>
+    <div class="pag-row">
+      <span id="pagInfoSaldos"></span>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-ghost btn-sm" id="btnPrevSaldos" onclick="pagSaldos(-1)">&#8249; Anterior</button>
+        <button class="btn btn-ghost btn-sm" id="btnNextSaldos" onclick="pagSaldos(1)">Próximo &#8250;</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ABA: Histórico -->
+<div class="tab-pane" id="aba-movimentos">
+  <div class="filter-bar">
+    <label class="lbl">Busca</label>
+    <input id="f-mov-q" type="text" placeholder="Produto, NF, pedido…" autocomplete="off" style="width:200px" oninput="debounce(()=>carregarMovimentos(),400)">
+    <label class="lbl">Tipo</label>
+    <select id="f-mov-tipo" onchange="carregarMovimentos()">
+      <option value="">Todos</option>
+      <option value="ENTRADA">Entrada</option>
+      <option value="SAIDA">Saída</option>
+      <option value="PEDIDO">Pedido</option>
+      <option value="AJUSTE">Ajuste</option>
+      <option value="XML">XML</option>
+    </select>
+    <label class="lbl">De</label>
+    <input id="f-mov-ini" type="date" onchange="carregarMovimentos()">
+    <label class="lbl">Até</label>
+    <input id="f-mov-fim" type="date" onchange="carregarMovimentos()">
+    <button class="btn btn-ghost btn-sm" onclick="carregarMovimentos()">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+      Atualizar
+    </button>
+  </div>
+  <div class="table-card">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Data</th>
+            <th>Tipo</th>
+            <th>Produto</th>
+            <th style="text-align:right">Qtd</th>
+            <th style="text-align:right">Ant.</th>
+            <th style="text-align:right">Pós</th>
+            <th>Pedido / NF</th>
+            <th>Usuário</th>
+            <th>Obs</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="tbMovimentos"><tr class="empty-row"><td colspan="11">Carregando…</td></tr></tbody>
+      </table>
+    </div>
+    <div class="pag-row">
+      <span id="pagInfoMov"></span>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-ghost btn-sm" id="btnPrevMov" onclick="pagMov(-1)">&#8249; Anterior</button>
+        <button class="btn btn-ghost btn-sm" id="btnNextMov" onclick="pagMov(1)">Próximo &#8250;</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ABA: Lançar Entrada -->
+<div class="tab-pane" id="aba-entrada">
+  <div style="max-width:560px">
+    <div class="callout">Use esta aba para registrar manualmente a chegada de mercadoria no estoque. Para entradas via Nota Fiscal, use a aba <strong>Entrada por XML</strong>.</div>
+    <div class="form-group">
+      <label>Produto *</label>
+      <input id="e-busca-prod" type="text" placeholder="Digite código ou nome do produto…" autocomplete="off" oninput="buscaProdutoEntrada(this.value)">
+      <div id="e-busca-lista" style="position:relative"></div>
+    </div>
+    <div class="produto-info" id="e-prod-info">
+      <strong id="e-prod-nome"></strong>
+      <span>Saldo atual: <span class="saldo-atual" id="e-prod-saldo"></span></span>
+    </div>
+    <input type="hidden" id="e-cod-produto">
+    <div class="form-group">
+      <label>Quantidade *</label>
+      <input id="e-qtd" type="number" min="0.001" step="0.001" placeholder="0.000">
+    </div>
+    <div class="form-group">
+      <label>Nº da Nota Fiscal</label>
+      <input id="e-nf" type="text" placeholder="Ex: 12345" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label>Fornecedor (informativo)</label>
+      <input id="e-fornecedor" type="text" placeholder="Nome do fornecedor…" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label>Observação</label>
+      <textarea id="e-obs" rows="2" placeholder="Opcional…"></textarea>
+    </div>
+    <button class="btn btn-primary" onclick="salvarEntrada()">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+      Confirmar Entrada
+    </button>
+  </div>
+</div>
+
+<!-- ABA: Ajuste de Inventário -->
+<div class="tab-pane" id="aba-ajuste">
+  <div style="max-width:560px">
+    <div class="callout warn">O ajuste redefine o saldo do produto para o valor informado, registrando a diferença como movimentação de ajuste. Use durante inventários físicos.</div>
+    <div class="form-group">
+      <label>Produto *</label>
+      <input id="a-busca-prod" type="text" placeholder="Digite código ou nome do produto…" autocomplete="off" oninput="buscaProdutoAjuste(this.value)">
+    </div>
+    <div class="produto-info" id="a-prod-info">
+      <strong id="a-prod-nome"></strong>
+      <span>Saldo atual: <span class="saldo-atual" id="a-prod-saldo"></span></span>
+    </div>
+    <input type="hidden" id="a-cod-produto">
+    <div class="form-group">
+      <label>Novo Saldo (quantidade real contada) *</label>
+      <input id="a-qtd" type="number" min="0" step="0.001" placeholder="0.000">
+    </div>
+    <div class="form-group">
+      <label>Motivo do Ajuste</label>
+      <textarea id="a-obs" rows="2" placeholder="Ex: Inventário mensal, avaria, perda…"></textarea>
+    </div>
+    <button class="btn btn-primary" onclick="salvarAjuste()">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+      Confirmar Ajuste
+    </button>
+  </div>
+</div>
+
+<!-- ABA: Entrada por XML -->
+<div class="tab-pane" id="aba-xml">
+  <div style="max-width:700px">
+    <div class="callout">Importe a NF-e em XML para dar entrada automática no estoque. Os produtos são casados pelo <strong>código do fabricante</strong> (cProd) ou pelo <strong>código de barras</strong> registrado no cadastro. Itens não encontrados são listados para ajuste manual.</div>
+    <div class="xml-zone" id="xmlZone" onclick="document.getElementById('xml-file').click()" ondrop="xmlDrop(event)" ondragover="xmlDragOver(event)" ondragleave="xmlDragLeave()">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+      <p>Arraste o arquivo XML aqui ou <strong>clique para selecionar</strong></p>
+      <p style="font-size:11px;margin-top:4px;color:var(--text2)">Aceita nfeProc (autorizada pela SEFAZ) ou NFe direta</p>
+    </div>
+    <input type="file" id="xml-file" accept=".xml" onchange="xmlFileSelected(this)">
+    <div id="xml-resultado" style="margin-top:16px;display:none">
+      <div id="xml-resumo" style="margin-bottom:10px;font-size:13px;font-weight:600"></div>
+      <div class="table-card">
+        <div class="table-wrap">
+          <table class="xml-result-table">
+            <thead><tr><th>#</th><th>Cód. NF</th><th>Descrição NF</th><th>Qtd</th><th>Produto Sistema</th><th style="text-align:right">Saldo Pós</th><th>Status</th></tr></thead>
+            <tbody id="tbXmlResult"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Movimentar produto (entrada rápida a partir da tabela de saldos) -->
+<div class="modal-overlay" id="modalEntradaRapida">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Entrada Rápida</span>
+      <button class="btn btn-ghost btn-sm" onclick="fecharModal('modalEntradaRapida')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="produto-info" id="er-prod-info" style="display:block">
+        <strong id="er-prod-nome"></strong>
+        <span>Saldo atual: <span class="saldo-atual" id="er-prod-saldo"></span></span>
+      </div>
+      <input type="hidden" id="er-cod-produto">
+      <div class="form-group"><label>Quantidade *</label><input id="er-qtd" type="number" min="0.001" step="0.001"></div>
+      <div class="form-group"><label>Nº Nota Fiscal</label><input id="er-nf" type="text" autocomplete="off"></div>
+      <div class="form-group"><label>Observação</label><textarea id="er-obs" rows="2"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="fecharModal('modalEntradaRapida')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarEntradaRapida()">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const TOKEN = localStorage.getItem('sysrep_token') || '';
+const H     = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + TOKEN };
+
+// ── Utilidades ──────────────────────────────────────────────────────────────
+function fmt(n,d=3){ const v=parseFloat(n)||0; return v.toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d}); }
+let _deb;
+function debounce(fn,ms){ clearTimeout(_deb); _deb=setTimeout(fn,ms); }
+
+function trocarAba(id, btn) {
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('aba-'+id).classList.add('active');
+  btn.classList.add('active');
+  if (id==='saldos') carregarSaldos();
+  if (id==='movimentos') carregarMovimentos();
+}
+
+function badgeStatus(atual, minimo, maximo) {
+  const a=parseFloat(atual)||0, mn=parseFloat(minimo)||0, mx=parseFloat(maximo)||0;
+  if (a<=0) return '<span class="badge badge-zero">Zerado</span>';
+  if (mn>0 && a<=mn) return '<span class="badge badge-low">Abaixo do Mín.</span>';
+  if (mx>0 && a>mx) return '<span class="badge badge-over">Acima do Máx.</span>';
+  return '<span class="badge badge-ok">Normal</span>';
+}
+function badgeTipo(tipo) {
+  const m = { ENTRADA:'badge-entrada', SAIDA:'badge-saida', PEDIDO:'badge-pedido', AJUSTE:'badge-ajuste', XML:'badge-xml' };
+  return `<span class="badge ${m[tipo]||'badge-nd'}">${tipo}</span>`;
+}
+function toast(msg, tipo='ok') {
+  const t=document.createElement('div');
+  t.style.cssText=`position:fixed;bottom:20px;right:20px;z-index:9999;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:600;box-shadow:0 4px 20px rgba(0,0,0,.2);color:#fff;background:${tipo==='ok'?'#22c55e':'#ef4444'}`;
+  t.textContent=msg;
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(),3500);
+}
+
+// ── KPIs ─────────────────────────────────────────────────────────────────────
+async function carregarRelatorio() {
+  const r = await fetch('/api/estoque/relatorio', { headers: H }).catch(()=>null);
+  if (!r?.ok) return;
+  const d = await r.json();
+  document.getElementById('kpiSkus').textContent    = (d.total_skus||0).toLocaleString('pt-BR');
+  document.getElementById('kpiAbaixo').textContent  = (d.abaixo_minimo||0).toLocaleString('pt-BR');
+  document.getElementById('kpiZerado').textContent  = (d.zerados||0).toLocaleString('pt-BR');
+  document.getElementById('kpiEntradas').textContent= fmt(d.total_entradas||0,1);
+  document.getElementById('kpiSaidas').textContent  = fmt(d.total_saidas||0,1);
+  document.getElementById('kpiMovHoje').textContent = '—';
+}
+
+// ── Posição de Estoque ────────────────────────────────────────────────────────
+let _pagSaldo=1;
+async function carregarSaldos(pg) {
+  if (pg!==undefined) _pagSaldo=pg;
+  const q   = encodeURIComponent(document.getElementById('f-saldo-q').value);
+  const al  = document.getElementById('f-saldo-alerta').value;
+  const url = `/api/estoque/saldos?q=${q}&alerta=${al}&page=${_pagSaldo}&limit=60`;
+  const r   = await fetch(url, { headers: H }).catch(()=>null);
+  const tb  = document.getElementById('tbSaldos');
+  if (!r?.ok) { tb.innerHTML=`<tr class="empty-row"><td colspan="9">Erro ao carregar</td></tr>`; return; }
+  const data = await r.json();
+  if (!data.rows?.length) { tb.innerHTML=`<tr class="empty-row"><td colspan="9">Nenhum produto encontrado</td></tr>`; return; }
+  tb.innerHTML = data.rows.map(p=>`
+    <tr>
+      <td class="td-num">${p.ID}</td>
+      <td class="td-bold">${p.descricao||'—'}</td>
+      <td>${p.fornecedor||''}</td>
+      <td style="text-align:right;font-weight:700">${fmt(p.estoque_atual)}</td>
+      <td style="text-align:right;color:var(--text2)">${fmt(p.estoque_minimo)}</td>
+      <td style="text-align:right;color:var(--text2)">${parseFloat(p.estoque_maximo)?fmt(p.estoque_maximo):'—'}</td>
+      <td style="text-align:right;color:var(--text2)">${parseFloat(p.estoque_seguranca)?fmt(p.estoque_seguranca):'—'}</td>
+      <td>${badgeStatus(p.estoque_atual,p.estoque_minimo,p.estoque_maximo)}</td>
+      <td>
+        <button class="btn btn-ghost btn-sm" onclick="abrirEntradaRapida(${p.ID},'${(p.descricao||'').replace(/'/g,"\\'")}',${p.estoque_atual})">+ Entrada</button>
+      </td>
+    </tr>
+  `).join('');
+  const tot = data.total||0;
+  document.getElementById('pagInfoSaldos').textContent = `${tot} produto(s) — pág. ${_pagSaldo}`;
+  document.getElementById('btnPrevSaldos').disabled = _pagSaldo<=1;
+  document.getElementById('btnNextSaldos').disabled = _pagSaldo*60 >= tot;
+}
+function pagSaldos(d){ _pagSaldo=Math.max(1,_pagSaldo+d); carregarSaldos(); }
+
+// ── Histórico ─────────────────────────────────────────────────────────────────
+let _pagMov=1;
+async function carregarMovimentos(pg) {
+  if (pg!==undefined) _pagMov=pg;
+  const q   = encodeURIComponent(document.getElementById('f-mov-q').value);
+  const tp  = document.getElementById('f-mov-tipo').value;
+  const ini = document.getElementById('f-mov-ini').value;
+  const fim = document.getElementById('f-mov-fim').value;
+  const url = `/api/estoque/movimentos?q=${q}&tipo=${tp}&data_ini=${ini}&data_fim=${fim}&page=${_pagMov}&limit=60`;
+  const r   = await fetch(url, { headers: H }).catch(()=>null);
+  const tb  = document.getElementById('tbMovimentos');
+  if (!r?.ok) { tb.innerHTML=`<tr class="empty-row"><td colspan="11">Erro ao carregar</td></tr>`; return; }
+  const data = await r.json();
+  if (!data.rows?.length) { tb.innerHTML=`<tr class="empty-row"><td colspan="11">Nenhum movimento encontrado</td></tr>`; return; }
+  tb.innerHTML = data.rows.map(m=>{
+    const ref = m.numero_pedido ? `Ped ${m.numero_pedido}` : (m.nota_fiscal ? `NF ${m.nota_fiscal}` : '—');
+    return `<tr>
+      <td class="td-num">${m.id}</td>
+      <td>${m.data_movimento||'—'}</td>
+      <td>${badgeTipo(m.tipo_movimento)}</td>
+      <td class="td-bold">${m.desc_produto||m.cod_produto||'—'}</td>
+      <td style="text-align:right;font-weight:700">${fmt(m.quantidade)}</td>
+      <td style="text-align:right;color:var(--text2)">${fmt(m.saldo_anterior)}</td>
+      <td style="text-align:right">${fmt(m.saldo_posterior)}</td>
+      <td>${ref}</td>
+      <td>${m.nome_usuario||'—'}</td>
+      <td title="${m.observacao||''}">${(m.observacao||'').slice(0,40)}</td>
+      <td><button class="btn btn-ghost btn-sm btn-danger" onclick="estornarMovimento(${m.id})" title="Estornar">✕</button></td>
+    </tr>`;
+  }).join('');
+  const tot = data.total||0;
+  document.getElementById('pagInfoMov').textContent = `${tot} movimento(s) — pág. ${_pagMov}`;
+  document.getElementById('btnPrevMov').disabled = _pagMov<=1;
+  const btnNext = document.getElementById('btnNextMov');
+  if (btnNext) btnNext.disabled = _pagMov*60 >= tot;
+}
+function pagMov(d){ _pagMov=Math.max(1,_pagMov+d); carregarMovimentos(); }
+
+// ── Busca de produto (autocomplete) ─────────────────────────────────────────
+let _buscaTimer;
+async function _buscarProdutos(q) {
+  if (!q || q.length<2) return [];
+  const r = await fetch(`/api/produtos?q=${encodeURIComponent(q)}&status=A&limit=10`, { headers: H }).catch(()=>null);
+  if (!r?.ok) return [];
+  const d = await r.json();
+  return d.produtos || d.rows || d || [];
+}
+
+function _montarSugestao(prods, inputEl, cbSelect) {
+  let box = inputEl.parentNode.querySelector('.sug-box');
+  if (!box) {
+    box = document.createElement('div');
+    box.className = 'sug-box';
+    box.style.cssText = 'position:absolute;top:100%;left:0;right:0;background:var(--card-bg);border:1px solid var(--card-border);border-radius:8px;box-shadow:0 8px 20px rgba(0,0,0,.15);z-index:500;max-height:220px;overflow-y:auto';
+    inputEl.parentNode.style.position='relative';
+    inputEl.parentNode.appendChild(box);
+  }
+  if (!prods.length) { box.innerHTML='<div style="padding:10px 14px;font-size:12px;color:var(--text2)">Nenhum produto encontrado</div>'; return; }
+  box.innerHTML = prods.map(p=>`
+    <div style="padding:9px 14px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--card-border)"
+         data-id="${p.ID||p.id}" data-nome="${(p.descricao||'').replace(/"/g,'&quot;')}" data-saldo="${p.estoque_atual||0}"
+         class="sug-item" onmouseenter="this.style.background='var(--accent-soft)'" onmouseleave="this.style.background=''">
+      <strong>${p.descricao||'—'}</strong> <span style="color:var(--text2)">#${p.ID||p.id} | Saldo: ${fmt(p.estoque_atual||0)}</span>
+    </div>`
+  ).join('');
+  box.querySelectorAll('.sug-item').forEach(el => {
+    el.onclick = () => {
+      cbSelect(el.dataset.id, el.dataset.nome, el.dataset.saldo);
+      box.remove();
+      inputEl.value = el.dataset.nome;
+    };
+  });
+  document.addEventListener('click', ()=>box.remove(), { once:true });
+}
+
+async function buscaProdutoEntrada(q) {
+  clearTimeout(_buscaTimer);
+  _buscaTimer = setTimeout(async () => {
+    const prods = await _buscarProdutos(q);
+    const inp = document.getElementById('e-busca-prod');
+    _montarSugestao(prods, inp, (id,nome,saldo)=>{
+      document.getElementById('e-cod-produto').value = id;
+      document.getElementById('e-prod-nome').textContent = nome;
+      document.getElementById('e-prod-saldo').textContent = fmt(saldo);
+      document.getElementById('e-prod-info').style.display = 'block';
+    });
+  }, 300);
+}
+
+async function buscaProdutoAjuste(q) {
+  clearTimeout(_buscaTimer);
+  _buscaTimer = setTimeout(async () => {
+    const prods = await _buscarProdutos(q);
+    const inp = document.getElementById('a-busca-prod');
+    _montarSugestao(prods, inp, (id,nome,saldo)=>{
+      document.getElementById('a-cod-produto').value = id;
+      document.getElementById('a-prod-nome').textContent = nome;
+      document.getElementById('a-prod-saldo').textContent = fmt(saldo);
+      document.getElementById('a-prod-info').style.display = 'block';
+      document.getElementById('a-qtd').value = '';
+      document.getElementById('a-qtd').focus();
+    });
+  }, 300);
+}
+
+// ── Salvar Entrada manual ─────────────────────────────────────────────────────
+async function salvarEntrada() {
+  const cod = document.getElementById('e-cod-produto').value;
+  const qtd = document.getElementById('e-qtd').value;
+  if (!cod || !qtd || parseFloat(qtd)<=0) { toast('Informe produto e quantidade válida','erro'); return; }
+  const body = {
+    cod_produto:    parseInt(cod),
+    quantidade:     parseFloat(qtd),
+    nota_fiscal:    document.getElementById('e-nf').value||null,
+    fornecedor_nome:document.getElementById('e-fornecedor').value||null,
+    observacao:     document.getElementById('e-obs').value||null,
+  };
+  const r = await fetch('/api/estoque/entrada',{ method:'POST', headers:H, body:JSON.stringify(body) });
+  const d = await r.json();
+  if (!r.ok) { toast(d.error||'Erro ao salvar','erro'); return; }
+  toast(`Entrada registrada! Novo saldo: ${fmt(d.saldo_posterior)}`);
+  ['e-cod-produto','e-qtd','e-nf','e-fornecedor','e-obs'].forEach(id=>{ document.getElementById(id).value=''; });
+  document.getElementById('e-busca-prod').value='';
+  document.getElementById('e-prod-info').style.display='none';
+  carregarRelatorio();
+}
+
+// ── Salvar Ajuste ─────────────────────────────────────────────────────────────
+async function salvarAjuste() {
+  const cod = document.getElementById('a-cod-produto').value;
+  const qtd = document.getElementById('a-qtd').value;
+  if (!cod || qtd==='') { toast('Informe produto e novo saldo','erro'); return; }
+  const body = {
+    cod_produto:     parseInt(cod),
+    quantidade_nova: parseFloat(qtd),
+    observacao:      document.getElementById('a-obs').value||null,
+  };
+  const r = await fetch('/api/estoque/ajuste',{ method:'POST', headers:H, body:JSON.stringify(body) });
+  const d = await r.json();
+  if (!r.ok) { toast(d.error||'Erro ao ajustar','erro'); return; }
+  toast(`Ajuste confirmado! Saldo: ${fmt(d.saldo_anterior)} → ${fmt(d.saldo_posterior)}`);
+  ['a-cod-produto','a-qtd','a-obs'].forEach(id=>{ document.getElementById(id).value=''; });
+  document.getElementById('a-busca-prod').value='';
+  document.getElementById('a-prod-info').style.display='none';
+  carregarRelatorio();
+}
+
+// ── Entrada Rápida (a partir da grid de saldos) ───────────────────────────────
+function abrirEntradaRapida(id, nome, saldo) {
+  document.getElementById('er-cod-produto').value = id;
+  document.getElementById('er-prod-nome').textContent = nome;
+  document.getElementById('er-prod-saldo').textContent = fmt(saldo);
+  document.getElementById('er-qtd').value = '';
+  document.getElementById('er-nf').value = '';
+  document.getElementById('er-obs').value = '';
+  document.getElementById('modalEntradaRapida').classList.add('open');
+  setTimeout(()=>document.getElementById('er-qtd').focus(),100);
+}
+async function salvarEntradaRapida() {
+  const cod = document.getElementById('er-cod-produto').value;
+  const qtd = document.getElementById('er-qtd').value;
+  if (!cod || !qtd || parseFloat(qtd)<=0) { toast('Informe quantidade válida','erro'); return; }
+  const body = {
+    cod_produto: parseInt(cod),
+    quantidade:  parseFloat(qtd),
+    nota_fiscal: document.getElementById('er-nf').value||null,
+    observacao:  document.getElementById('er-obs').value||null,
+  };
+  const r = await fetch('/api/estoque/entrada',{ method:'POST', headers:H, body:JSON.stringify(body) });
+  const d = await r.json();
+  if (!r.ok) { toast(d.error||'Erro','erro'); return; }
+  toast(`Entrada registrada! Novo saldo: ${fmt(d.saldo_posterior)}`);
+  fecharModal('modalEntradaRapida');
+  carregarSaldos();
+  carregarRelatorio();
+}
+
+// ── Estornar Movimento ────────────────────────────────────────────────────────
+async function estornarMovimento(id) {
+  if (!confirm('Estornar este movimento? O saldo do produto será revertido.')) return;
+  const r = await fetch(`/api/estoque/movimentos/${id}`,{ method:'DELETE', headers:H });
+  const d = await r.json();
+  if (!r.ok) { toast(d.error||'Erro ao estornar','erro'); return; }
+  toast('Movimento estornado!');
+  carregarMovimentos();
+  carregarRelatorio();
+}
+
+// ── XML Upload ────────────────────────────────────────────────────────────────
+function xmlDragOver(e){ e.preventDefault(); document.getElementById('xmlZone').classList.add('drag'); }
+function xmlDragLeave(){ document.getElementById('xmlZone').classList.remove('drag'); }
+function xmlDrop(e){ e.preventDefault(); xmlDragLeave(); const f=e.dataTransfer.files[0]; if(f) processarXml(f); }
+function xmlFileSelected(inp){ if(inp.files[0]) processarXml(inp.files[0]); inp.value=''; }
+
+async function processarXml(file) {
+  document.getElementById('xml-resultado').style.display='none';
+  document.getElementById('xmlZone').querySelector('p').textContent='Processando…';
+  const fd = new FormData();
+  fd.append('xml', file);
+  const r = await fetch('/api/estoque/entrada-xml',{ method:'POST', headers:{ Authorization:'Bearer '+TOKEN }, body:fd });
+  const d = await r.json();
+  document.getElementById('xmlZone').querySelector('p').textContent='Arraste o arquivo XML aqui ou clique para selecionar';
+
+  if (!r.ok) { toast(d.error||'Erro ao processar XML','erro'); return; }
+
+  document.getElementById('xml-resultado').style.display='block';
+  document.getElementById('xml-resumo').innerHTML =
+    `NF <strong>${d.numero||'?'}/${d.serie||'?'}</strong> — ${d.data_emissao||''} &nbsp;|&nbsp; `+
+    `<span style="color:#065f46">✔ ${d.ok} entrada(s)</span> &nbsp;`+
+    (d.nao_encontrado?`<span style="color:#92400e">⚠ ${d.nao_encontrado} não encontrado(s)</span> &nbsp;`:'')+
+    (d.erro?`<span style="color:#991b1b">✕ ${d.erro} erro(s)</span>`:'');
+
+  document.getElementById('tbXmlResult').innerHTML = (d.itens||[]).map((it,i)=>`
+    <tr>
+      <td>${i+1}</td>
+      <td>${it.cod_fabricante||'—'}</td>
+      <td>${it.descricao_nfe||'—'}</td>
+      <td style="text-align:right">${fmt(it.quantidade)}</td>
+      <td>${it.descricao_sys||'<span style="color:var(--text2)">—</span>'}</td>
+      <td style="text-align:right">${it.saldo_posterior!==null?fmt(it.saldo_posterior):'—'}</td>
+      <td class="xml-status-${it.status==='ok'?'ok':it.status==='nao_encontrado'?'nao':'erro'}">${it.status==='ok'?'✔ Entrada':it.status==='nao_encontrado'?'⚠ Não encontrado':'✕ Erro'}</td>
+    </tr>
+  `).join('');
+  carregarRelatorio();
+}
+
+// ── Modal ─────────────────────────────────────────────────────────────────────
+function fecharModal(id){ document.getElementById(id).classList.remove('open'); }
+document.addEventListener('click', e=>{ if(e.target.classList.contains('modal-overlay')) fecharModal(e.target.id); });
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+carregarRelatorio();
+carregarSaldos();
+</script>
+</body>
+</html>

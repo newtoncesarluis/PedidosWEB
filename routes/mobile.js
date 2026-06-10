@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { getPool } = require('../config/database');
+const { buildClienteVendedorWhere, podeVerTodosClientes } = require('../config/cliente-visibilidade');
 
 // GET /api/mobile/resumo-dia — KPIs do dia para o top bar do shell
 router.get('/resumo-dia', async (req, res) => {
@@ -59,16 +60,14 @@ router.get('/dados-offline', async (req, res) => {
     const pool    = getPool();
     const user    = req.user;
     const idVend  = parseInt(user.id || user.idusuario || 0, 10);
-    const isAdmin = user.perfil === '1' || user.role === 'admin';
 
     // Detecta tabela de produtos
     const [prodRows] = await pool.query(`SHOW TABLES LIKE 'produto'`);
     const prodTb = prodRows.length ? 'produto' : 'produtos';
 
-    // Clientes: admin vê todos, vendedor só a própria carteira
-    const clienteWhere = isAdmin
-      ? `WHERE COALESCE(NULLIF(TRIM(c.excluido),''),'N') = 'N'`
-      : `WHERE COALESCE(NULLIF(TRIM(c.excluido),''),'N') = 'N' AND c.cod_vendedor = ${pool.escape(idVend)}`;
+    // Clientes: mesma regra da tela web (acessartodosclientes / gerente / cod_vendedor)
+    const vendFilter = buildClienteVendedorWhere(user, 'c');
+    const clienteWhere = `WHERE COALESCE(NULLIF(TRIM(c.excluido),''),'N') = 'N'${vendFilter.clause}`;
 
     const [clientes, produtos] = await Promise.all([
       pool.query(`
@@ -82,7 +81,7 @@ router.get('/dados-offline', async (req, res) => {
         ${clienteWhere}
         ORDER BY c.nome
         LIMIT 2000
-      `).then(([rows]) => rows).catch(() => []),
+      `, vendFilter.params).then(([rows]) => rows).catch(() => []),
 
       pool.query(`
         SELECT
@@ -104,7 +103,7 @@ router.get('/dados-offline', async (req, res) => {
       clientes,
       produtos,
       vendedor_id:  idVend,
-      is_admin:     isAdmin,
+      is_admin:     podeVerTodosClientes(user),
       synced_at:    new Date().toISOString(),
       totais: {
         clientes:  clientes.length,

@@ -223,10 +223,14 @@
           const p = cursor.value;
           const desc = (p.nome || p.descricao || p.desc_produto || p.desc_prod || '').toLowerCase();
           const ref = (p.referencia || p.cod_fabricante || '').toLowerCase();
+          const ean = String(p.cod_barras || '').toLowerCase();
+          const seg = String(p.segmento || '').toLowerCase();
           if (
             !termo ||
             desc.includes(termo) ||
             ref.includes(termo) ||
+            ean.includes(termo) ||
+            seg.includes(termo) ||
             String(p.id || p.cod_produto || '').includes(termo)
           ) {
             resultados.push(p);

@@ -15,8 +15,10 @@ set LICENSE_DB_NAME=sistema_licencas
 
 if not exist "%DIR%logs" mkdir "%DIR%logs"
 
-:: Mata TODOS os processos na porta (qualquer estado: LISTEN, TIME_WAIT, etc)
+:: Mata TODOS os processos nas portas usadas (server + tunel SSH)
 for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":3002 "') do taskkill /F /PID %%a >nul 2>&1
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":3307 "') do taskkill /F /PID %%a >nul 2>&1
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":3308 "') do taskkill /F /PID %%a >nul 2>&1
 
 timeout /t 2 /nobreak >nul
 

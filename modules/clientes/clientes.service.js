@@ -24,6 +24,7 @@ async function listarClientes(query, user) {
 
 async function buscarCliente(id, user) {
   const pool = getPool();
+  if (!(await repo.usuarioPodeVerCliente(id, user, pool))) return null;
   const cliente = await repo.buscarPorId(id, pool);
   if (!cliente) return null;
 

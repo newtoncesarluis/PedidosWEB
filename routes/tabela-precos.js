@@ -66,7 +66,27 @@ async function ensureTables() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
     await ensureTabelaPrecoCondPagamentoNullable(pool);
+    await ensureTabelaPrecoVinculoVendedor(pool);
   } catch (err) { console.error('Erro ao garantir tabelas:', err); }
+}
+
+async function ensureTabelaPrecoVinculoVendedor(pool) {
+  try {
+    const [cols] = await pool.query(
+      `SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tabela_preco_vinculo' AND COLUMN_NAME = 'tipo_entidade'`
+    );
+    if (!cols.length) return;
+    if (!String(cols[0].COLUMN_TYPE).includes('VENDEDOR')) {
+      await pool.query(
+        `ALTER TABLE \`tabela_preco_vinculo\`
+         MODIFY COLUMN \`tipo_entidade\` ENUM('CLIENTE','FORNECEDOR','VENDEDOR') NOT NULL`
+      );
+      console.log('[schema] tabela_preco_vinculo.tipo_entidade -> inclui VENDEDOR');
+    }
+  } catch (e) {
+    console.warn('[schema] ensureTabelaPrecoVinculoVendedor:', e.message);
+  }
 }
 
 function normalizeCondPagamento(value) {
@@ -221,6 +241,7 @@ router.post('/:id/manutencao', async (req, res) => {
 
 // ─── GET /api/tabela-precos/vinculos/:tipo/:id ───────────────────────────
 router.get('/vinculos/:tipo/:id', async (req, res) => {
+  await ensureTables();
   try {
     const pool = getPool();
     const { tipo, id } = req.params;
@@ -255,6 +276,7 @@ router.get('/vinculos/:tipo/:id', async (req, res) => {
 
 // ─── POST /api/tabela-precos/vinculos/:tipo/:id ──────────────────────────
 router.post('/vinculos/:tipo/:id', async (req, res) => {
+  await ensureTables();
   const { tipo, id } = req.params;
   const { tabelas } = req.body; // Array de {id, check, cod_regra}
   const conn = await getPool().getConnection();

@@ -183,6 +183,12 @@ body{background:var(--bg)}
 .vt-add-btn{height:36px;font-size:12px}
 .vt-add-btn:hover,.vt-scard-add:hover{border-color:var(--accent-dark);background:var(--accent-soft);color:var(--accent-dark)}
 .vt-add-btn:active,.vt-scard-add:active{transform:scale(.98);background:var(--accent-dark);color:#fff;border-color:var(--accent-dark)}
+.vt-multi-badge{
+  display:inline-flex;align-items:center;gap:3px;
+  font-size:10px;font-weight:700;color:var(--accent-dark);
+  background:var(--accent-soft);border:1px solid var(--accent-dark);
+  border-radius:5px;padding:1px 6px;margin-top:4px;
+}
 .vt-qty-ctrl{
   margin-top:8px;display:flex;align-items:center;border:1.5px solid var(--accent-dark);
   border-radius:10px;overflow:hidden;background:var(--accent-soft);
@@ -704,6 +710,10 @@ body{background:var(--bg)}
   function cardHtml(p, compact) {
     const ci = _cart[p.id];
     const isFav = _favs.has(p.id);
+    const multi = parseInt(p.multiplo_venda) || 1;
+    const multiBadge = multi > 1
+      ? `<span class="vt-multi-badge">Emb. ${multi} ${esc(p.unidade || 'un')}</span>`
+      : '';
     const ctrl = ci
       ? `<div class="vt-qty-ctrl"><button data-act="dec" data-id="${p.id}">−</button><span>${ci.quantidade}</span><button data-act="inc" data-id="${p.id}">+</button></div>`
       : `<button class="${compact?'vt-scard-add':'vt-add-btn'}" data-id="${p.id}">
@@ -724,6 +734,7 @@ body{background:var(--bg)}
       <div class="${bodyCls}">
         <div class="${nameCls}">${esc(p.descricao)}</div>
         ${!compact && p.cod_fabricante ? `<div class="vt-card-fab">${esc(p.cod_fabricante)}</div>` : ''}
+        ${multiBadge}
         <div class="${priceCls}">${fmt(p.preco)}</div>
         ${ctrl}
       </div>
@@ -798,7 +809,9 @@ body{background:var(--bg)}
     if (p.nome_grupo) tags.push(p.nome_grupo);
     if (p.cod_fabricante) tags.push(p.cod_fabricante);
     if (p.unidade) tags.push(p.unidade);
-    document.getElementById('vt-det-meta').innerHTML = tags.map(t => `<span class="vt-det-tag">${esc(t)}</span>`).join('');
+    const multi = parseInt(p.multiplo_venda) || 1;
+    const multiBadgeDet = multi > 1 ? `<span class="vt-multi-badge">Emb. ${multi} ${esc(p.unidade || 'un')}</span>` : '';
+    document.getElementById('vt-det-meta').innerHTML = tags.map(t => `<span class="vt-det-tag">${esc(t)}</span>`).join('') + multiBadgeDet;
     document.getElementById('vt-det-price').textContent = fmt(p.preco);
     const favBtn = document.getElementById('vt-det-fav');
     favBtn.classList.toggle('active', isFav);
@@ -1061,15 +1074,17 @@ body{background:var(--bg)}
   function addItem(id) {
     const p = (_dados.produtos || []).find(x => x.id === id);
     if (!p) return;
-    if (_cart[id]) _cart[id].quantidade++;
-    else _cart[id] = { produto: p, quantidade: 1 };
+    const multi = parseInt(p.multiplo_venda) || 1;
+    if (_cart[id]) _cart[id].quantidade += multi;
+    else _cart[id] = { produto: p, quantidade: multi };
     updateBadge(); renderGrid(); renderSugestoes();
     if (_detProd?.id === id) refreshDetModal();
   }
 
   function decItem(id) {
     if (!_cart[id]) return;
-    _cart[id].quantidade--;
+    const multi = parseInt(_cart[id].produto.multiplo_venda) || 1;
+    _cart[id].quantidade -= multi;
     if (_cart[id].quantidade <= 0) delete _cart[id];
     updateBadge(); renderGrid(); renderSugestoes();
     if (_detProd?.id === id) refreshDetModal();

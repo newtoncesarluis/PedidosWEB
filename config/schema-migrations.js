@@ -122,8 +122,11 @@ const MIGRATIONS = [
   { table: 'pedidos',  column: 'data_faturamento',  type: 'DATE NULL DEFAULT NULL' },
   { table: 'pedidos',  column: 'data_cancelamento', type: 'DATE NULL DEFAULT NULL' },
   { table: 'clientes', column: 'id_parceiro',       type: 'VARCHAR(36) NULL DEFAULT NULL' },
+  { table: 'clientes', column: 'updated_at',        type: 'DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP' },
   { table: 'produto',  column: 'id_parceiro',       type: 'VARCHAR(36) NULL DEFAULT NULL' },
+  { table: 'produto',  column: 'updated_at',        type: 'DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP' },
   { table: 'produtos', column: 'id_parceiro',       type: 'VARCHAR(36) NULL DEFAULT NULL' },
+  { table: 'produtos', column: 'updated_at',        type: 'DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP' },
   { table: 'produto',  column: 'precopeso',         type: "CHAR(1) NOT NULL DEFAULT 'N'" },
   { table: 'produtos', column: 'precopeso',         type: "CHAR(1) NOT NULL DEFAULT 'N'" },
 
@@ -154,6 +157,11 @@ const MIGRATIONS = [
   { table: 'perfil', column: 'tela_produtos', type: "CHAR(1) NOT NULL DEFAULT 'S'" },
   ...require('./cadastros-permissoes').migrationEntriesForCadastros(),
 
+  // ── PERFIL — permissões de ações no pedido ───────────────────────────────────
+  { table: 'perfil', column: 'faturar_pedido',       type: "CHAR(1) NOT NULL DEFAULT 'S'" },
+  { table: 'perfil', column: 'marcar_enviado_rep',   type: "CHAR(1) NOT NULL DEFAULT 'S'" },
+  { table: 'perfil', column: 'acessar_metas_vendas', type: "CHAR(1) NOT NULL DEFAULT 'S'" },
+
   // ── PEDIDOS — controle de envio de emails ────────────────────────────────────
   { table: 'pedidos', column: 'emailclienteenviado', type: "CHAR(1) DEFAULT 'N'" },
   { table: 'pedidos', column: 'emailforenviado',     type: "CHAR(1) DEFAULT 'N'" },
@@ -169,6 +177,18 @@ const MIGRATIONS = [
 
   // ── CAMPANHAS FEIRINHA — banner / tema visual ───────────────────────────────
   { table: 'campanhas_feirinha', column: 'tema_banner', type: "VARCHAR(200) NULL DEFAULT NULL" },
+
+  // ── PRODUTO — campos de estoque completos ────────────────────────────────────
+  { table: 'produto',  column: 'estoque_maximo',    type: "DECIMAL(15,4) DEFAULT 0" },
+  { table: 'produto',  column: 'estoque_seguranca', type: "DECIMAL(15,4) DEFAULT 0" },
+  { table: 'produtos', column: 'estoque_maximo',    type: "DECIMAL(15,4) DEFAULT 0" },
+  { table: 'produtos', column: 'estoque_seguranca', type: "DECIMAL(15,4) DEFAULT 0" },
+
+  // ── PERFIL — gestão de estoque ───────────────────────────────────────────────
+  { table: 'perfil', column: 'tela_estoque',    type: "CHAR(1) NOT NULL DEFAULT 'S'" },
+  { table: 'perfil', column: 'incluir_estoque', type: "CHAR(1) NOT NULL DEFAULT 'S'" },
+  { table: 'perfil', column: 'alterar_estoque', type: "CHAR(1) NOT NULL DEFAULT 'S'" },
+  { table: 'perfil', column: 'excluir_estoque', type: "CHAR(1) NOT NULL DEFAULT 'N'" },
 ];
 
 // Tabelas novas — cria se não existir (apenas estrutura mínima)
@@ -375,6 +395,33 @@ const CREATE_IF_NOT_EXISTS = [
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   },
   {
+    name: 'meta_vendas_vendedor',
+    sql: `CREATE TABLE IF NOT EXISTS meta_vendas_vendedor (
+      id          INT AUTO_INCREMENT PRIMARY KEY,
+      id_usuario  INT NOT NULL,
+      id_fornecedor INT NOT NULL,
+      mes         TINYINT NOT NULL,
+      ano         SMALLINT NOT NULL,
+      valor_meta  DECIMAL(15,2) NOT NULL DEFAULT 0,
+      criado_em   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_meta_vend_fab_mes (id_usuario, id_fornecedor, mes, ano),
+      INDEX idx_meta_vend_mes_ano (mes, ano)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  },
+  {
+    name: 'meta_vendas_fornecedor',
+    sql: `CREATE TABLE IF NOT EXISTS meta_vendas_fornecedor (
+      id          INT AUTO_INCREMENT PRIMARY KEY,
+      id_fornecedor INT NOT NULL,
+      mes         TINYINT NOT NULL,
+      ano         SMALLINT NOT NULL,
+      valor_meta  DECIMAL(15,2) NOT NULL DEFAULT 0,
+      criado_em   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_meta_fab_mes (id_fornecedor, mes, ano),
+      INDEX idx_meta_mes_ano (mes, ano)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  },
+  {
     name: 'logs_pedidos',
     sql: `CREATE TABLE IF NOT EXISTS logs_pedidos (
       id INT AUTO_INCREMENT PRIMARY KEY,
@@ -516,6 +563,7 @@ async function runMigrations(pool) {
     // 2c. itensped.tipo_preco — legado Delphi VARCHAR(10); promo campanha precisa caber
     await ensureItenspedTipoPrecoWidth(pool);
     await ensureTabelaPrecoCondPagamentoNullable(pool);
+
 
     // 2b. despesas: copia descricao → nome quando ambas existem (legado Delphi)
     try {
