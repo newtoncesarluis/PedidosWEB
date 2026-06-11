@@ -1,5 +1,6 @@
 const { getPool,
   createPool,
+  getPoolForLicense,
   runWithPool,
   customerDbFromLicense,
   readLicenseBinding,
@@ -276,15 +277,18 @@ const LicenseService = {
               '(ou configure PAINEL_API_URL + PAINEL_API_KEY com /api/licenca/db-config).',
           };
         }
-        const newPool = createPool(cfg, chave);
+        // Reutiliza pool existente se estiver aberto — evita fechar o pool do startup
+        // e "Pool is closed" quando activation é chamado após initCustomerDatabase.
+        const existingPool = getPoolForLicense(chave);
+        const activePool = existingPool || createPool(cfg, chave);
         // Não escreve license-binding.json em multi-tenant: o arquivo é global e contamina outros tenants.
         // Recuperação de pool após restart usa LicenseCache (.enc por chave) — veja auth.js.
         _dbConfigApplied = true;
 
-        // Executa no pool do cliente recém-criado — sem contaminar o pool global
-        return await runWithPool(newPool, async () => {
+        // Executa no pool do cliente — sem contaminar o pool global
+        return await runWithPool(activePool, async () => {
           await ensureTable();
-          const pool = getPool(); // → ALS → newPool
+          const pool = getPool(); // → ALS → activePool
           const [existente] = await pool.query('SELECT id FROM config_licenca LIMIT 1');
           if (existente.length) {
             await pool.query(

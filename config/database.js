@@ -189,13 +189,17 @@ async function initCustomerDatabase() {
     }
 
     // Dev local: DB_HOST no .env sobrescreve o host/port da licença (túnel SSH)
-    if (cfg && process.env.DB_HOST) {
+    // ⚠️  NUNCA em produção — produção usa SEMPRE os dados da tabela de licenças.
+    const isDevOverride = process.env.DB_HOST && process.env.NODE_ENV !== 'production';
+    if (cfg && isDevOverride) {
       cfg.host = process.env.DB_HOST;
       cfg.port = parseInt(process.env.DB_PORT || '3306', 10);
       if (process.env.DB_USER)     cfg.user     = process.env.DB_USER;
       if (process.env.DB_PASSWORD) cfg.password  = process.env.DB_PASSWORD;
       if (process.env.DB_NAME)     cfg.database  = process.env.DB_NAME;
       console.log(`[DB] Bound mode — override dev: ${cfg.host}:${cfg.port}/${cfg.database}`);
+    } else if (cfg) {
+      console.log(`[DB] Bound mode — usando licença: ${cfg.host}:${cfg.port}/${cfg.database}`);
     }
     createPool(cfg); // sem chave_licenca → pool global
     await pool.query('SELECT 1');

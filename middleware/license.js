@@ -5,7 +5,7 @@ const { customerDbFromLicense, getBoundChave } = require('../config/database');
 
 // Cache em memória isolado por chave_licenca
 const _cacheMap = new Map(); // chave → { data, ts }
-const CACHE_TTL = 30 * 1000; // 30 segundos
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutos
 
 // Rotas que NÃO precisam de licença válida
 const BYPASS = [
@@ -77,6 +77,16 @@ async function licenseMiddleware(req, res, next) {
 
   } catch (err) {
     if (getBoundChave() || customerDbFromLicense()) {
+      // Fallback: usar cache de arquivo mesmo expirado (Oracle temporariamente indisponível)
+      const chaveErr = getLicenseKey(req);
+      if (chaveErr) {
+        const stale = LicenseCache.read(chaveErr);
+        if (stale) {
+          // Refresca memória por mais 60s para não sobrecarregar Oracle em retry
+          _cacheMap.set(chaveErr || '__default__', { data: stale, ts: Date.now() - CACHE_TTL + 60_000 });
+          return applyResult(stale, req, res, next);
+        }
+      }
       const isApi = (req.originalUrl || '').startsWith('/api/');
       if (isApi) return res.status(503).json({ error: 'Erro ao verificar licença. Tente novamente.' });
       return res.redirect('/login.html?license=error');

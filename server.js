@@ -5,19 +5,18 @@ if (process.pkg) process.chdir(ROOT_DIR);
 require('dotenv').config();
 
 // ── Proteção contra DB_NAME de template (armadilha recorrente) ───────────────
-// Se DB_NAME ainda tem o valor padrão de template e não é o processo da Ally,
-// o processo está apontando para o banco errado — abortar antes de causar dano.
+// Em produção com BOUND mode: DB_* no .env são IGNORADOS (database.js usa a licença).
+// Mas se DB_NAME ainda tem o valor de template, loga FATAL para alertar o admin.
 if (
   process.env.DB_NAME === 'bdallyrepresentacoes' &&
   process.env.CHAVE_LICENCA &&
-  process.env.CHAVE_LICENCA !== 'ALLY-CHAVE-AQUI' // chave real da Ally, se houver
+  process.env.NODE_ENV === 'production'
 ) {
-  const msg = `[FATAL] DB_NAME=bdallyrepresentacoes detectado em processo bound (CHAVE=${process.env.CHAVE_LICENCA}). ` +
-    'Este é o valor padrão de template — corrija o .env deste cliente antes de reiniciar.';
+  const msg = `[FATAL] DB_NAME=bdallyrepresentacoes no .env de processo bound em produção (CHAVE=${process.env.CHAVE_LICENCA}). ` +
+    'Em produção os dados de conexão vêm da tabela de licenças — remova DB_* do .env deste cliente.';
   console.error(msg);
-  // Não fazer process.exit() para não entrar em loop de restart do PM2;
-  // apenas logar e deixar o processo iniciar com aviso visível nos logs.
-  // O problema será detectado nos logs de startup.
+  // Em produção o database.js ignora DB_NAME (NODE_ENV=production), então o dano é zero.
+  // Mas o .env deve ser limpo para evitar confusão.
 }
 
 const express = require('express');

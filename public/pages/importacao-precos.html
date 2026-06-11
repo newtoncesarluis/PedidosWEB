@@ -1548,11 +1548,15 @@
     } catch(e) {}
   }
 
+  // Auto-mapeamento restrito: apenas os 3 campos essenciais de identificação do produto
+  const AUTO_MAP_APENAS = new Set(['descricao', 'unidade', 'cod_fabricante']);
+
   function autoMapear() {
     colMapping = {};
     headers.forEach((h, i) => {
       const hNorm = h.toLowerCase().trim().replace(/[\s_\-]/g,'');
       const match = camposImportacao.find(c => {
+        if (!AUTO_MAP_APENAS.has(c.nome_campo)) return false;
         const nome  = c.nome_campo.toLowerCase().replace(/[\s_\-]/g,'');
         const apel  = c.apelido.toLowerCase().replace(/[\s_\-]/g,'');
         return nome === hNorm || apel === hNorm;
@@ -1633,7 +1637,7 @@
 
   function mapearEssenciais() {
     if (!headers.length || !camposImportacao.length) return;
-    const essenciais = ['cod_fabricante', 'descricao', 'desc_produto', 'produto'];
+    const essenciais = ['cod_fabricante', 'descricao', 'desc_produto', 'produto', 'unidade'];
     headers.forEach((h, i) => {
       if (colMapping[i]) return;
       const hNorm = String(h).toLowerCase().replace(/[\s_\-]/g, '');
@@ -2070,6 +2074,8 @@
   }
 
   const COD_KEYWORDS = ['cod','codigo','código','ref','referencia','referência','codfab','codigofab','codprod','idprod','idproduto','ean','barras','codb','numitem','item','seq','sequencia','sequência'];
+  // Colunas de quantidade/estoque/inteiros nunca são monetárias mesmo que o Excel formate como moeda
+  const QTD_KEYWORDS = ['estoque','stock','qty','qtd','quantidade','multiplo','múltiplo','multiple','embalagem','embmaster','unidade','unid','peso','weight','kilo','kg','gramas'];
 
   function detectCurrencyCols(sheetName, headers, rows) {
     const sheet = workbook.Sheets[sheetName];
@@ -2078,6 +2084,8 @@
       const h = String(header).toLowerCase().replace(/[_\-\s\.]/g, '');
       // Colunas de código/referência nunca são monetárias
       if (COD_KEYWORDS.some((kw) => h === kw || h.startsWith(kw))) return;
+      // Colunas de quantidade/estoque/inteiros nunca são monetárias
+      if (QTD_KEYWORDS.some((kw) => h.includes(kw.replace(/[\s_\-]/g, '')))) return;
       const keywordHit = MONEY_KEYWORDS.some((kw) => h.includes(kw.replace(/[\s_\-]/g, '')));
       let formatHit = false;
       const range = XLSX.utils.decode_range(sheet['!ref'] || 'A1');

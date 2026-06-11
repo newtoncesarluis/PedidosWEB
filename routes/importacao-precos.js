@@ -46,9 +46,10 @@ function normalizarData(val) {
 const CAMPOS_NUMERICOS = new Set([
   'ipi', 'st', 'icms', 'precoa', 'precob', 'precoc', 'precod',
   'precoe', 'precof', 'precopromo', 'vlr_venda', 'vlrcustofinalVenda',
-  'kilo_embalagem', 'embalagemmaster', 'peso_liquido', 'multiplo_venda',
-  'comissao',
+  'kilo_embalagem', 'peso_liquido', 'comissao',
 ]);
+// Campos inteiros — processados separadamente com parseInt (nunca como monetário)
+const CAMPOS_INTEIROS_FIXOS = new Set(['embalagemmaster', 'multiplo_venda']);
 
 /** Campos de preço/imposto no cadastro `produto` — não gravar na ficha em modo tabela de preço. */
 const CAMPOS_PRECO_PRODUTO = new Set([
@@ -97,6 +98,14 @@ async function ensureDefaultCamposProduto(pool) {
          )`,
         [c.nome_campo, c.apelido, c.tipo, c.ordem, c.obrigatorio, c.nome_campo]
       );
+    }
+    // Garante tipo correto para campos inteiros (bases antigas podem ter 'decimal')
+    const inteiros = ['multiplo_venda', 'embalagemmaster'];
+    for (const nc of inteiros) {
+      await pool.query(
+        `UPDATE campos_importacao SET tipo='inteiro' WHERE tabela='produto' AND nome_campo=? AND tipo <> 'inteiro'`,
+        [nc]
+      ).catch(() => {});
     }
     _defaultCamposProdutoSeeded = true;
   } catch (_) { /* tabela pode não existir ainda — ignora */ }
@@ -577,11 +586,15 @@ router.post('/importar-linha', async (req, res) => {
     await conn.beginTransaction();
 
     const [validRows] = await conn
-      .query(`SELECT nome_campo FROM campos_importacao WHERE tabela='produto' AND excluido='N'`)
+      .query(`SELECT nome_campo, COALESCE(tipo,'texto') AS tipo FROM campos_importacao WHERE tabela='produto' AND excluido='N'`)
       .catch(() => [[]]);
     let camposValidos = validRows.map((r) => r.nome_campo);
     if (!camposValidos.includes('vlrcustofinalVenda')) camposValidos.push('vlrcustofinalVenda');
     if (!camposValidos.includes('vlr_venda')) camposValidos.push('vlr_venda');
+
+    // Mapa tipo por campo vindo do banco (decimal/moeda/inteiro)
+    const _tipoMap = {};
+    for (const r of validRows) _tipoMap[r.nome_campo] = r.tipo;
 
     const dadosParaSalvar = {};
     for (const [campo, valor] of Object.entries(campos)) {
@@ -595,10 +608,33 @@ router.post('/importar-linha', async (req, res) => {
       stripPrecosProduto(dadosParaSalvar);
     }
 
-    for (const cn of CAMPOS_NUMERICOS) {
+    // Campos numéricos: estáticos (CAMPOS_NUMERICOS) + dinâmicos do banco (tipo decimal/moeda/inteiro)
+    const _camposDecimais = new Set([...CAMPOS_NUMERICOS]);
+    const _camposInteiros = new Set([...CAMPOS_INTEIROS_FIXOS]);
+    for (const [nc, tp] of Object.entries(_tipoMap)) {
+      if (tp === 'inteiro') { _camposInteiros.add(nc); _camposDecimais.delete(nc); }
+      else if (tp === 'decimal' || tp === 'moeda') { if (!_camposInteiros.has(nc)) _camposDecimais.add(nc); }
+    }
+
+    // Inteiros primeiro (sobrescreve decimal se mesmo campo)
+    for (const cn of _camposInteiros) {
       if (!Object.prototype.hasOwnProperty.call(dadosParaSalvar, cn)) continue;
       const raw = String(dadosParaSalvar[cn]).replace(',', '.').trim();
       if (!raw) { delete dadosParaSalvar[cn]; continue; }
+      const num = parseInt(raw, 10);
+      dadosParaSalvar[cn] = Number.isFinite(num) ? String(num) : '0';
+      _camposDecimais.delete(cn); // evitar reprocessar
+    }
+
+    for (const cn of _camposDecimais) {
+      if (!Object.prototype.hasOwnProperty.call(dadosParaSalvar, cn)) continue;
+      const raw = String(dadosParaSalvar[cn]).replace(',', '.').trim();
+      if (!raw) {
+        // só campos monetários (preços) gravam 0 quando vazio — decimal/estoque ignoram
+        if ((_tipoMap[cn] || '') === 'moeda') dadosParaSalvar[cn] = '0';
+        else delete dadosParaSalvar[cn];
+        continue;
+      }
       const num = parseFloat(raw);
       dadosParaSalvar[cn] = isFinite(num) ? String(num) : '0';
     }

@@ -33,7 +33,7 @@ function buildPedidosWhereFromQuery(query, user, reqOpt) {
   }
 
   const req = reqOpt || { user };
-  const vendScope = buildPedidosVendedorWhereSync(req, id_vendedor, 'p');
+  const vendScope = buildPedidosVendedorWhereSync(req, id_vendedor, 'p.id_usuario');
   if (vendScope.clause) {
     where.push(vendScope.clause.replace(/^ AND /, ''));
     params.push(...vendScope.params);
