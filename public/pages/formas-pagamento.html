@@ -280,13 +280,36 @@ input:focus,select:focus { border-color:var(--accent);box-shadow:0 0 0 3px rgba(
 <script>
 let S = { filtroStatus: 'T', registroId: null };
 
+function _token() {
+  return sessionStorage.getItem('token') || localStorage.getItem('token') || '';
+}
+function _apiHeaders(json) {
+  const h = { Authorization: 'Bearer ' + _token() };
+  if (json) h['Content-Type'] = 'application/json';
+  return h;
+}
+
 async function buscar() {
   const q = document.getElementById('inputBusca').value.trim();
   try {
-    const r = await fetch(`/api/formas-pagamento`);
+    const r = await fetch('/api/formas-pagamento', { headers: _apiHeaders() });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      if (r.status === 401) {
+        toast('Sessão expirada. Faça login novamente.', 'err');
+        setTimeout(() => { window.top.location.href = '/login.html'; }, 2000);
+        return;
+      }
+      if (r.status === 402) {
+        toast(err.mensagem || 'Licença inválida.', 'err');
+        return;
+      }
+      toast(err.error || 'Erro ao carregar', 'err');
+      return;
+    }
     const d = await r.json();
     let lista = d.formas || [];
-    
+
     // Filtro Local
     if (S.filtroStatus !== 'T') lista = lista.filter(x => x.status === S.filtroStatus);
     if (q) lista = lista.filter(x => x.descricao.toLowerCase().includes(q.toLowerCase()));
@@ -335,7 +358,8 @@ function abrirNovo() {
 
 async function abrirEditar(id) {
   try {
-    const r = await fetch(`/api/formas-pagamento`);
+    const r = await fetch('/api/formas-pagamento', { headers: _apiHeaders() });
+    if (!r.ok) { toast('Erro ao carregar dados', 'err'); return; }
     const d = await r.json();
     const f = d.formas.find(x => x.id === id);
     if (!f) return;
@@ -381,7 +405,7 @@ async function salvar() {
     const id = S.registroId;
     const r = await fetch(id ? `/api/formas-pagamento/${id}` : '/api/formas-pagamento', {
       method: id ? 'PUT' : 'POST',
-      headers: {'Content-Type':'application/json'},
+      headers: _apiHeaders(true),
       body: JSON.stringify(payload)
     });
     if (r.ok) { toast('Salvo com sucesso!','ok'); voltarLista(); }
@@ -406,7 +430,7 @@ async function excluir(id) {
   if (!guardCadExcluir('Sem permissão para excluir formas de pagamento')) return;
   if (!confirm('Excluir forma de pagamento?')) return;
   try {
-    const r = await fetch(`/api/formas-pagamento/${id}`, {method:'DELETE'});
+    const r = await fetch(`/api/formas-pagamento/${id}`, { method: 'DELETE', headers: _apiHeaders() });
     if (r.ok) { toast('Excluído!','ok'); buscar(); }
   } catch(e) { toast('Erro ao excluir','err'); }
 }

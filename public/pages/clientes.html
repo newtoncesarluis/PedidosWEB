@@ -1242,6 +1242,49 @@ html.ms-embedded-tech.ms-page-clientes #btnNovoClienteFloat:not(.cli-show-inclui
   display: none !important;
 }
 
+/* Embed mobile: Vitrine Digital TOTALMENTE removida da tela de clientes.
+   Esconde todos os pontos de acesso e o modal legado (que o scanner do shell
+   conseguia forçar visível). No desktop nada muda. */
+html.sysrep-ms-embed .btn-vitrine,
+html.sysrep-ms-embed .cli-qbtn-vit,
+html.sysrep-ms-embed .qv-btn-vitrine,
+html.sysrep-ms-embed #modalVitrine { display: none !important; }
+
+html.sysrep-ms-embed .cli-card-quick-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 0 2px;
+  border-top: 1px solid var(--border, #eef2f6);
+  margin-top: 10px;
+}
+html.sysrep-ms-embed .cli-qbtn {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 4px;
+  border-radius: 10px;
+  border: none;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: center;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: filter .12s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+html.sysrep-ms-embed .cli-qbtn:active { filter: brightness(.93); }
+html.sysrep-ms-embed .cli-qbtn-pedido { background: rgba(99,102,241,.13); color: #4338ca; }
+html.sysrep-ms-embed .cli-qbtn-wa     { background: rgba(37,211,102,.15); color: #15803d; }
+html.sysrep-ms-embed .cli-qbtn-vis    { background: rgba(16,185,129,.13); color: #047857; }
+html.sysrep-ms-embed .cli-qbtn-map    { background: rgba(37,99,235,.10);  color: #1d4ed8; }
+/* esconde os ícones do rodapé no embed (evita duplicação) */
+html.sysrep-ms-embed .cli-card-foot .btn-historico,
+html.sysrep-ms-embed .cli-card-foot .btn-sm-delete { display: none !important; }
+
 /* App vendedor: somente cards (sem toggle tabela / sem grade espremida) */
 html.sysrep-ms-embed .view-toggle,
 html.ms-embedded-tech.ms-page-clientes .view-toggle {
@@ -1263,34 +1306,6 @@ html.ms-embedded-tech.ms-page-clientes .cards-grid {
 }
 
 @media (max-width: 900px) {
-  .cli-card-quick {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 6px;
-    padding: 8px 0 0;
-    border-top: 1px dashed var(--border, #e2e8f0);
-    margin-top: 8px;
-  }
-  .cli-card-quick.count-5 .cli-qbtn:last-child,
-  .cli-card-quick.count-3 .cli-qbtn:last-child {
-    grid-column: 1 / -1;
-    max-width: calc(50% - 3px);
-    justify-self: center;
-  }
-  .cli-qbtn {
-    width: 100%;
-    min-width: 0;
-    padding: 8px 6px;
-    border-radius: 10px;
-    border: 1px solid var(--border, #e2e8f0);
-    background: var(--card, #fff);
-    font-size: 10px;
-    font-weight: 800;
-    cursor: pointer;
-    font-family: inherit;
-    color: var(--text, #334155);
-    text-align: center;
-  }
   .cli-signals {
     display: flex;
     flex-direction: column;
@@ -1321,11 +1336,6 @@ html.ms-embedded-tech.ms-page-clientes .cards-grid {
     color: #047857;
     border-color: rgba(16, 185, 129, .25);
   }
-  .cli-qbtn-pedido { background: rgba(99,102,241,.08); color: #4338ca; border-color: rgba(99,102,241,.2); }
-  .cli-qbtn-wa { background: rgba(37,211,102,.08); color: #15803d; border-color: rgba(37,211,102,.25); }
-  .cli-qbtn-vis { background: rgba(16,185,129,.08); color: #047857; border-color: rgba(16,185,129,.25); }
-  .cli-qbtn-map { background: rgba(37,99,235,.08); color: #1d4ed8; border-color: rgba(37,99,235,.2); }
-  .cli-qbtn-vit { background: rgba(14,165,233,.08); color: #0369a1; border-color: rgba(14,165,233,.2); }
   .cli-card-doc {
     font-size: 11px;
     color: var(--text2, #64748b);
@@ -4248,6 +4258,29 @@ async function carregarVendedores() {
   // Remove options anteriores (mantém o primeiro placeholder)
   while (sel.options.length > 1) sel.remove(1);
 
+  // Preposto: cliente entra na carteira do REPRESENTANTE; combo travado nele
+  if (_usuLogado.tipo_usuario === 'PREPOSTO' && _usuLogado.id_gerente) {
+    let nomeRep = 'Representante';
+    try {
+      const r = await api('/api/clientes/auxiliares/vendedores');
+      if (r.ok) {
+        const data = await r.json();
+        const vends = data.vendedores || data.data || [];
+        const rep = vends.find(v => String(v.id) === String(_usuLogado.id_gerente));
+        if (rep) nomeRep = rep.nome;
+      }
+    } catch {}
+    const opt = document.createElement('option');
+    opt.value       = _usuLogado.id_gerente;
+    opt.textContent = nomeRep;
+    opt.selected    = true;
+    sel.appendChild(opt);
+    sel.disabled = true;
+    sel.title    = 'Cliente vinculado ao representante (preposto)';
+    _vendedores  = [{ id: _usuLogado.id_gerente, nome: nomeRep }];
+    return;
+  }
+
   if (_sysConfig.gacessartodosclientes === 'S') {
     // Bloqueia o select e fixa o usuário logado como vendedor
     const opt = document.createElement('option');
@@ -4290,6 +4323,12 @@ async function carregarVendedores() {
 function aplicarRegraVendedor() {
   const sel = document.getElementById('f_cod_vendedor');
   if (!sel) return;
+  // Preposto: trava no representante (id_gerente)
+  if (_usuLogado.tipo_usuario === 'PREPOSTO' && _usuLogado.id_gerente) {
+    sel.value    = _usuLogado.id_gerente;
+    sel.disabled = true;
+    return;
+  }
   if (_sysConfig.gacessartodosclientes === 'S') {
     sel.value    = _usuLogado.id || '';
     sel.disabled = true;
@@ -4438,6 +4477,17 @@ window.addEventListener('load', checkUrlParams);
 window.addEventListener('pageshow', (ev) => {
   if (ev.persisted) fecharQuickView();
 });
+
+// Ao carregar a lista dentro de um host (mobile-shell / home), garante que nenhum
+// modal Vitrine órfão (preso em "loading" de uma ação anterior) fique sobre a tela.
+// Não afeta o fluxo legítimo: abrir a Vitrine não recarrega o iframe, então este
+// aviso só dispara em navegação real, que é quando o popup preso deve sumir.
+(function _avisarHostFecharVitrine() {
+  if (window.self === window.top) return;
+  const msg = { type: 'ms-vitrine-close-request' };
+  try { window.parent.postMessage(msg, '*'); } catch (_) {}
+  try { if (window.top !== window.parent) window.top.postMessage(msg, '*'); } catch (_) {}
+})();
 function onSelecionarGrupo(sel) {
   const opt = sel.options[sel.selectedIndex];
   document.getElementById('f_cod_clienteprincipal').value   = opt.value || '';
@@ -5327,12 +5377,17 @@ function _cliCardQuickEmbed(c) {
     btns.push(`<button type="button" class="cli-qbtn cli-qbtn-wa" onclick="window.open('${waQ}','_blank')">WhatsApp</button>`);
   }
   btns.push(
-    `<button type="button" class="cli-qbtn cli-qbtn-vit" onclick="gerarVitrine(${c.id}, event)">Vitrine</button>`,
     `<button type="button" class="cli-qbtn cli-qbtn-vis" onclick="msNavCliente('${visitQ}','Visita')">Visita</button>`,
     `<button type="button" class="cli-qbtn cli-qbtn-map" onclick="msNavCliente('${mapQ}','Mapa')">Mapa</button>`
   );
   const n = btns.length;
-  return `<div class="cli-card-quick count-${n}" onclick="event.stopPropagation()">${btns.join('')}</div>`;
+  const icoHist = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`;
+  const icoDel  = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>`;
+  return `<div class="cli-card-quick-wrap" onclick="event.stopPropagation()">
+    ${btns.join('')}
+    <button type="button" class="btn-sm btn-historico" onclick="abrirHistorico(${c.id},'${nomeJs}',event)" title="Histórico de Pedidos">${icoHist}</button>
+    ${podeExcluirClientes() ? `<button type="button" class="btn-sm btn-sm-delete" onclick="excluirClienteLinha(${c.id},'${nomeJs}',event)" title="Excluir">${icoDel}</button>` : ''}
+  </div>`;
 }
 
 function _cliStatusRotaLabel(s) {
@@ -5484,14 +5539,14 @@ function renderCards(rows, offset) {
       <div class="cli-card-foot">
         <span class="badge ${statusBadge}">${statusLabel}${c.venda_suspensa==='S'?' · Suspenso':''}</span>
         <div style="display:flex;gap:5px;align-items:center" onclick="event.stopPropagation()">
-          <button class="btn-sm btn-vitrine"
+          ${!document.documentElement.classList.contains('sysrep-ms-embed') ? `<button class="btn-sm btn-vitrine"
               onclick="gerarVitrine(${c.id}, event)"
               title="Vitrine Digital">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
             </svg>
-          </button>
+          </button>` : ''}
           <button class="btn-sm btn-historico"
               onclick="abrirHistorico(${c.id},'${escHtml(c.nome).replace(/'/g,"\\'")}',event)"
               title="Histórico de Pedidos">
@@ -5754,15 +5809,20 @@ function abrirMenuAcoes(id, nome, evt) {
           d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
       </svg>
       Financeiro
-    </button>`,
-    `<button class="dropdown-item" onclick="fecharDropdown();gerarVitrine(${id}, event)">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-          d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
-      </svg>
-      Vitrine Digital
     </button>`
   );
+  // Vitrine Digital: oculta no app mobile (embed)
+  if (!document.documentElement.classList.contains('sysrep-ms-embed')) {
+    items.push(
+      `<button class="dropdown-item" onclick="fecharDropdown();gerarVitrine(${id}, event, true)">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+        </svg>
+        Vitrine Digital
+      </button>`
+    );
+  }
   if (podeExcluirClientes()) {
     items.push(
       `<hr style="border:none;border-top:1px solid var(--border);margin:3px 0">`,
@@ -6737,7 +6797,7 @@ async function enviarMsgWa(idCliente) {
       </svg>
       WhatsApp
     </button>
-    <button class="btn btn-ghost" onclick="gerarVitrine(_qvIdAtual)" title="Gerar link de catálogo para este cliente"
+    <button class="btn btn-ghost qv-btn-vitrine" onclick="gerarVitrine(_qvIdAtual, event, true)" title="Gerar link de catálogo para este cliente"
             style="color:#0ea5e9">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:13px;height:13px">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -7482,8 +7542,10 @@ function _isoToDisplayBr(v) {
 let _gerarVitrineInProgress = false;
 let _vitrineUltimoFechamento = 0;
 const _vitrinePageLoadTs = Date.now();
-async function gerarVitrine(idCliente, evt) {
+async function gerarVitrine(idCliente, evt, fromMenu) {
   if (evt) { evt.preventDefault(); evt.stopPropagation(); }
+  // Vitrine Digital desativada no app mobile (embed) — sem ponto de acesso na tela de clientes
+  if (document.documentElement.classList.contains('sysrep-ms-embed')) return;
   // Bloqueia se já em andamento
   if (_gerarVitrineInProgress) return;
   // Bloqueia ghost click de navegação: tablet/iOS propaga toque do shell para o iframe recém-carregado
@@ -7515,7 +7577,7 @@ async function gerarVitrine(idCliente, evt) {
     );
 
     if (usarModalPai) {
-      _postVitrineShell({ type: 'ms-vitrine-show', link, path: d.link, expira, waUrl });
+      _postVitrineShell({ type: 'ms-vitrine-show', link, path: d.link, expira, waUrl, id_cliente: idCliente });
     } else {
       _renderModalVitrineConteudo(link, d.link, expira, waUrl);
     }

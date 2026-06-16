@@ -44,7 +44,46 @@ const CADASTROS_TELAS = [
     crud: [{ col: 'incluir_tipo_pedidos', jwt: 'incluir_tipo_pedidos' }, { col: 'alterar_tipo_pedidos', jwt: 'alterar_tipo_pedidos' }, { col: 'excluir_tipo_pedidos', jwt: 'excluir_tipo_pedidos' }] },
   { col: 'tela_estoque', jwt: 'gtela_estoque', page: '/pages/estoque.html', label: 'Gestão de Estoque',
     crud: [{ col: 'incluir_estoque', jwt: 'incluir_estoque' }, { col: 'alterar_estoque', jwt: 'alterar_estoque' }, { col: 'excluir_estoque', jwt: 'excluir_estoque' }] },
+  { col: 'tela_prepostos', jwt: 'gtela_prepostos', page: '/pages/prepostos.html', label: 'Prepostos',
+    crud: [{ col: 'incluir_prepostos', jwt: 'incluir_prepostos' }, { col: 'alterar_prepostos', jwt: 'alterar_prepostos' }, { col: 'excluir_prepostos', jwt: 'excluir_prepostos' }] },
 ];
+
+/**
+ * Telas de Relatórios Padrão e Dashboards/IA (módulo Comercial).
+ * Mesmo mecanismo das telas de cadastro: coluna tela_* no perfil → gtela_* no JWT.
+ * `report` = id no catálogo de /api/analytics/comercial/relatorios-padrao (páginas que
+ * compartilham comercial-relatorios-padrao.html; sem `page` para não colidir no PAGE_GTELA).
+ * Default 'S' (prefixo tela_) — bases existentes não perdem acesso na migration.
+ */
+const COMERCIAL_TELAS = [
+  // Relatórios Padrão
+  { col: 'tela_rel_padrao', jwt: 'gtela_rel_padrao', page: '/pages/comercial-relatorios-padrao.html', label: 'Central de Relatórios Padrão' },
+  { col: 'tela_rel_vendas_fabrica_ano', jwt: 'gtela_rel_vendas_fabrica_ano', report: 'vendas_fornecedor_ano', label: 'Vendas por Fábrica (Ano)' },
+  { col: 'tela_rel_vendas_produto_ano', jwt: 'gtela_rel_vendas_produto_ano', report: 'vendas_produtos_ano', label: 'Vendas por Produto (Ano)' },
+  { col: 'tela_rel_vendas_cliente_ano', jwt: 'gtela_rel_vendas_cliente_ano', report: 'vendas_clientes_ano', label: 'Vendas por Cliente (Ano)' },
+  { col: 'tela_rel_vendas_vendedor_ano', jwt: 'gtela_rel_vendas_vendedor_ano', report: 'vendas_vendedor_ano', label: 'Vendas por Vendedor (Ano)' },
+  { col: 'tela_rel_pedidos_situacao', jwt: 'gtela_rel_pedidos_situacao', report: 'pedidos_por_situacao', label: 'Pedidos por Situação' },
+  { col: 'tela_rel_top_clientes', jwt: 'gtela_rel_top_clientes', report: 'top_clientes_periodo', label: 'Top Clientes do Período' },
+  { col: 'tela_rel_produtos_cliente', jwt: 'gtela_rel_produtos_cliente', report: 'produtos_por_cliente', label: 'Produtos Vendidos por Cliente' },
+  { col: 'tela_rel_produtos_vendedor', jwt: 'gtela_rel_produtos_vendedor', report: 'produtos_por_vendedor', label: 'Produtos Vendidos por Vendedor' },
+  { col: 'tela_rel_produtos_fabrica', jwt: 'gtela_rel_produtos_fabrica', report: 'produtos_por_fornecedor', label: 'Produtos Vendidos por Fábrica' },
+  { col: 'tela_rel_peso', jwt: 'gtela_rel_peso', page: '/pages/relatorio-peso.html', label: 'Peso por Vendedor / Rota' },
+  // Dashboards / Apoio da IA
+  { col: 'tela_dash_performance_rep', jwt: 'gtela_dash_performance_rep', page: '/pages/performance-representantes.html', label: 'Performance de Representantes' },
+  { col: 'tela_dash_painel_exec', jwt: 'gtela_dash_painel_exec', page: '/pages/comercial-dashboards.html', label: 'Painel Executivo de Pedidos' },
+  { col: 'tela_dash_clientes_carteira', jwt: 'gtela_dash_clientes_carteira', page: '/pages/comercial-clientes-ia.html', label: 'Clientes / Carteira / Recompra' },
+  { col: 'tela_dash_financeiro', jwt: 'gtela_dash_financeiro', page: '/pages/comercial-financeiro-ia.html', label: 'Financeiro dos Pedidos' },
+  { col: 'tela_dash_produtos_mix', jwt: 'gtela_dash_produtos_mix', page: '/pages/comercial-produtos-ia.html', label: 'Produtos / Mix / Curva ABC' },
+  { col: 'tela_dash_visitas', jwt: 'gtela_dash_visitas', page: '/pages/comercial-visitas-ia.html', label: 'Visitas / Conversão / Relacionamento' },
+  { col: 'tela_dash_fabricas', jwt: 'gtela_dash_fabricas', page: '/pages/comercial-fabricas-ia.html', label: 'Fábricas / Dependência Comercial' },
+  { col: 'tela_dash_clientes_inativos', jwt: 'gtela_dash_clientes_inativos', page: '/pages/comercial-clientes-inativos.html', label: 'Clientes Inativos / Mapa / Rota' },
+  { col: 'tela_dash_inteligencia', jwt: 'gtela_dash_inteligencia', page: '/pages/inteligencia-comercial.html', label: 'Inteligência Comercial por Cliente' },
+  { col: 'tela_dash_panico', jwt: 'gtela_dash_panico', page: '/pages/panico-vendedor.html', label: 'Pânico do Vendedor — Heatmap' },
+  { col: 'tela_dash_gamificacao', jwt: 'gtela_dash_gamificacao', page: '/pages/gamificacao.html', label: 'Gamificação — Ranking & Metas' },
+];
+
+/** Todas as telas com coluna tela_* no perfil (cadastros + comercial) */
+const ALL_TELAS = [...CADASTROS_TELAS, ...COMERCIAL_TELAS];
 
 /** Campos S/N já existentes no POST de perfil (fora das telas acima) */
 const PERFIL_SN_CORE = [
@@ -71,7 +110,7 @@ function collectCadastroPermCols() {
     seen.add(col);
     out.push(col);
   };
-  for (const t of CADASTROS_TELAS) {
+  for (const t of ALL_TELAS) {
     add(t.col);
     for (const c of t.crud || []) add(c.col);
     for (const e of t.extra || []) add(e);
@@ -115,13 +154,18 @@ function migrationEntriesForCadastros() {
 
 /** path → gtela key (para home / guard de página) */
 const PAGE_GTELA = Object.fromEntries(
-  CADASTROS_TELAS.filter((t) => t.page).map((t) => [t.page.split('?')[0], t.jwt])
+  ALL_TELAS.filter((t) => t.page).map((t) => [t.page.split('?')[0], t.jwt])
+);
+
+/** report id (catálogo relatórios-padrão) → chave gtela_* */
+const REPORT_GTELA = Object.fromEntries(
+  COMERCIAL_TELAS.filter((t) => t.report).map((t) => [t.report, t.jwt])
 );
 
 /** JWT aliases (col DB → chave no objeto permissoes) */
 function buildGtelaFromPerfil(user, isAdmin) {
   const out = {};
-  for (const t of CADASTROS_TELAS) {
+  for (const t of ALL_TELAS) {
     out[t.jwt] = isAdmin ? 'S' : (user[t.col] || 'N');
     for (const c of t.crud || []) {
       out[c.jwt] = isAdmin ? 'S' : (user[c.col] || 'N');
@@ -159,9 +203,12 @@ function negarCad(res, msg) {
 
 module.exports = {
   CADASTROS_TELAS,
+  COMERCIAL_TELAS,
+  ALL_TELAS,
   PERFIL_SN_FIELDS,
   PERFIL_SN_CADASTRO,
   PAGE_GTELA,
+  REPORT_GTELA,
   defaultForPerfilCol,
   migrationEntriesForCadastros,
   buildGtelaFromPerfil,

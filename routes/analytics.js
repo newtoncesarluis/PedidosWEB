@@ -6,6 +6,7 @@ const {
   canAccessAllVendors,
   buildPedidosVendedorWhereSync,
 } = require('../config/vendedor-visibilidade');
+const { REPORT_GTELA, isAdminUser, permSn } = require('../config/cadastros-permissoes');
 
 function buildPedidosWhereFromQuery(query, user, reqOpt) {
   const { dt_inicio, dt_fim, situacao, tipo_pedido, id_vendedor } = query || {};
@@ -2432,9 +2433,16 @@ function deriveAnoRange(query) {
 
 router.get('/comercial/relatorios-padrao/catalogo', async (req, res) => {
   const { ano_ini, ano_fim } = deriveAnoRange(req.query);
+  const _admin = isAdminUser(req);
+  const _podeRelatorio = (id) => {
+    if (_admin) return true;
+    const jwt = REPORT_GTELA[id];
+    if (!jwt) return true; // sem permissão mapeada → liberado
+    return permSn(req, jwt) === 'S';
+  };
   res.json({
     filtros: { ano_ini, ano_fim },
-    relatorios: [
+    relatorios: ([
       {
         id: 'vendas_fornecedor_ano',
         titulo: 'Vendas por Fabrica (Ano)',
@@ -2498,7 +2506,7 @@ router.get('/comercial/relatorios-padrao/catalogo', async (req, res) => {
         endpoint: '/api/analytics/comercial/relatorios-padrao/produtos-por-fornecedor',
         defaults: { dt_inicio: '', dt_fim: '', id_fornecedor: '' },
       },
-    ],
+    ]).filter((r) => _podeRelatorio(r.id)),
   });
 });
 
@@ -3071,6 +3079,116 @@ router.get('/comercial/ranking-vendedores', async (req, res) => {
   } catch (err) {
     console.error('[analytics/comercial/ranking-vendedores]', err);
     res.status(500).json({ error: 'Erro ao carregar ranking de vendedores' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/analytics/comercial/peso-por-vendedor-rota
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/comercial/peso-por-vendedor-rota', async (req, res) => {
+  try {
+    const pool = getPool();
+    const { dt_inicio, dt_fim, situacao, id_vendedor, id_rota } = req.query;
+
+    // --- base WHERE (pedidos) ---
+    const baseWhere = [`COALESCE(p.excluido, 'N') = 'N'`];
+    const baseParams = [];
+    if (dt_inicio) { baseWhere.push('p.data_abertura >= ?'); baseParams.push(dt_inicio); }
+    if (dt_fim)    { baseWhere.push('p.data_abertura <= ?'); baseParams.push(dt_fim); }
+    if (situacao && situacao !== 'TODOS') { baseWhere.push('p.situacao_pedido = ?'); baseParams.push(situacao); }
+
+    // visibilidade vendedor
+    const vendScope = buildPedidosVendedorWhereSync(req, id_vendedor, 'p.id_usuario');
+    if (vendScope.clause) {
+      baseWhere.push(vendScope.clause.replace(/^ AND /, ''));
+      baseParams.push(...vendScope.params);
+    }
+
+    // filtro de rota (via cliente)
+    if (id_rota) { baseWhere.push('c.regiao = ?'); baseParams.push(id_rota); }
+
+    const wClause = `WHERE ${baseWhere.join(' AND ')}`;
+
+    // ── Por Vendedor ──────────────────────────────────────────────────────────
+    // Subquery agrupa por pedido primeiro (peso + valor), depois agrupa por vendedor
+    const [vendRows] = await pool.query(`
+      SELECT
+        COALESCE(u.nomeusu, 'Sem vendedor') AS nome_vendedor,
+        sub.id_usuario,
+        COUNT(*)            AS total_pedidos,
+        SUM(sub.kg)         AS total_kg,
+        SUM(sub.valor)      AS total_valor
+      FROM (
+        SELECT p.id, p.id_usuario,
+          SUM(COALESCE(ip.quantidade, 0) * COALESCE(ip.peso, 0)) AS kg,
+          MAX(COALESCE(p.vlrtotalpedido, 0))                      AS valor
+        FROM pedidos p
+        LEFT JOIN clientes c  ON p.cod_cliente = c.id
+        LEFT JOIN itensped ip ON ip.id_pedido  = p.id
+                              AND COALESCE(ip.excluido, 'N') = 'N'
+        ${wClause}
+        GROUP BY p.id, p.id_usuario
+      ) sub
+      LEFT JOIN usuarios u ON sub.id_usuario = u.idusuario
+      GROUP BY sub.id_usuario, u.nomeusu
+      ORDER BY total_kg DESC
+    `, baseParams);
+
+    // ── Por Rota ──────────────────────────────────────────────────────────────
+    const [rotaRows] = await pool.query(`
+      SELECT
+        COALESCE(rr.descricao, 'Sem rota') AS nome_rota,
+        sub.id_rota,
+        COUNT(*)            AS total_pedidos,
+        SUM(sub.kg)         AS total_kg,
+        SUM(sub.valor)      AS total_valor
+      FROM (
+        SELECT p.id, c.regiao AS id_rota,
+          SUM(COALESCE(ip.quantidade, 0) * COALESCE(ip.peso, 0)) AS kg,
+          MAX(COALESCE(p.vlrtotalpedido, 0))                      AS valor
+        FROM pedidos p
+        LEFT JOIN clientes c  ON p.cod_cliente = c.id
+        LEFT JOIN itensped ip ON ip.id_pedido  = p.id
+                              AND COALESCE(ip.excluido, 'N') = 'N'
+        ${wClause}
+        GROUP BY p.id, c.regiao
+      ) sub
+      LEFT JOIN regiao_rota rr ON sub.id_rota = rr.id
+      GROUP BY sub.id_rota, rr.descricao
+      ORDER BY total_kg DESC
+    `, baseParams);
+
+    // ── Totais ────────────────────────────────────────────────────────────────
+    const totalKg      = vendRows.reduce((s, r) => s + Number(r.total_kg    || 0), 0);
+    const totalPedidos = vendRows.reduce((s, r) => s + Number(r.total_pedidos || 0), 0);
+    const totalValor   = vendRows.reduce((s, r) => s + Number(r.total_valor  || 0), 0);
+
+    res.json({
+      por_vendedor: vendRows.map(r => ({
+        nome_vendedor: r.nome_vendedor,
+        total_pedidos: Number(r.total_pedidos),
+        total_kg:      Number(Number(r.total_kg).toFixed(3)),
+        total_valor:   Number(Number(r.total_valor).toFixed(2)),
+        pct_kg:        totalKg > 0 ? Number((Number(r.total_kg) / totalKg * 100).toFixed(1)) : 0,
+      })),
+      por_rota: rotaRows.map(r => ({
+        nome_rota:     r.nome_rota,
+        total_pedidos: Number(r.total_pedidos),
+        total_kg:      Number(Number(r.total_kg).toFixed(3)),
+        total_valor:   Number(Number(r.total_valor).toFixed(2)),
+        pct_kg:        totalKg > 0 ? Number((Number(r.total_kg) / totalKg * 100).toFixed(1)) : 0,
+      })),
+      totais: {
+        total_kg:           Number(totalKg.toFixed(3)),
+        total_pedidos:      totalPedidos,
+        total_valor:        Number(totalValor.toFixed(2)),
+        media_kg_por_pedido: totalPedidos > 0 ? Number((totalKg / totalPedidos).toFixed(3)) : 0,
+      },
+      canPickOthers: vendScope.canPickOthers,
+    });
+  } catch (err) {
+    console.error('[analytics/peso-por-vendedor-rota]', err);
+    res.status(500).json({ error: 'Erro ao gerar relatório de peso' });
   }
 });
 

@@ -683,6 +683,50 @@ window.SysTheme = { apply: applyTheme, open: openThemeModal, list: THEMES };
 window.SysFont  = { apply: applyFont, save: savePrefs, open: openFontModal, families: FONT_FAMILIES, sizes: FONT_SIZES };
 window.SysVisual = { apply: applyVisualPrefs };
 
+// ── Utilitários globais de formatação monetária ────────────────────────────
+// Lê o parâmetro moeda_exibir_centavos do sessionStorage (gravado no login).
+// Retorna true = mostrar centavos (padrão), false = omitir ,00 em valores inteiros.
+window._moedaExibirCentavos = function() {
+  try {
+    var raw = sessionStorage.getItem('parametros_locais') || localStorage.getItem('parametros_locais') || '{}';
+    var cfg = JSON.parse(raw);
+    return cfg.moeda_exibir_centavos !== 'N';
+  } catch(_) { return true; }
+};
+
+// parseBR: converte "7.257,50" → 7257.50  (aceita formatos BR e US)
+window.parseBR = function(s) {
+  if (s == null || s === '') return undefined;
+  var str = String(s).trim().replace(/[R$\s]/g, '');
+  if (!str) return undefined;
+  if (str.indexOf(',') !== -1 && str.indexOf('.') !== -1)
+    return parseFloat(str.replace(/\./g,'').replace(',','.')) || 0;
+  if (str.indexOf(',') !== -1)
+    return parseFloat(str.replace(',','.')) || 0;
+  return parseFloat(str) || 0;
+};
+
+// fmtMoneyInput: formata número para exibição em input (sem "R$") → "7.257,50"
+window.fmtMoneyInput = function(v) {
+  if (v == null || v === '') return '';
+  var n = typeof v === 'number' ? v : window.parseBR(v);
+  if (n === undefined || isNaN(n)) return '';
+  return n.toLocaleString('pt-BR', { minimumFractionDigits:2, maximumFractionDigits:2 });
+};
+
+// fmtMoeda: formata para exibição em telas (com "R$"), respeita parâmetro centavos
+window.fmtMoeda = function(v) {
+  if (v === null || v === undefined || v === '') return '—';
+  var n = Number(v);
+  if (isNaN(n)) return '—';
+  var semCentavos = !window._moedaExibirCentavos() && n % 1 === 0;
+  return n.toLocaleString('pt-BR', {
+    style: 'currency', currency: 'BRL',
+    minimumFractionDigits: semCentavos ? 0 : 2,
+    maximumFractionDigits: 2
+  });
+};
+
 // Carrega utilitário de transições de página (não-bloqueante, apenas uma vez por contexto)
 (function () {
   try {
@@ -693,3 +737,4 @@ window.SysVisual = { apply: applyVisualPrefs };
     (document.head || document.documentElement).appendChild(s);
   } catch (_) {}
 })();
+

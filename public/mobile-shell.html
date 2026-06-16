@@ -1546,6 +1546,11 @@
         Tema / Aparência
       </button>
 
+      <button type="button" class="ms-sheet-link" id="ms-btn-sobre">
+        <span class="ms-sheet-ico" style="background:rgba(13,148,136,.12);color:#0d9488"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></span>
+        Sobre o sistema
+      </button>
+
       <div class="ms-sheet-sep"></div>
 
       <button type="button" class="ms-sheet-link ms-danger" id="ms-btn-sair">
@@ -1555,6 +1560,7 @@
       <button type="button" class="ms-sheet-link" id="ms-sheet-close">
         Fechar
       </button>
+      <div id="ms-app-version" style="text-align:center;font-size:11px;color:var(--ms-text2,#94a3b8);padding:10px 0 2px;letter-spacing:.02em">v—</div>
     </div>
   </div>
 
@@ -3323,6 +3329,11 @@ window.msToast = function (msg, type) {
   }
 
   frame.addEventListener('load', function () {
+    // Fecha qualquer modal Vitrine órfão preso de uma ação anterior — o iframe
+    // pode navegar/recarregar sozinho (sem passar por openUrl), deixando o popup
+    // de corpo vazio sobre a nova página. Não afeta o fluxo legítimo (abrir Vitrine
+    // não recarrega o iframe, só faz fetch + postMessage).
+    if (typeof window._fecharModalVitrineShell === 'function') window._fecharModalVitrineShell();
     scheduleEmbeddedDensity();
     setTimeout(updateShellChrome, 120);
     _updateBtnReenquadrarTopo();
@@ -4922,6 +4933,11 @@ window.msToast = function (msg, type) {
 
   window.addEventListener('message', function (ev) {
     var data = ev.data || {};
+    if (data.type === 'ms-vitrine-close-request') {
+      _blockClose = false;
+      fechar();
+      return;
+    }
     if (data.type === 'ms-vitrine-loading') {
       abrir();
       renderLoading();
@@ -4939,6 +4955,180 @@ window.msToast = function (msg, type) {
       if (errEl) errEl.textContent = String(data.message || 'Erro ao gerar link');
     }
   });
+})();
+</script>
+<script>
+/* ===== Versão do app + banner "Atualizar agora" (detecta novo deploy) ===== */
+(function () {
+  'use strict';
+  var VERSION_URL = '/api/version';
+  var baselineBuild = null;   // build id carregado nesta sessão
+  var bannerShown = false;
+  var checking = false;
+
+  function setVersionLabel(versao) {
+    var el = document.getElementById('ms-app-version');
+    if (el && versao) el.textContent = 'v' + versao;
+  }
+
+  function fetchVersion() {
+    return fetch(VERSION_URL, { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .catch(function () { return null; });
+  }
+
+  function showUpdateBanner() {
+    if (bannerShown) return;
+    bannerShown = true;
+    var st = document.createElement('style');
+    st.textContent = '@keyframes msUpdIn{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}';
+    document.head.appendChild(st);
+    var bar = document.createElement('div');
+    bar.id = 'ms-update-banner';
+    bar.setAttribute('role', 'alert');
+    bar.style.cssText = [
+      'position:fixed', 'left:12px', 'right:12px',
+      'bottom:calc(12px + env(safe-area-inset-bottom,0px))',
+      'z-index:2147483647', 'background:#19324d', 'color:#fff', 'border-radius:14px',
+      'box-shadow:0 10px 30px rgba(0,0,0,.3)', 'padding:12px 14px',
+      'display:flex', 'align-items:center', 'gap:12px',
+      'font-family:inherit', 'font-size:13px', 'animation:msUpdIn .25s ease'
+    ].join(';');
+    bar.innerHTML =
+      '<div style="flex:1;min-width:0;line-height:1.3">'
+      + '<div style="font-weight:800">Nova versão disponível</div>'
+      + '<div style="opacity:.8;font-size:11px">Toque em Atualizar para carregar a mais recente.</div>'
+      + '</div>'
+      + '<button type="button" id="ms-upd-later" style="background:transparent;color:#cbd5e1;border:none;font-size:12px;padding:8px;cursor:pointer">Depois</button>'
+      + '<button type="button" id="ms-upd-now" style="background:#22c55e;color:#06281a;border:none;font-weight:800;border-radius:10px;padding:9px 14px;cursor:pointer">Atualizar</button>';
+    document.body.appendChild(bar);
+    document.getElementById('ms-upd-later').addEventListener('click', function () { bar.remove(); });
+    document.getElementById('ms-upd-now').addEventListener('click', function () {
+      var btn = document.getElementById('ms-upd-now');
+      if (btn) { btn.textContent = 'Atualizando…'; btn.disabled = true; }
+      var done = function () { location.reload(); };
+      try {
+        if ('caches' in window) {
+          caches.keys()
+            .then(function (ks) {
+              return Promise.all(ks
+                .filter(function (k) { return k.indexOf('pedidosweb-') === 0; })
+                .map(function (k) { return caches.delete(k); }));
+            })
+            .then(done, done);
+        } else { done(); }
+      } catch (_) { done(); }
+    });
+  }
+
+  function checkForUpdate() {
+    if (checking || bannerShown || navigator.onLine === false) return;
+    checking = true;
+    fetchVersion().then(function (d) {
+      checking = false;
+      if (!d) return;
+      if (baselineBuild == null) { baselineBuild = d.v; return; }
+      if (d.v && d.v !== baselineBuild) showUpdateBanner();
+    });
+  }
+
+  // Baseline + rótulo inicial
+  fetchVersion().then(function (d) {
+    if (!d) return;
+    baselineBuild = d.v;
+    setVersionLabel(d.versao);
+  });
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') checkForUpdate();
+  });
+  window.addEventListener('focus', checkForUpdate);
+  setInterval(checkForUpdate, 90000);
+})();
+</script>
+
+<!-- ===== Modal "Sobre o sistema" (pós-login) ===== -->
+<div id="ms-sobre-overlay" style="display:none;position:fixed;inset:0;z-index:2147483646;background:rgba(15,23,42,.55);align-items:center;justify-content:center;padding:18px">
+  <div role="dialog" aria-modal="true" aria-labelledby="ms-sobre-title" style="background:var(--ms-card,#fff);color:var(--ms-text,#1e293b);width:min(440px,100%);max-height:88vh;overflow-y:auto;border-radius:18px;box-shadow:0 20px 60px rgba(0,0,0,.4);padding:22px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px">
+      <img src="https://cohrp.com.br/LogoPedidoWeb/pedidsoweb.jpeg" alt="" style="width:44px;height:44px;border-radius:10px;object-fit:cover">
+      <div style="flex:1">
+        <div id="ms-sobre-title" style="font-weight:800;font-size:18px;line-height:1.1">PedidosWeb</div>
+        <div style="font-size:12px;color:var(--ms-text2,#64748b)">CRM de Vendas · Força de Vendas</div>
+      </div>
+      <button type="button" id="ms-sobre-close" aria-label="Fechar" style="background:transparent;border:none;font-size:22px;line-height:1;color:var(--ms-text2,#94a3b8);cursor:pointer;padding:4px">×</button>
+    </div>
+    <div style="display:inline-flex;align-items:center;gap:6px;margin:8px 0 14px;font-size:12px;font-weight:700;color:var(--ms-accent,#0d9488);background:var(--ms-accent-soft,rgba(13,148,136,.1));padding:3px 10px;border-radius:999px">
+      Versão <span id="ms-sobre-version">—</span>
+    </div>
+    <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--ms-text2,#64748b);margin:6px 0 8px">Recursos liberados para você</div>
+    <div id="ms-sobre-modulos" style="font-size:13px;line-height:1.7;margin-bottom:14px;color:var(--ms-text,#1e293b)">Carregando…</div>
+    <div style="border-top:1px solid var(--ms-card-border,#eef2f7);padding-top:12px;font-size:12px;color:var(--ms-text2,#64748b);line-height:1.6">
+      <strong style="color:var(--ms-text,#1e293b)">NC Sistemas</strong> · Suporte:
+      <a href="/suporte.html" target="_blank" style="color:var(--ms-accent,#0d9488);text-decoration:none">abrir chamado</a><br>
+      © 2020 NC Sistemas — Todos os direitos reservados
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===== Sobre o sistema (pós-login): versão + módulos liberados do cliente ===== */
+(function () {
+  'use strict';
+  var ov = document.getElementById('ms-sobre-overlay');
+  var carregado = false;
+
+  function authHeaders() {
+    var t = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+    return t ? { Authorization: 'Bearer ' + t } : {};
+  }
+
+  function carregarConteudo() {
+    if (carregado) return;
+    carregado = true;
+    fetch('/api/version', { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        var el = document.getElementById('ms-sobre-version');
+        if (el && d && d.versao) el.textContent = d.versao;
+      }).catch(function () {});
+
+    var box = document.getElementById('ms-sobre-modulos');
+    fetch('/api/modulos', { headers: authHeaders(), cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (!box) return;
+        var mods = (d && Array.isArray(d.modulos)) ? d.modulos : [];
+        if (!mods.length) {
+          box.innerHTML = '<span style="color:var(--ms-text2,#94a3b8)">Sua licença dá acesso aos módulos padrão do sistema.</span>';
+          return;
+        }
+        box.innerHTML = mods.map(function (m) {
+          var nome = (m && (m.descricao || m.nome)) ? String(m.descricao || m.nome) : '';
+          return '<div style="display:flex;align-items:center;gap:8px">'
+            + '<span style="color:var(--ms-accent,#0d9488)">✓</span>'
+            + '<span>' + nome.replace(/[<>&]/g, '') + '</span></div>';
+        }).join('');
+      })
+      .catch(function () {
+        if (box) box.innerHTML = '<span style="color:var(--ms-text2,#94a3b8)">Não foi possível carregar os módulos agora.</span>';
+        carregado = false; // permite tentar de novo
+      });
+  }
+
+  function abrir() { if (ov) { ov.style.display = 'flex'; carregarConteudo(); } }
+  function fechar() { if (ov) ov.style.display = 'none'; }
+
+  var btn = document.getElementById('ms-btn-sobre');
+  if (btn) btn.addEventListener('click', function () {
+    var sheet = document.getElementById('ms-sheet-overlay');
+    if (sheet) sheet.classList.remove('open');
+    abrir();
+  });
+  var close = document.getElementById('ms-sobre-close');
+  if (close) close.addEventListener('click', fechar);
+  if (ov) ov.addEventListener('click', function (e) { if (e.target === ov) fechar(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') fechar(); });
 })();
 </script>
 </body>

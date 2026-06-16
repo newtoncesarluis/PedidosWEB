@@ -11,6 +11,7 @@ const { extractMysqlConfigFromLicenseRow } = require('../config/customer-db-from
 const parametroLocaisRouter = require('./parametro-locais');
 const { resolveEmpresaLogoRelatorio, sanitizeEmpresaRow, fsPathFromLogoRelatorio } = require('../services/empresa-logo');
 const { buildGtelaFromPerfil, PERFIL_SN_CADASTRO } = require('../config/cadastros-permissoes');
+const { sqlPerfilOverlayAliases, overlayPerfilPermissoes } = require('../config/permissoes-usuario-perfil');
 const { ensurePerfilCadastroColumns } = require('../config/schema-migrations');
 
 const EMPRESA_NAO_EXCLUIDA = `COALESCE(NULLIF(TRIM(excluido), ''), 'N') = 'N'`;
@@ -187,7 +188,8 @@ router.get('/instalacao-brand-logo', async (req, res) => {
 router.post('/login', async (req, res) => {
   const { loginusu, senhausu, id_empresa } = req.body;
   // Em modo bound: chave vem do processo (.env). Em legado: vem do body/localStorage.
-  const chave_licenca = getBoundChave() || req.body.chave_licenca || null;
+  // Fallback: license-binding.json (instalações locais com CUSTOMER_DB_FROM_LICENSE=1 mas sem CHAVE_LICENCA no env)
+  const chave_licenca = getBoundChave() || req.body.chave_licenca || readLicenseBinding()?.chave_licenca || null;
 
   if (!loginusu || !senhausu) {
     return res.status(400).json({ error: 'Usuário e senha são obrigatórios' });
@@ -197,8 +199,9 @@ router.post('/login', async (req, res) => {
   try {
     const pool = getPool();
 
+    const perfilOverlay = sqlPerfilOverlayAliases('p');
     const [rows] = await pool.query(
-      `SELECT p.*, s.*
+      `SELECT p.*, s.*${perfilOverlay ? `, ${perfilOverlay}` : ''}
        FROM usuarios s
        INNER JOIN perfil p ON p.id = s.idperfil
        WHERE UPPER(s.loginusu) = UPPER(?)
@@ -208,7 +211,7 @@ router.post('/login', async (req, res) => {
       [loginusu]
     );
 
-    const user = rows[0];
+    const user = overlayPerfilPermissoes(rows[0]);
 
     if (!user) {
       return res.status(401).json({ error: 'Usuário ou senha inválidos' });
@@ -349,7 +352,7 @@ router.post('/login', async (req, res) => {
 // Chamado ao sair do campo senha — antes do botão Entrar
 router.post('/empresas-usuario', async (req, res) => {
   const { loginusu, senhausu } = req.body;
-  const chave_licenca = getBoundChave() || req.body.chave_licenca || null;
+  const chave_licenca = getBoundChave() || req.body.chave_licenca || readLicenseBinding()?.chave_licenca || null;
   if (!loginusu || !senhausu) return res.json({ ok: false, empresas: [] });
 
   const handler = async () => {
@@ -450,6 +453,7 @@ router.post('/empresas-usuario', async (req, res) => {
       empresapadrao:   user.empresapadrao   || null,
       mudarempresa:    perf.mudarempresa    || 'S',
       alterarservidor: perf.alterarservidor || 'N',
+      chave_licenca:   chave_licenca        || null,
     });
   } catch (err) {
     console.error('empresas-usuario error:', err.message);
@@ -782,23 +786,18 @@ router.get('/minhas-permissoes', async (req, res) => {
 
   try {
     await ensurePerfilCadastroColumns(pool);
-    const [perfilColRows] = await pool.query('SHOW COLUMNS FROM perfil');
-    const perfilColSet = new Set(perfilColRows.map((r) => r.Field));
-    const cadSelect = PERFIL_SN_CADASTRO.filter((c) => perfilColSet.has(c)).map((c) => `p.${c}`).join(', ');
-    const cadPart = cadSelect ? `, ${cadSelect}` : '';
+    const perfilOverlay = sqlPerfilOverlayAliases('p');
     const [rows] = await pool.query(
-      `SELECT p.acessar_configuracoes, p.alterar_configuracoes, p.manutencaocadastros,
-              p.acessar_cadastros, p.tela_fornecedores, p.tela_produtos,
-              p.acessogerenciais, p.acessoperfil, p.mudarempresa, p.tela_usuarios,
-              p.alterardatapedido, p.trocarvendedorpedido, p.p_vender,
-              p.alteravendedorcadastrocli${cadPart}
+      `SELECT p.*, u.*${perfilOverlay ? `, ${perfilOverlay}` : ''}
        FROM usuarios u
        INNER JOIN perfil p ON p.id = u.idperfil
        WHERE u.idusuario = ? AND u.excluido = 'N' LIMIT 1`,
       [decoded.id]
     );
-    const perm = rows[0] || {};
+    const row = overlayPerfilPermissoes(rows[0] || {});
+    const perm = row;
     const isAdmin = decoded.perfil == 1;
+    const permissoesEfetivas = buildPermissoes(row);
     const cadastroPerm = buildGtelaFromPerfil(perm, isAdmin);
     res.json({
       acessar_configuracoes:  isAdmin ? 'S' : (perm.acessar_configuracoes || 'N'),
@@ -809,16 +808,20 @@ router.get('/minhas-permissoes', async (req, res) => {
       gtela_produtos:         isAdmin ? 'S' : (perm.tela_produtos         || 'N'),
       gtela_usuarios:         isAdmin ? 'S' : (perm.tela_usuarios         || 'N'),
       alteravendedorcadastrocli: isAdmin ? 'S' : (perm.alteravendedorcadastrocli || 'N'),
-      mudarempresa:           isAdmin ? 'S' : (perm.mudarempresa          || 'N'),
-      alterardatapedido:      isAdmin ? 'S' : (perm.alterardatapedido     || 'N'),
-      trocarvendedorpedido:   isAdmin ? 'S' : (perm.trocarvendedorpedido  || 'N'),
-      faturar_pedido:         isAdmin ? 'S' : (perm.faturar_pedido        || 'N'),
-      marcar_enviado_rep:     isAdmin ? 'S' : (perm.marcar_enviado_rep    || 'N'),
-      acessar_metas_vendas:   isAdmin ? 'S' : (perm.acessar_metas_vendas  || 'N'),
-      p_vender:               isAdmin ? 'S' : (perm.p_vender              || 'N'),
-      incluir_produtos:       isAdmin ? 'S' : (perm.incluir_produtos      || 'N'),
-      alterar_produtos:       isAdmin ? 'S' : (perm.alterar_produtos      || 'N'),
-      excluir_produtos:       isAdmin ? 'S' : (perm.excluir_produtos      || 'N'),
+      mudarempresa:           permissoesEfetivas.mudarempresa || 'N',
+      alterardatapedido:      permissoesEfetivas.alterardatapedido || 'N',
+      trocarvendedorpedido:   permissoesEfetivas.trocarvendedorpedido || 'N',
+      faturar_pedido:         permissoesEfetivas.faturar_pedido || 'N',
+      marcar_enviado_rep:     permissoesEfetivas.marcar_enviado_rep || 'N',
+      acessar_metas_vendas:   permissoesEfetivas.acessar_metas_vendas || 'N',
+      p_vender:               permissoesEfetivas.p_vender || 'N',
+      incluir_produtos:       permissoesEfetivas.incluir_produtos || 'N',
+      alterar_produtos:       permissoesEfetivas.alterar_produtos || 'N',
+      excluir_produtos:       permissoesEfetivas.excluir_produtos || 'N',
+      incluir_pedvendas:      permissoesEfetivas.incluir_pedvendas || 'N',
+      alterar_pedvendas:      permissoesEfetivas.alterar_pedvendas || 'N',
+      excluir_pedvendas:      permissoesEfetivas.excluir_pedvendas || 'N',
+      alertarpainelempresapedvenda: permissoesEfetivas.alertarpainelempresapedvenda || 'N',
       ...cadastroPerm,
       isAdmin
     });
@@ -896,7 +899,8 @@ async function registrarTerminal(pool, ip, userAgent, userId, empresaId) {
 }
 
 // Constrói objeto de permissões (PermissaoOperacao do Delphi)
-function buildPermissoes(user) {
+function buildPermissoes(rawUser) {
+  const user = overlayPerfilPermissoes(rawUser);
   const isAdmin = user.idperfil == 1;
   // 'S'/'N' sem fallback opcional: blank continua blank (alguns campos ignoram blank)
   const s  = (field) => isAdmin ? 'S' : (user[field] || 'N');

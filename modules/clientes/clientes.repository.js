@@ -5,6 +5,7 @@ const {
   buildClienteVendedorWhere,
   podeVerTodosClientes,
 } = require('../../config/cliente-visibilidade');
+const { getPrepostoContext } = require('../../config/vendedor-visibilidade');
 
 /**
  * Cache de colunas existentes na tabela `clientes`.
@@ -85,7 +86,9 @@ async function listar(filters, config, user) {
   if (uf) { where.push(`c.uf = ?`); vals.push(uf.toUpperCase()); }
 
   // ── Visibilidade: filtro por vendedor (config/cliente-visibilidade.js) ────────
-  const vendFiltro = buildClienteVendedorWhere(user, 'c');
+  // Preposto enxerga a carteira do representante (id_gerente) — passa prepCtx
+  const prepCtx = await getPrepostoContext(pool, { user });
+  const vendFiltro = buildClienteVendedorWhere(user, 'c', prepCtx);
   if (vendFiltro.clause) {
     where.push(vendFiltro.clause.replace(/^\s*AND\s+/i, ''));
     vals.push(...vendFiltro.params);
@@ -205,7 +208,8 @@ async function listar(filters, config, user) {
 /** Verifica se o usuário pode ver/editar o cliente (perfil acessartodosclientes). */
 async function usuarioPodeVerCliente(clienteId, user, pool) {
   if (podeVerTodosClientes(user)) return true;
-  const vendFiltro = buildClienteVendedorWhere(user, 'c');
+  const prepCtx = await getPrepostoContext(pool, { user });
+  const vendFiltro = buildClienteVendedorWhere(user, 'c', prepCtx);
   const [rows] = await pool.query(
     `SELECT 1 FROM clientes c WHERE c.id = ?${vendFiltro.clause} LIMIT 1`,
     [clienteId, ...vendFiltro.params]

@@ -718,6 +718,14 @@
           <span class="input-hint">Número de casas decimais para valores e quantidades</span>
         </div>
         <div class="form-group">
+          <label>Exibir Centavos nos Preços</label>
+          <select id="f_moeda_centavos_cfg">
+            <option value="S">Sim — R$ 7.257,00</option>
+            <option value="N">Não — R$ 7.257 (omite ,00)</option>
+          </select>
+          <span class="input-hint">Afeta listagens de Produtos, Pedidos, Financeiro e Relatórios</span>
+        </div>
+        <div class="form-group">
           <label>Habilitar Frente de Produtos</label>
           <select name="habilitarfrenteprodutos">
             <option value="S">Sim</option>
@@ -1252,6 +1260,15 @@ async function carregarConfig() {
     const d = await r.json();
     await popularTiposPedido(d.tipo_pedido_padrao);
     preencherForm(d);
+    // carrega moeda_exibir_centavos de parametro-locais
+    try {
+      const rpl = await fetch('/api/parametro-locais', { headers: { Authorization: 'Bearer ' + getToken() } });
+      if (rpl.ok) {
+        const dpl = await rpl.json();
+        const sel = document.getElementById('f_moeda_centavos_cfg');
+        if (sel) sel.value = dpl.moeda_exibir_centavos || 'S';
+      }
+    } catch(_) {}
     ocultarCamposEstruturais();
     document.getElementById('save_status').textContent =
       'Carregado em ' + new Date().toLocaleTimeString('pt-BR');
@@ -1284,6 +1301,31 @@ async function salvarConfig() {
     const d = await r.json();
 
     if (r.ok && (d.ok || d.success || !d.error)) {
+      // salva moeda_exibir_centavos em parametro-locais
+      try {
+        const sel = document.getElementById('f_moeda_centavos_cfg');
+        const centavos = sel ? sel.value : 'S';
+        const rpl = await fetch('/api/parametro-locais', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() },
+          body: JSON.stringify({ moeda_exibir_centavos: centavos })
+        });
+        if (rpl.ok) {
+          const dpl = await rpl.json();
+          try {
+            const val = dpl.moeda_exibir_centavos || centavos;
+            const cur = JSON.parse(sessionStorage.getItem('parametros_locais') || '{}');
+            cur.moeda_exibir_centavos = val;
+            sessionStorage.setItem('parametros_locais', JSON.stringify(cur));
+            // localStorage dispara evento 'storage' nos outros iframes — mecanismo de re-render
+            const lcur = JSON.parse(localStorage.getItem('parametros_locais') || '{}');
+            lcur.moeda_exibir_centavos = val;
+            localStorage.setItem('parametros_locais', JSON.stringify(lcur));
+          } catch(_) {}
+          // avisa o home.html para recarregar tabs inativos na próxima ativação
+          try { window.parent.postMessage({ type: 'sysrep-parametros-changed' }, '*'); } catch(_) {}
+        }
+      } catch(_) {}
       toast('Configurações salvas com sucesso!', 'success');
       status.textContent = 'Salvo em ' + new Date().toLocaleTimeString('pt-BR');
       status.style.color = 'var(--green)';

@@ -38,6 +38,7 @@ function getLicenseKey(req) {
 }
 
 async function licenseMiddleware(req, res, next) {
+  if (process.env.SKIP_LICENSE === 'true') return next();
   if (BYPASS.some(p => req.originalUrl.startsWith(p))) return next();
 
   try {
@@ -72,7 +73,8 @@ async function licenseMiddleware(req, res, next) {
       }
     }
 
-    _cacheMap.set(mapKey, { data: result, ts: now });
+    // Resultados válidos: cache por CACHE_TTL (5 min). Inválidos: 30 s (retry rápido em falhas transitórias)
+    _cacheMap.set(mapKey, { data: result, ts: result.valid ? now : now - (CACHE_TTL - 30_000) });
     return applyResult(result, req, res, next);
 
   } catch (err) {

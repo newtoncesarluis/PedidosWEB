@@ -115,6 +115,14 @@ async function ensureColumns(pool) {
     await pool.query(`ALTER TABLE fornecedores ADD COLUMN habilita_feirinha CHAR(1) NOT NULL DEFAULT 'N'`).catch(() => {});
     _colunasCache = null;
   }
+  if (!cols.has('layout_impressao')) {
+    await pool.query(`ALTER TABLE fornecedores ADD COLUMN layout_impressao VARCHAR(20) DEFAULT 'PADRAO'`).catch(() => {});
+    _colunasCache = null;
+  }
+  if (!cols.has('mostrar_vlr_desc_pedido')) {
+    await pool.query(`ALTER TABLE fornecedores ADD COLUMN mostrar_vlr_desc_pedido CHAR(1) DEFAULT 'N'`).catch(() => {});
+    _colunasCache = null;
+  }
   // Tabela de e-mails da fábrica
   await pool.query(`
     CREATE TABLE IF NOT EXISTS fornecedor_emails (
@@ -203,6 +211,11 @@ router.get('/', async (req, res) => {
 
     const whereClause = where.join(' AND ');
 
+    // Pedido (somente_fabricas): ordena por nome fantasia (apelido), com fallback na razão social
+    const orderExpr = somente_fabricas === 'true'
+      ? `LOWER(COALESCE(NULLIF(TRIM(f.apelido), ''), f.nome))`
+      : `LOWER(f.nome)`;
+
     const [rows] = await pool.query(
       `SELECT f.id, f.nome, f.apelido, f.cpf, f.tipo_pessoa,
               f.foneprincipal, f.email, f.contato,
@@ -219,7 +232,7 @@ router.get('/', async (req, res) => {
                 LIMIT 1) AS foto_principal
        FROM fornecedores f
        WHERE ${whereClause}
-       ORDER BY f.nome
+       ORDER BY ${orderExpr}
        LIMIT ? OFFSET ?`,
       [...vals, parseInt(limit), parseInt(offset)]
     );
@@ -532,7 +545,8 @@ router.post('/', async (req, res) => {
       'pedidos_codfabricante',
       'tipo',
       'ipi_frete_base','com_sobre_ipi','com_sobre_st','com_tipo','tipo_num_pedido','base_conciliacao',
-      'min_cx_pedido','recalc_comissao_fatur','enviar_pedido_fabrica','habilita_feirinha'
+      'min_cx_pedido','recalc_comissao_fatur','enviar_pedido_fabrica','habilita_feirinha',
+      'layout_impressao','mostrar_vlr_desc_pedido'
     ];
 
     const campos = todosCampos.filter(c => body[c] !== undefined && colunasReais.has(c));
@@ -592,7 +606,8 @@ router.put('/:id', async (req, res) => {
       'pedidos_codfabricante',
       'tipo',
       'ipi_frete_base','com_sobre_ipi','com_sobre_st','com_tipo','tipo_num_pedido','base_conciliacao',
-      'min_cx_pedido','recalc_comissao_fatur','enviar_pedido_fabrica','habilita_feirinha'
+      'min_cx_pedido','recalc_comissao_fatur','enviar_pedido_fabrica','habilita_feirinha',
+      'layout_impressao','mostrar_vlr_desc_pedido'
     ];
 
     const campos = todosCampos.filter(c => body[c] !== undefined && colunasReais.has(c));

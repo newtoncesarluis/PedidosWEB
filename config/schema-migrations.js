@@ -61,6 +61,11 @@ const MIGRATIONS = [
   // ── DESPESAS (Delphi: nome; cadastro web antigo: descricao) ───────────────
   { table: 'despesas', column: 'nome', type: "VARCHAR(100) DEFAULT NULL" },
 
+  // ── USUARIOS / PREPOSTO ───────────────────────────────────────────────────
+  // Modo de visibilidade da carteira para o preposto: TODOS (toda a carteira do
+  // representante = id_gerente) ou ATRIBUIDOS (só clientes vinculados em preposto_cliente)
+  { table: 'usuarios', column: 'preposto_visibilidade', type: "VARCHAR(20) DEFAULT 'TODOS'" },
+
   // ── PAGTOCOMISSAO ─────────────────────────────────────────────────────────
   { table: 'pagtocomissao', column: 'data_pagar',        type: "DATE NULL DEFAULT NULL" },
   { table: 'pagtocomissao', column: 'data_pagamento',    type: "DATE NULL DEFAULT NULL" },
@@ -83,6 +88,7 @@ const MIGRATIONS = [
   { table: 'fornecedores', column: 'tipo_num_pedido',        type: "VARCHAR(20) DEFAULT 'SISTEMA'" },
   { table: 'fornecedores', column: 'base_conciliacao',       type: "VARCHAR(10) DEFAULT 'PARCELA'" },
   { table: 'fornecedores', column: 'enviar_pedido_fabrica',  type: "CHAR(1) DEFAULT 'N'" },
+  { table: 'fornecedores', column: 'layout_impressao',       type: "VARCHAR(20) DEFAULT 'PADRAO'" },
 
   // ── CLIENTES ──────────────────────────────────────────────────────────────
   { table: 'clientes', column: 'latitude',       type: "VARCHAR(50) DEFAULT NULL" },
@@ -181,6 +187,7 @@ const MIGRATIONS = [
   // ── PRODUTO — campos de estoque completos ────────────────────────────────────
   { table: 'produto',  column: 'estoque_maximo',    type: "DECIMAL(15,4) DEFAULT 0" },
   { table: 'produto',  column: 'estoque_seguranca', type: "DECIMAL(15,4) DEFAULT 0" },
+  { table: 'produto',  column: 'segmento',          type: "VARCHAR(100) NULL DEFAULT NULL" },
   { table: 'produtos', column: 'estoque_maximo',    type: "DECIMAL(15,4) DEFAULT 0" },
   { table: 'produtos', column: 'estoque_seguranca', type: "DECIMAL(15,4) DEFAULT 0" },
 
@@ -203,6 +210,18 @@ const CREATE_IF_NOT_EXISTS = [
       dt_alterado DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       UNIQUE KEY unq_user_grid (id_usuario, nome_grid)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3`,
+  },
+  {
+    name: 'preposto_cliente',
+    sql: `CREATE TABLE IF NOT EXISTS preposto_cliente (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      id_preposto INT NOT NULL,
+      cod_cliente INT NOT NULL,
+      excluido CHAR(1) NOT NULL DEFAULT 'N',
+      dtcadastro DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY unq_prep_cli (id_preposto, cod_cliente),
+      INDEX idx_pc_preposto (id_preposto)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   },
   {
     name: 'cliente_fotos',
@@ -563,6 +582,7 @@ async function runMigrations(pool) {
     // 2c. itensped.tipo_preco — legado Delphi VARCHAR(10); promo campanha precisa caber
     await ensureItenspedTipoPrecoWidth(pool);
     await ensureTabelaPrecoCondPagamentoNullable(pool);
+    await ensureVitrineColumns(pool);
 
 
     // 2b. despesas: copia descricao → nome quando ambas existem (legado Delphi)
@@ -746,6 +766,57 @@ async function ensureTabelaPrecoCondPagamentoNullable(poolOrConn) {
   }
 }
 
+/**
+ * tabela_preco_cabecalho — flags da Vitrine Digital:
+ *  - vitrine: tabela pode ser enviada/exibida na vitrine (default 'N')
+ *  - usar_regras_fornecedor: aplica mínimo de faturamento e mínimo da condição
+ *    de pagamento do fornecedor no pedido da vitrine (default 'N')
+ * Sem backfill: cada tabela começa 'N' e é liberada manualmente no cadastro.
+ * Cacheado por base (DATABASE) — não re-checa schema a cada gravação.
+ */
+async function ensureVitrineColumns(poolOrConn) {
+  if (!poolOrConn?.query) return;
+  let dbName = '';
+  try {
+    const [[r]] = await poolOrConn.query('SELECT DATABASE() AS db');
+    dbName = r?.db || '';
+  } catch { /* ignora */ }
+
+  const keyV = `${dbName}.tabela_preco_cabecalho.vitrine`;
+  const keyU = `${dbName}.tabela_preco_cabecalho.usar_regras_fornecedor`;
+  if (_ensureColCache.has(keyV) && _ensureColCache.has(keyU)) return;
+
+  try {
+    const [tables] = await poolOrConn.query("SHOW TABLES LIKE 'tabela_preco_cabecalho'");
+    if (!tables.length) return;
+
+    const [cols] = await poolOrConn.query(
+      `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tabela_preco_cabecalho'
+         AND COLUMN_NAME IN ('vitrine','usar_regras_fornecedor')`
+    );
+    const have = new Set(cols.map((c) => c.COLUMN_NAME));
+
+    if (!have.has('vitrine')) {
+      await poolOrConn.query(
+        `ALTER TABLE \`tabela_preco_cabecalho\` ADD COLUMN \`vitrine\` ENUM('S','N') DEFAULT 'N'`
+      );
+      console.log("[schema] + tabela_preco_cabecalho.vitrine");
+    }
+    _ensureColCache.add(keyV);
+
+    if (!have.has('usar_regras_fornecedor')) {
+      await poolOrConn.query(
+        `ALTER TABLE \`tabela_preco_cabecalho\` ADD COLUMN \`usar_regras_fornecedor\` ENUM('S','N') DEFAULT 'N'`
+      );
+      console.log("[schema] + tabela_preco_cabecalho.usar_regras_fornecedor");
+    }
+    _ensureColCache.add(keyU);
+  } catch (e) {
+    console.warn('[schema] ensureVitrineColumns:', e.message);
+  }
+}
+
 /** Colunas legadas do perfil que podem faltar em bases antigas (fora do array MIGRATIONS). */
 const PERFIL_EXTRA_ENSURE = [
   ['incluir_formas_pagamento', "CHAR(1) NOT NULL DEFAULT 'N'"],
@@ -902,4 +973,4 @@ async function ensureFeirinhaTables(pool) {
   }
 }
 
-module.exports = { runMigrations, ensurePromocoesCampanhaTables, ensureFeirinhaTables, ensureTableColumns, ensurePerfilCadastroColumns, ensureItenspedPromoColumns, ensureItenspedTipoPrecoWidth, ensureTabelaPrecoCondPagamentoNullable };
+module.exports = { runMigrations, ensurePromocoesCampanhaTables, ensureFeirinhaTables, ensureTableColumns, ensurePerfilCadastroColumns, ensureItenspedPromoColumns, ensureItenspedTipoPrecoWidth, ensureTabelaPrecoCondPagamentoNullable, ensureVitrineColumns };

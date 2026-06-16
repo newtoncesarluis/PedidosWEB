@@ -15,6 +15,55 @@ const {
 const { authMiddleware } = require('../middleware/auth');
 const { hojeIsoBrasil, horaBrasil, addDaysIsoBrasil } = require('../config/date-brasil');
 const { emitNovoPedido } = require('../config/pedido-events');
+const { ensureVitrineColumns } = require('../config/schema-migrations');
+
+const _fmtBRL = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+/** IDs de tabela escolhidos pelo representante para ESTE link (vazio = todas as liberadas) */
+function _selIdsFromToken(tk) {
+  if (!tk || !tk.ids_tabelas) return [];
+  return String(tk.ids_tabelas).split(',').map((s) => parseInt(s, 10)).filter(Number.isFinite);
+}
+
+// Tamanho máximo da coluna pedidos.obs por pool (TEXT/legado VARCHAR) — evita overflow ao anexar info da tabela
+const _obsLenMap = new Map();
+async function getPedidoObsMaxLen(pool) {
+  if (_obsLenMap.has(pool)) return _obsLenMap.get(pool);
+  let len = 65535; // default seguro (TEXT)
+  try {
+    const [[r]] = await pool.query(
+      `SELECT CHARACTER_MAXIMUM_LENGTH AS len, DATA_TYPE AS dt
+       FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'pedidos' AND COLUMN_NAME = 'obs'`
+    );
+    if (r) {
+      const dt = String(r.dt || '').toLowerCase();
+      if (dt.includes('text') || dt.includes('blob')) len = (r.len && r.len > 0) ? Number(r.len) : 65535;
+      else if (r.len && r.len > 0) len = Number(r.len);
+    }
+  } catch (_) { /* mantém default */ }
+  _obsLenMap.set(pool, len);
+  return len;
+}
+
+/**
+ * Tabelas de preço liberadas na vitrine (vitrine='S') e vinculadas ao cliente.
+ * É o conjunto que o cliente pode escolher no seletor da vitrine.
+ */
+async function getTabelasVitrineCliente(pool, idCliente) {
+  const [rows] = await pool.query(`
+    SELECT DISTINCT tpc.id AS id_tabela, tpc.Descricao AS descricao,
+           tpc.Cond_Pagamento AS cond_pagamento,
+           tpc.usar_regras_fornecedor AS usar_regras_fornecedor
+    FROM tabela_preco_vinculo  tpv
+    JOIN tabela_preco_cabecalho tpc ON tpc.id = tpv.id_tabela
+    WHERE tpv.id_entidade = ? AND tpv.tipo_entidade = 'CLIENTE'
+      AND tpv.excluido = 'N' AND tpc.excluido = 'N'
+      AND tpc.Tabela_Ativa = 'S' AND tpc.vitrine = 'S'
+    ORDER BY tpc.Descricao
+  `, [idCliente]).catch(() => [[]]);
+  return rows || [];
+}
 
 // Rastreia por pool para não repetir CREATE TABLE nem SHOW TABLES
 const _tableReadyPools = new Set();
@@ -41,8 +90,10 @@ async function ensureTable(pool) {
   for (const sql of [
     `ALTER TABLE vitrine_tokens ADD COLUMN id_empresa  INT          NULL`,
     `ALTER TABLE vitrine_tokens ADD COLUMN nome_empresa VARCHAR(255) NULL`,
+    `ALTER TABLE vitrine_tokens ADD COLUMN ids_tabelas VARCHAR(255) NULL`,
     `ALTER TABLE tipo_pedidos   ADD COLUMN padrao_vitrine CHAR(1) NOT NULL DEFAULT 'N'`,
   ]) { await pool.query(sql).catch(() => {}); }
+  await ensureVitrineColumns(pool).catch(() => {});
   _tableReadyPools.add(pool);
 }
 
@@ -168,6 +219,43 @@ router.post('/gerar', authMiddleware, async (req, res) => {
   }
 });
 
+// ── GET /api/vitrine/tabelas-cliente/:id_cliente  (auth) ─────────────────────
+// Tabelas liberadas e vinculadas ao cliente — alimenta o seletor no modal do link
+router.get('/tabelas-cliente/:id_cliente', authMiddleware, async (req, res) => {
+  try {
+    const pool = getPool();
+    await ensureTable(pool);
+    const tabelas = await getTabelasVitrineCliente(pool, req.params.id_cliente);
+    res.json(tabelas.map((t) => ({ id_tabela: t.id_tabela, descricao: t.descricao })));
+  } catch (err) {
+    console.error('[vitrine/tabelas-cliente]', err);
+    res.status(500).json({ erro: err.message });
+  }
+});
+
+// ── PATCH /api/vitrine/:token/tabelas  (auth) ────────────────────────────────
+// Atualiza quais tabelas vão neste link (só o dono do link pode alterar).
+// Lista vazia → NULL → vitrine usa todas as liberadas (comportamento padrão).
+router.patch('/:token/tabelas', authMiddleware, async (req, res) => {
+  try {
+    const pool = getPool();
+    await ensureTable(pool);
+    const ids = Array.isArray(req.body.ids_tabelas)
+      ? req.body.ids_tabelas.map((n) => parseInt(n, 10)).filter(Number.isFinite)
+      : [];
+    const val = ids.length ? ids.join(',') : null;
+    const userId = req.user.id || req.user.idusuario;
+    const [r] = await pool.query(
+      `UPDATE vitrine_tokens SET ids_tabelas = ? WHERE token = ? AND id_usuario = ?`,
+      [val, req.params.token, userId]
+    );
+    res.json({ ok: true, atualizado: r.affectedRows > 0 });
+  } catch (err) {
+    console.error('[vitrine/patch-tabelas]', err);
+    res.status(500).json({ erro: err.message });
+  }
+});
+
 // ── GET /api/vitrine/:token  (público) ───────────────────────────────────────
 router.get('/:token', async (req, res) => {
   try {
@@ -193,18 +281,29 @@ router.get('/:token', async (req, res) => {
         [tk.id_usuario]
       ).catch(() => [[null]]);
 
-      const [precos] = await pool.query(`
-        SELECT tpi.cod_produto, tpi.preco_venda
-        FROM tabela_preco_vinculo  tpv
-        JOIN tabela_preco_cabecalho tpc ON tpc.id = tpv.id_tabela
-        JOIN tabela_preco_itens     tpi ON tpi.id_tabela = tpv.id_tabela
-        WHERE tpv.id_entidade = ? AND tpv.tipo_entidade = 'CLIENTE'
-          AND tpv.excluido = 'N' AND tpc.excluido = 'N'
-          AND tpc.Tabela_Ativa = 'S' AND tpi.excluido = 'N'
-      `, [tk.id_cliente]);
+      // Tabelas liberadas na vitrine e vinculadas a este cliente — o cliente escolhe uma
+      let tabelas = await getTabelasVitrineCliente(pool, tk.id_cliente);
+      // Se o representante restringiu este link a tabelas especificas, respeita a selecao
+      const _sel = _selIdsFromToken(tk);
+      if (_sel.length) tabelas = tabelas.filter((t) => _sel.includes(Number(t.id_tabela)));
 
-      const mapaPrecos = {};
-      precos.forEach(p => { mapaPrecos[String(p.cod_produto)] = parseFloat(p.preco_venda); });
+      // Preços de cada produto em cada tabela liberada: { cod_produto: { id_tabela: preco } }
+      const precosPorProduto = {};
+      if (tabelas.length) {
+        const ids = tabelas.map(t => t.id_tabela);
+        const [precos] = await pool.query(`
+          SELECT id_tabela, cod_produto,
+                 COALESCE(valor_tabela, preco_venda) AS preco
+          FROM tabela_preco_itens
+          WHERE id_tabela IN (?) AND excluido = 'N' AND (ativo = 'S' OR ativo IS NULL)
+            AND COALESCE(valor_tabela, preco_venda) > 0
+        `, [ids]);
+        precos.forEach(p => {
+          const k = String(p.cod_produto);
+          if (!precosPorProduto[k]) precosPorProduto[k] = {};
+          precosPorProduto[k][String(p.id_tabela)] = parseFloat(p.preco);
+        });
+      }
 
       const prodTb  = await detectProdTable(pool);
       const hasForn = await detectProdFornCol(pool, prodTb);
@@ -221,10 +320,15 @@ router.get('/:token', async (req, res) => {
       `);
 
       const lista = produtos
-        .map(p => ({ ...p, preco: mapaPrecos[String(p.id)] ?? null }))
-        .filter(p => p.preco !== null);
+        .map(p => ({ ...p, precos: precosPorProduto[String(p.id)] || {} }))
+        .filter(p => Object.keys(p.precos).length > 0);
 
-      res.json({ cliente, representante: rep || null, produtos: lista });
+      res.json({
+        cliente,
+        representante: rep || null,
+        tabelas: tabelas.map(t => ({ id_tabela: t.id_tabela, descricao: t.descricao })),
+        produtos: lista,
+      });
     });
   } catch (err) {
     console.error('[vitrine/get]', err);
@@ -261,19 +365,50 @@ router.post('/:token/pedido', async (req, res) => {
       );
       if (!cliente) return res.status(404).json({ erro: 'Cliente não encontrado' });
 
-      // Revalida preços no banco — não confia nos valores do frontend
+      // Tabela escolhida pelo cliente — uma só por pedido (sem mistura de preços)
+      let tabelasCliente = await getTabelasVitrineCliente(pool, tk.id_cliente);
+      const _selPed = _selIdsFromToken(tk);
+      if (_selPed.length) tabelasCliente = tabelasCliente.filter((t) => _selPed.includes(Number(t.id_tabela)));
+      if (!tabelasCliente.length) {
+        throw Object.assign(new Error('Nenhuma tabela de preços liberada para este cliente'), { status: 422 });
+      }
+      let tabela = null;
+      const idTabReq = parseInt(req.body.id_tabela, 10);
+      if (Number.isFinite(idTabReq)) {
+        // Escolha explícita: se não está mais liberada, NÃO substitui em silêncio
+        tabela = tabelasCliente.find(t => Number(t.id_tabela) === idTabReq) || null;
+        if (!tabela) {
+          throw Object.assign(new Error('A tabela de preços selecionada não está mais disponível. Recarregue a página.'), { status: 422 });
+        }
+      } else if (tabelasCliente.length === 1) {
+        tabela = tabelasCliente[0];
+      } else {
+        throw Object.assign(new Error('Selecione a tabela de preços'), { status: 422 });
+      }
+
+      // Rastreia a tabela escolhida (e a condição de pagamento) no pedido, via obs
+      let _condDesc = '';
+      if (tabela.cond_pagamento) {
+        const [[fp]] = await pool.query(
+          `SELECT descricao FROM forma_pagto WHERE id = ? LIMIT 1`, [tabela.cond_pagamento]
+        ).catch(() => [[null]]);
+        _condDesc = fp?.descricao || '';
+      }
+      const _infoTabela = `Tabela: ${tabela.descricao}${_condDesc ? ` · Pagamento: ${_condDesc}` : ''}`;
+      let obsFinal = obs ? `${obs} · ${_infoTabela}` : _infoTabela;
+      const _obsMax = await getPedidoObsMaxLen(pool);
+      if (obsFinal.length > _obsMax) obsFinal = obsFinal.slice(0, _obsMax);
+
+      // Revalida preços contra a tabela escolhida — não confia nos valores do frontend
       const [precosBd] = await pool.query(`
-        SELECT tpi.cod_produto, tpi.preco_venda
-        FROM tabela_preco_vinculo  tpv
-        JOIN tabela_preco_cabecalho tpc ON tpc.id = tpv.id_tabela
-        JOIN tabela_preco_itens     tpi ON tpi.id_tabela = tpv.id_tabela
-        WHERE tpv.id_entidade = ? AND tpv.tipo_entidade = 'CLIENTE'
-          AND tpv.excluido = 'N' AND tpc.excluido = 'N'
-          AND tpc.Tabela_Ativa = 'S' AND tpi.excluido = 'N'
-      `, [tk.id_cliente]);
+        SELECT cod_produto, COALESCE(valor_tabela, preco_venda) AS preco
+        FROM tabela_preco_itens
+        WHERE id_tabela = ? AND excluido = 'N' AND (ativo = 'S' OR ativo IS NULL)
+          AND COALESCE(valor_tabela, preco_venda) > 0
+      `, [tabela.id_tabela]);
 
       const mapaPrecos = {};
-      precosBd.forEach(p => { mapaPrecos[String(p.cod_produto)] = parseFloat(p.preco_venda); });
+      precosBd.forEach(p => { mapaPrecos[String(p.cod_produto)] = parseFloat(p.preco); });
 
       // Busca fornecedor de cada produto pelo banco (não confia no frontend)
       const prodTb  = await detectProdTable(pool);
@@ -314,6 +449,44 @@ router.post('/:token/pedido', async (req, res) => {
         grupos.get(key).itens.push(item);
       }
 
+      // Regras do fornecedor (quando a tabela escolhida pede): mínimo de faturamento
+      // e mínimo da condição de pagamento — bloqueia o pedido antes de gravar
+      if (String(tabela.usar_regras_fornecedor).toUpperCase() === 'S') {
+        const fornIds = [...grupos.keys()].filter(k => k !== '__sem_forn__');
+        const minForn = {}, minCond = {};
+        if (fornIds.length) {
+          const [rowsF] = await pool.query(
+            `SELECT id, COALESCE(vlr_minimofaturamento, 0) AS minimo FROM fornecedores WHERE id IN (?)`,
+            [fornIds]
+          ).catch(() => [[]]);
+          rowsF.forEach(r => { minForn[String(r.id)] = parseFloat(r.minimo) || 0; });
+
+          if (tabela.cond_pagamento) {
+            const [rowsC] = await pool.query(
+              `SELECT id_fornecedor, COALESCE(valor_minimo, 0) AS minimo
+               FROM fornecedor_condicoes_pagamento
+               WHERE id_condicao = ? AND excluido = 'N' AND id_fornecedor IN (?)`,
+              [tabela.cond_pagamento, fornIds]
+            ).catch(() => [[]]);
+            rowsC.forEach(r => { minCond[String(r.id_fornecedor)] = parseFloat(r.minimo) || 0; });
+          }
+        }
+        const violacoes = [];
+        for (const [key, grupo] of grupos) {
+          const total = grupo.itens.reduce((s, i) => s + i.preco * parseFloat(i.quantidade), 0);
+          const minimo = Math.max(minForn[key] || 0, minCond[key] || 0);
+          if (minimo > 0 && total < minimo - 0.005) {
+            violacoes.push(`${grupo.nome_fornecedor || 'Fornecedor'}: ${_fmtBRL(total)} (mínimo ${_fmtBRL(minimo)})`);
+          }
+        }
+        if (violacoes.length) {
+          throw Object.assign(
+            new Error('Pedido abaixo do mínimo do fornecedor — ' + violacoes.join('; ')),
+            { status: 422 }
+          );
+        }
+      }
+
       const dataAb = hojeIsoBrasil();
       const horaAb = horaBrasil();
 
@@ -349,7 +522,7 @@ router.post('/:token/pedido', async (req, res) => {
               id_tipopedido, tipo_pedido_str, 'PENDENTE', 'PENDENTE',
               totalGrupo, totalGrupo, totalGrupo, 0, 0, totalGrupo,
               tk.id_empresa || null, tk.id_empresa || null, tk.nome_empresa || '',
-              obs || '', 'VITRINE', 'N'
+              obsFinal, 'VITRINE', 'N'
             ]
           );
           const pedidoId = pRes.insertId;

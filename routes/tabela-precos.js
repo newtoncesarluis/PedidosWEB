@@ -3,7 +3,37 @@ const router = express.Router();
 const { getPool } = require('../config/database');
 const { listarTabelasVinculadas } = require('../config/tabela-preco-vinculo');
 const { permCrud, negarCad } = require('../config/cadastros-permissoes');
-const { ensureTabelaPrecoCondPagamentoNullable } = require('../config/schema-migrations');
+const { ensureTabelaPrecoCondPagamentoNullable, ensureVitrineColumns } = require('../config/schema-migrations');
+
+/** Normaliza flag S/N (default 'N') */
+const _sn = (v) => (String(v).toUpperCase() === 'S' ? 'S' : 'N');
+
+/**
+ * Insere os itens da tabela em lotes de 500 (poucas queries em vez de N) —
+ * rápido em banco remoto e seguro contra max_allowed_packet em tabelas grandes.
+ */
+async function _insertItensTabela(conn, idTabela, itens) {
+  if (!Array.isArray(itens) || !itens.length) return;
+  const CHUNK = 500;
+  for (let start = 0; start < itens.length; start += CHUNK) {
+    const rows = itens.slice(start, start + CHUNK).map((item, j) => {
+      const i = start + j;
+      return [
+        idTabela, i + 1, item.cod_produto, item.descricao,
+        item.cod_fabricante ?? null, item.unidade ?? null,
+        item.preco_base ?? null, item.preco_venda,
+        item.tipo_desconto || 'R', item.vlr_desconto ?? 0, item.valor_tabela,
+        item.ativo || 'S', item.vigencia || null, 'N',
+      ];
+    });
+    await conn.query(
+      `INSERT INTO tabela_preco_itens
+         (id_tabela, item, cod_produto, descricao, cod_fabricante, unidade, preco_base, preco_venda, tipo_desconto, vlr_desconto, valor_tabela, ativo, vigencia, excluido)
+       VALUES ?`,
+      [rows]
+    );
+  }
+}
 
 const _permTabelaPrecos = (req) => permCrud(req, {
   incluir: 'incluir_tabela_precos',
@@ -11,11 +41,15 @@ const _permTabelaPrecos = (req) => permCrud(req, {
   excluir: 'excluir_tabela_precos',
 });
 
-/** 
- * Lógica de Autocriação de Tabelas (Opcional, mas seguro)
+/**
+ * Lógica de Autocriação de Tabelas (Opcional, mas seguro).
+ * Cacheado por pool — só roda uma vez por base, não a cada gravação
+ * (evita lentidão em banco remoto, onde cada ida/volta custa).
  */
+const _tabelaPrecoReady = new Set();
 async function ensureTables() {
   const pool = getPool();
+  if (_tabelaPrecoReady.has(pool)) return;
   try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS tabela_preco_cabecalho (
@@ -67,6 +101,8 @@ async function ensureTables() {
     `);
     await ensureTabelaPrecoCondPagamentoNullable(pool);
     await ensureTabelaPrecoVinculoVendedor(pool);
+    await ensureVitrineColumns(pool);
+    _tabelaPrecoReady.add(pool);
   } catch (err) { console.error('Erro ao garantir tabelas:', err); }
 }
 
@@ -152,9 +188,9 @@ router.post('/:id/clonar', async (req, res) => {
     if (!cabOrigem[0]) throw new Error('Tabela original não encontrada');
 
     const [resCab] = await conn.query(
-      `INSERT INTO tabela_preco_cabecalho (Descricao, Data_Inicial, Hora_Inicial, Data_Final, Hora_Final, Cond_Pagamento, Tabela_Ativa, excluido)
-       VALUES (?, ?, ?, ?, ?, ?, 'N', 'N')`,
-      [`CLONE - ${cabOrigem[0].Descricao}`, cabOrigem[0].Data_Inicial, cabOrigem[0].Hora_Inicial, cabOrigem[0].Data_Final, cabOrigem[0].Hora_Final, cabOrigem[0].Cond_Pagamento]
+      `INSERT INTO tabela_preco_cabecalho (Descricao, Data_Inicial, Hora_Inicial, Data_Final, Hora_Final, Cond_Pagamento, Tabela_Ativa, vitrine, usar_regras_fornecedor, excluido)
+       VALUES (?, ?, ?, ?, ?, ?, 'N', ?, ?, 'N')`,
+      [`CLONE - ${cabOrigem[0].Descricao}`, cabOrigem[0].Data_Inicial, cabOrigem[0].Hora_Inicial, cabOrigem[0].Data_Final, cabOrigem[0].Hora_Final, cabOrigem[0].Cond_Pagamento, _sn(cabOrigem[0].vitrine), _sn(cabOrigem[0].usar_regras_fornecedor)]
     );
 
     const novoId = resCab.insertId;
@@ -312,11 +348,11 @@ router.get('/ativa-para/:cliId/:forId/:venId', async (req, res) => {
     const pool = getPool();
     const { cliId, forId, venId } = req.params;
 
-    // Regra: Cliente > Fornecedor > Vendedor
+    // Regra: Fornecedor (fábrica) > Vendedor > Cliente
     const priorities = [
-      { id: cliId, tipo: 'CLIENTE' },
       { id: forId, tipo: 'FORNECEDOR' },
-      { id: venId, tipo: 'VENDEDOR' }
+      { id: venId, tipo: 'VENDEDOR' },
+      { id: cliId, tipo: 'CLIENTE' }
     ];
 
     for (const p of priorities) {
@@ -353,15 +389,15 @@ router.get('/disponiveis-para/:cliId/:forId/:venId', async (req, res) => {
     const { cliId, forId, venId } = req.params;
 
     const priorities = [
-      { id: cliId, tipo: 'CLIENTE' },
       { id: forId, tipo: 'FORNECEDOR' },
-      { id: venId, tipo: 'VENDEDOR' }
+      { id: venId, tipo: 'VENDEDOR' },
+      { id: cliId, tipo: 'CLIENTE' }
     ];
 
     let tabelas = [];
     let origemTabela = null;
 
-    // Tenta buscar as tabelas por prioridade, se achar na prioridade 1 (cliente) já usa elas.
+    // Tenta buscar as tabelas por prioridade: se achar na 1ª (fábrica) já usa elas; senão vendedor; senão cliente.
     for (const p of priorities) {
       if (!p.id || p.id === 'null' || p.id === '0') continue;
       try {
@@ -385,12 +421,12 @@ router.get('/disponiveis-para/:cliId/:forId/:venId', async (req, res) => {
   }
 });
 
-/** Tabelas liberadas (cliente > fornecedor > vendedor) — mesma regra de disponiveis-para. */
+/** Tabelas liberadas (fornecedor/fábrica > vendedor > cliente) — mesma regra de disponiveis-para. */
 async function buscarTabelasLiberadas(pool, cliId, forId, venId) {
   const priorities = [
-    { id: cliId, tipo: 'CLIENTE' },
     { id: forId, tipo: 'FORNECEDOR' },
     { id: venId, tipo: 'VENDEDOR' },
+    { id: cliId, tipo: 'CLIENTE' },
   ];
   for (const p of priorities) {
     if (!p.id || p.id === 'null' || p.id === '0') continue;
@@ -614,7 +650,6 @@ router.post('/', async (req, res) => {
   const conn = await getPool().getConnection();
   try {
     await conn.beginTransaction();
-    await ensureTabelaPrecoCondPagamentoNullable(conn);
     const { itens, ...cab } = req.body;
     cab.Cond_Pagamento = normalizeCondPagamento(cab.Cond_Pagamento);
 
@@ -624,23 +659,14 @@ router.post('/', async (req, res) => {
     }
 
     const [resCab] = await conn.query(
-      `INSERT INTO tabela_preco_cabecalho (Descricao, Data_Inicial, Hora_Inicial, Data_Final, Hora_Final, Cond_Pagamento, Tabela_Ativa, excluido)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'N')`,
-      [cab.Descricao, cab.Data_Inicial, cab.Hora_Inicial, cab.Data_Final, cab.Hora_Final, cab.Cond_Pagamento, cab.Tabela_Ativa || 'S']
+      `INSERT INTO tabela_preco_cabecalho (Descricao, Data_Inicial, Hora_Inicial, Data_Final, Hora_Final, Cond_Pagamento, Tabela_Ativa, vitrine, usar_regras_fornecedor, excluido)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'N')`,
+      [cab.Descricao, cab.Data_Inicial, cab.Hora_Inicial, cab.Data_Final, cab.Hora_Final, cab.Cond_Pagamento, cab.Tabela_Ativa || 'S', _sn(cab.vitrine), _sn(cab.usar_regras_fornecedor)]
     );
 
     const idTabela = resCab.insertId;
 
-    if (itens && itens.length > 0) {
-      for (let i = 0; i < itens.length; i++) {
-        const item = itens[i];
-        await conn.query(
-          `INSERT INTO tabela_preco_itens (id_tabela, item, cod_produto, descricao, cod_fabricante, unidade, preco_base, preco_venda, tipo_desconto, vlr_desconto, valor_tabela, ativo, vigencia, excluido)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'N')`,
-          [idTabela, i + 1, item.cod_produto, item.descricao, item.cod_fabricante, item.unidade, item.preco_base, item.preco_venda, item.tipo_desconto, item.vlr_desconto, item.valor_tabela, item.ativo || 'S', item.vigencia || null]
-        );
-      }
-    }
+    await _insertItensTabela(conn, idTabela, itens);
 
     await conn.commit();
     res.status(201).json({ ok: true, id: idTabela });
@@ -660,7 +686,6 @@ router.put('/:id', async (req, res) => {
   const conn = await getPool().getConnection();
   try {
     await conn.beginTransaction();
-    await ensureTabelaPrecoCondPagamentoNullable(conn);
     const { itens, ...cab } = req.body;
     const idTabela = req.params.id;
     cab.Cond_Pagamento = normalizeCondPagamento(cab.Cond_Pagamento);
@@ -670,25 +695,15 @@ router.put('/:id', async (req, res) => {
     }
 
     await conn.query(
-      `UPDATE tabela_preco_cabecalho SET 
-        Descricao = ?, Data_Inicial = ?, Hora_Inicial = ?, Data_Final = ?, Hora_Final = ?, Cond_Pagamento = ?, Tabela_Ativa = ?
+      `UPDATE tabela_preco_cabecalho SET
+        Descricao = ?, Data_Inicial = ?, Hora_Inicial = ?, Data_Final = ?, Hora_Final = ?, Cond_Pagamento = ?, Tabela_Ativa = ?, vitrine = ?, usar_regras_fornecedor = ?
        WHERE id = ?`,
-      [cab.Descricao, cab.Data_Inicial, cab.Hora_Inicial, cab.Data_Final, cab.Hora_Final, cab.Cond_Pagamento, cab.Tabela_Ativa, idTabela]
+      [cab.Descricao, cab.Data_Inicial, cab.Hora_Inicial, cab.Data_Final, cab.Hora_Final, cab.Cond_Pagamento, cab.Tabela_Ativa, _sn(cab.vitrine), _sn(cab.usar_regras_fornecedor), idTabela]
     );
 
-    // Substituição de itens (Padrão Protheus: deleta e reinsere)
+    // Substituição de itens (Padrão Protheus: deleta e reinsere em lote)
     await conn.query(`DELETE FROM tabela_preco_itens WHERE id_tabela = ?`, [idTabela]);
-
-    if (itens && itens.length > 0) {
-      for (let i = 0; i < itens.length; i++) {
-        const item = itens[i];
-        await conn.query(
-          `INSERT INTO tabela_preco_itens (id_tabela, item, cod_produto, descricao, cod_fabricante, unidade, preco_base, preco_venda, tipo_desconto, vlr_desconto, valor_tabela, ativo, vigencia, excluido)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'N')`,
-          [idTabela, i + 1, item.cod_produto, item.descricao, item.cod_fabricante, item.unidade, item.preco_base, item.preco_venda, item.tipo_desconto, item.vlr_desconto, item.valor_tabela, item.ativo || 'S', item.vigencia || null]
-        );
-      }
-    }
+    await _insertItensTabela(conn, idTabela, itens);
 
     await conn.commit();
     res.json({ ok: true, id: idTabela });

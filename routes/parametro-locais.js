@@ -34,12 +34,15 @@ async function ensureParametroLocaisTable(pool) {
       logo_relatorio VARCHAR(512) NULL DEFAULT NULL,
       logo_tamanho_relatorio VARCHAR(1) NULL DEFAULT 'M',
       fonte_padrao VARCHAR(200) NULL DEFAULT NULL,
+      moeda_exibir_centavos CHAR(1) DEFAULT 'S',
       dt_alteracao DATETIME NULL,
       id_usuario_alterou INT NULL,
       excluido CHAR(1) DEFAULT 'N'
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `).catch(() => {});
   await pool.query(`INSERT IGNORE INTO parametro_locais (id, excluido) VALUES (1, 'N')`).catch(() => {});
+  // migration: adiciona coluna em bases antigas (sem IF NOT EXISTS — compatível MySQL 5.7)
+  await pool.query(`ALTER TABLE parametro_locais ADD COLUMN moeda_exibir_centavos CHAR(1) DEFAULT 'S'`).catch(() => {});
 }
 
 function normLogoTamanho(v) {
@@ -50,7 +53,7 @@ function normLogoTamanho(v) {
 async function getParametroLocais(pool) {
   await ensureParametroLocaisTable(pool);
   const [[row]] = await pool.query(
-    `SELECT id, logo_relatorio, logo_tamanho_relatorio, fonte_padrao, dt_alteracao
+    `SELECT id, logo_relatorio, logo_tamanho_relatorio, fonte_padrao, moeda_exibir_centavos, dt_alteracao
      FROM parametro_locais WHERE id = 1 AND COALESCE(excluido,'N') = 'N' LIMIT 1`
   ).catch(() => [[]]);
   if (!row) {
@@ -78,6 +81,7 @@ async function getParametroLocais(pool) {
     logo_relatorio: logoRel,
     logo_tamanho_relatorio: normLogoTamanho(row.logo_tamanho_relatorio),
     fonte_padrao: row.fonte_padrao || null,
+    moeda_exibir_centavos: ['S','N'].includes(row.moeda_exibir_centavos) ? row.moeda_exibir_centavos : 'S',
   };
 }
 
@@ -120,11 +124,12 @@ router.put('/', async (req, res) => {
     const b = req.body || {};
     const fonte = typeof b.fonte_padrao === 'string' ? b.fonte_padrao.trim().slice(0, 200) : null;
     const tam = normLogoTamanho(b.logo_tamanho_relatorio);
+    const centavos = ['S','N'].includes(b.moeda_exibir_centavos) ? b.moeda_exibir_centavos : 'S';
     const uid = req.user?.id || null;
     await pool.query(
-      `UPDATE parametro_locais SET fonte_padrao=?, logo_tamanho_relatorio=?, dt_alteracao=NOW(), id_usuario_alterou=?
+      `UPDATE parametro_locais SET fonte_padrao=?, logo_tamanho_relatorio=?, moeda_exibir_centavos=?, dt_alteracao=NOW(), id_usuario_alterou=?
        WHERE id=1 AND COALESCE(excluido,'N')='N'`,
-      [fonte || null, tam, uid]
+      [fonte || null, tam, centavos, uid]
     );
     res.json({ ok: true, ...(await getParametroLocais(pool)) });
   } catch (err) {

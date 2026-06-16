@@ -79,17 +79,19 @@ function ensureLogoInTenantDir(idEmpresa, rel) {
 
 async function sanitizeEmpresaRow(pool, row) {
   if (!row || row.id_empresa == null) return row;
-  let resolved = resolveEmpresaLogoRelatorio(row.id_empresa, row.logo_relatorio);
-  if (resolved) resolved = ensureLogoInTenantDir(row.id_empresa, resolved);
-  if (resolved !== (row.logo_relatorio || null)) {
+  const original = row.logo_relatorio || null;
+  let resolved = resolveEmpresaLogoRelatorio(row.id_empresa, original);
+  if (resolved) {
+    resolved = ensureLogoInTenantDir(row.id_empresa, resolved);
     row.logo_relatorio = resolved;
-    if (pool) {
+    if (pool && resolved !== original) {
       await pool.query(
         `UPDATE empresa SET logo_relatorio=? WHERE id_empresa=? AND COALESCE(NULLIF(TRIM(excluido), ''), 'N') = 'N'`,
         [resolved, row.id_empresa]
       ).catch(() => {});
     }
   }
+  // Arquivo ausente no disco: mantém o caminho gravado no banco (não zera logo_relatorio).
   return row;
 }
 

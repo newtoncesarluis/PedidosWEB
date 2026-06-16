@@ -606,6 +606,14 @@
     <img class="logo-brand-img" id="login_logo_fallback_img" src="https://cohrp.com.br/LogoPedidoWeb/pedidsoweb.jpeg" alt="PedidosWeb - CRM de Vendas">
   </div>
 
+  <!-- DEV LOCALHOST: seletor de base de testes (oculto fora de localhost) -->
+  <div id="dev_base_box" style="display:none;margin:0 0 14px;padding:10px 12px;border:1px dashed #f59e0b;border-radius:10px;background:#fffbeb">
+    <label for="dev_base_sel" style="display:block;font-size:12px;font-weight:600;color:#92400e;margin-bottom:6px">🧪 Base de testes (local)</label>
+    <select id="dev_base_sel" onchange="trocarBaseDev(this.value)"
+            style="width:100%;padding:8px;border:1px solid #fcd34d;border-radius:8px;background:#fff;color:#1e293b;font-size:13px"></select>
+    <div id="dev_base_status" style="font-size:11px;color:#92400e;margin-top:6px"></div>
+  </div>
+
   <!-- Aviso de mensalidade -->
   <div class="aviso-mensalidade" id="aviso_mensalidade"></div>
 
@@ -678,7 +686,7 @@
   </div>
 
   <div class="card-footer">
-    PedidosWEB · v1.0.0<br>
+    PedidosWEB · <span id="login-version">v—</span><br>
     © 2020 NC Sistemas
     <div id="lic_licensee_bar"></div>
   </div>
@@ -691,6 +699,8 @@
   <a href="/termos.html" target="_blank">Termos de Uso</a>
   <span>|</span>
   <a href="/suporte.html" target="_blank">Suporte</a>
+  <span>|</span>
+  <a href="#" id="link-sobre">Sobre</a>
   <span>|</span>
   <a href="/licencas.html" target="_blank">Painel de Licenças</a>
 </div>
@@ -803,8 +813,49 @@ function atualizarLogoLoginPorEmpresa() { /* intencional: logo fixo no login */ 
 let sistemasBloqueado = false;
 let _chaveAtiva = '';
 
+// ─── DEV LOCALHOST: seletor de base de testes ───────────────────────────────
+function _isLocalhost() {
+  return ['localhost', '127.0.0.1', '::1'].includes(location.hostname);
+}
+async function carregarBasesDev() {
+  if (!_isLocalhost()) return;
+  try {
+    const r = await fetch('/api/dev/bases');
+    if (!r.ok) return;
+    const d = await r.json();
+    if (!d.ok || !Array.isArray(d.bases) || !d.bases.length) return;
+    const box = document.getElementById('dev_base_box');
+    const sel = document.getElementById('dev_base_sel');
+    sel.innerHTML = d.bases.map(b =>
+      `<option value="${b.chave}" ${b.atual ? 'selected' : ''}>${b.razao}${b.database ? ' — ' + b.database : ''} (${b.chave})</option>`
+    ).join('');
+    box.style.display = 'block';
+  } catch (_) {}
+}
+async function trocarBaseDev(chave) {
+  const st = document.getElementById('dev_base_status');
+  st.textContent = '⏳ Trocando base e reconectando…';
+  try {
+    const r = await fetch('/api/dev/base', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chave })
+    });
+    const d = await r.json();
+    if (!d.ok) { st.textContent = '❌ ' + (d.error || 'Falha ao trocar base'); return; }
+    // Limpa estado de licença antigo e recarrega o login da base nova
+    localStorage.removeItem('sysrep_chave_licenca');
+    localStorage.removeItem('token'); sessionStorage.removeItem('token');
+    st.textContent = `✅ Base: ${d.razao} (${d.database}). Recarregando…`;
+    setTimeout(() => location.reload(), 700);
+  } catch (e) {
+    st.textContent = '❌ ' + e.message;
+  }
+}
+
 // ─── Inicialização ─────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
+  carregarBasesDev();
   const token = sessionStorage.getItem('token') || localStorage.getItem('token');
   if (token) localStorage.setItem('sysrep_has_used_system', '1');
   const offlineOk = token && typeof SysRepPedidosOfflinePack !== 'undefined'
@@ -1025,10 +1076,7 @@ async function verificarMensalidade() {
 
     if (data.chave_licenca) {
       _chaveAtiva = data.chave_licenca;
-      // Só persiste se consultamos com chave específica (checkByKey); checkLocal pode retornar tenant errado
-      if (storedChave) {
-        localStorage.setItem('sysrep_chave_licenca', data.chave_licenca);
-      }
+      localStorage.setItem('sysrep_chave_licenca', data.chave_licenca);
     }
 
     // Exibe info do licenciado discretamente no rodapé do card
@@ -1640,5 +1688,69 @@ async function verifyWaOtp() {
 <script>
 </script>
 <script src="/assets/pwa-install.js"></script>
+
+<!-- ===== Modal "Sobre" ===== -->
+<div id="sobre-overlay" style="display:none;position:fixed;inset:0;z-index:99999;background:rgba(15,23,42,.55);align-items:center;justify-content:center;padding:18px">
+  <div role="dialog" aria-modal="true" aria-labelledby="sobre-title" style="background:#fff;color:#1e293b;width:min(440px,100%);max-height:88vh;overflow-y:auto;border-radius:18px;box-shadow:0 20px 60px rgba(0,0,0,.35);padding:22px 22px 18px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px">
+      <img src="https://cohrp.com.br/LogoPedidoWeb/pedidsoweb.jpeg" alt="" style="width:44px;height:44px;border-radius:10px;object-fit:cover">
+      <div style="flex:1">
+        <div id="sobre-title" style="font-weight:800;font-size:18px;line-height:1.1">PedidosWeb</div>
+        <div style="font-size:12px;color:#64748b">CRM de Vendas · Força de Vendas</div>
+      </div>
+      <button type="button" id="sobre-close" aria-label="Fechar" style="background:transparent;border:none;font-size:22px;line-height:1;color:#94a3b8;cursor:pointer;padding:4px">×</button>
+    </div>
+    <div style="display:inline-flex;align-items:center;gap:6px;margin:8px 0 14px;font-size:12px;font-weight:700;color:#0d9488;background:rgba(13,148,136,.1);padding:3px 10px;border-radius:999px">
+      Versão <span id="sobre-version">—</span>
+    </div>
+    <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#64748b;margin:6px 0 8px">Recursos do sistema</div>
+    <ul style="list-style:none;margin:0 0 14px;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;font-size:13px">
+      <li>📋 Pedidos &amp; orçamentos</li>
+      <li>👥 Clientes &amp; CRM</li>
+      <li>🏭 Fornecedores / Fábricas</li>
+      <li>📦 Produtos &amp; catálogo</li>
+      <li>🏷️ Tabelas de preço &amp; promoções</li>
+      <li>💰 Financeiro (pagar/receber)</li>
+      <li>📊 Comissões &amp; conciliação</li>
+      <li>🛒 Vitrine Digital B2B</li>
+      <li>📱 App mobile (PWA) offline</li>
+      <li>📈 Relatórios &amp; dashboards</li>
+      <li>🗺️ Mapa de clientes &amp; rotas</li>
+      <li>🔐 Multiempresa &amp; licenças</li>
+    </ul>
+    <div style="border-top:1px solid #eef2f7;padding-top:12px;font-size:12px;color:#64748b;line-height:1.6">
+      <strong style="color:#1e293b">NC Sistemas</strong> · Suporte:
+      <a href="/suporte.html" target="_blank" style="color:#0d9488;text-decoration:none">abrir chamado</a><br>
+      © 2020 NC Sistemas — Todos os direitos reservados
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  // Versão dinâmica (rodapé + modal)
+  fetch('/api/version', { cache: 'no-store' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) {
+      if (!d || !d.versao) return;
+      var f = document.getElementById('login-version');
+      var m = document.getElementById('sobre-version');
+      if (f) f.textContent = 'v' + d.versao;
+      if (m) m.textContent = d.versao;
+    })
+    .catch(function () {});
+
+  var ov = document.getElementById('sobre-overlay');
+  function abrir(e) { if (e) e.preventDefault(); if (ov) ov.style.display = 'flex'; }
+  function fechar() { if (ov) ov.style.display = 'none'; }
+  var link = document.getElementById('link-sobre');
+  if (link) link.addEventListener('click', abrir);
+  var btn = document.getElementById('sobre-close');
+  if (btn) btn.addEventListener('click', fechar);
+  if (ov) ov.addEventListener('click', function (e) { if (e.target === ov) fechar(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') fechar(); });
+})();
+</script>
 </body>
 </html>

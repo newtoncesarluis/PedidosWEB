@@ -6,6 +6,10 @@ const { extractMysqlConfigFromLicenseRow } = require('./customer-db-from-license
 const { openTunnel, getTunnelConfig } = require('./ssh-tunnel');
 
 let pool = null;
+// Config resolvida do modo BOUND (da licença) — usada para RECONECTAR o pool global
+// se ele cair (idle/rede). NUNCA reconectar via process.env.DB_NAME em bound mode:
+// isso causava vazamento cross-tenant (pool reconectava no banco do .env, ex: bdally).
+let _boundCfg = null;
 // Per-request pool isolation: map of chave_licenca → pool
 const _poolMap = new Map();
 const _als = new AsyncLocalStorage();
@@ -17,7 +21,15 @@ const _als = new AsyncLocalStorage();
  */
 function getBoundChave() {
   const v = (process.env.CHAVE_LICENCA || '').trim().toUpperCase();
-  return v || null;
+  if (v) return v;
+  // DEV LOCALHOST: a base escolhida em license-binding.json amarra o processo a UM tenant
+  // (bound mode). Elimina a fragilidade multi-tenant (token precisa de chave, pool por
+  // requisição) que atrapalha testes locais. NUNCA em produção — lá vale o multi-tenant real.
+  if (process.env.NODE_ENV !== 'production') {
+    const b = readLicenseBinding();
+    if (b?.chave_licenca) return String(b.chave_licenca).trim().toUpperCase();
+  }
+  return null;
 }
 
 function customerDbFromLicense() {
@@ -93,15 +105,8 @@ async function createPoolFromLicenseBinding() {
     };
   }
 
-  // Dev local: DB_HOST no .env sobrescreve o host/port da licença (túnel SSH)
-  if (process.env.DB_HOST) {
-    cfg.host = process.env.DB_HOST;
-    cfg.port = parseInt(process.env.DB_PORT || '3306', 10);
-    if (process.env.DB_USER)     cfg.user     = process.env.DB_USER;
-    if (process.env.DB_PASSWORD) cfg.password  = process.env.DB_PASSWORD;
-    if (process.env.DB_NAME)     cfg.database  = process.env.DB_NAME;
-    console.log(`[DB] Multi-tenant — override dev: ${cfg.host}:${cfg.port}/${cfg.database}`);
-  }
+  // Dev local: roteia pelo usuário da licença (Oracle direto ou túnel Hostinger).
+  _applyDevHostRouting(cfg);
 
   const newPool = createPool(cfg, binding.chave_licenca);
 
@@ -188,19 +193,32 @@ async function initCustomerDatabase() {
       }
     }
 
-    // Dev local: DB_HOST no .env sobrescreve o host/port da licença (túnel SSH)
-    // ⚠️  NUNCA em produção — produção usa SEMPRE os dados da tabela de licenças.
-    const isDevOverride = process.env.DB_HOST && process.env.NODE_ENV !== 'production';
-    if (cfg && isDevOverride) {
-      cfg.host = process.env.DB_HOST;
-      cfg.port = parseInt(process.env.DB_PORT || '3306', 10);
-      if (process.env.DB_USER)     cfg.user     = process.env.DB_USER;
-      if (process.env.DB_PASSWORD) cfg.password  = process.env.DB_PASSWORD;
-      if (process.env.DB_NAME)     cfg.database  = process.env.DB_NAME;
-      console.log(`[DB] Bound mode — override dev: ${cfg.host}:${cfg.port}/${cfg.database}`);
-    } else if (cfg) {
-      console.log(`[DB] Bound mode — usando licença: ${cfg.host}:${cfg.port}/${cfg.database}`);
+    // ── PROTEÇÃO: licença com user/senha vazios → fallback no .env ──────────────
+    // Evita "Access denied" silencioso quando mysql_password está NULL na licença
+    // ou db_password_enc não descriptografa. NUNCA faz fallback de database (banco
+    // vem SEMPRE da licença — previne contaminação cross-tenant tipo bdally).
+    if (cfg) {
+      if ((!cfg.user || cfg.user === '') && process.env.DB_USER) {
+        console.warn(`[DB] ⚠️ Licença ${boundChave} sem mysql_user — usando DB_USER do .env`);
+        cfg.user = process.env.DB_USER;
+      }
+      if ((cfg.password == null || cfg.password === '') && process.env.DB_PASSWORD) {
+        console.warn(`[DB] ⚠️ Licença ${boundChave} sem mysql_password — usando DB_PASSWORD do .env`);
+        cfg.password = process.env.DB_PASSWORD;
+      }
     }
+
+    // Dev local: roteia pelo USUÁRIO da licença (igual ao multi-tenant) — DEV_DBHOST_<user>
+    // aponta direto (ex: DEV_DBHOST_nilton=147.15.106.135 → Oracle); sem mapeamento vai pelo
+    // túnel SSH (TUNNEL_LOCAL_PORT). Só muda host:port — user/senha/database vêm da licença.
+    // Em produção (sem TUNNEL_LOCAL_PORT) o bloco é NO-OP e usa os dados da licença.
+    if (cfg && process.env.NODE_ENV !== 'production') {
+      _applyDevHostRouting(cfg);
+    }
+    if (cfg) {
+      console.log(`[DB] Bound mode — ${cfg.host}:${cfg.port}/${cfg.database} (user: ${cfg.user})`);
+    }
+    _boundCfg = { ...cfg };           // cache p/ reconexão segura (nunca via .env DB_NAME)
     createPool(cfg); // sem chave_licenca → pool global
     await pool.query('SELECT 1');
     try {
@@ -282,6 +300,32 @@ function _applyPoolDefaults(config) {
   return config;
 }
 
+/**
+ * DEV LOCAL: roteia a conexão para o servidor certo conforme o usuário da licença.
+ * - DEV_DBHOST_<user> no .env → conexão direta a esse host:port (ex.: Oracle remoto).
+ * - Sem mapeamento → vai pelo túnel SSH local (TUNNEL_LOCAL_PORT, ex.: Hostinger).
+ * Só atua quando TUNNEL_LOCAL_PORT existe (dev) e o host da licença é local. NO-OP em produção.
+ * Muda apenas host:port — user/senha/database continuam vindo da licença.
+ */
+function _applyDevHostRouting(config) {
+  const tunnelPort = parseInt(process.env.TUNNEL_LOCAL_PORT || '0', 10);
+  if (!tunnelPort) return; // produção (sem túnel) → não mexe
+  const hostLocal = ['localhost', '127.0.0.1', ''].includes((config.host || '').toLowerCase());
+  if (!hostLocal) return;
+  const devUser = (config.user || '').trim();
+  const direct  = (process.env['DEV_DBHOST_' + devUser] || '').trim();
+  if (direct) {
+    const [h, p] = direct.split(':');
+    config.host = (h || '127.0.0.1').trim();
+    config.port = parseInt(p || '3306', 10);
+    console.log(`[DB] dev routing: user '${devUser}' → direto ${config.host}:${config.port}`);
+  } else {
+    config.host = '127.0.0.1';
+    config.port = tunnelPort;
+    console.log(`[DB] dev routing: user '${devUser}' → túnel 127.0.0.1:${tunnelPort}`);
+  }
+}
+
 function createPool(config = null, chave_licenca = null) {
   // Multi-tenant mode: each license gets its own isolated pool
   if (customerDbFromLicense() && chave_licenca) {
@@ -289,15 +333,13 @@ function createPool(config = null, chave_licenca = null) {
     if (oldPool) oldPool.end().catch(() => {});
     if (!config) throw new Error('createPool em modo multi-tenant requer config');
     _applyPoolDefaults(config);
-    // Dev local: se o host da licença é localhost/127.0.0.1 e há túnel configurado,
-    // redireciona para o túnel SSH. Hosts remotos (ex: 147.x.x.x) conectam direto.
-    const _cfgHostLocal = ['localhost', '127.0.0.1', ''].includes((config.host || '').toLowerCase());
-    if (process.env.DB_HOST && _cfgHostLocal) {
-      config.host = process.env.DB_HOST;
-      config.port = parseInt(process.env.DB_PORT || '3306', 10);
-      if (process.env.DB_USER)     config.user     = process.env.DB_USER;
-      if (process.env.DB_PASSWORD) config.password = process.env.DB_PASSWORD;
-    }
+    // Dev local: a licença grava mysql_host=localhost (co-locado em produção), mas do
+    // localhost "localhost" é ambíguo — cada cliente vive num servidor diferente.
+    // Roteia pelo USUÁRIO da licença (sinal de qual servidor): DEV_DBHOST_<user> no .env
+    // aponta direto (ex: DEV_DBHOST_nilton=147.15.106.135:3306 → Oracle). Sem mapeamento,
+    // vai pelo túnel SSH (TUNNEL_LOCAL_PORT → Hostinger). Só muda host:port — user/senha/db
+    // vêm da licença. Em produção TUNNEL_LOCAL_PORT não existe → bloco ignorado.
+    _applyDevHostRouting(config);
     console.log(`[DB] createPool tenant ${chave_licenca.slice(0,8)}… → ${config.user}@${config.host}:${config.port}/${config.database}`);
     const newPool = mysql.createPool(config);
     _poolMap.set(chave_licenca, newPool);
@@ -340,7 +382,16 @@ function getPool() {
     if (customerDbFromLicense()) {
       throw new Error('Banco do cliente ainda não conectado. Ative a licença na tela de login ou reinicie o servidor.');
     }
-    createPool();
+    // BOUND mode: reconectar SEMPRE pela config da licença em cache — nunca via
+    // process.env.DB_NAME (evita vazamento cross-tenant, ex: reconectar em bdally).
+    if (getBoundChave()) {
+      if (!_boundCfg) {
+        throw new Error('Pool bound fechado e sem config em cache. Reinicie o servidor.');
+      }
+      createPool(_boundCfg);
+    } else {
+      createPool();
+    }
   }
   return pool;
 }
@@ -364,7 +415,15 @@ function resolvePool(req) {
       if (customerDbFromLicense()) {
         throw new Error('Banco do cliente ainda não conectado. Ative a licença na tela de login ou reinicie o servidor.');
       }
-      createPool();
+      // BOUND mode: reconectar pela config da licença em cache — nunca via .env DB_NAME.
+      if (getBoundChave()) {
+        if (!_boundCfg) {
+          throw new Error('Pool bound fechado e sem config em cache. Reinicie o servidor.');
+        }
+        createPool(_boundCfg);
+      } else {
+        createPool();
+      }
     }
     return pool;
   }
@@ -421,6 +480,79 @@ async function testConnection(config) {
   }
 }
 
+// ─── DEV LOCALHOST: seletor de base de testes ────────────────────────────────
+// Lista as bases disponíveis a partir do cache de licenças (.enc) já baixadas neste
+// computador. Usado só em dev (localhost) para escolher em qual cliente testar.
+function listDevBases() {
+  if (process.env.NODE_ENV === 'production') return [];
+  const LicenseCache = require('../services/license-cache');
+  const dir = path.join(process.cwd(), 'data', 'licenses');
+  let files = [];
+  try { files = fs.readdirSync(dir).filter((f) => f.endsWith('.enc')); } catch { return []; }
+  const atual = (readLicenseBinding()?.chave_licenca || '').trim().toUpperCase();
+  const out = [];
+  for (const f of files) {
+    const chave = f.replace(/\.enc$/i, '');
+    const c = LicenseCache.read(chave);
+    if (!c) continue;
+    let cfg = null;
+    try { cfg = c.dados ? extractMysqlConfigFromLicenseRow(c.dados) : null; } catch {}
+    out.push({
+      chave,
+      razao: c.dados?.razao_social || c.dados?.nome || chave,
+      database: cfg?.database || null,
+      atual: chave.toUpperCase() === atual,
+    });
+  }
+  out.sort((a, b) => String(a.razao).localeCompare(String(b.razao)));
+  return out;
+}
+
+/**
+ * Troca a base ativa em DEV (bound mode) sem reiniciar: grava o binding e recria o
+ * pool global apontando para o banco da nova chave. Bloqueado em produção.
+ */
+async function rebindBoundPool(chave) {
+  if (process.env.NODE_ENV === 'production') {
+    return { ok: false, error: 'Troca de base desabilitada em produção' };
+  }
+  const ch = String(chave || '').trim().toUpperCase();
+  if (!ch) return { ok: false, error: 'Chave vazia' };
+
+  const { getLicensePool } = require('./db-license');
+  const licPool = getLicensePool();
+  const [rows] = await licPool.query(
+    'SELECT * FROM sistema_licencas WHERE chave_licenca = ? AND ativo = 1',
+    [ch]
+  );
+  if (!rows.length) return { ok: false, error: `Licença ${ch} não encontrada/ativa` };
+
+  let cfg = extractMysqlConfigFromLicenseRow(rows[0]);
+  if (!cfg) return { ok: false, error: `Licença ${ch} sem dados de conexão MySQL` };
+
+  // Fallbacks de credencial (mesma proteção do boot bound)
+  if ((!cfg.user || cfg.user === '') && process.env.DB_USER) cfg.user = process.env.DB_USER;
+  if ((cfg.password == null || cfg.password === '') && process.env.DB_PASSWORD) cfg.password = process.env.DB_PASSWORD;
+
+  // Mesmo roteamento dev do boot (DEV_DBHOST_<user> → direto; senão túnel)
+  _applyDevHostRouting(cfg);
+
+  // Recria o pool global e valida a conexão ANTES de gravar o binding
+  createPool(cfg); // sem chave → pool global
+  await pool.query('SELECT 1');
+  _boundCfg = { ...cfg };
+
+  // Persiste a escolha e atualiza o cache de licença desta base
+  writeLicenseBinding({ chave_licenca: ch });
+  try {
+    const LicenseCache = require('../services/license-cache');
+    LicenseCache.write(ch, { valid: true, status: rows[0].status || 'ativo', chave_licenca: ch, dados: rows[0] });
+  } catch {}
+
+  console.log(`[DB] Base trocada (dev) → ${ch} | ${cfg.user}@${cfg.host}:${cfg.port}/${cfg.database}`);
+  return { ok: true, chave: ch, database: cfg.database, host: cfg.host, razao: rows[0].razao_social || ch };
+}
+
 module.exports = {
   createPool,
   getPool,
@@ -439,5 +571,7 @@ module.exports = {
   createPoolFromLicenseBinding,
   getGlobalPool: () => pool,
   destroyPoolForLicense,
+  listDevBases,
+  rebindBoundPool,
   _poolMapKeys: () => _poolMap.keys(),
 };

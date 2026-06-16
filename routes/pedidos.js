@@ -29,6 +29,7 @@ const {
   buildPedidosVendedorWhere,
   buildPedidosVendedorWhereSync,
   canPickOtherVendors,
+  getPrepostoContext,
 } = require('../config/vendedor-visibilidade');
 const { buildClienteVendedorWhere } = require('../config/cliente-visibilidade');
 const { produtoBuscaOrSql } = require('../config/produto-busca-texto');
@@ -84,6 +85,20 @@ async function _ensureProdCols(pool) {
   if (!names.has('segmento'))
     await pool.query(`ALTER TABLE ${tb} ADD COLUMN segmento VARCHAR(100) NULL DEFAULT NULL`).catch(() => {});
   _prodColsOk = true;
+}
+
+// Conjunto de colunas reais da tabela de produto, cacheado por banco (multi-tenant).
+// Usado para aplicar filtros opcionais (nome_grupo/marca/kit) só quando a coluna existe.
+const _prodColSetCache = new Map(); // dbName -> Set(colnames lower)
+async function _getProdColSet(pool) {
+  let key = 'default';
+  try { const [[r]] = await pool.query('SELECT DATABASE() AS db'); key = String(r?.db || 'default'); } catch (_) {}
+  if (_prodColSetCache.has(key)) return _prodColSetCache.get(key);
+  const tb = await _getProdTabela(pool);
+  const [cols] = await pool.query(`DESCRIBE ${tb}`);
+  const set = new Set(cols.map(c => String(c.Field).toLowerCase()));
+  _prodColSetCache.set(key, set);
+  return set;
 }
 
 /** Evita dois usuários editando o mesmo pedido ao mesmo tempo (memória + TTL; use ping ao editar). */
@@ -664,7 +679,7 @@ function buildItenspedInsertParams(item, ctx) {
     item.valor_puxada || 0, nPedidoField(item.valor_cliente), pesoItem,
     item.cores_qt || '', imp.obsitem,
     (tipoPedido || '').toString().toUpperCase() || 'PEDIDO', idTipoPedido || null,
-    seqItem + 1, vlrUnitSemImp, item.vlrtotal_itens || 0, vlrDescTotal, pesoItem,
+    seqItem + 1, vlrUnitSemImp, item.vlrtotal_itens || 0, vlrDescTotal, parseFloat(item.peso || 0),
     item.multiplo_sigla || null, item.multiplo_fator || 1,
     item.id_grade || null, item.solado || null, item.tipo_grade || null, gradeResumo || null,
     normalizeTipoPrecoItensped(item.tipo_preco),
@@ -1002,7 +1017,8 @@ router.get('/lookups', async (req, res) => {
     const vendedores = await listVendedoresVisiveis(pool, req, { pix: true });
     const [fornecedores] = await pool.query("SELECT id as id, nome as nome FROM fornecedores WHERE (excluido='N' OR excluido IS NULL) AND COALESCE(tipo, 'FABRICA') = 'FABRICA' ORDER BY nome");
 
-    const vendCli = buildClienteVendedorWhere(req.user, '');
+    const prepCtxLk = await getPrepostoContext(pool, req);
+    const vendCli = buildClienteVendedorWhere(req.user, '', prepCtxLk);
     const qClientes = `SELECT id as id, nome as nome FROM clientes WHERE (excluido='N' OR excluido IS NULL)${vendCli.clause} ORDER BY nome`;
     const [clientes] = await pool.query(qClientes, vendCli.params);
 
@@ -1036,15 +1052,23 @@ router.get('/', async (req, res) => {
     const _eGerente    = !_isAdmin && _perm.gerentecomercial === 'S';
     const _ePreposto   = isPrepostoUser(req);
 
+    const _prepCtx = _ePreposto ? await getPrepostoContext(pool, req) : null;
+
     let visWhere = '';
     let visParams = [];
     if (!_isAdmin && _acessaTodos !== 'S') {
       if (_eGerente) {
         visWhere = ` AND (p.id_usuario = ? OR p.id_usuario IN (SELECT idusuario FROM usuarios WHERE id_gerente = ? AND excluido = 'N'))`;
         visParams = [_userId, _userId];
-      } else if (_ePreposto) {
-        visWhere = ` AND p.id_preposto = ?`;
-        visParams = [_userId];
+      } else if (_prepCtx) {
+        // Preposto: pedidos da carteira do representante + os que ele mesmo lançou
+        if (_prepCtx.modo === 'ATRIBUIDOS') {
+          visWhere = ` AND (p.id_preposto = ? OR p.cod_cliente IN (SELECT cod_cliente FROM preposto_cliente WHERE id_preposto = ? AND excluido = 'N'))`;
+          visParams = [_prepCtx.idPreposto, _prepCtx.idPreposto];
+        } else {
+          visWhere = ` AND (p.id_usuario = ? OR p.id_preposto = ?)`;
+          visParams = [_prepCtx.idRep, _prepCtx.idPreposto];
+        }
       } else {
         visWhere = ` AND p.id_usuario = ?`;
         visParams = [_userId];
@@ -1395,7 +1419,8 @@ router.get('/produtos/busca', async (req, res) => {
     const pool = getPool();
     const tb = await _getProdTabela(pool);
     await _ensureProdCols(pool);
-    const { q = '', limit = 15, id_fornecedor, id_tabela, catalogo, somente_promocao, somente_destaque, somente_lancamento } = req.query;
+    const { q = '', limit = 15, offset = 0, id_fornecedor, id_tabela, catalogo, somente_promocao, somente_destaque, somente_lancamento, segmento } = req.query;
+    const offsetNum = Math.max(0, parseInt(offset) || 0);
     const tabelaId = (id_tabela && id_tabela !== 'null' && id_tabela !== '0') ? parseInt(id_tabela) : null;
     const isCatalogo = catalogo === '1' || catalogo === 'true';
     const filtrarPromo = somente_promocao === '1' || somente_promocao === 'true' || somente_promocao === 'S';
@@ -1490,9 +1515,134 @@ router.get('/produtos/busca', async (req, res) => {
       whereExtra += ` AND p.dt_cadastro IS NOT NULL AND p.dt_cadastro >= DATE_SUB(CURDATE(), INTERVAL 90 DAY) `;
     }
 
+    const prodCols = await _getProdColSet(pool);
+    const grupoJoinSql = prodCols.has('id_grupo')
+      ? ' LEFT JOIN grupos g ON g.id = p.id_grupo '
+      : '';
+
+    if (segmento && segmento.trim() && prodCols.has('segmento')) {
+      whereExtra += ` AND p.segmento = ?`;
+      params.push(segmento.trim());
+    }
+
+    // Filtros rápidos do catálogo (botão de subtabelas no modal): aplicados só se a coluna existir
+    const { nome_grupo, marca, tipograde: fTipoGrade, kit } = req.query;
+    if (nome_grupo && nome_grupo.trim()) {
+      const ng = nome_grupo.trim();
+      if (prodCols.has('nome_grupo') && prodCols.has('id_grupo')) {
+        whereExtra += ` AND (p.nome_grupo = ? OR g.descricao = ?)`;
+        params.push(ng, ng);
+      } else if (prodCols.has('nome_grupo')) {
+        whereExtra += ` AND p.nome_grupo = ?`;
+        params.push(ng);
+      } else if (prodCols.has('id_grupo')) {
+        whereExtra += ` AND g.descricao = ?`;
+        params.push(ng);
+      }
+    }
+    if (marca && marca.trim() && prodCols.has('marca')) {
+      whereExtra += ` AND p.marca = ?`;
+      params.push(marca.trim());
+    }
+    if (fTipoGrade && String(fTipoGrade).trim() && prodCols.has('tipograde')) {
+      whereExtra += ` AND p.tipograde = ?`;
+      params.push(parseInt(fTipoGrade) || 0);
+    }
+    if ((kit === 'S' || kit === '1') && prodCols.has('kit')) {
+      whereExtra += ` AND p.kit = 'S'`;
+    }
+
+    const whereBase = `(p.excluido = 'N' OR p.excluido IS NULL OR p.excluido = '')
+         AND p.situacao = 'A'
+         ${whereExtra}
+         AND ${whereSearch}`;
+    const whereParams = [...params, ...searchParams];
+
+    // Facets do catálogo: categorias/marcas presentes na busca atual (não o cadastro inteiro)
+    if (req.query.facets === '1' || req.query.facets === 'true') {
+      const facets = { categorias: [], grupos: [], marcas: [], grades: [], tem_kit: false };
+      if (prodCols.has('segmento')) {
+        const [segRows] = await pool.query(
+          `SELECT DISTINCT TRIM(p.segmento) AS v
+             FROM ${tb} p ${join}${grupoJoinSql}
+            WHERE ${whereBase}
+              AND p.segmento IS NOT NULL AND TRIM(p.segmento) <> ''
+            ORDER BY v`,
+          whereParams
+        );
+        facets.categorias = segRows.map((r) => r.v).filter(Boolean);
+      }
+
+      const grupoSet = new Set();
+      if (prodCols.has('nome_grupo')) {
+        const [gRows] = await pool.query(
+          `SELECT DISTINCT TRIM(p.nome_grupo) AS v
+             FROM ${tb} p ${join}${grupoJoinSql}
+            WHERE ${whereBase}
+              AND p.nome_grupo IS NOT NULL AND TRIM(p.nome_grupo) <> ''
+            ORDER BY v`,
+          whereParams
+        );
+        gRows.map((r) => r.v).filter(Boolean).forEach((v) => grupoSet.add(v));
+      }
+      if (prodCols.has('id_grupo')) {
+        const [gDescRows] = await pool.query(
+          `SELECT DISTINCT TRIM(g.descricao) AS v
+             FROM ${tb} p ${join}${grupoJoinSql}
+            WHERE ${whereBase}
+              AND g.descricao IS NOT NULL AND TRIM(g.descricao) <> ''
+            ORDER BY v`,
+          whereParams
+        );
+        gDescRows.map((r) => r.v).filter(Boolean).forEach((v) => grupoSet.add(v));
+      }
+      facets.grupos = [...grupoSet].sort((a, b) => String(a).localeCompare(String(b), 'pt-BR', { sensitivity: 'base' }));
+      if (prodCols.has('marca')) {
+        const [mRows] = await pool.query(
+          `SELECT DISTINCT TRIM(p.marca) AS v
+             FROM ${tb} p ${join}${grupoJoinSql}
+            WHERE ${whereBase}
+              AND p.marca IS NOT NULL AND TRIM(p.marca) <> ''
+            ORDER BY v`,
+          whereParams
+        );
+        facets.marcas = mRows.map((r) => r.v).filter(Boolean);
+      }
+      if (prodCols.has('tipograde')) {
+        const [grRows] = await pool.query(
+          `SELECT DISTINCT p.tipograde AS id, TRIM(tg.nome) AS nome
+             FROM ${tb} p ${join}${grupoJoinSql}
+             LEFT JOIN tipograde tg ON tg.id = p.tipograde
+            WHERE ${whereBase}
+              AND p.tipograde IS NOT NULL AND p.tipograde > 0
+            ORDER BY nome`,
+          whereParams
+        );
+        facets.grades = grRows
+          .filter((r) => r.id && r.nome)
+          .map((r) => ({ id: r.id, nome: r.nome }));
+      }
+      if (prodCols.has('kit')) {
+        const [[kitRow]] = await pool.query(
+          `SELECT COUNT(*) AS n FROM ${tb} p ${join}${grupoJoinSql}
+            WHERE ${whereBase} AND p.kit = 'S' LIMIT 1`,
+          whereParams
+        );
+        facets.tem_kit = (kitRow?.n || 0) > 0;
+      }
+      return res.json(facets);
+    }
+
+    const selSegmento = prodCols.has('segmento') ? 'p.segmento' : 'NULL AS segmento';
+    const selMarca = prodCols.has('marca') ? 'p.marca' : 'NULL AS marca';
+    const selNomeGrupo = prodCols.has('nome_grupo') ? 'p.nome_grupo' : 'NULL AS nome_grupo';
+    const selKit = prodCols.has('kit') ? "IFNULL(p.kit, 'N') AS kit" : "NULL AS kit";
+    const selGrupoDesc = prodCols.has('id_grupo') ? 'g.descricao AS grupo_descricao' : 'NULL AS grupo_descricao';
+
     const [rows] = await pool.query(
       `SELECT p.ID as id, p.ID as cod_produto,
-              p.cod_fabricante, p.cod_barras, p.segmento, p.descricao, p.descricao as desc_produto,
+              p.cod_fabricante, p.cod_barras, ${selSegmento}, ${selMarca}, ${selNomeGrupo}, ${selGrupoDesc}, ${selKit},
+              p.descricao, p.descricao as desc_produto,
               p.unidade, ${vlrVendaExpr} as vlr_venda, ${precoTabelaExpr} as preco_da_tabela, p.ipi, p.comissao,
               IFNULL(p.precoa, 0) as precoa, IFNULL(p.precob, 0) as precob,
               IFNULL(p.precoc, 0) as precoc, IFNULL(p.precopromo, 0) as precopromo,
@@ -1513,17 +1663,35 @@ router.get('/produtos/busca', async (req, res) => {
               )) AS foto_principal,
               IFNULL(p.tipograde, 0) as tipograde,
               IFNULL(p.solado, '') as solado,
-              IFNULL(p.tipoprodutograde, '') as tipoprodutograde
+              IFNULL(p.tipoprodutograde, '') as tipoprodutograde,
+              IFNULL(p.peso_liquido, 0) as peso_liquido
        FROM ${tb} p
-       ${join}
+       ${join}${grupoJoinSql}
        WHERE (p.excluido = 'N' OR p.excluido IS NULL OR p.excluido = '')
          AND p.situacao = 'A'
          ${whereExtra}
          AND ${whereSearch}
        ORDER BY ${isBarcodeLike ? '(p.cod_barras = ? OR p.cod_fabricante = ?) DESC,' : ''} p.descricao
-       LIMIT ?`,
-      [...params, ...searchParams, ...(isBarcodeLike ? [qTrim, qTrim] : []), parseInt(limit)]
+       LIMIT ? OFFSET ?`,
+      [...params, ...searchParams, ...(isBarcodeLike ? [qTrim, qTrim] : []), parseInt(limit), offsetNum]
     );
+    // Total para paginação por scroll (mesmo WHERE/JOIN, sem ORDER BY/LIMIT)
+    let total = null;
+    if (!filtrarPromo && !filtrarDestaque) {
+      try {
+        const [[cnt]] = await pool.query(
+          `SELECT COUNT(DISTINCT p.ID) AS total
+             FROM ${tb} p
+             ${join}${grupoJoinSql}
+             WHERE (p.excluido = 'N' OR p.excluido IS NULL OR p.excluido = '')
+               AND p.situacao = 'A'
+               ${whereExtra}
+               AND ${whereSearch}`,
+          [...params, ...searchParams]
+        );
+        total = cnt?.total ?? null;
+      } catch (_) { total = null; }
+    }
     const promoCtx = await _promoCtxFromPedidoQuery(pool, req.query);
     const qtdPromo = parseFloat(req.query.qtd) || 1;
     let data = await enrichProdutosComPromocao(pool, rows, { qtd: qtdPromo, ...promoCtx });
@@ -1541,7 +1709,7 @@ router.get('/produtos/busca', async (req, res) => {
     if (isPrepostoUser(req)) {
       data = stripProdutosComissaoRep(data);
     }
-    res.json({ data });
+    res.json({ data, total });
   } catch (err) {
     console.error('[/produtos/busca] ERRO:', err.message);
     res.status(500).json({ error: err.message });
@@ -2608,6 +2776,7 @@ router.get('/ultimo-por-cliente/:id_cliente', async (req, res) => {
     const _perm = req.user?.permissoes || {};
     const _acessaTodos = _isAdmin ? 'S' : (_perm.acessartodosclientes || '');
     const _eGerente = !_isAdmin && _perm.gerentecomercial === 'S';
+    const _prepCtxHist = await getPrepostoContext(pool, req);
 
     let visWhere = '';
     const visParams = [];
@@ -2615,6 +2784,10 @@ router.get('/ultimo-por-cliente/:id_cliente', async (req, res) => {
       if (_eGerente) {
         visWhere = ` AND (p.id_usuario = ? OR p.id_usuario IN (SELECT idusuario FROM usuarios WHERE id_gerente = ? AND excluido = 'N'))`;
         visParams.push(_userId, _userId);
+      } else if (_prepCtxHist) {
+        // Preposto: histórico da carteira do representante + seus próprios pedidos
+        visWhere = ` AND (p.id_usuario = ? OR p.id_preposto = ?)`;
+        visParams.push(_prepCtxHist.idRep, _prepCtxHist.idPreposto);
       } else {
         visWhere = ` AND p.id_usuario = ?`;
         visParams.push(_userId);
@@ -2667,7 +2840,8 @@ router.get('/offline-pack', async (req, res) => {
       ...req.user,
       permissoes: { ...permJwt, ...permDb },
     };
-    const vendCli = buildClienteVendedorWhere(userCliente, 'c');
+    const prepCtxPack = await getPrepostoContext(pool, req);
+    const vendCli = buildClienteVendedorWhere(userCliente, 'c', prepCtxPack);
     const qCli = `SELECT c.* FROM clientes c WHERE (c.excluido = 'N' OR c.excluido IS NULL OR c.excluido = '')${vendCli.clause} ORDER BY c.nome`;
     const [clientes] = await pool.query(qCli, vendCli.params);
 

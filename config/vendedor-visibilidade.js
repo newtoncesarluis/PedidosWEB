@@ -22,6 +22,38 @@ function isGerenteComercial(req) {
   return !isAdminUser(req) && perm(req).gerentecomercial === 'S';
 }
 
+/** Preposto — vendedor vinculado a um representante principal (id_gerente). */
+function isPrepostoUser(req) {
+  return req?.user?.tipo_usuario === 'PREPOSTO';
+}
+
+/**
+ * Contexto de visibilidade do preposto logado.
+ * Retorna null se o usuário não é preposto.
+ * @returns {{ idRep:number|null, idPreposto:number, modo:'TODOS'|'ATRIBUIDOS' }|null}
+ *  - idRep: id do representante principal (carteira que o preposto enxerga)
+ *  - modo TODOS = toda a carteira do representante
+ *  - modo ATRIBUIDOS = só clientes vinculados em preposto_cliente
+ */
+async function getPrepostoContext(pool, req) {
+  if (!isPrepostoUser(req)) return null;
+  const idPreposto = req?.user?.id;
+  let idRep = req?.user?.id_gerente || null;
+  let modo = 'TODOS';
+  try {
+    const [[row]] = await pool.query(
+      `SELECT id_gerente, COALESCE(preposto_visibilidade,'TODOS') AS modo
+       FROM usuarios WHERE idusuario = ? LIMIT 1`,
+      [idPreposto]
+    );
+    if (row) {
+      idRep = row.id_gerente || idRep;
+      modo = String(row.modo || 'TODOS').toUpperCase() === 'ATRIBUIDOS' ? 'ATRIBUIDOS' : 'TODOS';
+    }
+  } catch { /* coluna/tabela pode não existir em base muito antiga → TODOS */ }
+  return { idRep, idPreposto, modo };
+}
+
 /** Pode escolher outro vendedor no combo (admin, acessartodosclientes ou gerente). */
 function canPickOtherVendors(req) {
   return canAccessAllVendors(req) || isGerenteComercial(req);
@@ -166,6 +198,8 @@ module.exports = {
   isAdminUser,
   canAccessAllVendors,
   isGerenteComercial,
+  isPrepostoUser,
+  getPrepostoContext,
   canPickOtherVendors,
   isVendedorVisivel,
   resolveVendedorIdForFilter,

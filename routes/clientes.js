@@ -1,6 +1,7 @@
 const express = require('express');
 const router  = express.Router();
 const { getPool, runWithRequestPool } = require('../config/database');
+const { getPrepostoContext } = require('../config/vendedor-visibilidade');
 const multer  = require('multer');
 const path    = require('path');
 const fs      = require('fs');
@@ -129,8 +130,20 @@ router.get('/', async (req, res) => {
     const isAdmin = req.user?.perfil == 1;
     const acessaTodos   = isAdmin ? 'S' : (perm.acessartodosclientes || '');
     const eGerente      = !isAdmin && perm.gerentecomercial === 'S';
+    const prepCtx       = await getPrepostoContext(pool, req);
     if (!isAdmin && acessaTodos !== 'S') {
-      if (eGerente) {
+      if (prepCtx) {
+        // Preposto: enxerga a carteira do representante principal (id_gerente)
+        if (prepCtx.modo === 'ATRIBUIDOS') {
+          // só clientes vinculados ao preposto
+          where.push(`c.id IN (SELECT cod_cliente FROM preposto_cliente WHERE id_preposto = ? AND excluido = 'N')`);
+          vals.push(prepCtx.idPreposto);
+        } else {
+          // toda a carteira do representante
+          where.push(`(c.cod_vendedor = ? OR CAST(c.cod_vendedor AS UNSIGNED) = ?)`);
+          vals.push(prepCtx.idRep, prepCtx.idRep);
+        }
+      } else if (eGerente) {
         // Gerente vê os próprios clientes + clientes da equipe subordinada
         where.push(`(c.cod_vendedor = ? OR c.cod_vendedor IN (SELECT idusuario FROM usuarios WHERE id_gerente = ? AND excluido = 'N'))`);
         vals.push(userId, userId);

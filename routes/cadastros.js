@@ -1134,7 +1134,7 @@ router.get('/formas-pagamento', async (req, res) => {
     const pool = getPool();
     await ensureFormaPagtoTable(pool);
     const c = await formaPagtoColumns(pool);
-    const [rows] = await pool.query(`SELECT * FROM forma_pagto WHERE excluido='N' ORDER BY descricao`);
+    const [rows] = await pool.query(`SELECT * FROM forma_pagto WHERE (excluido='N' OR excluido IS NULL) ORDER BY descricao`);
     const formas = rows.map(r => formaPagtoMergedPrazo(r, c));
     res.json({ formas });
   } catch (err) { res.status(500).json({ error: err.message }); }

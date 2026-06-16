@@ -172,8 +172,20 @@ function sendServiceWorkerFile(_req, res) {
 app.get('/sw.js', sendServiceWorkerFile);
 app.get('/sw-v3.js', sendServiceWorkerFile);
 
+// Versão semântica (MAJOR.MINOR.RELEASE.SEQUENCIAL) — editada manualmente em version.json antes do deploy
+let _appVersionCache = null;
+function getAppVersion() {
+  if (_appVersionCache) return _appVersionCache;
+  try {
+    _appVersionCache = JSON.parse(fs.readFileSync(path.join(ROOT_DIR, 'version.json'), 'utf8')).versao || '0.0.0.0';
+  } catch (_) {
+    _appVersionCache = '0.0.0.0';
+  }
+  return _appVersionCache;
+}
+
 // Versão atual do servidor — cliente compara para detectar novo deploy
-app.get('/api/version', (_req, res) => res.json({ v: BUILD_ID }));
+app.get('/api/version', (_req, res) => res.json({ v: BUILD_ID, versao: getAppVersion() }));
 
 // HTML administrativo: no-store. Telas PWA/mobile: cache para uso offline no celular (HTTP sem SW).
 app.use((req, res, next) => {
@@ -275,13 +287,46 @@ app.get('/primeiro-admin.html', (req, res) => {
 const { licenseMiddleware } = require('./middleware/license');
 const { authMiddleware } = require('./middleware/auth');
 
+// ─── DEV LOCALHOST: seletor de base de testes (nunca em produção/rede) ───────
+function _isLocalhostDev(req) {
+  if (process.env.NODE_ENV === 'production') return false;
+  const ip = (req.ip || req.connection?.remoteAddress || '').replace('::ffff:', '');
+  return ip === '127.0.0.1' || ip === '::1' || ip === 'localhost';
+}
+
+// GET /api/dev/bases — lista as bases já baixadas neste PC + qual está ativa
+app.get('/api/dev/bases', (req, res) => {
+  if (!_isLocalhostDev(req)) return res.status(404).json({ error: 'not found' });
+  try {
+    const { listDevBases } = require('./config/database');
+    res.json({ ok: true, bases: listDevBases() });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// POST /api/dev/base { chave } — troca a base ativa ao vivo (bound mode), sem reiniciar
+app.post('/api/dev/base', async (req, res) => {
+  if (!_isLocalhostDev(req)) return res.status(404).json({ error: 'not found' });
+  try {
+    const { rebindBoundPool } = require('./config/database');
+    const r = await rebindBoundPool(req.body?.chave);
+    if (!r.ok) return res.status(400).json(r);
+    try { require('./middleware/license').invalidateLicenseCache(); } catch {}
+    res.json(r);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 // GET /api/license/check — verificação pública (sem auth) usada pelo login.html
 app.get('/api/license/check', async (req, res) => {
   try {
     const LicenseService = require('./services/license-service');
-    const { customerDbFromLicense, getBoundChave } = require('./config/database');
+    const { customerDbFromLicense, getBoundChave, readLicenseBinding } = require('./config/database');
     // Em modo BOUND: usa a chave do processo se não vier na query
-    const chave  = (req.query.chave || '').trim().toUpperCase() || getBoundChave() || null;
+    // Fallback: license-binding.json (instalações locais sem CHAVE_LICENCA no env)
+    const chave  = (req.query.chave || '').trim().toUpperCase() || getBoundChave() || readLicenseBinding()?.chave_licenca || null;
     // Em multi-tenant: sem chave = tenant desconhecido → nunca cair no checkLocal() global
     const result = chave
       ? await LicenseService.checkByKey(chave)

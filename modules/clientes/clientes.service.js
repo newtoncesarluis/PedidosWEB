@@ -10,6 +10,7 @@ const dependentesSvc = require('./sub/dependentes.service');
 const lembretesSvc = require('./sub/lembretes.service');
 const tabelaSvc = require('./sub/tabelapreco.service');
 const { getPool } = require('../../config/database');
+const { getPrepostoContext } = require('../../config/vendedor-visibilidade');
 const { validarCliente, validarCpfCnpj } = require('./clientes.validator');
 
 // ─── LISTAR ───────────────────────────────────────────────────────────────────
@@ -160,6 +161,13 @@ async function criarCliente(body, user) {
     dados.cod_vendedor = user.id;
   }
 
+  // Preposto: o cliente entra na carteira do REPRESENTANTE (id_gerente),
+  // não na do preposto — senão sumiria da própria lista dele (filtro por idRep).
+  const prepCtxNovo = await getPrepostoContext(pool, { user });
+  if (prepCtxNovo && prepCtxNovo.idRep) {
+    dados.cod_vendedor = prepCtxNovo.idRep;
+  }
+
   // Transação
   const conn = await pool.getConnection();
   await conn.beginTransaction();
@@ -266,6 +274,13 @@ async function atualizarCliente(id, body, user) {
   // Segurança: forçar cod_vendedor quando gacessartodosclientes='S'
   if (config.gacessartodosclientes === 'S') {
     dadosAtualizar.cod_vendedor = user.id;
+  }
+
+  // Preposto: mantém o cliente na carteira do representante (não deixa o
+  // preposto mover o cliente para fora da carteira ao editar).
+  const prepCtxUpd = await getPrepostoContext(pool, { user });
+  if (prepCtxUpd && prepCtxUpd.idRep) {
+    dadosAtualizar.cod_vendedor = prepCtxUpd.idRep;
   }
 
   // Transação

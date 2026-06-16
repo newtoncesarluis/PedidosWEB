@@ -83,6 +83,7 @@ const DEFAULT_CAMPOS_PRODUTO = [
   { nome_campo: 'estoque_minimo',   apelido: 'Estoque Mínimo',     tipo: 'decimal', ordem: 21, obrigatorio: 'N' },
   { nome_campo: 'estoque_maximo',   apelido: 'Estoque Máximo',     tipo: 'decimal', ordem: 22, obrigatorio: 'N' },
   { nome_campo: 'estoque_seguranca',apelido: 'Estoque Segurança',  tipo: 'decimal', ordem: 23, obrigatorio: 'N' },
+  { nome_campo: 'segmento',          apelido: 'Categoria/Segmento', tipo: 'texto',   ordem: 24, obrigatorio: 'N' },
 ];
 
 let _defaultCamposProdutoSeeded = false;
@@ -659,6 +660,19 @@ router.post('/importar-linha', async (req, res) => {
         dadosParaSalvar.multiplo_venda = String(mv);
       } else {
         delete dadosParaSalvar.multiplo_venda;
+      }
+    }
+
+    // Auto-cria categoria se o segmento importado não existir na tabela categoria
+    if (dadosParaSalvar.segmento && dadosParaSalvar.segmento.trim()) {
+      const segVal = dadosParaSalvar.segmento.trim();
+      const [[catExist]] = await conn.query(
+        `SELECT id FROM categoria WHERE descricao = ? AND excluido = 'N' LIMIT 1`, [segVal]
+      ).catch(() => [[null]]);
+      if (!catExist) {
+        await conn.query(
+          `INSERT IGNORE INTO categoria (descricao, status, excluido) VALUES (?, 'A', 'N')`, [segVal]
+        ).catch(() => {});
       }
     }
 

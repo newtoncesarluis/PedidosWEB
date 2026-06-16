@@ -899,6 +899,25 @@ function setEmpresaLogoPreview(pathOrNull) {
   }
 }
 
+/** Atualiza sessionStorage da empresa logada após upload/remoção da logo. */
+function syncEmpresaLogoSessao(logoPath) {
+  try {
+    const raw = sessionStorage.getItem('empresa');
+    if (!raw || !_editId) return;
+    const emp = JSON.parse(raw);
+    if (String(emp.id_empresa) !== String(_editId)) return;
+    emp.logo_relatorio = logoPath || null;
+    if (logoPath) {
+      emp.logo_url = absLogoEmpresa(logoPath);
+    } else {
+      delete emp.logo_url;
+    }
+    const tam = document.getElementById('f-logo_tamanho_relatorio')?.value;
+    if (tam) emp.logo_tamanho_relatorio = tam;
+    sessionStorage.setItem('empresa', JSON.stringify(emp));
+  } catch (_) {}
+}
+
 async function enviarLogoEmpresa(file, empresaId) {
   const id = empresaId || _editId;
   if (!id || !file) return;
@@ -912,6 +931,7 @@ async function enviarLogoEmpresa(file, empresaId) {
   const d = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(d.error || d.message || r.statusText);
   setEmpresaLogoPreview(d.logo_relatorio);
+  syncEmpresaLogoSessao(d.logo_relatorio);
 }
 
 async function removerLogoEmpresa() {
@@ -927,6 +947,7 @@ async function removerLogoEmpresa() {
   try {
     await api(`/api/empresas/${_editId}/logo`, { method: 'DELETE' });
     setEmpresaLogoPreview(null);
+    syncEmpresaLogoSessao(null);
     const fi = document.getElementById('f-logo-file');
     if (fi) fi.value = '';
     toast('Logo removida.');

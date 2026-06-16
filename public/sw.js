@@ -1,5 +1,5 @@
 // Service Worker — PedidosWeb PWA
-const CACHE_NAME = 'pedidosweb-v2-__BUILD_ID__';
+const CACHE_NAME = 'pedidosweb-v3-__BUILD_ID__';
 
 const MOBILE_PAGES = [
   '/pages/pedidos.html',

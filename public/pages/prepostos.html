@@ -101,7 +101,7 @@ tbody tr:last-child td{border-bottom:none}
   <div class="search-group">
     <input id="searchInput" type="text" placeholder="Buscar preposto..." autocomplete="off" oninput="filtrar()">
   </div>
-  <button class="btn btn-primary" onclick="abrirForm()">
+  <button class="btn btn-primary" id="btnNovo" onclick="abrirForm()">
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
     Novo Preposto
   </button>
@@ -130,6 +130,19 @@ tbody tr:last-child td{border-bottom:none}
         <div class="field-group">
           <label class="field-label">% Comissão</label>
           <input class="input-field" id="fPct" type="number" step="0.01" min="0" max="100" value="6" placeholder="6.00">
+        </div>
+        <div class="field-group">
+          <label class="field-label">Representante vinculado *</label>
+          <select class="input-field" id="fGerente">
+            <option value="">— selecione —</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Visibilidade de clientes</label>
+          <select class="input-field" id="fVisib">
+            <option value="TODOS">Toda a carteira do representante</option>
+            <option value="ATRIBUIDOS">Somente clientes selecionados</option>
+          </select>
         </div>
       </div>
       <div class="form-actions">
@@ -165,12 +178,37 @@ tbody tr:last-child td{border-bottom:none}
     </div>
   </div>
 
+  <!-- CLIENTES ATRIBUÍDOS PANEL -->
+  <div class="com-panel" id="cliPanel">
+    <div class="com-header">
+      <span class="com-title" id="cliNome">Clientes atribuídos</span>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" onclick="salvarClientes()">Salvar seleção</button>
+        <button class="btn btn-ghost" onclick="fecharCli()">Fechar</button>
+      </div>
+    </div>
+    <div class="search-group" style="margin:0 0 12px 0">
+      <input id="cliSearch" type="text" placeholder="Buscar cliente..." autocomplete="off" oninput="renderCli()" style="width:100%">
+    </div>
+    <div class="table-card">
+      <div class="table-wrap" style="max-height:420px;overflow-y:auto">
+        <table>
+          <thead><tr>
+            <th style="width:40px"><input type="checkbox" id="cliAll" onchange="toggleAllCli(this.checked)"></th>
+            <th>Cliente</th><th>Cidade/UF</th>
+          </tr></thead>
+          <tbody id="cliBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
   <!-- LISTA -->
   <div class="table-card">
     <div class="table-wrap">
       <table>
         <thead><tr>
-          <th>Nome</th><th>Login</th><th>% Comissão</th><th>Status</th><th style="text-align:right">Ações</th>
+          <th>Nome</th><th>Login</th><th>Representante</th><th>% Comissão</th><th>Status</th><th style="text-align:right">Ações</th>
         </tr></thead>
         <tbody id="tbody"></tbody>
       </table>
@@ -193,10 +231,23 @@ let _filtrados = [];
 // ── Auth ─────────────────────────────────────────────────────────────────────
 (function initToken() {
   try {
-    const raw = sessionStorage.getItem('authToken') || localStorage.getItem('authToken') || '';
-    _token = raw.startsWith('"') ? JSON.parse(raw) : raw;
+    const raw = (window.parent && window.parent.App && window.parent.App.token)
+      || sessionStorage.getItem('token') || localStorage.getItem('token')
+      || sessionStorage.getItem('authToken') || localStorage.getItem('authToken') || '';
+    _token = (raw && raw.startsWith('"')) ? JSON.parse(raw) : raw;
   } catch { _token = ''; }
 })();
+
+// ── Permissões (do JWT) ─────────────────────────────────────────────────────
+let _perm = {}, _isAdmin = false;
+(function initPerm() {
+  try {
+    const p = JSON.parse(atob(_token.split('.')[1]));
+    _isAdmin = p.perfil == 1 || p.role === 'admin';
+    _perm = p.permissoes || {};
+  } catch { _perm = {}; }
+})();
+function can(k) { return _isAdmin || _perm[k] === 'S'; }
 
 async function api(path, opts = {}) {
   const r = await fetch(BASE + path, {
@@ -222,6 +273,22 @@ function toast(msg, ok = true) {
   d.textContent = msg;
   document.getElementById('toast').appendChild(d);
   setTimeout(() => d.remove(), 3000);
+}
+
+// ── Vendedores (para combo Representante) ─────────────────────────────────────
+let _vendedores = [];
+async function carregarVendedores() {
+  try {
+    const data = await api('/lookups/vendedores');
+    _vendedores = data.vendedores || data || [];
+    const sel = document.getElementById('fGerente');
+    _vendedores.forEach(v => {
+      const o = document.createElement('option');
+      o.value = v.id || v.idusuario;
+      o.textContent = v.nome || v.nomeusu;
+      sel.appendChild(o);
+    });
+  } catch (_) {}
 }
 
 // ── Carregar lista ────────────────────────────────────────────────────────────
@@ -261,21 +328,26 @@ function renderizar() {
     return `<tr>
       <td><strong>${esc(p.nome)}</strong></td>
       <td style="color:var(--text2)">${esc(p.login)}</td>
+      <td style="color:var(--text2);font-size:12px">${esc(p.nome_gerente || '—')}</td>
       <td><strong>${parseFloat(p.pct_comissao || 6).toFixed(2).replace('.',',')}%</strong></td>
       <td><span class="badge badge-${cls}">${label}</span></td>
       <td class="td-actions">
+        ${(p.preposto_visibilidade === 'ATRIBUIDOS' && can('alterar_prepostos')) ? `<button class="btn-sm btn-sm-edit" title="Clientes atribuídos" onclick="gerenciarClientes(${p.id},'${esc(p.nome)}')">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0z"/></svg>
+          Clientes
+        </button>` : ''}
         <button class="btn-sm btn-sm-com" title="Comissões" onclick="verComissoes(${p.id},'${esc(p.nome)}')">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
           Comissões
         </button>
-        <button class="btn-sm btn-sm-edit" title="Editar" onclick="editar(${p.id})">
+        ${can('alterar_prepostos') ? `<button class="btn-sm btn-sm-edit" title="Editar" onclick="editar(${p.id})">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/></svg>
           Editar
-        </button>
-        <button class="btn-sm btn-sm-delete" title="Inativar" onclick="inativar(${p.id},'${esc(p.nome)}')">
+        </button>` : ''}
+        ${can('excluir_prepostos') ? `<button class="btn-sm btn-sm-delete" title="Inativar" onclick="inativar(${p.id},'${esc(p.nome)}')">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
           Inativar
-        </button>
+        </button>` : ''}
       </td>
     </tr>`;
   }).join('');
@@ -293,6 +365,8 @@ function abrirForm(p = null) {
   document.getElementById('fLogin').value = p?.login || '';
   document.getElementById('fSenha').value = '';
   document.getElementById('fPct').value   = p?.pct_comissao ?? 6;
+  document.getElementById('fVisib').value = p?.preposto_visibilidade || 'TODOS';
+  document.getElementById('fGerente').value = p?.id_gerente || '';
   document.getElementById('fLogin').disabled = !!p;
   fc.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -307,19 +381,23 @@ function editar(id) {
 async function salvar(ev) {
   ev.preventDefault();
   const id   = document.getElementById('fId').value;
-  const nome = document.getElementById('fNome').value.trim();
-  const pct  = parseFloat(document.getElementById('fPct').value) || 6;
+  const nome    = document.getElementById('fNome').value.trim();
+  const pct     = parseFloat(document.getElementById('fPct').value) || 6;
+  const visib   = document.getElementById('fVisib').value || 'TODOS';
+  const gerente = parseInt(document.getElementById('fGerente').value) || null;
+
+  if (!gerente) { toast('Selecione o representante vinculado', false); return; }
 
   try {
     if (id) {
-      const body = { nome, pct_comissao: pct };
+      const body = { nome, pct_comissao: pct, preposto_visibilidade: visib, id_gerente: gerente };
       const senha = document.getElementById('fSenha').value;
       if (senha) body.senha = senha;
       await api('/prepostos/' + id, { method: 'PUT', body: JSON.stringify(body) });
     } else {
       const login = document.getElementById('fLogin').value.trim();
       const senha = document.getElementById('fSenha').value;
-      await api('/prepostos', { method: 'POST', body: JSON.stringify({ nome, login, senha, pct_comissao: pct }) });
+      await api('/prepostos', { method: 'POST', body: JSON.stringify({ nome, login, senha, pct_comissao: pct, preposto_visibilidade: visib, id_gerente: gerente }) });
     }
     toast('Preposto salvo com sucesso');
     fecharForm();
@@ -380,7 +458,73 @@ async function verComissoes(id, nome) {
 
 function fecharCom() { document.getElementById('comPanel').classList.remove('open'); }
 
+// ── Clientes atribuídos ─────────────────────────────────────────────────────────
+let _cliPrepId = null;
+let _cliLista = [];
+let _cliSel = new Set();
+
+async function gerenciarClientes(id, nome) {
+  _cliPrepId = id;
+  try {
+    const data = await api(`/prepostos/${id}/clientes`);
+    _cliLista = data.clientes || [];
+    _cliSel = new Set((data.atribuidos || []).map(Number));
+    document.getElementById('cliNome').textContent = 'Clientes atribuídos — ' + nome;
+    document.getElementById('cliSearch').value = '';
+    renderCli();
+    const panel = document.getElementById('cliPanel');
+    panel.classList.add('open');
+    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch (err) {
+    toast(err.message, false);
+  }
+}
+
+function renderCli() {
+  const q = (document.getElementById('cliSearch').value || '').toLowerCase();
+  const lista = q ? _cliLista.filter(c => (c.nome || '').toLowerCase().includes(q) || (c.cidade || '').toLowerCase().includes(q)) : _cliLista;
+  const body = document.getElementById('cliBody');
+  if (!lista.length) {
+    body.innerHTML = `<tr><td colspan="3" style="text-align:center;padding:32px;color:var(--text2)">Nenhum cliente na carteira do representante</td></tr>`;
+    return;
+  }
+  body.innerHTML = lista.map(c => `
+    <tr onclick="toggleCli(${c.id})">
+      <td><input type="checkbox" ${_cliSel.has(Number(c.id)) ? 'checked' : ''} onclick="event.stopPropagation();toggleCli(${c.id})"></td>
+      <td><strong>${esc(c.nome)}</strong></td>
+      <td style="color:var(--text2)">${esc(c.cidade || '')}${c.uf ? '/' + esc(c.uf) : ''}</td>
+    </tr>
+  `).join('');
+}
+
+function toggleCli(id) {
+  id = Number(id);
+  if (_cliSel.has(id)) _cliSel.delete(id); else _cliSel.add(id);
+  renderCli();
+}
+
+function toggleAllCli(check) {
+  const q = (document.getElementById('cliSearch').value || '').toLowerCase();
+  const lista = q ? _cliLista.filter(c => (c.nome || '').toLowerCase().includes(q) || (c.cidade || '').toLowerCase().includes(q)) : _cliLista;
+  lista.forEach(c => { if (check) _cliSel.add(Number(c.id)); else _cliSel.delete(Number(c.id)); });
+  renderCli();
+}
+
+async function salvarClientes() {
+  try {
+    await api(`/prepostos/${_cliPrepId}/clientes`, { method: 'POST', body: JSON.stringify({ ids: [..._cliSel] }) });
+    toast('Clientes atribuídos salvos');
+    fecharCli();
+  } catch (err) {
+    toast(err.message, false);
+  }
+}
+
+function fecharCli() { document.getElementById('cliPanel').classList.remove('open'); }
+
 // ── Init ──────────────────────────────────────────────────────────────────────
+if (!can('incluir_prepostos')) { const b = document.getElementById('btnNovo'); if (b) b.style.display = 'none'; }
+carregarVendedores();
 carregar();
 </script>
 </body>

@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Relatório de Peso (kg)</title>
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:var(--content-bg);--card:var(--card-bg);--border:var(--card-border);--text:var(--content-text);--text2:var(--text2);--accent:var(--accent);--accent-hover:var(--accent-hover);--input-bg:var(--card-bg)}
+body{font-family:var(--font,'Inter',sans-serif);background:var(--bg);color:var(--text);min-height:100vh}
+.toolbar{background:var(--card);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.05)}
+.toolbar-title{font-size:13px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;white-space:nowrap;display:flex;align-items:center;gap:6px}
+.sep{width:1px;height:26px;background:var(--border);flex-shrink:0}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 13px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;transition:.15s;font-family:inherit;white-space:nowrap}
+.btn svg{width:13px;height:13px;flex-shrink:0}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover:not(:disabled){background:var(--accent-hover)}
+.btn-outline{background:transparent;color:var(--accent);border:1.5px solid var(--accent)}
+.btn-outline:hover{background:var(--accent-soft,rgba(14,165,233,.08))}
+.btn-ghost{background:transparent;color:var(--text2);border:1.5px solid var(--border)}
+.btn-ghost:hover{border-color:var(--accent);color:var(--accent)}
+input,select{font-family:inherit;font-size:12px;background:var(--input-bg);color:var(--text);border:1.5px solid var(--border);border-radius:8px;padding:6px 10px;outline:none;transition:.15s;height:32px}
+input:focus,select:focus{border-color:var(--accent)}
+select option{background:var(--card);color:var(--text)}
+.content{padding:20px;max-width:1300px;margin:0 auto}
+
+/* STATS */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;align-items:flex-start;gap:12px}
+.stat-icon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px}
+.stat-icon.green{background:#dcfce7;color:#16a34a}
+.stat-icon.blue{background:#dbeafe;color:#2563eb}
+.stat-icon.amber{background:#fef3c7;color:#d97706}
+.stat-icon.purple{background:#ede9fe;color:#7c3aed}
+.stat-body .label{font-size:10px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.6px}
+.stat-body .value{font-size:22px;font-weight:800;margin-top:2px;line-height:1.1}
+.stat-body .sub{font-size:10px;color:var(--text2);margin-top:2px}
+
+/* TABS */
+.tabs{display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:20px}
+.tab-btn{padding:10px 20px;cursor:pointer;border:none;background:transparent;font-size:13px;font-weight:600;color:var(--text2);border-bottom:2.5px solid transparent;margin-bottom:-2px;font-family:inherit;transition:.15s}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+
+/* TABLE */
+.table-wrap{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:20px}
+.table-header{padding:14px 18px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:8px}
+.table-header h2{font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px}
+table{width:100%;border-collapse:collapse}
+th{font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;padding:9px 14px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
+td{font-size:13px;padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(14,165,233,.04)}
+.text-right{text-align:right}
+.text-center{text-align:center}
+.num{font-variant-numeric:tabular-nums;font-weight:600}
+.num-kg{font-variant-numeric:tabular-nums;font-weight:700;color:var(--accent)}
+
+/* PROGRESS BAR */
+.bar-wrap{display:flex;align-items:center;gap:8px;min-width:80px}
+.mini-bar{background:var(--border);border-radius:3px;height:6px;overflow:hidden;flex:1;min-width:50px}
+.mini-fill{height:100%;background:var(--accent);border-radius:3px;transition:width .4s}
+.pct-label{font-size:10px;font-weight:700;color:var(--text2);width:32px;text-align:right;flex-shrink:0}
+
+/* TOTALIZADOR RODAPÉ */
+tfoot td{font-weight:700;font-size:12px;border-top:2px solid var(--border)!important;background:var(--bg);border-bottom:none!important}
+
+/* EMPTY/LOADER */
+.empty{text-align:center;padding:40px;color:var(--text2);font-size:13px}
+.loader-wrap{display:flex;align-items:center;justify-content:center;padding:40px;gap:10px;color:var(--text2)}
+.spin{width:20px;height:20px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* BADGE */
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700}
+.badge-green{background:#dcfce7;color:#166534}
+.badge-blue{background:#dbeafe;color:#1d4ed8}
+.badge-gray{background:var(--border);color:var(--text2)}
+
+@media print{
+  .toolbar{display:none!important}
+  .tabs{display:none!important}
+  .content{padding:8px}
+  .tab-panel{display:block!important}
+}
+@media(max-width:640px){
+  .stats-grid{grid-template-columns:1fr 1fr}
+  .toolbar{gap:6px}
+  .hide-mobile{display:none}
+  th:nth-child(3),td:nth-child(3){display:none}
+}
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <span class="toolbar-title">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"/>
+    </svg>
+    Peso por Vendedor / Rota
+  </span>
+  <div class="sep"></div>
+
+  <input type="date" id="f_dt_inicio" style="width:130px" title="Data início">
+  <input type="date" id="f_dt_fim"    style="width:130px" title="Data fim">
+  <select id="f_situacao" style="width:120px">
+    <option value="TODOS">Todas situações</option>
+    <option value="PENDENTE">Pendente</option>
+    <option value="APROVADO">Aprovado</option>
+    <option value="FATURADO">Faturado</option>
+    <option value="CANCELADO">Cancelado</option>
+  </select>
+  <select id="f_vendedor" style="width:150px"><option value="">Todos vendedores</option></select>
+  <select id="f_rota"     style="width:140px"><option value="">Todas rotas</option></select>
+
+  <button class="btn btn-primary" onclick="carregar()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path stroke-linecap="round" d="M21 21l-4.35-4.35"/></svg>
+    Pesquisar
+  </button>
+  <div class="sep hide-mobile"></div>
+  <button class="btn btn-ghost hide-mobile" onclick="window.print()" title="Imprimir">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6z"/></svg>
+    Imprimir
+  </button>
+</div>
+
+<div class="content">
+
+  <!-- CARDS -->
+  <div class="stats-grid" id="stats-grid" style="display:none">
+    <div class="stat-card">
+      <div class="stat-icon green">⚖</div>
+      <div class="stat-body">
+        <div class="label">Total Peso</div>
+        <div class="value" id="stat-total-kg">—</div>
+        <div class="sub">kg no período</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon blue">📦</div>
+      <div class="stat-body">
+        <div class="label">Total Pedidos</div>
+        <div class="value" id="stat-total-ped">—</div>
+        <div class="sub">pedidos no período</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon amber">📊</div>
+      <div class="stat-body">
+        <div class="label">Média kg/Pedido</div>
+        <div class="value" id="stat-media-kg">—</div>
+        <div class="sub">kg por pedido</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon purple">💰</div>
+      <div class="stat-body">
+        <div class="label">Total Vendas</div>
+        <div class="value" id="stat-total-valor">—</div>
+        <div class="sub">valor no período</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TABS -->
+  <div class="tabs" id="tabs-bar" style="display:none">
+    <button class="tab-btn active" onclick="switchTab('vendedor', this)">Por Vendedor</button>
+    <button class="tab-btn"       onclick="switchTab('rota', this)">Por Rota</button>
+  </div>
+
+  <!-- PANEL POR VENDEDOR -->
+  <div id="panel-vendedor" class="tab-panel">
+    <div class="table-wrap">
+      <div class="table-header">
+        <h2>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px">
+            <path stroke-linecap="round" d="M16 11c1.657 0 3-1.79 3-4s-1.343-4-3-4-3 1.79-3 4 1.343 4 3 4zM8 13c2.21 0 4-2.239 4-5S10.21 3 8 3 4 5.239 4 8s1.79 5 4 5zm8 1c-2.33 0-7 1.17-7 3.5V21h14v-3.5c0-2.33-4.67-3.5-7-3.5zM8 15c-2.67 0-8 1.34-8 4v2h8"/>
+          </svg>
+          Peso por Vendedor
+        </h2>
+        <span id="lbl-periodo-vend" style="font-size:11px;color:var(--text2)"></span>
+      </div>
+      <div id="tbl-vendedor-body"></div>
+    </div>
+  </div>
+
+  <!-- PANEL POR ROTA -->
+  <div id="panel-rota" class="tab-panel" style="display:none">
+    <div class="table-wrap">
+      <div class="table-header">
+        <h2>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px">
+            <path stroke-linecap="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
+          </svg>
+          Peso por Rota
+        </h2>
+        <span id="lbl-periodo-rota" style="font-size:11px;color:var(--text2)"></span>
+      </div>
+      <div id="tbl-rota-body"></div>
+    </div>
+  </div>
+
+  <!-- ESTADO INICIAL -->
+  <div id="estado-inicial" style="text-align:center;padding:60px 20px;color:var(--text2)">
+    <div style="font-size:40px;margin-bottom:12px">⚖</div>
+    <div style="font-size:15px;font-weight:700;margin-bottom:6px">Relatório de Peso por Vendedor e Rota</div>
+    <div style="font-size:13px">Selecione o período e clique em <strong>Pesquisar</strong></div>
+  </div>
+
+  <!-- LOADER -->
+  <div id="loader" class="loader-wrap" style="display:none">
+    <div class="spin"></div>
+    <span>Carregando...</span>
+  </div>
+
+</div><!-- /content -->
+
+<script>
+const api = (path) => fetch(path, { credentials: 'same-origin' });
+let _tabAtiva = 'vendedor';
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function fmtKg(v) {
+  return Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+}
+function fmtNum(v) {
+  return Number(v || 0).toLocaleString('pt-BR');
+}
+function fmtMoeda(v) {
+  return Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 });
+}
+
+// ── Período padrão (mês atual) ─────────────────────────────────────────────
+(function() {
+  const now = new Date();
+  const y = now.getFullYear(), m = String(now.getMonth()+1).padStart(2,'0');
+  const d = String(now.getDate()).padStart(2,'0');
+  document.getElementById('f_dt_inicio').value = `${y}-${m}-01`;
+  document.getElementById('f_dt_fim').value    = `${y}-${m}-${d}`;
+})();
+
+// ── Carregar lookups ───────────────────────────────────────────────────────
+async function carregarLookups() {
+  // Vendedores
+  try {
+    const r = await api('/api/lookups/vendedores');
+    if (r.ok) {
+      const lista = await r.json();
+      const sel = document.getElementById('f_vendedor');
+      lista.forEach(v => {
+        const o = document.createElement('option');
+        o.value = v.id || v.idusuario;
+        o.textContent = v.nome || v.nomeusu;
+        sel.appendChild(o);
+      });
+    }
+  } catch(_) {}
+
+  // Rotas
+  try {
+    const r = await api('/api/lookups/regioes');
+    if (r.ok) {
+      const lista = await r.json();
+      const sel = document.getElementById('f_rota');
+      lista.forEach(rt => {
+        const o = document.createElement('option');
+        o.value = rt.id;
+        o.textContent = rt.descricao || rt.nome;
+        sel.appendChild(o);
+      });
+    }
+  } catch(_) {}
+}
+
+// ── Switch de abas ─────────────────────────────────────────────────────────
+function switchTab(tab, btnEl) {
+  _tabAtiva = tab;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  if (btnEl) btnEl.classList.add('active');
+  document.getElementById('panel-vendedor').style.display = tab === 'vendedor' ? '' : 'none';
+  document.getElementById('panel-rota').style.display     = tab === 'rota'     ? '' : 'none';
+}
+
+// ── Renderizar tabela vendedor ────────────────────────────────────────────
+function renderVendedor(dados, totalKg) {
+  const cont = document.getElementById('tbl-vendedor-body');
+  if (!dados.length) {
+    cont.innerHTML = '<div class="empty">Nenhum pedido no período selecionado.</div>';
+    return;
+  }
+  let html = `<table>
+    <thead><tr>
+      <th>#</th>
+      <th>Vendedor</th>
+      <th class="text-right">Pedidos</th>
+      <th class="text-right">Total kg</th>
+      <th class="text-right hide-mobile">Total Valor</th>
+      <th>% do Total</th>
+    </tr></thead>
+    <tbody>`;
+  dados.forEach((r, i) => {
+    html += `<tr>
+      <td style="color:var(--text2);font-size:11px;width:30px">${i+1}</td>
+      <td><strong>${esc(r.nome_vendedor)}</strong></td>
+      <td class="text-right num">${fmtNum(r.total_pedidos)}</td>
+      <td class="text-right num-kg">${fmtKg(r.total_kg)} kg</td>
+      <td class="text-right num hide-mobile">${fmtMoeda(r.total_valor)}</td>
+      <td>
+        <div class="bar-wrap">
+          <div class="mini-bar"><div class="mini-fill" style="width:${r.pct_kg}%"></div></div>
+          <span class="pct-label">${r.pct_kg}%</span>
+        </div>
+      </td>
+    </tr>`;
+  });
+  const totPed  = dados.reduce((s,r) => s + r.total_pedidos, 0);
+  const totVal  = dados.reduce((s,r) => s + r.total_valor, 0);
+  html += `</tbody>
+    <tfoot><tr>
+      <td colspan="2">Total</td>
+      <td class="text-right num">${fmtNum(totPed)}</td>
+      <td class="text-right num-kg">${fmtKg(totalKg)} kg</td>
+      <td class="text-right num hide-mobile">${fmtMoeda(totVal)}</td>
+      <td></td>
+    </tr></tfoot>
+  </table>`;
+  cont.innerHTML = html;
+}
+
+// ── Renderizar tabela rota ─────────────────────────────────────────────────
+function renderRota(dados, totalKg) {
+  const cont = document.getElementById('tbl-rota-body');
+  if (!dados.length) {
+    cont.innerHTML = '<div class="empty">Nenhum pedido no período selecionado.</div>';
+    return;
+  }
+  let html = `<table>
+    <thead><tr>
+      <th>#</th>
+      <th>Rota</th>
+      <th class="text-right">Pedidos</th>
+      <th class="text-right">Total kg</th>
+      <th class="text-right hide-mobile">Total Valor</th>
+      <th>% do Total</th>
+    </tr></thead>
+    <tbody>`;
+  dados.forEach((r, i) => {
+    html += `<tr>
+      <td style="color:var(--text2);font-size:11px;width:30px">${i+1}</td>
+      <td><strong>${esc(r.nome_rota)}</strong></td>
+      <td class="text-right num">${fmtNum(r.total_pedidos)}</td>
+      <td class="text-right num-kg">${fmtKg(r.total_kg)} kg</td>
+      <td class="text-right num hide-mobile">${fmtMoeda(r.total_valor)}</td>
+      <td>
+        <div class="bar-wrap">
+          <div class="mini-bar"><div class="mini-fill" style="width:${r.pct_kg}%"></div></div>
+          <span class="pct-label">${r.pct_kg}%</span>
+        </div>
+      </td>
+    </tr>`;
+  });
+  const totPed  = dados.reduce((s,r) => s + r.total_pedidos, 0);
+  const totVal  = dados.reduce((s,r) => s + r.total_valor, 0);
+  html += `</tbody>
+    <tfoot><tr>
+      <td colspan="2">Total</td>
+      <td class="text-right num">${fmtNum(totPed)}</td>
+      <td class="text-right num-kg">${fmtKg(totalKg)} kg</td>
+      <td class="text-right num hide-mobile">${fmtMoeda(totVal)}</td>
+      <td></td>
+    </tr></tfoot>
+  </table>`;
+  cont.innerHTML = html;
+}
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Carregar dados ─────────────────────────────────────────────────────────
+async function carregar() {
+  document.getElementById('estado-inicial').style.display = 'none';
+  document.getElementById('loader').style.display = '';
+  document.getElementById('stats-grid').style.display = 'none';
+  document.getElementById('tabs-bar').style.display = 'none';
+  document.getElementById('panel-vendedor').style.display = 'none';
+  document.getElementById('panel-rota').style.display = 'none';
+
+  const ini  = document.getElementById('f_dt_inicio').value;
+  const fim  = document.getElementById('f_dt_fim').value;
+  const sit  = document.getElementById('f_situacao').value;
+  const vend = document.getElementById('f_vendedor').value;
+  const rota = document.getElementById('f_rota').value;
+
+  const params = new URLSearchParams();
+  if (ini)  params.set('dt_inicio',   ini);
+  if (fim)  params.set('dt_fim',      fim);
+  if (sit && sit !== 'TODOS') params.set('situacao', sit);
+  if (vend) params.set('id_vendedor', vend);
+  if (rota) params.set('id_rota',     rota);
+
+  try {
+    const r = await api(`/api/analytics/comercial/peso-por-vendedor-rota?${params}`);
+    if (!r.ok) throw new Error(await r.text());
+    const d = await r.json();
+
+    // Totais
+    document.getElementById('stat-total-kg').textContent    = fmtKg(d.totais.total_kg) + ' kg';
+    document.getElementById('stat-total-ped').textContent   = fmtNum(d.totais.total_pedidos);
+    document.getElementById('stat-media-kg').textContent    = fmtKg(d.totais.media_kg_por_pedido) + ' kg';
+    document.getElementById('stat-total-valor').textContent = fmtMoeda(d.totais.total_valor);
+
+    // Período para subtítulo das tabelas
+    const periodo = ini && fim ? `${ini.split('-').reverse().join('/')} a ${fim.split('-').reverse().join('/')}` : '';
+    document.getElementById('lbl-periodo-vend').textContent = periodo;
+    document.getElementById('lbl-periodo-rota').textContent = periodo;
+
+    renderVendedor(d.por_vendedor, d.totais.total_kg);
+    renderRota(d.por_rota, d.totais.total_kg);
+
+    document.getElementById('stats-grid').style.display = '';
+    document.getElementById('tabs-bar').style.display = '';
+    switchTab(_tabAtiva, document.querySelector(`.tab-btn${_tabAtiva==='rota' ? ':nth-child(2)' : ':nth-child(1)'}`));
+  } catch(e) {
+    document.getElementById('estado-inicial').style.display = '';
+    document.getElementById('estado-inicial').innerHTML =
+      `<div style="font-size:32px;margin-bottom:10px">⚠️</div>
+       <div style="font-size:14px;font-weight:700;color:var(--danger,#ef4444)">Erro ao carregar dados</div>
+       <div style="font-size:12px;color:var(--text2);margin-top:4px">${esc(e.message)}</div>`;
+  } finally {
+    document.getElementById('loader').style.display = 'none';
+  }
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+carregarLookups();
+</script>
+</body>
+</html>

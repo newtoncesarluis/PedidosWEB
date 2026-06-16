@@ -300,6 +300,20 @@ router.get('/grupos', async (req, res) => {
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
+// ─── GET /api/produtos/marcas ─────────────────────────────────────────────────
+// Lista distinta de marcas (para filtro rápido do catálogo no pedido).
+// Tolerante a bases legadas sem a coluna `marca` → retorna [].
+router.get('/marcas', async (req, res) => {
+  try {
+    const pool = getPool();
+    const tb = await getTabela(pool);
+    const [rows] = await pool.query(
+      `SELECT DISTINCT marca FROM ${tb} WHERE marca IS NOT NULL AND marca<>'' ORDER BY marca`
+    );
+    res.json(rows.map(r => r.marca));
+  } catch(err) { res.json([]); }
+});
+
 // ─── Preferências da lista (ex.: exibir fotos) ───────────────────────────────
 const CREATE_PREFS_GRID = `
   CREATE TABLE IF NOT EXISTS preferencias_grid (

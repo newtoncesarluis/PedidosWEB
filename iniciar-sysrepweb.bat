@@ -15,10 +15,9 @@ set LICENSE_DB_NAME=sistema_licencas
 
 if not exist "%DIR%logs" mkdir "%DIR%logs"
 
-:: Mata TODOS os processos nas portas usadas (server + tunel SSH)
+:: Mata apenas o servidor Node anterior (porta 3002)
+:: NÃO matar 3307/3308 — são túneis SSH do HeidiSQL e do sistema
 for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":3002 "') do taskkill /F /PID %%a >nul 2>&1
-for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":3307 "') do taskkill /F /PID %%a >nul 2>&1
-for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":3308 "') do taskkill /F /PID %%a >nul 2>&1
 
 timeout /t 2 /nobreak >nul
 

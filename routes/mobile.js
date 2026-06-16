@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { getPool } = require('../config/database');
 const { buildClienteVendedorWhere, podeVerTodosClientes } = require('../config/cliente-visibilidade');
+const { getPrepostoContext } = require('../config/vendedor-visibilidade');
 
 // GET /api/mobile/resumo-dia — KPIs do dia para o top bar do shell
 router.get('/resumo-dia', async (req, res) => {
@@ -66,7 +67,9 @@ router.get('/dados-offline', async (req, res) => {
     const prodTb = prodRows.length ? 'produto' : 'produtos';
 
     // Clientes: mesma regra da tela web (acessartodosclientes / gerente / cod_vendedor)
-    const vendFilter = buildClienteVendedorWhere(user, 'c');
+    // Preposto enxerga a carteira do representante (id_gerente)
+    const prepCtx = await getPrepostoContext(pool, req);
+    const vendFilter = buildClienteVendedorWhere(user, 'c', prepCtx);
     const clienteWhere = `WHERE COALESCE(NULLIF(TRIM(c.excluido),''),'N') = 'N'${vendFilter.clause}`;
 
     const [clientes, produtos] = await Promise.all([

@@ -9,7 +9,9 @@
 
 ## REGRA 1 — Verificar colunas antes de escrever SQL
 
-**OBRIGATÓRIO**: antes de escrever qualquer query SQL envolvendo uma tabela que não seja do código principal (`pedidos`, `itensped`, `clientes`, `fornecedores`, `produtos`/`produto`), verificar os nomes de coluna reais.
+**OBRIGATÓRIO**: antes de escrever qualquer query SQL envolvendo uma tabela que não seja do código principal (`pedidos`, `itensped`, `clientes`, `fornecedores`, `produto`), verificar os nomes de coluna reais.
+
+> ⚠️ **Tabela de produtos = `produto` (singular). A tabela `produtos` NÃO existe neste projeto. Nunca usar `produtos` em SQL, migrations ou código.**
 
 Como verificar:
 1. Grep no arquivo de rota correspondente: `routes/fornecedores.js`, `routes/clientes.js`, `routes/produtos.js`, etc.
@@ -44,7 +46,13 @@ Exemplos de erros passados por não fazer isso:
 - Lançamento pagar: `valor`, `valor_pagar` e `vlrcomjuros` recebem o mesmo valor informado no formulário
 - `forma_pagto` (combo condição pagamento): **não** filtrar `status IN ('S','A')` — legado pode não ter coluna `status` (SQL falha → combo vazio) ou `excluido IS NULL`; usar **`config/forma-pagto-lookup.js`** (`listFormasPagamentoLookup`); cadastro completo em **`GET /api/formas-pagamento`**
 - `tabela_preco_cabecalho.Cond_Pagamento` — **opcional** (`INT NULL`); migration **`ensureTabelaPrecoCondPagamentoNullable`** (FK impede MODIFY direto)
+- `tabela_preco_cabecalho` tem flags da vitrine: **`vitrine`** (`ENUM('S','N')` default `'N'` — só `'S'` + vinculada ao cliente aparece no seletor da vitrine) e **`usar_regras_fornecedor`** (`ENUM('S','N')` default `'N'` — `'S'` valida mínimo de faturamento `fornecedores.vlr_minimofaturamento` + mínimo da condição `fornecedor_condicoes_pagamento.valor_minimo` no pedido da vitrine); migration **`ensureVitrineColumns`** (sem backfill — default `'N'`, liberar manualmente no cadastro; cacheada por base). Vitrine = 1 tabela escolhida por pedido (sem mesclar preços); `GET /api/vitrine/:token` retorna `tabelas[]` + `produtos[].precos{id_tabela:preco}`; `POST .../pedido` recebe `id_tabela`. Preço da vitrine = **`COALESCE(valor_tabela, preco_venda)`** + filtro `> 0` + `(ativo='S' OR ativo IS NULL)` (GET e POST iguais); pedido grava `· Tabela: X · Pagamento: Y` no `obs`. Representante pode restringir o link a tabelas específicas: **`vitrine_tokens.ids_tabelas`** (CSV; NULL = todas liberadas); **`GET /api/vitrine/tabelas-cliente/:id`** (auth) lista p/ o seletor, **`PATCH /api/vitrine/:token/tabelas`** (auth) grava a seleção; GET/POST `/:token` filtram por `ids_tabelas` (`_selIdsFromToken`). Seletor no modal do link em `home.html` (`_vitrinePickerTabelas`), só com 2+ tabelas
+- `forma_pagto`: registros Delphi legado têm **`excluido=NULL`** — sempre usar `WHERE (excluido='N' OR excluido IS NULL)`; nunca `WHERE excluido='N'` isolado (o lookup `/api/lookups/condicoes-pagamento` já faz isso; o CRUD precisava da correção)
 - `pedidos` NÃO tem coluna `data_pedido` — coluna real é **`data_abertura`**; usar `MONTH(data_abertura)` e `YEAR(data_abertura)` em filtros de período
+- **Prioridade da tabela de preço — DIFERE por contexto:**
+  - **Pedidos** (desktop + mobile): ordem **Fábrica → Vendedor → Cliente** (`FORNECEDOR > VENDEDOR > CLIENTE`). Loop `priorities` em **`routes/tabela-precos.js`** (3 lugares: `ativa-para`, `disponiveis-para`, `buscarTabelasLiberadas`) com `break` no 1º nível que tiver tabela. Frontend (`pedidos.html`) pega `tabelas[0]` como padrão + badge de origem (`_tabelaPrecoOrigem` / `checkPriceRule`). **Nunca** voltar a ordem para Cliente-first (bug: trazia tabela do cliente quando a fábrica também tinha).
+  - **Vitrine Digital**: regra é **só do Cliente** — função própria **`getTabelasVitrineCliente`** em `routes/vitrine.js` (`tipo_entidade='CLIENTE'` + `tpc.vitrine='S'`). **NÃO** usa o loop de prioridade dos pedidos. Ao mexer na prioridade dos pedidos, não tocar na vitrine.
+  - Pedidos offline: `disponiveis-para` é cacheada em `pedidos-offline-pack.js` — vendedor precisa re-preparar offline após deploy para pegar a nova ordem.
 
 **Nunca assumir nomes de coluna sem checar o código existente primeiro.**
 

@@ -1,6 +1,12 @@
 const express = require('express');
 const router  = express.Router();
 const { getPool } = require('../config/database');
+const { permSn, negarCad } = require('../config/cadastros-permissoes');
+
+// Guards de permissão (admin sempre 'S' via permSn)
+const guardIncluir = (req, res, next) => permSn(req, 'incluir_prepostos') === 'S' ? next() : negarCad(res, 'Sem permissão para incluir prepostos');
+const guardAlterar = (req, res, next) => permSn(req, 'alterar_prepostos') === 'S' ? next() : negarCad(res, 'Sem permissão para alterar prepostos');
+const guardExcluir = (req, res, next) => permSn(req, 'excluir_prepostos') === 'S' ? next() : negarCad(res, 'Sem permissão para excluir prepostos');
 
 // Garante colunas necessárias na tabela usuarios
 let _colsOk = false;
@@ -10,9 +16,19 @@ async function _ensureCols(pool) {
   const cols = [
     { name: 'tipo_usuario',          type: "VARCHAR(20) NOT NULL DEFAULT 'REPRESENTANTE'" },
     { name: 'comissao_preposto_pct', type: 'DECIMAL(5,2) NOT NULL DEFAULT 6.00' },
+    { name: 'preposto_visibilidade', type: "VARCHAR(20) NOT NULL DEFAULT 'TODOS'" },
   ];
   for (const c of cols)
     await pool.query(`ALTER TABLE usuarios ADD COLUMN ${c.name} ${c.type}`).catch(() => {});
+  await pool.query(`CREATE TABLE IF NOT EXISTS preposto_cliente (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    id_preposto INT NOT NULL,
+    cod_cliente INT NOT NULL,
+    excluido CHAR(1) NOT NULL DEFAULT 'N',
+    dtcadastro DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY unq_prep_cli (id_preposto, cod_cliente),
+    INDEX idx_pc_preposto (id_preposto)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`).catch(() => {});
 }
 
 // GET /api/prepostos — lista prepostos do representante logado (ou todos se admin)
@@ -22,16 +38,19 @@ router.get('/', async (req, res) => {
     await _ensureCols(pool);
     const userId  = req.user?.id;
     const isAdmin = req.user?.perfil == 1;
-    let q = `SELECT idusuario AS id, nomeusu AS nome, loginusu AS login, comissao_preposto_pct AS pct_comissao,
-                    COALESCE(excluido,'N') AS excluido, id_gerente
-             FROM usuarios
-             WHERE tipo_usuario = 'PREPOSTO' AND COALESCE(excluido,'N') = 'N'`;
+    let q = `SELECT u.idusuario AS id, u.nomeusu AS nome, u.loginusu AS login, u.comissao_preposto_pct AS pct_comissao,
+                    COALESCE(u.excluido,'N') AS excluido, u.id_gerente,
+                    COALESCE(u.preposto_visibilidade,'TODOS') AS preposto_visibilidade,
+                    g.nomeusu AS nome_gerente
+             FROM usuarios u
+             LEFT JOIN usuarios g ON g.idusuario = u.id_gerente AND g.excluido = 'N'
+             WHERE u.tipo_usuario = 'PREPOSTO' AND COALESCE(u.excluido,'N') = 'N'`;
     const params = [];
     if (!isAdmin) {
-      q += ` AND id_gerente = ?`;
+      q += ` AND u.id_gerente = ?`;
       params.push(userId);
     }
-    q += ` ORDER BY nomeusu`;
+    q += ` ORDER BY u.nomeusu`;
     const [rows] = await pool.query(q, params);
     res.json({ prepostos: rows });
   } catch (err) {
@@ -211,15 +230,16 @@ router.post('/:id/recalcular-comissoes', async (req, res) => {
 });
 
 // POST /api/prepostos — cadastra novo preposto (cria usuário com tipo_usuario='PREPOSTO')
-router.post('/', async (req, res) => {
+router.post('/', guardIncluir, async (req, res) => {
   const pool = getPool();
   try {
     await _ensureCols(pool);
     const userId = req.user?.id;
-    const { nome, login, senha, pct_comissao } = req.body;
+    const { nome, login, senha, pct_comissao, preposto_visibilidade } = req.body;
     if (!nome || !login) return res.status(400).json({ error: 'Nome e login são obrigatórios' });
 
     const pct = parseFloat(pct_comissao) || 6;
+    const visib = String(preposto_visibilidade || 'TODOS').toUpperCase() === 'ATRIBUIDOS' ? 'ATRIBUIDOS' : 'TODOS';
     const senhaCrypt = senha || login; // sem criptografia aqui — usa a mesma do sistema
 
     // Verifica login duplicado
@@ -230,9 +250,9 @@ router.post('/', async (req, res) => {
     if (dup.length) return res.status(409).json({ error: 'Login já cadastrado' });
 
     const [result] = await pool.query(`
-      INSERT INTO usuarios (nomeusu, loginusu, senhausu, situacao, tipo_usuario, comissao_preposto_pct, id_gerente, excluido)
-      VALUES (?, ?, ?, 'ATIVO', 'PREPOSTO', ?, ?, 'N')
-    `, [nome.toUpperCase(), login, senhaCrypt, pct, userId]);
+      INSERT INTO usuarios (nomeusu, loginusu, senhausu, situacao, tipo_usuario, comissao_preposto_pct, preposto_visibilidade, id_gerente, excluido)
+      VALUES (?, ?, ?, 'ATIVO', 'PREPOSTO', ?, ?, ?, 'N')
+    `, [nome.toUpperCase(), login, senhaCrypt, pct, visib, userId]);
 
     res.status(201).json({ ok: true, id: result.insertId });
   } catch (err) {
@@ -241,15 +261,20 @@ router.post('/', async (req, res) => {
 });
 
 // PUT /api/prepostos/:id — atualiza preposto
-router.put('/:id', async (req, res) => {
+router.put('/:id', guardAlterar, async (req, res) => {
   const pool = getPool();
   try {
     const { id } = req.params;
-    const { nome, pct_comissao, ativo } = req.body;
+    const { nome, pct_comissao, ativo, preposto_visibilidade, id_gerente } = req.body;
     const sets = [], vals = [];
     if (nome !== undefined)          { sets.push('nomeusu = ?');                vals.push(nome.toUpperCase()); }
     if (pct_comissao !== undefined)  { sets.push('comissao_preposto_pct = ?');  vals.push(parseFloat(pct_comissao) || 6); }
     if (ativo !== undefined)         { sets.push("excluido = ?");               vals.push(ativo ? 'N' : 'S'); }
+    if (preposto_visibilidade !== undefined) {
+      sets.push('preposto_visibilidade = ?');
+      vals.push(String(preposto_visibilidade).toUpperCase() === 'ATRIBUIDOS' ? 'ATRIBUIDOS' : 'TODOS');
+    }
+    if (id_gerente !== undefined && id_gerente)  { sets.push('id_gerente = ?'); vals.push(parseInt(id_gerente)); }
     if (!sets.length) return res.status(400).json({ error: 'Nada para atualizar' });
     vals.push(id);
     await pool.query(`UPDATE usuarios SET ${sets.join(', ')} WHERE idusuario = ?`, vals);
@@ -259,8 +284,68 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+// GET /api/prepostos/:id/clientes — carteira do representante + marcação dos atribuídos
+router.get('/:id/clientes', async (req, res) => {
+  const pool = getPool();
+  try {
+    await _ensureCols(pool);
+    const idPreposto = parseInt(req.params.id);
+
+    // representante principal do preposto
+    const [[prep]] = await pool.query(
+      `SELECT id_gerente FROM usuarios WHERE idusuario = ? AND tipo_usuario = 'PREPOSTO' LIMIT 1`,
+      [idPreposto]
+    );
+    const idRep = prep?.id_gerente || 0;
+
+    // carteira do representante
+    const [carteira] = await pool.query(
+      `SELECT id, nome, cidade, uf FROM clientes
+       WHERE (excluido = 'N' OR excluido IS NULL OR excluido = '')
+         AND (cod_vendedor = ? OR CAST(cod_vendedor AS UNSIGNED) = ?)
+       ORDER BY nome`,
+      [idRep, idRep]
+    );
+
+    // clientes já atribuídos
+    const [vinc] = await pool.query(
+      `SELECT cod_cliente FROM preposto_cliente WHERE id_preposto = ? AND excluido = 'N'`,
+      [idPreposto]
+    );
+    const atribuidos = vinc.map(v => v.cod_cliente);
+
+    res.json({ clientes: carteira, atribuidos });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/prepostos/:id/clientes — substitui o conjunto de clientes atribuídos { ids: [...] }
+router.post('/:id/clientes', guardAlterar, async (req, res) => {
+  const pool = getPool();
+  try {
+    await _ensureCols(pool);
+    const idPreposto = parseInt(req.params.id);
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(n => parseInt(n)).filter(Boolean) : [];
+
+    // marca tudo como excluído e reativa/insere os selecionados (preserva histórico via UNIQUE)
+    await pool.query(`UPDATE preposto_cliente SET excluido = 'S' WHERE id_preposto = ?`, [idPreposto]);
+    for (const cid of ids) {
+      await pool.query(
+        `INSERT INTO preposto_cliente (id_preposto, cod_cliente, excluido)
+         VALUES (?, ?, 'N')
+         ON DUPLICATE KEY UPDATE excluido = 'N'`,
+        [idPreposto, cid]
+      );
+    }
+    res.json({ ok: true, total: ids.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // DELETE /api/prepostos/:id — inativa preposto (soft delete)
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', guardExcluir, async (req, res) => {
   const pool = getPool();
   try {
     await pool.query(`UPDATE usuarios SET excluido = 'S' WHERE idusuario = ? AND tipo_usuario = 'PREPOSTO'`, [req.params.id]);

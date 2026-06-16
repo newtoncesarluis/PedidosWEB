@@ -28,7 +28,7 @@ function getTunnelConfig() {
     privateKey: fs.existsSync(keyPath) ? fs.readFileSync(keyPath) : null,
     remoteHost: (process.env.TUNNEL_REMOTE_HOST || 'localhost').trim(),
     remotePort: 3306,
-    localPort:  parseInt(process.env.DB_PORT || '3308', 10),
+    localPort:  parseInt(process.env.TUNNEL_LOCAL_PORT || process.env.DB_PORT || '3308', 10),
   };
 }
 

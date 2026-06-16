@@ -924,20 +924,20 @@ tbody td { padding:10px 12px; vertical-align:middle; }
           </div>
           <div class="form-group">
             <label id="lbl_f_vlr_venda">Vlr. Venda (R$)</label>
-            <input type="number" id="f_vlr_venda" step="0.01" min="0" placeholder="0,00"
+            <input type="text" inputmode="decimal" id="f_vlr_venda" data-money="1" placeholder="0,00" autocomplete="off"
               oninput="atualizarHintPrecoPesoCadastro()">
           </div>
           <div class="form-group">
             <label>Preço B (R$)</label>
-            <input type="number" id="f_precob" step="0.01" min="0" placeholder="0,00">
+            <input type="text" inputmode="decimal" id="f_precob" data-money="1" placeholder="0,00" autocomplete="off">
           </div>
           <div class="form-group">
             <label>Preço C (R$)</label>
-            <input type="number" id="f_precoc" step="0.01" min="0" placeholder="0,00">
+            <input type="text" inputmode="decimal" id="f_precoc" data-money="1" placeholder="0,00" autocomplete="off">
           </div>
           <div class="form-group">
             <label>Preço A (Atacado) (R$)</label>
-            <input type="number" id="f_precoa" step="0.01" min="0" placeholder="0,00">
+            <input type="text" inputmode="decimal" id="f_precoa" data-money="1" placeholder="0,00" autocomplete="off">
           </div>
           <div class="form-group">
             <label>Tabela de Preço</label>
@@ -947,7 +947,7 @@ tbody td { padding:10px 12px; vertical-align:middle; }
           </div>
           <div class="form-group">
             <label>Preço Promoção (R$)</label>
-            <input type="number" id="f_precopromo" step="0.01" min="0" placeholder="0,00">
+            <input type="text" inputmode="decimal" id="f_precopromo" data-money="1" placeholder="0,00" autocomplete="off">
           </div>
           <div class="form-group">
             <label>Desconto (%)</label>
@@ -1663,7 +1663,37 @@ function fmtMoeda(v) {
   if (v === null || v === undefined || v === '') return '—';
   const n = Number(v);
   if (isNaN(n)) return '—';
-  return n.toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
+  let ocultarCentavos = false;
+  try {
+    const raw = sessionStorage.getItem('parametros_locais') || localStorage.getItem('parametros_locais') || '{}';
+    ocultarCentavos = JSON.parse(raw).moeda_exibir_centavos === 'N' && n % 1 === 0;
+  } catch(_) {}
+  return n.toLocaleString('pt-BR', {
+    style: 'currency', currency: 'BRL',
+    minimumFractionDigits: ocultarCentavos ? 0 : 2,
+    maximumFractionDigits: 2
+  });
+}
+
+// Re-renderiza ao vivo quando home.html encaminha sysrep-parametros-changed
+window.addEventListener('message', function(e) {
+  if (e.data && e.data.type === 'sysrep-parametros-changed' && _listaCache && _listaCache.length) {
+    renderTabela(_listaCache);
+  }
+});
+function parseBR(s) {
+  if (s == null || s === '') return undefined;
+  const str = String(s).trim().replace(/[R$\s]/g,'');
+  if (!str) return undefined;
+  if (str.includes(',') && str.includes('.')) return parseFloat(str.replace(/\./g,'').replace(',','.')) || 0;
+  if (str.includes(',')) return parseFloat(str.replace(',','.')) || 0;
+  return parseFloat(str) || 0;
+}
+function fmtMoneyInput(v) {
+  if (v == null || v === '') return '';
+  const n = typeof v === 'number' ? v : parseBR(v);
+  if (n === undefined || isNaN(n)) return '';
+  return n.toLocaleString('pt-BR', { minimumFractionDigits:2, maximumFractionDigits:2 });
 }
 
 function fmtNum(v, dec=3) {
@@ -1845,6 +1875,14 @@ function ensureQuickViewPortal() {
 // ═══════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════
+// Formata campos monetários ao sair do campo (blur)
+document.addEventListener('focusout', e => {
+  if (e.target.dataset?.money === '1') {
+    const raw = e.target.value.trim();
+    e.target.value = raw ? fmtMoneyInput(raw) : '';
+  }
+});
+
 document.addEventListener('DOMContentLoaded', () => {
   // sticky subbar
   const tb = document.getElementById('toolbar');
@@ -2925,7 +2963,7 @@ function atualizarHintPrecoPesoCadastro() {
   }
   const un = (document.getElementById('f_unidade')?.value || 'un').toLowerCase();
   const kilo = parseFloat(document.getElementById('f_kilo_embalagem')?.value) || 0;
-  const v = parseFloat(document.getElementById('f_vlr_venda')?.value) || 0;
+  const v = parseBR(document.getElementById('f_vlr_venda')?.value) || 0;
   hint.style.display = '';
   const fmt = n => (parseFloat(n) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   if (kilo > 0 && v > 0) {
@@ -2995,11 +3033,11 @@ function preencherForm(p) {
   set('f_vlr_despesas',       p.vlr_despesas);
   set('f_vlr_custofinal',     p.vlr_custofinal);
   set('f_margem',             p.margem);
-  set('f_vlr_venda',          p.vlr_venda);
-  set('f_precoa',             p.precoa);
-  set('f_precob',             p.precob);
-  set('f_precoc',             p.precoc);
-  set('f_precopromo',         p.precopromo);
+  set('f_vlr_venda',          fmtMoneyInput(p.vlr_venda));
+  set('f_precoa',             fmtMoneyInput(p.precoa));
+  set('f_precob',             fmtMoneyInput(p.precob));
+  set('f_precoc',             fmtMoneyInput(p.precoc));
+  set('f_precopromo',         fmtMoneyInput(p.precopromo));
   set('f_desconto',           p.desconto);
   set('f_comissao',           p.comissao);
   set('f_cod_tabelapreco',    p.cod_tabelapreco);
@@ -3071,11 +3109,11 @@ async function salvar() {
     vlr_despesas:         v('f_vlr_despesas'),
     vlr_custofinal:       v('f_vlr_custofinal'),
     margem:               v('f_margem'),
-    vlr_venda:            v('f_vlr_venda'),
-    precoa:               v('f_precoa'),
-    precob:               v('f_precob'),
-    precoc:               v('f_precoc'),
-    precopromo:           v('f_precopromo'),
+    vlr_venda:            parseBR(document.getElementById('f_vlr_venda')?.value),
+    precoa:               parseBR(document.getElementById('f_precoa')?.value),
+    precob:               parseBR(document.getElementById('f_precob')?.value),
+    precoc:               parseBR(document.getElementById('f_precoc')?.value),
+    precopromo:           parseBR(document.getElementById('f_precopromo')?.value),
     desconto:             v('f_desconto'),
     comissao:             v('f_comissao'),
     cod_tabelapreco:      v('f_cod_tabelapreco'),
@@ -3270,7 +3308,7 @@ function calcVlrVenda() {
   const margem = parseFloat(document.getElementById('f_margem').value) || 0;
   if (custo && margem) {
     const venda = custo * (1 + margem / 100);
-    document.getElementById('f_vlr_venda').value = venda.toFixed(2);
+    document.getElementById('f_vlr_venda').value = fmtMoneyInput(venda);
   }
 }
 
