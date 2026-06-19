@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
+const licencaApi = require('../services/licenca-api');
 const { getPool, getBoundChave, customerDbFromLicense, getPoolForLicense, runWithPool, createPool,
   createPoolFromLicenseBinding, readLicenseBinding, getGlobalPool } = require('../config/database');
 const LicenseCache = require('../services/license-cache');
@@ -264,6 +265,23 @@ router.post('/login', async (req, res) => {
       [user.idusuario]
     ).catch(() => {}); // silencioso se campo não existir
 
+    // Verifica limite de sessões simultâneas no Painel (fail-open: erro não bloqueia login)
+    let avisoPainel = null;
+    if (process.env.LICENCA_API_URL && chave_licenca) {
+      try {
+        const check = await licencaApi.verificarLicenca(chave_licenca);
+        if (!check.valida) {
+          return res.status(402).json({
+            error: 'Limite de usuários simultâneos atingido',
+            motivo: check.motivo,
+            bloqueado: true,
+          });
+        }
+        avisoPainel = check.aviso || null;
+      } catch { /* falha no Painel não impede login */ }
+    }
+
+    const token_hash = crypto.randomBytes(16).toString('hex');
     const tokenPayload = {
       id: user.idusuario,
       name: user.nomeusu,
@@ -277,6 +295,7 @@ router.post('/login', async (req, res) => {
       dash_avisofinanceiro: user.dash_avisofinanceiro || 'N',
       permissoes,
       chave_licenca: chave_licenca || null,
+      token_hash,
     };
 
     const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, { expiresIn: '8h' });
@@ -314,8 +333,23 @@ router.post('/login', async (req, res) => {
       },
       empresa: empresaData,
       parametros_locais,
-      licenca: licCheck
+      licenca: licCheck,
+      aviso: avisoPainel,
     });
+
+    // Registra sessão no Painel (não bloqueia resposta)
+    if (process.env.LICENCA_API_URL && chave_licenca) {
+      licencaApi.registrarSessao({
+        chave_licenca,
+        usuario_id:     user.idusuario,
+        usuario_nome:   user.nomeusu,
+        usuario_email:  user.email || null,
+        usuario_perfil: user.idperfil == 1 ? 'admin' : 'user',
+        ip:             clientIp,
+        user_agent:     userAgent,
+        token_hash,
+      }).catch(() => {});
+    }
 
   } catch (err) {
     console.error('Login error:', err);
@@ -722,8 +756,30 @@ router.post('/reset-password', async (req, res) => {
 
 // POST /api/auth/logout
 router.post('/logout', (req, res) => {
+  const raw = req.cookies?.token || req.headers.authorization?.replace('Bearer ', '');
+  if (raw && process.env.LICENCA_API_URL) {
+    try {
+      const decoded = jwt.verify(raw, process.env.JWT_SECRET);
+      if (decoded?.token_hash) licencaApi.encerrarSessao(decoded.token_hash).catch(() => {});
+    } catch {}
+  }
   res.clearCookie('token');
   res.json({ ok: true });
+});
+
+// PUT /api/auth/heartbeat — mantém sessão viva; retorna { kicked: true } se admin encerrou remotamente
+router.put('/heartbeat', (req, res) => {
+  const raw = req.cookies?.token || req.headers.authorization?.replace('Bearer ', '');
+  if (!raw || !process.env.LICENCA_API_URL) return res.json({ kicked: false });
+  try {
+    const decoded = jwt.verify(raw, process.env.JWT_SECRET);
+    if (!decoded?.token_hash) return res.json({ kicked: false });
+    licencaApi.heartbeat(decoded.token_hash, decoded.chave_licenca)
+      .then(r => res.json(r))
+      .catch(() => res.json({ kicked: false }));
+  } catch {
+    res.json({ kicked: false });
+  }
 });
 
 // GET /api/auth/me
@@ -812,7 +868,8 @@ router.get('/minhas-permissoes', async (req, res) => {
       alterardatapedido:      permissoesEfetivas.alterardatapedido || 'N',
       trocarvendedorpedido:   permissoesEfetivas.trocarvendedorpedido || 'N',
       faturar_pedido:         permissoesEfetivas.faturar_pedido || 'N',
-      marcar_enviado_rep:     permissoesEfetivas.marcar_enviado_rep || 'N',
+      marcar_enviado_rep:          permissoesEfetivas.marcar_enviado_rep || 'N',
+      desbloquear_pedido_enviado:  permissoesEfetivas.desbloquear_pedido_enviado || 'N',
       acessar_metas_vendas:   permissoesEfetivas.acessar_metas_vendas || 'N',
       p_vender:               permissoesEfetivas.p_vender || 'N',
       incluir_produtos:       permissoesEfetivas.incluir_produtos || 'N',
@@ -936,7 +993,8 @@ function buildPermissoes(rawUser) {
     transportadora_excluir: s('transportadora_excluir'),
     // Ações no pedido
     faturar_pedido: s('faturar_pedido'),
-    marcar_enviado_rep: s('marcar_enviado_rep'),
+    marcar_enviado_rep:         s('marcar_enviado_rep'),
+    desbloquear_pedido_enviado: s('desbloquear_pedido_enviado'),
     acessar_metas_vendas: s('acessar_metas_vendas'),
     // Gerais
     p_vender: s('p_vender'),
