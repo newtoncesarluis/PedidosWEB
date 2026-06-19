@@ -196,7 +196,7 @@ router.post('/:id/clonar', async (req, res) => {
     const novoId = resCab.insertId;
 
     const [itens] = await conn.query(
-      `SELECT * FROM tabela_preco_itens WHERE id_tabela = ? AND excluido = 'N'`, [idOrigem]
+      `SELECT * FROM tabela_preco_itens WHERE id_tabela = ? AND COALESCE(excluido,'N') = 'N'`, [idOrigem]
     );
 
     for (const it of itens) {
@@ -237,7 +237,7 @@ router.post('/:id/manutencao', async (req, res) => {
     const idTabela = req.params.id;
 
     const [itens] = await conn.query(
-      `SELECT * FROM tabela_preco_itens WHERE id_tabela = ? AND excluido = 'N'`, [idTabela]
+      `SELECT * FROM tabela_preco_itens WHERE id_tabela = ? AND COALESCE(excluido,'N') = 'N'`, [idTabela]
     );
 
     for (const it of itens) {
@@ -541,49 +541,83 @@ router.get('/ativas', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ─── GET /api/tabela-precos/produtos/busca (Paginado) ───────────────────────────────────
+// ─── GET /api/tabela-precos/produtos/segmentos ───────────────────────────────
+router.get('/produtos/segmentos', async (req, res) => {
+  try {
+    const [rows] = await getPool().query(
+      `SELECT DISTINCT segmento FROM produto
+       WHERE segmento IS NOT NULL AND segmento != '' AND excluido='N'
+       ORDER BY segmento`
+    );
+    res.json(rows.map(r => r.segmento));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── GET /api/tabela-precos/produtos/busca (Paginado) ───────────────────────
 router.get('/produtos/busca', async (req, res) => {
   try {
     const pool = getPool();
-    const { q = '', page = 1, limit = 10, id_fornecedor } = req.query;
-    const offset = (page - 1) * limit;
+    const { q = '', page = 1, limit = 10, fabricante = '', ids_fornecedor = '', segmentos = '' } = req.query;
+    const offset = (Math.max(1, parseInt(page)) - 1) * Math.max(1, parseInt(limit));
 
     let where = [`p.excluido = 'N'`];
+    const joinParts = [];
     const params = [];
-    
+
     if (q.trim()) {
       where.push(`(p.id = ? OR p.descricao LIKE ? OR p.cod_fabricante LIKE ?)`);
       const val = `%${q.trim()}%`;
       params.push(q.trim(), val, val);
     }
 
-    let join = '';
-    if (id_fornecedor && id_fornecedor !== 'null' && id_fornecedor !== '0') {
-      join = `INNER JOIN fornecedor_produtos fp ON fp.cod_produto = p.id AND fp.cod_fornecedor = ? AND fp.excluido = 'N'`;
-      params.unshift(id_fornecedor); // Adiciona no início por causa da ordem do JOIN (se necessário, ou ajusta params)
+    if (fabricante.trim()) {
+      where.push(`p.cod_fabricante LIKE ?`);
+      params.push(`%${fabricante.trim()}%`);
     }
 
-    // Ajustando params se id_fornecedor for usado (ele vem primeiro no join ou depois?)
-    // No SQL abaixo, o join vem antes do where. Então o param do join vem antes dos do where.
-    
+    // Múltiplos fornecedores: via cod_fornecedorpadrao OU fornecedor_produtos
+    const fornIds = ids_fornecedor.split(',').map(s => parseInt(s)).filter(n => n > 0);
+    if (fornIds.length > 0) {
+      joinParts.push(
+        `LEFT JOIN fornecedor_produtos fp ON fp.cod_produto = p.id AND COALESCE(fp.excluido,'N')='N'`
+      );
+      const inList = fornIds.map(() => '?').join(',');
+      where.push(`(p.cod_fornecedorpadrao IN (${inList}) OR fp.cod_fornecedor IN (${inList}))`);
+      params.push(...fornIds, ...fornIds);
+    }
+
+    // Múltiplos segmentos
+    const segsArr = segmentos.split('|').map(s => s.trim()).filter(Boolean);
+    if (segsArr.length > 0) {
+      where.push(`p.segmento IN (${segsArr.map(() => '?').join(',')})`);
+      params.push(...segsArr);
+    }
+
+    const joinClause = joinParts.join(' ');
+    // DISTINCT evita duplicatas quando produto tem vários fornecedores
+    const selectDistinct = fornIds.length > 0 ? 'DISTINCT' : '';
     const whereClause = where.join(' AND ');
-    
+    const lim = parseInt(limit);
+    const off = offset;
+
     const [rows] = await pool.query(
-      `SELECT p.id, p.descricao, p.cod_fabricante, p.unidade, p.vlr_venda, p.foto_principal 
+      `SELECT ${selectDistinct} p.id, p.descricao, p.cod_fabricante, p.unidade, p.vlr_venda, p.segmento,
+              f.nome AS nome_fornecedor
        FROM produto p
-       ${join}
-       WHERE ${whereClause} 
-       ORDER BY p.descricao 
+       LEFT JOIN fornecedores f ON f.id = p.cod_fornecedorpadrao AND (f.excluido='N' OR f.excluido IS NULL)
+       ${joinClause}
+       WHERE ${whereClause}
+       ORDER BY p.descricao
        LIMIT ? OFFSET ?`,
-      [...params, parseInt(limit), parseInt(offset)]
+      [...params, lim, off]
     );
 
     const [[{ total }]] = await pool.query(
-      `SELECT COUNT(*) as total FROM produto p ${join} WHERE ${whereClause}`,
+      `SELECT COUNT(${selectDistinct ? 'DISTINCT p.id' : '*'}) as total FROM produto p ${joinClause} WHERE ${whereClause}`,
       params
     );
 
-    res.json({ data: rows, total, page: parseInt(page), last_page: Math.ceil(total / limit) });
+    res.json({ data: rows, total, page: parseInt(page), last_page: Math.max(1, Math.ceil(total / lim)) });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -634,7 +668,7 @@ router.get('/:id', async (req, res) => {
     if (!cab[0]) return res.status(404).json({ error: 'Tabela não encontrada' });
 
     const [itens] = await pool.query(
-      `SELECT i.* FROM tabela_preco_itens i WHERE i.id_tabela = ? AND i.excluido = 'N' ORDER BY i.item`,
+      `SELECT i.* FROM tabela_preco_itens i WHERE i.id_tabela = ? AND COALESCE(i.excluido,'N') = 'N' ORDER BY i.item`,
       [req.params.id]
     );
 

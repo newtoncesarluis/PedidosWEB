@@ -1996,6 +1996,98 @@ html.sysrep-ms-embed #offlineQueueBadge { display: none !important; }
   height: calc(var(--base-font-size, 13px) * 1.05);
 }
 
+/* ── Itens: cards (mobile / tablet / app) ── */
+.itens-cards-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 8px 10px 12px;
+}
+.itens-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+  padding: 12px 12px 10px;
+  border-left: 3px solid var(--accent);
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(15,23,42,.06));
+}
+.itens-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.itens-card-head-left { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
+.itens-card-foto { width: 44px; height: 44px; border-radius: 8px; object-fit: cover; flex-shrink: 0; cursor: pointer; }
+.itens-card-foto-ph {
+  width: 44px; height: 44px; border-radius: 8px; border: 1px dashed var(--border);
+  display: inline-flex; align-items: center; justify-content: center; color: var(--border); background: var(--bg);
+}
+.itens-card-seq { font-size: 11px; font-weight: 800; color: var(--text2); }
+.itens-card-total { font-size: 16px; font-weight: 900; color: var(--accent); white-space: nowrap; }
+.itens-card-desc { font-size: 13px; font-weight: 700; color: var(--text); line-height: 1.35; margin-bottom: 4px; word-break: break-word; }
+.itens-card-kv-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+@media (min-width: 700px) and (max-width: 1199px) {
+  .itens-card-kv-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+.itens-card-kv {
+  display: flex; flex-direction: column; gap: 2px; min-width: 0;
+  padding: 6px 8px; border-radius: 8px; background: var(--bg);
+}
+.itens-card-kv span {
+  font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--text2);
+}
+.itens-card-kv b {
+  font-size: 12px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; word-break: break-word;
+}
+.itens-card-kv--wide { grid-column: 1 / -1; }
+.itens-card-actions {
+  display: flex; justify-content: flex-end; gap: 6px; margin-top: 10px;
+}
+
+/* Modal colunas — mobile/tablet */
+#itensColsOverlay.itens-cols-overlay--sheet {
+  align-items: flex-end;
+  padding: 0;
+}
+#itensColsOverlay.itens-cols-overlay--sheet .cmp-box {
+  max-width: 100%;
+  width: 100%;
+  border-radius: 16px 16px 0 0;
+  max-height: min(88vh, 720px);
+  display: flex;
+  flex-direction: column;
+}
+#itensColsOverlay.itens-cols-overlay--sheet .cmp-body {
+  flex: 1;
+  min-height: 0;
+}
+.itens-cols-group { display: flex; flex-direction: column; gap: 8px; margin-bottom: 2px; }
+.itens-cols-group + .itens-cols-group { margin-top: 12px; }
+.itens-cols-group-title {
+  font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--text2); padding: 4px 2px 0;
+}
+.itens-cols-row {
+  display: grid; grid-template-columns: 1fr auto auto; gap: 10px 14px; align-items: center;
+  padding: 10px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+}
+@media (max-width: 520px) {
+  .itens-cols-row { grid-template-columns: 1fr; gap: 8px; }
+  .itens-cols-row .itens-cols-chk { justify-content: flex-start; }
+}
+.itens-cols-lbl { font-size: 12px; font-weight: 700; color: var(--text); line-height: 1.35; }
+.itens-cols-chk { font-size: 11px; color: var(--text2); display: flex; align-items: center; gap: 5px; white-space: nowrap; cursor: pointer; }
+.itens-cols-chk input { accent-color: var(--accent); }
+
 .it-cod {
   font-size: calc(var(--base-font-size, 13px) * 0.78);
   font-weight: 700; color: var(--accent);
@@ -5930,12 +6022,51 @@ let _tabelaPrecoAtual = '';
 /** Oculta coluna preço padrão na grade (sessão do pedido até fechar o formulário). */
 let _vlrPadraoOcultoPedido = true;
 let _itensColsCfg = null;
-const ITENS_COLS_DEFAULT = {
-  vlr_padrao: { tela: true, relatorio: false },
-  desconto:   { tela: true, relatorio: true },
-  acrescimo:  { tela: true, relatorio: false },
-  comissao:   { tela: true, relatorio: false },
+
+/** Colunas opcionais da grade de itens — espelham campos de itensped (rótulo = nome legado). */
+const ITENS_COLS_META = {
+  vlr_padrao:           { label: 'Vlr. Tabela',           short: 'Vlr. Tabela', fmt: 'money', align: 'right',  defaultTela: true,  defaultRel: false },
+  desconto:             { label: 'Desconto %',            short: 'Desc.',       fmt: 'pct',   align: 'center', defaultTela: true,  defaultRel: true  },
+  acrescimo:            { label: 'Acréscimo %',           short: 'Acrésc.',     fmt: 'pctpos',align: 'center', defaultTela: true,  defaultRel: false },
+  comissao:             { label: 'Comissão',              short: 'Com.',        fmt: 'comissao', align: 'center', defaultTela: true, defaultRel: false },
+  ipi:                  { label: 'IPI %',                 short: 'IPI %',       fmt: 'pct',   align: 'center', defaultTela: false, defaultRel: true  },
+  vlr_ipi:              { label: 'Vlr IPI',               short: 'Vlr IPI',     fmt: 'money', align: 'right',  defaultTela: false, defaultRel: true  },
+  st:                   { label: 'ST %',                  short: 'ST %',        fmt: 'pct',   align: 'center', defaultTela: false, defaultRel: true  },
+  vlr_st:               { label: 'Vlr ST',                short: 'Vlr ST',      fmt: 'money', align: 'right',  defaultTela: false, defaultRel: true  },
+  icms:                 { label: 'ICMS %',                short: 'ICMS %',      fmt: 'pct',   align: 'center', defaultTela: false, defaultRel: false },
+  vlr_icms:             { label: 'Vlr ICMS',              short: 'Vlr ICMS',    fmt: 'money', align: 'right',  defaultTela: false, defaultRel: false },
+  vlrtotalcomimposto:   { label: 'Vlr c/ Imposto',        short: 'c/ Imp.',     fmt: 'money', align: 'right',  defaultTela: false, defaultRel: true  },
+  kilo_embalagem:       { label: 'Kilo Embalagem',        short: 'Kg Emb.',     fmt: 'peso',  align: 'right',  defaultTela: false, defaultRel: false },
+  valor_kilo:           { label: 'Valor Kilo',            short: 'R$/Kg',       fmt: 'money', align: 'right',  defaultTela: false, defaultRel: false },
+  total_peso:           { label: 'Peso Total',            short: 'Peso',        fmt: 'peso',  align: 'right',  defaultTela: false, defaultRel: false },
+  peso:                 { label: 'Peso Líquido',          short: 'P.Líq.',      fmt: 'peso',  align: 'right',  defaultTela: false, defaultRel: false },
+  valor_puxada:         { label: 'Vlr Puxada',            short: 'Puxada',      fmt: 'money', align: 'right',  defaultTela: false, defaultRel: false },
+  valor_totalpuxada:    { label: 'Total Puxada',          short: 'Tot.Pux.',    fmt: 'money', align: 'right',  defaultTela: false, defaultRel: false },
+  valor_cliente:        { label: 'Vlr Cliente',           short: 'V.Cliente',   fmt: 'money', align: 'right',  defaultTela: false, defaultRel: false },
+  vlr_comissao:         { label: 'Vlr Comissão',          short: 'V.Com.',      fmt: 'money', align: 'right',  defaultTela: false, defaultRel: false },
+  obsitem:              { label: 'Obs. Item',             short: 'Obs.',        fmt: 'text',  align: 'left',   defaultTela: false, defaultRel: false },
+  cores:                { label: 'Cores',                 short: 'Cores',       fmt: 'text',  align: 'left',   defaultTela: false, defaultRel: false },
+  promocao_descricao:   { label: 'Promoção',              short: 'Promo',       fmt: 'text',  align: 'left',   defaultTela: false, defaultRel: false },
+  tipo_preco:           { label: 'Tipo Preço',            short: 'Tp.Preço',    fmt: 'text',  align: 'center', defaultTela: false, defaultRel: false },
+  cod_fabricante:       { label: 'Cod. Fabricante',       short: 'Cod.Fab.',    fmt: 'text',  align: 'center', defaultTela: false, defaultRel: false },
+  multiplo_sigla:       { label: 'Apresentação',          short: 'Apres.',      fmt: 'text',  align: 'center', defaultTela: false, defaultRel: false },
+  grade_resumo:         { label: 'Grade',                 short: 'Grade',       fmt: 'text',  align: 'left',   defaultTela: false, defaultRel: false },
 };
+
+const ITENS_COLS_ORDER = Object.keys(ITENS_COLS_META);
+const ITENS_COLS_GROUPS = [
+  { id: 'preco', title: 'Preços e descontos', cols: ['vlr_padrao', 'desconto', 'acrescimo', 'valor_cliente', 'tipo_preco', 'promocao_descricao'] },
+  { id: 'imposto', title: 'Impostos', cols: ['ipi', 'vlr_ipi', 'st', 'vlr_st', 'icms', 'vlr_icms', 'vlrtotalcomimposto'] },
+  { id: 'peso', title: 'Peso e embalagem', cols: ['kilo_embalagem', 'valor_kilo', 'total_peso', 'peso', 'multiplo_sigla'] },
+  { id: 'comercial', title: 'Comissão e puxada', cols: ['comissao', 'vlr_comissao', 'valor_puxada', 'valor_totalpuxada'] },
+  { id: 'outros', title: 'Identificação e outros', cols: ['cod_fabricante', 'cores', 'grade_resumo', 'obsitem'] },
+];
+const ITENS_COLS_DEFAULT = Object.fromEntries(
+  ITENS_COLS_ORDER.map((k) => [k, {
+    tela: ITENS_COLS_META[k].defaultTela,
+    relatorio: ITENS_COLS_META[k].defaultRel,
+  }])
+);
 let _tabelasModalCache = []; // tabelas disponíveis para o pedido atual (reusado no modal de pesquisa)
 let _subProdEstoque = null;
 let _tabelaPrecoOrigem = '';
@@ -6996,6 +7127,15 @@ function bindFormStaticControls() {
   if (btnItensColsSalvar) btnItensColsSalvar.addEventListener('click', salvarItensColunasModal);
   const itensColsOv = document.getElementById('itensColsOverlay');
   if (itensColsOv) itensColsOv.addEventListener('click', e => { if (e.target === itensColsOv) fecharItensColunasModal(); });
+  if (!window._itensCardsMqBound) {
+    window._itensCardsMqBound = true;
+    window.matchMedia('(max-width: 1199px)').addEventListener('change', () => {
+      const nItens = (_subData?.itens || []).filter((x) => !x._delete).length;
+      if (document.getElementById('formSection')?.classList.contains('form-open') && nItens > 0) {
+        renderSubrec('itens');
+      }
+    });
+  }
   if (btnAdicionarItem) btnAdicionarItem.addEventListener('click', () => abrirSubrecForm('itens'));
   if (btnRemoverDescontosCascata) btnRemoverDescontosCascata.addEventListener('click', removerDescontosCascata);
   if (btnAplicarDescontosCascata) btnAplicarDescontosCascata.addEventListener('click', aplicarDescontoCascata);
@@ -9762,7 +9902,9 @@ async function abrirEdicao(id) {
     if (!r.ok) throw new Error();
     const data = await r.json();
     const p = data.pedido;
+    const _isEnviado = (p.situacao_pedido || '').toUpperCase() === 'ENVIADO';
     setDrawerHeaderState({ title: 'Editar Pedido #' + (p.numero || p.id), showDelete: true, showCancel: true });
+    _aplicarBannerPedidoEnviado(_isEnviado);
     _pedidoNumeroExibicao = String(p.numero || p.id || '');
     syncPedidoNumeroDisplay();
 
@@ -10406,6 +10548,7 @@ function syncPedidoNumeroDisplay() {
 }
 
 function limparForm() {
+  document.getElementById('_bannerPedidoEnviado')?.remove();
   _origemPedido = 'PEDIDO DE VENDA';
   _fornecedorConfig = {};
   _clienteConfig = {};
@@ -10451,7 +10594,7 @@ function limparForm() {
 
 function mergeItensColsConfig(saved) {
   const out = {};
-  for (const k of Object.keys(ITENS_COLS_DEFAULT)) {
+  for (const k of ITENS_COLS_ORDER) {
     const def = ITENS_COLS_DEFAULT[k];
     const s = saved && saved[k] ? saved[k] : {};
     out[k] = {
@@ -10460,6 +10603,259 @@ function mergeItensColsConfig(saved) {
     };
   }
   return out;
+}
+
+function itensColMeta(id) {
+  return ITENS_COLS_META[id] || null;
+}
+
+function itensColsAtivosTela() {
+  return ITENS_COLS_ORDER.filter((id) => {
+    if (id === 'comissao' && _logadoTipoUsuario === 'PREPOSTO') return false;
+    return itensMostraColTela(id);
+  });
+}
+
+function itensColValorRaw(item, colId) {
+  switch (colId) {
+    case 'vlr_padrao': {
+      const d = parseFloat(item.desconto_percentual) || 0;
+      const a = parseFloat(item.acrescimo_percentual) || 0;
+      const acrLote = (parseFloat(item._acr_aplicado) || 0) > 0;
+      return (d > 0 || a > 0 || acrLote) ? (parseFloat(item.valor_unitario) || 0) : normalizarVlrPadraoItem(item);
+    }
+    case 'desconto': return parseFloat(item.desconto_percentual ?? item.desconto) || 0;
+    case 'acrescimo': return parseFloat(item.acrescimo_percentual ?? item.acrescimo) || 0;
+    case 'comissao': return parseFloat(item.comissao_percentual ?? item.comissao) || 0;
+    case 'ipi': return parseFloat(item.ipi_percentual ?? item.ipi) || 0;
+    case 'vlr_ipi': return parseFloat(item.vlr_ipi) || 0;
+    case 'st': return parseFloat(item.st_percentual ?? item.st) || 0;
+    case 'vlr_st': return parseFloat(item.vlr_st) || 0;
+    case 'icms': return parseFloat(item.icms_percentual ?? item.icms) || 0;
+    case 'vlr_icms': return parseFloat(item.vlr_icms) || 0;
+    case 'vlrtotalcomimposto':
+      return parseFloat(item.vlrtotal_com_imposto ?? item.vlrtotalcomimposto ?? item.vlrtotal_itens) || 0;
+    case 'kilo_embalagem':
+      return parseFloat(item.kilo_embalagem ?? item.embalagem) || 0;
+    case 'valor_kilo':
+      return parseFloat(item.valor_kilo) || (PrecoPesoProduto?.isPrecoPorPeso(item.precopeso) ? parseFloat(item.valor_unitario) : 0) || 0;
+    case 'total_peso': return parseFloat(item.total_peso) || 0;
+    case 'peso': return parseFloat(item.peso) || 0;
+    case 'valor_puxada': return parseFloat(item.valor_puxada) || 0;
+    case 'valor_totalpuxada': {
+      const tp = parseFloat(item.valor_totalpuxada);
+      if (Number.isFinite(tp) && tp > 0) return tp;
+      const q = parseFloat(item.quantidade) || 0;
+      const vp = parseFloat(item.valor_puxada) || 0;
+      return q * vp;
+    }
+    case 'valor_cliente': return parseFloat(item.valor_cliente) || 0;
+    case 'vlr_comissao': {
+      const vc = parseFloat(item.vlr_comissao);
+      if (Number.isFinite(vc) && vc > 0) return vc;
+      const pct = parseFloat(item.comissao_percentual ?? item.comissao) || 0;
+      return numPed(item.vlrtotal_itens) * pct / 100;
+    }
+    case 'obsitem': return String(item.obsitem || '').trim();
+    case 'cores': return String(item.cores_qt ?? item.cores ?? '').trim();
+    case 'promocao_descricao': return String(item.promocao_descricao || '').trim();
+    case 'tipo_preco': return String(item.tipo_preco || 'venda').trim();
+    case 'cod_fabricante': return String(item.cod_fabricante || '').trim();
+    case 'multiplo_sigla': return String(item.multiplo_sigla || '').trim();
+    case 'grade_resumo':
+      return String(item.grade_resumo || resumoGradeBadge(item.grade_qtd) || '').trim();
+    default: return null;
+  }
+}
+
+function fmtItensColCelula(item, colId) {
+  const meta = itensColMeta(colId);
+  if (!meta) return '—';
+  const v = itensColValorRaw(item, colId);
+  if (colId === 'comissao') {
+    const pct = parseFloat(v) || 0;
+    const vlrCom = numPed(item.vlrtotal_itens) * pct / 100;
+    return pct > 0
+      ? `<div style="font-size:10px;color:var(--text2);line-height:1.2">${pct}%</div><div style="font-weight:700;font-size:12px;color:var(--success)">${fmtPreco(vlrCom)}</div>`
+      : '<span style="color:var(--border)">—</span>';
+  }
+  if (colId === 'vlr_padrao') return fmtPreco(v);
+  if (meta.fmt === 'money') return v > 0 ? fmtPreco(v) : '<span style="color:var(--border)">—</span>';
+  if (meta.fmt === 'pct') return v > 0 ? `${v}%` : '<span style="color:var(--border)">—</span>';
+  if (meta.fmt === 'pctpos') return v > 0 ? `<span style="color:var(--success);font-weight:700">+${v}%</span>` : '<span style="color:var(--border)">—</span>';
+  if (meta.fmt === 'peso') return v > 0 ? fmtPesoKgImpressao(v) : '<span style="color:var(--border)">—</span>';
+  return v ? escHtml(String(v)) : '<span style="color:var(--border)">—</span>';
+}
+
+function renderItensColHead(colId) {
+  const meta = itensColMeta(colId);
+  if (!meta) return '';
+  const al = meta.align === 'right' ? 'right' : (meta.align === 'center' ? 'center' : 'left');
+  const title = meta.label !== meta.short ? ` title="${escHtml(meta.label)}"` : '';
+  return `<th style="text-align:${al};width:1%"${title}>${escHtml(meta.short || meta.label)}</th>`;
+}
+
+function renderItensColCell(item, colId) {
+  const meta = itensColMeta(colId);
+  if (!meta) return '';
+  const cls = meta.align === 'right' ? 'td-num'
+    : (meta.align === 'center' ? 'td-center it-td-pct' : 'td-desc-cell');
+  const extra = colId === 'vlr_padrao' ? ' itens-col-padrao-muted' : '';
+  return `<td class="${cls}${extra}">${fmtItensColCelula(item, colId)}</td>`;
+}
+
+function pedidoItensUsaCards() {
+  if (document.documentElement.classList.contains('sysrep-ms-embed')) return true;
+  if (!document.getElementById('formSection')?.classList.contains('form-open')) return false;
+  return window.matchMedia('(max-width: 1199px)').matches;
+}
+
+function fmtItensColTextoPlano(item, colId) {
+  const meta = itensColMeta(colId);
+  if (!meta) return '—';
+  const v = itensColValorRaw(item, colId);
+  if (colId === 'comissao') {
+    const pct = parseFloat(v) || 0;
+    if (pct <= 0) return '—';
+    const vlrCom = numPed(item.vlrtotal_itens) * pct / 100;
+    return `${pct}% · ${fmtPreco(vlrCom)}`;
+  }
+  if (colId === 'vlr_padrao') return fmtPreco(v);
+  if (meta.fmt === 'money') return v > 0 ? fmtPreco(v) : '—';
+  if (meta.fmt === 'pct') return v > 0 ? `${v}%` : '—';
+  if (meta.fmt === 'pctpos') return v > 0 ? `+${v}%` : '—';
+  if (meta.fmt === 'peso') return v > 0 ? fmtPesoKgImpressao(v) : '—';
+  return v ? String(v) : '—';
+}
+
+function itensCardKvWide(colId) {
+  return ['obsitem', 'grade_resumo', 'promocao_descricao', 'cores', 'cod_fabricante'].includes(colId);
+}
+
+function buildItensItemBadges(item, colsAtivos) {
+  const hide = (id) => colsAtivos.includes(id);
+  return [
+    item.multiplo_sigla && !hide('multiplo_sigla')
+      ? `<span class="it-badge" style="background:rgba(111,99,255,.12);color:var(--accent);font-weight:800">${escHtml(item.multiplo_sigla)}</span>` : '',
+    item.cores_qt && !hide('cores')
+      ? `<span class="it-badge" style="background:rgba(14,165,233,.12);color:var(--accent)">🎨 ${escHtml(item.cores_qt)}</span>` : '',
+    item.grade_qtd?.length && !hide('grade_resumo') ? miniGradeChart(item.grade_qtd) : '',
+    item.vlr_st > 0 && !hide('vlr_st') && !hide('st')
+      ? `<span class="it-badge" style="background:rgba(245,158,11,.12);color:var(--warn)">ST ${fmtPreco(item.vlr_st)}</span>` : '',
+    item.vlr_ipi > 0 && !hide('vlr_ipi') && !hide('ipi')
+      ? `<span class="it-badge" style="background:rgba(99,102,241,.12);color:#6366f1">IPI ${fmtPreco(item.vlr_ipi)}</span>` : '',
+    item.valor_cliente > 0 && !hide('valor_cliente')
+      ? `<span class="it-badge" style="background:rgba(0,0,0,.05);color:var(--text2)">Cli ${fmtCur(item.valor_cliente)}</span>` : '',
+    item._acr_aplicado > 0
+      ? `<span class="it-badge" style="background:rgba(234,88,12,.12);color:#ea580c">Acr. +${fmtCur(item._acr_aplicado)}</span>` : '',
+  ].filter(Boolean).join('');
+}
+
+function renderItensRowActions(realIdx) {
+  return `<span class="it-actions">
+    <button type="button" class="it-action-btn" data-act="edit" data-item-action="edit" data-idx="${realIdx}" title="Editar item">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M16.862 3.487a2.25 2.25 0 013.182 3.182L8.25 18.463 4 19.5l1.037-4.25L16.862 3.487z"/>
+      </svg>
+    </button>
+    <button type="button" class="it-action-btn" data-act="delete" data-item-action="delete" data-idx="${realIdx}" title="Excluir item">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 7h12M10 11v7m4-7v7M9 7l1-2h4l1 2m-9 0l1 14h10l1-14"/>
+      </svg>
+    </button>
+  </span>`;
+}
+
+function buildItensRowCtx(item, localIdx, offset, showFoto, usarCodFab, colsAntesVenda, colsDepoisVenda) {
+  const realIdx = _subData.itens.indexOf(item);
+  const colsAtivos = [...colsAntesVenda, ...colsDepoisVenda];
+  const badges = buildItensItemBadges(item, colsAtivos);
+  const cod = usarCodFab
+    ? escHtml(item.cod_fabricante || String(item.cod_produto || ''))
+    : escHtml(String(item.cod_produto || ''));
+  const seq = offset + localIdx + 1;
+  const desc_sub = badges ? `<div class="it-sub">${badges}</div>` : '';
+  const _dPct = parseFloat(item.desconto_percentual) || 0;
+  const _aPct = parseFloat(item.acrescimo_percentual) || 0;
+  const _acrLote = (parseFloat(item._acr_aplicado) || 0) > 0;
+  const _vendaEf = vlrVendaEfetivoImpressao(item);
+  const _lblVenda = (_dPct > 0 && (_aPct > 0 || _acrLote)) ? 'c/ desc. + acrésc.'
+    : (_aPct > 0 || _acrLote) ? 'c/ acréscimo'
+    : _dPct > 0 ? 'c/ desconto' : '';
+  const fotoTd = showFoto
+    ? (item.foto_principal
+        ? `<td class="td-foto" style="width:56px;text-align:center;vertical-align:middle;padding:4px 6px;cursor:pointer;touch-action:manipulation" data-item-action="foto" data-foto-url="${escHtml(item.foto_principal)}" data-foto-title="${escHtml(item.desc_prod)}" data-prod-id="${item.cod_produto||''}"><img class="it-img" src="${escHtml(item.foto_principal)}" alt="" style="pointer-events:none" onerror="this.outerHTML='<span class=\\'it-foto-ph\\' aria-hidden=\\'true\\'>📷</span>'"></td>`
+        : `<td class="td-foto" style="width:56px;text-align:center;vertical-align:middle;padding:4px 6px"><span class="it-foto-ph" aria-hidden="true">📷</span></td>`)
+    : '';
+  return { realIdx, cod, seq, desc_sub, _vendaEf, _lblVenda, fotoTd, item, colsAntesVenda, colsDepoisVenda, showFoto, usarCodFab };
+}
+
+function renderItensCardHtml(ctx) {
+  const { item, realIdx, cod, seq, desc_sub, _vendaEf, _lblVenda, showFoto, colsAntesVenda, colsDepoisVenda } = ctx;
+  const fotoHtml = showFoto
+    ? (item.foto_principal
+        ? `<img class="itens-card-foto" src="${escHtml(item.foto_principal)}" alt="" data-item-action="foto" data-foto-url="${escHtml(item.foto_principal)}" data-foto-title="${escHtml(item.desc_prod)}" data-prod-id="${item.cod_produto||''}" onerror="this.outerHTML='<span class=\\'itens-card-foto-ph\\' aria-hidden=\\'true\\'>📷</span>'">`
+        : `<span class="itens-card-foto-ph" aria-hidden="true">📷</span>`)
+    : '';
+  const kvParts = [
+    `<div class="itens-card-kv"><span>Un.</span><b>${escHtml((item.unidade || '').trim() || '—')}</b></div>`,
+    `<div class="itens-card-kv"><span>Qtd</span><b>${item.quantidade}</b></div>`,
+    `<div class="itens-card-kv"><span>Vlr Venda</span><b>${fmtPreco(_vendaEf)}</b>${_lblVenda ? `<div style="font-size:10px;font-weight:600;color:var(--text2);margin-top:2px">${_lblVenda}</div>` : ''}</div>`,
+  ];
+  const optCols = [...colsAntesVenda, ...colsDepoisVenda];
+  for (const colId of optCols) {
+    if (colId === 'vlr_padrao' && _vlrPadraoOcultoPedido) continue;
+    const meta = itensColMeta(colId);
+    if (!meta) continue;
+    const wide = itensCardKvWide(colId) ? ' itens-card-kv--wide' : '';
+    kvParts.push(`<div class="itens-card-kv${wide}"><span>${escHtml(meta.short || meta.label)}</span><b>${escHtml(fmtItensColTextoPlano(item, colId))}</b></div>`);
+  }
+  return `<article class="itens-card">
+    <div class="itens-card-head">
+      <div class="itens-card-head-left">
+        ${fotoHtml}
+        <div style="min-width:0">
+          <div class="itens-card-seq">#${seq} · ${cod}</div>
+        </div>
+      </div>
+      <div class="itens-card-total">${fmtPreco(item.vlrtotal_itens)}</div>
+    </div>
+    <div class="itens-card-desc">${escHtml(itemDescricaoExib(item))}</div>
+    ${desc_sub}
+    <div class="itens-card-kv-grid">${kvParts.join('')}</div>
+    <div class="itens-card-actions">${renderItensRowActions(realIdx)}</div>
+  </article>`;
+}
+
+function renderItensTableRowHtml(ctx) {
+  const { item, realIdx, cod, seq, desc_sub, _vendaEf, _lblVenda, fotoTd, colsAntesVenda, colsDepoisVenda } = ctx;
+  const _vendaCell = `<td class="td-num it-desc-cell">${fmtPreco(_vendaEf)}${_lblVenda ? `<div style="font-size:9px;color:var(--text2);font-weight:600;line-height:1.1">${_lblVenda}</div>` : ''}</td>`;
+  return `<tr>
+    ${fotoTd}
+    <td><span class="it-cod">${seq}</span></td>
+    <td><span class="it-cod">${cod}</span></td>
+    <td class="td-desc">
+      <span class="it-desc">${escHtml(itemDescricaoExib(item))}</span>
+      ${desc_sub}
+    </td>
+    <td class="td-center it-unidade">${escHtml((item.unidade || '').trim() || '—')}</td>
+    <td class="td-num it-desc-cell">${item.quantidade}</td>
+    ${colsAntesVenda.map((colId) => (colId === 'vlr_padrao' && _vlrPadraoOcultoPedido ? '' : renderItensColCell(item, colId))).join('')}
+    ${_vendaCell}
+    ${colsDepoisVenda.map((colId) => renderItensColCell(item, colId)).join('')}
+    <td class="td-num"><span class="it-total">${fmtPreco(item.vlrtotal_itens)}</span></td>
+    <td class="td-center" style="white-space:nowrap">${renderItensRowActions(realIdx)}</td>
+  </tr>`;
+}
+
+function itensColModalRowHtml(id, cfg) {
+  const c = cfg[id] || ITENS_COLS_DEFAULT[id];
+  const lbl = (ITENS_COLS_META[id] && ITENS_COLS_META[id].label) || id;
+  return `<div class="itens-cols-row">
+    <span class="itens-cols-lbl">${escHtml(lbl)}</span>
+    <label class="itens-cols-chk"><input type="checkbox" data-itens-col="${id}" data-flag="tela" ${c.tela !== false ? 'checked' : ''}> Na tela</label>
+    <label class="itens-cols-chk"><input type="checkbox" data-itens-col="${id}" data-flag="relatorio" ${c.relatorio ? 'checked' : ''}> No relatório</label>
+  </div>`;
 }
 
 function itensColCfg(id) {
@@ -10565,103 +10961,48 @@ function renderSubrec(tipo) {
   if (tipo === 'itens') {
     const showFoto = _fornecedorConfig.fotosprodutospedido === 'S';
     const usarCodFab = (_fornecedorConfig.pedidos_codfabricante || 'N') === 'S';
-    const showPadrao = itensMostraColTela('vlr_padrao') && !_vlrPadraoOcultoPedido;
-    const showDesc = itensMostraColTela('desconto');
-    const showAcr = itensMostraColTela('acrescimo');
-    const showCom = itensMostraColTela('comissao');
+    const colsAntesVenda = itensColsAtivosTela().filter((id) => ['vlr_padrao', 'desconto', 'acrescimo'].includes(id));
+    const colsDepoisVenda = itensColsAtivosTela().filter((id) => !['vlr_padrao', 'desconto', 'acrescimo'].includes(id));
     const totalItens = data.length;
     const totalPags  = Math.ceil(totalItens / _itensPorPagina);
     if (_itensPage > totalPags) _itensPage = Math.max(1, totalPags);
     const offset = (_itensPage - 1) * _itensPorPagina;
     const pagData = data.slice(offset, offset + _itensPorPagina);
+    const usaCards = pedidoItensUsaCards();
 
-    const rows = pagData.map((item, localIdx) => {
-      const realIdx = _subData.itens.indexOf(item);
-      const badges = [
-        item.multiplo_sigla      ? `<span class="it-badge" style="background:rgba(111,99,255,.12);color:var(--accent);font-weight:800">${escHtml(item.multiplo_sigla)}</span>` : '',
-        item.cores_qt            ? `<span class="it-badge" style="background:rgba(14,165,233,.12);color:var(--accent)">🎨 ${escHtml(item.cores_qt)}</span>` : '',
-        item.grade_qtd?.length   ? miniGradeChart(item.grade_qtd) : '',
-        '',
-        item.vlr_st  > 0 ? `<span class="it-badge" style="background:rgba(245,158,11,.12);color:var(--warn)">ST ${fmtPreco(item.vlr_st)}</span>` : '',
-        item.vlr_ipi > 0 ? `<span class="it-badge" style="background:rgba(99,102,241,.12);color:#6366f1">IPI ${fmtPreco(item.vlr_ipi)}</span>` : '',
-        item.valor_cliente > 0   ? `<span class="it-badge" style="background:rgba(0,0,0,.05);color:var(--text2)">Cli ${fmtCur(item.valor_cliente)}</span>` : '',
-        item._acr_aplicado > 0   ? `<span class="it-badge" style="background:rgba(234,88,12,.12);color:#ea580c">Acr. +${fmtCur(item._acr_aplicado)}</span>` : '',
-      ].filter(Boolean).join('');
-      const cod = usarCodFab
-        ? escHtml(item.cod_fabricante || String(item.cod_produto || ''))
-        : escHtml(String(item.cod_produto || ''));
-      const seq = offset + localIdx + 1;
-      const desc_sub = badges ? `<div class="it-sub">${badges}</div>` : '';
-      // VLR VENDA efetivo (total ÷ qtd) + rótulo quando há desconto/acréscimo.
-      const _dPct = parseFloat(item.desconto_percentual) || 0;
-      const _aPct = parseFloat(item.acrescimo_percentual) || 0;
-      const _acrLote = (parseFloat(item._acr_aplicado) || 0) > 0;
-      const _vendaEf = vlrVendaEfetivoImpressao(item);
-      const _lblVenda = (_dPct > 0 && (_aPct > 0 || _acrLote)) ? 'c/ desc. + acrésc.'
-        : (_aPct > 0 || _acrLote) ? 'c/ acréscimo'
-        : _dPct > 0 ? 'c/ desconto' : '';
-      const _vendaCell = `<td class="td-num it-desc-cell">${fmtPreco(_vendaEf)}${_lblVenda ? `<div style="font-size:9px;color:var(--text2);font-weight:600;line-height:1.1">${_lblVenda}</div>` : ''}</td>`;
-      const fotoTd = showFoto
-        ? (item.foto_principal
-            ? `<td class="td-foto" style="width:56px;text-align:center;vertical-align:middle;padding:4px 6px;cursor:pointer;touch-action:manipulation" data-item-action="foto" data-foto-url="${escHtml(item.foto_principal)}" data-foto-title="${escHtml(item.desc_prod)}" data-prod-id="${item.cod_produto||''}"><img class="it-img" src="${escHtml(item.foto_principal)}" alt="" style="pointer-events:none" onerror="this.outerHTML='<span class=\\'it-foto-ph\\' aria-hidden=\\'true\\'>📷</span>'"></td>`
-            : `<td class="td-foto" style="width:56px;text-align:center;vertical-align:middle;padding:4px 6px"><span class="it-foto-ph" aria-hidden="true">📷</span></td>`)
-        : '';
-      return `<tr>
-        ${fotoTd}
-        <td><span class="it-cod">${seq}</span></td>
-        <td><span class="it-cod">${cod}</span></td>
-        <td class="td-desc">
-          <span class="it-desc">${escHtml(itemDescricaoExib(item))}</span>
-          ${desc_sub}
-        </td>
-        <td class="td-center it-unidade">${escHtml((item.unidade || '').trim() || '—')}</td>
-        <td class="td-num it-desc-cell">${item.quantidade}</td>
-        ${showPadrao ? `<td class="td-num it-desc-cell itens-col-padrao-muted">${fmtPreco((_dPct > 0 || _aPct > 0 || _acrLote) ? (parseFloat(item.valor_unitario) || 0) : normalizarVlrPadraoItem(item))}</td>` : ''}
-        ${showDesc ? `<td class="td-center it-td-pct">${item.desconto_percentual > 0 ? item.desconto_percentual + '%' : '<span style="color:var(--border)">—</span>'}</td>` : ''}
-        ${showAcr ? `<td class="td-center it-td-pct">${parseFloat(item.acrescimo_percentual) > 0 ? `<span style="color:var(--success);font-weight:700">+${item.acrescimo_percentual}%</span>` : '<span style="color:var(--border)">—</span>'}</td>` : ''}
-        ${_vendaCell}
-        ${showCom ? `<td class="td-center it-td-pct">${(() => { const pct = parseFloat(item.comissao_percentual) || 0; const vlrCom = numPed(item.vlrtotal_itens) * pct / 100; return pct > 0 ? `<div style="font-size:10px;color:var(--text2);line-height:1.2">${pct}%</div><div style="font-weight:700;font-size:12px;color:var(--success)">${fmtPreco(vlrCom)}</div>` : '<span style="color:var(--border)">—</span>'; })()}</td>` : ''}
-        <td class="td-num"><span class="it-total">${fmtPreco(item.vlrtotal_itens)}</span></td>
-        <td class="td-center" style="white-space:nowrap">
-          <span class="it-actions">
-            <button type="button" class="it-action-btn" data-act="edit" data-item-action="edit" data-idx="${realIdx}" title="Editar item">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M16.862 3.487a2.25 2.25 0 013.182 3.182L8.25 18.463 4 19.5l1.037-4.25L16.862 3.487z"/>
-              </svg>
-            </button>
-            <button type="button" class="it-action-btn" data-act="delete" data-item-action="delete" data-idx="${realIdx}" title="Excluir item">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 7h12M10 11v7m4-7v7M9 7l1-2h4l1 2m-9 0l1 14h10l1-14"/>
-              </svg>
-            </button>
-          </span>
-        </td>
-      </tr>`;
-    }).join('');
-
-    cont.innerHTML = `
-      <div class="itens-table-scroll">
-      <table class="itens-table itens-table--compact">
-        <thead>
-          <tr>
-            ${showFoto ? '<th class="th-foto" style="width:56px"></th>' : ''}
-            <th style="width:40px">#</th>
-            <th style="width:1%">${usarCodFab ? 'COD. FAB.' : 'COD.'}</th>
-            <th>Produto</th>
-            <th style="text-align:center;width:1%">Un.</th>
-            <th style="text-align:right;width:1%">Qtd</th>
-            ${showPadrao ? '<th style="text-align:right;width:1%" title="Valor da tabela de preço ou catálogo (sem desconto)">Vlr. Tabela</th>' : ''}
-            ${showDesc ? '<th style="text-align:center;width:1%">Desc.</th>' : ''}
-            ${showAcr ? '<th style="text-align:center;width:1%">Acrésc.</th>' : ''}
-            <th style="text-align:right;width:1%">Vlr Venda</th>
-            ${showCom ? '<th style="text-align:center;width:1%">Com.</th>' : ''}
-            <th style="text-align:right;width:1%">Vlr Total</th>
-            <th style="width:1%"></th>
-          </tr>
-        </thead>
-        <tbody>${rows}</tbody>
-      </table>
-      </div>`;
+    if (usaCards) {
+      const cards = pagData.map((item, localIdx) => {
+        const ctx = buildItensRowCtx(item, localIdx, offset, showFoto, usarCodFab, colsAntesVenda, colsDepoisVenda);
+        return renderItensCardHtml(ctx);
+      }).join('');
+      cont.innerHTML = `<div class="itens-cards-grid">${cards}</div>`;
+    } else {
+      const rows = pagData.map((item, localIdx) => {
+        const ctx = buildItensRowCtx(item, localIdx, offset, showFoto, usarCodFab, colsAntesVenda, colsDepoisVenda);
+        return renderItensTableRowHtml(ctx);
+      }).join('');
+      cont.innerHTML = `
+        <div class="itens-table-scroll">
+        <table class="itens-table itens-table--compact">
+          <thead>
+            <tr>
+              ${showFoto ? '<th class="th-foto" style="width:56px"></th>' : ''}
+              <th style="width:40px">#</th>
+              <th style="width:1%">${usarCodFab ? 'COD. FAB.' : 'COD.'}</th>
+              <th>Produto</th>
+              <th style="text-align:center;width:1%">Un.</th>
+              <th style="text-align:right;width:1%">Qtd</th>
+              ${colsAntesVenda.map((colId) => (colId === 'vlr_padrao' && _vlrPadraoOcultoPedido ? '' : renderItensColHead(colId))).join('')}
+              <th style="text-align:right;width:1%">Vlr Venda</th>
+              ${colsDepoisVenda.map((colId) => renderItensColHead(colId)).join('')}
+              <th style="text-align:right;width:1%">Vlr Total</th>
+              <th style="width:1%"></th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+        </div>`;
+    }
 
     atualizarTotalItens();
     renderDescontoCascata();
@@ -12991,7 +13332,7 @@ function mapItemPedidoFromApi(i) {
     st_percentual:        parseFloat(i.st_percentual  ?? i.st  ?? 0),
     ipi_percentual:       parseFloat(i.ipi_percentual ?? i.ipi ?? 0),
     embalagem:            parseFloat(i.embalagem ?? i.kilo_embalagem ?? 1),
-    kilo_embalagem:       parseFloat(i.prod_kilo_embalagem ?? i.kilo_embalagem_prod ?? 0) || 0,
+    kilo_embalagem:       parseFloat(i.prod_kilo_embalagem ?? i.kilo_embalagem_prod ?? i.kilo_embalagem ?? 0) || 0,
     precopeso:            i.precopeso || 'N',
     cores_qt:             String(i.cores_qt ?? i.cores ?? '').trim(),
     tipo_preco:           i.tipo_preco || 'venda',
@@ -12999,10 +13340,22 @@ function mapItemPedidoFromApi(i) {
     promocao_descricao:   i.promocao_descricao || null,
     icms_percentual:      parseFloat(i.icms_percentual ?? i.icms ?? 0),
     vlr_icms:             parseFloat(i.vlr_icms ?? 0),
+    vlr_ipi:              parseFloat(i.vlr_ipi ?? 0),
+    vlr_st:               parseFloat(i.vlr_st ?? 0),
+    valor_kilo:           parseFloat(i.valor_kilo ?? 0),
+    valor_puxada:         parseFloat(i.valor_puxada ?? 0),
+    valor_totalpuxada:    parseFloat(i.valor_totalpuxada ?? 0),
+    valor_cliente:        parseFloat(i.valor_cliente ?? 0),
+    vlr_comissao:         parseFloat(i.vlr_comissao ?? 0),
+    peso:                 parseFloat(i.peso ?? 0),
+    total_peso:           parseFloat(i.total_peso ?? 0),
+    cod_fabricante:       String(i.cod_fabricante ?? '').trim(),
+    multiplo_sigla:       String(i.multiplo_sigla ?? '').trim(),
+    grade_resumo:         String(i.grade_resumo ?? '').trim(),
     obsitem:              String(i.obsitem ?? '').trim(),
     vlrtotal_com_imposto: parseFloat(i.vlrtotal_com_imposto ?? i.vlrtotalcomimposto ?? i.vlrtotal_itens ?? 0),
   };
-  item.total_peso = calcPesoItemPedido(item);
+  if (!item.total_peso) item.total_peso = calcPesoItemPedido(item);
   return item;
 }
 
@@ -13648,6 +14001,61 @@ function findPedidoItemIdxByProduto(prodId) {
   return -1;
 }
 
+/** Chave estável para mesclar linhas de grade ao somar o mesmo produto. */
+function _gradeQtdPedidoKey(g) {
+  if (g.id_descricao_grade != null && g.id_descricao_grade !== '') return String(g.id_descricao_grade);
+  if (g.sequencial != null && g.sequencial !== '') return 'seq:' + g.sequencial;
+  return 'nome:' + String(g.nome_grade || g.nome || '');
+}
+
+/** Soma quantidades por tamanho ao incluir o mesmo produto novamente (vendasduplicaritem = S). */
+function mergeGradeQtdPedido(exist = [], inc = []) {
+  const map = new Map();
+  (exist || []).forEach(g => {
+    map.set(_gradeQtdPedidoKey(g), {
+      ...g,
+      quantidade: parseFloat(g.quantidade) || 0
+    });
+  });
+  (inc || []).forEach(g => {
+    const key = _gradeQtdPedidoKey(g);
+    const q = parseFloat(g.quantidade) || 0;
+    if (!q) return;
+    const prev = map.get(key);
+    if (prev) {
+      prev.quantidade = Math.round((prev.quantidade + q) * 1000) / 1000;
+    } else {
+      map.set(key, { ...g, quantidade: q });
+    }
+  });
+  return Array.from(map.values()).filter(g => (parseFloat(g.quantidade) || 0) > 0);
+}
+
+/** fornecedores.vendasduplicaritem = S → soma na linha existente; N → bloqueia duplicata. */
+function fornecedorConsolidaItemPedido() {
+  return String(_fornecedorConfig.vendasduplicaritem || 'S').toUpperCase() !== 'N';
+}
+
+/** Mantém preço/desconto da linha existente e soma quantidade (e grade, se houver). */
+function consolidarItemPedidoExistente(existing, incoming) {
+  const merged = { ...existing };
+  const qAnt = parseFloat(existing.quantidade) || 0;
+  const qNov = parseFloat(incoming.quantidade) || 0;
+  const temGrade = (existing.grade_qtd?.length || incoming.grade_qtd?.length);
+  if (temGrade) {
+    merged.grade_qtd = mergeGradeQtdPedido(existing.grade_qtd, incoming.grade_qtd);
+    merged.quantidade = Math.round(
+      merged.grade_qtd.reduce((s, g) => s + (parseFloat(g.quantidade) || 0), 0) * 1000
+    ) / 1000;
+    if (incoming.id_grade && !merged.id_grade) merged.id_grade = incoming.id_grade;
+    if (incoming.solado && !merged.solado) merged.solado = incoming.solado;
+    if (incoming.tipo_grade && !merged.tipo_grade) merged.tipo_grade = incoming.tipo_grade;
+  } else {
+    merged.quantidade = Math.round((qAnt + qNov) * 1000) / 1000;
+  }
+  return merged;
+}
+
 function getMercosQtdNoPedido(prodId) {
   const idx = findPedidoItemIdxByProduto(prodId);
   if (idx < 0) return 0;
@@ -13773,6 +14181,7 @@ async function incluirOuAtualizarMercosItem(prod, qtd, opts = {}) {
     );
     if (!seguir) return false;
   }
+  const isNovo = idx < 0;
   if (idx >= 0) {
     const item = _subData.itens[idx];
     item.quantidade = qtd;
@@ -13782,6 +14191,7 @@ async function incluirOuAtualizarMercosItem(prod, qtd, opts = {}) {
   }
   renderSubrec('itens');
   atualizarTotalItens();
+  if (isNovo) _scrollUltimoItemItens();
   if (!opts.silent) {
     toast((prod.desc_produto || prod.descricao || 'Produto') + (idx >= 0 ? ' atualizado' : ' adicionado'), 'ok');
   }
@@ -14103,12 +14513,18 @@ function confirmarSubrec(tipo) {
 
 async function _confirmarSubrecAsync(tipo) {
   let item = {};
+  let idxConsolidar = -1;
   if (tipo === 'itens') {
     const sel = document.getElementById('sub_prod');
     const search = document.getElementById('sub_prod_search');
     if (!sel.value) {
       await mostrarModalValidacaoPedido([{ message: 'Selecione um produto antes de incluir.', tab: 'tab-itens' }]);
       return;
+    }
+
+    const prodId = parseInt(sel.value, 10);
+    if (_editandoItemIdx < 0 && fornecedorConsolidaItemPedido()) {
+      idxConsolidar = findPedidoItemIdxByProduto(prodId);
     }
 
     const calc = calcSubItem();
@@ -14120,17 +14536,28 @@ async function _confirmarSubrecAsync(tipo) {
     const indisp = document.getElementById('sub_prod')?.dataset?.indisponivel === '1';
     const gradeObrigatoria = _habilitaGrades === 'S' && _gradeIdAtual && _gradeItensAtual.length > 0;
     const gradeQtd = gradeObrigatoria ? coletarGradeQtd() : [];
-    const erroEstoque = validarEstoqueItemPedido(qtd);
+    let qtdValidacao = qtd;
+    let gradeQtdValidacao = gradeQtd;
+    if (idxConsolidar >= 0) {
+      const exist = _subData.itens[idxConsolidar];
+      if (gradeObrigatoria || exist.grade_qtd?.length) {
+        gradeQtdValidacao = mergeGradeQtdPedido(exist.grade_qtd, gradeQtd);
+        qtdValidacao = gradeQtdValidacao.reduce((s, g) => s + (parseFloat(g.quantidade) || 0), 0);
+      } else {
+        qtdValidacao = (parseFloat(exist.quantidade) || 0) + qtd;
+      }
+    }
+    const erroEstoque = validarEstoqueItemPedido(qtdValidacao);
 
     const val = await validarItemPedidoAntesIncluir({
-      prodId: parseInt(sel.value, 10),
-      qtd,
+      prodId,
+      qtd: qtdValidacao,
       mv,
       indisponivel: false,
       gradeObrigatoria,
-      gradeQtd,
+      gradeQtd: gradeQtdValidacao,
       descProd: search?.value || 'Produto',
-      editIdx: _editandoItemIdx,
+      editIdx: _editandoItemIdx >= 0 ? _editandoItemIdx : idxConsolidar,
       erroEstoque: null
     });
     if (!val.ok) {
@@ -14254,15 +14681,36 @@ async function _confirmarSubrecAsync(tipo) {
     }
 
     fecharSubrecForm();
+  } else if (tipo === 'itens' && idxConsolidar >= 0) {
+    const merged = consolidarItemPedidoExistente(_subData.itens[idxConsolidar], item);
+    await sincronizarPromocaoItemPedido(merged, window._prodSubrecAtual);
+    recalcItemTotaisPedido(merged);
+    _subData.itens[idxConsolidar] = merged;
+    renderSubrec('itens');
+    atualizarTotalItens();
+    toast(`Quantidade somada ao item existente (total: ${merged.quantidade})`, 'ok');
+    _resetSubrecItemForm();
   } else {
     _subData[tipo].push(item);
     renderSubrec(tipo);
     if (tipo === 'itens') {
+      _scrollUltimoItemItens();
       _resetSubrecItemForm();
     } else {
       fecharSubrecForm();
     }
   }
+}
+
+function _scrollUltimoItemItens() {
+  requestAnimationFrame(() => {
+    const cont = document.getElementById('itensList');
+    if (!cont) return;
+    const ultimo = cont.querySelector('.itens-cards-grid > *:last-child, tbody > tr:last-child');
+    if (ultimo) {
+      try { ultimo.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (_) {}
+    }
+  });
 }
 
 function renderItensPagBtns(total) {
@@ -14926,24 +15374,98 @@ async function marcarEnviadoRepresentada(id) {
   const sit = (ped.situacao_pedido || '').toUpperCase();
   const desmarcar = sit === 'ENVIADO';
 
-  if (sit === 'CANCELADO') {
-    toast('Pedido cancelado não pode ser alterado', 'warn');
-    return;
-  }
-  if (sit === 'FATURADO') {
-    toast('Pedido faturado não pode ser desmarcado desta forma', 'warn');
+  if (sit === 'CANCELADO') { toast('Pedido cancelado não pode ser alterado', 'warn'); return; }
+  if (sit === 'FATURADO') { toast('Pedido faturado não pode ser desmarcado desta forma', 'warn'); return; }
+
+  if (desmarcar) {
+    if (permPedido('desbloquear_pedido_enviado') !== 'S') {
+      toast('Você não tem permissão para desbloquear pedidos enviados à representada.', 'err');
+      return;
+    }
+    _pedidoSenhaCallback = async (senha) => {
+      try {
+        const r = await apiJ(`/api/pedidos/${id}/marcar-enviado`, 'POST', { desmarcar: true, senha });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || 'Erro');
+        toast('Envio p/ representada desmarcado — pedido desbloqueado para edição', 'ok');
+        await carregar(document.documentElement.classList.contains('sysrep-ms-embed'));
+      } catch (e) { toast(e.message, 'err'); }
+    };
+    abrirModalSenhaPedido('Desbloquear pedido enviado', 'Este pedido já foi enviado à representada. Confirme sua senha para desbloqueá-lo e permitir edições.');
     return;
   }
 
   try {
-    const r = await apiJ(`/api/pedidos/${id}/marcar-enviado`, 'POST', { desmarcar });
+    const r = await apiJ(`/api/pedidos/${id}/marcar-enviado`, 'POST', { desmarcar: false });
     const data = await r.json();
     if (!r.ok) throw new Error(data.error || 'Erro');
-    if (data.desmarcado) toast('Envio p/ representada desmarcado', 'ok');
-    else toast('Marcado como enviado p/ representada', 'ok');
+    toast('Marcado como enviado p/ representada', 'ok');
     await carregar(document.documentElement.classList.contains('sysrep-ms-embed'));
   } catch (e) {
     toast(e.message, 'err');
+  }
+}
+
+// ── Modal de confirmação de senha para ações em pedidos ENVIADOS ──────────────
+let _pedidoSenhaCallback = null;
+
+function abrirModalSenhaPedido(titulo, subtitulo) {
+  document.getElementById('_modalSenhaPedido')?.remove();
+  const html = `
+  <div id="_modalSenhaPedido" style="position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55)">
+    <div style="background:var(--card,#fff);color:var(--text,#222);border-radius:12px;padding:28px 28px 20px;width:340px;max-width:94vw;box-shadow:0 8px 40px rgba(0,0,0,.3)">
+      <div style="font-size:15px;font-weight:700;margin-bottom:6px">🔒 ${titulo}</div>
+      <div style="font-size:13px;color:var(--muted,#888);margin-bottom:18px;line-height:1.4">${subtitulo}</div>
+      <input id="_senhaPedidoInput" type="password" placeholder="Sua senha de login" autocomplete="off"
+        style="width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid var(--border,#ddd);border-radius:8px;font-size:14px;background:var(--input-bg,#fff);color:var(--text,#222);margin-bottom:16px">
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button type="button" onclick="document.getElementById('_modalSenhaPedido').remove();_pedidoSenhaCallback=null"
+          style="padding:8px 18px;border:1.5px solid var(--border,#ddd);border-radius:8px;background:transparent;color:var(--text,#555);cursor:pointer;font-size:13px">Cancelar</button>
+        <button type="button" id="_btnConfirmarSenhaPedido"
+          style="padding:8px 18px;border:none;border-radius:8px;background:var(--danger,#e53e3e);color:#fff;font-weight:700;cursor:pointer;font-size:13px">Confirmar</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+  const inp = document.getElementById('_senhaPedidoInput');
+  inp.focus();
+  document.getElementById('_btnConfirmarSenhaPedido').onclick = async () => {
+    const senha = inp.value.trim();
+    if (!senha) { inp.focus(); return; }
+    document.getElementById('_modalSenhaPedido')?.remove();
+    if (_pedidoSenhaCallback) { const cb = _pedidoSenhaCallback; _pedidoSenhaCallback = null; await cb(senha); }
+  };
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('_btnConfirmarSenhaPedido')?.click(); });
+}
+
+function _aplicarBannerPedidoEnviado(isEnviado) {
+  document.getElementById('_bannerPedidoEnviado')?.remove();
+  if (!isEnviado) return;
+
+  const podeDesbloquear = permPedido('desbloquear_pedido_enviado') === 'S';
+  const msg = podeDesbloquear
+    ? '🔒 Pedido enviado à representada. Para editar, use o menu ⋮ → Desmarcar enviado (requer senha).'
+    : '🔒 Pedido enviado à representada — bloqueado. Você não tem permissão para desbloquear.';
+
+  const banner = document.createElement('div');
+  banner.id = '_bannerPedidoEnviado';
+  banner.style.cssText = `background:var(--warning-bg,#fffbe6);color:var(--warning-text,#7c5700);border:1.5px solid var(--warning-border,#f6c700);
+    border-radius:8px;padding:10px 14px;font-size:13px;font-weight:600;margin:0 0 12px 0;line-height:1.4;`;
+  banner.textContent = msg;
+
+  const formSection = document.getElementById('formSection');
+  const firstCard = formSection?.querySelector('.card, .form-group, [class*="card"]');
+  if (firstCard) firstCard.insertAdjacentElement('beforebegin', banner);
+  else formSection?.prepend(banner);
+
+  // Sem permissão: bloqueia todos os campos do formulário
+  if (!podeDesbloquear) {
+    const campos = document.querySelectorAll('#formSection input:not([type=hidden]), #formSection select, #formSection textarea, #formSection button[type=button]:not(#btnExcluir):not(#btnCancelar)');
+    campos.forEach(el => {
+      if (!el.closest('#_bannerPedidoEnviado')) el.disabled = true;
+    });
+    const btnSave = document.getElementById('btnSalvar') || document.querySelector('#formSection .btn-primary');
+    if (btnSave) btnSave.disabled = true;
   }
 }
 
@@ -15204,6 +15726,34 @@ async function cancelarPedido() {
 
 async function excluirPedido() {
   if (!_idEdit) return;
+  const ped = getPedidoCacheById(_idEdit) || {};
+  const sit = (ped.situacao_pedido || '').toUpperCase();
+
+  if (sit === 'ENVIADO') {
+    if (permPedido('desbloquear_pedido_enviado') !== 'S') {
+      toast('Você não tem permissão para excluir pedidos enviados à representada.', 'err');
+      return;
+    }
+    _pedidoSenhaCallback = async (senha) => {
+      try {
+        const r = await apiJ(`/api/pedidos/${_idEdit}`, 'DELETE', { senha });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          if (data.bloqueio === 'PEDIDO_ENVIADO_SENHA') { toast(data.error || 'Senha inválida', 'err'); return; }
+          if (data.bloqueio === 'COMISSAO_LIQUIDADA' && data.comissoes?.length) { _mostrarComissoesLiquidadas(data.comissoes, data.error); return; }
+          if (data.bloqueio === 'FINANCEIRO_BAIXADO' && data.parcelas?.length) { _mostrarParcelasLiquidadas(data.parcelas, data.error); return; }
+          toast(data.error || 'Erro ao excluir', 'err');
+          return;
+        }
+        toast('Pedido excluído', 'ok');
+        fecharDrawer({ force: true });
+        carregar(document.documentElement.classList.contains('sysrep-ms-embed'));
+      } catch (e) { toast(e.message, 'err'); }
+    };
+    abrirModalSenhaPedido('Excluir pedido enviado', 'Este pedido já foi enviado à representada. Confirme sua senha para excluir.');
+    return;
+  }
+
   confirmar('Excluir pedido?', 'Esta ação não pode ser desfeita.', async () => {
     try {
       const r = await apiJ(`/api/pedidos/${_idEdit}`, 'DELETE');
@@ -17917,10 +18467,28 @@ async function imprimirPedidoAtual() {
   });
 
   // ── totais de itens ─────────────────────────────────────────────
-  const totalItens = its.reduce((s,i) => s + (parseFloat(i.vlrtotal_itens)||0), 0);
-  const totalIpi   = its.reduce((s,i) => s + (parseFloat(i.vlr_ipi)||0), 0);
-  const totalSt    = its.reduce((s,i) => s + (parseFloat(i.vlr_st)||0), 0);
+  const totalItens = its.reduce((s,i) => {
+    const u = Math.round(vlrVendaEfetivoImpressao(i) * 100) / 100;
+    return s + Math.round(u * (parseFloat(i.quantidade)||0) * 100) / 100;
+  }, 0);
+  const totalIpi = its.reduce((s,i) => {
+    const u = Math.round(vlrVendaEfetivoImpressao(i) * 100) / 100;
+    const base = Math.round(u * (parseFloat(i.quantidade)||0) * 100) / 100;
+    const pct = parseFloat(i.ipi_percentual ?? i.ipi) || 0;
+    return s + (parseFloat(i.vlr_ipi) || (pct > 0 ? base * pct / 100 : 0));
+  }, 0);
+  const totalSt = its.reduce((s,i) => {
+    const u = Math.round(vlrVendaEfetivoImpressao(i) * 100) / 100;
+    const base = Math.round(u * (parseFloat(i.quantidade)||0) * 100) / 100;
+    const pct = parseFloat(i.st_percentual ?? i.st) || 0;
+    return s + (parseFloat(i.vlr_st) || (pct > 0 ? base * pct / 100 : 0));
+  }, 0);
   const totalPed   = totalItens + totalIpi + totalSt;
+  const totalQtd   = its.reduce((s,i) => s + (parseFloat(i.quantidade)||0), 0);
+  const totalPeso  = its.reduce((s,i) => {
+    const kg = parseFloat(i.kilo_embalagem ?? i.prod_kilo_embalagem) || 0;
+    return s + Math.round(kg * (parseFloat(i.quantidade)||0) * 1000) / 1000;
+  }, 0);
 
   // ── cabeçalho / rodapé texto livre ──────────────────────────────
   const headerTextHtml = cfg.header_text ? `<div style="font-size:10.5px;margin-bottom:12px;padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;white-space:pre-line">${h(cfg.header_text)}</div>` : '';
@@ -17940,10 +18508,12 @@ async function imprimirPedidoAtual() {
     itensMostraColRelatorio('vlr_padrao') ? `<th class="tr">Vlr. Tabela</th>` : '',
     cfg.col_preco_unit ? `<th class="tr">Vlr Venda</th>` : '',
     itensMostraColRelatorio('desconto') && cfg.col_desconto ? `<th class="tc">Desc.%</th>` : '',
+    cfg.col_acrescimo ? `<th class="tc">Acr.%</th>` : '',
     cfg.col_vlr_desc_unit ? `<th class="tr">Vlr Final</th>` : '',
-    cfg.col_subtotal   ? `<th class="tr">Vlr Total</th>` : '',
-    cfg.col_ipi        ? `<th class="tc">IPI %</th>` : '',
-    cfg.col_st         ? `<th class="tc">ST %</th>` : '',
+    cfg.col_vlrtotal   ? `<th class="tr">Vlr Total</th>` : '',
+    cfg.col_ipi        ? `<th class="tc">IPI</th>` : '',
+    cfg.col_st         ? `<th class="tc">ST</th>` : '',
+    cfg.col_subtotal   ? `<th class="tr">Vlr c/ Imposto</th>` : '',
   ].join('');
 
   // ── linhas de itens ─────────────────────────────────────────────
@@ -17954,6 +18524,14 @@ async function imprimirPedidoAtual() {
     const descHtml = hintPp
       ? `${h(i.desc_prod)}<div style="font-size:9px;color:#64748b;margin-top:2px;line-height:1.35">${h(hintPp)}</div>`
       : h(i.desc_prod);
+    const _unitBase1 = Math.round(vlrVendaEfetivoImpressao(i) * 100) / 100;
+    const _base1   = Math.round(_unitBase1 * (parseFloat(i.quantidade)||0) * 100) / 100;
+    const _ipiPct1 = parseFloat(i.ipi_percentual ?? i.ipi) || 0;
+    const _stPct1  = parseFloat(i.st_percentual  ?? i.st)  || 0;
+    const _ipiVal1 = parseFloat(i.vlr_ipi) || (_ipiPct1 > 0 ? _base1 * _ipiPct1 / 100 : 0);
+    const _stVal1  = parseFloat(i.vlr_st)  || (_stPct1  > 0 ? _base1 * _stPct1  / 100 : 0);
+    const _icms1   = parseFloat(i.vlr_icms) || 0;
+    const _tot1    = _base1 + _ipiVal1 + _stVal1 + _icms1;
     const cells = [
       showFotoPDF        ? `<td class="tc" style="padding:3px 6px">${i.foto_principal ? `<img src="${h(i.foto_principal)}" style="width:56px;height:56px;object-fit:cover;border-radius:5px;display:block;margin:0 auto" onerror="this.style.display='none'">` : ''}</td>` : '',
       cfg.col_seq        ? `<td class="tc">${idx + 1}</td>` : '',
@@ -17965,10 +18543,12 @@ async function imprimirPedidoAtual() {
       itensMostraColRelatorio('vlr_padrao') ? `<td class="tr">R$ ${br(normalizarVlrPadraoItem(i))}${ppItem ? '<span style="font-size:8px;color:#64748b">/kg</span>' : ''}</td>` : '',
       cfg.col_preco_unit ? `<td class="tr">R$ ${br(vlrVendaEfetivoImpressao(i))}${ppItem ? '<span style="font-size:8px;color:#64748b">/kg</span>' : ''}</td>` : '',
       (itensMostraColRelatorio('desconto') && cfg.col_desconto) ? `<td class="tc">${parseFloat(i.desconto_percentual||i.desconto)||0}%</td>` : '',
+      cfg.col_acrescimo ? `<td class="tc">${parseFloat(i.acrescimo_percentual)||0 ? `<span style="color:#16a34a;font-weight:700">+${parseFloat(i.acrescimo_percentual)}%</span>` : '—'}</td>` : '',
       cfg.col_vlr_desc_unit ? `<td class="tr">R$ ${br((parseFloat(i.valor_unitario)||0) * (1 - (parseFloat(i.desconto_percentual||i.desconto)||0)/100))}${ppItem ? '<span style="font-size:8px;color:#64748b">/kg</span>' : ''}</td>` : '',
-      cfg.col_subtotal   ? `<td class="tr"><b>R$ ${br(i.vlrtotal_itens)}</b></td>` : '',
-      cfg.col_ipi        ? `<td class="tc">${parseFloat(i.ipi_percentual)||0}</td>` : '',
-      cfg.col_st         ? `<td class="tc">${parseFloat(i.st_percentual)||0}</td>` : '',
+      cfg.col_vlrtotal   ? `<td class="tr">R$ ${br(_base1)}</td>` : '',
+      cfg.col_ipi        ? `<td class="tc">${_ipiPct1 || 0}%${_ipiVal1 > 0 ? `<div style="font-size:9px;color:#6366f1;font-weight:700">R$ ${br(_ipiVal1)}</div>` : ''}</td>` : '',
+      cfg.col_st         ? `<td class="tc">${_stPct1  || 0}%${_stVal1  > 0 ? `<div style="font-size:9px;color:#d97706;font-weight:700">R$ ${br(_stVal1)}</div>`  : ''}</td>` : '',
+      cfg.col_subtotal   ? `<td class="tr"><b>R$ ${br(_tot1)}</b></td>` : '',
     ];
     return `<tr class="${idx%2===1?'alt':''}">${cells.join('')}</tr>`;
   }).join('');
@@ -18001,7 +18581,7 @@ async function imprimirPedidoAtual() {
 
   // ── parcelas (só imprime se fornecedor tiver imprimirparcelaspedido = S) ────
   const parcs = dados.parcelas || [];
-  const parcelasHtml = (imprimirParc && cfg.sec_parcelas && parcs.length) ? `
+  const parcelasHtml = (cfg.sec_parcelas && parcs.length) ? `
     <div class="section-title" style="margin-top:14px">Parcelas</div>
     <table>
       <thead><tr>
@@ -18125,7 +18705,13 @@ async function imprimirPedidoAtual() {
   </table>
 
   <!-- ── TOTAIS ── -->
-  ${totaisRows ? `<div class="totals-wrap"><table class="totals-table">${totaisRows}</table></div>` : ''}
+  <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:8px">
+    <div style="font-size:11px;color:#222;line-height:1.8">
+      ${cfg.tot_qtd  ? `<div><span style="color:#555">Qtd Total de Itens:</span> <b>${fmtQtd(totalQtd)}</b></div>` : ''}
+      ${cfg.tot_peso ? `<div><span style="color:#555">Total de Kg:</span> <b>${totalPeso.toFixed(3)} kg</b></div>` : ''}
+    </div>
+    ${totaisRows ? `<div class="totals-wrap"><table class="totals-table">${totaisRows}</table></div>` : ''}
+  </div>
 
   <!-- ── PARCELAS ── -->
   ${parcelasHtml}
@@ -18134,6 +18720,22 @@ async function imprimirPedidoAtual() {
 
   <!-- ── OBSERVAÇÕES ── -->
   ${cfg.sec_obs ? `<div class="obs-box"><div style="font-weight:700;margin-bottom:4px">Observação :</div>${obsHtml}</div>` : ''}
+
+  <!-- ── ASSINATURAS ── -->
+  ${cfg.sec_assinatura ? `<div style="display:flex;justify-content:space-between;gap:40px;margin-top:32px;padding-top:8px">
+    <div style="flex:1;text-align:center">
+      <div style="border-top:1.5px solid #222;padding-top:6px;margin-top:40px">
+        <div style="font-weight:700;font-size:11px">${h(p.nome_cliente || cli.nome || '')}</div>
+        <div style="font-size:10px;color:#555">Assinatura do Cliente</div>
+      </div>
+    </div>
+    <div style="flex:1;text-align:center">
+      <div style="border-top:1.5px solid #222;padding-top:6px;margin-top:40px">
+        <div style="font-weight:700;font-size:11px">${p.nome_preposto ? h(p.nome_preposto) : h(p.nome_vendedor || '')}</div>
+        <div style="font-size:10px;color:#555">${p.nome_preposto ? 'Assinatura do Preposto' : 'Assinatura do Vendedor'}</div>
+      </div>
+    </div>
+  </div>` : ''}
 
   <!-- ── RODAPÉ ── -->
   <div class="footer">${footerTxt}</div>
@@ -24178,10 +24780,28 @@ async function gerarHtmlImpressao() {
     fornConf, emp, codForn: p.cod_fornecedor, forPdf: true,
   });
 
-  const totalItens = its.reduce((s,i)=>s+(parseFloat(i.vlrtotal_itens)||0),0);
-  const totalIpi   = its.reduce((s,i)=>s+(parseFloat(i.vlr_ipi)||0),0);
-  const totalSt    = its.reduce((s,i)=>s+(parseFloat(i.vlr_st)||0),0);
+  const totalItens = its.reduce((s,i) => {
+    const u = Math.round(vlrVendaEfetivoImpressao(i) * 100) / 100;
+    return s + Math.round(u * (parseFloat(i.quantidade)||0) * 100) / 100;
+  }, 0);
+  const totalIpi = its.reduce((s,i) => {
+    const u = Math.round(vlrVendaEfetivoImpressao(i) * 100) / 100;
+    const base = Math.round(u * (parseFloat(i.quantidade)||0) * 100) / 100;
+    const pct = parseFloat(i.ipi_percentual ?? i.ipi) || 0;
+    return s + (parseFloat(i.vlr_ipi) || (pct > 0 ? base * pct / 100 : 0));
+  }, 0);
+  const totalSt = its.reduce((s,i) => {
+    const u = Math.round(vlrVendaEfetivoImpressao(i) * 100) / 100;
+    const base = Math.round(u * (parseFloat(i.quantidade)||0) * 100) / 100;
+    const pct = parseFloat(i.st_percentual ?? i.st) || 0;
+    return s + (parseFloat(i.vlr_st) || (pct > 0 ? base * pct / 100 : 0));
+  }, 0);
   const totalPed   = totalItens + totalIpi + totalSt;
+  const totalQtd2  = its.reduce((s,i) => s + (parseFloat(i.quantidade)||0), 0);
+  const totalPeso2 = its.reduce((s,i) => {
+    const kg = parseFloat(i.kilo_embalagem ?? i.prod_kilo_embalagem) || 0;
+    return s + Math.round(kg * (parseFloat(i.quantidade)||0) * 1000) / 1000;
+  }, 0);
 
   const headerTextHtml2 = cfg2.header_text ? `<div style="font-size:10px;margin-bottom:12px;padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;white-space:pre-line">${h(cfg2.header_text)}</div>` : '';
   const footerTxt2 = cfg2.footer_text || h(empNome);
@@ -24202,11 +24822,13 @@ async function gerarHtmlImpressao() {
     temPrecoPesoImpressao2 ? `<th class="tr">Peso (kg)</th>` : '',
     itensMostraColRelatorio('vlr_padrao') ? `<th class="tr">Vlr. Tabela</th>` : '',
     cfg2.col_preco_unit ? `<th class="tr">Vlr Venda</th>` : '',
-    (itensMostraColRelatorio('desconto') && cfg2.col_desconto) ? `<th class="tc">Desc./Acr.%</th>` : '',
+    (itensMostraColRelatorio('desconto') && cfg2.col_desconto) ? `<th class="tc">Desc.%</th>` : '',
+    cfg2.col_acrescimo ? `<th class="tc">Acr.%</th>` : '',
     cfg2.col_vlr_desc_unit ? `<th class="tr">Vlr Final</th>` : '',
-    cfg2.col_subtotal   ? `<th class="tr">Vlr Total</th>` : '',
-    cfg2.col_ipi        ? `<th class="tc">IPI%</th>` : '',
-    cfg2.col_st         ? `<th class="tc">ST%</th>` : '',
+    cfg2.col_vlrtotal   ? `<th class="tr">Vlr Total</th>` : '',
+    cfg2.col_ipi        ? `<th class="tc">IPI</th>` : '',
+    cfg2.col_st         ? `<th class="tc">ST</th>` : '',
+    cfg2.col_subtotal   ? `<th class="tr">Vlr c/ Imposto</th>` : '',
   ].join('');
 
   const itensTr = its.map((i,idx) => {
@@ -24219,6 +24841,14 @@ async function gerarHtmlImpressao() {
     const fotoTd = showFotosPDF
       ? `<td class="tc" style="padding:3px 5px;width:70px">${i.foto_principal ? `<img src="${h(i.foto_principal)}" style="width:60px;height:60px;object-fit:cover;border-radius:5px;display:block;margin:0 auto" onerror="this.style.display='none'">` : ''}</td>`
       : '';
+    const _unitBase2 = Math.round(vlrVendaEfetivoImpressao(i) * 100) / 100;
+    const _base2   = Math.round(_unitBase2 * (parseFloat(i.quantidade)||0) * 100) / 100;
+    const _ipiPct2 = parseFloat(i.ipi_percentual ?? i.ipi) || 0;
+    const _stPct2  = parseFloat(i.st_percentual  ?? i.st)  || 0;
+    const _ipiVal2 = parseFloat(i.vlr_ipi) || (_ipiPct2 > 0 ? _base2 * _ipiPct2 / 100 : 0);
+    const _stVal2  = parseFloat(i.vlr_st)  || (_stPct2  > 0 ? _base2 * _stPct2  / 100 : 0);
+    const _icms2   = parseFloat(i.vlr_icms) || 0;
+    const _tot2    = _base2 + _ipiVal2 + _stVal2 + _icms2;
     const cells2 = [
       fotoTd,
       cfg2.col_seq        ? `<td class="tc">${idx + 1}</td>` : '',
@@ -24229,11 +24859,13 @@ async function gerarHtmlImpressao() {
       temPrecoPesoImpressao2 ? `<td class="tr">${ppItem && pesoKg ? fmtPesoKgImpressao(pesoKg) : ''}</td>` : '',
       itensMostraColRelatorio('vlr_padrao') ? `<td class="tr">R$ ${br(normalizarVlrPadraoItem(i))}${ppItem ? '<span style="font-size:8px;color:#64748b">/kg</span>' : ''}</td>` : '',
       cfg2.col_preco_unit ? `<td class="tr">R$ ${br(parseFloat(i.valor_unitario)||0)}${ppItem ? '<span style="font-size:8px;color:#64748b">/kg</span>' : ''}</td>` : '',
-      (itensMostraColRelatorio('desconto') && cfg2.col_desconto) ? `<td class="tc">${(() => { const dPct = parseFloat(i.desconto_percentual||i.desconto)||0; const aPct = parseFloat(i.acrescimo_percentual||i.acrescimo)||0; if (aPct > 0) return `<span style="color:#16a34a;font-weight:700">+${aPct}%</span>`; if (dPct > 0) return `<span style="color:#dc2626">${dPct}%</span>`; return ''; })()}</td>` : '',
+      (itensMostraColRelatorio('desconto') && cfg2.col_desconto) ? `<td class="tc">${parseFloat(i.desconto_percentual||i.desconto)>0 ? `<span style="color:#dc2626">${parseFloat(i.desconto_percentual||i.desconto)}%</span>` : '—'}</td>` : '',
+      cfg2.col_acrescimo ? `<td class="tc">${parseFloat(i.acrescimo_percentual)>0 ? `<span style="color:#16a34a;font-weight:700">+${parseFloat(i.acrescimo_percentual)}%</span>` : '—'}</td>` : '',
       cfg2.col_vlr_desc_unit ? `<td class="tr">R$ ${br(vlrVendaEfetivoImpressao(i))}${ppItem ? '<span style="font-size:8px;color:#64748b">/kg</span>' : ''}</td>` : '',
-      cfg2.col_subtotal   ? `<td class="tr"><b>R$ ${br(i.vlrtotal_itens)}</b></td>` : '',
-      cfg2.col_ipi        ? `<td class="tc">${parseFloat(i.ipi_percentual)||0}</td>` : '',
-      cfg2.col_st         ? `<td class="tc">${parseFloat(i.st_percentual)||0}</td>` : '',
+      cfg2.col_vlrtotal   ? `<td class="tr">R$ ${br(_base2)}</td>` : '',
+      cfg2.col_ipi        ? `<td class="tc">${_ipiPct2 || 0}%${_ipiVal2 > 0 ? `<div style="font-size:9px;color:#6366f1;font-weight:700">R$ ${br(_ipiVal2)}</div>` : ''}</td>` : '',
+      cfg2.col_st         ? `<td class="tc">${_stPct2  || 0}%${_stVal2  > 0 ? `<div style="font-size:9px;color:#d97706;font-weight:700">R$ ${br(_stVal2)}</div>`  : ''}</td>` : '',
+      cfg2.col_subtotal   ? `<td class="tr"><b>R$ ${br(_tot2)}</b></td>` : '',
     ];
     return `<tr class="${idx%2===1?'alt':''}" style="${showFotosPDF ? 'height:68px' : ''}">${cells2.join('')}</tr>`;
   }).join('');
@@ -24246,7 +24878,7 @@ async function gerarHtmlImpressao() {
   ].join('');
 
   const parcs = dados.parcelas || [];
-  const parcelasHtml = (imprimirParc && cfg2.sec_parcelas && parcs.length) ? `
+  const parcelasHtml = (cfg2.sec_parcelas && parcs.length) ? `
     <div class="section-title" style="margin-top:14px">Parcelas</div>
     <table>
       <thead><tr><th class="tc">Parcela</th><th class="tc">Vencimento</th><th class="tc">Forma Pgto</th><th class="tr">Valor</th></tr></thead>
@@ -24341,9 +24973,31 @@ ${headerTextHtml2}
   <thead><tr>${theadCells2}</tr></thead>
   <tbody>${itensTr}</tbody>
 </table>
-${totaisRows2 ? `<div class="totals-wrap"><table class="totals-table">${totaisRows2}</table></div>` : ''}
+<div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:8px">
+    <div style="font-size:11px;color:#222;line-height:1.8">
+      ${cfg2.tot_qtd  ? `<div><span style="color:#555">Qtd Total de Itens:</span> <b>${fmtQtd2(totalQtd2)}</b></div>` : ''}
+      ${cfg2.tot_peso ? `<div><span style="color:#555">Total de Kg:</span> <b>${totalPeso2.toFixed(3)} kg</b></div>` : ''}
+    </div>
+    ${totaisRows2 ? `<div class="totals-wrap"><table class="totals-table">${totaisRows2}</table></div>` : ''}
+  </div>
 ${parcelasHtml}
 ${cfg2.sec_obs ? `<div class="obs-box"><div style="font-weight:700;margin-bottom:4px">Observação:</div>${obsHtml}</div>` : ''}
+
+  ${cfg2.sec_assinatura ? `<div style="display:flex;justify-content:space-between;gap:40px;margin-top:32px;padding-top:8px">
+    <div style="flex:1;text-align:center">
+      <div style="border-top:1.5px solid #222;padding-top:6px;margin-top:40px">
+        <div style="font-weight:700;font-size:11px">${h(p.nome_cliente || cli.nome || '')}</div>
+        <div style="font-size:10px;color:#555">Assinatura do Cliente</div>
+      </div>
+    </div>
+    <div style="flex:1;text-align:center">
+      <div style="border-top:1.5px solid #222;padding-top:6px;margin-top:40px">
+        <div style="font-weight:700;font-size:11px">${p.nome_preposto ? h(p.nome_preposto) : h(p.nome_vendedor || '')}</div>
+        <div style="font-size:10px;color:#555">${p.nome_preposto ? 'Assinatura do Preposto' : 'Assinatura do Vendedor'}</div>
+      </div>
+    </div>
+  </div>` : ''}
+
 <div class="footer">${footerTxt2}</div>
 </body></html>`;
 
@@ -26075,26 +26729,28 @@ async function salvarQrProduto() {
 }
 
 // ── COLUNAS DA GRADE DE ITENS (tela + relatório) ─────────────────────────────
-const ITENS_COLS_LABELS = {
-  vlr_padrao: 'Vlr. Tabela (catálogo/tabela de preço)',
-  desconto:   'Desconto %',
-  acrescimo:  'Acréscimo %',
-  comissao:   'Comissão',
-};
-
 function popularItensColunasModal() {
   const body = document.getElementById('itensColsModalBody');
   if (!body) return;
   const cfg = _itensColsCfg || mergeItensColsConfig(null);
-  body.innerHTML = Object.keys(ITENS_COLS_DEFAULT).map(id => {
-    const c = cfg[id] || ITENS_COLS_DEFAULT[id];
-    const lbl = ITENS_COLS_LABELS[id] || id;
-    return `<div class="itens-cols-row">
-      <span class="itens-cols-lbl">${escHtml(lbl)}</span>
-      <label class="itens-cols-chk"><input type="checkbox" data-itens-col="${id}" data-flag="tela" ${c.tela !== false ? 'checked' : ''}> Na tela</label>
-      <label class="itens-cols-chk"><input type="checkbox" data-itens-col="${id}" data-flag="relatorio" ${c.relatorio ? 'checked' : ''}> No relatório</label>
+  const used = new Set();
+  const groupsHtml = ITENS_COLS_GROUPS.map((g) => {
+    const cols = g.cols.filter((id) => ITENS_COLS_META[id]);
+    if (!cols.length) return '';
+    cols.forEach((id) => used.add(id));
+    return `<div class="itens-cols-group">
+      <div class="itens-cols-group-title">${escHtml(g.title)}</div>
+      ${cols.map((id) => itensColModalRowHtml(id, cfg)).join('')}
     </div>`;
   }).join('');
+  const rest = ITENS_COLS_ORDER.filter((id) => !used.has(id) && ITENS_COLS_META[id]);
+  const restHtml = rest.length
+    ? `<div class="itens-cols-group">
+        <div class="itens-cols-group-title">Outros</div>
+        ${rest.map((id) => itensColModalRowHtml(id, cfg)).join('')}
+      </div>`
+    : '';
+  body.innerHTML = groupsHtml + restHtml;
 }
 
 function abrirItensColunasModal() {
@@ -26102,13 +26758,20 @@ function abrirItensColunasModal() {
   if (!ov) return;
   if (ov.parentNode !== document.body) document.body.appendChild(ov);
   popularItensColunasModal();
+  const usaSheet = document.documentElement.classList.contains('sysrep-ms-embed')
+    || window.matchMedia('(max-width: 899px)').matches;
+  ov.classList.toggle('itens-cols-overlay--sheet', usaSheet);
   ov.style.display = 'flex';
   ov.setAttribute('aria-hidden', 'false');
 }
 
 function fecharItensColunasModal() {
   const ov = document.getElementById('itensColsOverlay');
-  if (ov) { ov.style.display = 'none'; ov.setAttribute('aria-hidden', 'true'); }
+  if (ov) {
+    ov.style.display = 'none';
+    ov.setAttribute('aria-hidden', 'true');
+    ov.classList.remove('itens-cols-overlay--sheet');
+  }
 }
 
 async function salvarItensColunasModal() {
@@ -26136,20 +26799,20 @@ async function salvarItensColunasModal() {
 const _CMP_KEY = 'sysrep_modelo_pedido';
 const _CMP_DEFAULT = {
   col_seq:true, col_cod:true, col_unidade:true, col_quantidade:true,
-  col_preco_unit:true, col_vlr_desc_unit:false, col_subtotal:true, col_ipi:true, col_st:true, col_desconto:false,
+  col_preco_unit:true, col_vlr_desc_unit:false, col_vlrtotal:true, col_subtotal:true, col_ipi:true, col_st:true, col_desconto:false, col_acrescimo:false,
   dec_qtd:3, dec_preco:2,
   emp_fabrica:true, emp_ordem_compra:true, emp_data_emissao:true, emp_data_fatura:true,
   emp_vendedor:true, emp_comprador:true, emp_cond_pagto:true, emp_forma_pagto:true,
   cli_endereco:true, cli_email:true, cli_telefone:true, cli_cnpj:true, cli_ie:true, cli_transportadora:true,
-  tot_itens:true, tot_ipi:true, tot_st:true, tot_total:true,
-  sec_obs:true, sec_parcelas:true,
+  tot_itens:true, tot_ipi:true, tot_st:true, tot_total:true, tot_qtd:false, tot_peso:false,
+  sec_obs:true, sec_parcelas:true, sec_assinatura:false,
   header_text:'', footer_text:''
 };
 let _cmpConfig = null;
-const _CMP_KEYS_BOOL = ['col_seq','col_cod','col_unidade','col_quantidade','col_preco_unit','col_vlr_desc_unit','col_subtotal','col_ipi','col_st','col_desconto',
+const _CMP_KEYS_BOOL = ['col_seq','col_cod','col_unidade','col_quantidade','col_preco_unit','col_vlr_desc_unit','col_vlrtotal','col_subtotal','col_ipi','col_st','col_desconto','col_acrescimo',
   'emp_fabrica','emp_ordem_compra','emp_data_emissao','emp_data_fatura','emp_vendedor','emp_comprador','emp_cond_pagto','emp_forma_pagto',
   'cli_endereco','cli_email','cli_telefone','cli_cnpj','cli_ie','cli_transportadora',
-  'tot_itens','tot_ipi','tot_st','tot_total','sec_obs','sec_parcelas'];
+  'tot_itens','tot_ipi','tot_st','tot_total','tot_qtd','tot_peso','sec_obs','sec_parcelas','sec_assinatura'];
 
 function _cmpLoad() {
   if (_cmpConfig) return _cmpConfig;
@@ -26253,15 +26916,15 @@ document.addEventListener('keydown', e => {
 
 <!-- ── MODAL COLUNAS ITENS DO PEDIDO ── -->
 <div id="itensColsOverlay" data-ms-native-modal="1" aria-modal="true" aria-hidden="true" style="display:none;position:fixed;inset:0;z-index:2147483400;background:rgba(0,0,0,.55);backdrop-filter:blur(3px);align-items:center;justify-content:center;padding:16px;box-sizing:border-box">
-  <div class="cmp-box" style="max-width:420px;width:100%;margin:0;border-radius:12px" role="dialog" aria-labelledby="itensColsTitle">
+  <div class="cmp-box" style="max-width:480px;width:100%;margin:0;border-radius:12px" role="dialog" aria-labelledby="itensColsTitle">
     <div class="cmp-head">
       <div>
         <div id="itensColsTitle" style="font-size:15px;font-weight:800;color:var(--text)">Colunas dos itens</div>
-        <div style="font-size:11px;color:var(--text2);margin-top:2px">Tela do pedido e impressão/PDF (marque «No relatório»)</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:2px">Campos de itensped — tela do pedido e impressão/PDF</div>
       </div>
       <button type="button" onclick="fecharItensColunasModal()" style="width:28px;height:28px;border-radius:50%;border:none;background:var(--bg);cursor:pointer;font-size:14px;color:var(--text2)">✕</button>
     </div>
-    <div class="cmp-body" id="itensColsModalBody" style="display:flex;flex-direction:column;gap:10px"></div>
+    <div class="cmp-body" id="itensColsModalBody" style="display:flex;flex-direction:column;gap:10px;max-height:min(62vh,520px);overflow-y:auto"></div>
     <div style="padding:12px 16px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px">
       <button type="button" class="btn btn-ghost" onclick="fecharItensColunasModal()">Cancelar</button>
       <button type="button" class="btn btn-primary" id="btnItensColsSalvar">Salvar</button>
@@ -26297,10 +26960,12 @@ document.addEventListener('keydown', e => {
           <label class="cmp-row"><input type="checkbox" id="cmp_col_quantidade"> <span>Quantidade</span></label>
           <label class="cmp-row"><input type="checkbox" id="cmp_col_preco_unit"> <span>Preço unitário</span></label>
           <label class="cmp-row"><input type="checkbox" id="cmp_col_desconto"> <span>Desconto %</span></label>
-          <label class="cmp-row"><input type="checkbox" id="cmp_col_vlr_desc_unit"> <span>Vlr Finalonto</span></label>
-          <label class="cmp-row"><input type="checkbox" id="cmp_col_subtotal"> <span>Subtotal (R$)</span></label>
-          <label class="cmp-row"><input type="checkbox" id="cmp_col_ipi"> <span>IPI %</span></label>
-          <label class="cmp-row"><input type="checkbox" id="cmp_col_st"> <span>ST %</span></label>
+          <label class="cmp-row"><input type="checkbox" id="cmp_col_acrescimo"> <span>Acréscimo %</span></label>
+          <label class="cmp-row"><input type="checkbox" id="cmp_col_vlr_desc_unit"> <span>Vlr Final</span></label>
+          <label class="cmp-row"><input type="checkbox" id="cmp_col_vlrtotal"> <span>Vlr Total</span></label>
+          <label class="cmp-row"><input type="checkbox" id="cmp_col_subtotal"> <span>Vlr com Imposto</span></label>
+          <label class="cmp-row"><input type="checkbox" id="cmp_col_ipi"> <span>IPI (% + valor R$)</span></label>
+          <label class="cmp-row"><input type="checkbox" id="cmp_col_st"> <span>ST (% + valor R$)</span></label>
         </div>
       </div>
 
@@ -26362,6 +27027,8 @@ document.addEventListener('keydown', e => {
           <label class="cmp-row"><input type="checkbox" id="cmp_tot_ipi"> <span>Total IPI</span></label>
           <label class="cmp-row"><input type="checkbox" id="cmp_tot_st"> <span>Subst. Tributária</span></label>
           <label class="cmp-row"><input type="checkbox" id="cmp_tot_total"> <span>Total do Pedido</span></label>
+          <label class="cmp-row"><input type="checkbox" id="cmp_tot_qtd"> <span>Qtd Total de Itens</span></label>
+          <label class="cmp-row"><input type="checkbox" id="cmp_tot_peso"> <span>Total de Kg</span></label>
         </div>
       </div>
 
@@ -26371,6 +27038,7 @@ document.addEventListener('keydown', e => {
         <div class="cmp-grid">
           <label class="cmp-row"><input type="checkbox" id="cmp_sec_obs"> <span>Observações</span></label>
           <label class="cmp-row"><input type="checkbox" id="cmp_sec_parcelas"> <span>Parcelas</span></label>
+          <label class="cmp-row"><input type="checkbox" id="cmp_sec_assinatura"> <span>Assinaturas</span></label>
         </div>
       </div>
 

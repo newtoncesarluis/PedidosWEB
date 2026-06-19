@@ -57,6 +57,19 @@ const LicenseCache = {
     }
   },
 
+  /** Igual a read() mas ignora TTL — usado para listar bases no seletor dev. */
+  readIgnoreTtl(chave) {
+    try {
+      const p = filePath(chave);
+      if (!fs.existsSync(p)) return null;
+      const obj = decrypt(fs.readFileSync(p, 'utf8'));
+      if (!obj || obj.chave_licenca !== chave) return null;
+      return obj;
+    } catch {
+      return null;
+    }
+  },
+
   write(chave, data) {
     try {
       ensureDir();

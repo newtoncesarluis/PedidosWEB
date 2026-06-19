@@ -205,18 +205,17 @@ app.use((req, res, next) => {
   next();
 });
 
-// Arquivos estáticos (CSS/JS do código — sempre do diretório do servidor)
-app.use(express.static(path.join(ROOT_DIR, 'public')));
-
-// Uploads do tenant: em modo multi-tenant, o PM2 roda cada cliente com CWD diferente
-// (ex: /home/ubuntu/pedidosweb-clients/rebisages) enquanto __dirname aponta para o
-// código compartilhado. O multer salva em process.cwd()/public/uploads, mas
-// express.static acima serve de ROOT_DIR/public. Este middleware serve o caminho correto.
+// Uploads: diretório do TENANT (process.cwd()) PRIMEIRO — isola os uploads de cada
+// cliente. Registrado ANTES do static geral. Se o arquivo não existir no tenant, cai
+// no static compartilhado abaixo como FALLBACK (fotos antigas de produto/fornecedor que
+// ainda vivem no dir do código). Logos de empresa NÃO vazam porque o dir compartilhado
+// de empresas foi esvaziado e o git não versiona mais uploads. Nomes de arquivo de
+// produto são únicos por upload, então o fallback nunca serve a foto de outro cliente.
 const _tenantUploadsDir = path.join(process.cwd(), 'public', 'uploads');
-const _rootUploadsDir   = path.join(ROOT_DIR, 'public', 'uploads');
-if (_tenantUploadsDir !== _rootUploadsDir) {
-  app.use('/uploads', express.static(_tenantUploadsDir));
-}
+app.use('/uploads', express.static(_tenantUploadsDir));
+
+// Arquivos estáticos do código (CSS/JS) + fallback de /uploads do compartilhado.
+app.use(express.static(path.join(ROOT_DIR, 'public')));
 
 // Rotas de setup (sem autenticação nem licença)
 app.use('/api/setup',    require('./routes/setup'));

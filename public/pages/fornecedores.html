@@ -351,6 +351,18 @@ html.sysrep-home-embed #formSection .form-footer { flex-shrink:0 !important; }
 .pref-item--static { cursor:default; }
 .pref-item--static:hover { border-color:var(--border); background:transparent; }
 .pref-item--wide { grid-column:1 / -1; }
+.pref-duo-row {
+  grid-column:1 / -1;
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+  gap:8px;
+  align-items:stretch;
+}
+@media (max-width:960px) {
+  .pref-duo-row { grid-template-columns:1fr; }
+}
+.pref-duo-row > .pref-item { height:100%; align-items:flex-start; }
+.pref-duo-row--single { grid-template-columns:1fr; }
 .pref-item--hidden { display:none !important; }
 .pref-item--feature {
   flex-direction:column; align-items:flex-start; gap:8px;
@@ -359,7 +371,26 @@ html.sysrep-home-embed #formSection .form-footer { flex-shrink:0 !important; }
 .pref-item--feature:hover { border-color:var(--accent); background:var(--accent-soft); }
 .pref-item--feature label.feature-title { font-weight:900; font-size:14px; color:var(--accent); display:block; line-height:1.3; }
 .pref-item--feature .feature-hint { margin:6px 0 0; font-size:12px; font-weight:500; color:var(--text2); line-height:1.5; }
-.pref-search-wrap { margin-bottom:14px; position:sticky; top:0; z-index:2; background:var(--card); padding-bottom:4px; }
+.form-body--pref-scroll {
+  display:flex; flex-direction:column; overflow:hidden; padding:0;
+}
+.form-body--pref-scroll > .tab-pane.active {
+  display:flex; flex-direction:column; flex:1; min-height:0; overflow:hidden;
+}
+#tab-preferencias .pref-tab-shell {
+  display:flex; flex-direction:column; flex:1; min-height:0; overflow:hidden;
+}
+.pref-search-wrap {
+  flex-shrink:0; position:relative; z-index:3;
+  padding:16px 20px 12px; margin:0;
+  border-bottom:1px solid var(--border);
+  background:var(--card);
+  box-shadow:0 2px 8px rgba(15,23,42,.06);
+}
+.pref-sections-scroll {
+  flex:1; min-height:0; overflow-y:auto; padding:12px 20px 20px;
+  -webkit-overflow-scrolling:touch;
+}
 .pref-search-wrap input {
   width:100%; height:40px; border:1.5px solid var(--border); border-radius:10px;
   padding:0 12px 0 36px; font-size:13px; background:var(--card); color:var(--text);
@@ -893,9 +924,11 @@ html.sysrep-home-embed #formSection .form-footer { flex-shrink:0 !important; }
 
       <!-- ABA PREFERÊNCIAS -->
       <div class="tab-pane" id="tab-preferencias">
+        <div class="pref-tab-shell">
         <div class="pref-search-wrap">
-          <input type="search" id="prefSearchInput" placeholder="Buscar preferência (ex: feirinha, logo, grade, comissão…)" autocomplete="off">
+          <input type="search" id="prefSearchInput" placeholder="Buscar preferência (ex: somar, duplicar, feirinha, logo, grade…)" autocomplete="off">
         </div>
+        <div class="pref-sections-scroll" id="prefSectionsScroll">
 
         <section class="pref-section" data-pref-section="classificacao">
           <button type="button" class="pref-section-head" onclick="togglePrefSection(this)" aria-expanded="true">
@@ -924,22 +957,36 @@ html.sysrep-home-embed #formSection .form-footer { flex-shrink:0 !important; }
           <button type="button" class="pref-section-head" onclick="togglePrefSection(this)" aria-expanded="true">
             <span>
               <div class="pref-section-head-title">Pedido de venda</div>
-              <div class="pref-section-head-sub">Comportamento da tela de pedidos com esta representada</div>
+              <div class="pref-section-head-sub">Somar quantidade, feirinha, grades e demais regras do pedido</div>
             </span>
             <span class="pref-section-chevron">▼</span>
           </button>
           <div class="pref-section-body">
             <div class="pref-grid">
-              <div id="feirinha-pref-section" class="pref-item pref-item--feature pref-item--wide" onclick="togglePref('f_habilita_feirinha')">
-                <div style="display:flex;align-items:flex-start;gap:12px;width:100%">
-                  <input type="checkbox" id="f_habilita_feirinha" style="width:18px;height:18px;margin-top:2px">
-                  <div style="flex:1;min-width:0">
-                    <label for="f_habilita_feirinha" class="feature-title">Kit Feirinha / Preço médio de revenda</label>
-                    <p class="feature-hint">
-                      Liga o painel <strong>Resumo da Feirinha</strong> no pedido (preço médio por peça, faixa de revenda e simulador de margem).
-                      Indicado para plásticos, bazar e lojas de preço único.
-                      <a href="/pages/ajuda-fornecedores.html?sec=feirinha" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--accent);font-weight:700">Saiba mais</a>
-                    </p>
+              <div class="pref-duo-row">
+                <div id="vendasduplicaritem-pref-section" class="pref-item pref-item--feature" data-pref-keywords="somar quantidade duplicar item pedido vendasduplicaritem mesmo produto" onclick="togglePref('f_vendasduplicaritem')">
+                  <div style="display:flex;align-items:flex-start;gap:12px;width:100%">
+                    <input type="checkbox" id="f_vendasduplicaritem" style="width:18px;height:18px;margin-top:2px">
+                    <div style="flex:1;min-width:0">
+                      <label for="f_vendasduplicaritem" class="feature-title">Somar quantidade ao incluir o mesmo produto</label>
+                      <p class="feature-hint">
+                        Ativo (S): soma na linha existente, sem duplicar.
+                        Inativo (N): bloqueia incluir o mesmo código novamente.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div id="feirinha-pref-section" class="pref-item pref-item--feature" onclick="togglePref('f_habilita_feirinha')">
+                  <div style="display:flex;align-items:flex-start;gap:12px;width:100%">
+                    <input type="checkbox" id="f_habilita_feirinha" style="width:18px;height:18px;margin-top:2px">
+                    <div style="flex:1;min-width:0">
+                      <label for="f_habilita_feirinha" class="feature-title">Kit Feirinha / Preço médio de revenda</label>
+                      <p class="feature-hint">
+                        Liga o painel <strong>Resumo da Feirinha</strong> no pedido (preço médio por peça, faixa de revenda e simulador de margem).
+                        Indicado para plásticos, bazar e lojas de preço único.
+                        <a href="/pages/ajuda-fornecedores.html?sec=feirinha" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--accent);font-weight:700">Saiba mais</a>
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -950,10 +997,6 @@ html.sysrep-home-embed #formSection .form-footer { flex-shrink:0 !important; }
               <div class="pref-item" onclick="togglePref('f_exibirdescontopedido')">
                 <input type="checkbox" id="f_exibirdescontopedido">
                 <label for="f_exibirdescontopedido">Exibir Desconto no Pedido</label>
-              </div>
-              <div class="pref-item" onclick="togglePref('f_vendasduplicaritem')">
-                <input type="checkbox" id="f_vendasduplicaritem">
-                <label for="f_vendasduplicaritem">Permite Duplicar Item Pedido Venda</label>
               </div>
               <div class="pref-item" onclick="togglePref('f_descontomultiplos')">
                 <input type="checkbox" id="f_descontomultiplos">
@@ -1231,6 +1274,9 @@ html.sysrep-home-embed #formSection .form-footer { flex-shrink:0 !important; }
             </div>
           </div>
         </section>
+
+        </div>
+        </div>
       </div>
 
       <!-- ABA VALORES -->
@@ -2596,6 +2642,7 @@ function fecharFormulario() {
   fs.style.height = '';
   fs.style.maxHeight = '';
   document.documentElement.classList.remove('forn-form-open');
+  document.querySelector('.form-body')?.classList.remove('form-body--pref-scroll');
   window.removeEventListener('resize', _syncFormViewport);
   document.getElementById('listSection').style.display = '';
   _formAberto = false;
@@ -2933,9 +2980,12 @@ function filtrarPreferenciasFornecedor(q) {
   const term = String(q || '').trim().toLowerCase();
   document.querySelectorAll('#tab-preferencias .pref-section').forEach((sec) => {
     let vis = 0;
+    const secTxt = (sec.querySelector('.pref-section-head')?.textContent || '').toLowerCase();
+    const secMatch = !!term && secTxt.includes(term);
     sec.querySelectorAll('.pref-item').forEach((item) => {
       const txt = (item.textContent || '').toLowerCase();
-      const show = !term || txt.includes(term);
+      const keys = (item.dataset.prefKeywords || '').toLowerCase();
+      const show = !term || secMatch || txt.includes(term) || keys.includes(term);
       item.classList.toggle('pref-item--hidden', !show);
       if (show) vis++;
     });
@@ -2945,6 +2995,12 @@ function filtrarPreferenciasFornecedor(q) {
       const head = sec.querySelector('.pref-section-head');
       if (head) head.setAttribute('aria-expanded', 'true');
     }
+  });
+  document.querySelectorAll('#tab-preferencias .pref-duo-row').forEach((row) => {
+    const items = [...row.querySelectorAll('.pref-item')];
+    const visItems = items.filter((i) => !i.classList.contains('pref-item--hidden'));
+    row.classList.toggle('pref-item--hidden', visItems.length === 0);
+    row.classList.toggle('pref-duo-row--single', visItems.length === 1);
   });
 }
 
@@ -2984,6 +3040,7 @@ function abrirAba(nome, tabEl) {
   document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.form-tab').forEach(t => t.classList.remove('active'));
   document.getElementById('tab-' + nome)?.classList.add('active');
+  document.querySelector('.form-body')?.classList.toggle('form-body--pref-scroll', nome === 'preferencias');
   if (tabEl) tabEl.classList.add('active');
   else {
     document.querySelectorAll('.form-tab').forEach(t => {
@@ -2994,9 +3051,16 @@ function abrirAba(nome, tabEl) {
   if (nome === 'preferencias') {
     initPrefPreferenciasUi();
     requestAnimationFrame(() => {
-      const sec = document.getElementById('feirinha-pref-section');
-      if (sec && (location.hash === '#feirinha' || new URLSearchParams(location.search).get('sec') === 'feirinha')) {
-        sec.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const params = new URLSearchParams(location.search);
+      const secParam = params.get('sec') || (location.hash || '').replace(/^#/, '');
+      const scrollBox = document.getElementById('prefSectionsScroll');
+      const alvo = secParam === 'feirinha'
+        ? document.getElementById('feirinha-pref-section')
+        : (secParam === 'somar-item' || secParam === 'vendasduplicaritem'
+          ? document.getElementById('vendasduplicaritem-pref-section')
+          : null);
+      if (alvo && scrollBox) {
+        alvo.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     });
   }

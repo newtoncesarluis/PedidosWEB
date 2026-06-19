@@ -493,7 +493,7 @@ function listDevBases() {
   const out = [];
   for (const f of files) {
     const chave = f.replace(/\.enc$/i, '');
-    const c = LicenseCache.read(chave);
+    const c = LicenseCache.readIgnoreTtl(chave);
     if (!c) continue;
     let cfg = null;
     try { cfg = c.dados ? extractMysqlConfigFromLicenseRow(c.dados) : null; } catch {}

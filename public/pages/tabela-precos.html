@@ -113,6 +113,28 @@ tbody td { padding:10px 12px; vertical-align:middle; }
 .page-btn { padding:5px 12px; border:1px solid var(--border); border-radius:6px; background:#fff; cursor:pointer; font-size:12px; transition:.15s; }
 .page-btn:hover:not(:disabled) { border-color:var(--accent); color:var(--accent); }
 .page-btn:disabled { opacity:.5; cursor:not-allowed; }
+.page-btn.active { background:var(--accent); color:#fff; border-color:var(--accent); font-weight:700; }
+
+/* ── Multi-select dropdown ── */
+.il-ms { display:flex; align-items:center; gap:6px; padding:5px 10px; border:1.5px solid var(--border); border-radius:7px;
+  font-size:12px; background:var(--input-bg,#fff); color:var(--text); cursor:pointer; min-height:32px; user-select:none; }
+.il-ms:hover { border-color:var(--accent); }
+.il-ms-drop { position:absolute; top:calc(100% + 4px); left:0; right:0; background:var(--card,#fff);
+  border:1.5px solid var(--border); border-radius:8px; box-shadow:0 6px 24px rgba(0,0,0,.15);
+  z-index:1000; min-width:220px; }
+.il-ms-search { width:100%; box-sizing:border-box; padding:7px 10px; border:none; border-bottom:1px solid var(--border);
+  font-size:12px; font-family:inherit; background:transparent; color:var(--text); outline:none; border-radius:8px 8px 0 0; }
+.il-ms-list { max-height:200px; overflow-y:auto; padding:4px 0; }
+.il-ms-item { display:flex; align-items:center; gap:8px; padding:6px 12px; font-size:12px;
+  cursor:pointer; color:var(--text); }
+.il-ms-item:hover { background:var(--accent-soft,#f0faf9); }
+.il-ms-item input[type=checkbox] { flex-shrink:0; accent-color:var(--accent); cursor:pointer; }
+.il-ms-footer { display:flex; gap:6px; padding:6px 10px; border-top:1px solid var(--border); }
+.il-ms-footer button { flex:1; padding:4px; font-size:11px; border:1px solid var(--border);
+  border-radius:5px; background:transparent; cursor:pointer; color:var(--text2); }
+.il-ms-footer button:hover { border-color:var(--accent); color:var(--accent); }
+.il-ms-badge { display:inline-block; background:var(--accent); color:#fff; border-radius:10px;
+  padding:1px 7px; font-size:10px; font-weight:700; margin-left:4px; }
 .page-info { font-size:12px; color:var(--text2); font-weight:600; }
 
 /* TOAST / CONFIRM */
@@ -251,6 +273,10 @@ tbody td { padding:10px 12px; vertical-align:middle; }
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
               Manutenção Lote
             </button>
+            <button class="btn btn-ghost btn-mini" onclick="abrirImportarLote()" style="color:var(--success,#22c55e);border-color:var(--success,#22c55e)">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+              Importar Lote
+            </button>
             <button class="btn btn-outline btn-mini" onclick="abrirBuscaProduto()">+ Adicionar Produto</button>
           </div>
         </div>
@@ -316,6 +342,113 @@ tbody td { padding:10px 12px; vertical-align:middle; }
       </div>
       <div class="pagination" id="modalPagination">
         <!-- Botoes paginacao -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL IMPORTAR EM LOTE -->
+<div id="modalImportarLote" class="modal-overlay">
+  <div class="modal-content" style="max-width:1100px;width:96vw;height:92vh">
+    <div class="modal-head">
+      <span class="modal-title">Importar Produtos em Lote</span>
+      <button class="btn-remove" onclick="fecharImportarLote()">✕</button>
+    </div>
+    <div class="modal-body">
+      <!-- Filtros -->
+      <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:4px">
+        <!-- Multi-select Fornecedor -->
+        <div style="flex:1;min-width:200px;position:relative">
+          <label style="font-size:11px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Fornecedor</label>
+          <div id="il_ms_forn" class="il-ms" onclick="ilMsToggle('forn')">
+            <span id="il_ms_forn_label">Todos os fornecedores</span>
+            <svg style="width:12px;height:12px;flex-shrink:0;margin-left:auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </div>
+          <div id="il_ms_forn_drop" class="il-ms-drop" style="display:none">
+            <input type="text" class="il-ms-search" placeholder="Buscar fornecedor..." oninput="ilMsFilter('forn',this.value)">
+            <div id="il_ms_forn_list" class="il-ms-list"></div>
+            <div class="il-ms-footer">
+              <button onclick="ilMsSelectAll('forn',true)">Marcar todos</button>
+              <button onclick="ilMsLimpar('forn')">Limpar seleção</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Multi-select Segmento -->
+        <div style="flex:1;min-width:200px;position:relative">
+          <label style="font-size:11px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Segmento</label>
+          <div id="il_ms_seg" class="il-ms" onclick="ilMsToggle('seg')">
+            <span id="il_ms_seg_label">Todos os segmentos</span>
+            <svg style="width:12px;height:12px;flex-shrink:0;margin-left:auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </div>
+          <div id="il_ms_seg_drop" class="il-ms-drop" style="display:none">
+            <input type="text" class="il-ms-search" placeholder="Buscar segmento..." oninput="ilMsFilter('seg',this.value)">
+            <div id="il_ms_seg_list" class="il-ms-list"></div>
+            <div class="il-ms-footer">
+              <button onclick="ilMsSelectAll('seg',true)">Marcar todos</button>
+              <button onclick="ilMsLimpar('seg')">Limpar seleção</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Descrição -->
+        <div style="flex:1;min-width:160px">
+          <label style="font-size:11px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Descrição</label>
+          <input type="text" id="il_descricao" class="search-input" style="width:100%" placeholder="Filtrar por descrição..." onkeypress="if(event.key==='Enter')buscarImportarLote(1)">
+        </div>
+
+        <!-- Por página -->
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px">Por página</label>
+          <select id="il_perpage" class="search-input" style="width:90px" onchange="buscarImportarLote(1)">
+            <option value="20">20</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+            <option value="200">200</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" onclick="buscarImportarLote(1)">Buscar</button>
+      </div>
+
+      <!-- Info seleção -->
+      <div id="il_info" style="font-size:12px;color:var(--text2);margin-bottom:8px;min-height:18px"></div>
+
+      <!-- Tabela -->
+      <div style="overflow-x:auto;border:1px solid var(--border);border-radius:8px;max-height:calc(92vh - 280px);overflow-y:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead style="position:sticky;top:0;background:var(--card,#fff);z-index:2">
+            <tr>
+              <th style="width:36px;padding:8px;border-bottom:1px solid var(--border)">
+                <input type="checkbox" id="il_checkAll" title="Selecionar todos da página" onchange="ilToggleAll(this.checked)">
+              </th>
+              <th style="padding:8px 6px;border-bottom:1px solid var(--border);text-align:left;font-weight:700">Cód.</th>
+              <th style="padding:8px 6px;border-bottom:1px solid var(--border);text-align:left;font-weight:700">Descrição</th>
+              <th style="padding:8px 6px;border-bottom:1px solid var(--border);text-align:left;font-weight:700">Fornecedor</th>
+              <th style="padding:8px 6px;border-bottom:1px solid var(--border);text-align:left;font-weight:700">Referência</th>
+              <th style="padding:8px 6px;border-bottom:1px solid var(--border);text-align:center;font-weight:700">Un.</th>
+              <th style="padding:8px 6px;border-bottom:1px solid var(--border);text-align:right;font-weight:700">Preço Base</th>
+            </tr>
+          </thead>
+          <tbody id="il_tbody">
+            <tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text2)">Clique em Buscar para carregar os produtos</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Paginação -->
+      <div id="il_pagination" style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:10px;font-size:12px"></div>
+
+      <!-- Rodapé ações -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;flex-wrap:wrap;gap:8px">
+        <div>
+          <button class="btn btn-ghost btn-mini" onclick="ilSelecionarTodosBuscados()">✅ Selecionar todos os <span id="il_totalBuscados">0</span> encontrados</button>
+          <button class="btn btn-ghost btn-mini" onclick="ilDesmarcarTodos()" style="margin-left:6px">☐ Desmarcar todos</button>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span id="il_countSel" style="font-size:12px;font-weight:700;color:var(--accent)">0 selecionados</span>
+          <button class="btn btn-ghost" onclick="fecharImportarLote()">Cancelar</button>
+          <button class="btn btn-primary" id="il_btnImportar" onclick="confirmarImportarLote()">Importar Selecionados</button>
+        </div>
       </div>
     </div>
   </div>
@@ -773,6 +906,331 @@ document.getElementById('btnConfirmarExclusao').onclick = async () => {
     } catch(err) {} 
     fecharConfirm();
 };
+
+// ─── IMPORTAR EM LOTE ────────────────────────────────────────────────────────
+let _ilProdutosBuscados = [];  // todos os produtos da busca atual (todas as páginas via flag)
+let _ilSelecionados = new Set(); // Set de cod_produto selecionados
+let _ilPaginaAtual = 1;
+let _ilTotalPaginas = 1;
+let _ilTotalEncontrados = 0;
+
+// Estado dos multi-selects
+const _ilMs = {
+  forn: { items: [], selected: new Set() },
+  seg:  { items: [], selected: new Set() },
+};
+
+function ilMsToggle(key) {
+  const drop = document.getElementById(`il_ms_${key}_drop`);
+  const isOpen = drop.style.display !== 'none';
+  // Fecha todos
+  ['forn','seg'].forEach(k => { document.getElementById(`il_ms_${k}_drop`).style.display = 'none'; });
+  if (!isOpen) { drop.style.display = 'block'; drop.querySelector('.il-ms-search')?.focus(); }
+}
+
+function ilMsClose() {
+  ['forn','seg'].forEach(k => { document.getElementById(`il_ms_${k}_drop`).style.display = 'none'; });
+}
+
+// Fecha ao clicar fora
+document.addEventListener('click', e => {
+  if (!e.target.closest('#il_ms_forn') && !e.target.closest('#il_ms_forn_drop') &&
+      !e.target.closest('#il_ms_seg')  && !e.target.closest('#il_ms_seg_drop')) {
+    ilMsClose();
+  }
+});
+
+function ilMsRenderList(key) {
+  const { items, selected } = _ilMs[key];
+  const list = document.getElementById(`il_ms_${key}_list`);
+  const q = document.getElementById(`il_ms_${key}_drop`)?.querySelector('.il-ms-search')?.value?.toLowerCase() || '';
+  const filtered = items.filter(it => it.label.toLowerCase().includes(q));
+  list.innerHTML = filtered.length
+    ? filtered.map(it => `
+        <label class="il-ms-item">
+          <input type="checkbox" ${selected.has(it.value) ? 'checked' : ''}
+            onchange="ilMsCheck('${key}','${String(it.value).replace(/'/g,"\\'")}',this.checked)">
+          ${it.label}
+        </label>`).join('')
+    : '<div style="padding:10px;text-align:center;color:var(--text2);font-size:12px">Nenhum resultado</div>';
+  ilMsUpdateLabel(key);
+}
+
+function ilMsCheck(key, value, checked) {
+  const val = isNaN(value) ? value : Number(value);
+  if (checked) _ilMs[key].selected.add(val);
+  else _ilMs[key].selected.delete(val);
+  ilMsUpdateLabel(key);
+}
+
+function ilMsFilter(key, q) { ilMsRenderList(key); }
+
+function ilMsSelectAll(key, all) {
+  const jaAdicionados = new Set(_itensTabela.map(it => it.cod_produto));
+  _ilMs[key].selected = all ? new Set(_ilMs[key].items.map(i => i.value)) : new Set();
+  ilMsRenderList(key);
+}
+
+function ilMsLimpar(key) {
+  _ilMs[key].selected = new Set();
+  // Limpa o campo de busca e rerenderiza com todos os itens
+  const inp = document.getElementById(`il_ms_${key}_drop`)?.querySelector('.il-ms-search');
+  if (inp) inp.value = '';
+  ilMsRenderList(key);
+}
+
+function ilMsUpdateLabel(key) {
+  const { items, selected } = _ilMs[key];
+  const label = document.getElementById(`il_ms_${key}_label`);
+  const defaults = { forn: 'Todos os fornecedores', seg: 'Todos os segmentos' };
+  if (selected.size === 0) {
+    label.innerHTML = defaults[key];
+  } else if (selected.size === items.length) {
+    label.innerHTML = `Todos (${items.length}) <span class="il-ms-badge">${items.length}</span>`;
+  } else {
+    const names = items.filter(i => selected.has(i.value)).map(i => i.label);
+    const preview = names.slice(0, 2).join(', ') + (names.length > 2 ? '...' : '');
+    label.innerHTML = `${preview} <span class="il-ms-badge">${selected.size}</span>`;
+  }
+}
+
+async function ilMsCarregarDados() {
+  // Fornecedores
+  try {
+    const r = await api('/api/fornecedores/lookup?todostipos=true');
+    const data = await r.json();
+    _ilMs.forn.items = data.map(f => ({ value: f.id, label: f.apelido || f.nome }));
+    ilMsRenderList('forn');
+  } catch(e) { console.warn('Erro ao carregar fornecedores:', e.message); }
+
+  // Segmentos
+  try {
+    const r = await api('/api/tabela-precos/produtos/segmentos');
+    const data = await r.json();
+    _ilMs.seg.items = data.map(s => ({ value: s, label: s }));
+    ilMsRenderList('seg');
+  } catch(e) { console.warn('Erro ao carregar segmentos:', e.message); }
+}
+
+function abrirImportarLote() {
+  _ilProdutosBuscados = [];
+  _ilSelecionados = new Set();
+  _ilPaginaAtual = 1;
+  _ilMs.forn.selected = new Set();
+  _ilMs.seg.selected = new Set();
+  document.getElementById('il_descricao').value = '';
+  document.getElementById('il_perpage').value = '20';
+  document.getElementById('il_tbody').innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text2)">Clique em Buscar para carregar os produtos</td></tr>';
+  document.getElementById('il_pagination').innerHTML = '';
+  document.getElementById('il_info').textContent = '';
+  document.getElementById('il_countSel').textContent = '0 selecionados';
+  document.getElementById('il_totalBuscados').textContent = '0';
+  document.getElementById('il_checkAll').checked = false;
+  ilMsUpdateLabel('forn');
+  ilMsUpdateLabel('seg');
+  ilMsClose();
+  document.getElementById('modalImportarLote').classList.add('show');
+  // Carrega os dados dos combos se ainda não carregou
+  if (_ilMs.forn.items.length === 0) ilMsCarregarDados();
+}
+
+function fecharImportarLote() {
+  document.getElementById('modalImportarLote').classList.remove('show');
+}
+
+function _ilBuildParams(page, limit) {
+  const params = new URLSearchParams({ page, limit });
+  const desc = document.getElementById('il_descricao').value.trim();
+  if (desc) params.set('q', desc);
+  if (_ilMs.forn.selected.size > 0)
+    params.set('ids_fornecedor', [..._ilMs.forn.selected].join(','));
+  if (_ilMs.seg.selected.size > 0)
+    params.set('segmentos', [..._ilMs.seg.selected].join('|'));
+  return params;
+}
+
+async function buscarImportarLote(page = 1) {
+  _ilPaginaAtual = page;
+  ilMsClose();
+  const limit = parseInt(document.getElementById('il_perpage').value) || 20;
+  const tbody = document.getElementById('il_tbody');
+  tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text2)">Buscando...</td></tr>';
+
+  try {
+    const params = _ilBuildParams(page, limit);
+
+    const r = await api(`/api/tabela-precos/produtos/busca?${params}`);
+    const json = await r.json();
+    const data = json.data || [];
+    _ilPaginaAtual = json.page || page;
+    _ilTotalPaginas = json.last_page || 1;
+    _ilTotalEncontrados = json.total || data.length;
+
+    document.getElementById('il_totalBuscados').textContent = _ilTotalEncontrados;
+    document.getElementById('il_checkAll').checked = false;
+
+    if (!data.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text2)">Nenhum produto encontrado.</td></tr>';
+      document.getElementById('il_pagination').innerHTML = '';
+      document.getElementById('il_info').textContent = 'Nenhum produto encontrado.';
+      return;
+    }
+
+    // Guarda os produtos desta página para o "selecionar todos buscados"
+    _ilProdutosBuscados = data;
+
+    const jaAdicionados = new Set(_itensTabela.map(it => it.cod_produto));
+
+    tbody.innerHTML = data.map(p => {
+      const jatem = jaAdicionados.has(p.id);
+      const sel = _ilSelecionados.has(p.id);
+      const rowStyle = jatem ? 'opacity:.45' : '';
+      return `<tr style="${rowStyle}" data-id="${p.id}">
+        <td style="text-align:center;padding:6px 4px">
+          <input type="checkbox" class="il-chk" data-id="${p.id}" ${sel ? 'checked' : ''} ${jatem ? 'disabled title="Já adicionado"' : ''} onchange="ilToggleItem(${p.id}, this.checked)">
+        </td>
+        <td style="padding:6px;font-weight:700">${p.id}</td>
+        <td style="padding:6px">${p.descricao}</td>
+        <td style="padding:6px;color:var(--text2)">${p.nome_fornecedor || '—'}</td>
+        <td style="padding:6px;color:var(--text2)">${p.cod_fabricante || '—'}</td>
+        <td style="padding:6px;text-align:center">${p.unidade || 'UN'}</td>
+        <td style="padding:6px;text-align:right;font-weight:600">R$ ${parseFloat(p.vlr_venda||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</td>
+      </tr>`;
+    }).join('');
+
+    ilAtualizarInfo();
+    ilRenderPaginacao();
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--danger)">Erro: ${e.message}</td></tr>`;
+  }
+}
+
+function ilToggleItem(id, checked) {
+  if (checked) _ilSelecionados.add(id);
+  else _ilSelecionados.delete(id);
+  ilAtualizarInfo();
+}
+
+function ilToggleAll(checked) {
+  const jaAdicionados = new Set(_itensTabela.map(it => it.cod_produto));
+  _ilProdutosBuscados.forEach(p => {
+    if (!jaAdicionados.has(p.id)) {
+      if (checked) _ilSelecionados.add(p.id);
+      else _ilSelecionados.delete(p.id);
+    }
+  });
+  document.querySelectorAll('.il-chk:not(:disabled)').forEach(chk => {
+    chk.checked = checked;
+  });
+  ilAtualizarInfo();
+}
+
+async function ilSelecionarTodosBuscados() {
+  const params = _ilBuildParams(1, 9999);
+
+  showToast('Carregando todos os produtos...', 'info');
+  try {
+    const r = await api(`/api/tabela-precos/produtos/busca?${params}`);
+    const json = await r.json();
+    const jaAdicionados = new Set(_itensTabela.map(it => it.cod_produto));
+    (json.data || []).forEach(p => {
+      if (!jaAdicionados.has(p.id)) _ilSelecionados.add(p.id);
+    });
+    // Atualiza checkboxes visíveis
+    document.querySelectorAll('.il-chk:not(:disabled)').forEach(chk => {
+      chk.checked = _ilSelecionados.has(parseInt(chk.dataset.id));
+    });
+    document.getElementById('il_checkAll').checked = true;
+    ilAtualizarInfo();
+    showToast(`${_ilSelecionados.size} produtos selecionados`, 'success');
+  } catch(e) { showToast('Erro ao carregar todos: ' + e.message, 'error'); }
+}
+
+function ilDesmarcarTodos() {
+  _ilSelecionados.clear();
+  document.querySelectorAll('.il-chk').forEach(chk => chk.checked = false);
+  document.getElementById('il_checkAll').checked = false;
+  ilAtualizarInfo();
+}
+
+function ilAtualizarInfo() {
+  const n = _ilSelecionados.size;
+  document.getElementById('il_countSel').textContent = `${n} selecionado${n !== 1 ? 's' : ''}`;
+  document.getElementById('il_info').textContent =
+    _ilTotalEncontrados > 0
+      ? `${_ilTotalEncontrados} produto(s) encontrado(s) — página ${_ilPaginaAtual} de ${_ilTotalPaginas}`
+      : '';
+}
+
+function ilRenderPaginacao() {
+  const wrap = document.getElementById('il_pagination');
+  if (_ilTotalPaginas <= 1) { wrap.innerHTML = ''; return; }
+  const cur = _ilPaginaAtual, last = _ilTotalPaginas;
+
+  // Mostra até 5 páginas ao redor da atual
+  let pages = [];
+  for (let i = Math.max(1, cur-2); i <= Math.min(last, cur+2); i++) pages.push(i);
+
+  wrap.innerHTML = `
+    <button class="page-btn" ${cur===1?'disabled':''} onclick="buscarImportarLote(1)">«</button>
+    <button class="page-btn" ${cur===1?'disabled':''} onclick="buscarImportarLote(${cur-1})">‹</button>
+    ${pages.map(p => `<button class="page-btn${p===cur?' active':''}" onclick="buscarImportarLote(${p})">${p}</button>`).join('')}
+    <button class="page-btn" ${cur===last?'disabled':''} onclick="buscarImportarLote(${cur+1})">›</button>
+    <button class="page-btn" ${cur===last?'disabled':''} onclick="buscarImportarLote(${last})">»</button>
+  `;
+}
+
+function confirmarImportarLote() {
+  if (_ilSelecionados.size === 0) { showToast('Selecione ao menos um produto', 'warn'); return; }
+
+  // Mapear ids selecionados para objetos produto
+  // Os produtos buscados desta página estão em _ilProdutosBuscados
+  // Para ids não nesta página, precisamos fazer uma busca adicional
+  const idsNaoPagina = [..._ilSelecionados].filter(id => !_ilProdutosBuscados.find(p => p.id === id));
+
+  const _importar = (produtos) => {
+    const jaAdicionados = new Set(_itensTabela.map(it => it.cod_produto));
+    let adicionados = 0;
+    produtos.forEach(p => {
+      if (!jaAdicionados.has(p.id)) {
+        _itensTabela.push({
+          cod_produto: p.id,
+          descricao: p.descricao,
+          cod_fabricante: p.cod_fabricante,
+          unidade: p.unidade,
+          preco_base: p.vlr_venda,
+          preco_venda: p.vlr_venda,
+          tipo_desconto: 'R',
+          vlr_desconto: 0,
+          valor_tabela: p.vlr_venda,
+          ativo: 'S',
+          vigencia: null
+        });
+        adicionados++;
+      }
+    });
+    renderItens();
+    fecharImportarLote();
+    showToast(`${adicionados} produto(s) importado(s) com sucesso!`, 'success');
+  };
+
+  if (idsNaoPagina.length === 0) {
+    // Todos estão na página atual
+    const produtos = _ilProdutosBuscados.filter(p => _ilSelecionados.has(p.id));
+    _importar(produtos);
+  } else {
+    // Busca os que não estão na página atual
+    showToast('Importando...', 'info');
+    api(`/api/tabela-precos/produtos/busca?${_ilBuildParams(1, 9999)}`)
+      .then(r => r.json())
+      .then(json => {
+        const todos = json.data || [];
+        const produtos = todos.filter(p => _ilSelecionados.has(p.id));
+        _importar(produtos);
+      })
+      .catch(e => showToast('Erro ao importar: ' + e.message, 'error'));
+  }
+}
 
 // ─── NOVAS FUNÇÕES MANUTENÇÃO ───
 

@@ -2544,6 +2544,29 @@ router.post('/:id/marcar-enviado', async (req, res) => {
         return res.json({ ok: true, desmarcado: false, situacao_pedido: sitAtual });
       }
 
+      // Verifica permissão desbloquear_pedido_enviado (admin sempre pode)
+      const isAdminDesbloq = req.user?.perfil == 1 || req.user?.isAdmin;
+      const permDesbloq = req.user?.permissoes?.desbloquear_pedido_enviado;
+      if (!isAdminDesbloq && permDesbloq !== 'S') {
+        return res.status(403).json({
+          error: 'Você não tem permissão para desbloquear pedidos enviados à representada.',
+          bloqueio: 'PEDIDO_ENVIADO_SEM_PERMISSAO'
+        });
+      }
+
+      // Quem tem permissão precisa confirmar senha
+      const senhaInformada = req.body?.senha;
+      if (!senhaInformada) {
+        return res.status(403).json({ error: 'Informe sua senha para desbloquear.', bloqueio: 'PEDIDO_ENVIADO_SENHA' });
+      }
+      const [uRows] = await pool.query(
+        `SELECT senhausu FROM usuarios WHERE idusuario = ? AND SITUACAO='ATIVO' AND excluido='N' LIMIT 1`,
+        [id_usuario_log]
+      ).catch(() => [[]]);
+      if (!uRows[0] || uRows[0].senhausu.trim().toUpperCase() !== senhaInformada.trim().toUpperCase()) {
+        return res.status(401).json({ error: 'Senha inválida.', bloqueio: 'PEDIDO_ENVIADO_SENHA' });
+      }
+
       const [logRows] = await pool.query(
         `SELECT status_antigo FROM logs_pedidos
          WHERE id_pedido = ? AND UPPER(status_novo) = 'ENVIADO'
@@ -3593,6 +3616,33 @@ router.delete('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Pedido não encontrado' });
     }
     const numPedido = pedRows[0].numero;
+    const sitPedido = (pedRows[0].situacao_pedido || '').toUpperCase();
+
+    // ── BLOQUEIO: Pedido ENVIADO — requer permissão + senha ─────────────────
+    if (sitPedido === 'ENVIADO') {
+      const isAdminDesbloq = req.user?.perfil == 1 || req.user?.isAdmin;
+      const permDesbloq = req.user?.permissoes?.desbloquear_pedido_enviado;
+      if (!isAdminDesbloq && permDesbloq !== 'S') {
+        await conn.rollback();
+        return res.status(403).json({
+          error: 'Você não tem permissão para excluir pedidos enviados à representada.',
+          bloqueio: 'PEDIDO_ENVIADO_SEM_PERMISSAO'
+        });
+      }
+      const senhaInformada = req.body?.senha;
+      if (!senhaInformada) {
+        await conn.rollback();
+        return res.status(403).json({ error: 'Informe sua senha para excluir um pedido enviado.', bloqueio: 'PEDIDO_ENVIADO_SENHA' });
+      }
+      const [uRows] = await conn.query(
+        `SELECT senhausu FROM usuarios WHERE idusuario = ? AND SITUACAO='ATIVO' AND excluido='N' LIMIT 1`,
+        [req.user?.id || 0]
+      ).catch(() => [[]]);
+      if (!uRows[0] || uRows[0].senhausu.trim().toUpperCase() !== senhaInformada.trim().toUpperCase()) {
+        await conn.rollback();
+        return res.status(401).json({ error: 'Senha inválida.', bloqueio: 'PEDIDO_ENVIADO_SENHA' });
+      }
+    }
 
     // ── BLOQUEIO DE SEGURANÇA: Verificar se há parcelas baixadas ─────────────
     const [parcelasLiquidadas] = await conn.query(`

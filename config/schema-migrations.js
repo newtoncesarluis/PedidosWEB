@@ -165,8 +165,9 @@ const MIGRATIONS = [
 
   // ── PERFIL — permissões de ações no pedido ───────────────────────────────────
   { table: 'perfil', column: 'faturar_pedido',       type: "CHAR(1) NOT NULL DEFAULT 'S'" },
-  { table: 'perfil', column: 'marcar_enviado_rep',   type: "CHAR(1) NOT NULL DEFAULT 'S'" },
-  { table: 'perfil', column: 'acessar_metas_vendas', type: "CHAR(1) NOT NULL DEFAULT 'S'" },
+  { table: 'perfil', column: 'marcar_enviado_rep',        type: "CHAR(1) NOT NULL DEFAULT 'S'" },
+  { table: 'perfil', column: 'desbloquear_pedido_enviado', type: "CHAR(1) NOT NULL DEFAULT 'N'" },
+  { table: 'perfil', column: 'acessar_metas_vendas',      type: "CHAR(1) NOT NULL DEFAULT 'S'" },
 
   // ── PEDIDOS — controle de envio de emails ────────────────────────────────────
   { table: 'pedidos', column: 'emailclienteenviado', type: "CHAR(1) DEFAULT 'N'" },

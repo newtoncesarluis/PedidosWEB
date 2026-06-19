@@ -3036,6 +3036,33 @@ router.get('/comercial/ranking-vendedores', async (req, res) => {
       )
     `).catch(() => {});
 
+    // Detectar esquema legado: alguns bancos têm p_vender direto em usuarios (sem JOIN perfil)
+    // e usam idperfil em vez de perfil como FK
+    const [[dbRow]] = await pool.query(`SELECT DATABASE() AS db`);
+    const [[colInfo]] = await pool.query(
+      `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'usuarios' AND COLUMN_NAME = 'p_vender' LIMIT 1`,
+      [dbRow.db]
+    );
+    const temPVenderDireto = !!colInfo;
+
+    // Se usuarios já tem p_vender, filtrar direto; senão JOIN com perfil usando coluna correta
+    let joinPerfil, wherePerfil;
+    if (temPVenderDireto) {
+      joinPerfil = '';
+      wherePerfil = `AND u.p_vender = 'S'`;
+    } else {
+      const [[colPerfil]] = await pool.query(
+        `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+         WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'usuarios' AND COLUMN_NAME IN ('perfil','idperfil')
+         ORDER BY FIELD(COLUMN_NAME,'perfil','idperfil') LIMIT 1`,
+        [dbRow.db]
+      );
+      const colFK = colPerfil?.COLUMN_NAME || 'perfil';
+      joinPerfil = `INNER JOIN perfil pf ON pf.id = u.${colFK} AND pf.p_vender = 'S'`;
+      wherePerfil = '';
+    }
+
     const [rows] = await pool.query(
       `
       SELECT
@@ -3046,10 +3073,10 @@ router.get('/comercial/ranking-vendedores', async (req, res) => {
         COALESCE(SUM(CASE WHEN p.data_abertura BETWEEN ? AND ? AND p.situacao_pedido NOT IN ('CANCELADO') THEN p.vlrtotalpedido END), 0) AS valor_ant,
         COALESCE(m.vlr_meta_vendas, 0) AS meta_vendas
       FROM usuarios u
-      INNER JOIN perfil pf ON pf.id = u.perfil AND pf.p_vender = 'S'
+      ${joinPerfil}
       LEFT JOIN pedidos p ON p.id_usuario = u.idusuario AND COALESCE(p.excluido, 'N') = 'N'
       LEFT JOIN comissao_metas m ON m.id_usuario = u.idusuario AND m.mes = ? AND m.ano = ?
-      WHERE u.excluido = 'N' AND u.SITUACAO = 'ATIVO'
+      WHERE u.excluido = 'N' AND u.SITUACAO = 'ATIVO' ${wherePerfil}
       GROUP BY u.idusuario, u.nomeusu, m.vlr_meta_vendas
       ORDER BY valor_mes DESC
       `,
