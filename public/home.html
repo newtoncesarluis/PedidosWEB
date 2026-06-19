@@ -3355,6 +3355,23 @@ window.addEventListener('DOMContentLoaded', async () => {
     } catch { /* ignora falha pontual de rede */ }
   }, 30000); // a cada 30 segundos
 
+  // Heartbeat de sessão — mantém a sessão viva no Painel de Licenças (a cada 5 min)
+  // Se o admin encerrar a sessão remotamente, kicked=true e o usuário é redirecionado
+  setInterval(async () => {
+    if (!navigator.onLine) return;
+    try {
+      const r = await fetch('/api/auth/heartbeat', { method: 'PUT', credentials: 'include' });
+      if (!r.ok) return;
+      const d = await r.json();
+      if (d.kicked) {
+        sessionStorage.clear();
+        ['token','user','empresa','parametros_locais'].forEach(k => localStorage.removeItem(k));
+        alert('Sua sessão foi encerrada pelo administrador.');
+        _homeGoLogin();
+      }
+    } catch { /* falha de rede ignorada */ }
+  }, 5 * 60 * 1000); // a cada 5 minutos
+
   // Aniversariantes
   const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
                  'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -4553,9 +4570,14 @@ function _gerarQrVitrineHome(url) {
   const el = document.getElementById('vitrineHomeQr');
   if (!el) return;
   el.innerHTML = '';
+  const showWrap = () => {
+    const w = document.getElementById('vitrineHomeQrWrap');
+    if (w) w.style.display = 'flex';
+  };
   function render() {
     try {
       new QRCode(el, { text: url, width: 140, height: 140, correctLevel: QRCode.CorrectLevel.M });
+      showWrap();
     } catch (_) {}
   }
   if (typeof QRCode !== 'undefined') { render(); return; }
@@ -4592,7 +4614,7 @@ function _vitrineHomeIframeShow(data) {
         style="flex:1;min-width:120px;height:36px;border:1.5px solid #bbf7d0;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#16a34a;text-decoration:none;background:#f0fdf4">Enviar WhatsApp</a>
     </div>
     <div id="vitrineHomePicker"></div>
-    <div style="display:flex;flex-direction:column;align-items:center;gap:6px;margin-top:14px">
+    <div id="vitrineHomeQrWrap" style="display:none;flex-direction:column;align-items:center;gap:6px;margin-top:14px">
       <div id="vitrineHomeQr" style="border:1px solid var(--card-border);border-radius:12px;padding:8px;background:#fff;display:inline-block"></div>
       <span style="font-size:10px;color:var(--text2)">QR Code — aponte a câmera do cliente</span>
     </div>`;
@@ -4615,46 +4637,35 @@ async function _vitrinePickerTabelas(idCliente, link, containerId) {
   if (!Array.isArray(tabelas) || tabelas.length < 2) return; // 0 ou 1 tabela: nada a escolher
 
   const sel = new Set(tabelas.map(t => Number(t.id_tabela))); // inicia todas marcadas
-  const perPage = 6;
-  let page = 1;
   let termo = '';
   const filtradas = () => {
     const q = termo.trim().toLowerCase();
     return q ? tabelas.filter(t => String(t.descricao || '').toLowerCase().includes(q)) : tabelas;
   };
-  const totalPages = () => Math.max(1, Math.ceil(filtradas().length / perPage));
 
   box.innerHTML = `
-    <div style="margin-top:14px;border:1px solid var(--card-border);border-radius:10px;padding:12px;background:var(--content-bg)">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px">
-        <div>
-          <div style="font-size:12px;font-weight:700;color:var(--content-text)">Tabelas neste link</div>
-          <div id="vptCount" style="font-size:11px;color:var(--text2)"></div>
-        </div>
+    <div style="margin-top:14px;border:1px solid var(--card-border);border-radius:10px;overflow:hidden;background:var(--content-bg)">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border-bottom:1px solid var(--card-border)">
+        <div style="font-size:12px;font-weight:700;color:var(--content-text)">Tabelas neste link <span id="vptCount" style="font-weight:400;color:var(--text2)"></span></div>
         <div style="display:flex;gap:6px;flex-shrink:0">
-          <button type="button" id="vptAll" style="height:28px;padding:0 10px;border:1px solid var(--card-border);border-radius:7px;background:transparent;color:var(--content-text);font:inherit;font-size:11px;font-weight:700;cursor:pointer">Marcar todas</button>
-          <button type="button" id="vptNone" style="height:28px;padding:0 10px;border:1px solid var(--card-border);border-radius:7px;background:transparent;color:var(--content-text);font:inherit;font-size:11px;font-weight:700;cursor:pointer">Limpar</button>
+          <button type="button" id="vptAll" style="height:26px;padding:0 10px;border:1px solid var(--card-border);border-radius:6px;background:transparent;color:var(--content-text);font:inherit;font-size:11px;font-weight:600;cursor:pointer">Marcar todas</button>
+          <button type="button" id="vptNone" style="height:26px;padding:0 10px;border:1px solid var(--card-border);border-radius:6px;background:transparent;color:var(--content-text);font:inherit;font-size:11px;font-weight:600;cursor:pointer">Limpar</button>
         </div>
       </div>
-      <input id="vptSearch" type="text" placeholder="Buscar tabela…" autocomplete="off"
-        style="width:100%;height:32px;padding:0 10px;margin-bottom:8px;border:1px solid var(--card-border);border-radius:7px;background:var(--content-bg);color:var(--content-text);font:inherit;font-size:12px;outline:none;box-sizing:border-box">
-      <div id="vptList" style="display:flex;flex-direction:column;gap:4px;min-height:172px"></div>
-      <div id="vptPager" style="display:none;align-items:center;justify-content:center;gap:12px;margin-top:8px">
-        <button type="button" id="vptPrev" style="width:30px;height:30px;border:1px solid var(--card-border);border-radius:7px;background:transparent;color:var(--content-text);cursor:pointer;font-size:15px;line-height:1">‹</button>
-        <span id="vptPageInfo" style="font-size:11px;color:var(--text2);min-width:64px;text-align:center"></span>
-        <button type="button" id="vptNext" style="width:30px;height:30px;border:1px solid var(--card-border);border-radius:7px;background:transparent;color:var(--content-text);cursor:pointer;font-size:15px;line-height:1">›</button>
+      <div style="padding:8px 12px;border-bottom:1px solid var(--card-border)">
+        <input id="vptSearch" type="text" placeholder="Buscar tabela…" autocomplete="off"
+          style="width:100%;height:34px;padding:0 12px;border:1px solid var(--card-border);border-radius:7px;background:var(--content-bg);color:var(--content-text);font:inherit;font-size:12px;outline:none;box-sizing:border-box">
       </div>
-      <div id="vptMsg" style="font-size:11px;color:var(--text2);margin-top:6px"></div>
+      <div id="vptList" style="display:flex;flex-direction:column;max-height:240px;overflow-y:auto;overflow-x:hidden;padding:4px 0"></div>
+      <div id="vptMsg" style="font-size:11px;color:var(--text2);padding:6px 12px;border-top:1px solid var(--card-border);min-height:26px"></div>
     </div>`;
 
   const list = box.querySelector('#vptList');
   const msg = box.querySelector('#vptMsg');
   const count = box.querySelector('#vptCount');
-  const pager = box.querySelector('#vptPager');
-  const pageInfo = box.querySelector('#vptPageInfo');
   const search = box.querySelector('#vptSearch');
 
-  const updateMeta = () => { count.textContent = sel.size + ' de ' + tabelas.length + ' marcadas'; };
+  const updateMeta = () => { count.textContent = '— ' + sel.size + ' de ' + tabelas.length + ' marcadas'; };
 
   let _t;
   const salvar = () => {
@@ -4678,28 +4689,30 @@ async function _vitrinePickerTabelas(idCliente, link, containerId) {
 
   const renderList = () => {
     const arr = filtradas();
-    const tp = totalPages();
-    if (page > tp) page = tp;
-    const start = (page - 1) * perPage;
-    const slice = arr.slice(start, start + perPage);
-    list.innerHTML = slice.length
-      ? slice.map(t => {
+    list.innerHTML = arr.length
+      ? arr.map(t => {
           const id = Number(t.id_tabela);
-          return `<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--content-text);cursor:pointer">
-         <input type="checkbox" class="vptChk" value="${id}" ${sel.has(id) ? 'checked' : ''}>
-         <span>${String(t.descricao || '').replace(/</g, '&lt;')}</span>
-       </label>`;
+          const checked = sel.has(id);
+          return `<label style="display:flex;align-items:center;gap:10px;padding:8px 14px;cursor:pointer;transition:background .12s${checked ? ';background:var(--hover-bg, rgba(14,165,233,.07))' : ''}"
+              onmouseover="this.style.background='var(--hover-bg, rgba(0,0,0,.04))'"
+              onmouseout="this.style.background='${checked ? "var(--hover-bg, rgba(14,165,233,.07))" : "transparent"}'">
+            <input type="checkbox" class="vptChk" value="${id}" ${checked ? 'checked' : ''}
+              style="width:16px;height:16px;accent-color:#0ea5e9;flex-shrink:0;cursor:pointer">
+            <span style="font-size:13px;color:var(--content-text);line-height:1.3">${String(t.descricao || '').replace(/</g, '&lt;')}</span>
+          </label>`;
         }).join('')
-      : '<div style="font-size:12px;color:var(--text2);padding:10px 0">Nenhuma tabela encontrada.</div>';
+      : '<div style="font-size:12px;color:var(--text2);padding:14px">Nenhuma tabela encontrada.</div>';
     list.querySelectorAll('.vptChk').forEach(c => c.addEventListener('change', () => {
       const id = parseInt(c.value, 10);
       if (c.checked) sel.add(id); else sel.delete(id);
       updateMeta(); salvar();
+      // atualiza cor de fundo do label sem re-render completo
+      const lbl = c.closest('label');
+      if (lbl) {
+        lbl.style.background = c.checked ? 'var(--hover-bg, rgba(14,165,233,.07))' : 'transparent';
+        lbl.setAttribute('onmouseout', `this.style.background='${c.checked ? "var(--hover-bg, rgba(14,165,233,.07))" : "transparent"}'`);
+      }
     }));
-    pager.style.display = tp > 1 ? 'flex' : 'none';
-    pageInfo.textContent = 'Pág. ' + page + ' / ' + tp;
-    box.querySelector('#vptPrev').disabled = page <= 1;
-    box.querySelector('#vptNext').disabled = page >= tp;
   };
 
   box.querySelector('#vptAll').addEventListener('click', () => { filtradas().forEach(t => sel.add(Number(t.id_tabela))); renderList(); updateMeta(); salvar(); });
@@ -4708,9 +4721,7 @@ async function _vitrinePickerTabelas(idCliente, link, containerId) {
     renderList(); updateMeta();
     if (!sel.size) msg.textContent = 'Marque ao menos uma tabela.'; else salvar();
   });
-  box.querySelector('#vptPrev').addEventListener('click', () => { if (page > 1) { page--; renderList(); } });
-  box.querySelector('#vptNext').addEventListener('click', () => { if (page < totalPages()) { page++; renderList(); } });
-  search.addEventListener('input', () => { termo = search.value; page = 1; renderList(); });
+  search.addEventListener('input', () => { termo = search.value; renderList(); });
 
   updateMeta();
   renderList();
