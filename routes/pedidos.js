@@ -587,7 +587,9 @@ async function _normalizeItensPrecoPeso(conn, itens, codFornecedor) {
 
   const [prods] = await conn.query(
     `SELECT ID, IFNULL(precopeso, 'N') AS precopeso, IFNULL(kilo_embalagem, 0) AS kilo_embalagem,
-            descricao
+            descricao,
+            IFNULL(bloquear_desconto, 'N') AS bloquear_desconto,
+            desconto_maximo
      FROM ${tb} WHERE ID IN (?)`,
     [ids]
   );
@@ -596,6 +598,16 @@ async function _normalizeItensPrecoPeso(conn, itens, codFornecedor) {
   return itens.map((item) => {
     const prod = prodMap.get(parseInt(item.cod_produto, 10));
     const precopeso = item.precopeso || prod?.precopeso || 'N';
+
+    // Controle de desconto por produto
+    let descontoPct = parseFloat(item.desconto_percentual ?? item.desconto ?? 0) || 0;
+    if (prod?.bloquear_desconto === 'S') {
+      descontoPct = 0;
+    } else if (prod?.desconto_maximo != null) {
+      const maxDesc = parseFloat(prod.desconto_maximo) || 0;
+      if (descontoPct > maxDesc) descontoPct = maxDesc;
+    }
+    item = { ...item, desconto_percentual: descontoPct, desconto: descontoPct };
     const embalagem = parseFloat(item.embalagem ?? item.kilo_embalagem) || 0;
     let kiloCat = parseFloat(prod?.kilo_embalagem) || 0;
     if (item.embalagem != null && item.embalagem !== '' && item.kilo_embalagem != null) {
@@ -1100,11 +1112,14 @@ router.get('/', async (req, res) => {
     if (id_fornecedor) addFilter('p.id_fornecedor', id_fornecedor);
 
     if (status && status !== '' && status !== 'todos') {
-      whereClause += ` AND p.situacao_pedido = ?`;
-      params.push(status);
+      // 'PENDENTE' é sinônimo de 'ENTREGAR' nesta base (legado) — ver CLAUDE.md
+      const statusValues = status === 'PENDENTE' ? ['PENDENTE', 'ENTREGAR'] : [status];
+      const statusPh = statusValues.map(() => '?').join(',');
+      whereClause += ` AND p.situacao_pedido IN (${statusPh})`;
+      params.push(...statusValues);
       // Mantemos nos cards também para os status básicos (Pendente/Aprovado/Cancelado)
-      whereClauseCards += ` AND p.situacao_pedido = ?`;
-      paramsCards.push(status);
+      whereClauseCards += ` AND p.situacao_pedido IN (${statusPh})`;
+      paramsCards.push(...statusValues);
     }
 
     if (tipo && tipo !== '' && tipo !== 'ALL') {
@@ -1161,7 +1176,7 @@ router.get('/', async (req, res) => {
           tipo_pedido,
           COUNT(p.id) as total,
           SUM(p.vlrtotalpedido) as vlr_total,
-          COUNT(CASE WHEN p.situacao_pedido = 'PENDENTE' THEN 1 END) as pendentes,
+          COUNT(CASE WHEN p.situacao_pedido IN ('PENDENTE','ENTREGAR') THEN 1 END) as pendentes,
           COUNT(CASE WHEN p.situacao_pedido = 'APROVADO' THEN 1 END) as aprovados,
           COUNT(CASE WHEN p.situacao_pedido = 'CANCELADO' THEN 1 END) as cancelados,
           COUNT(CASE WHEN p.situacao_pedido = 'FATURADO' THEN 1 END) as faturados
@@ -1192,7 +1207,7 @@ router.get('/', async (req, res) => {
       } else {
         const [fb] = await pool.query(`
           SELECT COUNT(p.id) as total, SUM(p.vlrtotalpedido) as vlr_total,
-                 COUNT(CASE WHEN p.situacao_pedido = 'PENDENTE' THEN 1 END) as pendentes,
+                 COUNT(CASE WHEN p.situacao_pedido IN ('PENDENTE','ENTREGAR') THEN 1 END) as pendentes,
                  COUNT(CASE WHEN p.situacao_pedido = 'APROVADO' THEN 1 END) as aprovados,
                  COUNT(CASE WHEN p.situacao_pedido = 'CANCELADO' THEN 1 END) as cancelados
           FROM pedidos p ${joinFilterClause} ${whereClauseCards}
@@ -1207,7 +1222,7 @@ router.get('/', async (req, res) => {
       try {
         const [fb] = await pool.query(`
           SELECT COUNT(p.id) as total, SUM(p.vlrtotalpedido) as vlr_total,
-                 COUNT(CASE WHEN p.situacao_pedido = 'PENDENTE' THEN 1 END) as pendentes,
+                 COUNT(CASE WHEN p.situacao_pedido IN ('PENDENTE','ENTREGAR') THEN 1 END) as pendentes,
                  COUNT(CASE WHEN p.situacao_pedido = 'APROVADO' THEN 1 END) as aprovados,
                  COUNT(CASE WHEN p.situacao_pedido = 'CANCELADO' THEN 1 END) as cancelados
           FROM pedidos p ${joinFilterClause} ${whereClauseCards}
@@ -3381,6 +3396,15 @@ router.post('/', async (req, res) => {
     );
 
     const pedidoId = pResult.insertId;
+
+    await require('../config/crm-auto-link').autoLinkNegocio({
+      conn,
+      id_empresa: idEmpresaPed,
+      cod_cliente: pedido.cod_cliente,
+      id_usuario: req.user?.id || 0,
+      vlrtotalpedido: nPedidoField(pedido.vlrtotalpedido),
+      id_pedido: pedidoId,
+    }).catch(() => {});
 
     const idCampFeirinha = nPedidoId(pedido.id_campanha_feirinha);
     const hasSnapMedio = pedido.preco_medio_feirinha != null && pedido.preco_medio_feirinha !== '';

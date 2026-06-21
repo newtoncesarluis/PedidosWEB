@@ -1099,6 +1099,8 @@
   let currencyCols = new Set();
   let currentLocale   = 'pt-BR';
   let currentCurrency = 'BRL';
+  let currentDecimals = 2;
+  let currentDivisor  = 1;
   let colMapping   = {};   // { colIdx: { nome_campo, apelido } }
   let camposImportacao = [];
   let statusRows   = {};   // { rowIdx: { status_cadastro, status, status_importacao, cod_produto, msg } }
@@ -1378,17 +1380,17 @@
     let b = parseNumeroMoeda(brutoRaw);
     if (isNaN(b) || b <= 0) return null;
     const ds = String(descRaw ?? '').trim();
-    if (!ds) return { valor: Number(b.toFixed(2)), tipo_desconto: 'R', vlr_desconto: 0 };
+    if (!ds) return { valor: Number(b.toFixed(currentDecimals)), tipo_desconto: 'R', vlr_desconto: 0 };
     const d = parseNumeroMoeda(ds);
-    if (isNaN(d) || d <= 0) return { valor: Number(b.toFixed(2)), tipo_desconto: 'R', vlr_desconto: 0 };
+    if (isNaN(d) || d <= 0) return { valor: Number(b.toFixed(currentDecimals)), tipo_desconto: 'R', vlr_desconto: 0 };
     if (descontoEhPercentual) {
       const f = b * (1 - d / 100);
       if (f <= 0) return null;
-      return { valor: Number(f.toFixed(2)), tipo_desconto: 'P', vlr_desconto: d };
+      return { valor: Number(f.toFixed(currentDecimals)), tipo_desconto: 'P', vlr_desconto: d };
     }
     const f = b - d;
     if (f <= 0) return null;
-    return { valor: Number(f.toFixed(2)), tipo_desconto: 'R', vlr_desconto: d };
+    return { valor: Number(f.toFixed(currentDecimals)), tipo_desconto: 'R', vlr_desconto: d };
   }
 
   function renderTabelaPrecoRows() {
@@ -1524,9 +1526,9 @@
     if (isNaN(n) || !(n > 0)) return '';
     if (fornecedorSelecionado.descontos) {
       const calc = calcDescontoCascata(vlrBase);
-      if (calc !== null) return calc.toFixed(2);
+      if (calc !== null) return calc.toFixed(currentDecimals);
     }
-    return n.toFixed(2);
+    return n.toFixed(currentDecimals);
   }
 
   function checarFornecedor() {
@@ -1877,7 +1879,7 @@
           }
           if (fornecedorSelecionado.descontos) {
             const calc = calcDescontoCascata(vlrBase);
-            if (calc !== null) campos['vlrcustofinalVenda'] = calc.toFixed(2);
+            if (calc !== null) campos['vlrcustofinalVenda'] = calc.toFixed(currentDecimals);
           }
         }
       }
@@ -2070,7 +2072,8 @@
       else s = s.replace(/,/g, '');
     }
     const n = parseFloat(s);
-    return isFinite(n) ? n : NaN;
+    if (!isFinite(n)) return NaN;
+    return currentDivisor > 1 ? n / currentDivisor : n;
   }
 
   const COD_KEYWORDS = ['cod','codigo','código','ref','referencia','referência','codfab','codigofab','codprod','idprod','idproduto','ean','barras','codb','numitem','item','seq','sequencia','sequência'];
@@ -2117,6 +2120,18 @@
       btn.onclick=()=>{currentLocale=c.locale;currentCurrency=c.code;document.querySelectorAll('.currency-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderHead();renderRows(getFiltered());};
       currencyBar.appendChild(btn);
     });
+    const sep=document.createElement('span'); sep.style.cssText='color:var(--border);margin:0 4px'; sep.textContent='|'; currencyBar.appendChild(sep);
+    const decLabel=document.createElement('label'); decLabel.textContent='DECIMAIS:'; currencyBar.appendChild(decLabel);
+    [2,3,4].forEach(d=>{
+      const btn=document.createElement('button'); btn.className='currency-btn dec-btn'+(d===currentDecimals?' active':''); btn.textContent=d;
+      btn.onclick=()=>{currentDecimals=d;document.querySelectorAll('.dec-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderHead();renderRows(getFiltered());};
+      currencyBar.appendChild(btn);
+    });
+    const sep2=document.createElement('span'); sep2.style.cssText='color:var(--border);margin:0 4px'; sep2.textContent='|'; currencyBar.appendChild(sep2);
+    const divBtn=document.createElement('button'); divBtn.className='currency-btn div-btn'+(currentDivisor===100?' active':''); divBtn.textContent='÷100';
+    divBtn.title='Preços na planilha estão em centavos (ex: 3594 → R$ 35,94)';
+    divBtn.onclick=()=>{currentDivisor=currentDivisor===100?1:100;divBtn.classList.toggle('active');renderHead();renderRows(getFiltered());};
+    currencyBar.appendChild(divBtn);
     const info=document.createElement('span'); info.className='detected-info'; info.innerHTML=`<span>${count}</span> col. monetária${count!==1?'s':''} detectada${count!==1?'s':''}`;
     currencyBar.appendChild(info);
     currencyBar.style.display = count > 0 ? 'flex' : 'none';
@@ -2128,8 +2143,8 @@
     return new Intl.NumberFormat(currentLocale, {
       style: 'currency',
       currency: currentCurrency,
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
+      minimumFractionDigits: currentDecimals,
+      maximumFractionDigits: currentDecimals
     }).format(n);
   }
 
@@ -2175,13 +2190,13 @@
     if (!d) return null;
     let v = parseNumeroMoeda(vlrVenda);
     if (isNaN(v) || v <= 0) return null;
-    // Aplica cada desconto sobre o resultado anterior, arredondando 2 casas (igual ao Delphi FormatCurr)
-    v = parseFloat((v - (v * d.d1) / 100).toFixed(2));
-    v = parseFloat((v - (v * d.d2) / 100).toFixed(2));
-    v = parseFloat((v - (v * d.d3) / 100).toFixed(2));
-    v = parseFloat((v - (v * d.d4) / 100).toFixed(2));
-    v = parseFloat((v - (v * d.d5) / 100).toFixed(2));
-    v = parseFloat((v - (v * d.d6) / 100).toFixed(2));
+    // Aplica cada desconto sobre o resultado anterior, arredondando conforme currentDecimals
+    v = parseFloat((v - (v * d.d1) / 100).toFixed(currentDecimals));
+    v = parseFloat((v - (v * d.d2) / 100).toFixed(currentDecimals));
+    v = parseFloat((v - (v * d.d3) / 100).toFixed(currentDecimals));
+    v = parseFloat((v - (v * d.d4) / 100).toFixed(currentDecimals));
+    v = parseFloat((v - (v * d.d5) / 100).toFixed(currentDecimals));
+    v = parseFloat((v - (v * d.d6) / 100).toFixed(currentDecimals));
     return v;
   }
 
@@ -2414,8 +2429,8 @@
         tdCalc.style.minWidth = '130px';
         if (calc !== null) {
           tdCalc.classList.add('currency');
-          tdCalc.title = 'vlrcustofinalVenda = ' + calc.toFixed(2);
-          tdCalc.textContent = new Intl.NumberFormat('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(calc);
+          tdCalc.title = 'vlrcustofinalVenda = ' + calc.toFixed(currentDecimals);
+          tdCalc.textContent = new Intl.NumberFormat('pt-BR',{minimumFractionDigits:currentDecimals,maximumFractionDigits:currentDecimals}).format(calc);
         } else {
           tdCalc.innerHTML = '<span style="color:var(--muted);font-size:.62rem">—</span>';
         }

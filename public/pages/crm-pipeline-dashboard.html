@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Dashboard CRM Pipeline | SysRepWeb</title>
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<script src="/assets/mobile-app.js"></script>
+<link rel="stylesheet" href="/assets/mobile-app.css">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: var(--content-bg); --card: var(--card-bg); --border: var(--card-border);
+  --text: var(--content-text); --text2: var(--text2); --accent: var(--accent);
+}
+body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; }
+.toolbar { position: sticky; top: 0; z-index: 30; background: var(--card); border-bottom: 1px solid var(--border);
+  padding: 12px 18px; display: flex; gap: 12px; align-items: center; }
+.title { font-size: 14px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.select { padding: 9px 12px; border: 1.5px solid var(--border); border-radius: 12px; background: var(--card); color: var(--text); font: inherit; }
+.tb-actions { margin-left: auto; }
+.btn { border: 1.5px solid var(--border); background: var(--card); color: var(--text); border-radius: 12px;
+  padding: 9px 12px; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; text-decoration: none; }
+.content { padding: 16px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 18px; padding: 16px; }
+.card h3 { font-size: 13px; font-weight: 800; margin-bottom: 12px; }
+.kpis { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; grid-column: 1 / -1; }
+.kpi-box { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 14px; }
+.kpi-box small { display: block; color: var(--text2); font-size: 11px; text-transform: uppercase; }
+.kpi-box strong { display: block; font-size: 20px; margin-top: 4px; }
+canvas { max-height: 260px; }
+.list-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <div class="title">Dashboard Comercial — CRM Pipeline</div>
+  <select id="selPipeline" class="select" onchange="loadDashboard()"></select>
+  <div class="tb-actions"><a class="btn" href="/pages/crm-pipeline.html">← Voltar ao Kanban</a></div>
+</div>
+
+<div class="content">
+  <div class="kpis" id="kpis"></div>
+  <div class="card"><h3>Funil por Etapa</h3><canvas id="chartFunil"></canvas></div>
+  <div class="card"><h3>Ranking de Vendedores (valor ganho)</h3><canvas id="chartRanking"></canvas></div>
+  <div class="card"><h3>Motivos de Perda</h3><canvas id="chartMotivos"></canvas></div>
+  <div class="card"><h3>Ranking — Detalhe</h3><div id="rankingList"></div></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+let charts = {};
+async function api(url) {
+  const res = await fetch(url);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Erro na requisição');
+  return data;
+}
+function esc(t) { return String(t || '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function money(v) { return 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 }); }
+
+async function loadPipelines() {
+  const data = await api('/api/crm/pipelines');
+  const sel = document.getElementById('selPipeline');
+  sel.innerHTML = '<option value="">Todas as pipelines</option>' + (data.pipelines || []).map(p => `<option value="${p.id}">${esc(p.nome)}</option>`).join('');
+  loadDashboard();
+}
+
+function destroyChart(key) { if (charts[key]) { charts[key].destroy(); charts[key] = null; } }
+
+async function loadDashboard() {
+  const idPipeline = document.getElementById('selPipeline').value;
+  const data = await api('/api/crm/dashboard' + (idPipeline ? '?id_pipeline=' + idPipeline : ''));
+
+  document.getElementById('kpis').innerHTML = `
+    <div class="kpi-box"><small>Valor Ponderado em Aberto</small><strong>${money(data.ponderado?.valor_ponderado)}</strong></div>
+    <div class="kpi-box"><small>Ticket Médio</small><strong>${money(data.ponderado?.ticket_medio)}</strong></div>
+  `;
+
+  destroyChart('funil');
+  charts.funil = new Chart(document.getElementById('chartFunil'), {
+    type: 'bar',
+    data: {
+      labels: (data.porEtapa || []).map(e => e.nome),
+      datasets: [{ label: 'Valor (R$)', data: (data.porEtapa || []).map(e => e.valor), backgroundColor: '#0d9488' }]
+    },
+    options: { responsive: true, plugins: { legend: { display: false } } }
+  });
+
+  destroyChart('ranking');
+  charts.ranking = new Chart(document.getElementById('chartRanking'), {
+    type: 'bar',
+    data: {
+      labels: (data.ranking || []).map(r => r.vendedor || 'Sem vendedor'),
+      datasets: [{ label: 'Valor Ganho', data: (data.ranking || []).map(r => r.valor_ganho), backgroundColor: '#0ea5e9' }]
+    },
+    options: { responsive: true, indexAxis: 'y', plugins: { legend: { display: false } } }
+  });
+
+  destroyChart('motivos');
+  charts.motivos = new Chart(document.getElementById('chartMotivos'), {
+    type: 'doughnut',
+    data: {
+      labels: (data.motivos || []).map(m => m.motivo),
+      datasets: [{ data: (data.motivos || []).map(m => m.total), backgroundColor: ['#ef4444','#f59e0b','#0d9488','#0ea5e9','#8b5cf6','#ec4899','#84cc16','#64748b'] }]
+    },
+    options: { responsive: true }
+  });
+
+  document.getElementById('rankingList').innerHTML = (data.ranking || []).map(r => `
+    <div class="list-row"><span>${esc(r.vendedor || 'Sem vendedor')}</span>
+    <span>${r.ganhos} ganhos · ${r.perdidos} perdidos · ${money(r.valor_ganho)}</span></div>
+  `).join('') || '<div class="list-row">Sem dados</div>';
+}
+
+loadPipelines();
+</script>
+</body>
+</html>

@@ -546,7 +546,7 @@ router.post('/', async (req, res) => {
       'tipo',
       'ipi_frete_base','com_sobre_ipi','com_sobre_st','com_tipo','tipo_num_pedido','base_conciliacao',
       'min_cx_pedido','recalc_comissao_fatur','enviar_pedido_fabrica','habilita_feirinha',
-      'layout_impressao','mostrar_vlr_desc_pedido'
+      'layout_impressao','mostrar_vlr_desc_pedido','frete_padrao'
     ];
 
     const campos = todosCampos.filter(c => body[c] !== undefined && colunasReais.has(c));
@@ -607,7 +607,7 @@ router.put('/:id', async (req, res) => {
       'tipo',
       'ipi_frete_base','com_sobre_ipi','com_sobre_st','com_tipo','tipo_num_pedido','base_conciliacao',
       'min_cx_pedido','recalc_comissao_fatur','enviar_pedido_fabrica','habilita_feirinha',
-      'layout_impressao','mostrar_vlr_desc_pedido'
+      'layout_impressao','mostrar_vlr_desc_pedido','frete_padrao'
     ];
 
     const campos = todosCampos.filter(c => body[c] !== undefined && colunasReais.has(c));

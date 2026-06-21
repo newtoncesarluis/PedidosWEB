@@ -197,6 +197,19 @@ const MIGRATIONS = [
   { table: 'perfil', column: 'incluir_estoque', type: "CHAR(1) NOT NULL DEFAULT 'S'" },
   { table: 'perfil', column: 'alterar_estoque', type: "CHAR(1) NOT NULL DEFAULT 'S'" },
   { table: 'perfil', column: 'excluir_estoque', type: "CHAR(1) NOT NULL DEFAULT 'N'" },
+
+  // ── FORNECEDORES — frete padrão (CIF/FOB) ────────────────────────────────────
+  { table: 'fornecedores', column: 'frete_padrao', type: "VARCHAR(10) DEFAULT NULL" },
+
+  // ── PRODUTO — bloqueio e limite de desconto ───────────────────────────────────
+  { table: 'produto',  column: 'bloquear_desconto', type: "CHAR(1) NOT NULL DEFAULT 'N'" },
+  { table: 'produto',  column: 'desconto_maximo',   type: "DECIMAL(5,2) DEFAULT NULL" },
+  { table: 'produtos', column: 'bloquear_desconto', type: "CHAR(1) NOT NULL DEFAULT 'N'" },
+  { table: 'produtos', column: 'desconto_maximo',   type: "DECIMAL(5,2) DEFAULT NULL" },
+
+  // ── TABELA_PRECO_CABECALHO — visibilidade no app mobile ──────────────────────
+  // DEFAULT 'S' para não quebrar tabelas existentes (já aparecem no mobile)
+  { table: 'tabela_preco_cabecalho', column: 'aparece_mobile', type: "CHAR(1) NOT NULL DEFAULT 'S'" },
 ];
 
 // Tabelas novas — cria se não existir (apenas estrutura mínima)
@@ -542,6 +555,21 @@ const CREATE_IF_NOT_EXISTS = [
       INDEX idx_tp_operador (id_operador),
       INDEX idx_tp_campanha (id_campanha),
       INDEX idx_tp_data (inicio)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  },
+  {
+    name: 'sistema_changelog',
+    sql: `CREATE TABLE IF NOT EXISTS sistema_changelog (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      versao VARCHAR(20) NOT NULL,
+      tipo ENUM('MELHORIA','BUG','NOVO') NOT NULL DEFAULT 'MELHORIA',
+      titulo VARCHAR(200) NOT NULL,
+      descricao TEXT NULL,
+      data_lancamento DATE NOT NULL,
+      ativo CHAR(1) NOT NULL DEFAULT 'S',
+      dtcadastro DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_chg_versao (versao),
+      INDEX idx_chg_data (data_lancamento)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   },
 ];

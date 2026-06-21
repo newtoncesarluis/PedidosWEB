@@ -188,9 +188,9 @@ router.post('/:id/clonar', async (req, res) => {
     if (!cabOrigem[0]) throw new Error('Tabela original não encontrada');
 
     const [resCab] = await conn.query(
-      `INSERT INTO tabela_preco_cabecalho (Descricao, Data_Inicial, Hora_Inicial, Data_Final, Hora_Final, Cond_Pagamento, Tabela_Ativa, vitrine, usar_regras_fornecedor, excluido)
-       VALUES (?, ?, ?, ?, ?, ?, 'N', ?, ?, 'N')`,
-      [`CLONE - ${cabOrigem[0].Descricao}`, cabOrigem[0].Data_Inicial, cabOrigem[0].Hora_Inicial, cabOrigem[0].Data_Final, cabOrigem[0].Hora_Final, cabOrigem[0].Cond_Pagamento, _sn(cabOrigem[0].vitrine), _sn(cabOrigem[0].usar_regras_fornecedor)]
+      `INSERT INTO tabela_preco_cabecalho (Descricao, Data_Inicial, Hora_Inicial, Data_Final, Hora_Final, Cond_Pagamento, Tabela_Ativa, vitrine, usar_regras_fornecedor, aparece_mobile, excluido)
+       VALUES (?, ?, ?, ?, ?, ?, 'N', ?, ?, ?, 'N')`,
+      [`CLONE - ${cabOrigem[0].Descricao}`, cabOrigem[0].Data_Inicial, cabOrigem[0].Hora_Inicial, cabOrigem[0].Data_Final, cabOrigem[0].Hora_Final, cabOrigem[0].Cond_Pagamento, _sn(cabOrigem[0].vitrine), _sn(cabOrigem[0].usar_regras_fornecedor), _sn(cabOrigem[0].aparece_mobile ?? 'S')]
     );
 
     const novoId = resCab.insertId;
@@ -398,14 +398,17 @@ router.get('/disponiveis-para/:cliId/:forId/:venId', async (req, res) => {
     let origemTabela = null;
 
     // Tenta buscar as tabelas por prioridade: se achar na 1ª (fábrica) já usa elas; senão vendedor; senão cliente.
+    const somenteMobile = req.query.mobile === '1';
     for (const p of priorities) {
       if (!p.id || p.id === 'null' || p.id === '0') continue;
       try {
-        const rows = await listarTabelasVinculadas(pool, p.id, p.tipo);
+        let rows = await listarTabelasVinculadas(pool, p.id, p.tipo);
+        if (somenteMobile) rows = rows.filter((r) => (r.aparece_mobile || 'S') === 'S');
         if (rows.length > 0) {
           tabelas = rows.map((r) => ({
             id_tabela: r.id_tabela,
             descricao: r.descricao,
+            aparece_mobile: r.aparece_mobile || 'S',
           }));
           origemTabela = p.tipo;
           break;
@@ -422,7 +425,7 @@ router.get('/disponiveis-para/:cliId/:forId/:venId', async (req, res) => {
 });
 
 /** Tabelas liberadas (fornecedor/fábrica > vendedor > cliente) — mesma regra de disponiveis-para. */
-async function buscarTabelasLiberadas(pool, cliId, forId, venId) {
+async function buscarTabelasLiberadas(pool, cliId, forId, venId, { somenteMobile = false } = {}) {
   const priorities = [
     { id: forId, tipo: 'FORNECEDOR' },
     { id: venId, tipo: 'VENDEDOR' },
@@ -431,12 +434,14 @@ async function buscarTabelasLiberadas(pool, cliId, forId, venId) {
   for (const p of priorities) {
     if (!p.id || p.id === 'null' || p.id === '0') continue;
     try {
-      const rows = await listarTabelasVinculadas(pool, p.id, p.tipo);
+      let rows = await listarTabelasVinculadas(pool, p.id, p.tipo);
+      if (somenteMobile) rows = rows.filter((r) => (r.aparece_mobile || 'S') === 'S');
       if (rows.length > 0) {
         return {
           tabelas: rows.map((r) => ({
             id_tabela: r.id_tabela,
             descricao: r.descricao,
+            aparece_mobile: r.aparece_mobile || 'S',
           })),
           origem: p.tipo,
         };
@@ -693,9 +698,9 @@ router.post('/', async (req, res) => {
     }
 
     const [resCab] = await conn.query(
-      `INSERT INTO tabela_preco_cabecalho (Descricao, Data_Inicial, Hora_Inicial, Data_Final, Hora_Final, Cond_Pagamento, Tabela_Ativa, vitrine, usar_regras_fornecedor, excluido)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'N')`,
-      [cab.Descricao, cab.Data_Inicial, cab.Hora_Inicial, cab.Data_Final, cab.Hora_Final, cab.Cond_Pagamento, cab.Tabela_Ativa || 'S', _sn(cab.vitrine), _sn(cab.usar_regras_fornecedor)]
+      `INSERT INTO tabela_preco_cabecalho (Descricao, Data_Inicial, Hora_Inicial, Data_Final, Hora_Final, Cond_Pagamento, Tabela_Ativa, vitrine, usar_regras_fornecedor, aparece_mobile, excluido)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'N')`,
+      [cab.Descricao, cab.Data_Inicial, cab.Hora_Inicial, cab.Data_Final, cab.Hora_Final, cab.Cond_Pagamento, cab.Tabela_Ativa || 'S', _sn(cab.vitrine), _sn(cab.usar_regras_fornecedor), _sn(cab.aparece_mobile ?? 'S')]
     );
 
     const idTabela = resCab.insertId;
@@ -730,9 +735,9 @@ router.put('/:id', async (req, res) => {
 
     await conn.query(
       `UPDATE tabela_preco_cabecalho SET
-        Descricao = ?, Data_Inicial = ?, Hora_Inicial = ?, Data_Final = ?, Hora_Final = ?, Cond_Pagamento = ?, Tabela_Ativa = ?, vitrine = ?, usar_regras_fornecedor = ?
+        Descricao = ?, Data_Inicial = ?, Hora_Inicial = ?, Data_Final = ?, Hora_Final = ?, Cond_Pagamento = ?, Tabela_Ativa = ?, vitrine = ?, usar_regras_fornecedor = ?, aparece_mobile = ?
        WHERE id = ?`,
-      [cab.Descricao, cab.Data_Inicial, cab.Hora_Inicial, cab.Data_Final, cab.Hora_Final, cab.Cond_Pagamento, cab.Tabela_Ativa, _sn(cab.vitrine), _sn(cab.usar_regras_fornecedor), idTabela]
+      [cab.Descricao, cab.Data_Inicial, cab.Hora_Inicial, cab.Data_Final, cab.Hora_Final, cab.Cond_Pagamento, cab.Tabela_Ativa, _sn(cab.vitrine), _sn(cab.usar_regras_fornecedor), _sn(cab.aparece_mobile ?? 'S'), idTabela]
     );
 
     // Substituição de itens (Padrão Protheus: deleta e reinsere em lote)

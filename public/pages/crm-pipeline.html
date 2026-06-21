@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>CRM Pipeline | SysRepWeb</title>
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<script src="/assets/mobile-app.js"></script>
+<link rel="stylesheet" href="/assets/mobile-app.css">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: var(--content-bg); --card: var(--card-bg); --border: var(--card-border);
+  --text: var(--content-text); --text2: var(--text2); --accent: var(--accent);
+  --accent-soft: var(--accent-soft, rgba(13,148,136,.12)); --accent-hover: var(--accent-hover);
+  --danger: #ef4444; --warn: #f59e0b; --success: #10b981;
+}
+body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; }
+.toolbar { position: sticky; top: 0; z-index: 30; background: var(--card); border-bottom: 1px solid var(--border);
+  padding: 12px 18px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.title { font-size: 14px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.select, .input { padding: 9px 12px; border: 1.5px solid var(--border); border-radius: 12px;
+  background: var(--card); color: var(--text); font: inherit; outline: none; }
+.select:focus, .input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+.btn { border: 1.5px solid var(--border); background: var(--card); color: var(--text); border-radius: 12px;
+  padding: 10px 14px; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.btn:hover { filter: brightness(.97); }
+.btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn-primary:hover { background: var(--accent-hover); }
+.tb-actions { margin-left: auto; display: flex; gap: 8px; }
+.content { padding: 16px; }
+.board { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 8px; align-items: flex-start; }
+.col { background: var(--card); border: 1px solid var(--border); border-radius: 18px; min-width: 270px;
+  width: 270px; flex-shrink: 0; min-height: 420px; display: flex; flex-direction: column; }
+.col.drag-over { box-shadow: 0 0 0 3px var(--accent-soft) inset; }
+.col-head { padding: 12px 14px; border-bottom: 3px solid var(--col-color, var(--accent)); display: flex;
+  align-items: center; justify-content: space-between; gap: 8px; }
+.col-head h3 { font-size: 13px; font-weight: 800; }
+.pill { display: inline-flex; align-items: center; justify-content: center; min-width: 26px; padding: 2px 8px;
+  border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 11px; font-weight: 800; }
+.col-foot { padding: 8px 14px; font-size: 11px; color: var(--text2); border-top: 1px solid var(--border); }
+.col-body { padding: 10px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
+.card { border: 1px solid var(--border); border-radius: 14px; background: var(--bg); padding: 11px;
+  cursor: grab; box-shadow: 0 6px 16px rgba(0,0,0,.04); }
+.card.dragging { opacity: .4; }
+.card h4 { font-size: 13px; font-weight: 800; }
+.card .sub { font-size: 11px; color: var(--text2); margin-top: 2px; }
+.card .row { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; gap: 6px; }
+.badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 7px; border-radius: 999px;
+  font-size: 10px; font-weight: 800; background: var(--accent-soft); color: var(--accent); }
+.badge.warn { background: rgba(245,158,11,.14); color: var(--warn); }
+.badge.danger { background: rgba(239,68,68,.14); color: var(--danger); }
+.prob-bar { height: 5px; border-radius: 4px; background: var(--border); overflow: hidden; margin-top: 8px; }
+.prob-bar span { display: block; height: 100%; background: var(--accent); }
+.empty { padding: 18px 8px; text-align: center; color: var(--text2); font-size: 12px; }
+.modal-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,.48); display: none;
+  align-items: center; justify-content: center; z-index: 90; padding: 20px; }
+.modal { width: min(720px, 100%); max-height: calc(100vh - 40px); overflow: auto; background: var(--card);
+  border: 1px solid var(--border); border-radius: 22px; }
+.modal-head { padding: 16px 18px; border-bottom: 1px solid var(--border); display: flex;
+  align-items: center; justify-content: space-between; gap: 12px; }
+.modal-body { padding: 18px; }
+.field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.field label { font-size: 11px; font-weight: 800; color: var(--text2); text-transform: uppercase; letter-spacing: .05em; }
+.tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--border); margin-bottom: 14px; flex-wrap: wrap; }
+.tab { padding: 8px 12px; font-size: 12px; font-weight: 700; color: var(--text2); cursor: pointer;
+  border-bottom: 2px solid transparent; }
+.tab.active { color: var(--accent); border-color: var(--accent); }
+.tab-pane { display: none; }
+.tab-pane.active { display: block; }
+.list-item { border: 1px solid var(--border); border-radius: 12px; padding: 9px 11px; margin-bottom: 8px; font-size: 12px; }
+.modal-foot { padding: 14px 18px 18px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.toast-wrap { position: fixed; bottom: 22px; right: 22px; z-index: 120; display: flex; flex-direction: column; gap: 8px; }
+.toast { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; font-size: 12px; box-shadow: 0 10px 24px rgba(0,0,0,.12); }
+.toast.ok { border-color: var(--success); color: var(--success); }
+.toast.err { border-color: var(--danger); color: var(--danger); }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <div class="title">CRM Pipeline</div>
+  <select id="selPipeline" class="select" onchange="onPipelineChange()"></select>
+  <div class="tb-actions">
+    <a class="btn" href="/pages/crm-pipeline-admin.html">⚙ Configurar</a>
+    <a class="btn" href="/pages/crm-pipeline-dashboard.html">📊 Dashboard</a>
+    <button class="btn btn-primary" onclick="openNewDeal()">+ Novo Negócio</button>
+  </div>
+</div>
+
+<div class="content">
+  <div id="board" class="board"></div>
+</div>
+
+<!-- Modal: Novo negócio -->
+<div class="modal-backdrop" id="newDealBack">
+  <div class="modal">
+    <div class="modal-head"><h2>Novo Negócio</h2><button class="btn" onclick="closeModal('newDealBack')">✕</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Cliente (id) ou Lead (id) — informe um dos dois</label>
+        <input class="input" id="nd_cliente" placeholder="id_cliente"></div>
+      <div class="field"><input class="input" id="nd_lead" placeholder="id_lead (contato)"></div>
+      <div class="field"><label>Título</label><input class="input" id="nd_titulo" placeholder="Ex: Venda de linha X"></div>
+      <div class="field"><label>Valor previsto</label><input class="input" id="nd_valor" type="number" step="0.01"></div>
+    </div>
+    <div class="modal-foot"><button class="btn btn-primary" onclick="createDeal()">Criar</button></div>
+  </div>
+</div>
+
+<!-- Modal: Motivo de perda -->
+<div class="modal-backdrop" id="lossBack">
+  <div class="modal" style="width:min(480px,100%)">
+    <div class="modal-head"><h2>Motivo da Perda</h2><button class="btn" onclick="closeModal('lossBack')">✕</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Motivo</label><select class="select" id="loss_motivo"></select></div>
+      <div class="field"><label>Observação (opcional)</label><input class="input" id="loss_obs"></div>
+    </div>
+    <div class="modal-foot"><button class="btn btn-primary" onclick="confirmLoss()">Confirmar Perda</button></div>
+  </div>
+</div>
+
+<!-- Modal: Sem pedido vinculado (Ganho bloqueado) -->
+<div class="modal-backdrop" id="needPedidoBack">
+  <div class="modal" style="width:min(480px,100%)">
+    <div class="modal-head"><h2>Orçamento necessário</h2><button class="btn" onclick="closeModal('needPedidoBack')">✕</button></div>
+    <div class="modal-body">
+      <p>Este negócio ainda não tem nenhum orçamento (pedido) vinculado. Crie o orçamento na tela de Pedidos e ele será vinculado automaticamente — depois volte aqui para marcar como Ganho.</p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeModal('needPedidoBack')">Fechar</button>
+      <button class="btn btn-primary" id="needPedidoGo" onclick="goToPedidos()">Abrir Pedidos</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Detalhe do negócio -->
+<div class="modal-backdrop" id="detailBack">
+  <div class="modal">
+    <div class="modal-head"><h2 id="detail_titulo">Negócio</h2><button class="btn" onclick="closeModal('detailBack')">✕</button></div>
+    <div class="modal-body">
+      <div class="tabs">
+        <div class="tab active" data-tab="atividades" onclick="switchTab('atividades')">Atividades</div>
+        <div class="tab" data-tab="pedidos" onclick="switchTab('pedidos')">Pedidos</div>
+        <div class="tab" data-tab="comissao" onclick="switchTab('comissao')">Comissão</div>
+        <div class="tab" data-tab="historico" onclick="switchTab('historico')">Histórico</div>
+      </div>
+      <div class="tab-pane active" id="pane-atividades">
+        <div id="taskList"></div>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <input class="input" id="newTaskTitulo" placeholder="Nova tarefa...">
+          <input class="input" id="newTaskData" type="date" style="max-width:160px">
+          <button class="btn btn-primary" onclick="addTask()">Adicionar</button>
+        </div>
+      </div>
+      <div class="tab-pane" id="pane-pedidos"><div id="pedidosList"></div></div>
+      <div class="tab-pane" id="pane-comissao"><div id="comissaoBox"></div></div>
+      <div class="tab-pane" id="pane-historico"><div id="historicoList"></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<script>
+const state = { pipelines: [], pipelineId: null, etapas: [], negocios: [], draggingId: null, dropEtapaPendente: null, currentDetailId: null };
+
+async function api(url, options = {}) {
+  const res = await fetch(url, { ...options, headers: { 'Content-Type': 'application/json', ...(options.headers || {}) } });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Erro na requisição');
+  return data;
+}
+function toast(msg, type = '') {
+  const wrap = document.getElementById('toasts');
+  const el = document.createElement('div');
+  el.className = 'toast' + (type ? ' ' + type : '');
+  el.textContent = msg;
+  wrap.appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+}
+function esc(t) { return String(t || '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function money(v) { return 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 }); }
+function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+function openModalEl(id) { document.getElementById(id).style.display = 'flex'; }
+
+async function loadPipelines() {
+  const data = await api('/api/crm/pipelines');
+  state.pipelines = data.pipelines || [];
+  const sel = document.getElementById('selPipeline');
+  sel.innerHTML = state.pipelines.map(p => `<option value="${p.id}">${esc(p.nome)}</option>`).join('') || '<option value="">Nenhuma pipeline disponível</option>';
+  if (state.pipelines.length) {
+    state.pipelineId = state.pipelines[0].id;
+    sel.value = state.pipelineId;
+    await loadBoard();
+  } else {
+    document.getElementById('board').innerHTML = '<div class="empty">Nenhuma pipeline disponível para você. Peça ao admin para configurar em "Configurar".</div>';
+  }
+}
+function onPipelineChange() {
+  state.pipelineId = document.getElementById('selPipeline').value;
+  loadBoard();
+}
+async function loadBoard() {
+  if (!state.pipelineId) return;
+  const [etapasData, negociosData] = await Promise.all([
+    api('/api/crm/pipelines/' + state.pipelineId + '/etapas'),
+    api('/api/crm/negocios?id_pipeline=' + state.pipelineId)
+  ]);
+  state.etapas = etapasData.etapas || [];
+  state.negocios = negociosData.negocios || [];
+  renderBoard();
+}
+
+function renderBoard() {
+  const board = document.getElementById('board');
+  if (!state.etapas.length) {
+    board.innerHTML = '<div class="empty">Esta pipeline ainda não tem etapas configuradas.</div>';
+    return;
+  }
+  board.innerHTML = state.etapas.map(etapa => {
+    const negocios = state.negocios.filter(n => n.id_etapa === etapa.id);
+    const valorTotal = negocios.reduce((s, n) => s + Number(n.valor_previsto || 0), 0);
+    return `
+    <div class="col" style="--col-color:${esc(etapa.cor)}" ondragover="dragOver(event)" ondrop="onDrop(event, ${etapa.id})" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)">
+      <div class="col-head"><h3>${esc(etapa.nome)}</h3><span class="pill">${negocios.length}</span></div>
+      <div class="col-body">
+        ${negocios.length ? negocios.map(cardHtml).join('') : '<div class="empty">Sem negócios</div>'}
+      </div>
+      <div class="col-foot">Total: ${money(valorTotal)}</div>
+    </div>`;
+  }).join('');
+}
+
+function cardHtml(n) {
+  const temPedido = Number(n.qt_pedidos || 0) > 0;
+  return `
+  <div class="card" draggable="true" ondragstart="dragStart(event,${n.id})" ondragend="dragEnd(event)" onclick="openDetail(${n.id})">
+    <h4>${esc(n.nome_contato || n.titulo || ('Negócio #' + n.id))}</h4>
+    <div class="sub">${esc(n.nome_vendedor || '')}</div>
+    <div class="row">
+      <span class="badge">${money(n.valor_previsto)}</span>
+      ${temPedido ? `<span class="badge">🧾 ${n.qt_pedidos} ped.</span>` : ''}
+      ${Number(n.tarefas_vencidas || 0) > 0 ? `<span class="badge danger">⏰ ${n.tarefas_vencidas}</span>` : ''}
+    </div>
+    <div class="prob-bar"><span style="width:${n.probabilidade || 0}%"></span></div>
+  </div>`;
+}
+
+// ── Drag & Drop ──────────────────────────────────────────────────────────────
+function dragStart(ev, id) { state.draggingId = id; ev.dataTransfer.effectAllowed = 'move'; setTimeout(() => ev.target.classList.add('dragging'), 0); }
+function dragEnd(ev) { ev.target.classList.remove('dragging'); state.draggingId = null; }
+function dragOver(ev) { ev.preventDefault(); ev.dataTransfer.dropEffect = 'move'; }
+function dragEnter(ev) { ev.currentTarget.classList.add('drag-over'); }
+function dragLeave(ev) { if (!ev.currentTarget.contains(ev.relatedTarget)) ev.currentTarget.classList.remove('drag-over'); }
+
+async function onDrop(ev, idEtapa) {
+  ev.preventDefault();
+  ev.currentTarget.classList.remove('drag-over');
+  const id = state.draggingId;
+  state.draggingId = null;
+  if (!id) return;
+  const negocio = state.negocios.find(n => n.id === id);
+  if (!negocio || negocio.id_etapa === idEtapa) return;
+  const etapa = state.etapas.find(e => e.id === idEtapa);
+
+  if (etapa.tipo === 'PERDIDO') {
+    state.dropEtapaPendente = { negocioId: id, idEtapa };
+    await openLossModal();
+    return;
+  }
+  await moveDeal(id, idEtapa, {});
+}
+
+async function moveDeal(id, idEtapa, extra) {
+  try {
+    await api('/api/crm/negocios/' + id + '/etapa', { method: 'PATCH', body: JSON.stringify({ id_etapa: idEtapa, ...extra }) });
+    toast('Negócio movido.', 'ok');
+    await loadBoard();
+  } catch (err) {
+    if (err.message && err.message.includes('orçamento')) {
+      document.getElementById('needPedidoGo').dataset.negocio = id;
+      openModalEl('needPedidoBack');
+    } else {
+      toast(err.message || 'Erro ao mover negócio', 'err');
+    }
+  }
+}
+
+async function openLossModal() {
+  const data = await api('/api/crm/motivos-perda');
+  const sel = document.getElementById('loss_motivo');
+  sel.innerHTML = (data.motivos || []).map(m => `<option value="${m.id}">${esc(m.descricao)}</option>`).join('') || '<option value="">Nenhum motivo cadastrado</option>';
+  document.getElementById('loss_obs').value = '';
+  openModalEl('lossBack');
+}
+async function confirmLoss() {
+  const { negocioId, idEtapa } = state.dropEtapaPendente || {};
+  if (!negocioId) return;
+  const idMotivo = document.getElementById('loss_motivo').value;
+  if (!idMotivo) { toast('Selecione um motivo', 'err'); return; }
+  closeModal('lossBack');
+  await moveDeal(negocioId, idEtapa, { id_motivo_perda: idMotivo, motivo_perda_obs: document.getElementById('loss_obs').value });
+}
+
+function goToPedidos() {
+  const negocio = state.negocios.find(n => n.id === Number(document.getElementById('needPedidoGo').dataset.negocio));
+  closeModal('needPedidoBack');
+  location.href = '/pages/pedidos.html' + (negocio?.id_cliente ? ('?cliente=' + negocio.id_cliente) : '');
+}
+
+// ── Novo negócio ─────────────────────────────────────────────────────────────
+function openNewDeal() {
+  document.getElementById('nd_cliente').value = '';
+  document.getElementById('nd_lead').value = '';
+  document.getElementById('nd_titulo').value = '';
+  document.getElementById('nd_valor').value = '';
+  openModalEl('newDealBack');
+}
+async function createDeal() {
+  try {
+    await api('/api/crm/negocios', {
+      method: 'POST',
+      body: JSON.stringify({
+        id_pipeline: state.pipelineId,
+        id_cliente: document.getElementById('nd_cliente').value || null,
+        id_lead: document.getElementById('nd_lead').value || null,
+        titulo: document.getElementById('nd_titulo').value,
+        valor_previsto: document.getElementById('nd_valor').value,
+      })
+    });
+    closeModal('newDealBack');
+    toast('Negócio criado.', 'ok');
+    await loadBoard();
+  } catch (err) { toast(err.message || 'Erro ao criar negócio', 'err'); }
+}
+
+// ── Detalhe do negócio ───────────────────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.id === 'pane-' + tab));
+}
+
+async function openDetail(id) {
+  state.currentDetailId = id;
+  const data = await api('/api/crm/negocios/' + id);
+  document.getElementById('detail_titulo').textContent = data.negocio.nome_contato || data.negocio.titulo || ('Negócio #' + id);
+
+  document.getElementById('taskList').innerHTML = (data.tarefas || []).map(t => `
+    <div class="list-item">
+      <strong>${esc(t.titulo)}</strong> ${t.status === 'CONCLUIDA' ? '✅' : ''}<br>
+      <span style="color:var(--text2)">${t.data_vencimento ? new Date(t.data_vencimento).toLocaleDateString('pt-BR') : ''}</span>
+      ${t.status === 'PENDENTE' ? `<button class="btn" style="margin-left:8px" onclick="concludeTask(${t.id})">Concluir</button>` : ''}
+    </div>`).join('') || '<div class="empty">Sem tarefas</div>';
+
+  document.getElementById('pedidosList').innerHTML = (data.pedidos || []).map(p => `
+    <div class="list-item">Pedido Nº ${esc(p.numero)} — ${money(p.vlrtotalpedido)} — ${esc(p.situacao_pedido)}</div>
+  `).join('') || '<div class="empty">Nenhum pedido vinculado ainda</div>';
+
+  document.getElementById('historicoList').innerHTML = (data.historico || []).map(h => `
+    <div class="list-item">${esc(h.etapa_origem || 'Início')} → <strong>${esc(h.etapa_destino)}</strong><br>
+    <span style="color:var(--text2)">${esc(h.nome_usuario || '')} · ${new Date(h.dtcadastro).toLocaleString('pt-BR')}</span></div>
+  `).join('') || '<div class="empty">Sem histórico</div>';
+
+  loadComissao(id);
+  switchTab('atividades');
+  openModalEl('detailBack');
+}
+
+async function loadComissao(id) {
+  try {
+    const c = await api('/api/crm/negocios/' + id + '/comissao-prevista');
+    document.getElementById('comissaoBox').innerHTML = `
+      <div class="list-item">Base de cálculo: ${money(c.base_calculo)} (${c.origem_valor === 'PEDIDO' ? 'valor do pedido' : 'valor previsto'})<br>
+      Percentual: ${c.percentual}%<br>
+      <strong>Comissão prevista: ${money(c.comissao_prevista)}</strong></div>`;
+  } catch (_) {
+    document.getElementById('comissaoBox').innerHTML = '<div class="empty">Sem dados de comissão</div>';
+  }
+}
+
+async function addTask() {
+  const titulo = document.getElementById('newTaskTitulo').value.trim();
+  if (!titulo) return;
+  try {
+    await api('/api/crm/negocios/' + state.currentDetailId + '/tarefas', {
+      method: 'POST',
+      body: JSON.stringify({ titulo, data_vencimento: document.getElementById('newTaskData').value || null })
+    });
+    document.getElementById('newTaskTitulo').value = '';
+    document.getElementById('newTaskData').value = '';
+    openDetail(state.currentDetailId);
+  } catch (err) { toast(err.message || 'Erro ao criar tarefa', 'err'); }
+}
+async function concludeTask(id) {
+  await api('/api/crm/tarefas/' + id + '/concluir', { method: 'PATCH' });
+  openDetail(state.currentDetailId);
+  loadBoard();
+}
+
+document.querySelectorAll('.modal-backdrop').forEach(el => {
+  el.addEventListener('click', e => { if (e.target === el) el.style.display = 'none'; });
+});
+
+loadPipelines();
+</script>
+</body>
+</html>

@@ -16,7 +16,10 @@ function _decryptPassword(enc) {
     dec += decipher.final('utf8');
     return dec;
   } catch {
-    return String(enc); // falha na descriptografia → usa o valor bruto
+    // Falha na descriptografia (ex.: JWT_SECRET diferente do usado para gravar)
+    // NUNCA retornar o texto cifrado bruto como senha — gera "Access denied
+    // (using password: YES)" confuso. Vazio cai no fallback de .env, se houver.
+    return '';
   }
 }
 

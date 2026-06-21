@@ -46,6 +46,17 @@ const CADASTROS_TELAS = [
     crud: [{ col: 'incluir_estoque', jwt: 'incluir_estoque' }, { col: 'alterar_estoque', jwt: 'alterar_estoque' }, { col: 'excluir_estoque', jwt: 'excluir_estoque' }] },
   { col: 'tela_prepostos', jwt: 'gtela_prepostos', page: '/pages/prepostos.html', label: 'Prepostos',
     crud: [{ col: 'incluir_prepostos', jwt: 'incluir_prepostos' }, { col: 'alterar_prepostos', jwt: 'alterar_prepostos' }, { col: 'excluir_prepostos', jwt: 'excluir_prepostos' }] },
+  { col: 'tela_crm_pipeline', jwt: 'gtela_crm_pipeline', page: '/pages/crm-pipeline.html', label: 'CRM Pipeline (Kanban)',
+    crud: [{ col: 'incluir_negocio_crm', jwt: 'incluir_negocio_crm' }, { col: 'alterar_negocio_crm', jwt: 'alterar_negocio_crm' }, { col: 'excluir_negocio_crm', jwt: 'excluir_negocio_crm' }],
+    extra: [
+      'incluir_tarefa_crm', 'alterar_tarefa_crm', 'excluir_tarefa_crm',
+      'incluir_motivo_perda_crm', 'alterar_motivo_perda_crm', 'excluir_motivo_perda_crm',
+      'mover_etapa_crm',
+    ] },
+  { col: 'tela_crm_config', jwt: 'gtela_crm_config', page: '/pages/crm-pipeline-admin.html', label: 'CRM Pipeline (Configuração)',
+    crud: [{ col: 'incluir_pipeline_crm', jwt: 'incluir_pipeline_crm' }, { col: 'alterar_pipeline_crm', jwt: 'alterar_pipeline_crm' }, { col: 'excluir_pipeline_crm', jwt: 'excluir_pipeline_crm' }],
+    extra: ['alterar_vendedores_pipeline_crm'] },
+  { col: 'tela_crm_dashboard', jwt: 'gtela_crm_dashboard', page: '/pages/crm-pipeline-dashboard.html', label: 'CRM Pipeline (Dashboard)' },
 ];
 
 /**

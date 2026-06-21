@@ -541,6 +541,7 @@ app.use('/api/captura', require('./routes/captura').router);
 app.use('/api/v1', require('./routes/api-publica/index'));
 
 // ─── Suas rotas de negócio vão aqui ─────────────────────────────────────────
+app.use('/api/changelog', require('./routes/changelog')); // público (GET) + auth interna na rota
 app.use('/api/clientes',     authMiddleware, require('./modules/clientes/clientes.routes'));
 app.use('/api/fornecedores',     authMiddleware, require('./routes/fornecedores'));
 app.use('/api/transportadoras',   authMiddleware, require('./routes/transportadoras'));
@@ -554,6 +555,7 @@ app.use('/api/importacao-precos',       authMiddleware, require('./routes/import
 app.use('/api/importacao-clientes',    authMiddleware, require('./routes/importacao-clientes'));
 app.use('/api/importacao-fornecedores',authMiddleware, require('./routes/importacao-fornecedores'));
 app.use('/api/leads',        authMiddleware, require('./routes/leads'));
+app.use('/api/crm',          authMiddleware, require('./routes/crm-pipeline'));
 app.use('/api/teleatendimento', authMiddleware, require('./routes/teleatendimento'));
 app.use('/api/visitas',      authMiddleware, require('./routes/visitas'));
 app.use('/api/geocoding',    authMiddleware, require('./routes/geocoding'));

@@ -29,15 +29,17 @@ async function listarTabelasVinculadas(pool, entidadeId, tipoEntidade) {
     let incluir = false;
     let descricao = `Tabela #${tid}`;
 
+    let apareceMobile = 'S';
     try {
       const [[cab]] = await pool.query(
-        `SELECT Descricao FROM tabela_preco_cabecalho
+        `SELECT Descricao, IFNULL(aparece_mobile,'S') AS aparece_mobile FROM tabela_preco_cabecalho
          WHERE id = ? AND excluido = 'N' AND Tabela_Ativa = 'S'
          LIMIT 1`,
         [tid]
       );
       if (cab) {
         descricao = String(cab.Descricao || descricao).trim();
+        apareceMobile = cab.aparece_mobile || 'S';
         incluir = true;
       }
     } catch (_) { /* cabecalho pode não existir em bases legadas */ }
@@ -65,6 +67,7 @@ async function listarTabelasVinculadas(pool, entidadeId, tipoEntidade) {
       id_tabela: tid,
       descricao,
       tabela_ativa: 'S',
+      aparece_mobile: apareceMobile,
     });
   }
 
