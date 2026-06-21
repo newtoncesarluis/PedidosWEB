@@ -224,16 +224,15 @@ self.addEventListener('fetch', e => {
       Promise.resolve(p).catch(() => new Response('', { status: 503, statusText: 'Service Unavailable' }));
 
     if (url.pathname.startsWith('/api/')) {
+      // NUNCA curto-circuitar por navigator.onLine: dentro do Service Worker essa
+      // flag é não-confiável (reporta false logo após (re)ativação do SW), o que
+      // devolvia um "offline" falso e quebrava /api/modulos, dashboard, etc. mesmo
+      // com o servidor no ar. Sempre tenta a rede; só cai no fallback offline se a
+      // requisição realmente falhar (rede caída de verdade). Timeout folgado (20s).
       e.respondWith(
         safe((async () => {
-          if (self.navigator && self.navigator.onLine === false) {
-            return new Response(JSON.stringify({ error: 'offline', offline: true }), {
-              status: 503,
-              headers: { 'Content-Type': 'application/json' },
-            });
-          }
           try {
-            return await fetchWithTimeout(e.request, 3500);
+            return await fetchWithTimeout(e.request, 20000);
           } catch (_) {
             return new Response(JSON.stringify({ error: 'offline', offline: true }), {
               status: 503,
