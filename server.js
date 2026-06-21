@@ -172,6 +172,17 @@ function sendServiceWorkerFile(_req, res) {
 app.get('/sw.js', sendServiceWorkerFile);
 app.get('/sw-v3.js', sendServiceWorkerFile);
 
+// Scripts de bootstrap do SW: SEMPRE sem cache, senão o navegador fica preso numa
+// versão antiga do registrador (que controla o ciclo de vida do Service Worker).
+['/assets/sw-register.js', '/assets/sw-kill.js'].forEach((p) => {
+  app.get(p, (_req, res) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Content-Type', 'application/javascript');
+    res.sendFile(path.join(ROOT_DIR, 'public', p.replace(/^\//, '')));
+  });
+});
+
 // Versão semântica (MAJOR.MINOR.RELEASE.SEQUENCIAL) — editada manualmente em version.json antes do deploy
 let _appVersionCache = null;
 function getAppVersion() {

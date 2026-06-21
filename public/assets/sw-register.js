@@ -24,20 +24,22 @@
   window.sysrepInitServiceWorker = async function () {
     if (!('serviceWorker' in navigator)) return null;
 
-    if (IS_LOCAL) {
+    // SW DESATIVADO (produção e local). O Service Worker estava devolvendo "offline"
+    // falso (navigator.onLine não-confiável no contexto do SW logo após reativação),
+    // o que cortava /api/modulos, /api/dashboard etc. e quebrava a home em todos os DNS.
+    // Sem SW a página usa a rede direto — igual ao ambiente local, que sempre funcionou.
+    // Reabilitar só depois de reescrever o SW com pass-through real para /api/*.
+    try {
+      const hadController = !!navigator.serviceWorker.controller;
       await unregisterAll();
       await clearAppCaches();
-      return null;
-    }
-
-    let reg = await navigator.serviceWorker.getRegistration('/');
-    if (!reg) {
-      reg = await navigator.serviceWorker.register('/sw-v3.js', { updateViaCache: 'none', scope: '/' });
-    }
-    try {
-      await reg.update();
+      // A página atual ainda está sob o SW antigo neste load: recarrega 1x (sem SW agora).
+      if (hadController && !sessionStorage.getItem('sw_killed_reload')) {
+        sessionStorage.setItem('sw_killed_reload', '1');
+        location.reload();
+      }
     } catch (_) {}
-    return reg;
+    return null;
   };
 
   window.sysrepAttachSwReload = function (onReload) {
