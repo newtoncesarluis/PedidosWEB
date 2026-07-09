@@ -10,7 +10,12 @@ const {
   sqlExistsDestaqueComercial,
   tabelaProdutosDestaqueExiste,
 } = require('../config/produtos-destaque');
-const { ensureItenspedPromoColumns } = require('../config/schema-migrations');
+const {
+  ensureItenspedPromoColumns,
+  ensureItenspedObsitemColumn,
+  ensurePedidoRetornoColumns,
+  ensurePedidoObsProximoColumns,
+} = require('../config/schema-migrations');
 const { hojeIsoBrasil, addDaysIsoBrasil } = require('../config/date-brasil');
 const { calcFeirinhaResumo } = require('../config/feirinha-calc');
 const { listarProdutosFeirinha } = require('../config/feirinha-produtos');
@@ -23,21 +28,88 @@ const {
   stripVendedorComissaoRep,
   stripProdutosComissaoRep,
 } = require('../config/comissao-preposto-guard');
+const { buildXmlAnexoPedidoVenda } = require('../config/pedido-xml-venda');
 const {
   listVendedoresVisiveis,
   resolveVendedorIdForFilter,
   buildPedidosVendedorWhere,
   buildPedidosVendedorWhereSync,
   canPickOtherVendors,
+  canAccessAllVendors,
   getPrepostoContext,
+  buildPedidosListVisWhere,
 } = require('../config/vendedor-visibilidade');
-const { buildClienteVendedorWhere } = require('../config/cliente-visibilidade');
+const { buildClienteVendedorWhere, assertUsuarioPodeAcessarCliente } = require('../config/cliente-visibilidade');
+const { resolverVendedorTabelaPreco } = require('../config/preposto-tabela-preco');
 const { produtoBuscaOrSql } = require('../config/produto-busca-texto');
 const {
   calcBaseItemTotal,
   calcPesoTotalExibir,
 } = require('../config/preco-peso-produto');
+const { parseRegras, validarQuantidade } = require('../config/pedido-item-regras');
+
+/** Bloqueia pedido para cliente fora da carteira do usuário logado. */
+async function _validarCarteiraClientePedido(req, poolOrConn, codCliente) {
+  if (codCliente == null || codCliente === '') return null;
+  const prepCtx = await getPrepostoContext(poolOrConn, req);
+  const check = await assertUsuarioPodeAcessarCliente(poolOrConn, codCliente, req.user, prepCtx);
+  if (check.ok) return null;
+  return { status: check.status || 403, error: check.error || 'Cliente fora da sua carteira' };
+}
+const { ensureProdutoColunas, getProdTabela } = require('../config/produto-colunas');
 const { pedidoEmitter, emitNovoPedido } = require('../config/pedido-events');
+
+async function _salvarObsProximoRegistro(conn, pedidoId, texto) {
+  if (texto === undefined) return;
+  await ensurePedidoObsProximoColumns(conn);
+  const t = String(texto ?? '').trim().slice(0, 500);
+  await conn.query(
+    `UPDATE pedidos
+     SET obs_proximo_pedido = ?,
+         obs_proximo_consumido = CASE WHEN ? <> '' THEN 'N' ELSE obs_proximo_consumido END
+     WHERE id = ?`,
+    [t || null, t, pedidoId]
+  );
+}
+
+async function _consumirObsProximo(conn, idOrigem, codCliente, codFornecedor) {
+  const id = parseInt(idOrigem, 10);
+  if (!id || id < 1) return;
+  await ensurePedidoObsProximoColumns(conn);
+  const params = [id];
+  let matchSql = '';
+  const cli = parseInt(codCliente, 10);
+  const forn = parseInt(codFornecedor, 10);
+  if (cli && forn) {
+    matchSql = ' AND cod_cliente = ? AND cod_fornecedor = ?';
+    params.push(cli, forn);
+  }
+  await conn.query(
+    `UPDATE pedidos SET obs_proximo_consumido = 'S'
+     WHERE id = ?
+       AND COALESCE(obs_proximo_consumido, 'N') <> 'S'
+       AND TRIM(COALESCE(obs_proximo_pedido, '')) <> ''
+       ${matchSql}`,
+    params
+  );
+}
+
+async function _queryPedidosRetornoResumo(pool, req) {
+  await ensurePedidoRetornoColumns(pool);
+  const vis = await buildPedidosListVisWhere(pool, req);
+  const hojeBr = hojeIsoBrasil();
+  const [[row]] = await pool.query(`
+    SELECT
+      COUNT(CASE WHEN p.data_retorno = ? THEN 1 END) AS hoje,
+      COUNT(CASE WHEN p.data_retorno < ? THEN 1 END) AS atrasados
+    FROM pedidos p
+    WHERE (p.excluido = 'N' OR p.excluido IS NULL OR p.excluido = '')
+      AND p.data_retorno IS NOT NULL
+      AND COALESCE(p.situacao_pedido,'') NOT IN ('CANCELADO','FATURADO')
+      ${vis.clause}
+  `, [hojeBr, hojeBr, ...vis.params]).catch(() => [[{ hoje: 0, atrasados: 0 }]]);
+  return { hoje: row?.hoje || 0, atrasados: row?.atrasados || 0 };
+}
 
 async function _promoCtxFromPedidoQuery(pool, query) {
   const codCliente = parseOptInt(query.cod_cliente);
@@ -56,35 +128,20 @@ async function _promoCtxFromPedidoQuery(pool, query) {
   return { codCliente, idRegiao, codFornecedor, idTabelaPreco };
 }
 
-// tabela de produtos pode ser "produto" ou "produtos" — detecta e cacheia
-let _prodTabela = null;
+// tabela de produtos pode ser "produto" ou "produtos" — detecta por tenant
 async function _getProdTabela(pool) {
-  if (_prodTabela) return _prodTabela;
-  const [rows] = await pool.query(`SHOW TABLES LIKE 'produto'`);
-  _prodTabela = rows.length ? 'produto' : 'produtos';
-  return _prodTabela;
+  return getProdTabela(pool);
 }
 
-// garante colunas extras que podem não existir em schemas mais antigos
-let _prodColsOk = false;
 async function _ensureProdCols(pool) {
-  if (_prodColsOk) return;
-  const tb = await _getProdTabela(pool);
-  const [cols] = await pool.query(`DESCRIBE ${tb}`);
-  const names = new Set(cols.map(c => c.Field.toLowerCase()));
-  if (!names.has('multiplo_venda'))
-    await pool.query(`ALTER TABLE ${tb} ADD COLUMN multiplo_venda INT NOT NULL DEFAULT 1`).catch(() => {});
-  if (!names.has('foto_principal'))
-    await pool.query(`ALTER TABLE ${tb} ADD COLUMN foto_principal VARCHAR(500) NULL`).catch(() => {});
-  if (!names.has('comissao'))
-    await pool.query(`ALTER TABLE ${tb} ADD COLUMN comissao DECIMAL(5,2) NULL DEFAULT 0`).catch(() => {});
-  if (!names.has('st'))
-    await pool.query(`ALTER TABLE ${tb} ADD COLUMN st DECIMAL(5,2) NULL DEFAULT 0`).catch(() => {});
-  if (!names.has('valor_puxada'))
-    await pool.query(`ALTER TABLE ${tb} ADD COLUMN valor_puxada DECIMAL(15,4) NULL DEFAULT 0`).catch(() => {});
-  if (!names.has('segmento'))
-    await pool.query(`ALTER TABLE ${tb} ADD COLUMN segmento VARCHAR(100) NULL DEFAULT NULL`).catch(() => {});
-  _prodColsOk = true;
+  const { names, changed } = await ensureProdutoColunas(pool);
+  let key = 'default';
+  try { const [[r]] = await pool.query('SELECT DATABASE() AS db'); key = String(r?.db || 'default'); } catch (_) {}
+  if (changed) {
+    _prodColSetCache.delete(key);
+  } else if (names && !_prodColSetCache.has(key)) {
+    _prodColSetCache.set(key, names);
+  }
 }
 
 // Conjunto de colunas reais da tabela de produto, cacheado por banco (multi-tenant).
@@ -93,6 +150,8 @@ const _prodColSetCache = new Map(); // dbName -> Set(colnames lower)
 async function _getProdColSet(pool) {
   let key = 'default';
   try { const [[r]] = await pool.query('SELECT DATABASE() AS db'); key = String(r?.db || 'default'); } catch (_) {}
+  if (_prodColSetCache.has(key)) return _prodColSetCache.get(key);
+  await _ensureProdCols(pool);
   if (_prodColSetCache.has(key)) return _prodColSetCache.get(key);
   const tb = await _getProdTabela(pool);
   const [cols] = await pool.query(`DESCRIBE ${tb}`);
@@ -257,7 +316,7 @@ const PEDIDO_NUMERIC_FIELDS = new Set([
 
 const PEDIDO_ID_FIELDS = new Set(['id_empresa', 'id_filial', 'id_preposto', 'id_campanha_feirinha']);
 /** Campos DATE no MySQL: string vazia quebra o UPDATE — usar NULL */
-const PEDIDO_DATE_FIELDS = new Set(['data_entrega', 'data_faturado', 'data_faturadofabrica']);
+const PEDIDO_DATE_FIELDS = new Set(['data_entrega', 'data_faturado', 'data_faturadofabrica', 'data_retorno']);
 
 let _tablesEnsured = false;
 let _ensureTablesPromise = null;
@@ -462,6 +521,7 @@ async function ensureTables(pool) {
         { name: 'acrescimo',              type: 'DECIMAL(15,2) DEFAULT 0' },
         { name: 'valor_cliente',          type: 'DECIMAL(15,4) DEFAULT 0' },
         { name: 'vlrtotalcomimposto',     type: 'DECIMAL(15,3) DEFAULT 0' },
+        { name: 'obsitem',                type: 'VARCHAR(100) DEFAULT NULL' },
       ];
       for (const c of itCols)
         await pool.query(`ALTER TABLE itensped ADD COLUMN ${c.name} ${c.type}`).catch(() => {});
@@ -493,6 +553,9 @@ async function ensureTables(pool) {
       ];
       for (const c of pcCols)
         await pool.query(`ALTER TABLE pagtocomissao ADD COLUMN ${c.name} ${c.type}`).catch(() => {});
+      // Índice p/ o DELETE por pedido no salvar de parcelas. Sem ele, cada save
+      // fazia full scan da tabela inteira (que cresce sem limite com as comissões).
+      await pool.query(`ALTER TABLE pagtocomissao ADD INDEX idx_pc_pedido (pedido)`).catch(() => {});
     })(),
 
     // ── usuarios (preposto / gerente) ────────────────────────────────────────
@@ -533,6 +596,25 @@ const ITENSPED_INSERT_COLS = [
   'data_inclusao', 'sincronizar', 'excluido',
 ].join(', ');
 
+function resolveObsitemGravacao(item) {
+  if (!item || typeof item !== 'object') return '';
+  return String(item.obsitem ?? item.obs_item ?? '').trim().slice(0, 100);
+}
+
+/** Leitura: somente itensped.obsitem (campo oficial). */
+function resolveObsitemLeitura(row) {
+  if (!row || typeof row !== 'object') return '';
+  return String(row.obsitem ?? '').trim().slice(0, 100);
+}
+
+function sanitizeItensObsitemForSave(itens) {
+  if (!Array.isArray(itens)) return itens;
+  return itens.map((item) => ({
+    ...item,
+    obsitem: resolveObsitemGravacao(item),
+  }));
+}
+
 function _normItemImpostosGravacao(item) {
   const icmsPct = parseFloat(item.icms_percentual ?? item.icms) || 0;
   const base = parseFloat(item.vlrtotal_itens) || 0;
@@ -542,11 +624,12 @@ function _normItemImpostosGravacao(item) {
   }
   let vlrTotalComImp = parseFloat(item.vlrtotal_com_imposto ?? item.vlrtotalcomimposto);
   if (!Number.isFinite(vlrTotalComImp)) {
+    // ICMS é "por dentro" (já embutido no preço) — NÃO soma no total c/ imposto (apenas IPI + ST, que são "por fora")
     vlrTotalComImp = Math.round(
-      (base + (parseFloat(item.vlr_st) || 0) + (parseFloat(item.vlr_ipi) || 0) + vlrIcms) * 1000
+      (base + (parseFloat(item.vlr_st) || 0) + (parseFloat(item.vlr_ipi) || 0)) * 1000
     ) / 1000;
   }
-  const obsitem = String(item.obsitem ?? item.obs_item ?? '').trim().slice(0, 100);
+  const obsitem = resolveObsitemGravacao(item);
   return { icmsPct, vlrIcms, vlrTotalComImp, obsitem };
 }
 
@@ -632,7 +715,8 @@ async function _normalizeItensPrecoPeso(conn, itens, codFornecedor) {
     const vlrSt = Math.round(vlrtotal * stPct / 100 * 100) / 100;
     const vlrIpi = Math.round(vlrtotal * ipiPct / 100 * 100) / 100;
     const vlrIcms = Math.round(vlrtotal * icmsPct / 100 * 1000) / 1000;
-    const vlrComImp = Math.round((vlrtotal + vlrSt + vlrIpi + vlrIcms) * 1000) / 1000;
+    // ICMS "por dentro" — não soma no total c/ imposto (apenas IPI + ST)
+    const vlrComImp = Math.round((vlrtotal + vlrSt + vlrIpi) * 1000) / 1000;
 
     return {
       ...item,
@@ -700,16 +784,48 @@ function buildItenspedInsertParams(item, ctx) {
   ];
 }
 
-async function insertItenspedItem(conn, item, ctx) {
-  await ensureItenspedPromoColumns(conn);
-  const vals = buildItenspedInsertParams(item, ctx);
-  const ph = vals.map(() => '?').join(', ');
-  const iResult = await conn.query(
-    `INSERT INTO itensped (${ITENSPED_INSERT_COLS}) VALUES (${ph}, CURDATE(), 'N', 'N')`,
-    vals
+/** Insere todos os itens em batches de até BATCH_SIZE linhas por INSERT para
+ *  não estourar o max_allowed_packet do MySQL. Itens com grade_qtd buscam o
+ *  id real via SELECT após o INSERT, filtrado por id_pedido (evita colisão). */
+const ITENSPED_BATCH_SIZE = 50;
+
+async function insertItenspedBatch(conn, itensNorm, ctx) {
+  if (!itensNorm.length) return;
+
+  const rows = itensNorm.map((item, i) =>
+    buildItenspedInsertParams(item, { ...ctx, seqItem: i })
   );
-  await _salvarGradeQtd(conn, iResult[0].insertId, item.grade_qtd);
-  return iResult;
+  // buildItenspedInsertParams retorna 43 params; data_inclusao/sincronizar/excluido são SQL literals
+  const phRow = '(' + rows[0].map(() => '?').join(', ') + ", CURDATE(), 'N', 'N')";
+
+  for (let off = 0; off < rows.length; off += ITENSPED_BATCH_SIZE) {
+    const chunk = rows.slice(off, off + ITENSPED_BATCH_SIZE);
+    await conn.query(
+      `INSERT INTO itensped (${ITENSPED_INSERT_COLS}) VALUES ${chunk.map(() => phRow).join(', ')}`,
+      chunk.flat()
+    );
+  }
+
+  // Itens com grade precisam do id real. Filtramos por numpedido (não id_pedido):
+  // itensped.id_pedido é varchar quase todo NULL em bases legadas e, recebendo um
+  // valor numérico, o MySQL ignora o índice e faz full scan de toda a tabela.
+  // numpedido tem índice usável (mesma coluna da soft-delete logo acima) e, como os
+  // itens antigos já foram marcados excluido='S', o filtro só retorna os recém-inseridos.
+  const hasGrade = itensNorm.some(item => item.grade_qtd?.length > 0);
+  if (hasGrade) {
+    const [inserted] = await conn.query(
+      `SELECT id, sequencia FROM itensped WHERE numpedido = ? AND COALESCE(excluido,'N') = 'N' ORDER BY sequencia`,
+      [String(ctx.numpedido)]
+    );
+    for (let i = 0; i < itensNorm.length; i++) {
+      const item = itensNorm[i];
+      if (!item.grade_qtd?.length) continue;
+      // Number(): blinda contra o driver retornar sequencia como string (=== falharia
+      // em silêncio e a grade do item seria perdida).
+      const row = inserted.find(r => Number(r.sequencia) === i + 1);
+      if (row) await _salvarGradeQtd(conn, row.id, item.grade_qtd);
+    }
+  }
 }
 
 /** Exclusão lógica dos itens ativos do pedido (não usa DELETE físico em itensped). */
@@ -732,6 +848,67 @@ async function _salvarGradeQtd(conn, itemId, grade_qtd) {
     `INSERT INTO itensped_grade_qtd (id_item_ped, id_descricao_grade, sequencial, nome_grade, quantidade) VALUES ?`,
     [vals]
   );
+}
+
+// ─── Helper: bloqueia salvar pedido com item de grade sem tamanhos informados ──
+// Vale pra qualquer canal (desktop, mobile, importação) — só age quando o
+// sistema de grades está habilitado (sistemas.habilitapedidograde='S').
+// Sem isso habilitado, retorna null e não altera nada do fluxo existente.
+async function validarItensGradeObrigatoria(conn, itens) {
+  if (!itens || !itens.length) return null;
+  const [[cfg]] = await conn.query(
+    `SELECT habilitapedidograde FROM sistemas ORDER BY id DESC LIMIT 1`
+  ).catch(() => [[{}]]);
+  if ((cfg?.habilitapedidograde || 'N') !== 'S') return null;
+
+  const codProdutos = [...new Set(itens.map(i => i.cod_produto).filter(Boolean))];
+  if (!codProdutos.length) return null;
+  const [prodRows] = await conn.query(
+    `SELECT ID, tipograde FROM produto WHERE ID IN (?)`,
+    [codProdutos]
+  ).catch(() => [[]]);
+  const tipoGradeMap = new Map(prodRows.map(p => [String(p.ID), p.tipograde]));
+
+  const erros = [];
+  for (const item of itens) {
+    const exigeGrade = tipoGradeMap.get(String(item.cod_produto)) || item.id_grade;
+    if (!exigeGrade) continue;
+    const somaGrade = (item.grade_qtd || []).reduce((s, g) => s + (parseFloat(g.quantidade) || 0), 0);
+    if (somaGrade <= 0) {
+      erros.push(`«${item.desc_prod || item.desc_produto || 'Item'}» exige grade. Informe os tamanhos antes de salvar.`);
+    }
+  }
+  return erros.length ? erros : null;
+}
+
+// Valida múltiplo de venda e quantidade mínima por produto (backend — espelha o front).
+async function validarItensQtdRegras(conn, itens) {
+  if (!itens || !itens.length) return null;
+  await _ensureProdCols(conn);
+  const tb = await _getProdTabela(conn);
+  const ativos = itens.filter((i) => !i._delete && i.cod_produto);
+  if (!ativos.length) return null;
+
+  const codProdutos = [...new Set(ativos.map((i) => i.cod_produto))];
+  const [prodRows] = await conn.query(
+    `SELECT ID, descricao,
+            IFNULL(multiplo_venda, 1) AS multiplo_venda,
+            IFNULL(qtd_minima_pedido, 0) AS qtd_minima_pedido
+     FROM ${tb} WHERE ID IN (?)`,
+    [codProdutos]
+  ).catch(() => [[]]);
+
+  const map = new Map(prodRows.map((p) => [String(p.ID), p]));
+  const erros = [];
+  for (const item of ativos) {
+    const prod = map.get(String(item.cod_produto));
+    if (!prod) continue;
+    const regras = parseRegras(prod);
+    const desc = item.desc_prod || item.desc_produto || prod.descricao || 'Item';
+    const msgs = validarQuantidade(item.quantidade, regras, desc);
+    erros.push(...msgs);
+  }
+  return erros.length ? erros : null;
 }
 
 // ─── Helper: grava parcelas na tabela receber ────────────────────────────────
@@ -759,29 +936,46 @@ function _toMysqlDate(v) {
 
 // Calcula comissão no backend — cascata Fornecedor → Produto → Vendedor → Preposto, ajustando IPI/ST
 async function _calcComissaoBackend(conn, codFornecedor, idUsuario, itens, idPreposto) {
+  // Todas as queries independentes em paralelo
+  const [fornRes, vendRes, prepFornRes, prepUserRes] = await Promise.all([
+    codFornecedor
+      ? conn.query(
+          `SELECT COALESCE(comissao,0) AS comissao,
+                  COALESCE(com_sobre_ipi,'S') AS com_sobre_ipi,
+                  COALESCE(com_sobre_st,'S')  AS com_sobre_st
+           FROM fornecedores WHERE id = ? LIMIT 1`,
+          [codFornecedor]
+        ).catch(() => [[]])
+      : Promise.resolve([[]]),
+    idUsuario
+      ? conn.query(
+          `SELECT COALESCE(comissaofixavendedor,0)        AS comissaofixavendedor,
+                  COALESCE(comissaogerente,0)              AS comissaogerente,
+                  COALESCE(compartilhacomissaogerente,'N') AS compartilhacomissaogerente
+           FROM usuarios WHERE idusuario = ? LIMIT 1`,
+          [idUsuario]
+        ).catch(() => [[]])
+      : Promise.resolve([[]]),
+    (idPreposto && codFornecedor)
+      ? conn.query(
+          `SELECT pct_comissao FROM preposto_comissao_fornecedor WHERE id_usuario = ? AND id_fornecedor = ? LIMIT 1`,
+          [idPreposto, codFornecedor]
+        ).catch(() => [[]])
+      : Promise.resolve([[]]),
+    idPreposto
+      ? conn.query(
+          `SELECT COALESCE(comissao_preposto_pct,6) AS pct, nomeusu AS nome
+           FROM usuarios WHERE idusuario = ? LIMIT 1`,
+          [idPreposto]
+        ).catch(() => [[]])
+      : Promise.resolve([[]]),
+  ]);
+
   let forn = { comissao: 0, com_sobre_ipi: 'S', com_sobre_st: 'S' };
-  if (codFornecedor) {
-    const [fr] = await conn.query(
-      `SELECT COALESCE(comissao,0) AS comissao,
-              COALESCE(com_sobre_ipi,'S') AS com_sobre_ipi,
-              COALESCE(com_sobre_st,'S')  AS com_sobre_st
-       FROM fornecedores WHERE id = ? LIMIT 1`,
-      [codFornecedor]
-    ).catch(() => [[]]);
-    if (fr[0]) Object.assign(forn, fr[0]);
-  }
+  if (fornRes[0]?.[0]) Object.assign(forn, fornRes[0][0]);
 
   let vend = { comissaofixavendedor: 0, comissaogerente: 0, compartilhacomissaogerente: 'N' };
-  if (idUsuario) {
-    const [vr] = await conn.query(
-      `SELECT COALESCE(comissaofixavendedor,0)       AS comissaofixavendedor,
-              COALESCE(comissaogerente,0)             AS comissaogerente,
-              COALESCE(compartilhacomissaogerente,'N') AS compartilhacomissaogerente
-       FROM usuarios WHERE idusuario = ? LIMIT 1`,
-      [idUsuario]
-    ).catch(() => [[]]);
-    if (vr[0]) Object.assign(vend, vr[0]);
-  }
+  if (vendRes[0]?.[0]) Object.assign(vend, vendRes[0][0]);
 
   const totalIpi = (itens || []).reduce((s, i) => s + (parseFloat(i.vlr_ipi) || 0), 0);
   const totalSt  = (itens || []).reduce((s, i) => s + (parseFloat(i.vlr_st)  || 0), 0);
@@ -810,26 +1004,14 @@ async function _calcComissaoBackend(conn, codFornecedor, idUsuario, itens, idPre
   const pctGerente  = compartilha ? (parseFloat(vend.comissaogerente) || 0) : 0;
   const vlrGerente  = Math.round(vlrNormal * pctGerente / 100 * 100) / 100;
 
-  // Comissão do preposto — 1. por fornecedor; 2. fallback: % padrão do preposto
   let vlrComissaoPreposto = 0;
   let nomePreposto = null;
   if (idPreposto) {
-    let pctPrep = 0;
-    if (codFornecedor) {
-      const [pcf] = await conn.query(
-        `SELECT pct_comissao FROM preposto_comissao_fornecedor WHERE id_usuario = ? AND id_fornecedor = ? LIMIT 1`,
-        [idPreposto, codFornecedor]
-      ).catch(() => [[]]);
-      if (pcf[0]) pctPrep = parseFloat(pcf[0].pct_comissao) || 0;
-    }
-    const [pr] = await conn.query(
-      `SELECT COALESCE(comissao_preposto_pct,6) AS pct, nomeusu AS nome
-       FROM usuarios WHERE idusuario = ? LIMIT 1`,
-      [idPreposto]
-    ).catch(() => [[]]);
-    if (pr[0]) {
-      nomePreposto = pr[0].nome || null;
-      if (!pctPrep) pctPrep = parseFloat(pr[0].pct) || 6;
+    let pctPrep = parseFloat(prepFornRes[0]?.[0]?.pct_comissao) || 0;
+    const prepUser = prepUserRes[0]?.[0];
+    if (prepUser) {
+      nomePreposto = prepUser.nome || null;
+      if (!pctPrep) pctPrep = parseFloat(prepUser.pct) || 6;
       vlrComissaoPreposto = Math.round(base * pctPrep / 100 * 100) / 100;
     }
   }
@@ -849,43 +1031,80 @@ async function _calcComissaoBackend(conn, codFornecedor, idUsuario, itens, idPre
 
 async function salvarParcelas(conn, num, pedidoId, pedido, parcelas) {
   if (!parcelas || !parcelas.length) return;
-  await conn.query(`DELETE FROM receber WHERE numero = ? AND id_pedido = ?`, [num, pedidoId]).catch(() => {});
-  const dataBase = pedido.data_abertura || hojeIsoBrasil();
 
-  // ── Config de comissão do fornecedor ────────────────────────────────────────
+  const dataBase = pedido.data_abertura || hojeIsoBrasil();
+  const pctGerenteFromPedido = parseFloat(pedido.comissaogerente) || 0;
+  const compartilhaGerente = String(pedido.compartilhacomissao || '').toUpperCase() === 'S';
+
+  // Deletes + queries de setup agrupados. Obs.: numa única conexão o mysql2
+  // serializa as queries (sem paralelismo de rede real), então só incluímos
+  // aqui o que SEMPRE é necessário — o SUM de IPI/ST fica condicional abaixo.
+  const [, , fcRes, grRes] = await Promise.all([
+    conn.query(
+      `DELETE FROM pagtocomissao WHERE pedido = ? AND status IN ('P','I') AND COALESCE(excluido,'N') = 'N'`,
+      [num]
+    ).catch(() => {}),
+    conn.query(`DELETE FROM receber WHERE numero = ? AND id_pedido = ?`, [num, pedidoId]).catch(() => {}),
+    pedido.cod_fornecedor
+      ? conn.query(
+          `SELECT COALESCE(com_sobre_ipi,'S') AS com_sobre_ipi,
+                  COALESCE(com_sobre_st,'S') AS com_sobre_st,
+                  COALESCE(com_tipo,'PARCELADA') AS com_tipo
+           FROM fornecedores WHERE id = ? LIMIT 1`,
+          [pedido.cod_fornecedor]
+        ).catch(() => [[]])
+      : Promise.resolve([[]]),
+    (compartilhaGerente && pctGerenteFromPedido > 0 && pedido.id_usuario)
+      ? conn.query(
+          `SELECT id_gerente FROM usuarios WHERE idusuario = ? LIMIT 1`,
+          [pedido.id_usuario]
+        ).catch(() => [[]])
+      : Promise.resolve([[]]),
+  ]);
+
   let fornConfig = { com_sobre_ipi: 'S', com_sobre_st: 'S', com_tipo: 'PARCELADA' };
-  if (pedido.cod_fornecedor) {
-    const [fc] = await conn.query(
-      `SELECT COALESCE(com_sobre_ipi,'S') AS com_sobre_ipi,
-              COALESCE(com_sobre_st,'S') AS com_sobre_st,
-              COALESCE(com_tipo,'PARCELADA') AS com_tipo
-       FROM fornecedores WHERE id = ? LIMIT 1`,
-      [pedido.cod_fornecedor]
-    ).catch(() => [[]]);
-    if (fc[0]) Object.assign(fornConfig, fc[0]);
-  }
-  let totalIpi = 0, totalSt = 0;
+  if (fcRes[0]?.[0]) Object.assign(fornConfig, fcRes[0][0]);
+
   const totalParcelas = parcelas.reduce((s, p) => s + (p.valor || 0), 0);
+  // SUM de IPI/ST só importa quando a comissão NÃO incide sobre eles — no caso
+  // comum (ambos 'S') pulamos este round trip por completo.
+  let totalIpi = 0, totalSt = 0;
   if (fornConfig.com_sobre_ipi !== 'S' || fornConfig.com_sobre_st !== 'S') {
+    // numpedido (string) usa índice; id_pedido (varchar quase todo NULL) faria full scan.
     const [impos] = await conn.query(
       `SELECT COALESCE(SUM(vlr_ipi),0) AS ipi, COALESCE(SUM(vlr_st),0) AS st
-       FROM itensped WHERE id_pedido = ? AND COALESCE(excluido, 'N') = 'N'`,
-      [pedidoId]
+       FROM itensped WHERE numpedido = ? AND COALESCE(excluido, 'N') = 'N'`,
+      [String(num)]
     ).catch(() => [[{ ipi: 0, st: 0 }]]);
     totalIpi = parseFloat(impos[0]?.ipi || 0);
     totalSt  = parseFloat(impos[0]?.st  || 0);
   }
-  // ── Config gerente (lookup único fora do loop) ──────────────────────────────
+
   let idGerente = null;
-  const pctGerenteFromPedido = parseFloat(pedido.comissaogerente) || 0;
-  const compartilhaGerente = String(pedido.compartilhacomissao || '').toUpperCase() === 'S';
-  if (compartilhaGerente && pctGerenteFromPedido > 0 && pedido.id_usuario) {
-    const [gr] = await conn.query(
-      `SELECT id_gerente FROM usuarios WHERE idusuario = ? LIMIT 1`,
-      [pedido.id_usuario]
-    ).catch(() => [[]]);
-    idGerente = (gr[0] && gr[0].id_gerente) ? parseInt(gr[0].id_gerente) : null;
+  if (compartilhaGerente && pctGerenteFromPedido > 0) {
+    idGerente = grRes[0]?.[0]?.id_gerente ? parseInt(grRes[0][0].id_gerente) : null;
   }
+
+  // Busca % do preposto uma única vez (vale para todas as parcelas)
+  const idPrep = pedido.id_preposto ? parseInt(pedido.id_preposto) : null;
+  let pctPrepGlobal = 0;
+  if (idPrep) {
+    const [prepFornRes2, prepUserRes2] = await Promise.all([
+      pedido.cod_fornecedor
+        ? conn.query(
+            `SELECT pct_comissao FROM preposto_comissao_fornecedor WHERE id_usuario = ? AND id_fornecedor = ? LIMIT 1`,
+            [idPrep, pedido.cod_fornecedor]
+          ).catch(() => [[]])
+        : Promise.resolve([[]]),
+      conn.query(
+        `SELECT COALESCE(comissao_preposto_pct,6) AS pct FROM usuarios WHERE idusuario = ? LIMIT 1`,
+        [idPrep]
+      ).catch(() => [[]]),
+    ]);
+    pctPrepGlobal = parseFloat(prepFornRes2[0]?.[0]?.pct_comissao) || 0;
+    if (!pctPrepGlobal) pctPrepGlobal = parseFloat(prepUserRes2[0]?.[0]?.pct || 6);
+  }
+
   let comUnicaTotal = 0, comUnicaVenc = null;
   let comUnicaPrepTotal = 0, comUnicaPrepVenc = null;
   let comUnicaGerenteTotal = 0, comUnicaGerenteVenc = null;
@@ -946,25 +1165,9 @@ async function salvarParcelas(conn, num, pedidoId, pedido, parcelas) {
       }
     }
 
-    // Comissão do preposto (proporcional à parcela)
-    const idPrep = pedido.id_preposto ? parseInt(pedido.id_preposto) : null;
+    // Comissão do preposto (proporcional à parcela) — % resolvido fora do loop
     if (idPrep) {
-      // 1. Tenta comissão específica por fornecedor; 2. Fallback: % padrão do preposto
-      let pctPrep = 0;
-      if (pedido.cod_fornecedor) {
-        const [pcf] = await conn.query(
-          `SELECT pct_comissao FROM preposto_comissao_fornecedor WHERE id_usuario = ? AND id_fornecedor = ? LIMIT 1`,
-          [idPrep, pedido.cod_fornecedor]
-        ).catch(() => [[]]);
-        if (pcf[0]) pctPrep = parseFloat(pcf[0].pct_comissao) || 0;
-      }
-      if (!pctPrep) {
-        const [pr] = await conn.query(
-          `SELECT COALESCE(comissao_preposto_pct,6) AS pct FROM usuarios WHERE idusuario = ? LIMIT 1`,
-          [idPrep]
-        ).catch(() => [[]]);
-        pctPrep = parseFloat(pr[0]?.pct || 6);
-      }
+      const pctPrep = pctPrepGlobal;
       const vlrPrep = Math.round(baseComissao * pctPrep / 100 * 100) / 100;
       if (vlrPrep > 0) {
         if (fornConfig.com_tipo === 'UNICA') {
@@ -1052,40 +1255,16 @@ router.get('/', async (req, res) => {
       comprador, ped_compras, nome_transp, origem, nome_empresa,
       cod_cliente, id_cliente, cod_fornecedor, id_fornecedor,
       sort = 'p.id', dir = 'DESC',
-      lat, lng, raio = 50
+      lat, lng, raio = 50,
+      retorno,
+      gerafinanceiro
     } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
-    // ── Visibilidade por perfil ───────────────────────────────────────────────
-    const _userId    = req.user?.id || 0;
-    const _isAdmin   = req.user?.perfil == 1;
-    const _perm      = req.user?.permissoes || {};
-    const _acessaTodos = _isAdmin ? 'S' : (_perm.acessartodosclientes || '');
-    const _eGerente    = !_isAdmin && _perm.gerentecomercial === 'S';
-    const _ePreposto   = isPrepostoUser(req);
-
-    const _prepCtx = _ePreposto ? await getPrepostoContext(pool, req) : null;
-
-    let visWhere = '';
-    let visParams = [];
-    if (!_isAdmin && _acessaTodos !== 'S') {
-      if (_eGerente) {
-        visWhere = ` AND (p.id_usuario = ? OR p.id_usuario IN (SELECT idusuario FROM usuarios WHERE id_gerente = ? AND excluido = 'N'))`;
-        visParams = [_userId, _userId];
-      } else if (_prepCtx) {
-        // Preposto: pedidos da carteira do representante + os que ele mesmo lançou
-        if (_prepCtx.modo === 'ATRIBUIDOS') {
-          visWhere = ` AND (p.id_preposto = ? OR p.cod_cliente IN (SELECT cod_cliente FROM preposto_cliente WHERE id_preposto = ? AND excluido = 'N'))`;
-          visParams = [_prepCtx.idPreposto, _prepCtx.idPreposto];
-        } else {
-          visWhere = ` AND (p.id_usuario = ? OR p.id_preposto = ?)`;
-          visParams = [_prepCtx.idRep, _prepCtx.idPreposto];
-        }
-      } else {
-        visWhere = ` AND p.id_usuario = ?`;
-        visParams = [_userId];
-      }
-    }
+    // ── Visibilidade por perfil (mesma regra em alertas/KPIs de retorno) ─────
+    const vis = await buildPedidosListVisWhere(pool, req);
+    const visWhere = vis.clause;
+    const visParams = vis.params;
 
     // ─── WHERE CLAUSE PARA A LISTA (Todos os filtros) ────────────────────────
     let whereClause = `WHERE (p.excluido = 'N' OR p.excluido IS NULL OR p.excluido = '')${visWhere}`;
@@ -1123,18 +1302,75 @@ router.get('/', async (req, res) => {
     }
 
     if (tipo && tipo !== '' && tipo !== 'ALL') {
-      whereClause += ` AND p.tipo_pedido = ?`;
-      params.push(tipo);
+      const tNorm = String(tipo).toUpperCase().replace(/Ç/g, 'C').replace(/\s/g, '');
+      if (tNorm.includes('ORCAMENTO') || tNorm.includes('ORCA')) {
+        whereClause += ` AND UPPER(REPLACE(REPLACE(REPLACE(COALESCE(p.tipo_pedido,''), 'Ç', 'C'), 'Ã', 'A'), ' ', '')) LIKE '%ORCAMENTO%'`;
+      } else {
+        whereClause += ` AND p.tipo_pedido = ?`;
+        params.push(tipo);
+      }
       // NOTA: NÃO adicionamos o filtro de tipo em whereClauseCards para os cards não sumirem!
     }
 
     if (dt_ini) {
-      whereClause += ` AND p.data_abertura >= ?`; whereClauseCards += ` AND p.data_abertura >= ?`;
+      whereClause += ` AND DATE(p.data_abertura) >= ?`; whereClauseCards += ` AND DATE(p.data_abertura) >= ?`;
       params.push(dt_ini); paramsCards.push(dt_ini);
     }
     if (dt_fim) {
-      whereClause += ` AND p.data_abertura <= ?`; whereClauseCards += ` AND p.data_abertura <= ?`;
+      whereClause += ` AND DATE(p.data_abertura) <= ?`; whereClauseCards += ` AND DATE(p.data_abertura) <= ?`;
       params.push(dt_fim); paramsCards.push(dt_fim);
+    }
+
+    if (retorno && ['hoje', 'atrasado', 'semana'].includes(String(retorno))) {
+      await ensurePedidoRetornoColumns(pool);
+      const hojeBr = hojeIsoBrasil();
+      const abertosRet = ` AND p.data_retorno IS NOT NULL AND COALESCE(p.situacao_pedido,'') NOT IN ('CANCELADO','FATURADO')`;
+      whereClause += abertosRet;
+      whereClauseCards += abertosRet;
+      if (retorno === 'hoje') {
+        whereClause += ` AND p.data_retorno = ?`;
+        whereClauseCards += ` AND p.data_retorno = ?`;
+        params.push(hojeBr); paramsCards.push(hojeBr);
+      } else if (retorno === 'atrasado') {
+        whereClause += ` AND p.data_retorno < ?`;
+        whereClauseCards += ` AND p.data_retorno < ?`;
+        params.push(hojeBr); paramsCards.push(hojeBr);
+      } else if (retorno === 'semana') {
+        const fimSem = addDaysIsoBrasil(7);
+        whereClause += ` AND p.data_retorno BETWEEN ? AND ?`;
+        whereClauseCards += ` AND p.data_retorno BETWEEN ? AND ?`;
+        params.push(hojeBr, fimSem); paramsCards.push(hojeBr, fimSem);
+      }
+    }
+
+    const gfFiltro = String(gerafinanceiro || '').toUpperCase();
+    const {
+      ensureTipoPedidosColumns,
+      tipoPedidosJoinSql,
+      geraFinanceiroExprSql,
+    } = require('../config/pedido-gerafinanceiro');
+    const geraFinExpr = geraFinanceiroExprSql('p', 'tp');
+
+    let joinFilterClause = '';
+    if (lat && lng) {
+      joinFilterClause = 'LEFT JOIN clientes c ON p.cod_cliente = c.id';
+      const haversine = `(6371 * acos(cos(radians(?)) * cos(radians(c.latitude)) * cos(radians(c.longitude) - radians(?)) + sin(radians(?)) * sin(radians(c.latitude))))`;
+      whereClause += ` AND ${haversine} <= ?`;
+      whereClauseCards += ` AND ${haversine} <= ?`;
+      const latFloat = parseFloat(lat);
+      const lngFloat = parseFloat(lng);
+      const raioFloat = parseFloat(raio);
+      params.push(latFloat, lngFloat, latFloat, raioFloat);
+      paramsCards.push(latFloat, lngFloat, latFloat, raioFloat);
+    }
+
+    if (gfFiltro === 'S' || gfFiltro === 'N') {
+      await ensureTipoPedidosColumns(pool);
+      if (!joinFilterClause.includes('tipo_pedidos')) {
+        joinFilterClause += ' ' + tipoPedidosJoinSql('p', 'tp');
+      }
+      whereClause += ` AND ${geraFinExpr} = ?`;
+      params.push(gfFiltro);
     }
 
     const idVendFiltro = await resolveVendedorIdForFilter(pool, req, id_vendedor);
@@ -1153,23 +1389,24 @@ router.get('/', async (req, res) => {
     if (origem)      { whereClause += ` AND p.origem = ?`; whereClauseCards += ` AND p.origem = ?`; params.push(origem); paramsCards.push(origem); }
     if (nome_empresa){ whereClause += ` AND p.nome_empresa LIKE ?`; whereClauseCards += ` AND p.nome_empresa LIKE ?`; params.push(`%${nome_empresa}%`); paramsCards.push(`%${nome_empresa}%`); }
     
-    let joinFilterClause = '';
-    if (lat && lng) {
-      joinFilterClause = 'LEFT JOIN clientes c ON p.cod_cliente = c.id';
-      const haversine = `(6371 * acos(cos(radians(?)) * cos(radians(c.latitude)) * cos(radians(c.longitude) - radians(?)) + sin(radians(?)) * sin(radians(c.latitude))))`;
-      whereClause += ` AND ${haversine} <= ?`;
-      whereClauseCards += ` AND ${haversine} <= ?`;
-      const latFloat = parseFloat(lat);
-      const lngFloat = parseFloat(lng);
-      const raioFloat = parseFloat(raio);
-      params.push(latFloat, lngFloat, latFloat, raioFloat);
-      paramsCards.push(latFloat, lngFloat, latFloat, raioFloat);
-    }
-    
     // COUNT e stats em paralelo para não esperar um pelo outro
     const _countPromise = pool.query(
       `SELECT COUNT(p.id) as total FROM pedidos p ${joinFilterClause} ${whereClause}`, params
     ).catch(e => { console.error('Erro ao contar pedidos:', e.message); return [[{ total: 0 }]]; });
+
+    // Contagem dinâmica por status — pega QUALQUER valor que exista em situacao_pedido,
+    // não só os 5 conhecidos. Assim status novos aparecem na faixa de filtro sem precisar
+    // alterar código depois (ENTREGAR é tratado como sinônimo de PENDENTE).
+    const _statusCountsPromise = pool.query(`
+        SELECT
+          CASE WHEN p.situacao_pedido IN ('PENDENTE','ENTREGAR') THEN 'PENDENTE'
+               ELSE COALESCE(p.situacao_pedido, 'SEM_STATUS') END as situacao,
+          COUNT(p.id) as total
+        FROM pedidos p
+        ${joinFilterClause}
+        ${whereClauseCards}
+        GROUP BY situacao
+      `, paramsCards).catch(() => [[]]);
 
     const _statsPromise = pool.query(`
         SELECT
@@ -1178,6 +1415,7 @@ router.get('/', async (req, res) => {
           SUM(p.vlrtotalpedido) as vlr_total,
           COUNT(CASE WHEN p.situacao_pedido IN ('PENDENTE','ENTREGAR') THEN 1 END) as pendentes,
           COUNT(CASE WHEN p.situacao_pedido = 'APROVADO' THEN 1 END) as aprovados,
+          COUNT(CASE WHEN p.situacao_pedido = 'ENVIADO' THEN 1 END) as enviados,
           COUNT(CASE WHEN p.situacao_pedido = 'CANCELADO' THEN 1 END) as cancelados,
           COUNT(CASE WHEN p.situacao_pedido = 'FATURADO' THEN 1 END) as faturados
         FROM pedidos p
@@ -1186,10 +1424,13 @@ router.get('/', async (req, res) => {
         GROUP BY tipo_pedido
       `, paramsCards).catch(() => null);
 
-    const [[countRows], _tsRaw] = await Promise.all([_countPromise, _statsPromise]);
+    const [[countRows], _tsRaw, [statusCountRows]] = await Promise.all([_countPromise, _statsPromise, _statusCountsPromise]);
     let totalItems = (countRows && countRows[0]) ? countRows[0].total : 0;
 
-    let statsRows = [{ total: 0, vlr_total: 0, pendentes: 0, aprovados: 0, cancelados: 0 }];
+    const statusCounts = {};
+    for (const r of (statusCountRows || [])) statusCounts[r.situacao] = Number(r.total) || 0;
+
+    let statsRows = [{ total: 0, vlr_total: 0, pendentes: 0, aprovados: 0, enviados: 0, cancelados: 0 }];
     let typeStats = [];
     try {
       const ts = _tsRaw ? _tsRaw[0] : null;
@@ -1201,6 +1442,7 @@ router.get('/', async (req, res) => {
           vlr_total: typeStats.reduce((s,r) => s + Number(r.vlr_total || 0), 0),
           pendentes:  typeStats.reduce((s,r) => s + Number(r.pendentes  || 0), 0),
           aprovados:  typeStats.reduce((s,r) => s + Number(r.aprovados  || 0), 0),
+          enviados:   typeStats.reduce((s,r) => s + Number(r.enviados   || 0), 0),
           cancelados: typeStats.reduce((s,r) => s + Number(r.cancelados || 0), 0),
           faturados:  typeStats.reduce((s,r) => s + Number(r.faturados  || 0), 0),
         }];
@@ -1209,6 +1451,7 @@ router.get('/', async (req, res) => {
           SELECT COUNT(p.id) as total, SUM(p.vlrtotalpedido) as vlr_total,
                  COUNT(CASE WHEN p.situacao_pedido IN ('PENDENTE','ENTREGAR') THEN 1 END) as pendentes,
                  COUNT(CASE WHEN p.situacao_pedido = 'APROVADO' THEN 1 END) as aprovados,
+                 COUNT(CASE WHEN p.situacao_pedido = 'ENVIADO' THEN 1 END) as enviados,
                  COUNT(CASE WHEN p.situacao_pedido = 'CANCELADO' THEN 1 END) as cancelados
           FROM pedidos p ${joinFilterClause} ${whereClauseCards}
         `, paramsCards);
@@ -1224,6 +1467,7 @@ router.get('/', async (req, res) => {
           SELECT COUNT(p.id) as total, SUM(p.vlrtotalpedido) as vlr_total,
                  COUNT(CASE WHEN p.situacao_pedido IN ('PENDENTE','ENTREGAR') THEN 1 END) as pendentes,
                  COUNT(CASE WHEN p.situacao_pedido = 'APROVADO' THEN 1 END) as aprovados,
+                 COUNT(CASE WHEN p.situacao_pedido = 'ENVIADO' THEN 1 END) as enviados,
                  COUNT(CASE WHEN p.situacao_pedido = 'CANCELADO' THEN 1 END) as cancelados
           FROM pedidos p ${joinFilterClause} ${whereClauseCards}
         `, paramsCards);
@@ -1244,6 +1488,7 @@ router.get('/', async (req, res) => {
         `SELECT p.*, u.nomeusu, c.cpf as cnpj_cliente,
                 c.latitude, c.longitude, c.endereco, c.cidade, c.id as id_cliente, c.apelido as fantasia_cliente
          FROM pedidos p
+         ${joinFilterClause}
          LEFT JOIN usuarios u ON p.id_usuario = u.idusuario
          LEFT JOIN clientes c ON p.cod_cliente = c.id
          ${whereClause}
@@ -1255,7 +1500,7 @@ router.get('/', async (req, res) => {
       console.log('Falha no JOIN de usuarios/clientes:', errJoin.message);
       try {
         const [rFall] = await pool.query(
-          `SELECT p.* FROM pedidos p ${whereClause} ORDER BY ${orderCol} ${orderDir} LIMIT ? OFFSET ?`,
+          `SELECT p.* FROM pedidos p ${joinFilterClause} ${whereClause} ORDER BY ${orderCol} ${orderDir} LIMIT ? OFFSET ?`,
           [...params, parseInt(limit) || 50, parseInt(offset) || 0]
         );
         rows = rFall;
@@ -1321,8 +1566,10 @@ router.get('/', async (req, res) => {
         valorGlobal: (statsRows[0] && statsRows[0].vlr_total) || 0,
         pendentes:  (statsRows[0] && statsRows[0].pendentes)  || 0,
         aprovados:  (statsRows[0] && statsRows[0].aprovados)  || 0,
+        enviados:   (statsRows[0] && statsRows[0].enviados)   || 0,
         cancelados: (statsRows[0] && statsRows[0].cancelados) || 0,
         faturados:  (statsRows[0] && statsRows[0].faturados)  || 0,
+        statusCounts,
         tipos: typeStats,
         totalPages: Math.ceil(totalItems / (parseInt(limit) || 50)),
         currentPage: parseInt(page) || 1,
@@ -1667,6 +1914,7 @@ router.get('/produtos/busca', async (req, res) => {
               IFNULL(p.kilo_embalagem, 0) as kilo_embalagem,
               IFNULL(p.precopeso, 'N') as precopeso,
               IFNULL(p.multiplo_venda, 1) as multiplo_venda,
+              IFNULL(p.qtd_minima_pedido, 0) as qtd_minima_pedido,
               IFNULL(p.estoque_atual, 0) as estoque_atual,
               IFNULL(p.disponivel, 'S') as disponivel,
               COALESCE(p.foto_principal, (
@@ -1679,6 +1927,8 @@ router.get('/produtos/busca', async (req, res) => {
               IFNULL(p.tipograde, 0) as tipograde,
               IFNULL(p.solado, '') as solado,
               IFNULL(p.tipoprodutograde, '') as tipoprodutograde,
+              IFNULL(p.bloquear_desconto, 'N') as bloquear_desconto,
+              p.desconto_maximo,
               IFNULL(p.peso_liquido, 0) as peso_liquido
        FROM ${tb} p
        ${join}${grupoJoinSql}
@@ -1857,6 +2107,7 @@ async function _fetchProdutosEnriquecidosPorIds(pool, tb, ids, req, { idForneced
             IFNULL(p.kilo_embalagem, 0) as kilo_embalagem,
             IFNULL(p.precopeso, 'N') as precopeso,
             IFNULL(p.multiplo_venda, 1) as multiplo_venda,
+            IFNULL(p.qtd_minima_pedido, 0) as qtd_minima_pedido,
             IFNULL(p.estoque_atual, 0) as estoque_atual,
             IFNULL(p.disponivel, 'S') as disponivel,
             p.dt_cadastro,
@@ -2085,8 +2336,12 @@ router.get('/produtos/feirinha', async (req, res) => {
 router.get('/grade-historico/:id_produto/:id_cliente', async (req, res) => {
   try {
     const { id_produto, id_cliente } = req.params;
+    const pool = getPool();
+    const bloqueioCli = await _validarCarteiraClientePedido(req, pool, id_cliente);
+    if (bloqueioCli) return res.status(bloqueioCli.status).json({ error: bloqueioCli.error });
+
     // Busca o item mais recente desse produto para esse cliente que tenha grade
-    const [itemRows] = await getPool().query(
+    const [itemRows] = await pool.query(
       `SELECT i.id AS id_item, p.numero, p.data_abertura
        FROM itensped i
        INNER JOIN pedidos p ON i.id_pedido = p.id
@@ -2123,8 +2378,12 @@ router.get('/grade-historico/:id_produto/:id_cliente', async (req, res) => {
 router.get('/grade-sugestao/:id_produto/:id_cliente', async (req, res) => {
   try {
     const { id_produto, id_cliente } = req.params;
+    const pool = getPool();
+    const bloqueioCli = await _validarCarteiraClientePedido(req, pool, id_cliente);
+    if (bloqueioCli) return res.status(bloqueioCli.status).json({ error: bloqueioCli.error });
+
     const N = 5;
-    const [itemRows] = await getPool().query(
+    const [itemRows] = await pool.query(
       `SELECT i.id AS id_item
        FROM itensped i
        INNER JOIN pedidos p ON i.id_pedido = p.id
@@ -2208,7 +2467,9 @@ router.get('/lookup/produtos-avancado', async (req, res) => {
           LIMIT 1
         )) AS foto_principal,
         IFNULL(p.estoque_atual, 0) as estoque_atual,
-        IFNULL(p.disponivel, 'S') as disponivel
+        IFNULL(p.disponivel, 'S') as disponivel,
+        IFNULL(p.bloquear_desconto, 'N') as bloquear_desconto,
+        p.desconto_maximo
       FROM ${tb} p
       LEFT JOIN grupos g ON g.id = p.id_grupo
       LEFT JOIN familia_produtos f ON f.id = p.id_familiaproduto
@@ -2812,20 +3073,26 @@ router.get('/ultimo-por-cliente/:id_cliente', async (req, res) => {
     const _userId = req.user?.id || 0;
     const _isAdmin = req.user?.perfil == 1;
     const _perm = req.user?.permissoes || {};
-    const _acessaTodos = _isAdmin ? 'S' : (_perm.acessartodosclientes || '');
+    const _acessaVendasTodos = canAccessAllVendors(req);
     const _eGerente = !_isAdmin && _perm.gerentecomercial === 'S';
     const _prepCtxHist = await getPrepostoContext(pool, req);
 
     let visWhere = '';
     const visParams = [];
-    if (!_isAdmin && _acessaTodos !== 'S') {
+    if (!_isAdmin && !_acessaVendasTodos) {
       if (_eGerente) {
         visWhere = ` AND (p.id_usuario = ? OR p.id_usuario IN (SELECT idusuario FROM usuarios WHERE id_gerente = ? AND excluido = 'N'))`;
         visParams.push(_userId, _userId);
       } else if (_prepCtxHist) {
-        // Preposto: histórico da carteira do representante + seus próprios pedidos
-        visWhere = ` AND (p.id_usuario = ? OR p.id_preposto = ?)`;
-        visParams.push(_prepCtxHist.idRep, _prepCtxHist.idPreposto);
+        if (_prepCtxHist.pedidosVisib === 'PROPRIOS') {
+          // Preposto restrito: só os pedidos que ele mesmo lançou
+          visWhere = ` AND p.id_preposto = ?`;
+          visParams.push(_prepCtxHist.idPreposto);
+        } else {
+          // Histórico da carteira do representante + seus próprios pedidos
+          visWhere = ` AND (p.id_usuario = ? OR p.id_preposto = ?)`;
+          visParams.push(_prepCtxHist.idRep, _prepCtxHist.idPreposto);
+        }
       } else {
         visWhere = ` AND p.id_usuario = ?`;
         visParams.push(_userId);
@@ -2863,7 +3130,7 @@ router.get('/offline-pack', async (req, res) => {
     const isAdmin = req.user?.perfil == 1;
 
     const [permRows] = await pool.query(`
-      SELECT p.acessartodosclientes, p.gerentecomercial,
+      SELECT p.acessartodosclientes, p.acessar_vendastodos, p.gerentecomercial,
              p.acessar_configuracoes, p.alterar_configuracoes, p.manutencaocadastros,
              p.acessogerenciais, p.acessoperfil, p.mudarempresa, p.tela_usuarios,
              p.alterardatapedido, p.trocarvendedorpedido, p.p_vender
@@ -2968,6 +3235,7 @@ router.get('/offline-pack', async (req, res) => {
                IFNULL(p.kilo_embalagem, 0) AS kilo_embalagem,
                IFNULL(p.precopeso, 'N') AS precopeso,
                IFNULL(p.multiplo_venda, 1) AS multiplo_venda,
+               IFNULL(p.qtd_minima_pedido, 0) AS qtd_minima_pedido,
                IFNULL(p.estoque_atual, 0) AS estoque_atual,
                IFNULL(p.disponivel, 'S') AS disponivel,
                COALESCE(p.foto_principal, (
@@ -3007,6 +3275,14 @@ router.get('/offline-pack', async (req, res) => {
       WHERE excluido = 'N' AND id_gerente = ? AND tipo_usuario = 'PREPOSTO'
       ORDER BY nomeusu
     `, [idUsuario]).catch(() => [[]]);
+
+    const prepostoVenCtx = {};
+    const venIdsPack = new Set([idUsuario, ...prepostos.map((p) => p.id)]);
+    for (const vid of venIdsPack) {
+      if (!vid) continue;
+      const ctx = await resolverVendedorTabelaPreco(pool, vid);
+      if (ctx) prepostoVenCtx[String(vid)] = ctx;
+    }
 
     const [gradeRows] = await pool.query(`
       SELECT id_grade, id, nome, sequencial, COALESCE(qtd_minima, 0) AS qtd_minima
@@ -3096,6 +3372,7 @@ router.get('/offline-pack', async (req, res) => {
              p.cod_cliente, p.nome_cliente, p.cod_fornecedor, p.nome_fornecedor,
              p.id_usuario, p.nome_vendedor, p.vlrtotalpedido, p.total_qt, p.total_peso,
              p.qt_parcelas, p.tipo_pedido, p.situacao_pedido, p.origem, p.status,
+             p.obs_proximo_pedido, p.obs_proximo_consumido,
              u.nomeusu
       FROM pedidos p
       LEFT JOIN usuarios u ON p.id_usuario = u.idusuario
@@ -3105,6 +3382,31 @@ router.get('/offline-pack', async (req, res) => {
       ORDER BY p.id DESC
       LIMIT 200
     `, [dtPedidosPack, ...vendWherePack.params]).catch(() => [[]]);
+
+    const [kitItensRows] = await pool.query(`
+      SELECT fki.id_fornecedor, fki.cod_produto, fki.quantidade, fki.sequencial,
+             p.descricao AS nome_produto,
+             IFNULL(p.multiplo_venda, 1) AS multiplo_venda,
+             IFNULL(p.qtd_minima_pedido, 0) AS qtd_minima_pedido
+      FROM fornecedor_kit_itens fki
+      LEFT JOIN ${tb} p ON p.ID = fki.cod_produto
+      WHERE fki.excluido = 'N'
+      ORDER BY fki.id_fornecedor, fki.sequencial, fki.id
+    `).catch(() => [[]]);
+    const kitPedidoPorFornecedor = {};
+    for (const row of kitItensRows) {
+      const k = String(row.id_fornecedor);
+      if (!kitPedidoPorFornecedor[k]) kitPedidoPorFornecedor[k] = { itens: [] };
+      kitPedidoPorFornecedor[k].itens.push({
+        cod_produto: row.cod_produto,
+        quantidade: row.quantidade,
+        sequencial: row.sequencial,
+        nome_produto: row.nome_produto,
+        desc_produto: row.nome_produto,
+        multiplo_venda: row.multiplo_venda,
+        qtd_minima_pedido: row.qtd_minima_pedido,
+      });
+    }
 
     let fornOut = fornecedores;
     let vendOut = vendedores;
@@ -3144,6 +3446,7 @@ router.get('/offline-pack', async (req, res) => {
         trocarvendedorpedido: isAdmin ? 'S' : (permDb.trocarvendedorpedido || 'N'),
         p_vender: isAdmin ? 'S' : (permDb.p_vender || 'N'),
         acessartodosclientes: isAdmin ? 'S' : (permDb.acessartodosclientes || 'N'),
+        acessar_vendastodos: isAdmin ? 'S' : (permDb.acessar_vendastodos || 'N'),
         gerentecomercial: isAdmin ? 'S' : (permDb.gerentecomercial || 'N'),
         isAdmin
       },
@@ -3158,6 +3461,7 @@ router.get('/offline-pack', async (req, res) => {
       transportadoras,
       condicoesPagto,
       vinculosTabela,
+      prepostoVenCtx,
       produtosPorTabela: prodOut,
       produtoFornecedor,
       prepostos,
@@ -3166,7 +3470,8 @@ router.get('/offline-pack', async (req, res) => {
       multiplosPorProduto,
       historicoClientes,
       clienteInadimplente,
-      pedidosRecentes
+      pedidosRecentes,
+      kitPedidoPorFornecedor
     });
   } catch (err) {
     console.error('[offline-pack]', err.message);
@@ -3195,6 +3500,66 @@ router.get('/events', (req, res) => {
   });
 });
 
+// GET /api/pedidos/obs-proximo — obs. pendente do último pedido (cliente + fábrica)
+router.get('/obs-proximo', async (req, res) => {
+  try {
+    const codCliente = parseInt(req.query.cod_cliente, 10);
+    const codFornecedor = parseInt(req.query.cod_fornecedor, 10);
+    const excludeId = parseInt(req.query.exclude_id, 10) || null;
+    if (!codCliente || !codFornecedor) return res.json({ pendente: null });
+
+    const pool = getPool();
+    const bloqueio = await _validarCarteiraClientePedido(req, pool, codCliente);
+    if (bloqueio) return res.status(bloqueio.status).json({ error: bloqueio.error });
+
+    await ensurePedidoObsProximoColumns(pool);
+    const vis = await buildPedidosListVisWhere(pool, req);
+    const params = [codCliente, codFornecedor];
+    let exclSql = '';
+    if (excludeId) {
+      exclSql = ' AND p.id <> ?';
+      params.push(excludeId);
+    }
+
+    const [[row]] = await pool.query(`
+      SELECT p.id, p.numero, p.obs_proximo_pedido, p.data_abertura
+      FROM pedidos p
+      WHERE p.cod_cliente = ?
+        AND p.cod_fornecedor = ?
+        AND (p.excluido = 'N' OR p.excluido IS NULL OR p.excluido = '')
+        AND TRIM(COALESCE(p.obs_proximo_pedido, '')) <> ''
+        AND COALESCE(p.obs_proximo_consumido, 'N') <> 'S'
+        ${exclSql}
+        ${vis.clause}
+      ORDER BY p.data_abertura DESC, p.id DESC
+      LIMIT 1
+    `, [...params, ...vis.params]).catch(() => [[]]);
+
+    if (!row) return res.json({ pendente: null });
+    res.json({
+      pendente: {
+        id: row.id,
+        numero: row.numero,
+        texto: String(row.obs_proximo_pedido || '').trim(),
+        data_abertura: row.data_abertura,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/pedidos/retornos-resumo — alertas de retorno (mesma visibilidade da lista)
+router.get('/retornos-resumo', async (req, res) => {
+  try {
+    const pool = getPool();
+    const resumo = await _queryPedidosRetornoResumo(pool, req);
+    res.json(resumo);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/pedidos/:id
 router.get('/:id', async (req, res) => {
   try {
@@ -3211,25 +3576,57 @@ router.get('/:id', async (req, res) => {
     if (!header[0]) return res.status(404).json({ error: 'Pedido não encontrado' });
 
     const numPedido = header[0].numero;
+    const codCli   = header[0].cod_cliente;
+    const idFilial = header[0].id_empresa ?? header[0].id_filial;
+
+    // _getProdTabela é cacheado — quase gratuito após o 1º acesso
     const _ptb = await _getProdTabela(pool);
-    const [itens] = await pool.query(
-      `SELECT i.*, p.foto_principal,
-              COALESCE(i.vlr_padrao, p.vlr_venda, 0) AS vlr_padrao_efetivo,
-              IFNULL(p.precopeso, 'N') AS precopeso,
-              IFNULL(p.kilo_embalagem, 0) AS prod_kilo_embalagem
-       FROM itensped i
-       LEFT JOIN ${_ptb} p ON i.cod_produto = p.id
-       WHERE i.numpedido = ? AND (i.excluido = 'N' OR i.excluido IS NULL)`,
-      [numPedido]
-    );
+
+    // Garante colunas web-only antes da query de itens — necessário em bases Delphi legadas
+    // onde runMigrations nunca rodou (ex: tenants novos no Oracle multi-tenant)
+    await ensureProdutoColunas(pool).catch(() => {});
+
+    // Todas as queries independentes rodam em paralelo (pool: cada uma usa conexão própria)
+    const [[itens], [parcelas], [logs], [cliRows], [empRows]] = await Promise.all([
+      pool.query(
+        `SELECT i.*, p.foto_principal,
+                COALESCE(i.vlr_padrao, p.vlr_venda, 0) AS vlr_padrao_efetivo,
+                IFNULL(p.precopeso, 'N') AS precopeso,
+                IFNULL(p.kilo_embalagem, 0) AS prod_kilo_embalagem,
+                IFNULL(p.bloquear_desconto, 'N') AS bloquear_desconto,
+                p.desconto_maximo,
+                IFNULL(p.multiplo_venda, 1) AS multiplo_venda_produto,
+                IFNULL(p.qtd_minima_pedido, 0) AS qtd_minima_pedido_produto
+         FROM itensped i
+         LEFT JOIN ${_ptb} p ON i.cod_produto = p.id
+         WHERE i.numpedido = ? AND (i.excluido = 'N' OR i.excluido IS NULL)`,
+        [numPedido]
+      ),
+      pool.query(`SELECT * FROM receber WHERE numero = ?`, [numPedido]).catch(() => [[]]),
+      pool.query(`
+        SELECT l.*, u.nomeusu as nome_usuario
+        FROM logs_pedidos l
+        LEFT JOIN usuarios u ON l.id_usuario = u.idusuario
+        WHERE l.id_pedido = ?
+        ORDER BY l.data_hora DESC
+      `, [req.params.id]).catch(() => [[]]),
+      codCli
+        ? pool.query(`SELECT * FROM clientes WHERE id = ? LIMIT 1`, [codCli]).catch(() => [[]])
+        : Promise.resolve([[]]),
+      (idFilial
+        ? pool.query(`SELECT * FROM empresa WHERE id_empresa = ? LIMIT 1`, [idFilial])
+        : pool.query(`SELECT * FROM empresa WHERE excluido = 'N' ORDER BY id_empresa LIMIT 1`)
+      ).catch(() => [[]]),
+    ]);
+
     for (const row of itens) {
       if (row.vlr_padrao == null || row.vlr_padrao === '' || Number(row.vlr_padrao) === 0) {
         row.vlr_padrao = row.vlr_padrao_efetivo;
       }
       delete row.vlr_padrao_efetivo;
     }
-    
-    // Carrega quantidades de grade para os itens
+
+    // Grade: depende dos IDs dos itens — não pode paralelizar com a query acima
     if (itens.length) {
       const itemIds = itens.map(i => i.id);
       const [gradeRows] = await pool.query(
@@ -3243,35 +3640,15 @@ router.get('/:id', async (req, res) => {
       }
       for (const item of itens) {
         item.grade_qtd = gradeMap[item.id] || [];
+        item.obsitem = resolveObsitemLeitura(item);
+        delete item.obsitemitenspedido;
       }
     }
 
-    const [parcelas] = await pool.query(`SELECT * FROM receber WHERE numero = ?`, [numPedido]).catch(() => [[]]);
-
-    // Buscar logs de auditoria
-    const [logs] = await pool.query(`
-      SELECT l.*, u.nomeusu as nome_usuario
-      FROM logs_pedidos l
-      LEFT JOIN usuarios u ON l.id_usuario = u.idusuario
-      WHERE l.id_pedido = ?
-      ORDER BY l.data_hora DESC
-    `, [req.params.id]).catch(() => [[]]);
-
-    // Dados completos do cliente (para impressão)
-    const codCli = header[0].cod_cliente;
-    const [cliRows] = codCli
-      ? await pool.query(`SELECT * FROM clientes WHERE id = ? LIMIT 1`, [codCli]).catch(() => [[]])
-      : [[]];
     const cliente = cliRows[0] || {};
     if (cliente.numerosulframa && !cliente.numero_suframa) cliente.numero_suframa = cliente.numerosulframa;
     if (cliente.numero_suframa && !cliente.numerosulframa) cliente.numerosulframa = cliente.numero_suframa;
 
-    // Dados da empresa emissora
-    const idFilial = header[0].id_empresa ?? header[0].id_filial;
-    const [empRows] = await (idFilial
-      ? pool.query(`SELECT * FROM empresa WHERE id_empresa = ? LIMIT 1`, [idFilial])
-      : pool.query(`SELECT * FROM empresa WHERE excluido = 'N' ORDER BY id_empresa LIMIT 1`)
-    ).catch(() => [[]]);
     const empresa = empRows[0] ? await sanitizeEmpresaRow(pool, empRows[0]) : {};
 
     let pedidoOut = header[0];
@@ -3296,10 +3673,56 @@ router.get('/:id', async (req, res) => {
 
 // POST /api/pedidos
 router.post('/', async (req, res) => {
+  const _ts = Date.now();                                                   // [DIAG-SAVE]
+  const _mk = (l) => console.log(`[DIAG-SAVE] ${l}: +${Date.now() - _ts}ms`); // [DIAG-SAVE]
   const conn = await getPool().getConnection();
+  _mk('getConnection (pool)');                                             // [DIAG-SAVE]
+  let _numLockName = null;
   try {
     await conn.beginTransaction();
+    _mk('beginTransaction');                                              // [DIAG-SAVE]
     const { pedido, itens, parcelas } = req.body;
+
+    const bloqueioCli = await _validarCarteiraClientePedido(req, conn, pedido?.cod_cliente);
+    if (bloqueioCli) {
+      await conn.rollback();
+      return res.status(bloqueioCli.status).json({ error: bloqueioCli.error });
+    }
+
+    // Idempotência: pedido offline já sincronizado antes não é duplicado.
+    // Se a resposta da 1ª sincronização se perdeu, a fila reenvia o mesmo
+    // numero_off — aqui devolvemos o pedido existente em vez de criar outro.
+    // IMPORTANTE: numero_off é um contador no localStorage de CADA aparelho
+    // (pedidos-offline.js → nextNumeroOff), então dois vendedores diferentes
+    // geram o mesmo numero_off. Por isso o match é restrito a (numero_off +
+    // mesmo digitador + mesmo cliente) — assim só deduplica o REENVIO do mesmo
+    // pedido, nunca o pedido de outro vendedor (evita descartar pedido legítimo).
+    if (pedido && pedido.numero_off && (pedido.cod_cliente != null)) {
+      const _coduserDig = req.user?.id || 0;
+      const [jaExiste] = await conn.query(
+        `SELECT id, numero FROM pedidos
+         WHERE numero_off = ? AND coduser_digitacao = ? AND cod_cliente = ? AND excluido = 'N'
+         ORDER BY id DESC LIMIT 1`,
+        [pedido.numero_off, _coduserDig, pedido.cod_cliente]
+      );
+      if (jaExiste[0]) {
+        await conn.commit();
+        return res.status(200).json({ ok: true, id: jaExiste[0].id, numero: jaExiste[0].numero, duplicado: true });
+      }
+    }
+
+    const errosGrade = await validarItensGradeObrigatoria(conn, itens);
+    if (errosGrade) {
+      await conn.rollback();
+      return res.status(400).json({ error: errosGrade.join(' ') });
+    }
+
+    const errosQtd = await validarItensQtdRegras(conn, itens);
+    if (errosQtd) {
+      await conn.rollback();
+      return res.status(400).json({ error: errosQtd.join(' ') });
+    }
+    _mk('validacoes (grade+qtd)');                                        // [DIAG-SAVE]
 
     // Comissão calculada no backend — ignora valores enviados pelo frontend
     const idPreposto = nPedidoId(pedido.id_preposto);
@@ -3307,13 +3730,25 @@ router.post('/', async (req, res) => {
     if (comissaoCalc._nome_preposto) pedido.nome_preposto = comissaoCalc._nome_preposto;
     delete comissaoCalc._nome_preposto;
     Object.assign(pedido, comissaoCalc);
+    _mk('comissao');                                                     // [DIAG-SAVE]
 
     // Geração automática de número seguindo sequência do Delphi
     let num = pedido.numero;
     if (!num || num === '') {
+      // Trava anti-duplicação: serializa a geração do número entre requisições
+      // concorrentes do mesmo tenant. Sem isso, dois saves simultâneos liam o
+      // mesmo MAX(numero) e nasciam dois pedidos com o mesmo número (o que depois
+      // some/zera os itens, pois itensped é chaveado por numpedido). A trava é por
+      // banco (DATABASE()) para não serializar entre clientes diferentes.
+      try {
+        const [[dbRow]] = await conn.query('SELECT DATABASE() AS db');
+        _numLockName = 'pednum_' + (dbRow?.db || 'default');
+        await conn.query('SELECT GET_LOCK(?, 10) AS l', [_numLockName]);
+      } catch (_) { _numLockName = null; }
       const [seq] = await conn.query(`SELECT LPAD((COALESCE(MAX(numero + 0), 0) + 1), 6, '0') AS proximo FROM pedidos`);
       num = seq[0]?.proximo || '000001';
     }
+    _mk('GET_LOCK + MAX(numero)');                                        // [DIAG-SAVE]
 
     const up = s => (s || '').toString().toUpperCase();
     const horaBR = new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour12: false });
@@ -3396,6 +3831,7 @@ router.post('/', async (req, res) => {
     );
 
     const pedidoId = pResult.insertId;
+    _mk('INSERT pedido');                                                 // [DIAG-SAVE]
 
     await require('../config/crm-auto-link').autoLinkNegocio({
       conn,
@@ -3405,6 +3841,7 @@ router.post('/', async (req, res) => {
       vlrtotalpedido: nPedidoField(pedido.vlrtotalpedido),
       id_pedido: pedidoId,
     }).catch(() => {});
+    _mk('autoLinkNegocio (CRM)');                                         // [DIAG-SAVE]
 
     const idCampFeirinha = nPedidoId(pedido.id_campanha_feirinha);
     const hasSnapMedio = pedido.preco_medio_feirinha != null && pedido.preco_medio_feirinha !== '';
@@ -3419,23 +3856,32 @@ router.post('/', async (req, res) => {
     }
 
     if (itens && itens.length > 0) {
-      const itensNorm = await _normalizeItensPrecoPeso(conn, itens, pedido.cod_fornecedor);
-      for (let seqItem = 0; seqItem < itensNorm.length; seqItem++) {
-        const item = itensNorm[seqItem];
-        await insertItenspedItem(conn, item, {
-          numpedido: num,
-          idPedido: pedidoId,
-          codFornecedor: pedido.cod_fornecedor,
-          tipoPedido: pedido.tipo_pedido,
-          idTipoPedido: pedido.id_tipopedido,
-          seqItem,
-        });
-      }
+      await Promise.all([ensureItenspedPromoColumns(conn), ensureItenspedObsitemColumn(conn)]);
+      _mk(`ensure colunas itensped (${itens.length} itens)`);              // [DIAG-SAVE]
+      const itensNorm = await _normalizeItensPrecoPeso(conn, sanitizeItensObsitemForSave(itens), pedido.cod_fornecedor);
+      _mk('normalizeItensPrecoPeso');                                     // [DIAG-SAVE]
+      await insertItenspedBatch(conn, itensNorm, {
+        numpedido: num,
+        idPedido: pedidoId,
+        codFornecedor: pedido.cod_fornecedor,
+        tipoPedido: pedido.tipo_pedido,
+        idTipoPedido: pedido.id_tipopedido,
+      });
+      _mk('insertItenspedBatch');                                         // [DIAG-SAVE]
     }
 
     await salvarParcelas(conn, num, pedidoId, pedido, parcelas);
+    _mk(`salvarParcelas (${parcelas?.length || 0} parc)`);                // [DIAG-SAVE]
+
+    if (pedido.obs_proximo_pedido !== undefined) {
+      await _salvarObsProximoRegistro(conn, pedidoId, pedido.obs_proximo_pedido);
+    }
+    if (pedido.obs_proximo_consumir_id) {
+      await _consumirObsProximo(conn, pedido.obs_proximo_consumir_id, pedido.cod_cliente, pedido.cod_fornecedor);
+    }
 
     await conn.commit();
+    _mk('COMMIT — FIM');                                                  // [DIAG-SAVE]
     res.status(201).json({ ok: true, id: pedidoId });
 
     emitNovoPedido({
@@ -3451,6 +3897,7 @@ router.post('/', async (req, res) => {
     await conn.rollback();
     res.status(500).json({ error: err.message });
   } finally {
+    if (_numLockName) { try { await conn.query('SELECT RELEASE_LOCK(?)', [_numLockName]); } catch (_) {} }
     conn.release();
   }
 });
@@ -3477,17 +3924,101 @@ router.post('/:id/converter-pedido', async (req, res) => {
   }
 });
 
+// POST /api/pedidos/bulk-update — Atualização em Massa (ANTES de /:id — senão Express trata "bulk-update" como id)
+router.post('/bulk-update', async (req, res) => {
+  const conn = await getPool().getConnection();
+  try {
+    const { ids, update } = req.body;
+    const id_usuario_log = req.user?.id || 1;
+    if (!ids || !ids.length) return res.status(400).json({ error: 'Nenhum pedido selecionado' });
+    if (!update || (!update.situacao_pedido && !update.tipo_pedido)) {
+      return res.status(400).json({ error: 'Nenhum campo para atualizar' });
+    }
+
+    await conn.beginTransaction();
+    let updated = 0;
+
+    for (const id of ids) {
+      const [old] = await conn.query(
+        `SELECT situacao_pedido FROM pedidos WHERE id = ? AND COALESCE(excluido,'N')='N' LIMIT 1`,
+        [id]
+      );
+      if (!old[0]) continue;
+
+      const sets = [];
+      const vals = [];
+      if (update.situacao_pedido) {
+        sets.push('situacao_pedido = ?', 'status = ?');
+        vals.push(update.situacao_pedido, update.situacao_pedido);
+      }
+      if (update.tipo_pedido) {
+        sets.push('tipo_pedido = ?');
+        vals.push(update.tipo_pedido);
+      }
+
+      if (sets.length > 0) {
+        vals.push(id);
+        await conn.query(`UPDATE pedidos SET ${sets.join(', ')} WHERE id = ?`, vals);
+        updated++;
+        await conn.query(`
+          INSERT INTO logs_pedidos (id_pedido, id_usuario, acao, status_antigo, status_novo, detalhes)
+          VALUES (?, ?, 'ALTERACAO_MASSA', ?, ?, ?)
+        `, [id, id_usuario_log, old[0].situacao_pedido, update.situacao_pedido || old[0].situacao_pedido, 'Atualização via ação em massa']);
+      }
+    }
+
+    await conn.commit();
+    res.json({ ok: true, count: updated });
+  } catch (err) {
+    await conn.rollback();
+    res.status(500).json({ error: err.message });
+  } finally {
+    conn.release();
+  }
+});
+
 // POST /api/pedidos/:id — Atualização de Pedido
 router.post('/:id', async (req, res) => {
+  const _ts = Date.now();                                                   // [DIAG-SAVE]
+  const _mk = (l) => console.log(`[DIAG-SAVE:id] ${l}: +${Date.now() - _ts}ms`); // [DIAG-SAVE]
   const conn = await getPool().getConnection();
+  _mk('getConnection (pool)');                                             // [DIAG-SAVE]
   try {
     const { id } = req.params;
     const { pedido, itens, parcelas } = req.body;
     const id_usuario_log = req.user?.id || 1;
+    if (pedido && (pedido.data_retorno !== undefined || pedido.obs_retorno !== undefined)) {
+      await ensurePedidoRetornoColumns(conn);
+    }
+    if (pedido && (
+      pedido.obs_proximo_pedido !== undefined
+      || pedido.obs_proximo_consumir_id != null
+    )) {
+      await ensurePedidoObsProximoColumns(conn);
+    }
     await conn.beginTransaction();
+    _mk('beginTransaction');                                              // [DIAG-SAVE]
+
+    if (pedido?.cod_cliente != null && pedido.cod_cliente !== '') {
+      const bloqueioCli = await _validarCarteiraClientePedido(req, conn, pedido.cod_cliente);
+      if (bloqueioCli) {
+        await conn.rollback();
+        return res.status(bloqueioCli.status).json({ error: bloqueioCli.error });
+      }
+    }
 
     // Comissão calculada no backend quando itens são enviados (salvamento completo)
     if (pedido && itens && itens.length > 0) {
+      const errosGrade = await validarItensGradeObrigatoria(conn, itens);
+      if (errosGrade) {
+        await conn.rollback();
+        return res.status(400).json({ error: errosGrade.join(' ') });
+      }
+      const errosQtd = await validarItensQtdRegras(conn, itens);
+      if (errosQtd) {
+        await conn.rollback();
+        return res.status(400).json({ error: errosQtd.join(' ') });
+      }
       let idVend = pedido.id_usuario;
       if (!idVend) {
         const [pv] = await conn.query(`SELECT id_usuario, id_preposto FROM pedidos WHERE id = ? LIMIT 1`, [id]).catch(() => [[]]);
@@ -3500,6 +4031,7 @@ router.post('/:id', async (req, res) => {
       delete comissaoCalc._nome_preposto;
       Object.assign(pedido, comissaoCalc);
     }
+    _mk('validacoes + comissao');                                        // [DIAG-SAVE]
 
     // Busca o estado atual para o log
     const [atual] = await conn.query('SELECT situacao_pedido, tipo_pedido FROM pedidos WHERE id = ?', [id]);
@@ -3507,6 +4039,9 @@ router.post('/:id', async (req, res) => {
 
     // 1. Atualiza cabeçalho do pedido
     if (pedido) {
+      if (pedido.situacao_pedido !== undefined && pedido.status === undefined) {
+        pedido.status = pedido.situacao_pedido;
+      }
       const empComboUp = nPedidoId(pedido.id_empresa) ?? nPedidoId(pedido.id_filial);
       if (empComboUp != null) {
         pedido.id_empresa = empComboUp;
@@ -3537,6 +4072,8 @@ router.post('/:id', async (req, res) => {
         'vlr_faturado', 'vlr_faturamento', 'vlr_diferencafaturamento', 'notarecebida',
         'id_campanha_feirinha',
         'preco_medio_feirinha', 'preco_revenda_feirinha',
+        'data_retorno', 'obs_retorno',
+        'obs_proximo_pedido', 'obs_proximo_consumido',
       ];
 
       for (const key of allowedFields) {
@@ -3570,6 +4107,7 @@ router.post('/:id', async (req, res) => {
         JSON.stringify(pedido) // Salva o que foi alterado nos detalhes
       ]);
     }
+    _mk('UPDATE cabecalho + log');                                        // [DIAG-SAVE]
 
     // 2. Atualiza Itens (somente salvamento completo com grade — array vazio não toca itensped)
     if (itens && Array.isArray(itens) && itens.length > 0) {
@@ -3578,21 +4116,18 @@ router.post('/:id', async (req, res) => {
       if (p[0]) {
         const numPedido = p[0].numero;
         await softDeleteItenspedByNumPedido(conn, numPedido);
-
+        await Promise.all([ensureItenspedPromoColumns(conn), ensureItenspedObsitemColumn(conn)]);
         const codFornUpd = pedido?.cod_fornecedor;
-        const itensNorm = await _normalizeItensPrecoPeso(conn, itens, codFornUpd);
-        for (let seqItem = 0; seqItem < itensNorm.length; seqItem++) {
-          const item = itensNorm[seqItem];
-          await insertItenspedItem(conn, item, {
-            numpedido: numPedido,
-            idPedido: id,
-            codFornecedor: codFornUpd,
-            tipoPedido: pedido?.tipo_pedido,
-            idTipoPedido: pedido?.id_tipopedido,
-            seqItem,
-          });
-        }
+        const itensNorm = await _normalizeItensPrecoPeso(conn, sanitizeItensObsitemForSave(itens), codFornUpd);
+        await insertItenspedBatch(conn, itensNorm, {
+          numpedido: numPedido,
+          idPedido: id,
+          codFornecedor: codFornUpd,
+          tipoPedido: pedido?.tipo_pedido,
+          idTipoPedido: pedido?.id_tipopedido,
+        });
       }
+      _mk(`itens (${itens.length}) soft-del+normalize+batch`);            // [DIAG-SAVE]
     }
 
     // 3. Parcelas (só regrava se vieram com conteúdo — preserva ao mudar só status)
@@ -3611,9 +4146,21 @@ router.post('/:id', async (req, res) => {
         await conn.query(`DELETE FROM receber WHERE numero = ?`, [ph[0].numero]);
         await salvarParcelas(conn, ph[0].numero, parseInt(id), pedidoAtual, parcelas);
       }
+      _mk(`salvarParcelas (${parcelas.length} parc)`);                    // [DIAG-SAVE]
+    }
+
+    if (pedido?.obs_proximo_consumir_id) {
+      await _consumirObsProximo(conn, pedido.obs_proximo_consumir_id, pedido.cod_cliente, pedido.cod_fornecedor);
+    }
+    if (pedido?.obs_proximo_pedido !== undefined) {
+      const t = String(pedido.obs_proximo_pedido ?? '').trim();
+      if (t) {
+        await conn.query(`UPDATE pedidos SET obs_proximo_consumido = 'N' WHERE id = ?`, [id]);
+      }
     }
 
     await conn.commit();
+    _mk('COMMIT — FIM');                                                  // [DIAG-SAVE]
     releasePedidoEditLock(pedidoEditTenantKey(req), id, req.user?.id);
     res.json({ ok: true });
   } catch (err) {
@@ -3735,49 +4282,6 @@ router.delete('/:id', async (req, res) => {
   } catch (err) {
     await conn.rollback();
     console.error('ERRO AO EXCLUIR PEDIDO:', err);
-    res.status(500).json({ error: err.message });
-  } finally {
-    conn.release();
-  }
-});
-
-// POST /api/pedidos/bulk-update — Atualização em Massa
-
-router.post('/bulk-update', async (req, res) => {
-  const conn = await getPool().getConnection();
-  try {
-    const { ids, update } = req.body; // ids: [1,2,3], update: { situacao_pedido: 'APROVADO' }
-    const id_usuario_log = req.user?.id || 1;
-    if (!ids || !ids.length) return res.status(400).json({ error: 'Nenhum pedido selecionado' });
-
-    await conn.beginTransaction();
-
-    for (const id of ids) {
-      // Pega status antigo para o log
-      const [old] = await conn.query('SELECT situacao_pedido FROM pedidos WHERE id = ?', [id]);
-      
-      // Aplica atualização (Suporta conversão de Orçamento para Pedido se necessário)
-      const sets = [];
-      const vals = [];
-      if (update.situacao_pedido) { sets.push('situacao_pedido = ?'); vals.push(update.situacao_pedido); }
-      if (update.tipo_pedido)     { sets.push('tipo_pedido = ?');     vals.push(update.tipo_pedido); }
-      
-      if (sets.length > 0) {
-        vals.push(id);
-        await conn.query(`UPDATE pedidos SET ${sets.join(', ')} WHERE id = ?`, vals);
-        
-        // Log individual para cada alteração em massa
-        await conn.query(`
-          INSERT INTO logs_pedidos (id_pedido, id_usuario, acao, status_antigo, status_novo, detalhes)
-          VALUES (?, ?, 'ALTERACAO_MASSA', ?, ?, ?)
-        `, [id, id_usuario_log, old[0]?.situacao_pedido, update.situacao_pedido || old[0]?.situacao_pedido, 'Atualização via ação em massa']);
-      }
-    }
-
-    await conn.commit();
-    res.json({ ok: true, count: ids.length });
-  } catch (err) {
-    await conn.rollback();
     res.status(500).json({ error: err.message });
   } finally {
     conn.release();
@@ -4017,15 +4521,18 @@ router.post('/:id/enviar-fabrica', async (req, res) => {
     if (!pedRows[0]) return res.status(404).json({ error: 'Pedido não encontrado' });
     const cod_fornecedor = pedRows[0].cod_fornecedor;
 
-    // Verifica se envio para fábrica está ativo
+    // Verifica se envio para fábrica está ativo + flag XML pedido venda
     const [fornRows] = await pool.query(
-      `SELECT enviar_pedido_fabrica FROM fornecedores WHERE id=? AND (excluido='N' OR excluido IS NULL OR excluido='') LIMIT 1`,
+      `SELECT enviar_pedido_fabrica, xml_pedidovenda
+         FROM fornecedores
+        WHERE id=? AND (excluido='N' OR excluido IS NULL OR excluido='') LIMIT 1`,
       [cod_fornecedor]
     ).catch(() => [[]]);
     if (!fornRows[0]) return res.status(404).json({ error: 'Fornecedor não encontrado' });
     if ((fornRows[0].enviar_pedido_fabrica || 'N') !== 'S') {
       return res.status(400).json({ error: 'Fornecedor não tem envio para fábrica ativado' });
     }
+    const geraXmlVenda = (fornRows[0].xml_pedidovenda || 'N') === 'S';
 
     // Busca os e-mails cadastrados
     const [emailRows] = await pool.query(
@@ -4074,12 +4581,35 @@ router.post('/:id/enviar-fabrica', async (req, res) => {
     const assinatura = smtpConfig.emailpedassinatura
       ? `<br><br><img src="${smtpConfig.emailpedassinatura}" style="max-width:400px" alt="Assinatura">`
       : '';
+
+    const attachments = [];
+    if (pdfBuffer) {
+      attachments.push({ filename: fileName, content: pdfBuffer, contentType: 'application/pdf' });
+    }
+
+    let xmlAnexo = false;
+    if (geraXmlVenda) {
+      const xmlPack = await buildXmlAnexoPedidoVenda(pool, id);
+      if (xmlPack) {
+        attachments.push({
+          filename: xmlPack.fileName,
+          content: xmlPack.buffer,
+          contentType: 'application/xml',
+        });
+        xmlAnexo = true;
+      }
+    }
+
+    if (!attachments.length) {
+      return res.status(400).json({ error: 'Nenhum anexo disponível para envio (PDF ou XML do pedido)' });
+    }
+
     await transporter.sendMail({
       from: `"${smtpConfig.emailpednome || 'S.G.I WEB'}" <${smtpConfig.emailpedemail}>`,
       to: emails.join(', '),
       subject: `Pedido Nº ${numero_pedido || id}`,
       html: (mensagem ? `<p style="font-family:Arial">${mensagem.replace(/\n/g, '<br>')}</p>` : '') + assinatura,
-      attachments: pdfBuffer ? [{ filename: fileName, content: pdfBuffer, contentType: 'application/pdf' }] : [],
+      attachments,
     });
 
     await pool.query(
@@ -4087,7 +4617,7 @@ router.post('/:id/enviar-fabrica', async (req, res) => {
       [id]
     ).catch(() => {});
 
-    res.json({ ok: true, emails });
+    res.json({ ok: true, emails, xml_anexo: xmlAnexo });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

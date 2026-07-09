@@ -14,6 +14,7 @@ const { resolveEmpresaLogoRelatorio, sanitizeEmpresaRow, fsPathFromLogoRelatorio
 const { buildGtelaFromPerfil, PERFIL_SN_CADASTRO } = require('../config/cadastros-permissoes');
 const { sqlPerfilOverlayAliases, overlayPerfilPermissoes } = require('../config/permissoes-usuario-perfil');
 const { ensurePerfilCadastroColumns } = require('../config/schema-migrations');
+const { registrarAcesso } = require('../config/registrar-acesso');
 
 const EMPRESA_NAO_EXCLUIDA = `COALESCE(NULLIF(TRIM(excluido), ''), 'N') = 'N'`;
 const E_EMPRESA_NAO_EXCLUIDA = `COALESCE(NULLIF(TRIM(e.excluido), ''), 'N') = 'N'`;
@@ -93,6 +94,99 @@ function logoSessionAllows(sessionKey, idEmpresa) {
   return id > 0 && v.ids.has(id);
 }
 
+async function _fetchTenantBrandRow(pool, idEmpresa) {
+  await ensureEmpresaLogoColumnAuth(pool);
+  if (idEmpresa) {
+    const [[row]] = await pool.query(
+      `SELECT id_empresa, Razao_empresa, logo_relatorio, logo_tamanho_relatorio
+       FROM empresa
+       WHERE id_empresa = ? AND ${EMPRESA_NAO_EXCLUIDA}
+       LIMIT 1`,
+      [idEmpresa]
+    );
+    if (row) return sanitizeEmpresaRow(pool, row);
+    return null;
+  }
+  const [[row]] = await pool.query(
+    `SELECT id_empresa, Razao_empresa, logo_relatorio, logo_tamanho_relatorio
+     FROM empresa
+     WHERE ${EMPRESA_NAO_EXCLUIDA}
+     ORDER BY (logo_relatorio IS NOT NULL AND TRIM(logo_relatorio) <> '') DESC, id_empresa ASC
+     LIMIT 1`
+  );
+  if (!row) return null;
+  return sanitizeEmpresaRow(pool, row);
+}
+
+function _sendEmpresaLogoFile(res, idEmpresa, relRaw) {
+  const rel = resolveEmpresaLogoRelatorio(idEmpresa, relRaw ? String(relRaw).trim() : '') || '';
+  const m = rel.match(/^\/uploads\/empresas\/(\d+)\/([^/]+)$/);
+  if (!m || String(m[1]) !== String(idEmpresa)) return false;
+
+  const fileName = m[2];
+  if (!fileName || fileName.includes('..') || /[\\/]/.test(fileName)) return false;
+
+  const abs = fsPathFromLogoRelatorio(rel);
+  if (!abs || !fs.existsSync(abs)) return false;
+
+  const ext = path.extname(abs).toLowerCase();
+  const types = {
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+    '.svg': 'image/svg+xml',
+  };
+  res.type(types[ext] || 'application/octet-stream');
+  res.set('Cache-Control', 'private, max-age=300');
+  res.sendFile(abs);
+  return true;
+}
+
+/**
+ * GET /api/auth/login-tenant-brand
+ * Logo padrão da instalação para o login mobile (sem credenciais).
+ * Prioriza empresa com logo_relatorio cadastrado.
+ */
+router.get('/login-tenant-brand', async (req, res) => {
+  try {
+    const pool = getPool();
+    const id = parseInt(req.query.id, 10) || null;
+    const sanitized = await _fetchTenantBrandRow(pool, id > 0 ? id : null);
+    if (!sanitized) return res.json({ ok: false });
+    res.json({
+      ok: true,
+      id_empresa: sanitized.id_empresa,
+      razao_empresa: sanitized.Razao_empresa || null,
+      logo_relatorio: sanitized.logo_relatorio || null,
+      logo_url: publicAssetUrl(req, sanitized.logo_relatorio),
+    });
+  } catch (err) {
+    console.error('login-tenant-brand:', err.message);
+    res.json({ ok: false });
+  }
+});
+
+/**
+ * GET /api/auth/login-tenant-brand-img?id=
+ * Imagem do logo para o <img> do login mobile — carrega ao abrir a página (sem JS).
+ */
+router.get('/login-tenant-brand-img', async (req, res) => {
+  try {
+    const pool = getPool();
+    const id = parseInt(req.query.id, 10) || null;
+    const sanitized = await _fetchTenantBrandRow(pool, id > 0 ? id : null);
+    if (!sanitized || !sanitized.logo_relatorio) return res.status(404).end();
+    if (!_sendEmpresaLogoFile(res, sanitized.id_empresa, sanitized.logo_relatorio)) {
+      return res.status(404).end();
+    }
+  } catch (err) {
+    console.error('login-tenant-brand-img:', err.message);
+    res.status(500).end();
+  }
+});
+
 /**
  * GET /api/auth/empresa/:id/brand-logo?ls=...
  * Logo da empresa para a tela de login. Exige ls (token devolvido em empresas-usuario).
@@ -111,28 +205,7 @@ router.get('/empresa/:id/brand-logo', async (req, res) => {
       [id]
     );
     const relRaw = row && row.logo_relatorio ? String(row.logo_relatorio).trim() : '';
-    const rel = resolveEmpresaLogoRelatorio(id, relRaw) || '';
-    const m = rel.match(/^\/uploads\/empresas\/(\d+)\/([^/]+)$/);
-    if (!m || String(m[1]) !== String(id)) return res.status(404).end();
-
-    let fileName = m[2];
-    if (!fileName || fileName.includes('..') || /[\\/]/.test(fileName)) return res.status(404).end();
-
-    const abs = fsPathFromLogoRelatorio(rel);
-    if (!abs || !fs.existsSync(abs)) return res.status(404).end();
-
-    const ext = path.extname(abs).toLowerCase();
-    const types = {
-      '.png': 'image/png',
-      '.jpg': 'image/jpeg',
-      '.jpeg': 'image/jpeg',
-      '.gif': 'image/gif',
-      '.webp': 'image/webp',
-      '.svg': 'image/svg+xml',
-    };
-    res.type(types[ext] || 'application/octet-stream');
-    res.set('Cache-Control', 'private, max-age=120');
-    res.sendFile(abs);
+    if (!_sendEmpresaLogoFile(res, id, relRaw)) return res.status(404).end();
   } catch (err) {
     console.error('brand-logo:', err.message);
     res.status(500).end();
@@ -187,7 +260,8 @@ router.get('/instalacao-brand-logo', async (req, res) => {
 // Lógica baseada no Delphi: SELECT p.*, s.* FROM usuarios s INNER JOIN perfil p ON p.id = s.idperfil
 // WHERE s.SITUACAO = 'ATIVO' AND s.excluido = 'N' AND s.loginusu = ? AND s.senhausu = ?
 router.post('/login', async (req, res) => {
-  const { loginusu, senhausu, id_empresa } = req.body;
+  const { loginusu, senhausu } = req.body;
+  let id_empresa = req.body.id_empresa || null;
   // Em modo bound: chave vem do processo (.env). Em legado: vem do body/localStorage.
   // Fallback: license-binding.json (instalações locais com CUSTOMER_DB_FROM_LICENSE=1 mas sem CHAVE_LICENCA no env)
   const chave_licenca = getBoundChave() || req.body.chave_licenca || readLicenseBinding()?.chave_licenca || null;
@@ -199,6 +273,10 @@ router.post('/login', async (req, res) => {
   const handler = async () => {
   try {
     const pool = getPool();
+
+    // Garante colunas do perfil antes da query de login — evita deadlock de bootstrap
+    // (ensurePerfilCadastroColumns normalmente roda em /api/modulos, pós-login)
+    await ensurePerfilCadastroColumns(pool).catch(() => {});
 
     const perfilOverlay = sqlPerfilOverlayAliases('p');
     const [rows] = await pool.query(
@@ -237,6 +315,21 @@ router.post('/login', async (req, res) => {
     // Carrega permissões (igual ao PermissaoOperacao do Delphi)
     const permissoes = buildPermissoes(user);
 
+    // Frontend pode logar sem escolher empresa (combo com 1 opção não foi selecionado a tempo,
+    // sessão restaurada, etc.) — resolve no servidor pra não gravar id_empresa=null no token
+    // (quebra a logo/Razao_empresa do topo da home, que depende desse campo do JWT).
+    if (!id_empresa) {
+      if (user.empresapadrao) {
+        id_empresa = user.empresapadrao;
+      } else {
+        const [empVinc] = await pool.query(
+          `SELECT cod_empresa FROM usuario_empresas WHERE excluido = 'N' AND status = 'SIM' AND id_usuario = ?`,
+          [String(user.idusuario)]
+        ).catch(() => [[]]);
+        if (empVinc && empVinc.length === 1) id_empresa = empVinc[0].cod_empresa;
+      }
+    }
+
     // Carrega dados da empresa selecionada
     let empresaData = null;
     if (id_empresa) {
@@ -258,6 +351,22 @@ router.post('/login', async (req, res) => {
     const userAgent = req.headers['user-agent'] || '';
     const clientIp = req.ip || req.connection.remoteAddress;
     await registrarTerminal(pool, clientIp, userAgent, user.idusuario, id_empresa);
+
+    // Controle de acessos (resumo por aparelho + histórico) — não bloqueia o login
+    registrarAcesso(pool, {
+      chave_licenca,
+      id_empresa,
+      nome_empresa: empresaData?.Razao_empresa || empresaData?.razao_empresa || null,
+      id_usuario: user.idusuario,
+      login_usuario: user.loginusu,
+      nome_usuario: user.nomeusu,
+      ip: clientIp,
+      user_agent: userAgent,
+      device_id: req.body.device_id,
+      device_apelido: req.body.device_apelido,
+      latitude: req.body.latitude,
+      longitude: req.body.longitude,
+    }).catch(() => {});
 
     // Atualiza último acesso
     await pool.query(
@@ -291,6 +400,8 @@ router.post('/login', async (req, res) => {
       id_empresa: id_empresa || null,
       id_gerente: user.id_gerente || null,
       tipo_usuario: user.tipo_usuario || 'REPRESENTANTE',
+      preposto_visibilidade: user.preposto_visibilidade || 'TODOS',
+      preposto_pedidos_visibilidade: user.preposto_pedidos_visibilidade || 'CARTEIRA',
       comissao_preposto_pct: parseFloat(user.comissao_preposto_pct) || 6,
       dash_avisofinanceiro: user.dash_avisofinanceiro || 'N',
       permissoes,
@@ -1002,8 +1113,9 @@ function buildPermissoes(rawUser) {
     acessogerenciais: s('acessogerenciais'),
     manutencaocadastros: s('manutencaocadastros'),
     acessar_cadastros: s('acessar_cadastros'),
-    // acessartodosclientes e gerentecomercial usam sb (blank = ignorar)
+    // acessartodosclientes, acessar_vendastodos e gerentecomercial usam sb (blank = ignorar)
     acessartodosclientes: sb('acessartodosclientes'),
+    acessar_vendastodos: sb('acessar_vendastodos'),
     gerentecomercial: sb('gerentecomercial'),
     mudarempresa: isAdmin ? 'S' : (user.mudarempresa || 'N'),
     alterarbase: isAdmin ? 'S' : (user.alterarbase || 'N'),
