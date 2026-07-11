@@ -29,12 +29,24 @@ const STATIC = [
   '/assets/pedidos-offline-pack.js',
   '/assets/offline-db.js',
   '/assets/offline-sync.js',
+  '/assets/offline-login.js',
+  '/assets/pedido-rascunho.js',
+  '/assets/pedido-item-regras.js',
+  '/assets/fornecedor-kit-pedido.js',
+  '/assets/vendas-duplicar-item.js',
+  '/assets/pwa-install.js',
+  '/assets/version-update.js',
+  '/assets/sw-register.js',
+  '/assets/sw-kill.js',
   '/assets/feirinha-calc.js',
   '/assets/preco-peso-produto.js',
   '/assets/comissao-preposto-ui.js',
+  '/assets/sysrep-api.js',
   '/assets/ajuda-tour.css',
   '/assets/ajuda-tour.js',
   '/assets/ajuda-tours.js',
+  '/assets/novidades-modal.js',
+  '/assets/novidades-modal.css',
   '/assets/icon-192.png',
   '/vendor/leaflet/leaflet.css',
   '/vendor/leaflet/leaflet.js',
@@ -144,7 +156,9 @@ self.addEventListener('install', e => {
     caches.open(CACHE_NAME).then(async (c) => {
       for (const path of STATIC) {
         try {
-          await c.add(path);
+          // cache:'reload' — buscar da REDE, não do cache HTTP do navegador;
+          // sem isso o SW novo pré-cacheava versões velhas dos arquivos.
+          await c.add(new Request(path, { cache: 'reload' }));
         } catch (_) {
           /* arquivo opcional / servidor offline no install */
         }
@@ -222,6 +236,10 @@ self.addEventListener('fetch', e => {
 
     const safe = (p) =>
       Promise.resolve(p).catch(() => new Response('', { status: 503, statusText: 'Service Unavailable' }));
+
+    // Download do pacote offline pode passar de 20s em base grande — deixar o
+    // navegador cuidar direto (sem timeout do SW), senão o preparo aborta no meio.
+    if (url.pathname === '/api/pedidos/offline-pack') return;
 
     if (url.pathname.startsWith('/api/')) {
       // NUNCA curto-circuitar por navigator.onLine: dentro do Service Worker essa

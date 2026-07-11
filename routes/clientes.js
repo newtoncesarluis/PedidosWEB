@@ -2,6 +2,10 @@ const express = require('express');
 const router  = express.Router();
 const { getPool, runWithRequestPool } = require('../config/database');
 const { getPrepostoContext } = require('../config/vendedor-visibilidade');
+const {
+  resolveCadastroFiltro,
+  appendCadastroWhere,
+} = require('../config/clientes-cadastro-filtro');
 const multer  = require('multer');
 const path    = require('path');
 const fs      = require('fs');
@@ -112,6 +116,10 @@ async function salvarVinculosTabelas(pool, clienteId, tabelasPreco) {
   } catch(e) {}
 }
 
+function appendCadastroWhereLegacy(where, vals, cadastro) {
+  appendCadastroWhere(where, vals, cadastro, 'DATE(c.dtcadastro)');
+}
+
 // ─── GET /api/clientes ────────────────────────────────────────────────────────
 // Query params: q (busca), status (A|I|todos), limit, offset
 router.get('/', async (req, res) => {
@@ -119,7 +127,8 @@ router.get('/', async (req, res) => {
     const pool   = getPool();
     const { q = '', status = 'A', limit = 100, offset = 0,
             tipo_cliente = '', cidade = '', sem_compra_dias = '', suspensa = '',
-            id_regiao = '', lat, lng, raio = 50 } = req.query;
+            id_regiao = '', cod_segmento = '', lat, lng, raio = 50,
+            cadastro_periodo = '', cadastro_de = '', cadastro_ate = '' } = req.query;
 
     let where = [`(c.excluido = 'N' OR c.excluido IS NULL OR c.excluido = '')`];
     const vals = [];
@@ -174,6 +183,20 @@ router.get('/', async (req, res) => {
       vals.push(`%${cidade.trim().toLowerCase()}%`);
     }
 
+    const segId = parseInt(cod_segmento, 10);
+    if (segId > 0) {
+      where.push(`(
+        CAST(c.cod_segmento AS UNSIGNED) = ?
+        OR TRIM(c.cod_segmento) = ?
+        OR LOWER(TRIM(c.segmento)) = (
+          SELECT LOWER(TRIM(cat.descricao)) FROM categoria cat
+          WHERE cat.id = ? AND COALESCE(cat.excluido, 'N') = 'N'
+          LIMIT 1
+        )
+      )`);
+      vals.push(segId, String(segId), segId);
+    }
+
     if (sem_compra_dias && parseInt(sem_compra_dias) > 0) {
       const dtLimite = new Date();
       dtLimite.setDate(dtLimite.getDate() - parseInt(sem_compra_dias));
@@ -189,6 +212,12 @@ router.get('/', async (req, res) => {
       where.push(`c.regiao = ?`);
       vals.push(parseInt(id_regiao));
     }
+
+    appendCadastroWhereLegacy(where, vals, resolveCadastroFiltro({
+      cadastro_periodo,
+      cadastro_de,
+      cadastro_ate,
+    }));
 
     let distanceCol = "";
     let selectVals = [];

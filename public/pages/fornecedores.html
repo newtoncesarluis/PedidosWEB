@@ -175,6 +175,8 @@ tbody tr.row-selected { background: var(--accent-soft, rgba(13,148,136,0.15)); b
 tbody td { padding:10px 12px; vertical-align:middle; }
 .tag-novo { background:#dcfce7; color:#15803d; border-radius:4px;
   padding:1px 6px; font-size:10px; font-weight:700; margin-left:4px; letter-spacing:.3px; }
+.tag-alerta-tabela { background:#fef3c7; color:#92400e; border-radius:4px;
+  padding:1px 6px; font-size:10px; font-weight:700; margin-left:4px; letter-spacing:.3px; white-space:nowrap; }
 .status-badge { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:600; }
 .status-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
 
@@ -508,6 +510,7 @@ html.sysrep-home-embed #formSection .form-footer { flex-shrink:0 !important; }
 <link rel="stylesheet" href="/assets/ajuda-tour.css">
 <script src="/assets/ajuda-tour.js"></script>
 <script src="/assets/ajuda-tours.js"></script>
+<script src="/assets/vendas-duplicar-item.js"></script>
 </head>
 <body data-tour-default="fornecedores-cadastro">
 
@@ -718,6 +721,7 @@ html.sysrep-home-embed #formSection .form-footer { flex-shrink:0 !important; }
       <div class="form-tab" onclick="abrirAba('tabpreco',this)">Tabela de Preços</div>
       <div class="form-tab" onclick="abrirAba('vendedores',this)">Vendedores</div>
       <div class="form-tab" onclick="abrirAba('condpagto',this)">Cond. Pagamento</div>
+      <div class="form-tab" onclick="abrirAba('kitpedido',this)">Kit de Pedido</div>
       <div class="form-tab" onclick="abrirAba('imagens',this)">Imagens</div>
       <div class="form-tab" onclick="abrirAba('produtos',this)">Produtos</div>
       <div class="form-tab" onclick="abrirAba('obs',this)">Observações</div>
@@ -964,17 +968,18 @@ html.sysrep-home-embed #formSection .form-footer { flex-shrink:0 !important; }
           <div class="pref-section-body">
             <div class="pref-grid">
               <div class="pref-duo-row">
-                <div id="vendasduplicaritem-pref-section" class="pref-item pref-item--feature" data-pref-keywords="somar quantidade duplicar item pedido vendasduplicaritem mesmo produto" onclick="togglePref('f_vendasduplicaritem')">
-                  <div style="display:flex;align-items:flex-start;gap:12px;width:100%">
-                    <input type="checkbox" id="f_vendasduplicaritem" style="width:18px;height:18px;margin-top:2px">
-                    <div style="flex:1;min-width:0">
-                      <label for="f_vendasduplicaritem" class="feature-title">Somar quantidade ao incluir o mesmo produto</label>
-                      <p class="feature-hint">
-                        Ativo (S): soma na linha existente, sem duplicar.
-                        Inativo (N): bloqueia incluir o mesmo código novamente.
-                      </p>
-                    </div>
-                  </div>
+                <div id="vendasduplicaritem-pref-section" class="pref-item pref-item--feature pref-item--stacked" data-pref-keywords="somar quantidade duplicar item pedido vendasduplicaritem mesmo produto nova linha">
+                  <label for="f_vendasduplicaritem" class="feature-title">Mesmo produto no pedido</label>
+                  <select id="f_vendasduplicaritem" class="input-field" autocomplete="off" style="width:100%;max-width:100%">
+                    <option value="S">Somar na mesma linha</option>
+                    <option value="D">Permitir nova linha (não somar)</option>
+                    <option value="N">Bloquear duplicata</option>
+                  </select>
+                  <p class="feature-hint">
+                    <strong>Somar:</strong> inclui de novo e aumenta a quantidade na linha existente.
+                    <strong>Nova linha:</strong> repete o produto com preço, desconto ou obs. diferentes.
+                    <strong>Bloquear:</strong> não permite o mesmo código duas vezes.
+                  </p>
                 </div>
                 <div id="feirinha-pref-section" class="pref-item pref-item--feature" onclick="togglePref('f_habilita_feirinha')">
                   <div style="display:flex;align-items:flex-start;gap:12px;width:100%">
@@ -1022,6 +1027,10 @@ html.sysrep-home-embed #formSection .form-footer { flex-shrink:0 !important; }
                 <input type="checkbox" id="f_tabelasunificadas">
                 <label for="f_tabelasunificadas">Tabelas Preços Unificadas</label>
               </div>
+              <div class="pref-item" onclick="togglePref('f_alertar_tabela_desatualizada')">
+                <input type="checkbox" id="f_alertar_tabela_desatualizada">
+                <label for="f_alertar_tabela_desatualizada">Alertar se Tabela de Preço Desatualizada</label>
+              </div>
               <div class="pref-item" onclick="togglePref('f_cod_fabrelgraficos')">
                 <input type="checkbox" id="f_cod_fabrelgraficos">
                 <label for="f_cod_fabrelgraficos">Cod. Fabricantes Rel. Gráficos</label>
@@ -1058,6 +1067,11 @@ html.sysrep-home-embed #formSection .form-footer { flex-shrink:0 !important; }
               <div class="pref-item" onclick="togglePref('f_manterobsped')">
                 <input type="checkbox" id="f_manterobsped">
                 <label for="f_manterobsped">Manter Observação Últ. Pedido</label>
+              </div>
+              <div class="pref-item pref-item--feature" onclick="togglePref('f_obsitem_pedido')">
+                <input type="checkbox" id="f_obsitem_pedido">
+                <label for="f_obsitem_pedido" class="feature-title">Observação por item no pedido</label>
+                <p class="feature-hint">Libera o campo <strong>Obs. do item</strong> ao incluir produtos e exibe o texto abaixo da descrição na lista (desktop e mobile).</p>
               </div>
               <div class="pref-item pref-item--static pref-item--wide" style="flex-direction:column;align-items:flex-start;gap:6px" onclick="event.stopPropagation()">
                 <label style="font-size:12px;font-weight:600;color:var(--text2)">Cor da Observação no Pedido</label>
@@ -1438,6 +1452,62 @@ html.sysrep-home-embed #formSection .form-footer { flex-shrink:0 !important; }
         </div>
         <div style="margin-top:14px;display:flex;justify-content:flex-end">
           <button class="btn btn-primary" onclick="salvarCondicoesPagtoFornecedor()" style="min-width:140px">Salvar Condições</button>
+        </div>
+      </div>
+
+      <!-- ABA KIT DE PEDIDO -->
+      <div class="tab-pane" id="tab-kitpedido">
+        <p style="font-size:12px;color:var(--text2);margin:0 0 12px">
+          Kit sugerido para montagem rápida no pedido. Opcional: desconto % quando todos os itens estiverem com a quantidade mínima do kit, e desconto na primeira compra do cliente com esta fábrica.
+        </p>
+        <div class="pref-grid" style="margin-bottom:14px">
+          <div class="pref-item" onclick="togglePref('f_habilita_kit_pedido')">
+            <input type="checkbox" id="f_habilita_kit_pedido">
+            <label for="f_habilita_kit_pedido">Habilitar kit de pedido</label>
+          </div>
+          <div class="form-group">
+            <label>Desconto % — kit completo</label>
+            <input type="number" id="f_kit_desconto_pct" step="0.01" min="0" max="100" placeholder="Ex: 5" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label>Desconto % — primeira compra</label>
+            <input type="number" id="f_desconto_primeira_compra_pct" step="0.01" min="0" max="100" placeholder="Ex: 5" autocomplete="off">
+          </div>
+          <div class="pref-item" onclick="togglePref('f_promo_primeira_compra_exige_kit')">
+            <input type="checkbox" id="f_promo_primeira_compra_exige_kit">
+            <label for="f_promo_primeira_compra_exige_kit">Promo 1ª compra exige kit completo</label>
+          </div>
+          <div class="form-group">
+            <label>Prazo da promo (parcelas)</label>
+            <input type="text" id="f_promo_condicao_pagto" placeholder="0/21/42" autocomplete="off" title="Dias após a data base: 0 = entrada, depois 21 e 42 dias">
+            <span class="field-hint" style="font-size:11px;color:var(--text2);margin-top:4px;display:block">Use <strong>0/21/42</strong> para entrada + 21 + 42 dias (3× iguais após o desconto).</span>
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label>Texto do banner no pedido</label>
+            <input type="text" id="f_promo_texto_banner" placeholder="Promoção Primeira Compra" autocomplete="off" maxlength="200">
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px;flex-wrap:wrap">
+          <span style="font-size:12px;font-weight:700;color:var(--text)">Itens do kit</span>
+          <button type="button" class="btn btn-primary" style="font-size:12px" onclick="adicionarLinhaKitPedido()">+ Adicionar produto</button>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="img-table" id="kitPedidoTable">
+            <thead>
+              <tr>
+                <th style="width:90px">Cód. produto</th>
+                <th>Descrição</th>
+                <th style="width:110px;text-align:right">Quantidade</th>
+                <th style="width:50px"></th>
+              </tr>
+            </thead>
+            <tbody id="kitPedidoBody">
+              <tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text2)">Nenhum item no kit.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div style="margin-top:14px;display:flex;justify-content:flex-end">
+          <button type="button" class="btn btn-primary" onclick="salvarKitPedidoFornecedor()" style="min-width:140px">Salvar Kit</button>
         </div>
       </div>
 
@@ -1918,6 +1988,103 @@ async function salvarCondicoesPagtoFornecedor(idForn, silencioso) {
   }
 }
 
+// ─── Kit de pedido por fornecedor ────────────────────────────────────────────
+let _kitPedidoFornecedor = [];
+
+function carregarKitPedidoFornecedor(id) {
+  const tbody = document.getElementById('kitPedidoBody');
+  if (!tbody) return;
+  if (!id) {
+    _kitPedidoFornecedor = [];
+    renderKitPedidoFornecedor();
+    return;
+  }
+  tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text2)">Carregando…</td></tr>';
+  api(`/api/fornecedores/${id}/kit-pedido`).then(r => r.json()).then(d => {
+    _kitPedidoFornecedor = (d.itens || []).map(it => ({
+      cod_produto: it.cod_produto,
+      nome_produto: it.nome_produto || '',
+      quantidade: parseFloat(it.quantidade) || 1,
+    }));
+    renderKitPedidoFornecedor();
+  }).catch(() => { _kitPedidoFornecedor = []; renderKitPedidoFornecedor(); });
+}
+
+function renderKitPedidoFornecedor() {
+  const tbody = document.getElementById('kitPedidoBody');
+  if (!tbody) return;
+  if (!_kitPedidoFornecedor.length) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text2)">Nenhum item no kit.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = _kitPedidoFornecedor.map((it, i) => `
+    <tr>
+      <td style="padding:8px 10px">
+        <input type="number" min="1" step="1" value="${escHtml(String(it.cod_produto || ''))}" autocomplete="off"
+          style="width:80px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text)"
+          onchange="_kitPedidoFornecedor[${i}].cod_produto=parseInt(this.value)||0;buscarNomeProdutoKit(${i})">
+      </td>
+      <td style="padding:8px 10px;font-size:12px;color:var(--text2)" id="kit_prod_nome_${i}">${escHtml(it.nome_produto || '—')}</td>
+      <td style="padding:8px 10px;text-align:right">
+        <input type="number" min="0.0001" step="any" value="${it.quantidade || 1}"
+          style="width:90px;text-align:right;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text)"
+          onchange="_kitPedidoFornecedor[${i}].quantidade=parseFloat(this.value)||1">
+      </td>
+      <td style="padding:8px 6px;text-align:center">
+        <button type="button" class="btn btn-ghost" style="padding:2px 8px;font-size:11px;color:var(--danger,#ef4444)" onclick="removerLinhaKitPedido(${i})">✕</button>
+      </td>
+    </tr>`).join('');
+}
+
+async function buscarNomeProdutoKit(idx) {
+  const cod = parseInt(_kitPedidoFornecedor[idx]?.cod_produto, 10);
+  const el = document.getElementById(`kit_prod_nome_${idx}`);
+  if (!cod || !el) return;
+  try {
+    const r = await api(`/api/produtos/${cod}`);
+    if (!r.ok) { el.textContent = 'Produto não encontrado'; return; }
+    const p = await r.json();
+    _kitPedidoFornecedor[idx].nome_produto = p.descricao || '';
+    el.textContent = p.descricao || '—';
+  } catch (_) {
+    if (el) el.textContent = '—';
+  }
+}
+
+function adicionarLinhaKitPedido() {
+  _kitPedidoFornecedor.push({ cod_produto: '', nome_produto: '', quantidade: 1 });
+  renderKitPedidoFornecedor();
+}
+
+function removerLinhaKitPedido(idx) {
+  _kitPedidoFornecedor.splice(idx, 1);
+  renderKitPedidoFornecedor();
+}
+
+async function salvarKitPedidoFornecedor(idForn, silencioso) {
+  const id = idForn || _editandoId;
+  if (!id) {
+    if (!silencioso) showToast('Salve o fornecedor primeiro.', 'warn');
+    return false;
+  }
+  try {
+    const itens = _kitPedidoFornecedor
+      .filter(it => parseInt(it.cod_produto, 10) > 0 && (parseFloat(it.quantidade) || 0) > 0)
+      .map(it => ({ cod_produto: parseInt(it.cod_produto, 10), quantidade: parseFloat(it.quantidade) || 1 }));
+    const r = await api(`/api/fornecedores/${id}/kit-pedido`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ itens }),
+    });
+    if (!r.ok) throw new Error((await r.json()).error || 'Erro');
+    if (!silencioso) showToast('Kit de pedido salvo.', 'success');
+    return true;
+  } catch (e) {
+    if (!silencioso) showToast(e.message || 'Erro ao salvar kit.', 'error');
+    return false;
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   const user = JSON.parse(sessionStorage.getItem('user') || '{}');
   const perm = user.permissoes || {};
@@ -2069,6 +2236,7 @@ function renderCards(rows) {
         <div style="margin-top:4px">
           <span class="badge-tipo bt-${(f.tipo||'FABRICA').toLowerCase()}">${escHtml(f.tipo||'FÁBRICA')}</span>
         </div>
+        ${f.tabela_desatualizada?'<div style="margin-top:6px"><span class="tag-alerta-tabela">⚠ TABELA DESATUALIZADA</span></div>':''}
       </div>
       <div class="forn-card-foot">
         <span class="status-badge"><span class="status-dot" style="background:${statusColor}"></span>${statusLabel}</span>
@@ -2121,6 +2289,7 @@ function renderTabela(rows) {
               ${isNovo ? '<span class="tag-novo">NOVO</span>' : ''}
             </div>
             ${f.apelido ? `<div class="td-name-meta"><span>${escHtml(f.apelido)}</span></div>` : ''}
+            ${f.tabela_desatualizada ? '<div class="td-name-meta"><span class="tag-alerta-tabela" title="Tabela de preço vencida ou sem atualização há mais de 180 dias">⚠ TABELA DESATUALIZADA</span></div>' : ''}
           </div>
         </div>
       </td>
@@ -2591,6 +2760,7 @@ function novoRegistro() {
   carregarTabelasPreco(null);
   carregarVendedores(null);
   carregarCondicoesPagtoFornecedor(null);
+  carregarKitPedidoFornecedor(null);
   document.getElementById('produtosBody').innerHTML =
     '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text2)">Salve o fornecedor primeiro para vincular produtos.</td></tr>';
   abrirAba('geral', document.querySelector('.form-tab'));
@@ -2617,6 +2787,7 @@ async function abrirEdicao(id) {
     carregarTabelasPreco(id);
     carregarVendedores(id);
     carregarCondicoesPagtoFornecedor(id);
+    carregarKitPedidoFornecedor(id);
     carregarProdutosFornecedor(id);
     carregarEmailsFabrica(id);
     abrirAba('geral', document.querySelector('.form-tab'));
@@ -2710,11 +2881,12 @@ function limparForm() {
   syncPrefSecoesPorTipoFornecedor();
   // Checkboxes — defaults conforme tabela
   ['f_fornecedorpadraopedido','f_exibirdescontopedido','f_observacaopedido',
+   'f_obspedido','f_obsitem_pedido',
    'f_importarimpostos','f_importaremablagens','f_importaprecos',
    'f_consignado','f_logopedido','f_descontomultiplos','f_habilita_feirinha','f_xml_pedidovenda',
    'f_peso_exibritelapedidos','f_manterobsped','f_manterprazoped',
    'f_tabelasunificadas','f_pedido_grades','f_fotosprodutospedido',
-   'f_mostrar_vlr_desc_pedido','f_imprimirparcelaspedido'].forEach(id => setCheckSN(id, 'N'));
+   'f_mostrar_vlr_desc_pedido','f_imprimirparcelaspedido','f_alertar_tabela_desatualizada'].forEach(id => setCheckSN(id, 'N'));
   const eIPP = document.getElementById('f_imprimirparcelaspedido'); if (eIPP) eIPP.value = 'N';
   const eLI  = document.getElementById('f_layout_impressao');       if (eLI)  eLI.value  = 'PADRAO';
   const ePCF = document.getElementById('f_pedidos_codfabricante'); if (ePCF) ePCF.value = 'N';
@@ -2722,7 +2894,8 @@ function limparForm() {
   ['f_obs_bold','f_obs_italic','f_obs_underline','f_obs_uppercase'].forEach(id => { const el = document.getElementById(id); if(el) el.checked = false; });
   atualizarPreviewObs();
   setCheckSN('f_obspedido',           'S'); // default S
-  setCheckSN('f_vendasduplicaritem',  'S'); // default S
+  setCheckSN('f_obsitem_pedido',      'N'); // default N
+  setVendasDuplicarItemModo('S');
   setCheckSN('f_cod_fabrelgraficos',  'S'); // default S
   const ePP = document.getElementById('f_parcela_pedvendas'); if (ePP) ePP.value = 'Data Abertura';
   const eFP = document.getElementById('f_forma_pagtopadrao'); if (eFP) eFP.value = '';
@@ -2764,14 +2937,21 @@ function preencherForm(f) {
   setCheckSN('f_exibirdescontopedido',    f.exibirdescontopedido    || 'N');
   setCheckSN('f_observacaopedido',        f.observacaopedido        || 'N');
   setCheckSN('f_obspedido',              f.obspedido               || 'S');
+  setCheckSN('f_obsitem_pedido',         f.obsitem_pedido          || 'N');
   setCheckSN('f_importarimpostos',        f.importarimpostos        || 'N');
   setCheckSN('f_importaremablagens',      f.importaremablagens      || 'N');
   setCheckSN('f_importaprecos',           f.importaprecos           || 'N');
   setCheckSN('f_consignado',              f.consignado              || 'N');
   setCheckSN('f_logopedido',              f.logopedido              || 'N');
-  setCheckSN('f_vendasduplicaritem',      f.vendasduplicaritem      || 'S');
+  setVendasDuplicarItemModo(f.vendasduplicaritem);
   setCheckSN('f_descontomultiplos',       f.descontomultiplos       || 'N');
   setCheckSN('f_habilita_feirinha',       f.habilita_feirinha       || 'N');
+  setCheckSN('f_habilita_kit_pedido',   f.habilita_kit_pedido     || 'N');
+  set('f_kit_desconto_pct',             f.kit_desconto_pct != null ? f.kit_desconto_pct : '');
+  set('f_desconto_primeira_compra_pct', f.desconto_primeira_compra_pct != null ? f.desconto_primeira_compra_pct : '');
+  setCheckSN('f_promo_primeira_compra_exige_kit', f.promo_primeira_compra_exige_kit || 'N');
+  set('f_promo_condicao_pagto',         f.promo_condicao_pagto || '');
+  set('f_promo_texto_banner',           f.promo_texto_banner || '');
   setCheckSN('f_xml_pedidovenda',         f.xml_pedidovenda         || 'N');
   setCheckSN('f_peso_exibritelapedidos',  f.peso_exibritelapedidos  || 'N');
   setCheckSN('f_manterobsped',            f.manterobsped            || 'N');
@@ -2779,6 +2959,7 @@ function preencherForm(f) {
   document.getElementById('f_parcela_pedvendas').value = f.parcela_pedvendas || 'Data Abertura';
   document.getElementById('f_forma_pagtopadrao').value = f.forma_pagtopadrao || '';
   setCheckSN('f_tabelasunificadas',       f.tabelasunificadas       || 'N');
+  setCheckSN('f_alertar_tabela_desatualizada', f.alertar_tabela_desatualizada || 'N');
   setCheckSN('f_cod_fabrelgraficos',      f.cod_fabrelgraficos      || 'S');
   setCheckSN('f_pedido_grades',           f.pedido_grades           || 'N');
   setCheckSN('f_fotosprodutospedido',     f.fotosprodutospedido     || 'N');
@@ -2860,14 +3041,21 @@ function coletarForm() {
     exibirdescontopedido:    getCheckSN('f_exibirdescontopedido'),
     observacaopedido:        getCheckSN('f_observacaopedido'),
     obspedido:               getCheckSN('f_obspedido'),
+    obsitem_pedido:          getCheckSN('f_obsitem_pedido'),
     importarimpostos:        getCheckSN('f_importarimpostos'),
     importaremablagens:      getCheckSN('f_importaremablagens'),
     importaprecos:           getCheckSN('f_importaprecos'),
     consignado:              getCheckSN('f_consignado'),
     logopedido:              getCheckSN('f_logopedido'),
-    vendasduplicaritem:      getCheckSN('f_vendasduplicaritem'),
+    vendasduplicaritem:      getVendasDuplicarItemModo(),
     descontomultiplos:       getCheckSN('f_descontomultiplos'),
     habilita_feirinha:       getCheckSN('f_habilita_feirinha'),
+    habilita_kit_pedido:     getCheckSN('f_habilita_kit_pedido'),
+    kit_desconto_pct:        document.getElementById('f_kit_desconto_pct')?.value || null,
+    desconto_primeira_compra_pct: document.getElementById('f_desconto_primeira_compra_pct')?.value || null,
+    promo_primeira_compra_exige_kit: getCheckSN('f_promo_primeira_compra_exige_kit'),
+    promo_condicao_pagto:    document.getElementById('f_promo_condicao_pagto')?.value?.trim() || null,
+    promo_texto_banner:      document.getElementById('f_promo_texto_banner')?.value?.trim() || null,
     xml_pedidovenda:         getCheckSN('f_xml_pedidovenda'),
     peso_exibritelapedidos:  getCheckSN('f_peso_exibritelapedidos'),
     manterobsped:            getCheckSN('f_manterobsped'),
@@ -2875,6 +3063,7 @@ function coletarForm() {
     parcela_pedvendas:       document.getElementById('f_parcela_pedvendas')?.value || 'Data Abertura',
     forma_pagtopadrao:       document.getElementById('f_forma_pagtopadrao')?.value || null,
     tabelasunificadas:       getCheckSN('f_tabelasunificadas'),
+    alertar_tabela_desatualizada: getCheckSN('f_alertar_tabela_desatualizada'),
     cod_fabrelgraficos:      getCheckSN('f_cod_fabrelgraficos'),
     pedido_grades:           getCheckSN('f_pedido_grades'),
     fotosprodutospedido:     getCheckSN('f_fotosprodutospedido'),
@@ -2963,6 +3152,7 @@ async function salvar() {
     await salvarVendedores(novoId);
     await salvarFotos(novoId);
     await salvarCondicoesPagtoFornecedor(novoId, true);
+    await salvarKitPedidoFornecedor(novoId, true);
     showToast(_editandoId ? 'Fornecedor atualizado!' : 'Fornecedor cadastrado!', 'success');
     fecharFormulario();
     carregar();
@@ -3671,6 +3861,21 @@ function setCheckSN(id, val) {
 }
 function getCheckSN(id) {
   return document.getElementById(id)?.checked ? 'S' : 'N';
+}
+function setVendasDuplicarItemModo(val) {
+  const el = document.getElementById('f_vendasduplicaritem');
+  if (!el) return;
+  const norm = window.VendasDuplicarItem
+    ? VendasDuplicarItem.normalize(val)
+    : (String(val || 'S').toUpperCase() === 'N' ? 'N' : (String(val || 'S').toUpperCase() === 'D' ? 'D' : 'S'));
+  el.value = norm;
+}
+function getVendasDuplicarItemModo() {
+  const el = document.getElementById('f_vendasduplicaritem');
+  if (!el) return 'S';
+  return window.VendasDuplicarItem
+    ? VendasDuplicarItem.normalize(el.value)
+    : (String(el.value || 'S').toUpperCase() === 'N' ? 'N' : (String(el.value || 'S').toUpperCase() === 'D' ? 'D' : 'S'));
 }
 function togglePref(id, ev) {
   if (ev) {

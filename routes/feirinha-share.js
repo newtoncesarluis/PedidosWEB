@@ -14,6 +14,7 @@ const { getCampanha, campanhaEmVigencia } = require('../config/feirinha-campanha
 const { listarKitItens, prodSelectExtras, detectProdTable } = require('../config/feirinha-kit');
 const { agregarItensFeirinha } = require('../config/feirinha-calc');
 const { ensureFeirinhaTables } = require('../config/schema-migrations');
+const { acquireNumeroPedidoLock, releaseNumeroPedidoLock } = require('../config/pedido-numero-lock');
 
 const router = express.Router();
 const _tableReadyPools = new Set();
@@ -450,8 +451,10 @@ router.post('/:token/orcamento', async (req, res) => {
       const subtotal = parseFloat(itensValidados.reduce((s, i) => s + i.vlrtotal_itens, 0).toFixed(2));
 
       const conn = await pool.getConnection();
+      let _numLock = null;
       try {
         await conn.beginTransaction();
+        _numLock = await acquireNumeroPedidoLock(conn);
         const [[seq]] = await conn.query(
           `SELECT LPAD((COALESCE(MAX(numero + 0), 0) + 1), 6, '0') AS proximo FROM pedidos`
         );
@@ -516,6 +519,7 @@ router.post('/:token/orcamento', async (req, res) => {
         await conn.rollback();
         throw e;
       } finally {
+        await releaseNumeroPedidoLock(conn, _numLock);
         conn.release();
       }
     });

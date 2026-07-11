@@ -112,8 +112,11 @@ async function createPoolFromLicenseBinding() {
 
   // Garante schema atualizado no banco recém-conectado
   try {
-    const { runMigrations } = require('./schema-migrations');
+    const { runMigrations, ensurePerfilCadastroColumns } = require('./schema-migrations');
+    const { syncChangelogQueue } = require('./changelog-sync');
     await runMigrations(newPool);
+    await ensurePerfilCadastroColumns(newPool);
+    await syncChangelogQueue(newPool);
   } catch (e) {
     console.warn('[DB] Aviso de migração:', e.message);
   }
@@ -222,8 +225,11 @@ async function initCustomerDatabase() {
     createPool(cfg); // sem chave_licenca → pool global
     await pool.query('SELECT 1');
     try {
-      const { runMigrations } = require('./schema-migrations');
+      const { runMigrations, ensurePerfilCadastroColumns } = require('./schema-migrations');
+      const { syncChangelogQueue } = require('./changelog-sync');
       await runMigrations(pool);
+      await ensurePerfilCadastroColumns(pool);
+      await syncChangelogQueue(pool);
     } catch (e) {
       console.warn('[DB] Migração:', e.message);
     }
@@ -237,8 +243,11 @@ async function initCustomerDatabase() {
     createPool();
     await pool.query('SELECT 1');
     try {
-      const { runMigrations } = require('./schema-migrations');
+      const { runMigrations, ensurePerfilCadastroColumns } = require('./schema-migrations');
+      const { syncChangelogQueue } = require('./changelog-sync');
       await runMigrations(pool);
+      await ensurePerfilCadastroColumns(pool);
+      await syncChangelogQueue(pool);
     } catch (e) {
       console.warn('[DB] Migração:', e.message);
     }

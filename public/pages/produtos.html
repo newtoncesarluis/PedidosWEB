@@ -799,6 +799,7 @@ tbody td { padding:10px 12px; vertical-align:middle; }
       <div class="form-tab" onclick="abrirAba('estoque',this)">Estoque</div>
       <div class="form-tab" onclick="abrirAba('impostos',this)">Impostos</div>
       <div class="form-tab" onclick="abrirAba('outras',this)">Outras Informações</div>
+      <div class="form-tab" id="tabBtnGrades" style="display:none" onclick="abrirAba('grades',this)">Configuração de Grades</div>
       <div class="form-tab" onclick="abrirAba('obs',this)">Observações</div>
       <div class="form-tab" onclick="abrirAba('fotos',this)">Fotos</div>
       <div class="form-tab" onclick="abrirAba('promocoes',this)">Promoções</div>
@@ -877,7 +878,7 @@ tbody td { padding:10px 12px; vertical-align:middle; }
             <input type="text" id="f_cod_barras" autocomplete="off" placeholder="EAN-13, DUN-14…">
           </div>
           <div class="form-group">
-            <label>Cód. Fabricante/SKU</label>
+            <label title="Único por fornecedor padrão — não pode repetir para a mesma fábrica">Cód. Fabricante/SKU</label>
             <input type="text" id="f_cod_fabricante" autocomplete="off">
           </div>
           <div class="form-group">
@@ -998,6 +999,10 @@ tbody td { padding:10px 12px; vertical-align:middle; }
             <input type="number" id="f_multiplo_venda" step="1" min="1" placeholder="1" value="1">
           </div>
           <div class="form-group">
+            <label title="Quantidade mínima por item no pedido (independente do múltiplo). Ex: 3 aceita 3, 4, 5… — 0 = sem mínimo">Qtd. Mínima Pedido</label>
+            <input type="number" id="f_qtd_minima_pedido" step="1" min="0" placeholder="0" value="0">
+          </div>
+          <div class="form-group">
             <label>Estoque Segurança</label>
             <input type="number" id="f_estoque_seguranca" step="0.001" min="0" placeholder="0">
           </div>
@@ -1112,21 +1117,11 @@ tbody td { padding:10px 12px; vertical-align:middle; }
             <input type="text" id="f_cor2" autocomplete="off">
           </div>
           <div class="form-group">
-            <label>Solado</label>
-            <input type="text" id="f_solado" autocomplete="off">
-          </div>
-          <div class="form-group">
             <label>Peso Líquido (kg)</label>
             <input type="number" id="f_peso_liquido" step="0.001" min="0" placeholder="0.000">
           </div>
           <div class="form-group">
-            <label>Tipo de Grade</label>
-            <select id="f_tipograde">
-              <option value="">— Selecione —</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Fornecedor Padrão</label>
+            <label title="Obrigatório quando houver Cód. Fabricante/SKU — o código é único por fornecedor">Fornecedor Padrão</label>
             <select id="f_cod_fornecedorpadrao">
               <option value="">— Selecione —</option>
             </select>
@@ -1136,6 +1131,30 @@ tbody td { padding:10px 12px; vertical-align:middle; }
             <select id="f_cod_fornecedorcusto">
               <option value="">— Selecione —</option>
             </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- ABA CONFIGURAÇÃO DE GRADES -->
+      <div class="tab-pane" id="tab-grades">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Tipo de Grade</label>
+            <select id="f_tipograde">
+              <option value="">— Selecione —</option>
+              <option value="ROUPA">ROUPA</option>
+              <option value="SAPATO">SAPATO</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Grades</label>
+            <select id="f_id_grade">
+              <option value="">— Selecione —</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Solado</label>
+            <input type="text" id="f_solado" autocomplete="off">
           </div>
         </div>
       </div>
@@ -1723,7 +1742,7 @@ function debounceSearch() {
 // ═══════════════════════════════════════════════════════════
 // ESTADO
 // ═══════════════════════════════════════════════════════════
-let _status = 'todos';
+let _status = 'A';
 let _offset = 0;
 const _limit = 50;
 let _total = 0;
@@ -1933,7 +1952,8 @@ document.addEventListener('DOMContentLoaded', () => {
     carregar();
   });
   carregarNotificacoes();
-  carregarLookups();
+  window._lookupsReadyPromise = carregarLookups();
+  carregarHabilitaGrades();
 
   // Permite abrir edição vindo de outras telas (ex: Pedidos → Pesquisa Avançada, Promoções → item)
   try {
@@ -2514,7 +2534,8 @@ let _semPermPromoAcesso = false;
 function _populaSelect(selId, itens, valField, txtField, placeholder = '— Selecione —') {
   const sel = document.getElementById(selId);
   if (!sel) return;
-  // mantém opção vazia
+  // preserva o valor selecionado (pode ter sido setado por preencherForm antes do lookup chegar)
+  const valorAtual = sel.value;
   sel.innerHTML = `<option value="">${placeholder}</option>`;
   itens.forEach(item => {
     const opt = document.createElement('option');
@@ -2522,6 +2543,7 @@ function _populaSelect(selId, itens, valField, txtField, placeholder = '— Sele
     opt.textContent = item[txtField];
     sel.appendChild(opt);
   });
+  if (valorAtual) sel.value = valorAtual;
 }
 
 async function carregarLookups() {
@@ -2530,7 +2552,7 @@ async function carregarLookups() {
     { url:'/api/lookups/familia',     sel:'f_id_familiaproduto', v:'id', t:'nome' },
     { url:'/api/lookups/categorias',  sel:'f_segmento',          v:'descricao', t:'descricao' },
     { url:'/api/lookups/local-arm',   sel:'f_id_endereco',       v:'id', t:'nome_local' },
-    { url:'/api/lookups/tipograde',   sel:'f_tipograde',         v:'nome', t:'nome' },
+    { url:'/api/lookups/tipograde',   sel:'f_id_grade',          v:'id', t:'nome' },
     { url:'/api/lookups/tabela-preco',sel:'f_cod_tabelapreco',   v:'id', t:'descricao' },
     { url:'/api/lookups/fornecedores',sel:'f_cod_fornecedorpadrao', v:'id', t:'nome' },
     { url:'/api/lookups/fornecedores',sel:'f_cod_fornecedorcusto',  v:'id', t:'nome' },
@@ -2586,6 +2608,17 @@ async function carregarLookups() {
       _populaSelect(sel, data, v, t);
     } catch(_) {}
   }));
+}
+
+async function carregarHabilitaGrades() {
+  try {
+    const r = await api('/api/config/sistema');
+    if (!r.ok) return;
+    const cfg = await r.json();
+    const habilitado = (cfg.habilitapedidograde || 'N') === 'S';
+    const tabBtn = document.getElementById('tabBtnGrades');
+    if (tabBtn) tabBtn.style.display = habilitado ? '' : 'none';
+  } catch(_) {}
 }
 
 function onGrupoChange(sel) {
@@ -2894,6 +2927,7 @@ async function abrirEdicao(id, opts = {}) {
     const r = await api(`/api/produtos/${prodId}`);
     const p = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(p.error || 'Erro ao carregar produto');
+    await window._lookupsReadyPromise;
     _editandoId = prodId;
     document.getElementById('formTitulo').textContent = 'Editar Produto';
     limparForm();
@@ -2934,6 +2968,7 @@ async function clonarRegistro(id) {
     const r = await api(`/api/produtos/${id}`);
     if (!r.ok) throw new Error();
     const p = await r.json();
+    await window._lookupsReadyPromise;
 
     _editandoId = null;
     document.getElementById('formTitulo').textContent = 'Novo Produto (Clone)';
@@ -3005,9 +3040,9 @@ function limparForm() {
     'f_vlr_custo','f_vlr_despesas','f_vlr_custofinal','f_margem','f_vlr_venda',
     'f_precoa','f_precob','f_precoc','f_precopromo','f_desconto','f_comissao','f_cod_tabelapreco',
     'f_estoque_atual','f_estoque_minimo','f_estoque_maximo','f_estoque_seguranca',
-    'f_kilo_embalagem','f_embalagemmaster','f_multiplo_venda','f_id_endereco',
+    'f_kilo_embalagem','f_embalagemmaster','f_multiplo_venda','f_qtd_minima_pedido','f_id_endereco',
     'f_ncm','f_cest','f_icms','f_ipi','f_vlr_pis','f_vlr_confins','f_vlr_st','f_origem',
-    'f_cor1','f_cor2','f_solado','f_peso_liquido','f_tipograde',
+    'f_cor1','f_cor2','f_solado','f_peso_liquido','f_tipograde','f_id_grade',
     'f_cod_fornecedorpadrao','f_cod_fornecedorcusto','f_obs','f_obs2','f_foto_principal'];
   ids.forEach(id => {
     const el = document.getElementById(id);
@@ -3061,6 +3096,7 @@ function preencherForm(p) {
   set('f_embalagemmaster',    p.embalagemmaster);
   syncPrecoPesoProdutoForm();
   set('f_multiplo_venda',     p.multiplo_venda ?? 1);
+  set('f_qtd_minima_pedido',  p.qtd_minima_pedido ?? 0);
   set('f_id_endereco',        p.id_endereco);
   set('f_ncm',                p.ncm);
   set('f_cest',               p.cest);
@@ -3074,7 +3110,8 @@ function preencherForm(p) {
   set('f_cor2',               p.cor2);
   set('f_solado',             p.solado);
   set('f_peso_liquido',       p.peso_liquido);
-  set('f_tipograde',          p.tipograde);
+  set('f_tipograde',          p.tipoprodutograde);
+  set('f_id_grade',           p.tipograde);
   set('f_cod_fornecedorpadrao', p.cod_fornecedorpadrao);
   set('f_cod_fornecedorcusto',  p.cod_fornecedorcusto);
   set('f_obs',                p.obs);
@@ -3099,10 +3136,20 @@ async function salvar() {
     }
   }
 
+  const codFab = (document.getElementById('f_cod_fabricante')?.value || '').trim();
+  const idForn = document.getElementById('f_cod_fornecedorpadrao')?.value || '';
+  if (codFab && !idForn) {
+    showToast('Informe o Fornecedor Padrão (aba Outras Informações) para usar o Cód. Fabricante/SKU.', 'error');
+    abrirAba('outras', document.querySelector('.form-tab[onclick*="outras"]'));
+    document.getElementById('f_cod_fornecedorpadrao')?.focus();
+    return;
+  }
+
   const v = id => document.getElementById(id)?.value || undefined;
   // ao mudar o grupo, sincroniza nome_grupo com o texto da option selecionada
   const grpEl = document.getElementById('f_id_grupo');
   const nomeGrupo = grpEl?.options[grpEl?.selectedIndex]?.text || undefined;
+
 
   const body = {
     descricao,
@@ -3139,6 +3186,7 @@ async function salvar() {
     kilo_embalagem:       v('f_kilo_embalagem'),
     embalagemmaster:      v('f_embalagemmaster'),
     multiplo_venda:       v('f_multiplo_venda') || '1',
+    qtd_minima_pedido:    v('f_qtd_minima_pedido') || '0',
     id_endereco:          v('f_id_endereco'),
     ncm:                  v('f_ncm'),
     cest:                 v('f_cest'),
@@ -3152,7 +3200,8 @@ async function salvar() {
     cor2:                 v('f_cor2'),
     solado:               v('f_solado'),
     peso_liquido:         v('f_peso_liquido'),
-    tipograde:            v('f_tipograde'),
+    tipoprodutograde:     v('f_tipograde'),
+    tipograde:            v('f_id_grade'),
     cod_fornecedorpadrao: v('f_cod_fornecedorpadrao'),
     cod_fornecedorcusto:  v('f_cod_fornecedorcusto'),
     obs:                  v('f_obs'),

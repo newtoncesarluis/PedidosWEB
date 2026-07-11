@@ -124,6 +124,11 @@ app.get('/login.html', (req, res) => {
   res.sendFile(path.join(ROOT_DIR, 'public', 'login.html'), { etag: true, lastModified: true });
 });
 
+app.get('/demo-bemvindo.html', (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.sendFile(path.join(ROOT_DIR, 'public', 'demo-bemvindo.html'), { etag: true, lastModified: true });
+});
+
 // Painel de licenças — rota explícita (evita CDN/proxy entregar SPA ou login por engano)
 app.get('/licencas.html', (req, res) => {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
@@ -174,29 +179,30 @@ app.get('/sw-v3.js', sendServiceWorkerFile);
 
 // Scripts de bootstrap do SW: SEMPRE sem cache, senão o navegador fica preso numa
 // versão antiga do registrador (que controla o ciclo de vida do Service Worker).
-['/assets/sw-register.js', '/assets/sw-kill.js'].forEach((p) => {
+['/assets/sw-register.js', '/assets/sw-kill.js', '/assets/version-update.js', '/assets/novidades-modal.js', '/assets/novidades-modal.css', '/assets/mobile-app.js'].forEach((p) => {
   app.get(p, (_req, res) => {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
     res.set('Pragma', 'no-cache');
-    res.set('Content-Type', 'application/javascript');
+    res.type(p.endsWith('.css') ? 'text/css' : 'application/javascript');
     res.sendFile(path.join(ROOT_DIR, 'public', p.replace(/^\//, '')));
   });
 });
 
 // Versão semântica (MAJOR.MINOR.RELEASE.SEQUENCIAL) — editada manualmente em version.json antes do deploy
-let _appVersionCache = null;
 function getAppVersion() {
-  if (_appVersionCache) return _appVersionCache;
   try {
-    _appVersionCache = JSON.parse(fs.readFileSync(path.join(ROOT_DIR, 'version.json'), 'utf8')).versao || '0.0.0.0';
+    return JSON.parse(fs.readFileSync(path.join(ROOT_DIR, 'version.json'), 'utf8')).versao || '0.0.0.0';
   } catch (_) {
-    _appVersionCache = '0.0.0.0';
+    return '0.0.0.0';
   }
-  return _appVersionCache;
 }
 
 // Versão atual do servidor — cliente compara para detectar novo deploy
-app.get('/api/version', (_req, res) => res.json({ v: BUILD_ID, versao: getAppVersion() }));
+app.get('/api/version', (_req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.json({ v: BUILD_ID, versao: getAppVersion() });
+});
 
 // HTML administrativo: no-store. Telas PWA/mobile: cache para uso offline no celular (HTTP sem SW).
 app.use((req, res, next) => {
@@ -329,14 +335,65 @@ app.post('/api/dev/base', async (req, res) => {
   }
 });
 
+// GET /api/login-logo — imagem do logo da empresa no login mobile (público; fora de /api/auth/login*)
+app.get('/api/login-logo', async (req, res) => {
+  try {
+    const { getPool } = require('./config/database');
+    const { sanitizeEmpresaRow, resolveEmpresaLogoRelatorio, fsPathFromLogoRelatorio } = require('./services/empresa-logo');
+    const pool = getPool();
+    const id = parseInt(req.query.id, 10) || null;
+    await pool.query(`ALTER TABLE empresa ADD COLUMN logo_relatorio VARCHAR(512) NULL DEFAULT NULL`).catch(() => {});
+    let row;
+    if (id > 0) {
+      [[row]] = await pool.query(
+        `SELECT id_empresa, logo_relatorio FROM empresa WHERE id_empresa = ? AND COALESCE(NULLIF(TRIM(excluido), ''), 'N') = 'N' LIMIT 1`,
+        [id]
+      );
+    } else {
+      [[row]] = await pool.query(
+        `SELECT id_empresa, logo_relatorio FROM empresa
+         WHERE COALESCE(NULLIF(TRIM(excluido), ''), 'N') = 'N'
+         ORDER BY (logo_relatorio IS NOT NULL AND TRIM(logo_relatorio) <> '') DESC, id_empresa ASC
+         LIMIT 1`
+      );
+    }
+    if (!row) return res.status(404).end();
+    const sanitized = await sanitizeEmpresaRow(pool, row);
+    const rel = resolveEmpresaLogoRelatorio(sanitized.id_empresa, sanitized.logo_relatorio) || '';
+    const m = rel.match(/^\/uploads\/empresas\/(\d+)\/([^/]+)$/);
+    if (!m) return res.status(404).end();
+    const abs = fsPathFromLogoRelatorio(rel);
+    if (!abs || !fs.existsSync(abs)) return res.status(404).end();
+    const ext = path.extname(abs).toLowerCase();
+    const types = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml' };
+    res.type(types[ext] || 'application/octet-stream');
+    res.set('Cache-Control', 'private, max-age=300');
+    res.sendFile(abs);
+  } catch (err) {
+    console.error('login-logo:', err.message);
+    res.status(500).end();
+  }
+});
+
 // GET /api/license/check — verificação pública (sem auth) usada pelo login.html
+function _onboardingDemoAtivo(result) {
+  if (process.env.DEMO_ONBOARDING === '1') return true;
+  if (result?.demo) return true;
+  const tipo = String(result?.dados?.tipo_licenca || result?.tipo || '').toLowerCase();
+  const st = String(result?.status || result?.dados?.status || '').toLowerCase();
+  return tipo === 'demo' || tipo === 'trial' || st === 'demo' || st === 'trial';
+}
+
 app.get('/api/license/check', async (req, res) => {
   try {
     const LicenseService = require('./services/license-service');
     const { customerDbFromLicense, getBoundChave, readLicenseBinding } = require('./config/database');
-    // Em modo BOUND: usa a chave do processo se não vier na query
-    // Fallback: license-binding.json (instalações locais sem CHAVE_LICENCA no env)
-    const chave  = (req.query.chave || '').trim().toUpperCase() || getBoundChave() || readLicenseBinding()?.chave_licenca || null;
+    // Instância BOUND (CHAVE_LICENCA no env / binding local): a chave do PROCESSO manda.
+    // A chave vinda do navegador (?chave=) só vale em instância multi-tenant sem bound —
+    // senão uma chave velha no localStorage do cliente (de outro tenant que já usou o
+    // mesmo DNS) mostrava o licenciado ERRADO no login (ex.: demo exibindo Kuhm).
+    const bound  = getBoundChave() || readLicenseBinding()?.chave_licenca || null;
+    const chave  = bound || (req.query.chave || '').trim().toUpperCase() || null;
     // Em multi-tenant: sem chave = tenant desconhecido → nunca cair no checkLocal() global
     const result = chave
       ? await LicenseService.checkByKey(chave)
@@ -350,6 +407,7 @@ app.get('/api/license/check', async (req, res) => {
       diasRestantes:   result.diasRestantes || null,
       aviso:           result.aviso     || false,
       demo:            result.demo      || false,
+      onboarding_demo: _onboardingDemoAtivo(result),
       razao_social:    result.dados?.razao_social  || null,
       cnpj_cpf:        result.dados?.cnpj_cpf     || null,
       tipo:            result.dados?.tipo_licenca  || null,
@@ -393,11 +451,15 @@ app.get('/api/license/ping', async (req, res) => {
   }
 });
 
+// Onboarding DEMO — público, antes do licenseMiddleware (fail-open)
+app.use('/api/demo', require('./routes/demo-onboarding'));
+
 // /api/v1 e /api/licencas são públicas — não passam pelo licenseMiddleware
 app.use('/api', (req, res, next) => {
   if (req.path.startsWith('/v1')) return next();
   if (req.path.startsWith('/licencas')) return next();
   if (req.path.startsWith('/pedidos/pdf-download/')) return next();
+  if (req.path.startsWith('/demo')) return next();
   return licenseMiddleware(req, res, next);
 });
 
@@ -677,23 +739,32 @@ app.use('/api/anotacoes', authMiddleware, require('./routes/anotacoes'));
 app.get('/api/dashboard/home', authMiddleware, async (req, res) => {
   try {
     const { getPool } = require('./config/database');
+    const { canAccessAllVendors, buildPedidosListVisWhere } = require('./config/vendedor-visibilidade');
+    const { hojeIsoBrasil } = require('./config/date-brasil');
+    const { tipoPedidosJoinSql, geraFinanceiroExprSql, ensureTipoPedidosColumns } = require('./config/pedido-gerafinanceiro');
     const pool = getPool();
 
-    // 1. Determinar permissões de visualização
-    const isAdmin = req.user.perfil == 1 || req.user.acessartodosclientes === 'S';
-    let whereUser = isAdmin ? "" : " AND p.id_usuario = " + pool.escape(req.user.id);
-    let whereUserLogs = isAdmin ? "" : " AND l.id_usuario = " + pool.escape(req.user.id);
+    await ensureTipoPedidosColumns(pool);
+
+    const vis = await buildPedidosListVisWhere(pool, req);
+    const isAdmin = canAccessAllVendors(req);
+    let whereUserLogs = isAdmin ? '' : ` AND l.id_usuario = ${pool.escape(req.user.id)}`;
+
+    const tpJoin = tipoPedidosJoinSql('p', 'tp');
+    const geraFinExpr = geraFinanceiroExprSql('p', 'tp');
 
     // 2. Pedidos do Mês Atual e Anterior (para comparativos)
     const [rows] = await pool.query(`
       SELECT 
         p.tipo_pedido, p.nome_cliente, p.nome_vendedor, p.nome_fornecedor, 
-        p.vlrtotalpedido, p.data_abertura, p.situacao_pedido, p.id_usuario
+        p.vlrtotalpedido, p.data_abertura, p.situacao_pedido, p.id_usuario,
+        ${geraFinExpr} AS tp_gerafinanceiro
       FROM pedidos p
+      ${tpJoin}
       WHERE p.excluido = 'N'
         AND p.data_abertura >= DATE_FORMAT(CURDATE() - INTERVAL 1 MONTH, '%Y-%m-01')
-        ${whereUser}
-    `).catch(() => [[]]);
+        ${vis.clause}
+    `, vis.params).catch(() => [[]]);
 
     const hoje = new Date();
     const mesAtual = hoje.getMonth() + 1;
@@ -703,6 +774,8 @@ app.get('/api/dashboard/home', authMiddleware, async (req, res) => {
 
     let totalGeral = 0, qtdPedidos = 0;
     let totalMesAnt = 0, qtdMesAnt = 0;
+    let totalOrcamentosMes = 0, qtdOrcamentosMes = 0;
+    let totalOrcamentosMesAnt = 0, qtdOrcamentosMesAnt = 0;
     
     const porTipo = {};
     const porCliente = {};
@@ -715,31 +788,42 @@ app.get('/api/dashboard/home', authMiddleware, async (req, res) => {
       const m = dt.getMonth() + 1;
       const y = dt.getFullYear();
       const vlr = parseFloat(r.vlrtotalpedido || 0);
+      const geraFin = String(r.tp_gerafinanceiro || 'S').toUpperCase() === 'S';
 
       // Mês Atual
       if (m === mesAtual && y === anoAtual) {
-        totalGeral += vlr;
-        qtdPedidos++;
+        if (geraFin) {
+          totalGeral += vlr;
+          qtdPedidos++;
 
-        const tipo = r.tipo_pedido || 'Outros';
-        porTipo[tipo] = (porTipo[tipo] || 0) + vlr;
+          const tipo = r.tipo_pedido || 'Outros';
+          porTipo[tipo] = (porTipo[tipo] || 0) + vlr;
 
-        const cli = r.nome_cliente || 'Sem nome';
-        porCliente[cli] = (porCliente[cli] || 0) + vlr;
+          const cli = r.nome_cliente || 'Sem nome';
+          porCliente[cli] = (porCliente[cli] || 0) + vlr;
 
-        const vend = r.nome_vendedor || 'Sem nome';
-        porVendedor[vend] = (porVendedor[vend] || 0) + vlr;
+          const vend = r.nome_vendedor || 'Sem nome';
+          porVendedor[vend] = (porVendedor[vend] || 0) + vlr;
 
-        const fab = r.nome_fornecedor || 'Sem nome';
-        porFabrica[fab] = (porFabrica[fab] || 0) + vlr;
+          const fab = r.nome_fornecedor || 'Sem nome';
+          porFabrica[fab] = (porFabrica[fab] || 0) + vlr;
 
-        const dia = dt.getDate();
-        evolucaoDiaria[dia] = (evolucaoDiaria[dia] || 0) + vlr;
+          const dia = dt.getDate();
+          evolucaoDiaria[dia] = (evolucaoDiaria[dia] || 0) + vlr;
+        } else {
+          totalOrcamentosMes += vlr;
+          qtdOrcamentosMes++;
+        }
       } 
       // Mês Anterior
       else if (m === mesAnt && y === anoAnt) {
-        totalMesAnt += vlr;
-        qtdMesAnt++;
+        if (geraFin) {
+          totalMesAnt += vlr;
+          qtdMesAnt++;
+        } else {
+          totalOrcamentosMesAnt += vlr;
+          qtdOrcamentosMesAnt++;
+        }
       }
     }
 
@@ -751,6 +835,9 @@ app.get('/api/dashboard/home', authMiddleware, async (req, res) => {
     // Cálculos de Tendência
     const tendenciaVendas = totalMesAnt > 0 ? (((totalGeral - totalMesAnt) / totalMesAnt) * 100).toFixed(1) : 0;
     const tendenciaPedidos = qtdMesAnt > 0 ? (((qtdPedidos - qtdMesAnt) / qtdMesAnt) * 100).toFixed(1) : 0;
+    const tendenciaOrcamentos = qtdOrcamentosMesAnt > 0
+      ? (((qtdOrcamentosMes - qtdOrcamentosMesAnt) / qtdOrcamentosMesAnt) * 100).toFixed(1)
+      : 0;
 
     // 3. Atividades Recentes (Logs) filtradas por permissão
     const [logs] = await pool.query(`
@@ -765,17 +852,40 @@ app.get('/api/dashboard/home', authMiddleware, async (req, res) => {
     // 4. KPIs mobile (hoje, abertos, orçamentos)
     const [[mobileKpi]] = await pool.query(`
       SELECT
-        COUNT(CASE WHEN DATE(data_abertura) = CURDATE() AND tipo_pedido NOT LIKE '%ORCA%' THEN 1 END) AS qtdHoje,
-        IFNULL(SUM(CASE WHEN DATE(data_abertura) = CURDATE() AND tipo_pedido NOT LIKE '%ORCA%' THEN vlrtotalpedido ELSE 0 END), 0) AS valorHoje,
-        COUNT(CASE WHEN situacao_pedido NOT IN ('CANCELADO','ENVIADO') AND tipo_pedido NOT LIKE '%ORCA%' THEN 1 END) AS pedidosAbertos,
-        COUNT(CASE WHEN tipo_pedido LIKE '%ORCA%' AND situacao_pedido != 'CANCELADO' THEN 1 END) AS orcamentosPendentes,
-        COUNT(CASE WHEN origem = 'PROMO_SHARE' AND tipo_pedido LIKE '%ORCA%'
-          AND situacao_pedido NOT IN ('CANCELADO','ENVIADO') THEN 1 END) AS promoSharePendentes,
-        COUNT(CASE WHEN origem = 'FEIRINHA_SHARE' AND tipo_pedido LIKE '%ORCA%'
-          AND situacao_pedido NOT IN ('CANCELADO','ENVIADO') THEN 1 END) AS feirinhaSharePendentes
-      FROM pedidos
-      WHERE excluido = 'N' ${whereUser}
-    `).catch(() => [[{ qtdHoje:0, valorHoje:0, pedidosAbertos:0, orcamentosPendentes:0, promoSharePendentes:0, feirinhaSharePendentes:0 }]]);
+        COUNT(CASE WHEN DATE(p.data_abertura) = CURDATE() AND ${geraFinExpr} = 'S' THEN 1 END) AS qtdHoje,
+        IFNULL(SUM(CASE WHEN DATE(p.data_abertura) = CURDATE() AND ${geraFinExpr} = 'S' THEN p.vlrtotalpedido ELSE 0 END), 0) AS valorHoje,
+        COUNT(CASE WHEN p.situacao_pedido NOT IN ('CANCELADO','ENVIADO') AND ${geraFinExpr} = 'S' THEN 1 END) AS pedidosAbertos,
+        COUNT(CASE WHEN ${geraFinExpr} = 'N' AND COALESCE(p.situacao_pedido,'') != 'CANCELADO' THEN 1 END) AS orcamentosPendentes,
+        COUNT(CASE WHEN p.origem = 'PROMO_SHARE' AND ${geraFinExpr} = 'N'
+          AND p.situacao_pedido NOT IN ('CANCELADO','ENVIADO') THEN 1 END) AS promoSharePendentes,
+        COUNT(CASE WHEN p.origem = 'FEIRINHA_SHARE' AND ${geraFinExpr} = 'N'
+          AND p.situacao_pedido NOT IN ('CANCELADO','ENVIADO') THEN 1 END) AS feirinhaSharePendentes
+      FROM pedidos p
+      ${tpJoin}
+      WHERE (p.excluido = 'N' OR p.excluido IS NULL OR p.excluido = '')
+        ${vis.clause}
+    `, vis.params).catch(() => [[{ qtdHoje:0, valorHoje:0, pedidosAbertos:0, orcamentosPendentes:0, promoSharePendentes:0, feirinhaSharePendentes:0 }]]);
+
+    const retornoResumo = await (async () => {
+      try {
+        const { ensurePedidoRetornoColumns } = require('./config/schema-migrations');
+        await ensurePedidoRetornoColumns(pool);
+        const hojeBrDash = hojeIsoBrasil();
+        const [[retornoKpi]] = await pool.query(`
+          SELECT
+            COUNT(CASE WHEN p.data_retorno = ? THEN 1 END) AS retornosHoje,
+            COUNT(CASE WHEN p.data_retorno < ? THEN 1 END) AS retornosAtrasados
+          FROM pedidos p
+          WHERE (p.excluido = 'N' OR p.excluido IS NULL OR p.excluido = '')
+            AND p.data_retorno IS NOT NULL
+            AND COALESCE(p.situacao_pedido,'') NOT IN ('CANCELADO','FATURADO')
+            ${vis.clause}
+        `, [hojeBrDash, hojeBrDash, ...vis.params]);
+        return retornoKpi || { retornosHoje: 0, retornosAtrasados: 0 };
+      } catch (_) {
+        return { retornosHoje: 0, retornosAtrasados: 0 };
+      }
+    })();
 
     // 5. Visitas e Atividades Reais (Nova Tabela)
     const [visitas] = await pool.query(`
@@ -790,12 +900,18 @@ app.get('/api/dashboard/home', authMiddleware, async (req, res) => {
       LIMIT 10
     `, [req.user.id, req.user.perfil]).catch(() => [[]]);
 
-    res.json({
+    const payload = {
       totalGeral,
       qtdPedidos,
       totalMesAnt,
+      qtdMesAnt,
       tendenciaVendas,
       tendenciaPedidos,
+      qtdOrcamentosMes,
+      totalOrcamentosMes,
+      qtdOrcamentosMesAnt,
+      totalOrcamentosMesAnt,
+      tendenciaOrcamentos,
       porTipo,
       topClientes,
       topVendedores,
@@ -809,8 +925,27 @@ app.get('/api/dashboard/home', authMiddleware, async (req, res) => {
       pedidosAbertos: mobileKpi?.pedidosAbertos || 0,
       orcamentosPendentes: mobileKpi?.orcamentosPendentes || 0,
       promoSharePendentes: mobileKpi?.promoSharePendentes || 0,
-      feirinhaSharePendentes: mobileKpi?.feirinhaSharePendentes || 0
-    });
+      feirinhaSharePendentes: mobileKpi?.feirinhaSharePendentes || 0,
+      retornosHoje: retornoResumo?.retornosHoje || 0,
+      retornosAtrasados: retornoResumo?.retornosAtrasados || 0
+    };
+
+    if (isAdmin) {
+      try {
+        const [[cg]] = await pool.query(`
+          SELECT
+            COALESCE(SUM(CASE WHEN status='P' AND excluido='N' THEN 1 ELSE 0 END),0) AS qtd_pendentes,
+            COALESCE(SUM(CASE WHEN status='C' AND excluido='N' THEN 1 ELSE 0 END),0) AS qtd_conferidas,
+            COALESCE(SUM(CASE WHEN status='I' AND excluido='N' THEN 1 ELSE 0 END),0) AS qtd_inadimplentes
+          FROM pagtocomissao
+        `).catch(() => [[{ qtd_pendentes:0, qtd_conferidas:0, qtd_inadimplentes:0 }]]);
+        payload.comissaoGestor = cg || { qtd_pendentes:0, qtd_conferidas:0, qtd_inadimplentes:0 };
+      } catch (_) {
+        payload.comissaoGestor = { qtd_pendentes:0, qtd_conferidas:0, qtd_inadimplentes:0 };
+      }
+    }
+
+    res.json(payload);
   } catch (err) {
     console.error('Dash Error:', err);
     res.status(500).json({ error: 'Erro ao processar dashboard' });
@@ -880,10 +1015,12 @@ initCustomerDatabase()
   .then(startServer)
   .then(() => {
     try {
-      require('./config/db-nresolution').initSolicitacoesSchema()
+      const nreInit = require('./config/db-nresolution').initNreConfigSchema();
+      const painelInit = require('./config/db-painel').initPainelSolicitacoesSchema();
+      Promise.all([nreInit, painelInit])
         .then(() => { try { require('./config/suporte-notificador').startNotificador(); } catch (e) { console.warn('[notificador]', e.message); } })
-        .catch(e => console.warn('[nre-schema]', e.message));
-    } catch (e) { console.warn('[nre-schema]', e.message); }
+        .catch(e => console.warn('[painel-schema]', e.message));
+    } catch (e) { console.warn('[painel-schema]', e.message); }
     try { require('./config/daily-report').startScheduler(); } catch {}
     try { require('./config/push-lembretes-vendedor').startPushLembretesScheduler(); } catch (e) {
       console.warn('[push-lembretes] init:', e.message);

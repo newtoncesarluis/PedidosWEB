@@ -1,6 +1,12 @@
 const express = require('express');
 const router  = express.Router();
 const { getPool } = require('../config/database');
+const {
+  loadModeloImpressaoPolitica,
+  usuarioPodeEditarTextoModelo,
+  usuarioPodeReplicarModelo,
+  aplicarTextosSistemaNoModelo,
+} = require('../config/modelo-impressao-politica');
 
 const CREATE_TABLE = `
   CREATE TABLE IF NOT EXISTS usuario_preferencias (
@@ -69,13 +75,25 @@ router.get('/modelo-impressao', async (req, res) => {
   try {
     const pool = getPool();
     await pool.query(CREATE_MODELO).catch(() => {});
+    const politica = await loadModeloImpressaoPolitica(pool);
     const [rows] = await pool.query(
       'SELECT config FROM config_impressao_pedido WHERE idusuario = ?',
       [req.user.id]
     );
-    if (!rows.length) return res.json({});
-    try { res.json(JSON.parse(rows[0].config)); }
-    catch (_) { res.json({}); }
+    let cfg = {};
+    if (rows.length) {
+      try { cfg = JSON.parse(rows[0].config) || {}; } catch (_) { cfg = {}; }
+    }
+    cfg = aplicarTextosSistemaNoModelo(cfg, politica, req);
+    res.json({
+      ...cfg,
+      _politica: {
+        editar_texto: usuarioPodeEditarTextoModelo(politica, req),
+        replicar_todos: usuarioPodeReplicarModelo(politica, req),
+        texto_cabecalho_sistema: politica.texto_cabecalho_sistema,
+        texto_rodape_sistema: politica.texto_rodape_sistema,
+      },
+    });
   } catch (_) {
     res.json({});
   }
@@ -86,13 +104,35 @@ router.put('/modelo-impressao', async (req, res) => {
   try {
     const pool = getPool();
     await pool.query(CREATE_MODELO).catch(() => {});
+    const politica = await loadModeloImpressaoPolitica(pool);
+    const { aplicar_todos, _politica, ...body } = req.body || {};
+    let cfg = aplicarTextosSistemaNoModelo(body, politica, req);
+    const json = JSON.stringify(cfg);
+
     await pool.query(
       `INSERT INTO config_impressao_pedido (idusuario, config)
        VALUES (?, ?)
        ON DUPLICATE KEY UPDATE config = VALUES(config), updated_at = NOW()`,
-      [req.user.id, JSON.stringify(req.body)]
+      [req.user.id, json]
     );
-    res.json({ ok: true });
+
+    let replicados = 0;
+    if (aplicar_todos && usuarioPodeReplicarModelo(politica, req)) {
+      const [users] = await pool.query(
+        `SELECT idusuario FROM usuarios WHERE COALESCE(excluido, 'N') = 'N' AND UPPER(COALESCE(SITUACAO, 'ATIVO')) = 'ATIVO'`
+      );
+      for (const u of users) {
+        await pool.query(
+          `INSERT INTO config_impressao_pedido (idusuario, config)
+           VALUES (?, ?)
+           ON DUPLICATE KEY UPDATE config = VALUES(config), updated_at = NOW()`,
+          [u.idusuario, json]
+        );
+        replicados++;
+      }
+    }
+
+    res.json({ ok: true, replicados });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
   }

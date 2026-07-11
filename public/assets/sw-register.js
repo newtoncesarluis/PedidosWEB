@@ -24,22 +24,30 @@
   window.sysrepInitServiceWorker = async function () {
     if (!('serviceWorker' in navigator)) return null;
 
-    // SW DESATIVADO (produção e local). O Service Worker estava devolvendo "offline"
-    // falso (navigator.onLine não-confiável no contexto do SW logo após reativação),
-    // o que cortava /api/modulos, /api/dashboard etc. e quebrava a home em todos os DNS.
-    // Sem SW a página usa a rede direto — igual ao ambiente local, que sempre funcionou.
-    // Reabilitar só depois de reescrever o SW com pass-through real para /api/*.
+    // Localhost: SW desativado (evita tela branca em /pages/ durante o dev).
+    // Exceção p/ teste do fluxo offline: localStorage.setItem('sysrep_sw_test','1').
+    let _swTest = false;
+    try { _swTest = localStorage.getItem('sysrep_sw_test') === '1'; } catch (_) {}
+    if (IS_LOCAL && !_swTest) {
+      try {
+        await unregisterAll();
+        await clearAppCaches();
+      } catch (_) {}
+      return null;
+    }
+
+    // Produção: SW REATIVADO — necessário para o PWA abrir sem internet (cold-start
+    // offline na rua). O sw.js atual faz pass-through real para /api/* (sempre tenta
+    // a rede, 20s de timeout; nunca curto-circuita por navigator.onLine), que era o
+    // pré-requisito para reabilitar após o incidente do "offline falso".
+    // KILL-SWITCH: este arquivo é servido com no-store — para desativar de novo,
+    // basta voltar este bloco para unregisterAll() + clearAppCaches() e fazer deploy.
     try {
-      const hadController = !!navigator.serviceWorker.controller;
-      await unregisterAll();
-      await clearAppCaches();
-      // A página atual ainda está sob o SW antigo neste load: recarrega 1x (sem SW agora).
-      if (hadController && !sessionStorage.getItem('sw_killed_reload')) {
-        sessionStorage.setItem('sw_killed_reload', '1');
-        location.reload();
-      }
-    } catch (_) {}
-    return null;
+      sessionStorage.removeItem('sw_killed_reload');
+      return await navigator.serviceWorker.register('/sw.js');
+    } catch (_) {
+      return null;
+    }
   };
 
   window.sysrepAttachSwReload = function (onReload) {

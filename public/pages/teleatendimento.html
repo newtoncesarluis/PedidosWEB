@@ -6,6 +6,7 @@
 <title>Teleatendimento | SysRepWeb</title>
 <link rel="stylesheet" href="/assets/themes.css">
 <script src="/assets/themes.js"></script>
+<script src="/assets/sysrep-api.js?v=1.1.3.24"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -637,6 +638,12 @@ body { font-family: var(--font,'Inter','Segoe UI',sans-serif); background:var(--
 
 <script>
 const API = '/api/teleatendimento';
+async function api(url, opts = {}) {
+  return SysRepApi.fetch(url, opts);
+}
+async function apiNullable(url, opts = {}) {
+  try { return await SysRepApi.fetch(url, opts); } catch (_) { return null; }
+}
 let campanhaAtual = null;
 let filaAtual = null;
 let timerInterval = null;
@@ -675,8 +682,7 @@ function showView(name) {
 // ─── CAMPANHA SELECT ──────────────────────────────────────────────────────────
 async function carregarSelectCampanhas() {
   try {
-    const r = await fetch(API + '/campanhas');
-    const camps = await r.json();
+    const camps = await api(API + '/campanhas');
     if (!Array.isArray(camps)) return;
     const sel = document.getElementById('selectCampanha');
     const valAtual = sel.value;
@@ -702,8 +708,7 @@ function onCampanhaChange() {
   if (id) {
     atualizarResumoFila();
     // Verifica se operador já está pausado nesta campanha
-    fetch(API + '/status-operador?id_campanha=' + id)
-      .then(r => r.json())
+    api(API + '/status-operador?id_campanha=' + id)
       .then(d => { _pausado = !!d.pausado; atualizarBtnPausa(); })
       .catch(() => {});
   }
@@ -716,8 +721,7 @@ async function carregarCampanhas() {
   const grid = document.getElementById('campGrid');
   let camps;
   try {
-    const r = await fetch(url);
-    camps = await r.json();
+    camps = await api(url);
     if (!Array.isArray(camps)) throw new Error(camps.error || 'Resposta inválida');
   } catch (err) {
     grid.innerHTML = `<div class="camp-empty" style="color:var(--danger)">Erro ao carregar campanhas: ${esc(err.message)}</div>`;
@@ -795,8 +799,7 @@ function openModalCampanha(camp) {
 }
 
 async function editarCampanha(id) {
-  const r = await fetch(API + '/campanhas/' + id);
-  const camp = await r.json();
+  const camp = await api(API + '/campanhas/' + id);
   openModalCampanha(camp);
 }
 
@@ -817,14 +820,13 @@ async function salvarCampanha() {
   if (!body.nome) { alert('Nome obrigatório'); return; }
   const url    = id ? API + '/campanhas/' + id : API + '/campanhas';
   const method = id ? 'PUT' : 'POST';
-  const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  if (r.ok) {
+  try {
+    await api(url, { method, body: JSON.stringify(body) });
     closeModal('modalCampanha');
     carregarCampanhas();
     carregarSelectCampanhas();
-  } else {
-    const err = await r.json();
-    alert('Erro: ' + err.error);
+  } catch (err) {
+    alert('Erro: ' + (err.message || 'Falha ao salvar'));
   }
 }
 
@@ -840,13 +842,7 @@ async function proximaLigacao() {
   try {
     if (filaAtual) await liberarFila(filaAtual.id);
 
-    const r = await fetch(API + '/campanhas/' + campanhaAtual + '/proxima', { method: 'POST' });
-    const data = await r.json();
-
-    if (!r.ok) {
-      alert('Erro ao buscar próxima ligação: ' + (data.error || r.status));
-      return;
-    }
+    const data = await api(API + '/campanhas/' + campanhaAtual + '/proxima', { method: 'POST' });
 
     if (data.fim) {
       document.getElementById('idleMsg').textContent = data.mensagem || 'Fila concluída!';
@@ -993,17 +989,10 @@ async function registrarChamada() {
   };
 
   try {
-    const r = await fetch(API + '/chamadas', {
+    await api(API + '/chamadas', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    if (!r.ok) {
-      const err = await r.json().catch(() => ({}));
-      alert('Erro ao registrar: ' + (err.error || r.status));
-      iniciarTimer(); // retoma o timer se falhou
-      return;
-    }
     filaAtual = null;
     document.getElementById('atendimentoAtivo').style.display = 'none';
     document.getElementById('idleScreen').classList.add('active');
@@ -1021,9 +1010,8 @@ async function registrarChamada() {
 }
 
 async function liberarFila(id) {
-  await fetch(API + '/chamadas/liberar', {
+  await api(API + '/chamadas/liberar', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id_fila: id }),
   }).catch(() => {});
 }
@@ -1043,8 +1031,7 @@ function abrirPedido() {
 async function atualizarResumoFila() {
   if (!campanhaAtual) return;
   try {
-    const r = await fetch(API + '/painel/' + campanhaAtual);
-    const d = await r.json();
+    const d = await api(API + '/painel/' + campanhaAtual);
     document.getElementById('sPendentes').textContent       = d.totais?.pendentes || 0;
     document.getElementById('sReagendadosHoje').textContent = d.totais?.reagendados_hoje || 0;
     document.getElementById('sConcluidos').textContent       = d.hoje?.ligacoes || 0;
@@ -1068,8 +1055,7 @@ async function carregarPainel() {
   if (!campanhaAtual) return;
   let d;
   try {
-    const r = await fetch(API + '/painel/' + campanhaAtual);
-    d = await r.json();
+    d = await api(API + '/painel/' + campanhaAtual);
     if (d.error) return;
   } catch (_) { return; }
 
@@ -1133,8 +1119,7 @@ async function carregarFila() {
   const url = API + '/campanhas/' + campanhaAtual + '/fila' + (status ? '?status=' + status : '');
   let rows;
   try {
-    const r = await fetch(url);
-    rows = await r.json();
+    rows = await api(url);
     if (!Array.isArray(rows)) throw new Error(rows.error || 'Resposta inválida');
   } catch (err) {
     document.getElementById('tbFila').innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--danger);padding:20px">Erro: ${esc(err.message)}</td></tr>`;
@@ -1156,7 +1141,7 @@ async function carregarFila() {
 
 async function removerDaFila(idFila) {
   if (!confirm('Remover este registro da fila?')) return;
-  await fetch(API + '/campanhas/' + campanhaAtual + '/fila/' + idFila, { method: 'DELETE' });
+  await api(API + '/campanhas/' + campanhaAtual + '/fila/' + idFila, { method: 'DELETE' });
   carregarFila();
 }
 
@@ -1166,8 +1151,8 @@ async function openModalFiltroClientes() {
   // carrega regiões e segmentos
   try {
     const [rr, sr] = await Promise.all([
-      fetch('/api/lookups/regioes').then(r => r.json()),
-      fetch('/api/lookups/categorias').then(r => r.json()),
+      api('/api/lookups/regioes'),
+      api('/api/lookups/categorias'),
     ]);
     const selReg = document.getElementById('fRegiao');
     selReg.innerHTML = '<option value="">Todas</option>' +
@@ -1186,18 +1171,16 @@ async function adicionarPorFiltro() {
     segmento:        document.getElementById('fSegmento').value || null,
     limite:          document.getElementById('fLimite').value || 200,
   };
-  const r = await fetch(API + '/campanhas/' + campanhaAtual + '/fila/por-filtro', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  const d = await r.json();
-  if (r.ok) {
+  try {
+    const d = await api(API + '/campanhas/' + campanhaAtual + '/fila/por-filtro', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
     closeModal('modalFiltro');
     alert(d.inseridos + ' clientes adicionados à fila');
     carregarFila();
-  } else {
-    alert('Erro: ' + d.error);
+  } catch (err) {
+    alert('Erro: ' + (err.message || 'Falha ao adicionar'));
   }
 }
 
@@ -1220,8 +1203,7 @@ async function carregarRelatorio() {
     (ate ? 'data_fim=' + ate : '');
   let rows;
   try {
-    const r = await fetch(url);
-    rows = await r.json();
+    rows = await api(url);
     if (!Array.isArray(rows)) throw new Error(rows.error || 'Resposta inválida');
   } catch (err) {
     document.getElementById('tbRelatorio').innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--danger);padding:20px">Erro: ${esc(err.message)}</td></tr>`;
@@ -1262,19 +1244,13 @@ async function criarLeadAutomatico() {
     convertido_cliente_id: filaAtual.id_cliente || null,
   };
   try {
-    const r = await fetch('/api/leads', {
+    const d = await api('/api/leads', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    const d = await r.json();
-    if (r.ok) {
-      alert('✅ Lead criado com sucesso! ID: ' + d.id);
-    } else {
-      alert('Erro ao criar lead: ' + (d.error || r.status));
-    }
+    alert('✅ Lead criado com sucesso! ID: ' + d.id);
   } catch (err) {
-    alert('Erro de conexão: ' + err.message);
+    alert('Erro ao criar lead: ' + err.message);
   }
 }
 
@@ -1290,12 +1266,10 @@ async function enviarWhatsApp() {
 
   // Tenta enviar via Evolution API; cai no wa.me se não disponível
   try {
-    const r = await fetch(API + '/whatsapp', {
+    const d = await api(API + '/whatsapp', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ numero: tel, mensagem: msg }),
     });
-    const d = await r.json();
     if (d.ok) {
       alert('✅ Mensagem enviada via WhatsApp!');
       return;
@@ -1362,8 +1336,7 @@ async function carregarComparativo() {
     (ate ? 'data_fim=' + ate : '');
   let rows;
   try {
-    const r = await fetch(url);
-    rows = await r.json();
+    rows = await api(url);
     if (!Array.isArray(rows)) throw new Error(rows.error || 'Resposta inválida');
   } catch (err) {
     document.getElementById('tbComparativo').innerHTML =
@@ -1406,7 +1379,7 @@ async function confirmarPausa() {
   if (!campanhaAtual) { closeModal('modalPausa'); return; }
   const motivo = document.getElementById('pausaMotivo').value;
   try {
-    await fetch(API + '/pausar', {
+    await api(API + '/pausar', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id_campanha: campanhaAtual, motivo }),
@@ -1420,7 +1393,7 @@ async function confirmarPausa() {
 async function retomar() {
   if (!campanhaAtual) return;
   try {
-    await fetch(API + '/retomar', {
+    await api(API + '/retomar', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id_campanha: campanhaAtual }),
@@ -1449,12 +1422,11 @@ function atualizarBtnPausa() {
 // ─── PERMISSÕES ───────────────────────────────────────────────────────────────
 async function verificarPermissoes() {
   try {
-    const r = await fetch('/api/auth/me').catch(() => null);
-    if (!r || !r.ok) return;
-    const data = await r.json();
-    const u = data?.user ?? data; // /api/auth/me retorna { user: {...} }
-    _isSupervisor = u?.perfil == 1 || u?.role === 'admin'
-                 || u?.permissoes?.manutencaocadastros === 'S';
+    const u = await apiNullable('/api/auth/me');
+    if (!u) return;
+    const data = u?.user ?? u;
+    _isSupervisor = data?.perfil == 1 || data?.role === 'admin'
+                 || data?.permissoes?.manutencaocadastros === 'S';
   } catch (_) {}
   const btnNova = document.getElementById('btnNovaCampanha');
   if (btnNova) btnNova.style.display = _isSupervisor ? '' : 'none';
@@ -1464,12 +1436,10 @@ async function verificarPermissoes() {
 async function limparTravados() {
   if (!confirm('Liberar registros presos em "Em Atendimento" há mais de 30 minutos?')) return;
   try {
-    const r = await fetch(API + '/limpar-travados', {
+    const d = await api(API + '/limpar-travados', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ minutos: 30 }),
     });
-    const d = await r.json();
     alert(`${d.liberados || 0} registro(s) liberado(s).`);
     if (campanhaAtual) { carregarFila(); atualizarResumoFila(); }
   } catch (err) { alert('Erro: ' + err.message); }
@@ -1480,9 +1450,7 @@ async function verificarStatusWhatsApp() {
   const badge = document.getElementById('waStatusBadge');
   if (!badge) return;
   try {
-    const r = await fetch('/api/whatsapp/status');
-    if (!r.ok) return;
-    const d = await r.json();
+    const d = await api('/api/whatsapp/status');
     badge.style.display = '';
     if (d.conectado) {
       badge.textContent = '💬 WA Conectado';

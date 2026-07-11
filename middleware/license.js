@@ -11,6 +11,7 @@ const CACHE_TTL = 5 * 60 * 1000; // 5 minutos
 const BYPASS = [
   '/api/setup',
   '/api/auth',
+  '/api/login-logo',
   '/api/license',
   '/api/client-log',
   '/api/licencas',

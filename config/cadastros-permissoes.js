@@ -91,6 +91,7 @@ const COMERCIAL_TELAS = [
   { col: 'tela_dash_inteligencia', jwt: 'gtela_dash_inteligencia', page: '/pages/inteligencia-comercial.html', label: 'Inteligência Comercial por Cliente' },
   { col: 'tela_dash_panico', jwt: 'gtela_dash_panico', page: '/pages/panico-vendedor.html', label: 'Pânico do Vendedor — Heatmap' },
   { col: 'tela_dash_gamificacao', jwt: 'gtela_dash_gamificacao', page: '/pages/gamificacao.html', label: 'Gamificação — Ranking & Metas' },
+  { col: 'tela_dash_mapa_oportunidades', jwt: 'gtela_dash_mapa_oportunidades', page: '/pages/mapa-oportunidades.html', label: 'Mapa de Oportunidades — Cliente x Fábrica' },
 ];
 
 /** Todas as telas com coluna tela_* no perfil (cadastros + comercial) */
@@ -108,7 +109,7 @@ const PERFIL_SN_CORE = [
   'incluir_motivo_visitas', 'alterar_motivo_visitas', 'excluir_motivo_visitas',
   'incluir_hoteis', 'alterar_hoteis', 'excluir_hoteis',
   'p_vender', 'p_comprar', 'acessogerenciais', 'manutencaocadastros',
-  'acessartodosclientes', 'mudarempresa', 'alterarbase',
+  'acessartodosclientes', 'acessar_vendastodos', 'mudarempresa', 'alterarbase',
   'acesso_financeiro', 'acessoperfil', 'acessar_cadastros',
   'p_alterarcomissao', 'alterar_emb', 'alterardatapedido', 'trocarvendedorpedido', 'alteraprecovenda',
 ];

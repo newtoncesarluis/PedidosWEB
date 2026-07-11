@@ -217,6 +217,16 @@ router.get('/:id/clientes', async (req, res) => {
     const { q = '', limit = 500, offset = 0 } = req.query;
     const vals = [req.params.id];
     const where = [`(c.excluido='N' OR c.excluido IS NULL)`, `c.regiao = ?`];
+
+    const { buildClienteVendedorWhere } = require('../config/carteira-politica');
+    const { getPrepostoContext } = require('../config/vendedor-visibilidade');
+    const prepCtx = await getPrepostoContext(pool, req);
+    const vendFiltro = buildClienteVendedorWhere(req.user, 'c', prepCtx);
+    if (vendFiltro.clause) {
+      where.push(vendFiltro.clause.replace(/^\s*AND\s+/i, ''));
+      vals.push(...vendFiltro.params);
+    }
+
     if (q.trim()) {
       where.push(`(LOWER(c.nome) LIKE ? OR LOWER(c.cidade) LIKE ?)`);
       vals.push(`%${q.toLowerCase()}%`, `%${q.toLowerCase()}%`);

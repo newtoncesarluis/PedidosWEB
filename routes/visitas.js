@@ -4,6 +4,7 @@ const { getPool } = require('../config/database');
 const {
   resolveVendedorIdForFilter,
   buildPedidosVendedorWhereSync,
+  isVendedorVisivel,
 } = require('../config/vendedor-visibilidade');
 
 // --- Listar Motivos ---
@@ -96,6 +97,16 @@ router.post('/', async (req, res) => {
     const pool = getPool();
     const body = req.body;
     const userId = req.user?.idusuario || req.user?.id || body.id_usuario || '1';
+
+    if (body.id_cliente) {
+      const { assertUsuarioPodeAcessarCliente } = require('../config/carteira-politica');
+      const { getPrepostoContext } = require('../config/vendedor-visibilidade');
+      const prepCtx = await getPrepostoContext(pool, req);
+      const check = await assertUsuarioPodeAcessarCliente(pool, body.id_cliente, req.user, prepCtx);
+      if (!check.ok) {
+        return res.status(check.status || 403).json({ error: check.error });
+      }
+    }
 
     const [controleRows] = await pool.query("SELECT LPAD(IFNULL(MAX(CAST(controle AS UNSIGNED)), 0) + 1, 6, '0') as Ultimo FROM visitas");
     const controle = controleRows[0].Ultimo;
@@ -287,6 +298,8 @@ router.delete('/:id', async (req, res) => {
 router.get('/hoje/:id_vendedor', async (req, res) => {
   try {
     const pool = getPool();
+    const visivel = await isVendedorVisivel(pool, req, req.params.id_vendedor);
+    if (!visivel) return res.status(403).json({ error: 'Sem permissão para ver as atividades deste vendedor' });
     const dtAtual = new Date().toISOString().slice(0,10);
     const [rows] = await pool.query(`
       SELECT v.*, c.nome as nome_cliente, c.endereco, c.bairro, c.cidade, c.uf, c.latitude, c.longitude, m.descricao as motivo_desc

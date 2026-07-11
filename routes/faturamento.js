@@ -1,16 +1,17 @@
 const express = require('express');
 const router  = express.Router();
 const { getPool } = require('../config/database');
-const { listVendedoresVisiveis } = require('../config/vendedor-visibilidade');
+const { listVendedoresVisiveis, canAccessAllVendors } = require('../config/vendedor-visibilidade');
 
 function visFilter(user) {
+  const req = { user: { id: user?.id, perfil: user?.perfil, role: user?.role, permissoes: user?.permissoes || {} } };
   const isAdmin    = user?.perfil == 1;
   const perm       = user?.permissoes || {};
-  const acessaTodos = isAdmin ? 'S' : (perm.acessartodosclientes || '');
+  const acessaVendasTodos = canAccessAllVendors(req);
   const eGerente   = !isAdmin && perm.gerentecomercial === 'S';
   const uid        = user?.id || 0;
 
-  if (isAdmin || acessaTodos === 'S') return { where: '', params: [] };
+  if (isAdmin || acessaVendasTodos) return { where: '', params: [] };
   if (eGerente) return {
     where: ` AND (p.id_usuario = ? OR p.id_usuario IN (SELECT idusuario FROM usuarios WHERE id_gerente = ? AND excluido = 'N'))`,
     params: [uid, uid]

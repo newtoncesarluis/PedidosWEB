@@ -21,6 +21,7 @@ const {
 const { getCampanha } = require('../config/promocoes-campanha');
 const { requirePromoPerm } = require('../config/promocoes-permissoes');
 const { ensureItenspedPromoColumns } = require('../config/schema-migrations');
+const { acquireNumeroPedidoLock, releaseNumeroPedidoLock } = require('../config/pedido-numero-lock');
 const axios = require('axios');
 
 const _tableReadyPools = new Set();
@@ -518,9 +519,11 @@ router.post('/:token/orcamento', async (req, res) => {
       const obsFinal = obsParts.join('\n');
 
       const conn = await pool.getConnection();
+      let _numLock = null;
       try {
         await conn.beginTransaction();
         await ensureItenspedPromoColumns(conn);
+        _numLock = await acquireNumeroPedidoLock(conn);
         const pedidosCriados = [];
 
         for (const [, grupo] of grupos) {
@@ -593,6 +596,7 @@ router.post('/:token/orcamento', async (req, res) => {
         await conn.rollback();
         throw e;
       } finally {
+        await releaseNumeroPedidoLock(conn, _numLock);
         conn.release();
       }
     });

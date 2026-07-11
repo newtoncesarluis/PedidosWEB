@@ -3,9 +3,27 @@
 const { getPool } = require('../../config/database');
 const {
   buildClienteVendedorWhere,
-  podeVerTodosClientes,
-} = require('../../config/cliente-visibilidade');
+  getSistemaCarteiraConfig,
+} = require('../../config/carteira-politica');
 const { getPrepostoContext } = require('../../config/vendedor-visibilidade');
+const {
+  resolveCadastroFiltro,
+  cadastroDateExpr,
+  appendCadastroWhere,
+} = require('../../config/clientes-cadastro-filtro');
+
+/**
+ * Isolamento por empresa (gcompartilhaCliente='N').
+ * Inclui clientes sem id_empresa (legado Delphi / importação).
+ */
+function appendIsolamentoEmpresa(where, vals, config, user, alias = 'c') {
+  if (String(config?.gcompartilhaCliente || '').toUpperCase() !== 'N') return;
+  const emp = user?.id_empresa;
+  if (emp == null || String(emp).trim() === '') return;
+  const col = alias ? `${alias}.id_empresa` : 'id_empresa';
+  where.push(`(${col} = ? OR ${col} IS NULL OR TRIM(CAST(${col} AS CHAR)) = '' OR CAST(${col} AS CHAR) = '0')`);
+  vals.push(emp);
+}
 
 /**
  * Cache de colunas existentes na tabela `clientes`.
@@ -28,11 +46,32 @@ async function getColunasClientes(pool) {
  * Busca configuração do sistema na tabela `sistemas`
  */
 async function getSistemaConfig(pool, idEmpresa) {
-  const [rows] = await pool.query(
-    `SELECT * FROM sistemas WHERE id_empresa = ? OR id_empresa IS NULL ORDER BY id DESC LIMIT 1`,
-    [idEmpresa]
-  ).catch(() => [[]]);
-  return rows[0] || {};
+  let row = null;
+  const emp = idEmpresa != null && String(idEmpresa).trim() !== '' ? idEmpresa : null;
+  if (emp != null) {
+    const [rows] = await pool.query(
+      `SELECT * FROM sistemas WHERE id_empresa = ? OR id_empresa IS NULL ORDER BY id DESC LIMIT 1`,
+      [emp]
+    ).catch(() => [[]]);
+    row = rows[0];
+  }
+  if (!row) {
+    const [rows] = await pool.query(
+      `SELECT * FROM sistemas ORDER BY id DESC LIMIT 1`
+    ).catch(() => [[]]);
+    row = rows[0];
+  }
+  if (!row) return {};
+
+  // Política de carteira: sempre do registro mais recente (fonte única com getSistemaCarteiraConfig)
+  try {
+    const sysCfg = await getSistemaCarteiraConfig(pool);
+    if (sysCfg?.carteira_politica) {
+      row = { ...row, carteira_politica: sysCfg.carteira_politica };
+    }
+  } catch { /* ignore */ }
+
+  return row;
 }
 
 /**
@@ -47,6 +86,10 @@ async function listar(filters, config, user) {
     offset = 0,
     cod_vendedor,
     segmento,
+    cod_segmento,
+    tipo_cliente,
+    sem_compra_dias,
+    suspensa,
     regiao,
     tipo_pessoa,
     cidade,
@@ -54,41 +97,86 @@ async function listar(filters, config, user) {
     lat,
     lng,
     raio = 50,
+    cadastro_periodo = '',
+    cadastro_de = '',
+    cadastro_ate = '',
   } = filters;
+
+  const colunas = await getColunasClientes(pool);
 
   const where = [];
   const vals = [];
 
-  // Filtro de status/exclusão
+  // Filtro de status/exclusão (legado Delphi: excluido/status podem ser NULL ou '')
+  const naoExcluido = `(c.excluido = 'N' OR c.excluido IS NULL OR c.excluido = '')`;
   if (status === 'A') {
-    where.push(`c.excluido = 'N' AND c.status = 'A'`);
+    where.push(`${naoExcluido} AND (c.status = 'A' OR c.status IS NULL OR c.status = '')`);
   } else if (status === 'I') {
-    where.push(`c.excluido = 'N' AND c.status = 'I'`);
+    where.push(`${naoExcluido} AND c.status = 'I'`);
   } else if (status === 'E') {
-    where.push(`c.excluido = 'S' AND c.status = 'E'`);
+    where.push(`(c.excluido = 'S' OR c.status = 'E')`);
   } else {
-    // todos
-    where.push(`c.excluido = 'N'`);
+    // todos (não excluídos)
+    where.push(naoExcluido);
   }
 
-  // Isolamento por empresa
-  if (config.gcompartilhaCliente === 'N') {
-    where.push(`c.id_empresa = ?`);
-    vals.push(user.id_empresa);
-  }
+  // Isolamento por empresa — só quando há empresa na sessão.
+  // Bases legadas (ex.: Jardim) têm id_empresa NULL/vazio em todos os clientes;
+  // sem o OR de legado, admin via 0 registros com gcompartilhaCliente='N'.
+  appendIsolamentoEmpresa(where, vals, config, user);
 
   // Filtros adicionais
   if (cod_vendedor) { where.push(`c.cod_vendedor = ?`); vals.push(cod_vendedor); }
-  if (segmento) { where.push(`c.segmento = ?`); vals.push(segmento); }
+
+  const segId = parseInt(cod_segmento, 10);
+  if (segId > 0) {
+    where.push(`(
+      CAST(c.cod_segmento AS UNSIGNED) = ?
+      OR TRIM(c.cod_segmento) = ?
+      OR LOWER(TRIM(c.segmento)) = (
+        SELECT LOWER(TRIM(cat.descricao)) FROM categoria cat
+        WHERE cat.id = ? AND COALESCE(cat.excluido, 'N') = 'N'
+        LIMIT 1
+      )
+    )`);
+    vals.push(segId, String(segId), segId);
+  } else if (segmento) {
+    where.push(`LOWER(TRIM(c.segmento)) = LOWER(TRIM(?))`);
+    vals.push(segmento);
+  }
+
+  if (tipo_cliente && String(tipo_cliente).trim()) {
+    where.push(`LOWER(c.tipo_cliente) LIKE ?`);
+    vals.push(`%${String(tipo_cliente).trim().toLowerCase()}%`);
+  }
   if (regiao) { where.push(`c.regiao = ?`); vals.push(regiao); }
   if (tipo_pessoa) { where.push(`c.tipo_pessoa = ?`); vals.push(tipo_pessoa); }
   if (cidade) { where.push(`LOWER(c.cidade) LIKE ?`); vals.push(`%${cidade.toLowerCase()}%`); }
   if (uf) { where.push(`c.uf = ?`); vals.push(uf.toUpperCase()); }
 
+  if (sem_compra_dias && parseInt(sem_compra_dias, 10) > 0) {
+    const dtLimite = new Date();
+    dtLimite.setDate(dtLimite.getDate() - parseInt(sem_compra_dias, 10));
+    where.push(`(c.dtultimacompra IS NULL OR c.dtultimacompra < ?)`);
+    vals.push(dtLimite.toISOString().slice(0, 10));
+  }
+
+  if (String(suspensa).toUpperCase() === 'S') {
+    where.push(`c.venda_suspensa = 'S'`);
+  }
+
+  appendCadastroWhere(
+    where,
+    vals,
+    resolveCadastroFiltro({ cadastro_periodo, cadastro_de, cadastro_ate }),
+    cadastroDateExpr('c', colunas)
+  );
+
   // ── Visibilidade: filtro por vendedor (config/cliente-visibilidade.js) ────────
   // Preposto enxerga a carteira do representante (id_gerente) — passa prepCtx
   const prepCtx = await getPrepostoContext(pool, { user });
-  const vendFiltro = buildClienteVendedorWhere(user, 'c', prepCtx);
+  const sysCfg = await getSistemaCarteiraConfig(pool);
+  const vendFiltro = buildClienteVendedorWhere(user, 'c', prepCtx, sysCfg);
   if (vendFiltro.clause) {
     where.push(vendFiltro.clause.replace(/^\s*AND\s+/i, ''));
     vals.push(...vendFiltro.params);
@@ -205,16 +293,12 @@ async function listar(filters, config, user) {
  * Busca cliente por ID (sem sub-registros)
  * Fallback sem LEFT JOIN regiao_rota caso a tabela não exista
  */
-/** Verifica se o usuário pode ver/editar o cliente (perfil acessartodosclientes). */
+/** Verifica se o usuário pode ver/editar o cliente (carteira-politica). */
 async function usuarioPodeVerCliente(clienteId, user, pool) {
-  if (podeVerTodosClientes(user)) return true;
+  const { assertUsuarioPodeAcessarCliente } = require('../../config/carteira-politica');
   const prepCtx = await getPrepostoContext(pool, { user });
-  const vendFiltro = buildClienteVendedorWhere(user, 'c', prepCtx);
-  const [rows] = await pool.query(
-    `SELECT 1 FROM clientes c WHERE c.id = ?${vendFiltro.clause} LIMIT 1`,
-    [clienteId, ...vendFiltro.params]
-  );
-  return rows.length > 0;
+  const check = await assertUsuarioPodeAcessarCliente(pool, clienteId, user, prepCtx);
+  return check.ok;
 }
 
 async function buscarPorId(id, pool) {

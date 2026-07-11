@@ -71,6 +71,44 @@ body { font-family:var(--font,'Inter','Segoe UI',sans-serif); background:var(--b
 select.filter-input { min-width:180px; }
 input[type=date].filter-input { width:140px; }
 
+/* Toggle filtros — iframe home (só ms-page-comissoes-conferencia, sem sysrep-ms-embed) */
+html.ms-page-comissoes-conferencia .toolbar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+html.ms-page-comissoes-conferencia .toolbar-head .toolbar-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 800;
+  margin: 0;
+}
+html.ms-page-comissoes-conferencia .ms-filter-toggle {
+  flex: 0 0 auto;
+  max-width: 48%;
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1.5px solid var(--border);
+  background: var(--card);
+  color: var(--accent);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: none;
+}
+html.ms-page-comissoes-conferencia.ms-filters-collapsed #comissaoConferenciaFilters {
+  display: none;
+}
+
 /* ── BATCH BAR ── */
 .batch-bar {
   background:var(--accent); color:#fff;
@@ -523,6 +561,7 @@ html.ms-embedded-tech.ms-page-comissoes-conferencia .chart-section{display:none!
                 <input type="checkbox" id="chkAll" onclick="toggleSelectAll(this)">
               </th>
               <th>Pedido</th>
+              <th class="text-center">Parc.</th>
               <th>Cliente</th>
               <th>Fábrica</th>
               <th class="text-end">Vlr. Pedido</th>
@@ -532,7 +571,7 @@ html.ms-embedded-tech.ms-page-comissoes-conferencia .chart-section{display:none!
             </tr>
           </thead>
           <tbody id="list_provisoes">
-            <tr class="empty-row"><td colspan="8">Carregando...</td></tr>
+            <tr class="empty-row"><td colspan="9">Carregando...</td></tr>
           </tbody>
         </table>
       </div>
@@ -547,6 +586,7 @@ html.ms-embedded-tech.ms-page-comissoes-conferencia .chart-section{display:none!
           <thead>
             <tr>
               <th>Pedido</th>
+              <th class="text-center">Parc.</th>
               <th>Cliente</th>
               <th>Fábrica</th>
               <th class="text-end">Comissão</th>
@@ -555,7 +595,7 @@ html.ms-embedded-tech.ms-page-comissoes-conferencia .chart-section{display:none!
             </tr>
           </thead>
           <tbody id="list_conferidas">
-            <tr class="empty-row"><td colspan="6">Nenhum registro</td></tr>
+            <tr class="empty-row"><td colspan="7">Nenhum registro</td></tr>
           </tbody>
         </table>
       </div>
@@ -570,6 +610,7 @@ html.ms-embedded-tech.ms-page-comissoes-conferencia .chart-section{display:none!
           <thead>
             <tr>
               <th>Pedido</th>
+              <th class="text-center">Parc.</th>
               <th>Cliente</th>
               <th>Fábrica</th>
               <th class="text-end">Vlr. Pago</th>
@@ -578,7 +619,7 @@ html.ms-embedded-tech.ms-page-comissoes-conferencia .chart-section{display:none!
             </tr>
           </thead>
           <tbody id="list_historico">
-            <tr class="empty-row"><td colspan="6">Nenhum registro</td></tr>
+            <tr class="empty-row"><td colspan="7">Nenhum registro</td></tr>
           </tbody>
         </table>
       </div>
@@ -601,6 +642,7 @@ html.ms-embedded-tech.ms-page-comissoes-conferencia .chart-section{display:none!
               <th class="th-check"><input type="checkbox" id="chkAllPrep" onclick="toggleSelectAllPrep(this)"></th>
               <th>Preposto</th>
               <th>Pedido</th>
+              <th class="text-center">Parc.</th>
               <th>Cliente</th>
               <th>Fábrica</th>
               <th class="text-end">Comissão</th>
@@ -610,7 +652,7 @@ html.ms-embedded-tech.ms-page-comissoes-conferencia .chart-section{display:none!
             </tr>
           </thead>
           <tbody id="list_prepostos">
-            <tr class="empty-row"><td colspan="9">Carregando...</td></tr>
+            <tr class="empty-row"><td colspan="10">Carregando...</td></tr>
           </tbody>
         </table>
       </div>
@@ -642,10 +684,32 @@ let _nomeUsuario = '';
 let _resumoAtual = {};
 
 // Detecta tipo de usuário pelo JWT (sem dependência de lib externa)
+function authToken() {
+  try {
+    const fromCookie = document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('token='));
+    if (fromCookie) return decodeURIComponent(fromCookie.split('=').slice(1).join('='));
+  } catch (_) {}
+  return sessionStorage.getItem('token') || localStorage.getItem('token') || sessionStorage.getItem('sysrep_token') || '';
+}
+
+async function apiComissaoFetch(url, opts = {}) {
+  const token = authToken();
+  const headers = { ...(opts.headers || {}) };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const r = await fetch(url, { ...opts, headers, credentials: 'include' });
+  const data = await r.json().catch(() => ({}));
+  if (r.status === 401) {
+    toast(data.error || 'Sessão expirada — faça login novamente', 'err');
+    setTimeout(() => { window.top.location.href = '/login.html'; }, 1200);
+    throw new Error(data.error || 'Sessão expirada');
+  }
+  if (!r.ok) throw new Error(data.error || `Erro ${r.status}`);
+  return data;
+}
+
 (function() {
   try {
-    const raw = document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('token='))?.split('=').slice(1).join('=')
-             || localStorage.getItem('token') || sessionStorage.getItem('sysrep_token') || '';
+    const raw = authToken();
     if (raw) {
       const payload = JSON.parse(atob(raw.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
       _tipoUsuario = payload.tipo_usuario || 'REPRESENTANTE';
@@ -666,6 +730,14 @@ function fmtBRLShort(v) {
 function fmtDate(d) {
   if (!d) return '—';
   return new Date(d).toLocaleDateString('pt-BR');
+}
+function fmtParcela(p) {
+  const parc = parseInt(p.parcela, 10) || 0;
+  const qt = parseInt(p.qt_parcelas, 10) || 1;
+  if (!p.id_parcela) return qt <= 1 ? 'Única' : 'Única*';
+  if (parc > 0 && qt > 1) return parc + '/' + qt;
+  if (parc > 0) return String(parc);
+  return '—';
 }
 function toast(msg, type) {
   const c = document.getElementById('toast-c');
@@ -729,7 +801,7 @@ async function loadAll() {
   }).toString();
 
   try {
-    const data = await fetch('/api/comissoes/extrato?' + q).then(r => r.json());
+    const data = await apiComissaoFetch('/api/comissoes/extrato?' + q);
     if (data.error) throw new Error(data.error);
 
     if (data.resumo) renderStats(data);
@@ -749,7 +821,7 @@ async function loadAll() {
     setupComissaoTabsScrollNav();
   } catch (err) {
     console.error('Erro ao carregar extrato:', err);
-    toast('Erro ao carregar dados', 'err');
+    toast(err.message || 'Erro ao carregar dados', 'err');
   }
 }
 
@@ -792,13 +864,13 @@ async function loadPrepostos() {
   }).toString();
 
   try {
-    const data = await fetch('/api/comissoes/prepostos-do-rep?' + q).then(r => r.json());
+    const data = await apiComissaoFetch('/api/comissoes/prepostos-do-rep?' + q);
     if (data.error) throw new Error(data.error);
     populatePrepostosFiltro(data.prepostos || []);
     renderListaPrepostos(data.pendentes || [], data.conferidas || [], data.liquidadas || []);
   } catch(e) {
     document.getElementById('list_prepostos').innerHTML =
-      '<tr class="empty-row"><td colspan="9">Erro ao carregar</td></tr>';
+      '<tr class="empty-row"><td colspan="10">Erro ao carregar</td></tr>';
   }
 }
 
@@ -821,7 +893,7 @@ function renderListaPrepostos(pendentes, conferidas, liquidadas) {
 
   if (!todas.length) {
     document.getElementById('list_prepostos').innerHTML =
-      '<tr class="empty-row"><td colspan="9">Nenhuma comissão de preposto encontrada</td></tr>';
+      '<tr class="empty-row"><td colspan="10">Nenhuma comissão de preposto encontrada</td></tr>';
     return;
   }
 
@@ -836,6 +908,7 @@ function renderListaPrepostos(pendentes, conferidas, liquidadas) {
       </td>
       <td style="font-weight:700;color:var(--warn)">${p.nome_preposto || '—'}</td>
       <td><span class="num-pedido">${p.pedido || '—'}</span></td>
+      <td class="text-center" style="color:var(--text2);font-weight:600">${fmtParcela(p)}</td>
       <td>${p.nome_cliente || '—'}</td>
       <td><span class="badge badge-fab">${p.nome_fornecedor || '—'}</span></td>
       <td class="text-end"><span class="${isPend ? 'vlr-provisao' : 'vlr-comissao'}">${fmtBRL(p.vlr_pago || 0)}</span></td>
@@ -910,11 +983,11 @@ async function conferirLotePrepostos() {
 async function _conferirPrep(ids, btn) {
   if (btn) btn.disabled = true;
   try {
-    const res = await fetch('/api/comissoes/preposto/aceitar-pelo-rep', {
+    const res = await apiComissaoFetch('/api/comissoes/preposto/aceitar-pelo-rep', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ids })
-    }).then(r => r.json());
+    });
 
     if (res.sucesso) {
       toast(ids.length > 1 ? ids.length + ' comissões conferidas!' : 'Comissão conferida!', 'ok');
@@ -958,7 +1031,7 @@ function renderProvisoes(list) {
 
   if (!list.length) {
     document.getElementById('list_provisoes').innerHTML =
-      '<tr class="empty-row"><td colspan="8">Nenhuma provisão pendente</td></tr>';
+      '<tr class="empty-row"><td colspan="9">Nenhuma provisão pendente</td></tr>';
     return;
   }
 
@@ -968,6 +1041,7 @@ function renderProvisoes(list) {
         <input type="checkbox" class="row-chk" data-id="${p.id}" onclick="onRowCheck(this)">
       </td>
       <td><span class="num-pedido">${p.pedido || '—'}</span></td>
+      <td class="text-center" style="color:var(--text2);font-weight:600">${fmtParcela(p)}</td>
       <td>${p.nome_cliente || '—'}</td>
       <td><span class="badge badge-fab">${p.nome_fornecedor || '—'}</span></td>
       <td class="text-end">${fmtBRL(p.vlrtotalpedido || 0)}</td>
@@ -987,13 +1061,14 @@ function renderConferidas(list) {
 
   if (!list.length) {
     document.getElementById('list_conferidas').innerHTML =
-      '<tr class="empty-row"><td colspan="6">Nenhuma comissão conferida</td></tr>';
+      '<tr class="empty-row"><td colspan="7">Nenhuma comissão conferida</td></tr>';
     return;
   }
 
   document.getElementById('list_conferidas').innerHTML = list.map(p => `
     <tr>
       <td><span class="num-pedido">${p.pedido || '—'}</span></td>
+      <td class="text-center" style="color:var(--text2);font-weight:600">${fmtParcela(p)}</td>
       <td>${p.nome_cliente || '—'}</td>
       <td>${p.nome_fornecedor || '—'}</td>
       <td class="text-end"><span class="vlr-comissao">${fmtBRL(p.vlr_pago || 0)}</span></td>
@@ -1010,13 +1085,14 @@ function renderHistorico(list) {
 
   if (!list.length) {
     document.getElementById('list_historico').innerHTML =
-      '<tr class="empty-row"><td colspan="6">Nenhum pagamento liquidado</td></tr>';
+      '<tr class="empty-row"><td colspan="7">Nenhum pagamento liquidado</td></tr>';
     return;
   }
 
   document.getElementById('list_historico').innerHTML = list.map(p => `
     <tr>
       <td><span class="num-pedido">${p.pedido || '—'}</span></td>
+      <td class="text-center" style="color:var(--text2);font-weight:600">${fmtParcela(p)}</td>
       <td>${p.nome_cliente || '—'}</td>
       <td>${p.nome_fornecedor || '—'}</td>
       <td class="text-end"><span class="vlr-comissao">${fmtBRL(p.vlr_pago || 0)}</span></td>
@@ -1142,11 +1218,11 @@ async function conferirLote() {
 async function _conferir(ids, btn) {
   if (btn) btn.disabled = true;
   try {
-    const res = await fetch('/api/comissoes/vendedor/aceitar', {
+    const res = await apiComissaoFetch('/api/comissoes/vendedor/aceitar', {
       method: 'POST',
-      headers: { 'Content-Type':'application/json' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ids })
-    }).then(r => r.json());
+    });
 
     if (res.sucesso) {
       toast(ids.length > 1 ? ids.length + ' comissões conferidas!' : 'Comissão conferida!', 'ok');
@@ -1239,8 +1315,11 @@ function populateFabricas(fabricas) {
 
 // ── Charts ───────────────────────────────────────────────────────────────────
 function renderTrendChart(diaria) {
+  if (typeof Chart === 'undefined') return;
+  const canvas = document.getElementById('chart_trend');
+  if (!canvas) return;
   if (_charts.trend) _charts.trend.destroy();
-  const ctx = document.getElementById('chart_trend').getContext('2d');
+  const ctx = canvas.getContext('2d');
   const accentColor = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#0d9488';
   _charts.trend = new Chart(ctx, {
     type: 'line',
@@ -1263,8 +1342,11 @@ function renderTrendChart(diaria) {
 }
 
 function renderFabricaChart(fabricas) {
+  if (typeof Chart === 'undefined') return;
+  const canvas = document.getElementById('chart_fabricas');
+  if (!canvas) return;
   if (_charts.fabricas) _charts.fabricas.destroy();
-  const ctx = document.getElementById('chart_fabricas').getContext('2d');
+  const ctx = canvas.getContext('2d');
   _charts.fabricas = new Chart(ctx, {
     type: 'doughnut',
     data: {

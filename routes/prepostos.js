@@ -2,21 +2,24 @@ const express = require('express');
 const router  = express.Router();
 const { getPool } = require('../config/database');
 const { permSn, negarCad } = require('../config/cadastros-permissoes');
+const { listarTabelasVinculadas } = require('../config/tabela-preco-vinculo');
+const { ensurePrepostoTabelaPrecoSchema } = require('../config/preposto-tabela-preco');
 
 // Guards de permissão (admin sempre 'S' via permSn)
 const guardIncluir = (req, res, next) => permSn(req, 'incluir_prepostos') === 'S' ? next() : negarCad(res, 'Sem permissão para incluir prepostos');
 const guardAlterar = (req, res, next) => permSn(req, 'alterar_prepostos') === 'S' ? next() : negarCad(res, 'Sem permissão para alterar prepostos');
 const guardExcluir = (req, res, next) => permSn(req, 'excluir_prepostos') === 'S' ? next() : negarCad(res, 'Sem permissão para excluir prepostos');
 
-// Garante colunas necessárias na tabela usuarios
-let _colsOk = false;
+// Garante colunas necessárias na tabela usuarios (por pool/tenant — processo serve múltiplos tenants via ALS)
+const _colsOkPools = new WeakSet();
 async function _ensureCols(pool) {
-  if (_colsOk) return;
-  _colsOk = true;
+  if (_colsOkPools.has(pool)) return;
+  _colsOkPools.add(pool);
   const cols = [
     { name: 'tipo_usuario',          type: "VARCHAR(20) NOT NULL DEFAULT 'REPRESENTANTE'" },
     { name: 'comissao_preposto_pct', type: 'DECIMAL(5,2) NOT NULL DEFAULT 6.00' },
     { name: 'preposto_visibilidade', type: "VARCHAR(20) NOT NULL DEFAULT 'TODOS'" },
+    { name: 'preposto_pedidos_visibilidade', type: "VARCHAR(20) NOT NULL DEFAULT 'CARTEIRA'" },
   ];
   for (const c of cols)
     await pool.query(`ALTER TABLE usuarios ADD COLUMN ${c.name} ${c.type}`).catch(() => {});
@@ -29,6 +32,7 @@ async function _ensureCols(pool) {
     UNIQUE KEY unq_prep_cli (id_preposto, cod_cliente),
     INDEX idx_pc_preposto (id_preposto)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`).catch(() => {});
+  await ensurePrepostoTabelaPrecoSchema(pool);
 }
 
 // GET /api/prepostos — lista prepostos do representante logado (ou todos se admin)
@@ -41,6 +45,8 @@ router.get('/', async (req, res) => {
     let q = `SELECT u.idusuario AS id, u.nomeusu AS nome, u.loginusu AS login, u.comissao_preposto_pct AS pct_comissao,
                     COALESCE(u.excluido,'N') AS excluido, u.id_gerente,
                     COALESCE(u.preposto_visibilidade,'TODOS') AS preposto_visibilidade,
+                    COALESCE(u.preposto_tabela_visibilidade,'TODOS') AS preposto_tabela_visibilidade,
+                    COALESCE(u.preposto_pedidos_visibilidade,'CARTEIRA') AS preposto_pedidos_visibilidade,
                     g.nomeusu AS nome_gerente
              FROM usuarios u
              LEFT JOIN usuarios g ON g.idusuario = u.id_gerente AND g.excluido = 'N'
@@ -235,11 +241,13 @@ router.post('/', guardIncluir, async (req, res) => {
   try {
     await _ensureCols(pool);
     const userId = req.user?.id;
-    const { nome, login, senha, pct_comissao, preposto_visibilidade } = req.body;
+    const { nome, login, senha, pct_comissao, preposto_visibilidade, preposto_tabela_visibilidade, preposto_pedidos_visibilidade } = req.body;
     if (!nome || !login) return res.status(400).json({ error: 'Nome e login são obrigatórios' });
 
     const pct = parseFloat(pct_comissao) || 6;
     const visib = String(preposto_visibilidade || 'TODOS').toUpperCase() === 'ATRIBUIDOS' ? 'ATRIBUIDOS' : 'TODOS';
+    const visibTab = String(preposto_tabela_visibilidade || 'TODOS').toUpperCase() === 'ATRIBUIDOS' ? 'ATRIBUIDOS' : 'TODOS';
+    const visibPed = String(preposto_pedidos_visibilidade || 'CARTEIRA').toUpperCase() === 'PROPRIOS' ? 'PROPRIOS' : 'CARTEIRA';
     const senhaCrypt = senha || login; // sem criptografia aqui — usa a mesma do sistema
 
     // Verifica login duplicado
@@ -250,9 +258,9 @@ router.post('/', guardIncluir, async (req, res) => {
     if (dup.length) return res.status(409).json({ error: 'Login já cadastrado' });
 
     const [result] = await pool.query(`
-      INSERT INTO usuarios (nomeusu, loginusu, senhausu, situacao, tipo_usuario, comissao_preposto_pct, preposto_visibilidade, id_gerente, excluido)
-      VALUES (?, ?, ?, 'ATIVO', 'PREPOSTO', ?, ?, ?, 'N')
-    `, [nome.toUpperCase(), login, senhaCrypt, pct, visib, userId]);
+      INSERT INTO usuarios (nomeusu, loginusu, senhausu, situacao, tipo_usuario, comissao_preposto_pct, preposto_visibilidade, preposto_tabela_visibilidade, preposto_pedidos_visibilidade, id_gerente, excluido)
+      VALUES (?, ?, ?, 'ATIVO', 'PREPOSTO', ?, ?, ?, ?, ?, 'N')
+    `, [nome.toUpperCase(), login, senhaCrypt, pct, visib, visibTab, visibPed, userId]);
 
     res.status(201).json({ ok: true, id: result.insertId });
   } catch (err) {
@@ -265,7 +273,7 @@ router.put('/:id', guardAlterar, async (req, res) => {
   const pool = getPool();
   try {
     const { id } = req.params;
-    const { nome, pct_comissao, ativo, preposto_visibilidade, id_gerente } = req.body;
+    const { nome, pct_comissao, ativo, preposto_visibilidade, preposto_tabela_visibilidade, preposto_pedidos_visibilidade, id_gerente } = req.body;
     const sets = [], vals = [];
     if (nome !== undefined)          { sets.push('nomeusu = ?');                vals.push(nome.toUpperCase()); }
     if (pct_comissao !== undefined)  { sets.push('comissao_preposto_pct = ?');  vals.push(parseFloat(pct_comissao) || 6); }
@@ -273,6 +281,14 @@ router.put('/:id', guardAlterar, async (req, res) => {
     if (preposto_visibilidade !== undefined) {
       sets.push('preposto_visibilidade = ?');
       vals.push(String(preposto_visibilidade).toUpperCase() === 'ATRIBUIDOS' ? 'ATRIBUIDOS' : 'TODOS');
+    }
+    if (preposto_tabela_visibilidade !== undefined) {
+      sets.push('preposto_tabela_visibilidade = ?');
+      vals.push(String(preposto_tabela_visibilidade).toUpperCase() === 'ATRIBUIDOS' ? 'ATRIBUIDOS' : 'TODOS');
+    }
+    if (preposto_pedidos_visibilidade !== undefined) {
+      sets.push('preposto_pedidos_visibilidade = ?');
+      vals.push(String(preposto_pedidos_visibilidade).toUpperCase() === 'PROPRIOS' ? 'PROPRIOS' : 'CARTEIRA');
     }
     if (id_gerente !== undefined && id_gerente)  { sets.push('id_gerente = ?'); vals.push(parseInt(id_gerente)); }
     if (!sets.length) return res.status(400).json({ error: 'Nada para atualizar' });
@@ -336,6 +352,59 @@ router.post('/:id/clientes', guardAlterar, async (req, res) => {
          VALUES (?, ?, 'N')
          ON DUPLICATE KEY UPDATE excluido = 'N'`,
         [idPreposto, cid]
+      );
+    }
+    res.json({ ok: true, total: ids.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/prepostos/:id/tabelas-preco — tabelas vinculadas ao representante + marcação dos atribuídos
+router.get('/:id/tabelas-preco', async (req, res) => {
+  const pool = getPool();
+  try {
+    await _ensureCols(pool);
+    const idPreposto = parseInt(req.params.id);
+
+    // representante principal do preposto
+    const [[prep]] = await pool.query(
+      `SELECT id_gerente FROM usuarios WHERE idusuario = ? AND tipo_usuario = 'PREPOSTO' LIMIT 1`,
+      [idPreposto]
+    );
+    const idRep = prep?.id_gerente || 0;
+
+    // tabelas de preço vinculadas ao representante (tipo VENDEDOR)
+    const tabelas = idRep ? await listarTabelasVinculadas(pool, idRep, 'VENDEDOR') : [];
+
+    // tabelas já atribuídas ao preposto
+    const [vinc] = await pool.query(
+      `SELECT id_tabela FROM preposto_tabela_preco WHERE id_preposto = ? AND excluido = 'N'`,
+      [idPreposto]
+    );
+    const atribuidas = vinc.map((v) => parseInt(v.id_tabela, 10));
+
+    res.json({ tabelas, atribuidas });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/prepostos/:id/tabelas-preco — substitui o conjunto de tabelas atribuídas { ids: [...] }
+router.post('/:id/tabelas-preco', guardAlterar, async (req, res) => {
+  const pool = getPool();
+  try {
+    await _ensureCols(pool);
+    const idPreposto = parseInt(req.params.id);
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids.map((n) => parseInt(n)).filter(Boolean) : [];
+
+    await pool.query(`UPDATE preposto_tabela_preco SET excluido = 'S' WHERE id_preposto = ?`, [idPreposto]);
+    for (const tid of ids) {
+      await pool.query(
+        `INSERT INTO preposto_tabela_preco (id_preposto, id_tabela, excluido)
+         VALUES (?, ?, 'N')
+         ON DUPLICATE KEY UPDATE excluido = 'N'`,
+        [idPreposto, tid]
       );
     }
     res.json({ ok: true, total: ids.length });

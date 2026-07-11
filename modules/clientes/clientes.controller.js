@@ -8,6 +8,8 @@ const faturamentoSvc = require('./sub/faturamento.service');
 const refSvc         = require('./sub/referencias.service');
 const historicSvc    = require('./sub/historico.service');
 const { getPool }    = require('../../config/database');
+const { assertUsuarioPodeAcessarCliente } = require('../../config/carteira-politica');
+const { getPrepostoContext } = require('../../config/vendedor-visibilidade');
 
 // ─── Helper: statusCode do erro → HTTP status ────────────────────────────────
 function httpStatus(err) {
@@ -204,6 +206,10 @@ const excluirRefComercial = async (req, res) => {
 const historicoLista = async (req, res) => {
   try {
     const pool   = getPool();
+    const prepCtx = await getPrepostoContext(pool, req);
+    const check = await assertUsuarioPodeAcessarCliente(pool, req.params.id, req.user, prepCtx);
+    if (!check.ok) return res.status(check.status || 403).json({ error: check.error });
+
     const config = await repo.getSistemaConfig(pool, req.user?.id_empresa).catch(() => ({}));
     const dados  = await historicSvc.buscarHistoricoCompleto(
       req.params.id,
@@ -223,8 +229,18 @@ const historicoLista = async (req, res) => {
 // ─── HISTÓRICO: detalhe de pedido (itens + parcelas) ─────────────────────────
 const historicoDetalhe = async (req, res) => {
   try {
-    const numpedido = req.params.numpedido;
     const pool = getPool();
+    const prepCtx = await getPrepostoContext(pool, req);
+    const numpedido = req.params.numpedido;
+    const [[pedRow]] = await pool.query(
+      `SELECT cod_cliente FROM pedidos WHERE numero = ? AND (excluido = 'N' OR excluido IS NULL) LIMIT 1`,
+      [numpedido]
+    ).catch(() => [[]]);
+    if (pedRow?.cod_cliente) {
+      const check = await assertUsuarioPodeAcessarCliente(pool, pedRow.cod_cliente, req.user, prepCtx);
+      if (!check.ok) return res.status(check.status || 403).json({ error: check.error });
+    }
+
     const data = await historicSvc.buscarDetalhesPedido(numpedido, pool);
     res.json(data);
   } catch (e) {
@@ -236,6 +252,10 @@ const historicoDetalhe = async (req, res) => {
 const financeiro = async (req, res) => {
   try {
     const pool = getPool();
+    const prepCtx = await getPrepostoContext(pool, req);
+    const check = await assertUsuarioPodeAcessarCliente(pool, req.params.id, req.user, prepCtx);
+    if (!check.ok) return res.status(check.status || 403).json({ error: check.error });
+
     const [rows] = await pool.query(`
       SELECT r.status, r.vencimento, r.valor, p.forma_pagto, p.data_abertura, p.numero as pedido
       FROM receber r

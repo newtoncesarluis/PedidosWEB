@@ -5,6 +5,16 @@
 const express = require('express');
 const router  = express.Router();
 const { getPool } = require('../config/database');
+const { buildPedidosVendedorWhereSync } = require('../config/vendedor-visibilidade');
+
+// Converte { clause, params } (placeholders "?") em SQL com valores já escapados,
+// para uso em templates que não passam params posicionais ao pool.query.
+function inlineScope(pool, scope) {
+  if (!scope.clause) return '';
+  let sql = scope.clause.trim().replace(/^AND\s+/i, 'AND ');
+  scope.params.forEach((p) => { sql = sql.replace('?', pool.escape(p)); });
+  return sql;
+}
 
 // Regiões descobertas, clientes inativos geolocalizados, heatmap de faturamento
 router.get('/analise', async (req, res) => {
@@ -13,10 +23,11 @@ router.get('/analise', async (req, res) => {
     const { vendedor_id, dias_inatividade = 90 } = req.query;
     const diasInativ = parseInt(dias_inatividade, 10) || 90;
 
-    // Cláusulas de vendedor para cada tabela
-    const vendedorPedidoClause  = vendedor_id ? `AND p.id_usuario = ${pool.escape(vendedor_id)}`    : '';
-    const vendedorVisitaClause  = vendedor_id ? `AND v.id_vendedor = ${pool.escape(vendedor_id)}`   : '';
-    const vendedorClienteClause = vendedor_id ? `AND c.cod_vendedor = ${pool.escape(vendedor_id)}`  : '';
+    // Cláusulas de vendedor para cada tabela — respeitam a permissão do usuário logado
+    // (admin/gerente podem escolher; vendedor comum e preposto ficam travados na própria carteira).
+    const vendedorPedidoClause  = inlineScope(pool, buildPedidosVendedorWhereSync(req, vendedor_id, 'p.id_usuario'));
+    const vendedorVisitaClause  = inlineScope(pool, buildPedidosVendedorWhereSync(req, vendedor_id, 'v.id_vendedor'));
+    const vendedorClienteClause = inlineScope(pool, buildPedidosVendedorWhereSync(req, vendedor_id, 'c.cod_vendedor'));
 
     // Clientes inativos com geocoordenadas
     const [clientesInativos] = await pool.query(`

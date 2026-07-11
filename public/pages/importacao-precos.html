@@ -1550,17 +1550,27 @@
     } catch(e) {}
   }
 
-  // Auto-mapeamento restrito: apenas os 3 campos essenciais de identificação do produto
-  const AUTO_MAP_APENAS = new Set(['descricao', 'unidade', 'cod_fabricante']);
+  // Campos com EFEITO COLATERAL — nunca auto-mapear (exigem mapeamento manual):
+  // estoque_atual gera movimento de estoque (AJUSTE); situacao muda ativo/inativo.
+  // Assim uma importação de preço/tabela não mexe em estoque/status sem o usuário pedir.
+  const AUTO_MAP_BLOQUEADOS = new Set([
+    'estoque_atual', 'estoque_minimo', 'estoque_maximo', 'estoque_seguranca', 'situacao'
+  ]);
 
+  // Auto-mapeamento por match EXATO do cabeçalho com nome_campo OU apelido.
+  // Antes só mapeava 3 campos essenciais (descricao/unidade/cod_fabricante) e
+  // deixava "Valor de Venda" (e todos os outros) SEM vínculo → o produto importava
+  // sem preço. Como os cabeçalhos da planilha-modelo são exatamente os apelidos
+  // dos campos, o match exato cobre toda a planilha sem risco de falso-positivo.
   function autoMapear() {
     colMapping = {};
     headers.forEach((h, i) => {
-      const hNorm = h.toLowerCase().trim().replace(/[\s_\-]/g,'');
+      const hNorm = String(h).toLowerCase().trim().replace(/[\s_\-]/g,'');
+      if (!hNorm) return;
       const match = camposImportacao.find(c => {
-        if (!AUTO_MAP_APENAS.has(c.nome_campo)) return false;
-        const nome  = c.nome_campo.toLowerCase().replace(/[\s_\-]/g,'');
-        const apel  = c.apelido.toLowerCase().replace(/[\s_\-]/g,'');
+        if (AUTO_MAP_BLOQUEADOS.has(c.nome_campo)) return false;
+        const nome  = String(c.nome_campo).toLowerCase().replace(/[\s_\-]/g,'');
+        const apel  = String(c.apelido).toLowerCase().replace(/[\s_\-]/g,'');
         return nome === hNorm || apel === hNorm;
       });
       if (match) colMapping[i] = { nome_campo: match.nome_campo, apelido: match.apelido };
@@ -2063,6 +2073,10 @@
     if (val == null || val === '') return NaN;
     if (typeof val === 'number') return isFinite(val) ? val : NaN;
     let s = String(val).trim().replace(/\s/g, '');
+    if (!s) return NaN;
+    // Remove símbolos de moeda/letras (ex.: "R$ 35,94", "$35.94") — antes só
+    // funcionava com número puro; com símbolo retornava NaN e a linha não importava.
+    s = s.replace(/[R$€£¥a-zA-Z]/g, '');
     if (!s) return NaN;
     if (/^\d{1,3}(\.\d{3})+,\d+$/.test(s)) s = s.replace(/\./g, '').replace(',', '.');
     else if (/^\d+,\d+$/.test(s)) s = s.replace(',', '.');

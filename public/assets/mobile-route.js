@@ -51,6 +51,41 @@
     return isNarrowViewport() || isMobileUa() || isCoarseTablet();
   }
 
+  /** Desktop com janela larga: pode sair do mobile-shell (não força em celular real). */
+  function shouldLeaveMobileShell() {
+    if (prefersDesktop()) return true;
+    if (isMobileUa()) return false;
+    return !isNarrowViewport();
+  }
+
+  var _viewportTimer = null;
+
+  function onViewportChange() {
+    if (window.top !== window.self) return;
+    var p = pathnameOnly();
+    if (shouldLeaveMobileShell()) {
+      if (p === '/mobile-shell.html') {
+        window.location.replace('/home.html?_=' + Date.now());
+      }
+      return;
+    }
+    enforceTopWindow();
+  }
+
+  function bindViewportListener() {
+    function schedule() {
+      clearTimeout(_viewportTimer);
+      _viewportTimer = setTimeout(onViewportChange, 220);
+    }
+    try {
+      var mql = window.matchMedia('(max-width: ' + MAX_NARROW_PX + 'px)');
+      if (mql.addEventListener) mql.addEventListener('change', schedule);
+      else if (mql.addListener) mql.addListener(schedule);
+    } catch (_) {}
+    window.addEventListener('resize', schedule, { passive: true });
+    window.addEventListener('orientationchange', function () { setTimeout(onViewportChange, 320); });
+  }
+
   function pathnameOnly() {
     var p = window.location.pathname || '/';
     p = p.replace(/\\/g, '/');
@@ -110,10 +145,13 @@
     prefersDesktop: prefersDesktop,
     setPrefersDesktop: setPrefersDesktop,
     isMobileShellMode: isMobileShellMode,
+    shouldLeaveMobileShell: shouldLeaveMobileShell,
     postLoginTarget: postLoginTarget,
     allowedPages: Object.keys(ALLOW_PAGES),
     enforceTopWindow: enforceTopWindow
   };
 
   enforceTopWindow();
+  bindViewportListener();
+  onViewportChange();
 })();

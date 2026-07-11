@@ -45,7 +45,8 @@ router.post('/importar', upload.single('xml'), async (req, res) => {
     const resultado = await importarNFe({
       xmlBuffer: req.file.buffer,
       fornecedor,
-      user: req.user
+      user: req.user,
+      id_tabela_preco: req.body.id_tabela_preco || null,
     });
     res.json({ ok: true, ...resultado });
   } catch (err) {

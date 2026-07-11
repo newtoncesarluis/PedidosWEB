@@ -1,7 +1,9 @@
 const { parseExcelPedido }          = require('../parsers/excel-parser');
 const {
   buscarProduto,
-  buscarFlagCompartilhaProduto
+  buscarFlagCompartilhaProduto,
+  resolverPrecoImportacao,
+  produtoIdOf,
 } = require('../repositories/nfe-repository');
 
 function bizError(msg, code) {
@@ -12,7 +14,7 @@ function bizError(msg, code) {
  * Importa itens de uma planilha Excel para o pedido.
  * Não verifica nota duplicada (Excel não tem chave NF-e).
  */
-async function importarExcel({ buffer, fornecedor, user }) {
+async function importarExcel({ buffer, fornecedor, user, id_tabela_preco }) {
   if (!fornecedor?.id) {
     throw bizError(
       'Campo Fornecedor não informado! Informe para continuar a operação!',
@@ -30,6 +32,7 @@ async function importarExcel({ buffer, fornecedor, user }) {
   const produtoFornecedor  = String(fornecedor.produtofornecedor ?? 'N').toUpperCase();
   const compartilhaProduto = await buscarFlagCompartilhaProduto();
   const idEmpresa          = user.id_empresa ?? null;
+  const idTabela           = parseInt(id_tabela_preco, 10) || null;
 
   let localizados = 0, naoLocalizados = 0;
   let totalProdutos = 0, totalComissao = 0;
@@ -50,7 +53,7 @@ async function importarExcel({ buffer, fornecedor, user }) {
       item.descricao          = produto.desc_produto || produto.descricao || item.cod_fabricante;
       item.unidade            = produto.unidade || '';
       item.status_cadastro    = produto.status_cadastro ?? null;
-      item.cod_produtos       = produto.id;
+      item.cod_produtos       = produtoIdOf(produto);
       item.kilo_embalagem     = parseFloat(produto.kilo_embalagem ?? 1);
       item.cod_fabricante     = produto.cod_fabricante ?? item.cod_fabricante;
       item.comissao           = parseFloat(produto.comissao ?? 0);
@@ -63,6 +66,20 @@ async function importarExcel({ buffer, fornecedor, user }) {
       item.id_familiaproduto  = produto.id_familiaproduto ?? null;
       item.nome_familia       = produto.nome_familia ?? null;
       item.st                 = parseFloat(produto.st ?? 0);
+      item._preco_origem      = parseFloat(item.valor_unitario) || 0;
+      item._vlr_catalogo      = parseFloat(produto.vlr_venda) || 0;
+
+      const precos = await resolverPrecoImportacao({
+        idTabela,
+        produto,
+        precoArquivo: item._preco_origem,
+      });
+      item.valor_unitario  = precos.valor_unitario;
+      item.vlr_padrao      = precos.vlr_padrao;
+      item.preco_da_tabela = precos.preco_da_tabela;
+      item.usou_tabela     = precos.usou_tabela;
+      item.total_produtos  = item.quantidade * item.valor_unitario;
+
       item.valor_saca         = item.valor_unitario * item.kilo_embalagem;
       item.vlr_comissao       = item.total_produtos * item.comissao / 100;
       item.vlr_st             = Math.abs(item.total_produtos * item.st / 100);
@@ -91,6 +108,7 @@ async function importarExcel({ buffer, fornecedor, user }) {
     itens,
     localizados,
     nao_localizados: naoLocalizados,
+    id_tabela_preco: idTabela,
     totais: {
       produtos: +totalProdutos.toFixed(2),
       comissao: +totalComissao.toFixed(2)

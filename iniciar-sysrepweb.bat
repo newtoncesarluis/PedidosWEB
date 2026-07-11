@@ -13,6 +13,13 @@ set LICENSE_DB_USER=nilton
 set LICENSE_DB_PASSWORD=kzf010557f
 set LICENSE_DB_NAME=sistema_licencas
 
+rem Solicitacoes de suporte -> nc_painel (Hostinger). Dev local: tunnel-dev.bat [2] porta 3308
+set PAINEL_DB_HOST=127.0.0.1
+set PAINEL_DB_PORT=3308
+set PAINEL_DB_USER=app_pedidosweb
+set PAINEL_DB_PASSWORD=kzf010557f@2025
+set PAINEL_DB_NAME=nc_painel
+
 if not exist "%DIR%logs" mkdir "%DIR%logs"
 
 :: Mata apenas o servidor Node anterior (porta 3002)

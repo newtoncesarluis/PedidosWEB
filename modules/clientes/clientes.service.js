@@ -11,6 +11,12 @@ const lembretesSvc = require('./sub/lembretes.service');
 const tabelaSvc = require('./sub/tabelapreco.service');
 const { getPool } = require('../../config/database');
 const { getPrepostoContext } = require('../../config/vendedor-visibilidade');
+const {
+  getSistemaCarteiraConfig,
+  resolveCodVendedorGravacao,
+  vendedorObrigatorioNaCarteira,
+  codVendedorInformado,
+} = require('../../config/carteira-politica');
 const { validarCliente, validarCpfCnpj } = require('./clientes.validator');
 
 // ─── LISTAR ───────────────────────────────────────────────────────────────────
@@ -71,7 +77,8 @@ async function buscarCliente(id, user) {
 
 async function criarCliente(body, user) {
   const pool = getPool();
-  const config = await repo.getSistemaConfig(pool, user.id_empresa);
+  const sysCfg = await getSistemaCarteiraConfig(pool);
+  const config = { ...(await repo.getSistemaConfig(pool, user.id_empresa)), ...sysCfg };
 
   // Validação de campos obrigatórios
   const validacao = validarCliente(body, config);
@@ -156,16 +163,17 @@ async function criarCliente(body, user) {
     dados.sincronizar = 'N';
   }
 
-  // Segurança: forçar cod_vendedor quando gacessartodosclientes='S'
-  if (config.gacessartodosclientes === 'S') {
-    dados.cod_vendedor = user.id;
-  }
-
-  // Preposto: o cliente entra na carteira do REPRESENTANTE (id_gerente),
-  // não na do preposto — senão sumiria da própria lista dele (filtro por idRep).
   const prepCtxNovo = await getPrepostoContext(pool, { user });
-  if (prepCtxNovo && prepCtxNovo.idRep) {
-    dados.cod_vendedor = prepCtxNovo.idRep;
+  dados.cod_vendedor = resolveCodVendedorGravacao(
+    user,
+    sysCfg,
+    prepCtxNovo,
+    dados.cod_vendedor
+  );
+  if (vendedorObrigatorioNaCarteira(sysCfg) && !codVendedorInformado(dados.cod_vendedor)) {
+    const err = new Error('Vendedor / representante é obrigatório');
+    err.statusCode = 400;
+    throw err;
   }
 
   // Transação
@@ -201,7 +209,8 @@ async function criarCliente(body, user) {
 
 async function atualizarCliente(id, body, user) {
   const pool = getPool();
-  const config = await repo.getSistemaConfig(pool, user.id_empresa);
+  const sysCfg = await getSistemaCarteiraConfig(pool);
+  const config = { ...(await repo.getSistemaConfig(pool, user.id_empresa)), ...sysCfg };
 
   // Validação de campos obrigatórios
   const validacao = validarCliente(body, config);
@@ -271,16 +280,17 @@ async function atualizarCliente(id, body, user) {
   // Terminal offline: marcar para sincronizar
   dadosAtualizar.sincronizar = config.gTerminalOffLine === 'S' ? 'S' : 'N';
 
-  // Segurança: forçar cod_vendedor quando gacessartodosclientes='S'
-  if (config.gacessartodosclientes === 'S') {
-    dadosAtualizar.cod_vendedor = user.id;
-  }
-
-  // Preposto: mantém o cliente na carteira do representante (não deixa o
-  // preposto mover o cliente para fora da carteira ao editar).
   const prepCtxUpd = await getPrepostoContext(pool, { user });
-  if (prepCtxUpd && prepCtxUpd.idRep) {
-    dadosAtualizar.cod_vendedor = prepCtxUpd.idRep;
+  dadosAtualizar.cod_vendedor = resolveCodVendedorGravacao(
+    user,
+    sysCfg,
+    prepCtxUpd,
+    dadosAtualizar.cod_vendedor
+  );
+  if (vendedorObrigatorioNaCarteira(sysCfg) && !codVendedorInformado(dadosAtualizar.cod_vendedor)) {
+    const err = new Error('Vendedor / representante é obrigatório');
+    err.statusCode = 400;
+    throw err;
   }
 
   // Transação
@@ -494,8 +504,9 @@ async function listarAuxiliares(tipo, user, query = {}) {
       sql += ` AND id <> ?`;
       vals.push(parseInt(query.excluirId, 10));
     }
-    if (config.gcompartilhaCliente === 'N' && user?.id_empresa) {
-      sql += ` AND id_empresa = ?`;
+    if (String(config.gcompartilhaCliente || '').toUpperCase() === 'N' && user?.id_empresa) {
+      // Legado: clientes sem id_empresa continuam visíveis
+      sql += ` AND (id_empresa = ? OR id_empresa IS NULL OR TRIM(CAST(id_empresa AS CHAR)) = '' OR CAST(id_empresa AS CHAR) = '0')`;
       vals.push(user.id_empresa);
     }
     sql += ` ORDER BY nome`;

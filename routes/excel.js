@@ -22,7 +22,8 @@ router.post('/importar', upload.single('arquivo'), async (req, res) => {
     const resultado = await importarExcel({
       buffer:     req.file.buffer,
       fornecedor,
-      user:       req.user
+      user:       req.user,
+      id_tabela_preco: req.body.id_tabela_preco || null,
     });
 
     res.json(resultado);

@@ -15,6 +15,7 @@ const {
 const { authMiddleware } = require('../middleware/auth');
 const { hojeIsoBrasil, horaBrasil, addDaysIsoBrasil } = require('../config/date-brasil');
 const { emitNovoPedido } = require('../config/pedido-events');
+const { acquireNumeroPedidoLock, releaseNumeroPedidoLock } = require('../config/pedido-numero-lock');
 const { ensureVitrineColumns } = require('../config/schema-migrations');
 
 const _fmtBRL = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -47,21 +48,22 @@ async function getPedidoObsMaxLen(pool) {
 }
 
 /**
- * Tabelas de preço liberadas na vitrine (vitrine='S') e vinculadas ao cliente.
- * É o conjunto que o cliente pode escolher no seletor da vitrine.
+ * Tabelas liberadas na vitrine: cabeçalho com vitrine='S' e ativa.
+ * Não exige vínculo em tabela_preco_vinculo — a flag «Liberar na vitrine» basta.
+ * O representante pode restringir o link (vitrine_tokens.ids_tabelas).
  */
-async function getTabelasVitrineCliente(pool, idCliente) {
+async function getTabelasVitrineCliente(pool, _idCliente) {
+  await ensureVitrineColumns(pool).catch(() => {});
   const [rows] = await pool.query(`
-    SELECT DISTINCT tpc.id AS id_tabela, tpc.Descricao AS descricao,
+    SELECT tpc.id AS id_tabela, tpc.Descricao AS descricao,
            tpc.Cond_Pagamento AS cond_pagamento,
            tpc.usar_regras_fornecedor AS usar_regras_fornecedor
-    FROM tabela_preco_vinculo  tpv
-    JOIN tabela_preco_cabecalho tpc ON tpc.id = tpv.id_tabela
-    WHERE tpv.id_entidade = ? AND tpv.tipo_entidade = 'CLIENTE'
-      AND tpv.excluido = 'N' AND tpc.excluido = 'N'
-      AND tpc.Tabela_Ativa = 'S' AND tpc.vitrine = 'S'
+    FROM tabela_preco_cabecalho tpc
+    WHERE tpc.excluido = 'N'
+      AND (tpc.Tabela_Ativa = 'S' OR tpc.Tabela_Ativa IS NULL)
+      AND tpc.vitrine = 'S'
     ORDER BY tpc.Descricao
-  `, [idCliente]).catch(() => [[]]);
+  `).catch(() => [[]]);
   return rows || [];
 }
 
@@ -91,6 +93,7 @@ async function ensureTable(pool) {
     `ALTER TABLE vitrine_tokens ADD COLUMN id_empresa  INT          NULL`,
     `ALTER TABLE vitrine_tokens ADD COLUMN nome_empresa VARCHAR(255) NULL`,
     `ALTER TABLE vitrine_tokens ADD COLUMN ids_tabelas VARCHAR(255) NULL`,
+    `ALTER TABLE vitrine_tokens MODIFY COLUMN id_cliente INT NULL`,
     `ALTER TABLE tipo_pedidos   ADD COLUMN padrao_vitrine CHAR(1) NOT NULL DEFAULT 'N'`,
   ]) { await pool.query(sql).catch(() => {}); }
   await ensureVitrineColumns(pool).catch(() => {});
@@ -136,7 +139,10 @@ async function _notificarRepresentante(pool, tk, pedidosCriados) {
     `📋 Pedido *${p.numero}*${p.fornecedor ? ` — ${p.fornecedor}` : ''} — ${fmtBRL(p.total || 0)}`
   ).join('\n');
 
-  const msg = `🛍️ *Novo pedido pela Vitrine Digital!*\n\nCliente: *${tk.nome_cliente}*\n\n${linhas}\n\n💰 Total: *${fmtBRL(totalGeral)}*\n\nAcesse o sistema para confirmar.`;
+  const nomeCli = tk.id_cliente
+    ? (tk.nome_cliente || 'Cliente')
+    : (pedidosCriados.find((p) => p.nome_cliente)?.nome_cliente || 'Visitante');
+  const msg = `🛍️ *Novo pedido pela Vitrine Digital!*\n\nCliente: *${nomeCli}*\n\n${linhas}\n\n💰 Total: *${fmtBRL(totalGeral)}*\n\nAcesse o sistema para confirmar.`;
 
   const baseUrl = cfg.url.replace(/\/$/, '');
   const instKey = rep.chave || cfg.apikey;
@@ -171,20 +177,37 @@ async function findPoolForToken(token) {
 }
 
 // ── POST /api/vitrine/gerar  (requer autenticação) ───────────────────────────
+// id_cliente → link por cliente | link_aberto: true (sem id_cliente) → catálogo aberto
 router.post('/gerar', authMiddleware, async (req, res) => {
   const user = req.user;
-  const { id_cliente, dias_validade = 60 } = req.body;
-  if (!id_cliente) return res.status(400).json({ erro: 'id_cliente obrigatório' });
+  const { id_cliente, dias_validade = 60, link_aberto } = req.body;
+  const idCliente = id_cliente != null && id_cliente !== '' ? parseInt(id_cliente, 10) : null;
+  const aberto = !idCliente && (link_aberto === true || link_aberto === 'S' || link_aberto === 1);
+
+  if (!idCliente && !aberto) {
+    return res.status(400).json({ erro: 'Informe id_cliente ou use link_aberto para catálogo sem cliente' });
+  }
 
   try {
     const pool = getPool(); // ALS injetado pelo authMiddleware
     await ensureTable(pool);
 
-    const [[cliente]] = await pool.query(
-      `SELECT id, nome, cpf FROM clientes WHERE id = ? AND excluido = 'N' LIMIT 1`,
-      [id_cliente]
-    );
-    if (!cliente) return res.status(404).json({ erro: 'Cliente não encontrado' });
+    let nomeCliente = null;
+    if (idCliente) {
+      const [[cliente]] = await pool.query(
+        `SELECT id, nome, cpf FROM clientes WHERE id = ? AND excluido = 'N' LIMIT 1`,
+        [idCliente]
+      );
+      if (!cliente) return res.status(404).json({ erro: 'Cliente não encontrado' });
+      nomeCliente = cliente.nome;
+    } else {
+      const tabelas = await getTabelasVitrineCliente(pool, null);
+      if (!tabelas.length) {
+        return res.status(422).json({
+          erro: 'Nenhuma tabela liberada na vitrine. Ative «Liberar na vitrine» em pelo menos uma tabela de preços.',
+        });
+      }
+    }
 
     const token = crypto.randomBytes(32).toString('hex');
     const expiraDate = addDaysIsoBrasil(parseInt(dias_validade, 10) || 60);
@@ -202,25 +225,46 @@ router.post('/gerar', authMiddleware, async (req, res) => {
       nomeEmpresa = emp?.Razao_empresa || '';
     }
 
-    await pool.query(
-      `UPDATE vitrine_tokens SET ativo = 0 WHERE id_cliente = ? AND id_usuario = ?`,
-      [id_cliente, userId]
-    );
+    if (idCliente) {
+      await pool.query(
+        `UPDATE vitrine_tokens SET ativo = 0 WHERE id_cliente = ? AND id_usuario = ?`,
+        [idCliente, userId]
+      );
+    } else {
+      await pool.query(
+        `UPDATE vitrine_tokens SET ativo = 0 WHERE id_cliente IS NULL AND id_usuario = ?`,
+        [userId]
+      );
+    }
     await pool.query(
       `INSERT INTO vitrine_tokens (token, id_cliente, id_usuario, nome_cliente, nome_usuario, expira_em, id_empresa, nome_empresa)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [token, id_cliente, userId, cliente.nome, nomeUser, expiraSql, idEmpresa, nomeEmpresa]
+      [token, idCliente, userId, nomeCliente, nomeUser, expiraSql, idEmpresa, nomeEmpresa]
     );
 
-    res.json({ token, expira: expiraDate, link: `/vitrine/${token}` });
+    res.json({ token, expira: expiraDate, link: `/vitrine/${token}`, link_aberto: aberto });
   } catch (err) {
     console.error('[vitrine/gerar]', err);
     res.status(500).json({ erro: err.message });
   }
 });
 
+// ── GET /api/vitrine/tabelas  (auth) ─────────────────────────────────────────
+// Tabelas liberadas na vitrine — link aberto (sem cliente)
+router.get('/tabelas', authMiddleware, async (req, res) => {
+  try {
+    const pool = getPool();
+    await ensureTable(pool);
+    const tabelas = await getTabelasVitrineCliente(pool, null);
+    res.json(tabelas.map((t) => ({ id_tabela: t.id_tabela, descricao: t.descricao })));
+  } catch (err) {
+    console.error('[vitrine/tabelas]', err);
+    res.status(500).json({ erro: err.message });
+  }
+});
+
 // ── GET /api/vitrine/tabelas-cliente/:id_cliente  (auth) ─────────────────────
-// Tabelas liberadas e vinculadas ao cliente — alimenta o seletor no modal do link
+// Tabelas liberadas na vitrine (vitrine='S') — alimenta o seletor no modal do link
 router.get('/tabelas-cliente/:id_cliente', authMiddleware, async (req, res) => {
   try {
     const pool = getPool();
@@ -270,18 +314,22 @@ router.get('/:token', async (req, res) => {
       );
       if (!tk) return res.status(404).json({ erro: 'Link inválido ou expirado' });
 
-      const [[cliente]] = await pool.query(
-        `SELECT id, nome, cpf, email, telefone FROM clientes WHERE id = ? LIMIT 1`,
-        [tk.id_cliente]
-      );
-      if (!cliente) return res.status(404).json({ erro: 'Cliente não encontrado' });
+      let cliente = null;
+      if (tk.id_cliente) {
+        const [[cli]] = await pool.query(
+          `SELECT id, nome, cpf, email, telefone FROM clientes WHERE id = ? LIMIT 1`,
+          [tk.id_cliente]
+        );
+        if (!cli) return res.status(404).json({ erro: 'Cliente não encontrado' });
+        cliente = cli;
+      }
 
       const [[rep]] = await pool.query(
         `SELECT nomeusu AS nome, email, fone FROM usuarios WHERE idusuario = ? LIMIT 1`,
         [tk.id_usuario]
       ).catch(() => [[null]]);
 
-      // Tabelas liberadas na vitrine e vinculadas a este cliente — o cliente escolhe uma
+      // Tabelas com vitrine='S' — cliente escolhe uma no seletor (se houver 2+)
       let tabelas = await getTabelasVitrineCliente(pool, tk.id_cliente);
       // Se o representante restringiu este link a tabelas especificas, respeita a selecao
       const _sel = _selIdsFromToken(tk);
@@ -325,6 +373,8 @@ router.get('/:token', async (req, res) => {
 
       res.json({
         cliente,
+        link_aberto: !tk.id_cliente,
+        historico_disponivel: !!tk.id_cliente,
         representante: rep || null,
         tabelas: tabelas.map(t => ({ id_tabela: t.id_tabela, descricao: t.descricao })),
         produtos: lista,
@@ -359,18 +409,34 @@ router.post('/:token/pedido', async (req, res) => {
       );
       if (!tk) return res.status(404).json({ erro: 'Link inválido ou expirado' });
 
-      const [[cliente]] = await pool.query(
-        `SELECT id, nome, cpf FROM clientes WHERE id = ? LIMIT 1`,
-        [tk.id_cliente]
-      );
-      if (!cliente) return res.status(404).json({ erro: 'Cliente não encontrado' });
+      let codCliente = null;
+      let nomeCliente = '';
+      let cnpjCliente = '';
+      const contato = req.body?.contato || {};
+
+      if (tk.id_cliente) {
+        const [[cli]] = await pool.query(
+          `SELECT id, nome, cpf FROM clientes WHERE id = ? LIMIT 1`,
+          [tk.id_cliente]
+        );
+        if (!cli) return res.status(404).json({ erro: 'Cliente não encontrado' });
+        codCliente = cli.id;
+        nomeCliente = cli.nome || tk.nome_cliente || '';
+        cnpjCliente = cli.cpf || '';
+      } else {
+        nomeCliente = String(contato.nome || '').trim();
+        const tel = String(contato.telefone || '').trim();
+        if (!nomeCliente || tel.length < 8) {
+          return res.status(400).json({ erro: 'Informe seu nome e telefone para enviar o pedido' });
+        }
+      }
 
       // Tabela escolhida pelo cliente — uma só por pedido (sem mistura de preços)
       let tabelasCliente = await getTabelasVitrineCliente(pool, tk.id_cliente);
       const _selPed = _selIdsFromToken(tk);
       if (_selPed.length) tabelasCliente = tabelasCliente.filter((t) => _selPed.includes(Number(t.id_tabela)));
       if (!tabelasCliente.length) {
-        throw Object.assign(new Error('Nenhuma tabela de preços liberada para este cliente'), { status: 422 });
+        throw Object.assign(new Error('Nenhuma tabela de preços liberada para este link'), { status: 422 });
       }
       let tabela = null;
       const idTabReq = parseInt(req.body.id_tabela, 10);
@@ -395,7 +461,13 @@ router.post('/:token/pedido', async (req, res) => {
         _condDesc = fp?.descricao || '';
       }
       const _infoTabela = `Tabela: ${tabela.descricao}${_condDesc ? ` · Pagamento: ${_condDesc}` : ''}`;
-      let obsFinal = obs ? `${obs} · ${_infoTabela}` : _infoTabela;
+      let obsBase = String(obs || '').trim();
+      if (!tk.id_cliente) {
+        const tel = String(contato.telefone || '').trim();
+        const extra = `[Vitrine web] Contato: ${nomeCliente} · Tel: ${tel}`;
+        obsBase = obsBase ? `${obsBase}\n${extra}` : extra;
+      }
+      let obsFinal = obsBase ? `${obsBase} · ${_infoTabela}` : _infoTabela;
       const _obsMax = await getPedidoObsMaxLen(pool);
       if (obsFinal.length > _obsMax) obsFinal = obsFinal.slice(0, _obsMax);
 
@@ -491,8 +563,10 @@ router.post('/:token/pedido', async (req, res) => {
       const horaAb = horaBrasil();
 
       const conn = await pool.getConnection();
+      let _numLock = null;
       try {
         await conn.beginTransaction();
+        _numLock = await acquireNumeroPedidoLock(conn);
         const pedidosCriados = [];
 
         for (const [, grupo] of grupos) {
@@ -517,7 +591,7 @@ router.post('/:token/pedido', async (req, res) => {
             [
               numero, dataAb, horaAb,
               tk.id_usuario, tk.nome_usuario,
-              cliente.id, cliente.cpf || '', cliente.nome,
+              codCliente, cnpjCliente, (nomeCliente || '').toUpperCase(),
               grupo.cod_fornecedor || null, grupo.nome_fornecedor || '',
               id_tipopedido, tipo_pedido_str, 'PENDENTE', 'PENDENTE',
               totalGrupo, totalGrupo, totalGrupo, 0, 0, totalGrupo,
@@ -547,7 +621,10 @@ router.post('/:token/pedido', async (req, res) => {
             );
           }
 
-          pedidosCriados.push({ numero, pedido_id: pedidoId, fornecedor: grupo.nome_fornecedor || '', total: totalGrupo });
+          pedidosCriados.push({
+            numero, pedido_id: pedidoId, fornecedor: grupo.nome_fornecedor || '',
+            total: totalGrupo, nome_cliente: nomeCliente,
+          });
         }
 
         await conn.commit();
@@ -557,7 +634,7 @@ router.post('/:token/pedido', async (req, res) => {
           numero: p.numero,
           id: p.pedido_id,
           tipo_pedido: 'PEDIDO',
-          nome_cliente: cliente.nome || '',
+          nome_cliente: nomeCliente || '',
           nome_fornecedor: p.fornecedor || '',
           origem: 'VITRINE',
           vlrtotalpedido: p.total || 0,
@@ -567,6 +644,7 @@ router.post('/:token/pedido', async (req, res) => {
         await conn.rollback();
         throw e;
       } finally {
+        await releaseNumeroPedidoLock(conn, _numLock);
         conn.release();
       }
     });
@@ -631,6 +709,7 @@ router.get('/:token/historico/:pedidoId/itens', async (req, res) => {
         [req.params.token]
       );
       if (!tk) return res.status(404).json({ erro: 'Link inválido ou expirado' });
+      if (!tk.id_cliente) return res.status(403).json({ erro: 'Histórico disponível apenas em links por cliente' });
 
       const [[ped]] = await pool.query(
         `SELECT id FROM pedidos WHERE id = ? AND cod_cliente = ? AND excluido = 'N' LIMIT 1`,
@@ -664,6 +743,7 @@ router.get('/:token/historico', async (req, res) => {
         [req.params.token]
       );
       if (!tk) return res.status(404).json({ erro: 'Link inválido ou expirado' });
+      if (!tk.id_cliente) return res.status(403).json({ erro: 'Histórico disponível apenas em links por cliente' });
 
       const [pedidos] = await pool.query(`
         SELECT p.id, p.numero, p.data_abertura, p.situacao_pedido, p.status,

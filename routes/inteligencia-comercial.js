@@ -6,6 +6,7 @@
 const express = require('express');
 const router  = express.Router();
 const { getPool } = require('../config/database');
+const { canAccessAllVendors } = require('../config/vendedor-visibilidade');
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const money = v => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -404,7 +405,7 @@ router.get('/cliente/:id', async (req, res) => {
 router.get('/ranking', async (req, res) => {
   try {
     const pool = getPool();
-    const isAdmin = req.user.perfil == 1 || req.user.acessartodosclientes === 'S';
+    const isAdmin = canAccessAllVendors(req);
     const { id_usuario, limit = 50 } = req.query;
     const vals = [];
     const where = [`(c.excluido='N' OR c.excluido IS NULL)`];
@@ -484,7 +485,7 @@ router.get('/ranking', async (req, res) => {
 router.get('/alertas', async (req, res) => {
   try {
     const pool = getPool();
-    const isAdmin = req.user.perfil == 1 || req.user.acessartodosclientes === 'S';
+    const isAdmin = canAccessAllVendors(req);
     const vals = [];
     const where = [`(c.excluido='N' OR c.excluido IS NULL)`, `c.dtultimacompra IS NOT NULL`];
 
@@ -522,7 +523,7 @@ router.get('/alertas', async (req, res) => {
 router.get('/ranking-vendedor', async (req, res) => {
   try {
     const pool = getPool();
-    const isAdmin = req.user.perfil == 1 || req.user.acessartodosclientes === 'S';
+    const isAdmin = canAccessAllVendors(req);
     if (!isAdmin) return res.json({ vendedores: [] });
 
     const [rows] = await pool.query(`

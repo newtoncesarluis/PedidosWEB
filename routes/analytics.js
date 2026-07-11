@@ -2415,6 +2415,137 @@ router.get('/comercial/clientes-inativos', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Mapa de Oportunidades (Cliente x Fabrica) — cross-sell
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Classifica o valor comprado por um cliente numa fabrica frente a media dos clientes que compraram dela. */
+function classificarCelula(valor, media) {
+  if (!valor) return 'NUNCA';
+  if (!media) return 'BAIXO';
+  if (valor >= media * 1.5) return 'ALTO';
+  if (valor >= media * 0.5) return 'MEDIO';
+  return 'BAIXO';
+}
+
+router.get('/comercial/mapa-oportunidades', async (req, res) => {
+  const pool = getPool();
+  try {
+    const base = buildPedidosWhereFromQuery(req.query, req.user);
+    const idFornecedorFiltro = parseInt(req.query.id_fornecedor || '0', 10) || null;
+    const limiteClientes = Math.min(Math.max(parseInt(req.query.limite || '60', 10) || 60, 10), 150);
+    const q = String(req.query.q || '').trim();
+
+    const [fornecedores] = await pool.query(
+      `SELECT id, nome FROM fornecedores
+       WHERE (excluido='N' OR excluido IS NULL OR excluido='')
+         AND (status='A' OR status IS NULL OR status='')
+         ${idFornecedorFiltro ? 'AND id = ?' : ''}
+       ORDER BY nome`,
+      idFornecedorFiltro ? [idFornecedorFiltro] : []
+    );
+
+    if (!fornecedores.length) {
+      return res.json({ fornecedores: [], clientes: [], celulas: [], filtros: { isAdmin: base.canPickOthers } });
+    }
+
+    const idsFornecedor = fornecedores.map(f => f.id);
+
+    const celulasWhere = [...(base.clause ? [base.clause.replace(/^WHERE /, '')] : []), 'p.cod_fornecedor IN (?)'];
+    const celulasParams = [...base.params, idsFornecedor];
+    if (q) {
+      celulasWhere.push('c.nome LIKE ?');
+      celulasParams.push(`%${q}%`);
+    }
+
+    const [linhas] = await pool.query(
+      `
+      SELECT
+        p.cod_cliente AS id_cliente,
+        c.nome AS nome_cliente,
+        p.cod_fornecedor AS id_fornecedor,
+        COALESCE(SUM(i.vlrtotal_itens), 0) AS valor_total,
+        COUNT(DISTINCT p.numero) AS total_pedidos,
+        MAX(p.data_abertura) AS ultima_compra
+      FROM pedidos p
+      INNER JOIN itensped i ON i.numpedido = p.numero AND COALESCE(i.excluido,'N')='N'
+      INNER JOIN clientes c ON c.id = p.cod_cliente
+      WHERE ${celulasWhere.join(' AND ')}
+      GROUP BY p.cod_cliente, c.nome, p.cod_fornecedor
+      `,
+      celulasParams
+    );
+
+    // Totais por cliente, para selecionar os mais relevantes e ordenar o ranking
+    const totalPorCliente = new Map();
+    for (const r of linhas) {
+      const acc = totalPorCliente.get(r.id_cliente) || { nome: r.nome_cliente, total: 0 };
+      acc.total += Number(r.valor_total || 0);
+      totalPorCliente.set(r.id_cliente, acc);
+    }
+    const clientesOrdenados = [...totalPorCliente.entries()]
+      .sort((a, b) => b[1].total - a[1].total)
+      .slice(0, limiteClientes);
+    const idsClientesVisiveis = new Set(clientesOrdenados.map(([id]) => id));
+
+    // Media por fornecedor (somente entre clientes que compraram), para o bucket de cor
+    const somaPorFornecedor = new Map();
+    const qtdPorFornecedor = new Map();
+    for (const r of linhas) {
+      const v = Number(r.valor_total || 0);
+      if (!v) continue;
+      somaPorFornecedor.set(r.id_fornecedor, (somaPorFornecedor.get(r.id_fornecedor) || 0) + v);
+      qtdPorFornecedor.set(r.id_fornecedor, (qtdPorFornecedor.get(r.id_fornecedor) || 0) + 1);
+    }
+    const mediaPorFornecedor = new Map(
+      idsFornecedor.map(id => [id, qtdPorFornecedor.get(id) ? somaPorFornecedor.get(id) / qtdPorFornecedor.get(id) : 0])
+    );
+
+    const celulas = linhas
+      .filter(r => idsClientesVisiveis.has(r.id_cliente))
+      .map(r => {
+        const valor = Number(r.valor_total || 0);
+        return {
+          id_cliente: r.id_cliente,
+          id_fornecedor: r.id_fornecedor,
+          valor_total: valor,
+          total_pedidos: Number(r.total_pedidos || 0),
+          ultima_compra: r.ultima_compra,
+          classe: classificarCelula(valor, mediaPorFornecedor.get(r.id_fornecedor)),
+        };
+      });
+
+    // Oportunidades sugeridas: clientes fortes que nunca compraram de uma fabrica ativa
+    const comprouMap = new Map(); // id_cliente -> Set(id_fornecedor)
+    for (const r of linhas) {
+      if (!Number(r.valor_total)) continue;
+      if (!comprouMap.has(r.id_cliente)) comprouMap.set(r.id_cliente, new Set());
+      comprouMap.get(r.id_cliente).add(r.id_fornecedor);
+    }
+    const oportunidades = [];
+    for (const [idCliente, info] of clientesOrdenados) {
+      const compradas = comprouMap.get(idCliente) || new Set();
+      for (const f of fornecedores) {
+        if (!compradas.has(f.id)) {
+          oportunidades.push({ id_cliente: idCliente, nome_cliente: info.nome, id_fornecedor: f.id, nome_fornecedor: f.nome, valor_total_cliente: info.total });
+        }
+      }
+    }
+    oportunidades.sort((a, b) => b.valor_total_cliente - a.valor_total_cliente);
+
+    res.json({
+      filtros: { isAdmin: base.canPickOthers, id_fornecedor: idFornecedorFiltro, limite: limiteClientes },
+      fornecedores,
+      clientes: clientesOrdenados.map(([id, info]) => ({ id_cliente: id, nome_cliente: info.nome, valor_total: info.total })),
+      celulas,
+      oportunidades: oportunidades.slice(0, 30),
+    });
+  } catch (err) {
+    console.error('[analytics/comercial/mapa-oportunidades]', err);
+    res.status(500).json({ error: 'Erro ao gerar mapa de oportunidades' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Relatorios Padrao (Comercial)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -2919,6 +3050,250 @@ router.get('/comercial/relatorios-padrao/produtos-por-fornecedor', async (req, r
   } catch (err) {
     console.error('[analytics/comercial/relatorios-padrao/produtos-por-fornecedor]', err);
     res.status(500).json({ error: 'Erro ao gerar relatorio' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DASHBOARDS PRO — séries ano-a-ano genéricas + drill-down paginado
+// Usados pela página /pages/comercial-dashboards-pro.html (7 abas).
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Configuração por dimensão. level: 'pedido' agrega pedidos; 'item' agrega itensped.
+// clientes (c) é sempre juntado em pedido-level para permitir recortes geográficos.
+function dashDimConfig(dim) {
+  const D = {
+    fornecedor: {
+      level: 'pedido', label: 'Fábrica',
+      idExpr: 'p.cod_fornecedor',
+      nomeExpr: "COALESCE(NULLIF(TRIM(p.nome_fornecedor), ''), f.nome, CONCAT('Fabrica #', p.cod_fornecedor))",
+      extraJoin: 'LEFT JOIN fornecedores f ON f.id = p.cod_fornecedor',
+    },
+    cliente: {
+      level: 'pedido', label: 'Cliente',
+      idExpr: 'p.cod_cliente',
+      nomeExpr: "COALESCE(NULLIF(TRIM(p.nome_cliente), ''), c.nome, CONCAT('Cliente #', p.cod_cliente))",
+      extraJoin: '',
+    },
+    vendedor: {
+      level: 'pedido', label: 'Vendedor',
+      idExpr: 'p.id_usuario',
+      nomeExpr: "COALESCE(NULLIF(TRIM(p.nome_vendedor), ''), u.nomeusu, CONCAT('Vendedor #', p.id_usuario))",
+      extraJoin: 'LEFT JOIN usuarios u ON u.idusuario = p.id_usuario',
+    },
+    estado: {
+      level: 'pedido', label: 'Estado', idIsString: true,
+      idExpr: "UPPER(COALESCE(NULLIF(TRIM(c.uf), ''), '--'))",
+      nomeExpr: "UPPER(COALESCE(NULLIF(TRIM(c.uf), ''), '--'))",
+      extraJoin: '',
+    },
+    cidade: {
+      level: 'pedido', label: 'Cidade', idIsString: true,
+      idExpr: "CONCAT(COALESCE(NULLIF(TRIM(c.cidade), ''), 'Sem cidade'), ' / ', UPPER(COALESCE(NULLIF(TRIM(c.uf), ''), '--')))",
+      nomeExpr: "CONCAT(COALESCE(NULLIF(TRIM(c.cidade), ''), 'Sem cidade'), ' / ', UPPER(COALESCE(NULLIF(TRIM(c.uf), ''), '--')))",
+      extraJoin: '',
+    },
+    segmento: {
+      level: 'pedido', label: 'Segmento', idIsString: true,
+      idExpr: "COALESCE(NULLIF(TRIM(c.segmento), ''), 'Sem segmento')",
+      nomeExpr: "COALESCE(NULLIF(TRIM(c.segmento), ''), 'Sem segmento')",
+      extraJoin: '',
+    },
+    produto: {
+      level: 'item', label: 'Produto',
+      idExpr: 'i.cod_produto',
+      nomeExpr: "COALESCE(NULLIF(TRIM(i.desc_prod), ''), pr.descricao, CONCAT('Produto #', i.cod_produto))",
+      extraJoin: 'LEFT JOIN produto pr ON pr.id = i.cod_produto',
+    },
+    familia: {
+      level: 'item', label: 'Família',
+      idExpr: 'COALESCE(pr.id_familiaproduto, 0)',
+      nomeExpr: "COALESCE(NULLIF(TRIM(fam.nome), ''), 'Sem familia')",
+      extraJoin: 'LEFT JOIN produto pr ON pr.id = i.cod_produto LEFT JOIN familia_produtos fam ON fam.id = pr.id_familiaproduto',
+    },
+  };
+  return D[dim] || null;
+}
+
+// Monta a cláusula WHERE (base de pedidos + filtros extras geográficos/fábrica).
+function dashBuildWhere(req, anoIni, anoFim) {
+  const baseQuery = { ...req.query };
+  if (!baseQuery.dt_inicio) baseQuery.dt_inicio = `${anoIni}-01-01`;
+  if (!baseQuery.dt_fim) baseQuery.dt_fim = `${anoFim}-12-31`;
+  const base = buildPedidosWhereFromQuery(baseQuery, req.user);
+  const where = [base.clause.replace(/^WHERE /, '')];
+  const params = [...base.params];
+  if (req.query.uf) { where.push("UPPER(COALESCE(c.uf, '')) = ?"); params.push(String(req.query.uf).toUpperCase()); }
+  if (req.query.segmento) { where.push('c.segmento = ?'); params.push(req.query.segmento); }
+  if (req.query.cidade) { where.push("LOWER(COALESCE(c.cidade, '')) LIKE ?"); params.push(`%${String(req.query.cidade).toLowerCase()}%`); }
+  if (req.query.id_fornecedor) { where.push('p.cod_fornecedor = ?'); params.push(parseInt(req.query.id_fornecedor, 10)); }
+  return { where, params, isAdmin: base.canPickOthers };
+}
+
+router.get('/comercial/dash/series', async (req, res) => {
+  const pool = getPool();
+  try {
+    const cfg = dashDimConfig(String(req.query.dim || '').toLowerCase());
+    if (!cfg) return res.status(400).json({ error: 'Dimensão inválida' });
+
+    const { ano_ini, ano_fim } = deriveAnoRange(req.query);
+    const top = Math.min(50, Math.max(3, parseInt(req.query.top || '15', 10) || 15));
+
+    const { where, params, isAdmin } = dashBuildWhere(req, ano_ini, ano_fim);
+    const whereSql = where.filter(Boolean).length ? `WHERE ${where.filter(Boolean).join(' AND ')}` : '';
+
+    let fromSql, valExpr, qtyExpr;
+    if (cfg.level === 'item') {
+      fromSql = `FROM pedidos p
+        INNER JOIN itensped i ON i.numpedido = p.numero AND COALESCE(i.excluido,'N')='N'
+        LEFT JOIN clientes c ON c.id = p.cod_cliente
+        ${cfg.extraJoin}`;
+      valExpr = 'COALESCE(SUM(i.vlrtotal_itens),0)';
+      qtyExpr = 'COALESCE(SUM(i.quantidade),0)';
+    } else {
+      fromSql = `FROM pedidos p
+        LEFT JOIN clientes c ON c.id = p.cod_cliente
+        ${cfg.extraJoin}`;
+      valExpr = 'COALESCE(SUM(p.vlrtotalpedido),0)';
+      qtyExpr = 'COUNT(DISTINCT p.numero)';
+    }
+
+    const [rows] = await pool.query(
+      `SELECT YEAR(p.data_abertura) AS ano,
+              ${cfg.idExpr} AS id,
+              ${cfg.nomeExpr} AS nome,
+              ${valExpr} AS valor_total,
+              ${qtyExpr} AS quantidade
+       ${fromSql}
+       ${whereSql}
+       GROUP BY YEAR(p.data_abertura), ${cfg.idExpr}, ${cfg.nomeExpr}
+       ORDER BY valor_total DESC`,
+      params
+    );
+
+    const totById = new Map();
+    const nomeById = new Map();
+    for (const r of rows) {
+      const k = String(r.id);
+      totById.set(k, (totById.get(k) || 0) + Number(r.valor_total || 0));
+      if (!nomeById.has(k)) nomeById.set(k, r.nome);
+    }
+    const topIds = [...totById.entries()].sort((a, b) => b[1] - a[1]).slice(0, top).map(([k]) => k);
+
+    const anos = [];
+    for (let a = ano_ini; a <= ano_fim; a++) anos.push(a);
+    rows.forEach((r) => { const a = Number(r.ano); if (a && !anos.includes(a)) anos.push(a); });
+    anos.sort((a, b) => a - b);
+
+    const series = topIds.map((k) => {
+      const porAno = {};
+      anos.forEach((a) => { porAno[a] = 0; });
+      let qtd = 0;
+      rows.forEach((r) => {
+        if (String(r.id) === k) {
+          porAno[Number(r.ano)] = Number(r.valor_total || 0);
+          qtd += Number(r.quantidade || 0);
+        }
+      });
+      return { id: k, nome: nomeById.get(k), porAno, total: totById.get(k), quantidade: qtd };
+    });
+
+    res.json({
+      dim: req.query.dim,
+      label: cfg.label,
+      idIsString: !!cfg.idIsString,
+      isAdmin,
+      filtros: { ano_ini, ano_fim, top },
+      anos,
+      series,
+    });
+  } catch (err) {
+    console.error('[analytics/comercial/dash/series]', err);
+    res.status(500).json({ error: 'Erro ao gerar série' });
+  }
+});
+
+router.get('/comercial/dash/detalhe', async (req, res) => {
+  const pool = getPool();
+  try {
+    const cfg = dashDimConfig(String(req.query.dim || '').toLowerCase());
+    if (!cfg) return res.status(400).json({ error: 'Dimensão inválida' });
+    const idRaw = req.query.id;
+    if (idRaw === undefined || idRaw === '') return res.status(400).json({ error: 'Informe id' });
+
+    const { ano_ini, ano_fim } = deriveAnoRange(req.query);
+    const page = Math.max(1, parseInt(req.query.page || '1', 10) || 1);
+    const pageSize = Math.min(200, Math.max(5, parseInt(req.query.page_size || '20', 10) || 20));
+    const offset = (page - 1) * pageSize;
+
+    const { where, params } = dashBuildWhere(req, ano_ini, ano_fim);
+    where.push(`${cfg.idExpr} = ?`);
+    params.push(cfg.idIsString ? String(idRaw) : parseInt(idRaw, 10));
+    const whereSql = `WHERE ${where.filter(Boolean).join(' AND ')}`;
+
+    if (cfg.level === 'item') {
+      const fromSql = `FROM pedidos p
+        INNER JOIN itensped i ON i.numpedido = p.numero AND COALESCE(i.excluido,'N')='N'
+        LEFT JOIN clientes c ON c.id = p.cod_cliente
+        ${cfg.extraJoin}`;
+      const [cntRows] = await pool.query(`SELECT COUNT(*) AS total ${fromSql} ${whereSql}`, params);
+      const total = Number(cntRows[0]?.total || 0);
+      const [sumRows] = await pool.query(`SELECT COALESCE(SUM(i.vlrtotal_itens),0) AS soma ${fromSql} ${whereSql}`, params);
+      const [rows] = await pool.query(
+        `SELECT p.numero, p.data_abertura,
+                COALESCE(NULLIF(TRIM(p.nome_cliente),''), c.nome, CONCAT('Cliente #', p.cod_cliente)) AS nome_cliente,
+                COALESCE(NULLIF(TRIM(i.desc_prod),''), CONCAT('Produto #', i.cod_produto)) AS desc_prod,
+                COALESCE(i.quantidade,0) AS quantidade,
+                COALESCE(i.vlrtotal_itens,0) AS valor,
+                p.situacao_pedido
+         ${fromSql} ${whereSql}
+         ORDER BY p.data_abertura DESC, p.numero DESC
+         LIMIT ? OFFSET ?`,
+        [...params, pageSize, offset]
+      );
+      return res.json({
+        level: 'item', page, page_size: pageSize, total,
+        total_pages: Math.ceil(total / pageSize) || 1, soma: Number(sumRows[0]?.soma || 0),
+        rows: rows.map((r) => ({
+          numero: r.numero, data: r.data_abertura, nome_cliente: r.nome_cliente,
+          desc_prod: r.desc_prod, quantidade: Number(r.quantidade), valor: Number(r.valor), situacao: r.situacao_pedido,
+        })),
+      });
+    }
+
+    const fromSql = `FROM pedidos p
+      LEFT JOIN clientes c ON c.id = p.cod_cliente
+      LEFT JOIN fornecedores f ON f.id = p.cod_fornecedor
+      LEFT JOIN usuarios u ON u.idusuario = p.id_usuario`;
+    const [cntRows] = await pool.query(`SELECT COUNT(DISTINCT p.numero) AS total ${fromSql} ${whereSql}`, params);
+    const total = Number(cntRows[0]?.total || 0);
+    const [sumRows] = await pool.query(
+      `SELECT COALESCE(SUM(t.valor),0) AS soma FROM (SELECT p.numero, MAX(COALESCE(p.vlrtotalpedido,0)) AS valor ${fromSql} ${whereSql} GROUP BY p.numero) t`,
+      params
+    );
+    const [rows] = await pool.query(
+      `SELECT p.numero, p.data_abertura,
+              COALESCE(NULLIF(TRIM(p.nome_cliente),''), c.nome, CONCAT('Cliente #', p.cod_cliente)) AS nome_cliente,
+              COALESCE(NULLIF(TRIM(p.nome_fornecedor),''), f.nome, CONCAT('Fabrica #', p.cod_fornecedor)) AS nome_fornecedor,
+              COALESCE(NULLIF(TRIM(p.nome_vendedor),''), u.nomeusu, CONCAT('Vendedor #', p.id_usuario)) AS nome_vendedor,
+              p.situacao_pedido,
+              COALESCE(p.vlrtotalpedido,0) AS valor
+       ${fromSql} ${whereSql}
+       ORDER BY p.data_abertura DESC, p.numero DESC
+       LIMIT ? OFFSET ?`,
+      [...params, pageSize, offset]
+    );
+    return res.json({
+      level: 'pedido', page, page_size: pageSize, total,
+      total_pages: Math.ceil(total / pageSize) || 1, soma: Number(sumRows[0]?.soma || 0),
+      rows: rows.map((r) => ({
+        numero: r.numero, data: r.data_abertura, nome_cliente: r.nome_cliente,
+        nome_fornecedor: r.nome_fornecedor, nome_vendedor: r.nome_vendedor,
+        situacao: r.situacao_pedido, valor: Number(r.valor),
+      })),
+    });
+  } catch (err) {
+    console.error('[analytics/comercial/dash/detalhe]', err);
+    res.status(500).json({ error: 'Erro ao gerar detalhe' });
   }
 });
 

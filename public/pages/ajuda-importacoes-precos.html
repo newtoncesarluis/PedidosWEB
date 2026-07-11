@@ -31,6 +31,7 @@
           <a class="nav-link" href="?sec=clientes">Importação de Clientes</a>
           <a class="nav-link" href="?sec=fornecedores">Importação de Fornecedores</a>
           <a class="nav-link" href="?sec=precos">Importação de Preços</a>
+          <a class="nav-link" href="?sec=precos-tabela-vinculada">Importar para Tabela de Preços</a>
           <a class="nav-link" href="?sec=campos">Campos de Importação</a>
           <a class="nav-link" href="?sec=categoria-importacao">Coluna Categoria</a>
           <a class="nav-link" href="?sec=tabela-precos">Tabela de Preços</a>
@@ -82,24 +83,46 @@
 
         <section class="section help-section" id="precos">
           <h3>Importação de Preços</h3>
+          <p>Tela: <strong>Cadastros → Preços → Importação de Preços</strong>. O processo segue 4 etapas fixas mostradas na barra superior: <strong>1) Fornecedor → 2) Arquivo → 3) Mapeamento → 4) Importar</strong>.</p>
           <ol class="steps">
-            <li>Cadastros → Preços → <strong>Importação de Preços</strong>.</li>
-            <li>Planilha deve identificar produto (código interno, código fabricante ou descrição) e preço(s) por tabela.</li>
-            <li>Selecione a <strong>tabela de preços</strong> destino antes de importar.</li>
-            <li>Linhas com produto não encontrado ficam na lista de erros — cadastre produto ou corrija código na planilha.</li>
-            <li>Após importação, confira amostra na tela <strong>Tabela de Preços</strong>.</li>
+            <li><strong>Selecione o fornecedor primeiro</strong> — o upload do arquivo fica bloqueado até escolher um fornecedor no combo.</li>
+            <li>Arraste o Excel/CSV na faixa tracejada ou clique em <strong>Selecionar arquivo</strong> (.xlsx, .xls, .csv).</li>
+            <li>Use <strong>⬇ Modelo Excel</strong> para baixar uma planilha de exemplo já com os cabeçalhos = campos configurados para a tabela <code>produto</code> (útil para preparar a planilha da fábrica no formato certo).</li>
+            <li>Mapeie cada coluna da planilha para um campo do sistema (dropdown por coluna) — botão <strong>⚡ Essenciais</strong> tenta mapear automaticamente os campos obrigatórios.</li>
+            <li>Clique em <strong>🔍 Validar Dados</strong> — cada linha recebe um status: <strong>Atualizar</strong> (produto já existe pelo código de fabricante), <strong>Sem Alteração</strong>, ou <strong>Sem Cadastro</strong> (produto novo, será inserido). Cards de contagem aparecem no topo da tabela e funcionam como filtro.</li>
+            <li>Marque <strong>"Não gravar itens sem cadastro"</strong> se quiser importar só atualizações, ignorando produtos novos.</li>
+            <li>Clique em <strong>💾 Salvar Produtos</strong> — uma tela de progresso mostra inseridos/atualizados/erros em tempo real; é possível abrir o detalhamento de cada grupo ou exportar a lista de erros em CSV.</li>
+          </ol>
+          <div class="callout">
+            Se a planilha tiver a coluna <strong>estoque_atual</strong>, a importação também grava um lançamento de <strong>ajuste de estoque</strong> (saldo anterior → saldo novo) no histórico de movimentação do produto — não é só uma atualização de cadastro.
+          </div>
+        </section>
+
+        <section class="section help-section" id="precos-tabela-vinculada">
+          <h3>Importar preço direto para a Tabela de Preços (sem alterar o cadastro do produto)</h3>
+          <p>
+            Quando o fornecedor selecionado tem tabela(s) de preço vinculada(s), aparece o painel
+            <strong>"Gravar preços nas tabelas vinculadas a este fornecedor"</strong> antes de carregar o Excel.
+          </p>
+          <ol class="steps">
+            <li>Marque a opção para ativar este modo — os campos de preço do cadastro do produto (<code>vlr_venda</code>, <code>precoa</code>, <code>ipi</code>, <code>st</code>, <code>icms</code>, etc.) <strong>não são gravados</strong>; só a tabela de preço escolhida recebe o valor.</li>
+            <li>Mapeie a coluna de preço da planilha para a tabela desejada; clique em <strong>"+ Coluna de preço para outra tabela"</strong> para mapear o mesmo Excel para várias tabelas ao mesmo tempo (preços diferentes por coluna).</li>
+            <li>Escolha o tipo de desconto por tabela: valor em <strong>R$</strong> ou em <strong>%</strong>.</li>
+            <li>Se existir uma <strong>tabela padrão automática</strong> configurada no sistema (tabela marcada como padrão + "atualizar automaticamente"), produtos <strong>novos</strong> importados sem mapeamento explícito de tabela recebem o preço de referência nela automaticamente.</li>
+            <li>Produto novo nesse modo entra no cadastro com os preços da ficha zerados — o preço "oficial" do produto fica só nas tabelas escolhidas.</li>
           </ol>
         </section>
 
         <section class="section help-section" id="campos">
           <h3>Configurar Campos de Importação</h3>
-          <p>Salva mapeamentos padrão coluna-a-coluna para reutilizar em próximas importações da mesma origem (ex.: planilha fixa da fábrica X).</p>
+          <p>Cadastra quais campos do produto ficam disponíveis no dropdown de mapeamento da tela de Importação de Preços — não é um "perfil" por fornecedor, é a lista de campos válidos para a tabela <code>produto</code>.</p>
           <ol class="steps">
             <li>Cadastros → <strong>Configurar Campos de Importação</strong>.</li>
-            <li>Escolha entidade (clientes, fornecedores, etc.).</li>
-            <li>Defina nome do perfil e associe colunas da planilha aos campos do banco.</li>
-            <li>Na importação, selecione o perfil salvo para pular mapeamento manual.</li>
+            <li>Cada registro define: nome do campo no banco, apelido exibido no mapeamento, tipo (texto, moeda, decimal, inteiro) e se é obrigatório.</li>
+            <li>Campos podem ser desativados (excluído) sem perder o histórico de configuração.</li>
+            <li>O botão de download <strong>Modelo Excel</strong> na tela de importação usa esses campos para montar os cabeçalhos da planilha de exemplo.</li>
           </ol>
+          <div class="callout">Não existe seleção de "perfil salvo por fábrica" — o mapeamento de colunas é feito manualmente a cada importação (o botão ⚡ Essenciais agiliza mapeando os campos obrigatórios automaticamente).</div>
         </section>
 
         <section class="section help-section" id="categoria-importacao">

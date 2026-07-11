@@ -25,7 +25,7 @@ function getNREPool() {
   return nrePool;
 }
 
-async function initSolicitacoesSchema() {
+async function initNreConfigSchema() {
   // Cria o banco db_nresolutions se não existir (conecta sem database para poder rodar CREATE DATABASE)
   try {
     const bootstrap = mysql.createPool({
@@ -45,44 +45,7 @@ async function initSolicitacoesSchema() {
 
   const pool = getNREPool();
   try {
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS solicitacoes (
-        id            INT PRIMARY KEY AUTO_INCREMENT,
-        chave_licenca VARCHAR(50)  NOT NULL,
-        titulo        VARCHAR(200) NOT NULL,
-        descricao     TEXT         NOT NULL,
-        tipo          ENUM('ideia','bug','melhoria','duvida') DEFAULT 'melhoria',
-        origem        ENUM('desktop','mobile') NOT NULL,
-        status        ENUM('pendente','em_analise','em_desenvolvimento','concluido','recusado') DEFAULT 'pendente',
-        resposta_dev  TEXT,
-        data_criacao      DATETIME DEFAULT CURRENT_TIMESTAMP,
-        data_atualizacao  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        INDEX idx_chave  (chave_licenca),
-        INDEX idx_status (status)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    `);
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS solicitacoes_anexos (
-        id               INT PRIMARY KEY AUTO_INCREMENT,
-        id_solicitacao   INT          NOT NULL,
-        tipo             ENUM('imagem','video','audio') NOT NULL,
-        caminho          VARCHAR(500) NOT NULL,
-        nome_original    VARCHAR(255),
-        tamanho          INT,
-        data_upload      DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (id_solicitacao) REFERENCES solicitacoes(id) ON DELETE CASCADE
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    `);
-    const [colsWa] = await pool.query(`SHOW COLUMNS FROM solicitacoes LIKE 'notificado_wa'`);
-    if (!colsWa.length) {
-      await pool.query(`ALTER TABLE solicitacoes ADD COLUMN notificado_wa TINYINT DEFAULT 0`);
-    }
-    const [idxWa] = await pool.query(`SHOW INDEX FROM solicitacoes WHERE Key_name = 'idx_notificado'`);
-    if (!idxWa.length) {
-      await pool.query(`ALTER TABLE solicitacoes ADD INDEX idx_notificado (notificado_wa)`);
-    }
-
-    // Tabela de configurações do servidor NRE (Evolution API, etc.)
+    // Config Evolution API / WhatsApp (solicitações ficam em nc_painel — config/db-painel.js)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS nre_config (
         chave       VARCHAR(100) NOT NULL PRIMARY KEY,
@@ -98,10 +61,13 @@ async function initSolicitacoesSchema() {
         ('wa_url',       'URL base da Evolution API — ex: https://api.example.com'),
         ('wa_apikey',    'API Key da Evolution API')
     `);
-    console.log('[db-nresolution] Schema solicitacoes OK');
+    console.log('[db-nresolution] Schema nre_config OK');
   } catch (err) {
     console.error('[db-nresolution] Erro ao inicializar schema:', err.message);
   }
 }
 
-module.exports = { getNREPool, initSolicitacoesSchema };
+/** @deprecated use initNreConfigSchema */
+const initSolicitacoesSchema = initNreConfigSchema;
+
+module.exports = { getNREPool, initNreConfigSchema, initSolicitacoesSchema };

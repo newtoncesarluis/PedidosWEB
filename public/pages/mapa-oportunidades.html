@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Mapa de Oportunidades</title>
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<style>
+  :root { --bg:var(--content-bg); --card:var(--card-bg); --border:var(--card-border); --text:var(--content-text); --text2:var(--text2); --accent:var(--accent); --accent-soft:var(--accent-soft); --success:#059669; --warn:#d97706; --danger:#dc2626; --shadow:0 10px 30px rgba(0,0,0,.08); }
+  *{box-sizing:border-box} body{margin:0;font-family:var(--font);background:var(--bg);color:var(--text)} .page{min-height:100vh;display:flex;flex-direction:column}
+  .toolbar{position:sticky;top:0;z-index:20;background:var(--card);border-bottom:1px solid var(--border);padding:14px 18px;display:flex;flex-wrap:wrap;align-items:end;gap:12px}
+  .title-wrap{min-width:260px;margin-right:auto}.eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--text2);font-weight:800} h1{margin:3px 0 0;font-size:22px;line-height:1.1}.subtitle{margin-top:6px;font-size:12px;color:var(--text2)}
+  .filter{display:flex;flex-direction:column;gap:5px;min-width:130px}.filter label{font-size:10px;text-transform:uppercase;color:var(--text2);font-weight:800;letter-spacing:.7px}.filter input,.filter select{height:36px;border:1.5px solid var(--border);border-radius:10px;padding:0 10px;background:var(--bg);color:var(--text);font:inherit;outline:none}.filter input:focus,.filter select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .btn{height:36px;border:none;border-radius:10px;padding:0 14px;font:inherit;font-weight:700;cursor:pointer}.btn-primary{background:var(--accent);color:var(--btn-text,#fff)}.btn-secondary{background:var(--bg);color:var(--text);border:1.5px solid var(--border)}
+  .content{padding:18px;display:grid;gap:16px}
+  .panel{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:14px 16px;box-shadow:var(--shadow)}
+  .panel h2{margin:0 0 4px;font-size:15px}.panel-sub{font-size:12px;color:var(--text2);margin-bottom:14px}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--text2);margin-bottom:12px}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .legend i{width:12px;height:12px;border-radius:3px;display:inline-block}
+  .matrix-wrap{overflow:auto;max-height:70vh;border:1px solid var(--border);border-radius:8px}
+  table.matrix{border-collapse:collapse;width:100%;font-size:12px}
+  table.matrix th,table.matrix td{padding:8px 10px;border-bottom:1px solid var(--border);white-space:nowrap;text-align:center}
+  table.matrix thead th{position:sticky;top:0;background:var(--card);z-index:2;font-weight:800;color:var(--text2);text-transform:uppercase;font-size:10px;letter-spacing:.5px}
+  table.matrix td.cliente,table.matrix th.cliente{position:sticky;left:0;background:var(--card);text-align:left;font-weight:700;z-index:3;min-width:200px;max-width:240px;overflow:hidden;text-overflow:ellipsis}
+  table.matrix thead th.cliente{z-index:4}
+  .cell{border-radius:6px;padding:6px 8px;font-weight:700;cursor:default}
+  .cell-NUNCA{background:transparent;color:var(--text2);font-weight:400}
+  .cell-BAIXO{background:rgba(220,38,38,.12);color:var(--danger)}
+  .cell-MEDIO{background:rgba(217,119,6,.14);color:var(--warn)}
+  .cell-ALTO{background:rgba(5,150,105,.14);color:var(--success)}
+  .rank-list{display:grid;gap:10px}
+  .rank-item{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)}.rank-item:last-child{border-bottom:none}
+  .rank-title{font-size:13px;font-weight:700}
+  .rank-sub{font-size:11px;color:var(--text2);margin-top:2px}
+  .rank-val{text-align:right;font-size:12px;font-weight:800;color:var(--text2)}
+  .placeholder,.loading,.error{padding:16px;border-radius:8px;background:var(--card);border:1px solid var(--border);font-size:13px}.placeholder{background:rgba(148,163,184,.05);border-style:dashed;color:var(--text2)}.error{color:var(--danger)}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="toolbar">
+    <div class="title-wrap">
+      <div class="eyebrow">Comercial</div>
+      <h1>Mapa de Oportunidades</h1>
+      <div class="subtitle">Cruzamento Cliente x Fabrica: o que cada cliente ja compra e onde existe espaco para cross-sell.</div>
+    </div>
+    <div class="filter"><label for="dtInicio">Data inicial</label><input id="dtInicio" type="date"></div>
+    <div class="filter"><label for="dtFim">Data final</label><input id="dtFim" type="date"></div>
+    <div class="filter"><label for="idFornecedor">Fabrica</label><select id="idFornecedor"><option value="">Todas</option></select></div>
+    <div class="filter" id="vendorFilter" style="display:none"><label for="idVendedor">Vendedor</label><select id="idVendedor"><option value="">Todos</option></select></div>
+    <div class="filter"><label for="busca">Cliente</label><input id="busca" type="text" placeholder="Buscar cliente..." autocomplete="off"></div>
+    <button class="btn btn-primary" id="btnAplicar">Atualizar</button>
+    <button class="btn btn-secondary" id="btnResetar">Periodo atual</button>
+  </div>
+  <div class="content">
+    <div id="stateBox" class="loading">Carregando mapa...</div>
+    <div id="dashboard" style="display:none">
+      <div class="panel">
+        <h2>Matriz Cliente x Fabrica</h2>
+        <div class="panel-sub">Valor comprado no periodo filtrado. Cor relativa a media dos clientes que compram de cada fabrica.</div>
+        <div class="legend">
+          <span><i style="background:rgba(5,150,105,.5)"></i> Alto volume</span>
+          <span><i style="background:rgba(217,119,6,.5)"></i> Volume moderado</span>
+          <span><i style="background:rgba(220,38,38,.5)"></i> Baixo volume</span>
+          <span><i style="background:transparent;border:1px solid var(--border)"></i> Nunca comprou (oportunidade)</span>
+        </div>
+        <div class="matrix-wrap"><table class="matrix" id="matrixTable"></table></div>
+      </div>
+
+      <div class="panel">
+        <h2>Oportunidades sugeridas</h2>
+        <div class="panel-sub">Clientes com maior faturamento que ainda nao compram de uma fabrica ativa do mix.</div>
+        <div class="rank-list" id="oportunidadesList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+const money=v=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+const moneyShort=v=>{const n=Number(v||0);if(!n)return '—';if(n>=1000)return `${(n/1000).toLocaleString('pt-BR',{maximumFractionDigits:1})}k`;return n.toLocaleString('pt-BR',{maximumFractionDigits:0});};
+function token(){return localStorage.getItem('token')||sessionStorage.getItem('token')||''}
+async function api(url){const r=await fetch(url,{headers:{Authorization:'Bearer '+token()}});if(!r.ok) throw new Error('Falha ao carregar dados');return r.json();}
+function setDefaultDates(){const n=new Date(),y=n.getFullYear(),m=String(n.getMonth()+1).padStart(2,'0'),d=String(n.getDate()).padStart(2,'0');document.getElementById('dtFim').value=`${y}-${m}-${d}`;const ini=new Date(n);ini.setMonth(ini.getMonth()-12);document.getElementById('dtInicio').value=`${ini.getFullYear()}-${String(ini.getMonth()+1).padStart(2,'0')}-${String(ini.getDate()).padStart(2,'0')}`;}
+function buildQuery(){const qs=new URLSearchParams();const map={dtInicio:'dt_inicio',dtFim:'dt_fim',idFornecedor:'id_fornecedor',idVendedor:'id_vendedor',busca:'q'};Object.entries(map).forEach(([id,key])=>{const v=document.getElementById(id)?.value?.trim();if(v) qs.set(key,v);});return qs.toString();}
+async function fillVendorFilter(){try{const data=await api('/api/pedidos/lookup/vendedores');const list=data.vendedores||[];const sel=document.getElementById('idVendedor');const wrap=document.getElementById('vendorFilter');if(!sel)return;if(list.length<=1&&list[0]){sel.innerHTML=`<option value="${list[0].id}">${list[0].nome||list[0].nome_vendedor}</option>`;sel.value=String(list[0].id);sel.disabled=true;if(wrap)wrap.style.display='';}else{sel.disabled=false;sel.innerHTML='<option value="">Todos</option>'+list.map(v=>`<option value="${v.id}">${v.nome||v.nome_vendedor}</option>`).join('');if(wrap)wrap.style.display=list.length>1?'':'none';}}catch(_){}}
+async function fillFornecedorFilter(){try{const list=await api('/api/fornecedores/lookup');document.getElementById('idFornecedor').innerHTML='<option value="">Todas</option>'+list.map(v=>`<option value="${v.id}">${v.nome}</option>`).join('');}catch(_){}}
+function renderMatrix(data){
+  const table=document.getElementById('matrixTable');
+  const { fornecedores=[], clientes=[], celulas=[] } = data;
+  if(!fornecedores.length || !clientes.length){
+    table.outerHTML='<div class="placeholder" id="matrixTable">Sem dados para o filtro atual.</div>';
+    return;
+  }
+  const cellMap=new Map();
+  celulas.forEach(c=>cellMap.set(`${c.id_cliente}_${c.id_fornecedor}`, c));
+  const head=`<thead><tr><th class="cliente">Cliente</th>${fornecedores.map(f=>`<th>${f.nome}</th>`).join('')}</tr></thead>`;
+  const body=clientes.map(cl=>{
+    const cols=fornecedores.map(f=>{
+      const cell=cellMap.get(`${cl.id_cliente}_${f.id}`);
+      const classe=cell?cell.classe:'NUNCA';
+      const valor=cell?cell.valor_total:0;
+      const titulo=cell?`${cell.total_pedidos} pedido(s) • ultima compra ${cell.ultima_compra?String(cell.ultima_compra).slice(0,10):'-'}`:'Nunca comprou';
+      return `<td><span class="cell cell-${classe}" title="${titulo}">${moneyShort(valor)}</span></td>`;
+    }).join('');
+    return `<tr><td class="cliente" title="${cl.nome_cliente}">${cl.nome_cliente}</td>${cols}</tr>`;
+  }).join('');
+  table.innerHTML=head+`<tbody>${body}</tbody>`;
+}
+function renderOportunidades(rows){
+  const box=document.getElementById('oportunidadesList');
+  if(!rows?.length){box.innerHTML='<div class="placeholder">Nenhuma oportunidade identificada — clientes ja compram de todas as fabricas do mix.</div>';return;}
+  box.innerHTML=rows.map(r=>`<div class="rank-item"><div><div class="rank-title">${r.nome_cliente}</div><div class="rank-sub">Nao compra de <strong>${r.nome_fornecedor}</strong></div></div><div class="rank-val">${money(r.valor_total_cliente)} no periodo</div></div>`).join('');
+}
+async function loadDashboard(){
+  const state=document.getElementById('stateBox'),dash=document.getElementById('dashboard');
+  state.className='loading';state.textContent='Atualizando mapa...';state.style.display='';dash.style.display='none';
+  try{
+    const data=await api('/api/analytics/comercial/mapa-oportunidades?'+buildQuery());
+    renderMatrix(data);
+    renderOportunidades(data.oportunidades||[]);
+    const vendorWrap=document.getElementById('vendorFilter');
+    if(!data.filtros?.isAdmin && vendorWrap) vendorWrap.style.display='none';
+    dash.style.display='';state.style.display='none';
+  }catch(err){
+    state.className='error';state.textContent=err.message||'Erro ao carregar mapa de oportunidades';
+  }
+}
+document.getElementById('btnAplicar').addEventListener('click',loadDashboard);
+document.getElementById('btnResetar').addEventListener('click',()=>{setDefaultDates();['idFornecedor','idVendedor','busca'].forEach(id=>{const el=document.getElementById(id);if(el) el.value='';});loadDashboard();});
+setDefaultDates();Promise.allSettled([fillVendorFilter(),fillFornecedorFilter()]).finally(loadDashboard);
+window.addEventListener('message',(ev)=>{if(ev.data&&ev.data.type==='theme-changed')document.documentElement.setAttribute('data-theme',ev.data.theme);if(ev.data&&ev.data.type==='font-pref-changed'){window.SysFont?.apply(ev.data.familyId,ev.data.sizeId);window.SysVisual?.apply(ev.data.accentId,ev.data.compact);}});
+</script>
+</body>
+</html>

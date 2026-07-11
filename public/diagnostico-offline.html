@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Diagnóstico Offline — PedidosWeb</title>
+<script src="/assets/sw-register.js"></script>
+<script src="/assets/pedidos-offline-pack.js?v=20260702a"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f172a; color: #e2e8f0; padding: 14px; font-size: 14px; }
+  h1 { font-size: 17px; margin-bottom: 4px; }
+  .sub { color: #94a3b8; font-size: 12px; margin-bottom: 14px; }
+  .item { display: flex; gap: 10px; align-items: flex-start; background: #1e293b; border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+  .item .ic { font-size: 18px; line-height: 1.2; flex-shrink: 0; }
+  .item .tx strong { display: block; font-size: 13px; }
+  .item .tx span { display: block; font-size: 12px; color: #94a3b8; word-break: break-word; }
+  .ok  { border-left: 4px solid #22c55e; }
+  .bad { border-left: 4px solid #ef4444; }
+  .warn{ border-left: 4px solid #f59e0b; }
+  button { width: 100%; padding: 13px; border: none; border-radius: 10px; background: #0ea5e9; color: #fff; font-size: 15px; font-weight: 700; margin-top: 10px; }
+  #rodape { margin-top: 14px; font-size: 11px; color: #64748b; text-align: center; }
+</style>
+</head>
+<body>
+<h1>🔍 Diagnóstico Offline</h1>
+<div class="sub" id="sub">Verificando este aparelho…</div>
+<div id="lista"></div>
+<button onclick="rodar()">↻ Verificar de novo</button>
+<div id="rodape"></div>
+
+<script>
+function add(status, titulo, detalhe) {
+  var ic = status === 'ok' ? '✅' : status === 'warn' ? '⚠️' : '❌';
+  var div = document.createElement('div');
+  div.className = 'item ' + (status === 'ok' ? 'ok' : status === 'warn' ? 'warn' : 'bad');
+  div.innerHTML = '<div class="ic">' + ic + '</div><div class="tx"><strong>' + titulo + '</strong><span>' + (detalhe || '') + '</span></div>';
+  document.getElementById('lista').appendChild(div);
+  return { status: status, titulo: titulo, detalhe: detalhe };
+}
+
+async function rodar() {
+  document.getElementById('lista').innerHTML = '';
+  var rel = [];
+  var P = window.SysRepPedidosOfflinePack;
+
+  // 0. Versão do sistema no ar (rede)
+  var versao = '';
+  try {
+    var vr = await fetch('/api/version', { cache: 'no-store' });
+    versao = (await vr.json()).versao || '?';
+    rel.push(add('ok', 'Servidor respondeu', 'versão no ar: ' + versao + ' · internet OK'));
+  } catch (_) {
+    rel.push(add(navigator.onLine === false ? 'warn' : 'bad', 'Servidor NÃO respondeu',
+      navigator.onLine === false ? 'aparelho está OFFLINE (esperado se em modo avião)' : 'com internet ligada — problema de rede/servidor'));
+  }
+
+  // 1. navigator.onLine
+  rel.push(add('ok', 'Estado da rede segundo o aparelho', navigator.onLine === false ? 'OFFLINE (modo avião/sem rede)' : 'ONLINE'));
+
+  // 2. Service Worker
+  try {
+    var regs = await navigator.serviceWorker.getRegistrations();
+    var ctrl = !!navigator.serviceWorker.controller;
+    if (regs.length && ctrl) rel.push(add('ok', 'Service Worker ativo', 'registrado e controlando a página'));
+    else if (regs.length) rel.push(add('warn', 'Service Worker registrado mas ainda não controla', 'feche o app e abra de novo'));
+    else rel.push(add('bad', 'Service Worker NÃO registrado', 'abra o app online uma vez e aguarde ~10s'));
+  } catch (e) { rel.push(add('bad', 'Service Worker erro', e.message)); }
+
+  // 3. Cache das telas
+  try {
+    var keys = await caches.keys();
+    var pw = keys.filter(function (k) { return k.indexOf('pedidosweb-') === 0; });
+    var total = 0;
+    for (var i = 0; i < pw.length; i++) { total += (await (await caches.open(pw[i])).keys()).length; }
+    if (total >= 30) rel.push(add('ok', 'Telas gravadas no aparelho', total + ' arquivos em cache (' + pw.join(', ') + ')'));
+    else if (total > 0) rel.push(add('warn', 'Cache incompleto', total + ' arquivos — abra o app online e aguarde'));
+    else rel.push(add('bad', 'NENHUMA tela em cache', 'sem isso o app não abre offline — abra online 1x e aguarde ~10s'));
+  } catch (e) { rel.push(add('bad', 'Cache erro', e.message)); }
+
+  // 4. Sessão (token)
+  var tok = sessionStorage.getItem('token') || localStorage.getItem('token') || '';
+  var uid = '';
+  if (tok) {
+    try {
+      var pay = JSON.parse(atob(tok.split('.')[1]));
+      uid = String(pay.id || pay.idusuario || '');
+      var expOk = pay.exp * 1000 > Date.now();
+      rel.push(add('ok', 'Sessão salva no aparelho', 'usuário: ' + (pay.name || pay.login || '?') + ' (id ' + uid + ') · JWT ' + (expOk ? 'válido' : 'expirado (ok p/ offline se pacote válido)')));
+    } catch (_) { rel.push(add('bad', 'Token ilegível', 'faça login de novo')); }
+  } else {
+    rel.push(add('bad', 'SEM sessão salva', 'faça login online — sem sessão o offline não abre'));
+  }
+
+  // 5. Chaves offline no localStorage
+  var lsInfo = [];
+  for (var j = 0; j < localStorage.length; j++) {
+    var k = localStorage.key(j);
+    if (k && k.indexOf('sysrep_offline') === 0) {
+      var v = localStorage.getItem(k);
+      if (k.indexOf('until') > 0) v = new Date(parseInt(v, 10)).toLocaleString('pt-BR');
+      lsInfo.push(k.replace('sysrep_offline_', '') + ': ' + v);
+    }
+  }
+  rel.push(add(lsInfo.length ? 'ok' : 'bad', 'Marcadores do pacote', lsInfo.length ? lsInfo.join(' · ') : 'nenhum — pacote nunca preparado neste navegador/app'));
+
+  // 6. Pacote no IndexedDB + validade
+  if (P) {
+    try {
+      var pack = await P.loadPack(true);
+      if (pack) {
+        var st = (pack.meta && pack.meta.stats) || {};
+        rel.push(add('ok', 'Pacote offline gravado', (st.clientes || (pack.clientes || []).length) + ' clientes · ' + (st.produtos || '?') + ' produtos · ' + (st.pedidos || '?') + ' pedidos · gerado ' + (pack.meta && pack.meta.generatedAt ? new Date(pack.meta.generatedAt).toLocaleString('pt-BR') : '?') + ' · dono: usuário id ' + (pack.meta && pack.meta.userId)));
+      } else {
+        rel.push(add('bad', 'Pacote offline NÃO encontrado', 'toque em Mais → Preparar offline (com internet) e aguarde a confirmação'));
+      }
+      var hv = await P.hasValidPack();
+      rel.push(add(hv ? 'ok' : 'bad', 'Validação final do pacote (hasValidPack)', hv ? 'VÁLIDO — offline vai funcionar' : 'INVÁLIDO — uid atual: "' + P.userIdFromToken() + '"'));
+      // 7. Teste real de dados offline
+      if (pack) {
+        var rc = await P.fetchOffline('/api/clientes?status=A&limit=3', 'GET');
+        if (rc) {
+          var dc = await rc.json();
+          var n = (dc.clientes || []).length;
+          rel.push(add(n > 0 ? 'ok' : 'warn', 'Busca de clientes offline', n > 0 ? 'retornou ' + n + ' clientes ✓' : 'retornou vazio'));
+        } else {
+          rel.push(add('bad', 'Busca de clientes offline', 'fetchOffline retornou nulo — gate de token/pacote falhou'));
+        }
+      }
+    } catch (e) { rel.push(add('bad', 'Erro ao ler pacote', e.message)); }
+  } else {
+    rel.push(add('bad', 'Script do pacote não carregou', 'pedidos-offline-pack.js ausente — sem internet e sem cache'));
+  }
+
+  document.getElementById('sub').textContent = 'Verificação concluída — mande um print desta tela.';
+  document.getElementById('rodape').textContent = navigator.userAgent;
+
+  // envia relatório ao servidor quando online (aparece no log do node)
+  try {
+    if (navigator.onLine !== false) {
+      fetch('/api/client-log', {
+        method: 'POST',
+        headers: Object.assign({ 'Content-Type': 'application/json' }, tok ? { Authorization: 'Bearer ' + tok } : {}),
+        body: JSON.stringify({ source: 'diagnostico-offline', level: 'info', message: JSON.stringify(rel.map(function (r) { return r.status + '|' + r.titulo + '|' + (r.detalhe || ''); })), url: location.href })
+      }).catch(function () {});
+    }
+  } catch (_) {}
+}
+
+// SW: registra se ainda não estiver (produção) para o diagnóstico refletir a realidade
+if (window.sysrepInitServiceWorker) { sysrepInitServiceWorker().catch(function () {}).then(function () { rodar(); }); }
+else rodar();
+</script>
+</body>
+</html>

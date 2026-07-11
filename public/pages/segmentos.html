@@ -182,7 +182,7 @@ input:focus,select:focus { border-color:var(--accent);box-shadow:0 0 0 3px rgba(
               <label>Status</label>
               <select id="f_status">
                 <option value="A">Ativo</option>
-                <option value="S">Inativo</option>
+                <option value="I">Inativo</option>
               </select>
             </div>
           </div>
@@ -202,14 +202,40 @@ input:focus,select:focus { border-color:var(--accent);box-shadow:0 0 0 3px rgba(
 <script>
 let S = { filtroStatus: 'T', registroId: null };
 
+function _token() {
+  return sessionStorage.getItem('token') || localStorage.getItem('token') || '';
+}
+function _apiHeaders(json) {
+  const h = { Authorization: 'Bearer ' + _token() };
+  if (json) h['Content-Type'] = 'application/json';
+  return h;
+}
+function _tratarErroApi(r, d) {
+  if (r.status === 401) {
+    toast('Sessão expirada. Faça login novamente.', 'err');
+    setTimeout(() => { (window.top || window).location.href = '/login.html'; }, 2000);
+    return true;
+  }
+  return false;
+}
+
 async function buscar() {
   try {
-    const r = await fetch('/api/segmentos');
-    const d = await r.json();
+    const r = await fetch('/api/segmentos', { headers: _apiHeaders() });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      if (_tratarErroApi(r, d)) return;
+      toast(d.error || 'Erro ao carregar', 'err');
+      return;
+    }
     let lista = d.segmentos || [];
     const q = document.getElementById('inputBusca').value.toLowerCase();
     
-    if (S.filtroStatus !== 'T') lista = lista.filter(x => x.status === S.filtroStatus);
+    if (S.filtroStatus !== 'T') {
+      lista = S.filtroStatus === 'A'
+        ? lista.filter(x => x.status === 'A')
+        : lista.filter(x => x.status !== 'A');
+    }
     if (q) lista = lista.filter(x => x.descricao.toLowerCase().includes(q));
 
     document.getElementById('val-total').textContent = d.segmentos?.length || 0;
@@ -253,14 +279,19 @@ function abrirNovo() {
 
 async function abrirEditar(id) {
   try {
-    const r = await fetch('/api/segmentos');
-    const d = await r.json();
+    const r = await fetch('/api/segmentos', { headers: _apiHeaders() });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      if (_tratarErroApi(r, d)) return;
+      toast(d.error || 'Erro ao carregar dados', 'err');
+      return;
+    }
     const f = d.segmentos.find(x => x.id === id);
     if (!f) return;
     S.registroId = id;
     document.getElementById('f_id').value = f.id;
     document.getElementById('f_descricao').value = f.descricao;
-    document.getElementById('f_status').value = f.status || 'A';
+    document.getElementById('f_status').value = (f.status === 'A' ? 'A' : 'I');
     document.getElementById('formSub').textContent = `Editando ID: ${f.id}`;
     document.getElementById('listSection').style.display = 'none';
     document.getElementById('formSection').style.display = 'block';
@@ -286,11 +317,17 @@ async function salvar() {
     const id = S.registroId;
     const r = await fetch(id ? `/api/segmentos/${id}` : '/api/segmentos', {
       method: id ? 'PUT' : 'POST',
-      headers: {'Content-Type':'application/json'},
+      headers: _apiHeaders(true),
+      credentials: 'include',
       body: JSON.stringify(payload)
     });
+    const d = await r.json().catch(() => ({}));
     if (r.ok) { toast('Salvo com sucesso!','ok'); voltarLista(); }
-    else { toast('Erro ao salvar','err'); }
+    else if (_tratarErroApi(r, d)) { /* redirect */ }
+    else {
+      const msg = d.error || 'Erro ao salvar';
+      toast(r.status === 403 ? `${msg} — faça logout e login novamente se acabou de liberar a permissão.` : msg, 'err');
+    }
   } catch(e) { toast('Erro na comunicação','err'); }
 }
 
@@ -310,8 +347,10 @@ async function excluir(id) {
   if (!guardCadExcluir('Sem permissão para excluir segmentos')) return;
   if (!confirm('Deseja excluir este segmento?')) return;
   try {
-    const r = await fetch(`/api/segmentos/${id}`, { method: 'DELETE' });
+    const r = await fetch(`/api/segmentos/${id}`, { method: 'DELETE', headers: _apiHeaders() });
+    const d = await r.json().catch(() => ({}));
     if (r.ok) { toast('Excluído!','ok'); buscar(); }
+    else if (!_tratarErroApi(r, d)) toast(d.error || 'Erro ao excluir', 'err');
   } catch(e) { toast('Erro ao excluir','err'); }
 }
 

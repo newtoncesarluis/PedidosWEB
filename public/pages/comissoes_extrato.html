@@ -171,7 +171,7 @@ tbody tr:hover{background:var(--accent-soft);}
   </div>
 </div>
 
-<script src="/assets/comissao-preposto-ui.js"></script>
+<script src="/assets/comissao-preposto-ui.js?v=1.1.3.24"></script>
 
 <script>
 const fmtR = v => 'R$ ' + parseFloat(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -179,6 +179,34 @@ const fmtD = d => d ? new Date(d+'T12:00:00').toLocaleDateString('pt-BR') : '—
 let _dados = [];
 let _isAdmin = false;
 let _jwtComissao = { isPreposto: false };
+
+function authToken() {
+  if (window.ComissaoPrepostoUi && typeof ComissaoPrepostoUi.authToken === 'function') {
+    return ComissaoPrepostoUi.authToken();
+  }
+  try {
+    const fromCookie = document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('token='));
+    if (fromCookie) return decodeURIComponent(fromCookie.split('=').slice(1).join('='));
+  } catch (_) {}
+  return sessionStorage.getItem('token') || localStorage.getItem('token') || sessionStorage.getItem('sysrep_token') || '';
+}
+
+async function apiComissaoFetch(url, opts = {}) {
+  if (window.ComissaoPrepostoUi && typeof ComissaoPrepostoUi.apiFetch === 'function') {
+    return ComissaoPrepostoUi.apiFetch(url, opts);
+  }
+  const token = authToken();
+  const headers = { ...(opts.headers || {}) };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const r = await fetch(url, { ...opts, headers, credentials: 'include' });
+  const data = await r.json().catch(() => ({}));
+  if (r.status === 401) {
+    setTimeout(() => { (window.top || window).location.href = '/login.html'; }, 1200);
+    throw new Error(data.error || 'Sessão expirada — faça login novamente');
+  }
+  if (!r.ok) throw new Error(data.error || `Erro ${r.status}`);
+  return data;
+}
 
 async function init() {
   _jwtComissao = (window.ComissaoPrepostoUi && ComissaoPrepostoUi.readJwtComissao()) || { isPreposto: false };
@@ -190,32 +218,26 @@ async function init() {
   // verifica se é admin (representante com múltiplos vendedores)
   if (!_jwtComissao.isPreposto) {
     try {
-      const r = await fetch('/api/comissoes/admin/vendedores', {credentials:'include'});
-      if (r.ok) {
-        const vends = await r.json();
-        if (vends.length > 1) {
-          _isAdmin = true;
-          document.getElementById('wrap-vendedor').style.display = '';
-          const sel = document.getElementById('sel-vendedor');
-          sel.innerHTML = '<option value="">Todos</option>';
-          vends.forEach(v => { const o = document.createElement('option'); o.value=v.id; o.textContent=v.nome; sel.appendChild(o); });
-        }
+      const vends = await apiComissaoFetch('/api/comissoes/admin/vendedores');
+      if (vends.length > 1) {
+        _isAdmin = true;
+        document.getElementById('wrap-vendedor').style.display = '';
+        const sel = document.getElementById('sel-vendedor');
+        sel.innerHTML = '<option value="">Todos</option>';
+        vends.forEach(v => { const o = document.createElement('option'); o.value=v.id; o.textContent=v.nome; sel.appendChild(o); });
       }
     } catch(_) {}
   }
 
   // carrega fornecedores via lookups (leve — não faz full-scan na pagtocomissao)
   try {
-    const r = await fetch('/api/pedidos/lookups', {credentials:'include'});
-    if (r.ok) {
-      const d = await r.json();
-      const sel = document.getElementById('sel-forn');
-      (d.fornecedores || []).forEach(f => {
-        const o = document.createElement('option');
-        o.value = f.id; o.textContent = f.nome;
-        sel.appendChild(o);
-      });
-    }
+    const d = await apiComissaoFetch('/api/pedidos/lookups');
+    const sel = document.getElementById('sel-forn');
+    (d.fornecedores || []).forEach(f => {
+      const o = document.createElement('option');
+      o.value = f.id; o.textContent = f.nome;
+      sel.appendChild(o);
+    });
   } catch(_) {}
 
   carregar();
@@ -237,9 +259,7 @@ async function carregar() {
   if (vend) params.set('id_vendedor', vend);
 
   try {
-    const r = await fetch('/api/comissoes/extrato-unificado?' + params, {credentials:'include'});
-    if (!r.ok) throw new Error('Erro ' + r.status);
-    const json = await r.json();
+    const json = await apiComissaoFetch('/api/comissoes/extrato-unificado?' + params);
     _dados = json.data || [];
 
     // KPIs

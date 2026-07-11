@@ -8,6 +8,50 @@ const {
   listVendedoresVisiveis,
   resolveVendedorIdForFilter,
 } = require('../config/vendedor-visibilidade');
+const { statusLabel } = require('../config/comissao-status');
+
+/** Meta do vendedor — usuarios.vlr_meta ou comissao_metas do mês corrente. */
+async function _metaUsuario(pool, userId) {
+  try {
+    const [[r]] = await pool.query(
+      `SELECT COALESCE(vlr_meta, 0) AS meta FROM usuarios WHERE idusuario = ? LIMIT 1`,
+      [userId]
+    );
+    if (r) return parseFloat(r.meta) || 0;
+  } catch (_) { /* coluna vlr_meta ausente em bases legadas */ }
+  try {
+    await ensureMetasTables(pool);
+    const hoje = new Date();
+    const mes = hoje.getMonth() + 1;
+    const ano = hoje.getFullYear();
+    const [[r]] = await pool.query(
+      `SELECT COALESCE(vlr_meta_vendas, 0) AS meta FROM comissao_metas WHERE id_usuario=? AND mes=? AND ano=? LIMIT 1`,
+      [userId, mes, ano]
+    );
+    return parseFloat(r?.meta) || 0;
+  } catch (_) {
+    return 0;
+  }
+}
+
+/** Nomes de cliente/fábrica — pedidos legados podem ter colunas vazias. */
+const SQL_NOME_CLIENTE_PED = `COALESCE(NULLIF(TRIM(ped.nome_cliente), ''), NULLIF(TRIM(c.nome), ''), NULLIF(TRIM(c.apelido), ''), CONCAT('Cliente #', ped.cod_cliente))`;
+const SQL_NOME_FORN_PED = `COALESCE(NULLIF(TRIM(ped.nome_fornecedor), ''), NULLIF(TRIM(f.nome), ''), CONCAT('Fábrica #', ped.cod_fornecedor))`;
+const PEDIDO_LABEL_JOINS = `
+  LEFT JOIN pedidos ped ON p.pedido = ped.numero
+  LEFT JOIN clientes c ON c.id = ped.cod_cliente AND (c.excluido IS NULL OR c.excluido = 'N')
+  LEFT JOIN fornecedores f ON f.id = ped.cod_fornecedor AND (f.excluido IS NULL OR f.excluido = 'N')
+`;
+const SQL_PEDIDO_LIST_LABELS = `
+  ${SQL_NOME_CLIENTE_PED} AS nome_cliente,
+  ${SQL_NOME_FORN_PED} AS nome_fornecedor,
+  ped.vlrtotalpedido
+`;
+const PEDIDO_PARCELA_JOIN = `LEFT JOIN receber rec_pc ON rec_pc.id = p.id_parcela`;
+const SQL_PEDIDO_PARCELA_LABELS = `
+  COALESCE(rec_pc.parcela, 0) AS parcela,
+  COALESCE(rec_pc.qt_parcelas, ped.qt_parcelas, 1) AS qt_parcelas
+`;
 
 // ─── Rota /extrato — consolida tudo em uma única chamada (compatibilidade) ───
 router.get('/extrato', async (req, res) => {
@@ -19,7 +63,7 @@ router.get('/extrato', async (req, res) => {
   const dtIni = dt_inicio || '2000-01-01';
   const dtFim = dt_fim   || '2100-01-01';
 
-  const fabFilter = id_fornecedor ? ' AND ped.nome_fornecedor = ?' : '';
+  const fabFilter = id_fornecedor ? ` AND ${SQL_NOME_FORN_PED} = ?` : '';
   const fabParam  = id_fornecedor ? [id_fornecedor] : [];
 
   // Preposto filtra por id_preposto; representante por cod_user
@@ -27,67 +71,73 @@ router.get('/extrato', async (req, res) => {
   const uf = isPrep ? 'id_preposto' : 'cod_user';
 
   try {
+    const meta = await _metaUsuario(pool, userId);
+    const excl = '(excluido IS NULL OR excluido = \'N\')';
+    const pExcl = '(p.excluido IS NULL OR p.excluido = \'N\')';
     const [resumoRows] = await pool.query(`
       SELECT
         (SELECT nomeusu FROM usuarios WHERE idusuario = ?) as nome,
-        (SELECT COALESCE(vlr_meta, 0) FROM usuarios WHERE idusuario = ?) as meta,
-        (SELECT COALESCE(SUM(vlr_pago), 0) FROM pagtocomissao WHERE ${uf} = ? AND status = 'C' AND excluido = 'N' AND data_lancamento BETWEEN ? AND ?) as comissao_total,
-        (SELECT COALESCE(SUM(vlr_pago), 0) FROM pagtocomissao WHERE ${uf} = ? AND status IN ('P','I') AND excluido = 'N' AND data_lancamento BETWEEN ? AND ?) as comissao_futura,
-        (SELECT COALESCE(SUM(ped.vlrtotalpedido), 0) FROM pagtocomissao p JOIN pedidos ped ON p.pedido = ped.numero WHERE p.${uf} = ? AND p.excluido = 'N' AND p.data_lancamento BETWEEN ? AND ?) as vendas_totais,
-        (SELECT COUNT(DISTINCT pedido) FROM pagtocomissao WHERE ${uf} = ? AND excluido = 'N' AND data_lancamento BETWEEN ? AND ?) as total_pedidos
-    `, [userId, userId, userId, dtIni, dtFim, userId, dtIni, dtFim, userId, dtIni, dtFim, userId, dtIni, dtFim]);
+        (SELECT COALESCE(SUM(vlr_pago), 0) FROM pagtocomissao WHERE ${uf} = ? AND status = 'C' AND ${excl} AND data_lancamento BETWEEN ? AND ?) as comissao_total,
+        (SELECT COALESCE(SUM(vlr_pago), 0) FROM pagtocomissao WHERE ${uf} = ? AND status IN ('P','I') AND ${excl} AND data_lancamento BETWEEN ? AND ?) as comissao_futura,
+        (SELECT COALESCE(SUM(v), 0) FROM (
+          SELECT MAX(COALESCE(ped.vlrtotalpedido, 0)) AS v FROM pagtocomissao p JOIN pedidos ped ON p.pedido = ped.numero
+          WHERE p.${uf} = ? AND ${pExcl} AND p.data_lancamento BETWEEN ? AND ?
+          GROUP BY p.pedido
+        ) vendas_dist) as vendas_totais,
+        (SELECT COUNT(DISTINCT pedido) FROM pagtocomissao WHERE ${uf} = ? AND ${excl} AND data_lancamento BETWEEN ? AND ?) as total_pedidos
+    `, [userId, userId, dtIni, dtFim, userId, dtIni, dtFim, userId, dtIni, dtFim, userId, dtIni, dtFim]);
+    const resumo = { ...(resumoRows[0] || {}), meta };
 
     const [pendentes] = await pool.query(`
-      SELECT p.*, ped.nome_cliente, ped.nome_fornecedor, ped.vlrtotalpedido
-      FROM pagtocomissao p LEFT JOIN pedidos ped ON p.pedido = ped.numero
-      WHERE p.${uf} = ? AND p.status IN ('P','I') AND p.excluido = 'N'
+      SELECT p.*, ${SQL_PEDIDO_LIST_LABELS}, ${SQL_PEDIDO_PARCELA_LABELS}
+      FROM pagtocomissao p ${PEDIDO_LABEL_JOINS} ${PEDIDO_PARCELA_JOIN}
+      WHERE p.${uf} = ? AND p.status IN ('P','I') AND ${pExcl}
         AND p.data_lancamento BETWEEN ? AND ? ${fabFilter}
-      ORDER BY p.data_lancamento DESC
+      ORDER BY p.data_lancamento DESC, rec_pc.parcela ASC, p.id ASC
     `, [userId, dtIni, dtFim, ...fabParam]);
 
     const [conferidas] = await pool.query(`
-      SELECT p.*, ped.nome_cliente, ped.nome_fornecedor, ped.vlrtotalpedido
-      FROM pagtocomissao p LEFT JOIN pedidos ped ON p.pedido = ped.numero
-      WHERE p.${uf} = ? AND p.status = 'C' AND p.excluido = 'N'
+      SELECT p.*, ${SQL_PEDIDO_LIST_LABELS}, ${SQL_PEDIDO_PARCELA_LABELS}
+      FROM pagtocomissao p ${PEDIDO_LABEL_JOINS} ${PEDIDO_PARCELA_JOIN}
+      WHERE p.${uf} = ? AND p.status = 'C' AND ${pExcl}
         AND p.data_lancamento BETWEEN ? AND ? ${fabFilter}
-      ORDER BY p.data_confirmacao DESC
+      ORDER BY p.data_confirmacao DESC, p.pedido ASC, rec_pc.parcela ASC, p.id ASC
     `, [userId, dtIni, dtFim, ...fabParam]);
 
     const [liquidadas] = await pool.query(`
-      SELECT p.*, ped.nome_cliente, ped.nome_fornecedor, ped.vlrtotalpedido
-      FROM pagtocomissao p LEFT JOIN pedidos ped ON p.pedido = ped.numero
-      WHERE p.${uf} = ? AND p.status = 'R' AND p.excluido = 'N'
+      SELECT p.*, ${SQL_PEDIDO_LIST_LABELS}, ${SQL_PEDIDO_PARCELA_LABELS}
+      FROM pagtocomissao p ${PEDIDO_LABEL_JOINS} ${PEDIDO_PARCELA_JOIN}
+      WHERE p.${uf} = ? AND p.status = 'R' AND ${pExcl}
         AND p.data_lancamento BETWEEN ? AND ? ${fabFilter}
-      ORDER BY p.data_lancamento DESC
+      ORDER BY p.data_lancamento DESC, rec_pc.parcela ASC, p.id ASC
     `, [userId, dtIni, dtFim, ...fabParam]);
 
     const [fabricas] = await pool.query(`
-      SELECT ped.nome_fornecedor, SUM(p.vlr_pago) as total
-      FROM pagtocomissao p JOIN pedidos ped ON p.pedido = ped.numero
-      WHERE p.${uf} = ? AND p.excluido = 'N' AND p.data_lancamento BETWEEN ? AND ?
-      GROUP BY ped.nome_fornecedor ORDER BY total DESC LIMIT 10
+      SELECT ${SQL_NOME_FORN_PED} AS nome_fornecedor, SUM(p.vlr_pago) as total
+      FROM pagtocomissao p ${PEDIDO_LABEL_JOINS}
+      WHERE p.${uf} = ? AND ${pExcl} AND p.data_lancamento BETWEEN ? AND ?
+      GROUP BY ${SQL_NOME_FORN_PED} ORDER BY total DESC LIMIT 10
     `, [userId, dtIni, dtFim]);
 
     const [diaria] = await pool.query(`
       SELECT p.data_lancamento as data, SUM(p.vlr_pago) as total
       FROM pagtocomissao p
-      WHERE p.${uf} = ? AND p.excluido = 'N' AND p.data_lancamento BETWEEN ? AND ?
+      WHERE p.${uf} = ? AND (p.excluido IS NULL OR p.excluido = 'N') AND p.data_lancamento BETWEEN ? AND ?
       GROUP BY p.data_lancamento ORDER BY p.data_lancamento ASC
     `, [userId, dtIni, dtFim]);
 
     const [allFornecedores] = await pool.query(`
-      SELECT DISTINCT ped.nome_fornecedor
-      FROM pagtocomissao p
-      JOIN pedidos ped ON p.pedido = ped.numero
-      WHERE p.${uf} = ? AND p.excluido = 'N'
-        AND ped.nome_fornecedor IS NOT NULL
-        AND TRIM(ped.nome_fornecedor) != ''
-        AND TRIM(ped.nome_fornecedor) != 'undefined'
-      ORDER BY ped.nome_fornecedor
+      SELECT DISTINCT ${SQL_NOME_FORN_PED} AS nome_fornecedor
+      FROM pagtocomissao p ${PEDIDO_LABEL_JOINS}
+      WHERE p.${uf} = ? AND (p.excluido IS NULL OR p.excluido = 'N')
+        AND ${SQL_NOME_FORN_PED} IS NOT NULL
+        AND TRIM(${SQL_NOME_FORN_PED}) != ''
+        AND TRIM(${SQL_NOME_FORN_PED}) != 'undefined'
+      ORDER BY nome_fornecedor
     `, [userId]);
 
     res.json({
-      resumo: resumoRows[0] || { vendas_totais: 0, meta: 0, comissao_total: 0, comissao_futura: 0, nome: 'Vendedor', total_pedidos: 0 },
+      resumo: resumo || { vendas_totais: 0, meta: 0, comissao_total: 0, comissao_futura: 0, nome: 'Vendedor', total_pedidos: 0 },
       rankings: { fabricas, diaria },
       fornecedores:     allFornecedores,
       lista_pendentes:  pendentes,
@@ -145,7 +195,7 @@ router.get('/admin/extrato', async (req, res) => {
     else { where += ' AND pc.status = ?'; params.push(status); }
   }
 
-  const lim = parseInt(limit) || 500;
+  const lim = req.query.export === '1' ? 10000 : (parseInt(limit) || 500);
 
   const comissaoSel = isPrep
     ? `COALESCE(pcf.pct_comissao, usr_prep.comissao_preposto_pct, 6) AS comissao`
@@ -213,8 +263,12 @@ router.get('/admin/extrato', async (req, res) => {
 
     const [[stats]] = await pool.query(`
       SELECT
-        COALESCE(SUM(CASE WHEN pc.status IN ('P','I') THEN pc.vlr_pago ELSE 0 END), 0) AS pendente,
+        COALESCE(SUM(CASE WHEN pc.status = 'P' THEN pc.vlr_pago ELSE 0 END), 0) AS pendente,
+        COALESCE(SUM(CASE WHEN pc.status = 'I' THEN pc.vlr_pago ELSE 0 END), 0) AS inadimplente,
+        COALESCE(SUM(CASE WHEN pc.status = 'C' THEN pc.vlr_pago ELSE 0 END), 0) AS conferido,
+        COALESCE(SUM(CASE WHEN pc.status = 'R' THEN pc.vlr_pago ELSE 0 END), 0) AS liquidado,
         COALESCE(SUM(CASE WHEN pc.status IN ('R','C') THEN pc.vlr_pago ELSE 0 END), 0) AS pago,
+        COALESCE(SUM(pc.vlr_pago), 0) AS provisao,
         COUNT(*) AS qtd
       FROM pagtocomissao pc
       WHERE ${statsWhere}
@@ -356,7 +410,11 @@ router.get('/vendedor/stats', async (req, res) => {
         (SELECT COALESCE(vlr_meta, 0) FROM usuarios WHERE idusuario = ?) as meta,
         (SELECT COALESCE(SUM(vlr_pago), 0) FROM pagtocomissao WHERE ${uf} = ? AND status = 'C' AND excluido = 'N' AND data_lancamento BETWEEN ? AND ?) as comissao_total,
         (SELECT COALESCE(SUM(vlr_pago), 0) FROM pagtocomissao WHERE ${uf} = ? AND status IN ('P','I') AND excluido = 'N' AND data_lancamento BETWEEN ? AND ?) as comissao_futura,
-        (SELECT COALESCE(SUM(ped.vlrtotalpedido), 0) FROM pagtocomissao p JOIN pedidos ped ON p.pedido = ped.numero WHERE p.${uf} = ? AND p.excluido = 'N' AND p.data_lancamento BETWEEN ? AND ?) as vendas_totais,
+        (SELECT COALESCE(SUM(v), 0) FROM (
+          SELECT MAX(COALESCE(ped.vlrtotalpedido, 0)) AS v FROM pagtocomissao p JOIN pedidos ped ON p.pedido = ped.numero
+          WHERE p.${uf} = ? AND p.excluido = 'N' AND p.data_lancamento BETWEEN ? AND ?
+          GROUP BY p.pedido
+        ) vendas_dist) as vendas_totais,
         (SELECT COUNT(DISTINCT pedido) FROM pagtocomissao WHERE ${uf} = ? AND excluido = 'N' AND data_lancamento BETWEEN ? AND ?) as total_pedidos
     `, [userId, userId, userId, dtIni, dtFim, userId, dtIni, dtFim, userId, dtIni, dtFim, userId, dtIni, dtFim]);
 
@@ -541,9 +599,11 @@ router.get('/dashboard', async (req, res) => {
       pool.query(`
         SELECT
           COALESCE(SUM(pc.vlr_pago), 0)                                               AS total,
-          COALESCE(SUM(CASE WHEN pc.status IN ('R','C')    THEN pc.vlr_pago END),0)  AS pago,
-          COALESCE(SUM(CASE WHEN pc.status IN ('P','I')    THEN pc.vlr_pago END),0)  AS pendente,
-          COALESCE(SUM(CASE WHEN pc.status = 'I'           THEN pc.vlr_pago END),0)  AS inadimplente,
+          COALESCE(SUM(CASE WHEN pc.status = 'R' THEN pc.vlr_pago END),0)             AS liquidado,
+          COALESCE(SUM(CASE WHEN pc.status = 'C' THEN pc.vlr_pago END),0)             AS conferido,
+          COALESCE(SUM(CASE WHEN pc.status IN ('R','C') THEN pc.vlr_pago END),0)       AS pago,
+          COALESCE(SUM(CASE WHEN pc.status = 'P' THEN pc.vlr_pago END),0)             AS pendente,
+          COALESCE(SUM(CASE WHEN pc.status = 'I' THEN pc.vlr_pago END),0)             AS inadimplente,
           COALESCE(AVG(CASE WHEN pc.status IN ('R','C') THEN ped.vlrtotalpedido END),0) AS ticket,
           0 AS cancelado
         FROM pagtocomissao pc
@@ -575,7 +635,13 @@ router.get('/dashboard', async (req, res) => {
       // Por status
       pool.query(`
         SELECT
-          CASE pc.status WHEN 'P' THEN 'Pendente' WHEN 'C' THEN 'Conferida' WHEN 'R' THEN 'Liquidada' ELSE pc.status END AS label,
+          CASE pc.status
+            WHEN 'P' THEN 'Pendente'
+            WHEN 'C' THEN 'Conferido'
+            WHEN 'R' THEN 'Pago'
+            WHEN 'I' THEN 'Inadimplente'
+            ELSE pc.status
+          END AS label,
           pc.status AS id,
           COALESCE(SUM(pc.vlr_pago),0) AS value
         FROM pagtocomissao pc
@@ -722,6 +788,91 @@ router.post('/admin/recalcular/:id', async (req, res) => {
     res.json({ ok: true, vlr_pago: novoValor, base_calculada: base, perc: percFinal, tipo: pc.id_preposto ? 'PREPOSTO' : 'VENDEDOR' });
   } catch (e) {
     console.error('ERRO /recalcular:', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ─── POST /admin/deduplicar-pedido/:pedido — remove comissões duplicadas (gestor) ──
+router.post('/admin/deduplicar-pedido/:pedido', async (req, res) => {
+  if (!_isAdmin(req)) return res.status(403).json({ ok: false, error: 'Acesso restrito ao gestor' });
+  const pool = getPool();
+  const pedidoNum = String(req.params.pedido || '').trim();
+  if (!pedidoNum) return res.status(400).json({ ok: false, error: 'Número do pedido obrigatório' });
+
+  try {
+    const { deduplicarPedido } = require('../config/comissao-deduplicar');
+    const conn = await pool.getConnection();
+    try {
+      const r = await deduplicarPedido(conn, pedidoNum);
+      if (!r.removidas) {
+        return res.json({
+          ok: true,
+          removidas: 0,
+          message: r.duplicatas
+            ? 'Nenhuma duplicata removida.'
+            : 'Nenhuma duplicata encontrada — pode ser comissão legítima por parcela.',
+        });
+      }
+      res.json({
+        ok: true,
+        removidas: r.removidas,
+        ids_removidos: r.ids_removidos,
+        max_esperado_por_vendedor: r.max_esperado_por_vendedor,
+        message: `${r.removidas} lançamento(s) duplicado(s) removido(s). Revise o extrato do vendedor.`,
+      });
+    } finally {
+      conn.release();
+    }
+  } catch (e) {
+    console.error('ERRO /deduplicar-pedido:', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ─── GET /admin/analisar-duplicatas — prévia sem alterar dados ─────────────────
+router.get('/admin/analisar-duplicatas', async (req, res) => {
+  if (!_isAdmin(req)) return res.status(403).json({ ok: false, error: 'Acesso restrito ao gestor' });
+  const pool = getPool();
+  try {
+    const { analisarTodasDuplicatas } = require('../config/comissao-deduplicar');
+    const conn = await pool.getConnection();
+    try {
+      const data = await analisarTodasDuplicatas(conn);
+      res.json({ ok: true, ...data });
+    } finally {
+      conn.release();
+    }
+  } catch (e) {
+    console.error('ERRO /analisar-duplicatas:', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ─── POST /admin/corrigir-duplicatas — remove duplicatas (todos ou pedidos informados)
+router.post('/admin/corrigir-duplicatas', async (req, res) => {
+  if (!_isAdmin(req)) return res.status(403).json({ ok: false, error: 'Acesso restrito ao gestor' });
+  const pool = getPool();
+  const pedidos = Array.isArray(req.body?.pedidos)
+    ? req.body.pedidos.map((p) => String(p).trim()).filter(Boolean)
+    : [];
+
+  try {
+    const { corrigirTodasDuplicatas } = require('../config/comissao-deduplicar');
+    const conn = await pool.getConnection();
+    try {
+      const data = await corrigirTodasDuplicatas(conn, pedidos.length ? pedidos : null);
+      res.json({
+        ok: true,
+        ...data,
+        message: data.total_removidas
+          ? `${data.total_removidas} lançamento(s) duplicado(s) removido(s) em ${data.pedidos_corrigidos} pedido(s).`
+          : 'Nenhuma duplicata encontrada.',
+      });
+    } finally {
+      conn.release();
+    }
+  } catch (e) {
+    console.error('ERRO /corrigir-duplicatas:', e.message);
     res.status(500).json({ ok: false, error: e.message });
   }
 });
@@ -1492,12 +1643,16 @@ router.get('/prepostos-do-rep', async (req, res) => {
 
   const sel = `
     pc.id, pc.pedido, pc.vlr_pago, pc.status, pc.data_lancamento, pc.data_confirmacao, pc.data_pagamento,
-    ped.nome_cliente, ped.nome_fornecedor, ped.vlrtotalpedido,
+    ${SQL_NOME_CLIENTE_PED} AS nome_cliente,
+    ${SQL_NOME_FORN_PED} AS nome_fornecedor,
+    ped.vlrtotalpedido,
     u_prep.nomeusu AS nome_preposto
   `;
   const joins = `
     FROM pagtocomissao pc
     JOIN pedidos ped ON pc.pedido = ped.numero
+    LEFT JOIN clientes c ON c.id = ped.cod_cliente AND (c.excluido IS NULL OR c.excluido = 'N')
+    LEFT JOIN fornecedores f ON f.id = ped.cod_fornecedor AND (f.excluido IS NULL OR f.excluido = 'N')
     JOIN usuarios u_prep ON pc.id_preposto = u_prep.idusuario
   `;
 
@@ -1548,6 +1703,253 @@ router.post('/preposto/aceitar-pelo-rep', async (req, res) => {
     );
     res.json({ sucesso: true });
   } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── GET /admin/resumo-gestor — KPIs rápidos para home / alertas ─────────────
+router.get('/admin/resumo-gestor', async (req, res) => {
+  if (!_isAdmin(req) && !canAccessAllVendors(req)) {
+    return res.json({ ok: false, acesso: false });
+  }
+  const pool = getPool();
+  try {
+    const mes = parseInt(req.query.mes) || (new Date().getMonth() + 1);
+    const ano = parseInt(req.query.ano) || new Date().getFullYear();
+    const dtIni = `${ano}-${String(mes).padStart(2, '0')}-01`;
+    const dtFim = new Date(ano, mes, 0).toISOString().slice(0, 10);
+
+    const [[row]] = await pool.query(`
+      SELECT
+        COALESCE(SUM(CASE WHEN status = 'P' AND excluido = 'N' THEN 1 ELSE 0 END), 0) AS qtd_pendentes,
+        COALESCE(SUM(CASE WHEN status = 'C' AND excluido = 'N' THEN 1 ELSE 0 END), 0) AS qtd_conferidas,
+        COALESCE(SUM(CASE WHEN status = 'I' AND excluido = 'N' THEN 1 ELSE 0 END), 0) AS qtd_inadimplentes,
+        COALESCE(SUM(CASE WHEN status = 'C' AND excluido = 'N' THEN vlr_pago ELSE 0 END), 0) AS vlr_conferidas,
+        COALESCE(SUM(CASE WHEN status = 'P' AND excluido = 'N' THEN vlr_pago ELSE 0 END), 0) AS vlr_pendentes
+      FROM pagtocomissao
+    `);
+
+    let fechamentosAbertos = 0;
+    try {
+      await ensureMetasTables(pool);
+      const [[f]] = await pool.query(
+        `SELECT COUNT(*) AS n FROM comissao_fechamento WHERE mes=? AND ano=? AND status='ABERTO'`,
+        [mes, ano]
+      );
+      fechamentosAbertos = parseInt(f?.n) || 0;
+    } catch (_) {}
+
+    res.json({
+      ok: true,
+      mes,
+      ano,
+      periodo: { dt_ini: dtIni, dt_fim: dtFim },
+      ...row,
+      fechamentos_abertos: fechamentosAbertos,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── GET /admin/timeline/:id — histórico da comissão (campos existentes) ─────
+router.get('/admin/timeline/:id', async (req, res) => {
+  const pool = getPool();
+  const id = parseInt(req.params.id, 10);
+  if (!id) return res.status(400).json({ error: 'ID inválido' });
+
+  let userFilter = { clause: '', params: [], isPrep: false };
+  if (canPickOtherVendors(req)) {
+    userFilter = await buildPagtoComissaoFilter(pool, req, null);
+  } else {
+    userFilter = await buildPagtoComissaoFilter(pool, req, null);
+  }
+
+  try {
+    const [[pc]] = await pool.query(`
+      SELECT pc.id, pc.pedido, pc.status, pc.vlr_pago, pc.data_lancamento, pc.data_movimento,
+             pc.data_pagar, pc.data_pagamento, pc.data_confirmacao, pc.observacao,
+             pc.cod_user, pc.id_preposto, u.nomeusu AS nome_vendedor,
+             ped.nome_cliente, ped.nome_fornecedor,
+             COALESCE(rec.parcela, 1) AS parcela,
+             COALESCE(rec.qt_parcelas, ped.qt_parcelas, 1) AS qt_parcelas
+      FROM pagtocomissao pc
+      JOIN pedidos ped ON pc.pedido = ped.numero
+      JOIN usuarios u ON pc.cod_user = u.idusuario
+      LEFT JOIN receber rec ON pc.id_parcela = rec.id
+      WHERE pc.id = ? AND COALESCE(pc.excluido,'N') = 'N'${userFilter.clause}
+      LIMIT 1
+    `, [id, ...userFilter.params]);
+
+    if (!pc) return res.status(404).json({ error: 'Comissão não encontrada' });
+
+    const events = [];
+    const push = (dt, titulo, detalhe) => {
+      if (!dt) return;
+      events.push({ data: dt, titulo, detalhe });
+    };
+
+    push(pc.data_lancamento, 'Provisão gerada', `Pedido #${pc.pedido} · Parc. ${pc.parcela}/${pc.qt_parcelas} · ${statusLabel(pc.status)}`);
+    push(pc.data_pagar, 'Vencimento da parcela', 'Data prevista para recebimento do cliente');
+    if (pc.status === 'I') {
+      push(pc.data_lancamento, 'Marcada inadimplente', 'Parcela do cliente em atraso — comissão bloqueada');
+    }
+    if (pc.data_pagamento) {
+      push(pc.data_pagamento, pc.status === 'C' ? 'Baixa pelo financeiro (aguarda aceite)' : 'Liquidada pelo financeiro',
+        `Valor R$ ${parseFloat(pc.vlr_pago || 0).toFixed(2)}`);
+    }
+    if (pc.data_confirmacao) {
+      push(pc.data_confirmacao, 'Aceite do vendedor', 'Conferência formal registrada');
+    }
+    if (pc.observacao) {
+      events.push({ data: pc.data_lancamento, titulo: 'Observação', detalhe: String(pc.observacao) });
+    }
+
+    events.sort((a, b) => String(a.data).localeCompare(String(b.data)));
+
+    res.json({
+      comissao: {
+        id: pc.id,
+        pedido: pc.pedido,
+        parcela: pc.parcela,
+        qt_parcelas: pc.qt_parcelas,
+        status: pc.status,
+        status_label: statusLabel(pc.status),
+        vlr_pago: pc.vlr_pago,
+        nome_vendedor: pc.nome_vendedor,
+        nome_cliente: pc.nome_cliente,
+        nome_fornecedor: pc.nome_fornecedor,
+      },
+      timeline: events,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── Baixa em lote — arquiva comissões (excluido=S), sem movimentar financeiro ──
+async function _baixaLoteUserFilter(pool, req, idVendedor) {
+  let userFilter = { clause: '', params: [], isPrep: false };
+  const idResolved = await resolveVendedorIdForFilter(pool, req, idVendedor);
+  if (canPickOtherVendors(req)) {
+    if (idResolved) userFilter = await buildPagtoComissaoFilter(pool, req, idResolved);
+  } else {
+    userFilter = await buildPagtoComissaoFilter(pool, req, null);
+  }
+  return userFilter;
+}
+
+router.get('/admin/preview-baixa-lote', async (req, res) => {
+  if (!_isAdmin(req)) return res.status(403).json({ error: 'Acesso restrito ao gestor' });
+  const pool = getPool();
+  const ate = String(req.query.ate_data || '').trim();
+  if (!ate) return res.status(400).json({ error: 'Informe a data limite (ate_data).' });
+
+  try {
+    const userFilter = await _baixaLoteUserFilter(pool, req, req.query.id_vendedor);
+    const { previewBaixaLote } = require('../config/comissao-baixa-lote');
+    const row = await previewBaixaLote(pool, req.query, userFilter);
+    res.json({
+      ok: true,
+      ate_data: ate,
+      qtd: parseInt(row.qtd, 10) || 0,
+      total: parseFloat(row.total) || 0,
+      por_status: {
+        pendente: parseInt(row.qtd_pendente, 10) || 0,
+        conferida: parseInt(row.qtd_conferida, 10) || 0,
+        paga: parseInt(row.qtd_paga, 10) || 0,
+        inadimplente: parseInt(row.qtd_inadimplente, 10) || 0,
+      },
+    });
+  } catch (e) {
+    console.error('ERRO /preview-baixa-lote:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.post('/admin/baixa-lote', async (req, res) => {
+  if (!_isAdmin(req)) return res.status(403).json({ error: 'Acesso restrito ao gestor' });
+  const pool = getPool();
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ error: 'Sessão expirada' });
+
+  const src = { ...(req.query || {}), ...(req.body || {}) };
+  const { ate_data, id_vendedor, id_fornecedor, status, motivo, senha, ids } = src;
+  const ate = String(ate_data || '').trim();
+  if (!ate && !(Array.isArray(ids) && ids.length)) {
+    return res.status(400).json({ error: 'Informe a data limite ou selecione registros.' });
+  }
+  if (!motivo || !String(motivo).trim()) return res.status(400).json({ error: 'Motivo obrigatório.' });
+  if (!senha) return res.status(400).json({ error: 'Senha obrigatória.' });
+
+  try {
+    const [[user]] = await pool.query(
+      `SELECT senhausu FROM usuarios WHERE idusuario = ? AND excluido = 'N'`,
+      [userId]
+    );
+    if (!user || user.senhausu.toUpperCase() !== String(senha).trim().toUpperCase()) {
+      return res.status(401).json({ error: 'Senha incorreta' });
+    }
+
+    const userFilter = await _baixaLoteUserFilter(pool, req, id_vendedor);
+    const query = { ate_data: ate, id_fornecedor, status, ids };
+    const { previewBaixaLote, executarBaixaLote } = require('../config/comissao-baixa-lote');
+    const prev = await previewBaixaLote(pool, query, userFilter);
+    if (!prev.qtd) {
+      return res.json({ ok: true, afetadas: 0, message: 'Nenhuma comissão encontrada para os filtros informados.' });
+    }
+
+    const { afetadas } = await executarBaixaLote(pool, query, userFilter, {
+      motivo: String(motivo).trim(),
+      userId,
+    });
+
+    res.json({
+      ok: true,
+      afetadas,
+      message: `${afetadas} comissão(ões) arquivada(s). Não houve movimentação financeira — apenas saíram das telas e relatórios.`,
+    });
+  } catch (e) {
+    console.error('ERRO /baixa-lote:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.post('/admin/baixa-item/:id', async (req, res) => {
+  if (!_isAdmin(req)) return res.status(403).json({ error: 'Acesso restrito ao gestor' });
+  const pool = getPool();
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ error: 'Sessão expirada' });
+
+  const id = parseInt(req.params.id, 10);
+  if (!id) return res.status(400).json({ error: 'ID inválido' });
+
+  const src = { ...(req.query || {}), ...(req.body || {}) };
+  const { motivo, senha } = src;
+  if (!motivo || !String(motivo).trim()) return res.status(400).json({ error: 'Motivo obrigatório.' });
+  if (!senha) return res.status(400).json({ error: 'Senha obrigatória.' });
+
+  try {
+    const [[user]] = await pool.query(
+      `SELECT senhausu FROM usuarios WHERE idusuario = ? AND excluido = 'N'`,
+      [userId]
+    );
+    if (!user || user.senhausu.toUpperCase() !== String(senha).trim().toUpperCase()) {
+      return res.status(401).json({ error: 'Senha incorreta' });
+    }
+
+    const { executarBaixaLote } = require('../config/comissao-baixa-lote');
+    const { afetadas } = await executarBaixaLote(
+      pool,
+      { ids: [id] },
+      { clause: '', params: [] },
+      { motivo: String(motivo).trim(), userId }
+    );
+
+    if (!afetadas) return res.status(404).json({ error: 'Comissão não encontrada ou já arquivada.' });
+    res.json({ ok: true, message: 'Comissão arquivada (baixa). Sem movimentação financeira.' });
+  } catch (e) {
+    console.error('ERRO /baixa-item:', e.message);
     res.status(500).json({ error: e.message });
   }
 });

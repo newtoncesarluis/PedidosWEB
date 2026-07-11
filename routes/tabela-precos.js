@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { getPool } = require('../config/database');
 const { listarTabelasVinculadas } = require('../config/tabela-preco-vinculo');
+const { resolverVendedorTabelaPreco } = require('../config/preposto-tabela-preco');
 const { permCrud, negarCad } = require('../config/cadastros-permissoes');
 const { ensureTabelaPrecoCondPagamentoNullable, ensureVitrineColumns } = require('../config/schema-migrations');
 
@@ -347,34 +348,14 @@ router.get('/ativa-para/:cliId/:forId/:venId', async (req, res) => {
   try {
     const pool = getPool();
     const { cliId, forId, venId } = req.params;
-
-    // Regra: Fornecedor (fábrica) > Vendedor > Cliente
-    const priorities = [
-      { id: forId, tipo: 'FORNECEDOR' },
-      { id: venId, tipo: 'VENDEDOR' },
-      { id: cliId, tipo: 'CLIENTE' }
-    ];
-
-    for (const p of priorities) {
-      if (!p.id || p.id === 'null' || p.id === '0') continue;
-      try {
-        const [vinc] = await pool.query(`
-          SELECT v.id_tabela, c.Descricao
-          FROM tabela_preco_vinculo v
-          JOIN tabela_preco_cabecalho c ON c.id = v.id_tabela
-          WHERE v.id_entidade = ? AND v.tipo_entidade = ? AND v.excluido = 'N' AND c.excluido = 'N' AND c.Tabela_Ativa = 'S'
-          LIMIT 1
-        `, [p.id, p.tipo]);
-
-        if (vinc[0]) {
-          return res.json({ id_tabela: vinc[0].id_tabela, descricao: vinc[0].Descricao, origem: p.tipo });
-        }
-      } catch (tableErr) {
-        // Ignora erro se a tabela de preços não existir no banco do cliente
-        continue;
-      }
+    const { tabelas, origem } = await buscarTabelasLiberadas(pool, cliId, forId, venId);
+    if (tabelas.length) {
+      return res.json({
+        id_tabela: tabelas[0].id_tabela,
+        descricao: tabelas[0].descricao,
+        origem,
+      });
     }
-
     res.json({ id_tabela: null });
   } catch (err) {
     res.json({ id_tabela: null, error: err.message });
@@ -387,45 +368,31 @@ router.get('/disponiveis-para/:cliId/:forId/:venId', async (req, res) => {
   try {
     const pool = getPool();
     const { cliId, forId, venId } = req.params;
-
-    const priorities = [
-      { id: forId, tipo: 'FORNECEDOR' },
-      { id: venId, tipo: 'VENDEDOR' },
-      { id: cliId, tipo: 'CLIENTE' }
-    ];
-
-    let tabelas = [];
-    let origemTabela = null;
-
-    // Tenta buscar as tabelas por prioridade: se achar na 1ª (fábrica) já usa elas; senão vendedor; senão cliente.
-    const somenteMobile = req.query.mobile === '1';
-    for (const p of priorities) {
-      if (!p.id || p.id === 'null' || p.id === '0') continue;
-      try {
-        let rows = await listarTabelasVinculadas(pool, p.id, p.tipo);
-        if (somenteMobile) rows = rows.filter((r) => (r.aparece_mobile || 'S') === 'S');
-        if (rows.length > 0) {
-          tabelas = rows.map((r) => ({
-            id_tabela: r.id_tabela,
-            descricao: r.descricao,
-            aparece_mobile: r.aparece_mobile || 'S',
-          }));
-          origemTabela = p.tipo;
-          break;
-        }
-      } catch (tableErr) {
-        continue;
-      }
-    }
-
-    res.json({ tabelas, origem: origemTabela });
+    const { tabelas, origem } = await buscarTabelasLiberadas(pool, cliId, forId, venId, {
+      somenteMobile: req.query.mobile === '1',
+    });
+    res.json({ tabelas, origem });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
+function filtrarTabelasPreposto(rows, idsPermitidos) {
+  if (!idsPermitidos) return rows;
+  const allow = new Set(idsPermitidos.map((id) => parseInt(id, 10)).filter(Boolean));
+  return rows.filter((r) => allow.has(parseInt(r.id_tabela, 10)));
+}
+
 /** Tabelas liberadas (fornecedor/fábrica > vendedor > cliente) — mesma regra de disponiveis-para. */
 async function buscarTabelasLiberadas(pool, cliId, forId, venId, { somenteMobile = false } = {}) {
+  const prepostoCtx = (venId && venId !== 'null' && venId !== '0')
+    ? await resolverVendedorTabelaPreco(pool, venId)
+    : null;
+  const idsPermitidos = prepostoCtx?.idsPermitidos ?? null;
+  if (idsPermitidos && !idsPermitidos.length) {
+    return { tabelas: [], origem: null };
+  }
+
   const priorities = [
     { id: forId, tipo: 'FORNECEDOR' },
     { id: venId, tipo: 'VENDEDOR' },
@@ -434,7 +401,13 @@ async function buscarTabelasLiberadas(pool, cliId, forId, venId, { somenteMobile
   for (const p of priorities) {
     if (!p.id || p.id === 'null' || p.id === '0') continue;
     try {
-      let rows = await listarTabelasVinculadas(pool, p.id, p.tipo);
+      let idQuery = p.id;
+      if (p.tipo === 'VENDEDOR' && prepostoCtx) {
+        idQuery = prepostoCtx.idEntidade;
+      }
+
+      let rows = await listarTabelasVinculadas(pool, idQuery, p.tipo);
+      rows = filtrarTabelasPreposto(rows, idsPermitidos);
       if (somenteMobile) rows = rows.filter((r) => (r.aparece_mobile || 'S') === 'S');
       if (rows.length > 0) {
         return {

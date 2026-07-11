@@ -189,7 +189,8 @@ html.sysrep-ms-embed #visitas-cards-mobile { padding:0; }
 <link rel="stylesheet" href="/assets/themes.css">
 <script src="/assets/themes.js"></script>
 <script src="/assets/mobile-app.js"></script>
-<script src="/assets/comissao-preposto-ui.js"></script>
+<script src="/assets/comissao-preposto-ui.js?v=1.1.3.24"></script>
+<script src="/assets/sysrep-api.js?v=1.1.3.24"></script>
 <link rel="stylesheet" href="/assets/mobile-app.css">
 </head>
 <body>
@@ -387,6 +388,10 @@ html.sysrep-ms-embed #visitas-cards-mobile { padding:0; }
 <div id="dropMenu" class="dropdown-menu"></div>
 
 <script>
+async function api(url, options = {}) {
+  return SysRepApi.fetch(url, options);
+}
+
 // ─── Estado ───────────────────────────────────────────────────────────────────
 let S = {
   filtroStatus: '',
@@ -479,17 +484,16 @@ function registrarLocalizacao() {
 // Swipe rápido: finalizar visita sem confirmação de modal
 async function finalizarDireto(id) {
   try {
-    const r = await fetch('/api/visitas/' + id + '/finalizar', { method: 'PUT', headers: { 'Content-Type': 'application/json' } });
-    if (r.ok) { toast('Visita finalizada!', 'ok'); buscar(); }
-    else toast('Erro ao finalizar', 'err');
-  } catch (e) { toast('Erro de comunicação', 'err'); }
+    await api('/api/visitas/' + id + '/finalizar', { method: 'PUT' });
+    toast('Visita finalizada!', 'ok');
+    buscar();
+  } catch (e) { toast('Erro ao finalizar', 'err'); }
 }
 
 // ─── Auxiliares ───────────────────────────────────────────────────────────────
 async function carregarMotivos() {
   try {
-    const r = await fetch('/api/visitas/motivos');
-    S.motivos = await r.json();
+    S.motivos = await api('/api/visitas/motivos');
     const sel = document.getElementById('f_id_motivo');
     sel.innerHTML = '<option value="">— Selecione —</option>' +
       S.motivos.map(m => `<option value="${m.id}">${escHtml(m.descricao)}</option>`).join('');
@@ -498,8 +502,8 @@ async function carregarMotivos() {
 
 async function carregarVendedores() {
   try {
-    const r = await fetch('/api/vendedores');
-    S.vendedores = (await r.json()).vendedores || [];
+    const data = await api('/api/vendedores');
+    S.vendedores = data.vendedores || [];
     const fSel = document.getElementById('f_vendedor_filtro');
     const formSel = document.getElementById('f_id_vendedor');
     if (window.ComissaoPrepostoUi) {
@@ -566,8 +570,7 @@ async function buscar() {
   });
 
   try {
-    const r = await fetch('/api/visitas?' + params);
-    const d = await r.json();
+    const d = await api('/api/visitas?' + params);
     S.total = d.total || 0;
     renderLista(d.visitas || []);
     atualizarCounters(d.visitas || []);
@@ -663,8 +666,7 @@ function renderLista(rows) {
 
 async function verLeadDoCliente(clienteId) {
   try {
-    const r = await fetch(`/api/leads/por-cliente/${clienteId}`);
-    const d = await r.json();
+    const d = await api(`/api/leads/por-cliente/${clienteId}`);
     if (!d.lead) { toast('Nenhum lead vinculado a este cliente.', 'err'); return; }
     const url = `/pages/leads.html?edit=${d.lead.id}`;
     if (window.parent && window.parent !== window) {
@@ -737,8 +739,7 @@ async function buscarCliente(q) {
   _acAbortCtrl = new AbortController();
 
   try {
-    const r = await fetch(`/api/clientes?q=${encodeURIComponent(q)}&limit=10`, { signal: _acAbortCtrl.signal });
-    const d = await r.json();
+    const d = await api(`/api/clientes?q=${encodeURIComponent(q)}&limit=10`, { signal: _acAbortCtrl.signal });
     const lista = d.clientes || d || [];
     if (!lista.length) { div.innerHTML = '<div class="ac-item" style="color:var(--text2)">Nenhum resultado</div>'; div.classList.add('show'); return; }
     div.innerHTML = lista.map(c => `
@@ -799,9 +800,7 @@ function abrirNovo() {
 
 async function abrirEditar(id) {
   try {
-    const r = await fetch(`/api/visitas/${id}`);
-    if (!r.ok) { toast('Visita não encontrada','err'); return; }
-    const v = await r.json();
+    const v = await api(`/api/visitas/${id}`);
 
     S.registroId = id;
     document.getElementById('f_id').value = id;
@@ -858,37 +857,34 @@ async function salvar() {
   try {
     const url = S.registroId ? `/api/visitas/${S.registroId}` : '/api/visitas';
     const method = S.registroId ? 'PUT' : 'POST';
-    const r = await fetch(url, {
-      method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
-    });
-    const d = await r.json();
-    if (r.ok && d.ok !== false) {
+    const d = await api(url, { method, body: JSON.stringify(payload) });
+    if (d.ok !== false) {
       toast(S.registroId ? 'Visita atualizada!' : 'Visita registrada!', 'ok');
       voltarLista();
     } else {
       toast(d.error || 'Erro ao salvar', 'err');
     }
-  } catch(e) { toast('Erro de comunicação', 'err'); }
+  } catch(e) { toast(e.message || 'Erro de comunicação', 'err'); }
 }
 
 async function finalizar(id) {
   document.getElementById('dropMenu').style.display = 'none';
   if (!confirm('Finalizar esta visita?')) return;
   try {
-    const r = await fetch(`/api/visitas/${id}/finalizar`, { method:'PUT', headers:{'Content-Type':'application/json'} });
-    if (r.ok) { toast('Visita finalizada!','ok'); buscar(); }
-    else toast('Erro ao finalizar','err');
-  } catch(e) { toast('Erro de comunicação','err'); }
+    await api(`/api/visitas/${id}/finalizar`, { method: 'PUT' });
+    toast('Visita finalizada!', 'ok');
+    buscar();
+  } catch(e) { toast('Erro ao finalizar', 'err'); }
 }
 
 async function excluir(id) {
   document.getElementById('dropMenu').style.display = 'none';
   if (!confirm('Excluir esta visita?')) return;
   try {
-    const r = await fetch(`/api/visitas/${id}`, { method:'DELETE' });
-    if (r.ok) { toast('Excluído!','ok'); buscar(); }
-    else toast('Erro ao excluir','err');
-  } catch(e) { toast('Erro de comunicação','err'); }
+    await api(`/api/visitas/${id}`, { method: 'DELETE' });
+    toast('Excluído!', 'ok');
+    buscar();
+  } catch(e) { toast('Erro ao excluir', 'err'); }
 }
 
 // ─── Utilitários ─────────────────────────────────────────────────────────────

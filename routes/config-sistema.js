@@ -2,8 +2,9 @@ const express = require('express');
 const router = express.Router();
 const fs = require('fs');
 const path = require('path');
-const { getPool, createPool } = require('../config/database');
+const { getPool, createPool, getBoundChave, customerDbFromLicense } = require('../config/database');
 const { logError } = require('../config/logger');
+const { invalidateSistemaCarteiraCache, getSistemaCarteiraConfig } = require('../config/carteira-politica');
 
 const ENV_PATH = path.join(process.cwd(), '.env');
 
@@ -32,7 +33,7 @@ async function ensureSistemasColumns(pool, body) {
         
         let type = 'VARCHAR(255) NULL';
         // Campos específicos
-        if (key === 'corpoemailpadrao') type = 'TEXT NULL';
+        if (key === 'corpoemailpadrao' || key === 'modelo_impress_texto_cabecalho' || key === 'modelo_impress_texto_rodape') type = 'TEXT NULL';
         else if ([
           'limitexibepedido', 'qt_padraopedido', 'casadecimais', 'limitebusca', 
           'diasavisareventos', 'diasavisoclientesemcompra'
@@ -100,12 +101,18 @@ router.post('/sistema', async (req, res) => {
       );
 
       // ── PERSISTÊNCIA NO .env (Se campos de banco estiverem presentes) ──────
+      // NUNCA em modo bound/licença — a conexão vem da licença (Oracle), nunca do .env.
+      // Gravar DB_NAME aqui já causou o cliente reconectar no banco de template
+      // (bdallyrepresentacoes) silenciosamente. Esta tela só deve gravar DB_* em
+      // instalação standalone (sem CHAVE_LICENCA nem CUSTOMER_DB_FROM_LICENSE).
       const dbUpdates = {};
-      if (body.host_servidor) dbUpdates.DB_HOST = body.host_servidor;
-      if (body.porta_banco)   dbUpdates.DB_PORT = body.porta_banco;
-      if (body.base)          dbUpdates.DB_NAME = body.base;
-      if (body.user_banco)    dbUpdates.DB_USER = body.user_banco;
-      if (body.senha_banco)   dbUpdates.DB_PASSWORD = body.senha_banco;
+      if (!getBoundChave() && !customerDbFromLicense()) {
+        if (body.host_servidor) dbUpdates.DB_HOST = body.host_servidor;
+        if (body.porta_banco)   dbUpdates.DB_PORT = body.porta_banco;
+        if (body.base)          dbUpdates.DB_NAME = body.base;
+        if (body.user_banco)    dbUpdates.DB_USER = body.user_banco;
+        if (body.senha_banco)   dbUpdates.DB_PASSWORD = body.senha_banco;
+      }
 
       if (Object.keys(dbUpdates).length > 0) {
         try {
@@ -127,6 +134,7 @@ router.post('/sistema', async (req, res) => {
         }
       }
 
+      invalidateSistemaCarteiraCache();
       res.json({ ok: true, acao: 'update', id: existing[0].id });
     } else {
       // INSERT com os campos enviados
@@ -143,12 +151,18 @@ router.post('/sistema', async (req, res) => {
       );
 
       // ── PERSISTÊNCIA NO .env (Se campos de banco estiverem presentes) ──────
+      // NUNCA em modo bound/licença — a conexão vem da licença (Oracle), nunca do .env.
+      // Gravar DB_NAME aqui já causou o cliente reconectar no banco de template
+      // (bdallyrepresentacoes) silenciosamente. Esta tela só deve gravar DB_* em
+      // instalação standalone (sem CHAVE_LICENCA nem CUSTOMER_DB_FROM_LICENSE).
       const dbUpdates = {};
-      if (body.host_servidor) dbUpdates.DB_HOST = body.host_servidor;
-      if (body.porta_banco)   dbUpdates.DB_PORT = body.porta_banco;
-      if (body.base)          dbUpdates.DB_NAME = body.base;
-      if (body.user_banco)    dbUpdates.DB_USER = body.user_banco;
-      if (body.senha_banco)   dbUpdates.DB_PASSWORD = body.senha_banco;
+      if (!getBoundChave() && !customerDbFromLicense()) {
+        if (body.host_servidor) dbUpdates.DB_HOST = body.host_servidor;
+        if (body.porta_banco)   dbUpdates.DB_PORT = body.porta_banco;
+        if (body.base)          dbUpdates.DB_NAME = body.base;
+        if (body.user_banco)    dbUpdates.DB_USER = body.user_banco;
+        if (body.senha_banco)   dbUpdates.DB_PASSWORD = body.senha_banco;
+      }
 
       if (Object.keys(dbUpdates).length > 0) {
         try {
@@ -170,6 +184,7 @@ router.post('/sistema', async (req, res) => {
         }
       }
 
+      invalidateSistemaCarteiraCache();
       res.status(201).json({ ok: true, acao: 'insert', id: result.insertId });
     }
   } catch (err) {
@@ -181,28 +196,41 @@ router.post('/sistema', async (req, res) => {
 router.get('/flags', async (req, res) => {
   try {
     const pool = getPool();
-    const [rows] = await pool.query(
-      `SELECT
-        gacessartodosclientes,
-        grestringirdadosesquipe,
-        gIDGerente,
-        galteravendedorcadastrocli,
-        ggerenciaregiaocadastrocli,
-        gincluir_clientes,
-        galterar_clientes,
-        gexclui_clientes,
-        gpermitecnpjduplicadoclientes,
-        gcompartilhaCliente,
-        gcampos_cadastrocliente,
-        gformaspagtocadastro,
-        gmoduloclinca,
-        gcodigoauxiliar,
-        gcostumizadopara,
-        glimitexibepedido,
-        gufpadraocadastros
-       FROM sistemas ORDER BY id DESC LIMIT 1`
-    ).catch(() => [[]]);
-    res.json(rows[0] || {});
+    let row = {};
+    try {
+      const [rows] = await pool.query(
+        `SELECT
+          gacessartodosclientes,
+          carteira_politica,
+          grestringirdadosesquipe,
+          gIDGerente,
+          galteravendedorcadastrocli,
+          ggerenciaregiaocadastrocli,
+          gincluir_clientes,
+          galterar_clientes,
+          gexclui_clientes,
+          gpermitecnpjduplicadoclientes,
+          gcompartilhaCliente,
+          gcampos_cadastrocliente,
+          gformaspagtocadastro,
+          gmoduloclinca,
+          gcodigoauxiliar,
+          gcostumizadopara,
+          glimitexibepedido,
+          gufpadraocadastros
+         FROM sistemas ORDER BY id DESC LIMIT 1`
+      );
+      row = rows[0] || {};
+    } catch {
+      const [rows] = await pool.query(
+        `SELECT gacessartodosclientes, gcompartilhaCliente
+         FROM sistemas ORDER BY id DESC LIMIT 1`
+      ).catch(() => [[]]);
+      row = rows[0] || {};
+    }
+    const sysCfg = await getSistemaCarteiraConfig(pool);
+    if (sysCfg.carteira_politica) row.carteira_politica = sysCfg.carteira_politica;
+    res.json(row);
   } catch (err) {
     res.json({});
   }

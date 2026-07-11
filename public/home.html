@@ -23,6 +23,16 @@
   } catch (_) {
     if (window.self !== window.top) document.documentElement.classList.add('sysrep-ms-embed');
   }
+  try {
+    if (localStorage.getItem('sysrep_sidebar_collapsed') === '1') {
+      document.documentElement.classList.add('sidebar-collapsed');
+    }
+  } catch (_) {}
+  try {
+    if (localStorage.getItem('sysrep_vitrine_spotlight_dismissed') === '1') {
+      document.documentElement.classList.add('vitrine-spotlight-dismissed');
+    }
+  } catch (_) {}
 })();
 </script>
 <script src="/assets/mobile-route.js"></script>
@@ -30,6 +40,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/themes.css?v=font-menu-20260517">
+<link rel="stylesheet" href="/assets/novidades-modal.css?v=20260629b">
+<script src="/assets/novidades-modal.js?v=20260629b" defer></script>
 <script src="/assets/themes.js?v=font-menu-20260517"></script>
 <script src="/assets/page-transitions.js" defer></script>
 <script>
@@ -54,6 +66,7 @@
     --home-menu-meta-font-size: calc(var(--base-font-size, 13px) * .82);
   }
   #sidebar-brand { display: none; }
+  .sidebar-collapse-btn { display: none; }
   * { margin:0; padding:0; box-sizing:border-box; }
 
   body {
@@ -712,7 +725,7 @@
   /* VITRINE DIGITAL — destaque desktop */
   .vitrine-spotlight { display: none; }
   @media (min-width: 901px) {
-    html:not(.sysrep-ms-embed):not(.ms-embedded-tech) .vitrine-spotlight { display: block; }
+    html:not(.sysrep-ms-embed):not(.ms-embedded-tech):not(.vitrine-spotlight-dismissed) .vitrine-spotlight { display: block; }
   }
   .vitrine-spotlight {
     position: relative;
@@ -722,6 +735,21 @@
     box-shadow: 0 8px 32px rgba(14,165,233,.12);
     animation: vitrineSpotIn .45s ease;
   }
+  .vitrine-spotlight-close {
+    position: absolute;
+    top: 10px; right: 10px;
+    z-index: 2;
+    width: 24px; height: 24px;
+    display: flex; align-items: center; justify-content: center;
+    border: none; border-radius: 50%;
+    background: var(--card-bg, #fff);
+    color: var(--text2);
+    cursor: pointer;
+    opacity: .6;
+    transition: opacity .15s, background .15s;
+  }
+  .vitrine-spotlight-close:hover { opacity: 1; background: rgba(0,0,0,.06); }
+  .vitrine-spotlight-close svg { width: 13px; height: 13px; }
   @keyframes vitrineSpotIn {
     from { opacity: 0; transform: translateY(8px); }
     to   { opacity: 1; transform: none; }
@@ -1183,6 +1211,38 @@
     border-radius:4px;transition:.15s;
   }
   .btn-trocar:hover { background:var(--topbar-toggle-hover);color:var(--topbar-btn-hover-color); }
+
+  .sb-novidades { padding: 0 10px 0 12px; }
+  .btn-novidades {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 22px;
+    padding: 0 10px;
+    border-radius: 6px;
+    border: 1px solid color-mix(in srgb, var(--accent, #0ea5e9) 35%, var(--statusbar-border, rgba(255,255,255,.12)));
+    background: color-mix(in srgb, var(--accent, #0ea5e9) 12%, transparent);
+    color: var(--statusbar-text, #ddd);
+    font: inherit;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background .15s, border-color .15s, color .15s;
+    position: relative;
+  }
+  .btn-novidades:hover {
+    background: color-mix(in srgb, var(--accent, #0ea5e9) 22%, transparent);
+    border-color: var(--accent, #0ea5e9);
+    color: var(--accent, #7dd3fc);
+  }
+  .btn-novidades .nov-badge-dot {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    margin: 0;
+  }
 
   /* ══ MODAIS ════════════════════════════════════════════════════════ */
   .modal-overlay {
@@ -1806,7 +1866,7 @@
     .nav-accordion {
       position: fixed;
       top: 52px;                                  /* abaixo da topbar */
-      bottom: 30px;                               /* acima da statusbar */
+      bottom: 30px;                               /* acima da statusbar + botão novidades */
       left: var(--sidebar-w);
       width: 300px;
       z-index: 199;
@@ -1959,6 +2019,36 @@
       transform: rotate(90deg);
       opacity: 0.65;
     }
+
+    /* ── Botão de recolher/expandir sidebar ── */
+    .sidebar-collapse-btn {
+      position: fixed;
+      left: calc(var(--sidebar-w) - 12px);
+      top: 60px;
+      width: 24px; height: 24px;
+      border-radius: 50%;
+      background: var(--topbar-bg, #1e1e2e);
+      border: 1px solid var(--topbar-border, rgba(255,255,255,.15));
+      color: var(--topbar-text, #ccc);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      padding: 0;
+      z-index: 202;
+      transition: left .18s ease, background .15s, color .15s;
+    }
+    .sidebar-collapse-btn:hover { background: var(--accent-soft); color: var(--accent); }
+    .sidebar-collapse-btn svg { width: 13px; height: 13px; transition: transform .18s ease; }
+
+    /* ── Estado recolhido: ícones só, sem texto ── */
+    html.sidebar-collapsed { --sidebar-w: 64px; }
+    html.sidebar-collapsed .sidebar-collapse-btn svg { transform: rotate(180deg); }
+    html.sidebar-collapsed #sidebar-brand { justify-content: center; padding: 0; gap: 0; }
+    html.sidebar-collapsed #sidebar-brand .brand-name { display: none; }
+    html.sidebar-collapsed .navstrip::before { display: none; }
+    html.sidebar-collapsed .nav-btn { justify-content: center; padding: 10px 0; gap: 0; }
+    html.sidebar-collapsed .nav-btn-label,
+    html.sidebar-collapsed .nav-btn-dot,
+    html.sidebar-collapsed .nav-btn .acc-chevron { display: none; }
   }
 </style>
 </head>
@@ -2095,6 +2185,10 @@
   </div>
 </div>
 
+<button id="sidebar-collapse-btn" class="sidebar-collapse-btn" onclick="toggleSidebarCollapse()" title="Recolher menu">
+  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg>
+</button>
+
 <!-- ══ NAVSTRIP ═══════════════════════════════════════════════════════════════ -->
 <div class="navstrip" id="navstrip">
   <span style="color:var(--topbar-dim-text);font-size:11px;padding:0 6px">Carregando…</span>
@@ -2173,6 +2267,14 @@
              <span class="kpi-promo-badge" id="dash_promo_share" style="display:none" title="Orçamentos via link público (promoções / feirinha)">0 promo</span>
            </div>
          </div>
+         <div class="kpi-card" id="dash_retornos_card" style="--kpi-color:#d97706; --kpi-bg:rgba(217,119,6,0.1); cursor:pointer" role="button" tabindex="0" title="Ver pedidos e orçamentos com retorno agendado (só os seus)">
+           <div class="kpi-top">
+             <span class="kpi-label">Retornos hoje</span>
+             <div class="kpi-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg></div>
+           </div>
+           <div class="kpi-value" id="dash_retornos_hoje">0</div>
+           <div class="kpi-footer"><span class="kpi-sub" id="dash_retornos_sub">Pedidos e orçamentos</span></div>
+         </div>
          <div class="kpi-card" style="--kpi-color:#10b981; --kpi-bg:rgba(16,185,129,0.1)">
            <div class="kpi-top">
              <span class="kpi-label">Pedidos do Mês</span>
@@ -2182,6 +2284,17 @@
            <div class="kpi-footer">
              <div id="trend_pedidos" class="trend-badge">0%</div>
              <span class="kpi-sub" id="dash_mes_label">NESTE MÊS</span>
+           </div>
+         </div>
+         <div class="kpi-card kpi-desktop-only" id="dash_orcamentos_mes_card" style="display:none; --kpi-color:#8b5cf6; --kpi-bg:rgba(139,92,246,0.1); cursor:pointer" role="button" tabindex="0" title="Orçamentos do mês (tipos sem geração financeira) — clique para abrir Pedidos">
+           <div class="kpi-top">
+             <span class="kpi-label">Orçamentos do Mês</span>
+             <div class="kpi-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg></div>
+           </div>
+           <div class="kpi-value" id="dash_orcamentos_mes_qtd">0</div>
+           <div class="kpi-footer">
+             <div id="trend_orcamentos_mes" class="trend-badge">—</div>
+             <span class="kpi-sub" id="dash_orcamentos_mes_valor">R$ 0,00</span>
            </div>
          </div>
          <div class="kpi-card" style="--kpi-color:#f59e0b; --kpi-bg:rgba(245,158,11,0.1)">
@@ -2222,6 +2335,9 @@
       <!-- VITRINE DIGITAL — destaque desktop -->
       <section class="vitrine-spotlight" aria-label="Vitrine Digital">
         <div class="vitrine-spotlight-inner">
+          <button type="button" class="vitrine-spotlight-close" onclick="dismissVitrineSpotlight()" title="Ocultar (continua disponível no menu Comercial)">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
           <div style="position:relative;z-index:1;min-width:0">
             <div class="vitrine-spotlight-badge">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="12" height="12"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" stroke-width="2" stroke-linejoin="round"/></svg>
@@ -2541,6 +2657,14 @@
 <!-- ══ STATUS BAR ════════════════════════════════════════════════════════════ -->
 <div class="statusbar">
 
+  <div class="sb-seg sb-novidades">
+    <button type="button" class="btn-novidades" id="btn-sb-novidades" title="Ver novidades do sistema">
+      <span aria-hidden="true">✨</span>
+      <span>Novidades</span>
+      <span class="nov-badge-dot" id="sb-nov-badge" hidden></span>
+    </button>
+  </div>
+
   <div class="sb-seg">
     <svg id="icon_servidor" fill="none" stroke="#ff6b6b" stroke-width="2" viewBox="0 0 24 24">
       <path stroke-linecap="round" stroke-linejoin="round"
@@ -2784,6 +2908,9 @@ const SUBMENUS = {
         { label: 'Painel Executivo de Pedidos', key: 'comercial-dashboards', page: '/pages/comercial-dashboards.html',
           perm: 'gtela_dash_painel_exec',
           svg: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 19h16M7 16V8m5 8V5m5 11v-4"/>' },
+        { label: 'Dashboards Comerciais Comparativo Ano', key: 'comercial-dashboards-pro', page: '/pages/comercial-dashboards-pro.html',
+          perm: 'gtela_dash_painel_exec',
+          svg: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 3h7v9H3V3zm11 0h7v5h-7V3zM3 16h7v5H3v-5zm11-4h7v9h-7v-9z"/>' },
         { label: 'Clientes / Carteira / Recompra', key: 'comercial-clientes-ia', page: '/pages/comercial-clientes-ia.html',
           perm: 'gtela_dash_clientes_carteira',
           svg: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857M15 7a3 3 0 11-6 0 3 3 0 016 0"/>' },
@@ -2811,6 +2938,9 @@ const SUBMENUS = {
         { label: 'Gamificação — Ranking & Metas', key: 'gamificacao', page: '/pages/gamificacao.html',
           perm: 'gtela_dash_gamificacao',
           svg: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>' },
+        { label: 'Mapa de Oportunidades', key: 'mapa-oportunidades', page: '/pages/mapa-oportunidades.html',
+          perm: 'gtela_dash_mapa_oportunidades',
+          svg: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17V7m6 10V11M3 21h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/>' },
       ]
     }
   ],
@@ -2835,6 +2965,8 @@ const SUBMENUS = {
           svg: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>' },
         { label: 'Suporte &amp; Melhorias', key: 'suporte', page: '/pages/suporte.html',
           svg: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z"/>' },
+        { label: 'Notas de Versão', key: 'changelog-admin', page: '/pages/changelog-admin.html', adminOnly: true,
+          svg: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/>' },
       ]
     }
   ],
@@ -2884,6 +3016,8 @@ const SUBMENUS = {
           svg: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>' },
         { label: 'Analytics de Comissões', key: 'comissoes_dash', page: '/pages/comissoes_dash.html', adminOnly: true,
           svg: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>' },
+        { label: 'Relatório de Conferência', key: 'comissoes_relatorio', page: '/pages/comissoes_relatorio.html', adminOnly: true,
+          svg: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>' },
         { label: 'Manutenção de Comissões', key: 'comissoes_manut', page: '/pages/comissoes_manutencao.html', adminOnly: true,
           svg: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>' },
         { label: 'Conciliação com Fábrica', key: 'conciliacao_comissoes', page: '/pages/conciliacao-comissoes.html', adminOnly: true,
@@ -3311,7 +3445,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   // Mobile (viewport estreito) → shell com as mesmas telas permitidas no app
   // IMPORTANTE: não redirecionar quando o home estiver dentro do iframe do mobile-shell.
-  if (window.top === window.self && window.innerWidth < 900) {
+  if (window.top === window.self && window.SysRepMobile && SysRepMobile.isMobileShellMode()) {
     window.location.href = '/mobile-shell.html?_=' + Date.now();
     return;
   }
@@ -3322,6 +3456,15 @@ window.addEventListener('DOMContentLoaded', async () => {
   window.App = { user, empresa, token, perm: user.permissoes || {} };
 
   const _isAppEmbed = document.documentElement.classList.contains('sysrep-ms-embed');
+
+  if (typeof SysRepNovidadesInit === 'function') {
+    SysRepNovidadesInit({
+      userId: user.idusuario || user.id,
+      tenant: empresa.chave_licenca || localStorage.getItem('chave_licenca') || '',
+      autoShow: !_isAppEmbed,
+      delayMs: 1100,
+    });
+  }
 
   // Verifica se deve exibir a timeline financeira (não no app mobile — já oculto no CSS)
   if (!_isAppEmbed && user.dash_avisofinanceiro === 'S') {
@@ -3341,6 +3484,13 @@ window.addEventListener('DOMContentLoaded', async () => {
     _setElText('cnpj_empresa', empresa.cnpj || empresa.CNPJ || '—');
   }
   aplicarLogoTopoSistema(empresa);
+
+  // Restaura o título correto do botão de recolher/expandir conforme o estado persistido
+  const _collapseBtn = document.getElementById('sidebar-collapse-btn');
+  if (_collapseBtn) {
+    _collapseBtn.title = document.documentElement.classList.contains('sidebar-collapsed')
+      ? 'Expandir menu' : 'Recolher menu';
+  }
 
   // Avatar e status bar
   const nome = user.nome || user.login || '?';
@@ -3574,7 +3724,8 @@ async function carregarModulos(token) {
       const chevronHtml = hasSubmenus
         ? `<svg class="acc-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg>`
         : '';
-      btn.innerHTML = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="15" height="15">${cfg.svg}</svg>${cfg.label}<span class="nav-btn-dot"></span>${chevronHtml}`;
+      btn.innerHTML = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="15" height="15">${cfg.svg}</svg><span class="nav-btn-label">${cfg.label}</span><span class="nav-btn-dot"></span>${chevronHtml}`;
+      btn.title = cfg.label;
       btn.onclick = () => loadMenu(cfg.key, btn);
       strip.appendChild(btn);
       if (hasSubmenus) {
@@ -3593,7 +3744,7 @@ async function carregarModulos(token) {
       btnCom.title = 'Minhas Comissões';
       btnCom.innerHTML = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="15" height="15">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-      </svg>Comissões<span class="nav-btn-dot"></span>`;
+      </svg><span class="nav-btn-label">Comissões</span><span class="nav-btn-dot"></span>`;
       btnCom.onclick = () => openTab('/pages/comissoes_conferencia.html', 'Minhas Comissões');
       strip.appendChild(btnCom);
     }
@@ -3648,6 +3799,29 @@ function notifyShellChromeState() {
     var dashVisible = ds && ds.style.display !== 'none';
     window.parent.postMessage({ type: 'ms-chrome-state', root: !tabsOpen && dashVisible }, '*');
   } catch (_) {}
+}
+
+/** Abre/recarrega Pedidos na aba interna (nunca navega a janela inteira). */
+function openPedidosTab(queryString) {
+  const qs = queryString ? (queryString.startsWith('?') ? queryString : '?' + queryString) : '';
+  const page = '/pages/pedidos.html' + qs;
+  if (!temAcessoPagina('/pages/pedidos.html')) {
+    alert('Sem permissão para acessar Pedidos.');
+    return;
+  }
+  if (navigateInMobileApp(page, 'Pedidos')) return;
+
+  const base = '/pages/pedidos.html';
+  const existing = _tabs.find(t => String(t.page || '').split('?')[0] === base);
+  if (existing) {
+    existing.page = page;
+    existing.iframe.src = page + (page.includes('?') ? '&' : '?') + '_v=' + Date.now();
+    switchTab(existing.id);
+    notifyShellChromeState();
+    ocultarTimeline();
+    return;
+  }
+  openTab(page, 'Pedidos');
 }
 
 function openTab(page, label) {
@@ -3901,6 +4075,20 @@ function abrirCentralAjuda(query = '') {
 // ═══ NAVSTRIP ════════════════════════════════════════════════════════════════
 let _activeModulo = null;
 
+function dismissVitrineSpotlight() {
+  document.documentElement.classList.add('vitrine-spotlight-dismissed');
+  try { localStorage.setItem('sysrep_vitrine_spotlight_dismissed', '1'); } catch (_) {}
+}
+
+function toggleSidebarCollapse() {
+  const collapsed = document.documentElement.classList.toggle('sidebar-collapsed');
+  try { localStorage.setItem('sysrep_sidebar_collapsed', collapsed ? '1' : '0'); } catch (_) {}
+  const btn = document.getElementById('sidebar-collapse-btn');
+  if (btn) btn.title = collapsed ? 'Expandir menu' : 'Recolher menu';
+  closeDropdown();
+  closeAllAccordions();
+}
+
 function renderNavStrip() {
   const strip = document.getElementById('navstrip');
   strip.innerHTML = Object.entries(MODULO_CONFIG).map(([key, cfg]) => `
@@ -3955,6 +4143,7 @@ function temAcessoPagina(page) {
     '/pages/inteligencia-comercial.html': 'gtela_dash_inteligencia',
     '/pages/panico-vendedor.html': 'gtela_dash_panico',
     '/pages/gamificacao.html': 'gtela_dash_gamificacao',
+    '/pages/mapa-oportunidades.html': 'gtela_dash_mapa_oportunidades',
   };
   // Hub de Relatórios Padrão: libera se tiver o "Central" OU qualquer sub-relatório
   if (path === '/pages/comercial-relatorios-padrao.html') {
@@ -4507,9 +4696,27 @@ function abrirModalVitrineHome() {
   const body = document.getElementById('modalVitrineHomeBody');
   const sub = document.getElementById('vitrineHomeSub');
   if (!back || !body) return;
-  if (sub) sub.textContent = 'Busque o cliente e gere o link do catálogo';
+  if (sub) sub.textContent = 'Gere o link do catálogo digital';
   back.style.display = 'flex';
-  body.innerHTML = `
+  _vitrineHomeModoCliente();
+}
+
+function _vitrineHomeModoTabsHtml(ativo) {
+  const tab = (id, label, on) =>
+    `<button type="button" id="${id}" onclick="${on}"
+      style="flex:1;height:36px;border:none;border-radius:8px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;transition:.15s;${ativo === id ? 'background:var(--accent,#0ea5e9);color:#fff' : 'background:transparent;color:var(--text2)'}">${label}</button>`;
+  return `<div style="display:flex;gap:4px;padding:4px;margin-bottom:14px;border:1px solid var(--card-border);border-radius:10px;background:var(--content-bg)">
+    ${tab('vitrineTabCliente', 'Por cliente', '_vitrineHomeModoCliente()')}
+    ${tab('vitrineTabAberto', 'Link aberto', '_vitrineHomeModoAberto()')}
+  </div>`;
+}
+
+function _vitrineHomeModoCliente() {
+  const body = document.getElementById('modalVitrineHomeBody');
+  const sub = document.getElementById('vitrineHomeSub');
+  if (!body) return;
+  if (sub) sub.textContent = 'Busque o cliente e gere o link do catálogo';
+  body.innerHTML = _vitrineHomeModoTabsHtml('vitrineTabCliente') + `
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:0 12px;height:42px;border:1.5px solid var(--card-border);border-radius:10px;background:var(--content-bg)">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:16px;height:16px;color:var(--text2);flex-shrink:0"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       <input id="vitrineHomeBusca" type="text" placeholder="Nome, documento ou telefone do cliente…" autocomplete="off"
@@ -4528,6 +4735,22 @@ function abrirModalVitrineHome() {
       buscarClientesVitrineHome(inp.value.trim());
     }
   });
+}
+
+function _vitrineHomeModoAberto() {
+  const body = document.getElementById('modalVitrineHomeBody');
+  const sub = document.getElementById('vitrineHomeSub');
+  if (!body) return;
+  if (sub) sub.textContent = 'Catálogo sem cliente — quem abrir informa nome e telefone no pedido';
+  body.innerHTML = _vitrineHomeModoTabsHtml('vitrineTabAberto') + `
+    <div style="font-size:13px;color:var(--text2);line-height:1.5;margin-bottom:16px">
+      Gera um link público com as tabelas marcadas como <strong style="color:var(--content-text)">Liberar na vitrine</strong>.
+      No checkout, o visitante informa apenas nome e WhatsApp — o pedido chega como orçamento sem vínculo a cliente cadastrado.
+    </div>
+    <button type="button" onclick="gerarVitrineAbertaHome()"
+      style="width:100%;height:42px;border:none;border-radius:10px;background:var(--accent,#0ea5e9);color:#fff;font:inherit;font-size:13px;font-weight:700;cursor:pointer">
+      Gerar link aberto
+    </button>`;
 }
 
 async function buscarClientesVitrineHome(q) {
@@ -4632,18 +4855,21 @@ function _vitrineHomeIframeShow(data) {
       <span style="font-size:10px;color:var(--text2)">QR Code — aponte a câmera do cliente</span>
     </div>`;
   _gerarQrVitrineHome(link);
-  _vitrinePickerTabelas(data.id_cliente, link, 'vitrineHomePicker');
+  _vitrinePickerTabelas(data.id_cliente || null, link, 'vitrineHomePicker');
 }
 
 async function _vitrinePickerTabelas(idCliente, link, containerId) {
   const box = document.getElementById(containerId);
-  if (!box || !idCliente) return;
+  if (!box) return;
   const vToken = String(link || '').split('/vitrine/')[1] || '';
   if (!vToken) return;
   const auth = sessionStorage.getItem('token') || localStorage.getItem('token');
   let tabelas = [];
   try {
-    const r = await fetch('/api/vitrine/tabelas-cliente/' + encodeURIComponent(idCliente), { headers: { Authorization: 'Bearer ' + auth } });
+    const url = idCliente
+      ? '/api/vitrine/tabelas-cliente/' + encodeURIComponent(idCliente)
+      : '/api/vitrine/tabelas';
+    const r = await fetch(url, { headers: { Authorization: 'Bearer ' + auth } });
     if (!r.ok) return;
     tabelas = await r.json();
   } catch (_) { return; }
@@ -4651,13 +4877,15 @@ async function _vitrinePickerTabelas(idCliente, link, containerId) {
 
   const sel = new Set(tabelas.map(t => Number(t.id_tabela))); // inicia todas marcadas
   let termo = '';
+  let page = 1;
+  const PAGE_SIZE = 10;
   const filtradas = () => {
     const q = termo.trim().toLowerCase();
     return q ? tabelas.filter(t => String(t.descricao || '').toLowerCase().includes(q)) : tabelas;
   };
 
   box.innerHTML = `
-    <div style="margin-top:14px;border:1px solid var(--card-border);border-radius:10px;overflow:hidden;background:var(--content-bg)">
+    <div class="vpt-wrap" style="margin-top:14px;border:1px solid var(--card-border);border-radius:12px;overflow:hidden;background:var(--content-bg)">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border-bottom:1px solid var(--card-border)">
         <div style="font-size:12px;font-weight:700;color:var(--content-text)">Tabelas neste link <span id="vptCount" style="font-weight:400;color:var(--text2)"></span></div>
         <div style="display:flex;gap:6px;flex-shrink:0">
@@ -4669,16 +4897,74 @@ async function _vitrinePickerTabelas(idCliente, link, containerId) {
         <input id="vptSearch" type="text" placeholder="Buscar tabela…" autocomplete="off"
           style="width:100%;height:34px;padding:0 12px;border:1px solid var(--card-border);border-radius:7px;background:var(--content-bg);color:var(--content-text);font:inherit;font-size:12px;outline:none;box-sizing:border-box">
       </div>
-      <div id="vptList" style="display:flex;flex-direction:column;max-height:240px;overflow-y:auto;overflow-x:hidden;padding:4px 0"></div>
+      <div id="vptList" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0;min-height:120px;max-height:280px;overflow-y:auto;overflow-x:hidden;padding:4px 0"></div>
+      <div id="vptPager" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:8px 12px;border-top:1px solid var(--card-border);background:var(--card-bg,var(--content-bg))"></div>
       <div id="vptMsg" style="font-size:11px;color:var(--text2);padding:6px 12px;border-top:1px solid var(--card-border);min-height:26px"></div>
     </div>`;
 
   const list = box.querySelector('#vptList');
+  const pager = box.querySelector('#vptPager');
   const msg = box.querySelector('#vptMsg');
   const count = box.querySelector('#vptCount');
   const search = box.querySelector('#vptSearch');
 
   const updateMeta = () => { count.textContent = '— ' + sel.size + ' de ' + tabelas.length + ' marcadas'; };
+
+  const vptPageNums = (current, total) => {
+    if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+    const out = [1];
+    if (current > 3) out.push('…');
+    const from = Math.max(2, current - 1);
+    const to = Math.min(total - 1, current + 1);
+    for (let i = from; i <= to; i++) out.push(i);
+    if (current < total - 2) out.push('…');
+    out.push(total);
+    return out;
+  };
+
+  const renderPager = (arr) => {
+    const total = arr.length;
+    const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    if (page > pages) page = pages;
+    if (total <= PAGE_SIZE) {
+      pager.innerHTML = total
+        ? '<span style="font-size:11px;font-weight:600;color:var(--text2)">' + total + ' tabela(s)</span><span></span>'
+        : '';
+      pager.style.display = total ? 'flex' : 'none';
+      return;
+    }
+    const start = (page - 1) * PAGE_SIZE;
+    const end = Math.min(start + PAGE_SIZE, total);
+    const btn = (label, p, active, disabled) =>
+      '<button type="button" class="vpt-pg" data-page="' + p + '"' + (active ? ' data-active="1"' : '') + (disabled ? ' disabled' : '') + '>' + label + '</button>';
+    let nav = btn('‹', 'prev', false, page <= 1);
+    vptPageNums(page, pages).forEach((n) => {
+      nav += n === '…'
+        ? '<span style="padding:0 4px;color:var(--text2);font-size:12px;font-weight:700">…</span>'
+        : btn(String(n), String(n), n === page, false);
+    });
+    nav += btn('›', 'next', false, page >= pages);
+    pager.innerHTML =
+      '<span style="font-size:11px;font-weight:600;color:var(--text2)">Mostrando <strong style="color:var(--content-text)">' + (start + 1) + '–' + end + '</strong> de <strong style="color:var(--content-text)">' + total + '</strong></span>' +
+      '<div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">' + nav + '</div>';
+    pager.style.display = 'flex';
+    pager.querySelectorAll('.vpt-pg').forEach((b) => {
+      b.style.cssText = 'min-width:30px;height:30px;padding:0 8px;border-radius:8px;border:1.5px solid var(--card-border);background:var(--content-bg);color:var(--content-text);font:inherit;font-size:11px;font-weight:700;cursor:pointer';
+      if (b.dataset.active) {
+        b.style.background = 'var(--accent,#0ea5e9)';
+        b.style.borderColor = 'transparent';
+        b.style.color = '#fff';
+      }
+      if (b.disabled) b.style.opacity = '0.4';
+      b.addEventListener('click', () => {
+        const p = b.getAttribute('data-page');
+        if (p === 'prev') page = Math.max(1, page - 1);
+        else if (p === 'next') page = Math.min(pages, page + 1);
+        else page = parseInt(p, 10) || 1;
+        renderList();
+      });
+    });
+  };
 
   let _t;
   const salvar = () => {
@@ -4702,28 +4988,33 @@ async function _vitrinePickerTabelas(idCliente, link, containerId) {
 
   const renderList = () => {
     const arr = filtradas();
-    list.innerHTML = arr.length
-      ? arr.map(t => {
+    const pages = Math.max(1, Math.ceil(arr.length / PAGE_SIZE));
+    if (page > pages) page = pages;
+    const slice = arr.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+    list.style.gridTemplateColumns = arr.length > 6 ? 'repeat(2,minmax(0,1fr))' : '1fr';
+    list.innerHTML = slice.length
+      ? slice.map(t => {
           const id = Number(t.id_tabela);
           const checked = sel.has(id);
-          return `<label style="display:flex;align-items:center;gap:10px;padding:8px 14px;cursor:pointer;transition:background .12s${checked ? ';background:var(--hover-bg, rgba(14,165,233,.07))' : ''}"
+          return `<label style="display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;transition:background .12s;min-width:0${checked ? ';background:color-mix(in srgb,var(--accent,#0ea5e9) 8%,transparent)' : ''}"
               onmouseover="this.style.background='var(--hover-bg, rgba(0,0,0,.04))'"
-              onmouseout="this.style.background='${checked ? "var(--hover-bg, rgba(14,165,233,.07))" : "transparent"}'">
+              onmouseout="this.style.background='${checked ? "color-mix(in srgb,var(--accent,#0ea5e9) 8%,transparent)" : "transparent"}'">
             <input type="checkbox" class="vptChk" value="${id}" ${checked ? 'checked' : ''}
               style="width:16px;height:16px;accent-color:#0ea5e9;flex-shrink:0;cursor:pointer">
-            <span style="font-size:13px;color:var(--content-text);line-height:1.3">${String(t.descricao || '').replace(/</g, '&lt;')}</span>
+            <span style="font-size:12px;color:var(--content-text);line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${String(t.descricao || '').replace(/"/g, '&quot;').replace(/</g, '&lt;')}">${String(t.descricao || '').replace(/</g, '&lt;')}</span>
           </label>`;
         }).join('')
-      : '<div style="font-size:12px;color:var(--text2);padding:14px">Nenhuma tabela encontrada.</div>';
+      : '<div style="grid-column:1/-1;font-size:12px;color:var(--text2);padding:14px">Nenhuma tabela encontrada.</div>';
+    renderPager(arr);
     list.querySelectorAll('.vptChk').forEach(c => c.addEventListener('change', () => {
       const id = parseInt(c.value, 10);
       if (c.checked) sel.add(id); else sel.delete(id);
       updateMeta(); salvar();
-      // atualiza cor de fundo do label sem re-render completo
       const lbl = c.closest('label');
       if (lbl) {
-        lbl.style.background = c.checked ? 'var(--hover-bg, rgba(14,165,233,.07))' : 'transparent';
-        lbl.setAttribute('onmouseout', `this.style.background='${c.checked ? "var(--hover-bg, rgba(14,165,233,.07))" : "transparent"}'`);
+        const bg = c.checked ? 'color-mix(in srgb,var(--accent,#0ea5e9) 8%,transparent)' : 'transparent';
+        lbl.style.background = bg;
+        lbl.setAttribute('onmouseout', "this.style.background='" + bg + "'");
       }
     }));
   };
@@ -4734,7 +5025,7 @@ async function _vitrinePickerTabelas(idCliente, link, containerId) {
     renderList(); updateMeta();
     if (!sel.size) msg.textContent = 'Marque ao menos uma tabela.'; else salvar();
   });
-  search.addEventListener('input', () => { termo = search.value; renderList(); });
+  search.addEventListener('input', () => { termo = search.value; page = 1; renderList(); });
 
   updateMeta();
   renderList();
@@ -4753,6 +5044,48 @@ function _isoToDisplayBr(v) {
   const s = String(v).trim().slice(0, 10);
   const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   return m ? `${m[3]}/${m[2]}/${m[1]}` : String(v);
+}
+
+async function gerarVitrineAbertaHome() {
+  const body = document.getElementById('modalVitrineHomeBody');
+  if (!body) return;
+  body.innerHTML = '<div style="padding:32px 0;text-align:center;color:var(--text2)">Gerando link…</div>';
+  const token = sessionStorage.getItem('token') || localStorage.getItem('token');
+  try {
+    const r = await fetch('/api/vitrine/gerar', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ link_aberto: true, dias_validade: 60 })
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.erro || 'Erro ao gerar link');
+    const link = location.origin + d.link;
+    const expira = _isoToDisplayBr(d.expira);
+    body.innerHTML = `
+      <div style="margin-bottom:12px;font-size:13px;color:var(--text2)">
+        <strong style="color:var(--content-text)">Link aberto</strong> — válido até <strong>${expira}</strong>.
+        Quem abrir informa nome e telefone ao enviar o pedido.
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+        <input id="vitrineHomeLink" value="${link.replace(/"/g, '&quot;')}" readonly
+          style="flex:1;padding:10px 12px;border:1.5px solid var(--card-border);border-radius:8px;font-size:11px;background:var(--content-bg);color:var(--content-text);font-family:monospace;outline:none">
+        <button type="button" onclick="copiarVitrineHome()" style="flex-shrink:0;height:38px;padding:0 14px;border:none;border-radius:8px;background:#0284c7;color:#fff;font:inherit;font-size:12px;font-weight:700;cursor:pointer">Copiar</button>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <a href="${link.replace(/"/g, '&quot;')}" target="_blank" rel="noopener"
+          style="flex:1;min-width:120px;height:36px;border:1.5px solid var(--card-border);border-radius:8px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--content-text);text-decoration:none;background:var(--content-bg)">Abrir vitrine</a>
+        <a href="https://wa.me/?text=${encodeURIComponent('Olá! Confira nosso catálogo de produtos: ' + link)}" target="_blank" rel="noopener"
+          style="flex:1;min-width:120px;height:36px;border:1.5px solid #bbf7d0;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#16a34a;text-decoration:none;background:#f0fdf4">WhatsApp</a>
+        <button type="button" onclick="abrirModalVitrineHome()"
+          style="flex:1;min-width:120px;height:36px;border:1.5px solid var(--card-border);border-radius:8px;background:transparent;color:var(--content-text);font:inherit;font-size:12px;font-weight:700;cursor:pointer">Novo link</button>
+      </div>
+      <div id="vitrineHomePicker"></div>`;
+    _vitrinePickerTabelas(null, link, 'vitrineHomePicker');
+  } catch (e) {
+    body.innerHTML = `
+      <div style="padding:8px 0 12px;color:#dc2626;font-size:13px">${e.message || 'Erro ao gerar link.'}</div>
+      <button type="button" onclick="_vitrineHomeModoAberto()" style="height:34px;padding:0 14px;border:1.5px solid var(--card-border);border-radius:8px;background:transparent;font:inherit;font-size:12px;cursor:pointer">Tentar novamente</button>`;
+  }
 }
 
 async function gerarVitrineHome(idCliente, nomeCliente) {
@@ -4890,6 +5223,67 @@ async function carregarDashboard(token) {
       sub.textContent = `Pendentes · ${parts.join(' · ')} via link`;
     } else if (sub) sub.textContent = 'Pendentes';
   };
+  const _setRetornosDash = (d) => {
+    const hoje = parseInt(d.retornosHoje, 10) || 0;
+    const atr = parseInt(d.retornosAtrasados, 10) || 0;
+    _set('dash_retornos_hoje', hoje);
+    const sub = document.getElementById('dash_retornos_sub');
+    const card = document.getElementById('dash_retornos_card');
+    if (sub) sub.textContent = atr > 0 ? `${atr} em atraso` : 'Só os seus pedidos';
+    if (card) {
+      const abrirRetornos = () => {
+        const q = (atr > 0 && hoje === 0) ? 'retorno=atrasado' : 'retorno=hoje';
+        openPedidosTab(q);
+      };
+      card.onclick = abrirRetornos;
+      card.onkeydown = (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirRetornos(); }
+      };
+    }
+    if (hoje > 0 || atr > 0) {
+      let uid = '0';
+      let tenant = 'default';
+      try {
+        const u = JSON.parse(sessionStorage.getItem('user') || '{}');
+        uid = String(u.id || u.idusuario || '0');
+        tenant = localStorage.getItem('sysrep_tenant') || localStorage.getItem('tenant_key') || 'default';
+      } catch (_) {}
+      const dia = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+      const key = `SysRepRetornoToast_${tenant}_${uid}_${dia}`;
+      if (!localStorage.getItem(key)) {
+        localStorage.setItem(key, '1');
+        const parts = [];
+        if (hoje) parts.push(hoje === 1 ? '1 retorno hoje' : `${hoje} retornos hoje`);
+        if (atr) parts.push(atr === 1 ? '1 em atraso' : `${atr} em atraso`);
+        setTimeout(() => {
+          if (typeof toast === 'function') {
+            toast(`🔔 ${parts.join(' · ')} — só dos pedidos/orçamentos que você pode ver`, 'info', 8000);
+          }
+        }, 600);
+      }
+    }
+  };
+
+  const _setOrcamentosMesCard = (d, setTrendFn) => {
+    const card = document.getElementById('dash_orcamentos_mes_card');
+    const qtd = d.qtdOrcamentosMes || 0;
+    if (!card) return;
+    if (qtd <= 0) {
+      card.style.display = 'none';
+      return;
+    }
+    card.style.display = '';
+    _set('dash_orcamentos_mes_qtd', qtd);
+    _set('dash_orcamentos_mes_valor', fmtCur(d.totalOrcamentosMes || 0));
+    if (typeof setTrendFn === 'function') {
+      setTrendFn('trend_orcamentos_mes', d.tendenciaOrcamentos, (d.qtdOrcamentosMesAnt || 0) > 0);
+    }
+    if (!card.dataset.bound) {
+      card.dataset.bound = '1';
+      card.onclick = () => openPedidosTab('gerafinanceiro=N&periodo=mes');
+      card.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); card.click(); } };
+    }
+  };
 
   try {
     const r = await fetch('/api/dashboard/home', { headers: { Authorization:'Bearer ' + token } });
@@ -4898,8 +5292,25 @@ async function carregarDashboard(token) {
 
     const d = await r.json();
     const _appDash = isMobileAppEmbed();
+    const temPedidosMes = (d.qtdPedidos || 0) > 0;
+    const temOrcamentosMes = (d.qtdOrcamentosMes || 0) > 0;
 
-    if (d.qtdPedidos === 0) {
+    const setTrend = (id, val, hasBase) => {
+      const el = document.getElementById(id);
+      if(!el) return;
+      if (!hasBase) {
+        el.className = 'trend-badge';
+        el.innerHTML = '—';
+        el.title = 'Sem dados do mês anterior para comparar';
+        return;
+      }
+      const v = parseFloat(val || 0);
+      el.className = 'trend-badge ' + (v > 0 ? 'trend-up' : v < 0 ? 'trend-down' : '');
+      el.title = '';
+      el.innerHTML = (v > 0 ? '▲ ' : v < 0 ? '▼ ' : '') + Math.abs(v) + '%';
+    };
+
+    if (!temPedidosMes && !temOrcamentosMes) {
       document.getElementById('dash_nodata').style.display = 'flex';
       document.getElementById('dash_bento').style.display = 'none';
       document.getElementById('kpi_row').style.display = '';
@@ -4908,8 +5319,10 @@ async function carregarDashboard(token) {
       _set('dash_abertos',   d.pedidosAbertos       || 0);
       _set('dash_orcamentos', d.orcamentosPendentes || 0);
       _setPromoBadge(d.promoSharePendentes, d.feirinhaSharePendentes);
+      _setRetornosDash(d);
       _set('dash_qtd', d.qtdPedidos || 0);
       _set('dash_mes_label', (d.mesNome || 'Este Mês').toUpperCase());
+      _setOrcamentosMesCard(d, setTrend);
       carregarPainelMobile(token);
       if (_appDash) {
         applyMobileDashLayout();
@@ -4921,7 +5334,8 @@ async function carregarDashboard(token) {
 
     _set('dash_nodata', 'none', 'style.display');
     _set('kpi_row', 'grid', 'style.display');
-    if (!_appDash && window.innerWidth >= 900) _set('dash_bento', 'grid', 'style.display');
+    if (!_appDash && window.innerWidth >= 900 && temPedidosMes) _set('dash_bento', 'grid', 'style.display');
+    else if (!_appDash) document.getElementById('dash_bento').style.display = 'none';
     if (_appDash) {
       document.getElementById('dash_bento').style.display = 'none';
     }
@@ -4936,18 +5350,12 @@ async function carregarDashboard(token) {
     _set('dash_abertos',   d.pedidosAbertos       || 0);
     _set('dash_orcamentos',d.orcamentosPendentes   || 0);
     _setPromoBadge(d.promoSharePendentes, d.feirinhaSharePendentes);
+    _setRetornosDash(d);
+    _setOrcamentosMesCard(d, setTrend);
     carregarPainelMobile(token);
 
-    // Badges de Tendência (vs Mês Anterior)
-    const setTrend = (id, val) => {
-      const el = document.getElementById(id);
-      if(!el) return;
-      const v = parseFloat(val || 0);
-      el.className = 'trend-badge ' + (v > 0 ? 'trend-up' : v < 0 ? 'trend-down' : '');
-      el.innerHTML = (v > 0 ? '▲ ' : v < 0 ? '▼ ' : '') + Math.abs(v) + '%';
-    };
-    setTrend('trend_vendas', d.tendenciaVendas);
-    setTrend('trend_pedidos', d.tendenciaPedidos);
+    setTrend('trend_vendas', d.tendenciaVendas, (d.totalMesAnt || 0) > 0);
+    setTrend('trend_pedidos', d.tendenciaPedidos, (d.qtdMesAnt || 0) > 0);
 
     if (_appDash) {
       applyMobileDashLayout();
@@ -5694,6 +6102,7 @@ const SEARCH_INDEX = [
   { label:'Minhas Comissões',     sub:'Financeiro',                tag:'Financeiro', page:'/pages/comissoes_conferencia.html', modKey:'financeiro', subKey:'minhas_comissoes' },
   { label:'Prepostos',            sub:'Cadastros › Pessoas',       tag:'Cadastro',   page:'/pages/prepostos.html',            modKey:'cadastros', subKey:'prepostos' },
   { label:'Gestão de Comissões',  sub:'Financeiro',                tag:'Financeiro', page:'/pages/comissoes.html',            modKey:'financeiro', subKey:'comissoes' },
+  { label:'Relatório de Conferência', sub:'Financeiro',             tag:'Financeiro', page:'/pages/comissoes_relatorio.html', modKey:'financeiro', subKey:'comissoes_relatorio' },
   { label:'Conciliação com Fábrica', sub:'Financeiro',             tag:'Financeiro', page:'/pages/conciliacao-comissoes.html', modKey:'financeiro', subKey:'conciliacao_comissoes' },
   { label:'Metas e Campanhas',       sub:'Financeiro',             tag:'Financeiro', page:'/pages/comissoes_metas.html',         modKey:'financeiro', subKey:'comissoes_metas' },
   { label:'Extrato Unificado de Comissões', sub:'Financeiro',    tag:'Financeiro', page:'/pages/comissoes_extrato.html',       modKey:'financeiro', subKey:'comissoes_extrato' },
@@ -5702,6 +6111,7 @@ const SEARCH_INDEX = [
   { label:'Dashboard de Faturamento', sub:'Financeiro',            tag:'Dashboard',  page:'/pages/faturamento-dash.html', modKey:'financeiro', subKey:'faturamento-dash' },
   { label:'Performance de Representantes', sub:'Comercial › DashBoards / Apoio da IA', tag:'Dashboard', page:'/pages/performance-representantes.html', modKey:'comercial', subKey:'performance-representantes' },
   { label:'Painel Executivo de Pedidos', sub:'Comercial › DashBoards / Apoio da IA', tag:'Dashboard', page:'/pages/comercial-dashboards.html', modKey:'comercial', subKey:'comercial-dashboards' },
+  { label:'Dashboards Comerciais Comparativo Ano', sub:'Comercial › DashBoards / Apoio da IA', tag:'Dashboard', page:'/pages/comercial-dashboards-pro.html', modKey:'comercial', subKey:'comercial-dashboards-pro' },
   { label:'Clientes / Carteira / Recompra', sub:'Comercial › DashBoards / Apoio da IA', tag:'Dashboard', page:'/pages/comercial-clientes-ia.html', modKey:'comercial', subKey:'comercial-clientes-ia' },
   { label:'Financeiro dos Pedidos', sub:'Comercial › DashBoards / Apoio da IA', tag:'Dashboard', page:'/pages/comercial-financeiro-ia.html', modKey:'comercial', subKey:'comercial-financeiro-ia' },
   { label:'Produtos / Mix / Curva ABC', sub:'Comercial › DashBoards / Apoio da IA', tag:'Dashboard', page:'/pages/comercial-produtos-ia.html', modKey:'comercial', subKey:'comercial-produtos-ia' },
@@ -5711,6 +6121,7 @@ const SEARCH_INDEX = [
   { label:'Inteligência Comercial por Cliente', sub:'Comercial › DashBoards / Apoio da IA', tag:'Dashboard', page:'/pages/inteligencia-comercial.html', modKey:'comercial', subKey:'inteligencia-comercial' },
   { label:'Pânico do Vendedor — Heatmap',        sub:'Comercial › DashBoards / Apoio da IA', tag:'Dashboard', page:'/pages/panico-vendedor.html', modKey:'comercial', subKey:'panico-vendedor' },
   { label:'Gamificação — Ranking & Metas',       sub:'Comercial › DashBoards / Apoio da IA', tag:'Dashboard', page:'/pages/gamificacao.html', modKey:'comercial', subKey:'gamificacao' },
+  { label:'Mapa de Oportunidades',               sub:'Comercial › DashBoards / Apoio da IA', tag:'Dashboard', page:'/pages/mapa-oportunidades.html', modKey:'comercial', subKey:'mapa-oportunidades' },
   { label:'Teleatendimento', sub:'CRM / Visitas', tag:'CRM', page:'/pages/teleatendimento.html', modKey:'crm', subKey:'teleatendimento' },
   { label:'Rotas de Vendedores', sub:'CRM / Visitas', tag:'CRM', page:'/pages/rotas-vendedor.html', modKey:'crm', subKey:'rotas-vendedor' },
   { label:'Regiões e Rotas', sub:'Cadastros › Tabelas de Apoio', tag:'Cadastro', page:'/pages/regiao-rota.html', modKey:'cadastros', subKey:'regiao-rota' },
@@ -5983,6 +6394,48 @@ document.addEventListener('keydown', e => {
   }
 
   setTimeout(checkCommissions, 2000);
+
+  async function checkCommissionsGestor() {
+    try {
+      if (sessionStorage.getItem('commGestorDismissed')) return;
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+      if (!token) return;
+      const r = await fetch('/api/comissoes/admin/resumo-gestor', {
+        headers: { Authorization: 'Bearer ' + token }, credentials: 'include'
+      });
+      if (!r.ok) return;
+      const d = await r.json();
+      if (!d.ok) return;
+      const parts = [];
+      const qp = parseInt(d.qtd_pendentes, 10) || 0;
+      const qc = parseInt(d.qtd_conferidas, 10) || 0;
+      const qi = parseInt(d.qtd_inadimplentes, 10) || 0;
+      if (qp > 0) parts.push(qp + ' pendente(s) para baixa');
+      if (qc > 0) parts.push(qc + ' aguardando aceite do vendedor');
+      if (qi > 0) parts.push(qi + ' inadimplente(s)');
+      if (!parts.length) return;
+      const el = document.createElement('div');
+      el.className = 'comm-alert comm-gestor-alert';
+      el.innerHTML = `
+        <div class="comm-alert-pulse"></div>
+        <a href="/pages/comissoes.html" style="color:inherit;text-decoration:none;display:flex;flex-direction:column;gap:2px" onclick="sessionStorage.setItem('commGestorDismissed','1')">
+          <div style="font-weight:800;font-size:12px">Gestão de Comissões</div>
+          <div style="font-size:11px;opacity:0.85">${parts.join(' · ')}</div>
+        </a>
+        <button class="comm-alert-close" title="Fechar" onclick="dismissCommGestorAlert()">✕</button>
+      `;
+      document.body.appendChild(el);
+      setTimeout(dismissCommGestorAlert, 12000);
+    } catch (_) {}
+  }
+  function dismissCommGestorAlert() {
+    const el = document.querySelector('.comm-gestor-alert');
+    if (!el) return;
+    sessionStorage.setItem('commGestorDismissed', '1');
+    el.classList.add('comm-hide');
+    setTimeout(() => el.remove(), 500);
+  }
+  setTimeout(checkCommissionsGestor, 3500);
 </script>
 
 <!-- Modal Vitrine Digital -->
@@ -6019,27 +6472,22 @@ document.addEventListener('keydown', e => {
 </div>
 
 <script src="/assets/sw-register.js"></script>
+<script src="/assets/version-update.js"></script>
 <script>
-sysrepInitServiceWorker().then(function () {
-  sysrepAttachSwReload(function () {
-    document.getElementById('banner-update').classList.add('visible');
-  });
-}).catch(function () {});
+sysrepInitServiceWorker().catch(function () {});
+sysrepVersionUpdateInit({
+  onUpdate: function () {
+    var b = document.getElementById('banner-update');
+    if (b) b.classList.add('visible');
+  },
+  onVersion: function (d) {
+    if (!d || !d.versao) return;
+    var el = document.getElementById('home-version');
+    if (el) el.textContent = 'v' + d.versao;
+  }
+});
 </script>
 <script src="/assets/pwa-install.js"></script>
-<script>
-/* Versão do sistema na barra de status (discreto — útil p/ suporte) */
-(function () {
-  fetch('/api/version', { cache: 'no-store' })
-    .then(function (r) { return r.ok ? r.json() : null; })
-    .then(function (d) {
-      if (!d || !d.versao) return;
-      var el = document.getElementById('home-version');
-      if (el) el.textContent = 'v' + d.versao;
-    })
-    .catch(function () {});
-})();
-</script>
 
 </body>
 </html>

@@ -379,6 +379,23 @@ let SV = Object.assign({}, SN_DEFAULTS);
 
 let S = { filtroStatus:'A', page:1, perPage:50, total:0, registroId:null, dados:null };
 
+function _token() {
+  return sessionStorage.getItem('token') || localStorage.getItem('token') || '';
+}
+function _apiHeaders(json) {
+  const h = { Authorization: 'Bearer ' + _token() };
+  if (json) h['Content-Type'] = 'application/json';
+  return h;
+}
+function _tratarErroApi(r, d) {
+  if (r.status === 401) {
+    toast('Sessão expirada. Faça login novamente.', 'err');
+    setTimeout(() => { (window.top || window).location.href = '/login.html'; }, 2000);
+    return true;
+  }
+  return false;
+}
+
 function setSN(campo, val) {
   SV[campo] = val;
   const tgl = document.getElementById('tgl_'+campo);
@@ -422,8 +439,13 @@ async function buscar() {
   const sit    = S.filtroStatus === 'T' ? '' : S.filtroStatus;
   const offset = (S.page - 1) * S.perPage;
   try {
-    const r = await fetch(`/api/tipo-pedidos?q=${encodeURIComponent(q)}&situacao=${sit}&limit=${S.perPage}&offset=${offset}`);
-    const d = await r.json();
+    const r = await fetch(`/api/tipo-pedidos?q=${encodeURIComponent(q)}&situacao=${sit}&limit=${S.perPage}&offset=${offset}`, { headers: _apiHeaders() });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      if (_tratarErroApi(r, d)) return;
+      toast(d.error || 'Erro ao carregar', 'err');
+      return;
+    }
     S.total = d.total || 0;
     document.getElementById('val-total').textContent    = (d.total_a || 0) + (d.total_i || 0);
     document.getElementById('val-ativos').textContent   = d.total_a || 0;
@@ -492,7 +514,7 @@ function fecharDrop() { document.getElementById('dropMenu').style.display = 'non
 
 async function ativarInativarLinha(id, acao) {
   fecharDrop();
-  const r = await fetch(`/api/tipo-pedidos/${id}/${acao==='A'?'ativar':'inativar'}`, {method:'PUT'});
+  const r = await fetch(`/api/tipo-pedidos/${id}/${acao==='A'?'ativar':'inativar'}`, { method:'PUT', headers: _apiHeaders() });
   if (!r.ok) { toast('Erro','err'); return; }
   toast(acao==='A' ? 'Tipo ativado!' : 'Tipo inativado!', 'ok');
   buscar();
@@ -501,7 +523,7 @@ async function excluirLinha(id) {
   if (!guardCadExcluir('Sem permissão para excluir tipos de pedido')) return;
   fecharDrop();
   confirmar('Excluir tipo de pedido?', 'Esta ação não pode ser desfeita.', async () => {
-    const r = await fetch(`/api/tipo-pedidos/${id}`, {method:'DELETE'});
+    const r = await fetch(`/api/tipo-pedidos/${id}`, { method:'DELETE', headers: _apiHeaders() });
     const d = await r.json();
     if (!r.ok) { toast(d.error||'Erro ao excluir','err'); return; }
     toast('Excluído!','ok'); buscar();
@@ -555,7 +577,7 @@ function abrirNovo() {
 
 async function abrirEditar(id) {
   try {
-    const r = await fetch(`/api/tipo-pedidos/${id}`);
+    const r = await fetch(`/api/tipo-pedidos/${id}`, { headers: _apiHeaders() });
     if (!r.ok) { toast('Erro ao carregar','err'); return; }
     const d = await r.json();
     S.registroId = id; S.dados = d;
@@ -610,7 +632,7 @@ async function salvar() {
   try {
     const r = await fetch(
       S.registroId ? `/api/tipo-pedidos/${S.registroId}` : '/api/tipo-pedidos',
-      { method: S.registroId ? 'PUT' : 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }
+      { method: S.registroId ? 'PUT' : 'POST', headers: _apiHeaders(true), body: JSON.stringify(payload) }
     );
     const d = await r.json();
     if (!r.ok) { toast(d.error||'Erro ao salvar','err'); return; }
@@ -634,7 +656,7 @@ async function ativarInativar(acao) {
   if (!guardCadAlterar('Sem permissão para alterar tipos de pedido')) return;
   fecharMenuMore();
   const id = S.registroId; if (!id) return;
-  const r = await fetch(`/api/tipo-pedidos/${id}/${acao==='A'?'ativar':'inativar'}`,{method:'PUT'});
+  const r = await fetch(`/api/tipo-pedidos/${id}/${acao==='A'?'ativar':'inativar'}`, { method:'PUT', headers: _apiHeaders() });
   if (!r.ok) { toast('Erro','err'); return; }
   toast(acao==='A'?'Tipo ativado!':'Tipo inativado!','ok');
   document.getElementById('f_situacao').value = acao;
@@ -648,7 +670,7 @@ async function excluirAtual() {
   fecharMenuMore();
   if (!S.registroId) return;
   confirmar('Excluir tipo de pedido?', 'Esta ação não pode ser desfeita.', async () => {
-    const r = await fetch(`/api/tipo-pedidos/${S.registroId}`,{method:'DELETE'});
+    const r = await fetch(`/api/tipo-pedidos/${S.registroId}`, { method:'DELETE', headers: _apiHeaders() });
     const d = await r.json();
     if (!r.ok) { toast(d.error||'Erro','err'); return; }
     toast('Excluído!','ok'); voltarLista();

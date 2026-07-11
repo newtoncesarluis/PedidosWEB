@@ -144,6 +144,27 @@ tbody tr:last-child td{border-bottom:none}
             <option value="ATRIBUIDOS">Somente clientes selecionados</option>
           </select>
         </div>
+        <div class="field-group">
+          <label class="field-label">Tabelas de preço</label>
+          <select class="input-field" id="fVisibTab" onchange="onVisibTabChange()">
+            <option value="TODOS">Todas as tabelas do representante</option>
+            <option value="ATRIBUIDOS">Somente tabelas selecionadas</option>
+          </select>
+          <div id="tabPickRow" style="display:none;margin-top:8px;align-items:center;gap:10px;flex-wrap:wrap">
+            <button type="button" class="btn btn-ghost btn-sm" onclick="escolherTabelasForm()">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              Escolher tabelas
+            </button>
+            <span id="tabPickCount" style="font-size:12px;color:var(--text2)"></span>
+          </div>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Pedidos que o preposto enxerga</label>
+          <select class="input-field" id="fVisibPed">
+            <option value="CARTEIRA">Pedidos da carteira do representante</option>
+            <option value="PROPRIOS">Somente os pedidos dele (esconde vendas do representante)</option>
+          </select>
+        </div>
       </div>
       <div class="form-actions">
         <button type="submit" class="btn btn-primary">
@@ -198,6 +219,31 @@ tbody tr:last-child td{border-bottom:none}
             <th>Cliente</th><th>Cidade/UF</th>
           </tr></thead>
           <tbody id="cliBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- TABELAS DE PREÇO ATRIBUÍDAS PANEL -->
+  <div class="com-panel" id="tabPanel">
+    <div class="com-header">
+      <span class="com-title" id="tabNome">Tabelas de preço atribuídas</span>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" onclick="salvarTabelas()">Salvar seleção</button>
+        <button class="btn btn-ghost" onclick="fecharTab()">Fechar</button>
+      </div>
+    </div>
+    <div class="search-group" style="margin:0 0 12px 0">
+      <input id="tabSearch" type="text" placeholder="Buscar tabela..." autocomplete="off" oninput="renderTab()" style="width:100%">
+    </div>
+    <div class="table-card">
+      <div class="table-wrap" style="max-height:420px;overflow-y:auto">
+        <table>
+          <thead><tr>
+            <th style="width:40px"><input type="checkbox" id="tabAll" onchange="toggleAllTab(this.checked)"></th>
+            <th>Tabela</th>
+          </tr></thead>
+          <tbody id="tabBody"></tbody>
         </table>
       </div>
     </div>
@@ -336,6 +382,10 @@ function renderizar() {
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0z"/></svg>
           Clientes
         </button>` : ''}
+        ${(p.preposto_tabela_visibilidade === 'ATRIBUIDOS' && can('alterar_prepostos')) ? `<button class="btn-sm btn-sm-edit" title="Tabelas de preço atribuídas" onclick="gerenciarTabelas(${p.id},'${esc(p.nome)}')">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 14.25l6-6m4.5-3.493V21.75l-3.75-1.5-3.75 1.5-3.75-1.5-3.75 1.5V4.757c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0c1.1.128 1.907 1.077 1.907 2.185zM9.75 9h.008v.008H9.75V9zm0 6h.008v.008H9.75V15zm5.25-6h.008v.008H15V9zm0 6h.008v.008H15V15z"/></svg>
+          Tabelas
+        </button>` : ''}
         <button class="btn-sm btn-sm-com" title="Comissões" onclick="verComissoes(${p.id},'${esc(p.nome)}')">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
           Comissões
@@ -366,9 +416,40 @@ function abrirForm(p = null) {
   document.getElementById('fSenha').value = '';
   document.getElementById('fPct').value   = p?.pct_comissao ?? 6;
   document.getElementById('fVisib').value = p?.preposto_visibilidade || 'TODOS';
+  document.getElementById('fVisibTab').value = p?.preposto_tabela_visibilidade || 'TODOS';
+  document.getElementById('fVisibPed').value = p?.preposto_pedidos_visibilidade || 'CARTEIRA';
   document.getElementById('fGerente').value = p?.id_gerente || '';
   document.getElementById('fLogin').disabled = !!p;
+  onVisibTabChange();
+  if (p?.id && (p.preposto_tabela_visibilidade === 'ATRIBUIDOS')) atualizarContadorTabelas(p.id);
   fc.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// Mostra/oculta o botão "Escolher tabelas" conforme o modo selecionado
+function onVisibTabChange() {
+  const atrib = document.getElementById('fVisibTab').value === 'ATRIBUIDOS';
+  const row = document.getElementById('tabPickRow');
+  row.style.display = atrib ? 'flex' : 'none';
+  if (!atrib) document.getElementById('tabPickCount').textContent = '';
+}
+
+// Busca quantas tabelas estão atribuídas e atualiza o texto do contador
+async function atualizarContadorTabelas(id) {
+  try {
+    const data = await api(`/prepostos/${id}/tabelas-preco`);
+    const total = (data.tabelas || []).length;
+    const sel = (data.atribuidas || []).length;
+    document.getElementById('tabPickCount').textContent =
+      sel ? `${sel} de ${total} tabela(s) selecionada(s)` : 'Nenhuma tabela selecionada ainda';
+  } catch { /* silencioso */ }
+}
+
+// Abre o modal de seleção a partir do formulário (precisa ter sido salvo antes)
+function escolherTabelasForm() {
+  const id = document.getElementById('fId').value;
+  const nome = document.getElementById('fNome').value.trim();
+  if (!id) { toast('Salve o preposto primeiro para escolher as tabelas', false); return; }
+  gerenciarTabelas(id, nome);
 }
 
 function fecharForm() { document.getElementById('formCard').classList.remove('open'); }
@@ -384,20 +465,22 @@ async function salvar(ev) {
   const nome    = document.getElementById('fNome').value.trim();
   const pct     = parseFloat(document.getElementById('fPct').value) || 6;
   const visib   = document.getElementById('fVisib').value || 'TODOS';
+  const visibTab = document.getElementById('fVisibTab').value || 'TODOS';
+  const visibPed = document.getElementById('fVisibPed').value || 'CARTEIRA';
   const gerente = parseInt(document.getElementById('fGerente').value) || null;
 
   if (!gerente) { toast('Selecione o representante vinculado', false); return; }
 
   try {
     if (id) {
-      const body = { nome, pct_comissao: pct, preposto_visibilidade: visib, id_gerente: gerente };
+      const body = { nome, pct_comissao: pct, preposto_visibilidade: visib, preposto_tabela_visibilidade: visibTab, preposto_pedidos_visibilidade: visibPed, id_gerente: gerente };
       const senha = document.getElementById('fSenha').value;
       if (senha) body.senha = senha;
       await api('/prepostos/' + id, { method: 'PUT', body: JSON.stringify(body) });
     } else {
       const login = document.getElementById('fLogin').value.trim();
       const senha = document.getElementById('fSenha').value;
-      await api('/prepostos', { method: 'POST', body: JSON.stringify({ nome, login, senha, pct_comissao: pct, preposto_visibilidade: visib, id_gerente: gerente }) });
+      await api('/prepostos', { method: 'POST', body: JSON.stringify({ nome, login, senha, pct_comissao: pct, preposto_visibilidade: visib, preposto_tabela_visibilidade: visibTab, preposto_pedidos_visibilidade: visibPed, id_gerente: gerente }) });
     }
     toast('Preposto salvo com sucesso');
     fecharForm();
@@ -521,6 +604,76 @@ async function salvarClientes() {
 }
 
 function fecharCli() { document.getElementById('cliPanel').classList.remove('open'); }
+
+// ── Tabelas de preço atribuídas ──────────────────────────────────────────────
+let _tabPrepId = null;
+let _tabLista = [];
+let _tabSel = new Set();
+
+async function gerenciarTabelas(id, nome) {
+  _tabPrepId = id;
+  try {
+    const data = await api(`/prepostos/${id}/tabelas-preco`);
+    _tabLista = data.tabelas || [];
+    _tabSel = new Set((data.atribuidas || []).map(Number));
+    document.getElementById('tabNome').textContent = 'Tabelas de preço atribuídas — ' + nome;
+    document.getElementById('tabSearch').value = '';
+    renderTab();
+    const panel = document.getElementById('tabPanel');
+    panel.classList.add('open');
+    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch (err) {
+    toast(err.message, false);
+  }
+}
+
+function renderTab() {
+  const q = (document.getElementById('tabSearch').value || '').toLowerCase();
+  const lista = q ? _tabLista.filter(t => (t.descricao || '').toLowerCase().includes(q)) : _tabLista;
+  const body = document.getElementById('tabBody');
+  if (!lista.length) {
+    // Vazio por busca x vazio por falta de liberação no representante (mensagens diferentes)
+    const msg = (q && _tabLista.length)
+      ? `Nenhuma tabela encontrada para "${esc(q)}"`
+      : `Nenhuma tabela de preço liberada para o representante.<br>
+         <span style="font-size:12px">Libere as tabelas em <strong>Cadastros › Usuários</strong>, editando o representante na seção <strong>"Tabelas de Preço Liberadas"</strong>, e depois volte aqui.</span>`;
+    body.innerHTML = `<tr><td colspan="2" style="text-align:center;padding:32px;color:var(--text2);line-height:1.6">${msg}</td></tr>`;
+    return;
+  }
+  body.innerHTML = lista.map(t => `
+    <tr onclick="toggleTab(${t.id_tabela})">
+      <td><input type="checkbox" ${_tabSel.has(Number(t.id_tabela)) ? 'checked' : ''} onclick="event.stopPropagation();toggleTab(${t.id_tabela})"></td>
+      <td><strong>${esc(t.descricao)}</strong></td>
+    </tr>
+  `).join('');
+}
+
+function toggleTab(id) {
+  id = Number(id);
+  if (_tabSel.has(id)) _tabSel.delete(id); else _tabSel.add(id);
+  renderTab();
+}
+
+function toggleAllTab(check) {
+  const q = (document.getElementById('tabSearch').value || '').toLowerCase();
+  const lista = q ? _tabLista.filter(t => (t.descricao || '').toLowerCase().includes(q)) : _tabLista;
+  lista.forEach(t => { if (check) _tabSel.add(Number(t.id_tabela)); else _tabSel.delete(Number(t.id_tabela)); });
+  renderTab();
+}
+
+async function salvarTabelas() {
+  try {
+    await api(`/prepostos/${_tabPrepId}/tabelas-preco`, { method: 'POST', body: JSON.stringify({ ids: [..._tabSel] }) });
+    toast('Tabelas de preço atribuídas salvas');
+    fecharTab();
+    // Se o formulário do mesmo preposto estiver aberto, atualiza o contador
+    if (document.getElementById('fId').value == _tabPrepId) atualizarContadorTabelas(_tabPrepId);
+  } catch (err) {
+    toast(err.message, false);
+  }
+}
+
+function fecharTab() { document.getElementById('tabPanel').classList.remove('open'); }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 if (!can('incluir_prepostos')) { const b = document.getElementById('btnNovo'); if (b) b.style.display = 'none'; }

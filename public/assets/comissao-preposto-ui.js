@@ -1,20 +1,13 @@
 /**
- * Filtro de vendedor — preposto, representante e permissões (acessartodosclientes / gerente).
+ * Filtro de vendedor — preposto, representante e permissões (acessar_vendastodos / gerente).
  */
 (function (global) {
-  function _parseJwtPayload() {
-    try {
-      const raw = localStorage.getItem('token')
-        || sessionStorage.getItem('sysrep_token')
-        || document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('token='))?.split('=').slice(1).join('=')
-        || '';
-      if (!raw) return null;
-      return JSON.parse(atob(raw.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
-    } catch (_) {
-      return null;
-    }
+  function canAccessAllVendorsPerm(permissoes) {
+    const v = permissoes.acessar_vendastodos;
+    if (v === 'S') return true;
+    if (v === 'N') return false;
+    return permissoes.acessartodosclientes === 'S';
   }
-
   function readJwtComissao() {
     let tipo = 'REPRESENTANTE';
     let userId = null;
@@ -42,7 +35,7 @@
 
     const isAdmin = role === 'admin' || perfil == 1;
     const canSelectOthers = isAdmin
-      || permissoes.acessartodosclientes === 'S'
+      || canAccessAllVendorsPerm(permissoes)
       || permissoes.gerentecomercial === 'S';
     const isPreposto = tipo === 'PREPOSTO';
     const mustLockVendedorSelect = isPreposto || !canSelectOthers;
@@ -110,7 +103,7 @@
     selectEl.disabled = true;
     selectEl.title = jwt.isPreposto
       ? 'Preposto: extrato apenas do seu usuário'
-      : 'Sem permissão para consultar outros vendedores';
+      : 'Sem permissão para consultar vendas de outros vendedores';
 
     return jwt;
   }
@@ -136,7 +129,69 @@
     return applyVendedorSelectLock(selectEl, opts);
   }
 
+  function authToken() {
+    function readFrom(win) {
+      try {
+        const fromCookie = win.document.cookie.split(';').map(c => c.trim()).find(c => c.startsWith('token='));
+        if (fromCookie) return decodeURIComponent(fromCookie.split('=').slice(1).join('='));
+      } catch (_) {}
+      try {
+        return win.localStorage.getItem('token')
+          || win.sessionStorage.getItem('token')
+          || win.sessionStorage.getItem('sysrep_token')
+          || '';
+      } catch (_) {
+        return '';
+      }
+    }
+    let t = readFrom(global);
+    if (!t) {
+      try {
+        if (global.top && global.top !== global) t = readFrom(global.top);
+      } catch (_) {}
+    }
+    if (!t) {
+      try {
+        if (global.parent && global.parent !== global) t = readFrom(global.parent);
+      } catch (_) {}
+    }
+    return t || '';
+  }
+
+  function _parseJwtPayload() {
+    try {
+      const raw = authToken();
+      if (!raw) return null;
+      return JSON.parse(atob(raw.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  async function apiFetch(url, opts = {}) {
+    const token = authToken();
+    const headers = { ...(opts.headers || {}) };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    if (opts.body != null && !headers['Content-Type'] && !(opts.body instanceof FormData)) {
+      if (opts.body instanceof URLSearchParams) {
+        headers['Content-Type'] = 'application/x-www-form-urlencoded;charset=UTF-8';
+      } else {
+        headers['Content-Type'] = 'application/json';
+      }
+    }
+    const r = await fetch(url, { ...opts, headers, credentials: 'include' });
+    const data = await r.json().catch(() => ({}));
+    if (r.status === 401) {
+      setTimeout(() => { (window.top || window).location.href = '/login.html'; }, 1200);
+      throw new Error(data.error || 'Sessão expirada — faça login novamente');
+    }
+    if (!r.ok) throw new Error(data.error || `Erro ${r.status}`);
+    return data;
+  }
+
   global.ComissaoPrepostoUi = {
+    authToken,
+    apiFetch,
     readJwtComissao,
     canSelectOtherVendors,
     resolveVendedorFilterId,

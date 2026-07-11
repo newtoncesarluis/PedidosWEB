@@ -467,6 +467,26 @@ html.cli-form-open body {
 .form-group.full { grid-column:1/-1; }
 .form-group.col2 { grid-column:span 2; }
 
+/* Aba Geral — linha compacta: tipo cadastro + código + vendedor */
+.form-row-ident { grid-column:1/-1; }
+.form-row-ident-grid {
+  display:grid;
+  grid-template-columns:minmax(120px,0.95fr) minmax(168px,1.4fr);
+  gap:10px;
+  align-items:end;
+}
+.form-row-ident-grid > .form-group { min-width:0; }
+.form-row-ident-grid > .form-group label {
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+@media(max-width:720px) {
+  .form-row-ident-grid {
+    grid-template-columns:1fr;
+  }
+}
+
 label {
   font-size:11px;font-weight:700;
   color:var(--text2);
@@ -1464,7 +1484,7 @@ html.ms-embedded-tech.ms-page-clientes .cards-grid {
     transition: max-height .28s cubic-bezier(.4,0,.2,1), opacity .18s ease, padding .28s cubic-bezier(.4,0,.2,1), border-top-width .18s ease;
   }
   #filterPanel .filter-panel-body.show {
-    max-height: 380px;
+    max-height: 460px;
     opacity: 1;
     padding: 14px 16px 16px;
     border-top-width: 1px;
@@ -1783,11 +1803,11 @@ html.ms-embedded-tech.ms-page-clientes .cards-grid {
   </div>
   <div style="display:flex;align-items:center;gap:5px">
     <input type="text" id="inputBusca" placeholder="Buscar código, nome, fone, CPF, cidade…"
-           oninput="debounceSearch()" onkeydown="if(event.key==='Enter'){_pagAtual=0;carregar();}"
+           oninput="debounceSearch()" onkeydown="if(event.key==='Enter'){aplicarFiltroAvancado();}"
            style="padding:5px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px;
                   font-family:inherit;background:#fff;color:var(--text);outline:none;width:240px;transition:.15s"
            onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
-    <button class="icon-btn" onclick="_pagAtual=0;carregar()" title="Pesquisar">
+    <button class="icon-btn" onclick="aplicarFiltroAvancado()" title="Pesquisar">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
       </svg>
@@ -1827,6 +1847,31 @@ html.ms-embedded-tech.ms-page-clientes .cards-grid {
                oninput="debounceAplicarFiltro()" autocomplete="off">
       </div>
       <div class="form-group">
+        <label>Segmento / Categoria</label>
+        <select id="fa_cod_segmento" onchange="aplicarFiltroAvancado()" autocomplete="off">
+          <option value="">Todos</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Clientes novos (cadastro)</label>
+        <select id="fa_cadastro_periodo" onchange="onCadastroPeriodoChange();aplicarFiltroAvancado()" autocomplete="off">
+          <option value="">Todos</option>
+          <option value="hoje">Hoje</option>
+          <option value="semana">Esta semana</option>
+          <option value="mes">Este mês</option>
+          <option value="ate">Até a data…</option>
+          <option value="intervalo">De / até…</option>
+        </select>
+      </div>
+      <div class="form-group" id="fa_cadastro_ate_wrap" style="display:none">
+        <label>Cadastrados até</label>
+        <input type="date" id="fa_cadastro_ate" onchange="aplicarFiltroAvancado()" autocomplete="off">
+      </div>
+      <div class="form-group" id="fa_cadastro_de_wrap" style="display:none">
+        <label>Cadastro de</label>
+        <input type="date" id="fa_cadastro_de" onchange="aplicarFiltroAvancado()" autocomplete="off">
+      </div>
+      <div class="form-group">
         <label>Sem compra há</label>
         <select id="fa_sem_compra" onchange="aplicarFiltroAvancado()">
           <option value="">Todos</option>
@@ -1853,6 +1898,9 @@ html.ms-embedded-tech.ms-page-clientes .cards-grid {
         </button>
         <button class="btn btn-outline" onclick="salvarFiltroFavorito()" style="padding:5px 10px;font-size:11px">
           ★ Favorito
+        </button>
+        <button class="btn btn-primary" onclick="aplicarFiltroAvancado()" style="padding:5px 14px;font-size:11px">
+          Pesquisar
         </button>
       </div>
       <div class="filter-fav-row" id="favRow" style="display:none"></div>
@@ -1974,19 +2022,23 @@ html.ms-embedded-tech.ms-page-clientes .cards-grid {
               </label>
             </div>
           </div>
-          <div class="form-group">
-            <label>Tipo Cadastro</label>
-            <select id="f_tipo_cadastro">
-              <option value="JURIDICA">JURÍDICA</option>
-              <option value="FISICA">FÍSICA</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Código do Cliente</label>
-            <input type="text" id="f_codigo_cliente" maxlength="60" placeholder="Código externo / ERP">
+
+          <div class="form-group form-row-ident">
+            <div class="form-row-ident-grid">
+              <div class="form-group fg-cod-cli">
+                <label>Cód. Cliente</label>
+                <input type="text" id="f_codigo_cliente" maxlength="60" placeholder="Ext. / ERP" title="Código externo / ERP">
+              </div>
+              <div class="form-group fg-vendedor">
+                <label id="lbl_vendedor_wrap">Vendedor / Representante <span id="lbl_vendedor_req" class="req" style="display:none">*</span></label>
+                <select id="f_cod_vendedor" autocomplete="off" onchange="this.classList.remove('err')">
+                  <option value="">— Selecione —</option>
+                </select>
+              </div>
+            </div>
           </div>
 
-          <div class="form-group full">
+          <div class="form-group col2">
             <label>Nome / Razão Social <span class="req">*</span></label>
             <input type="text" id="f_nome" maxlength="200" placeholder="Nome completo ou Razão Social">
           </div>
@@ -1995,8 +2047,8 @@ html.ms-embedded-tech.ms-page-clientes .cards-grid {
             <input type="text" id="f_apelido" maxlength="100">
           </div>
           <div class="form-group">
-            <label id="lbl_cpf">CPF</label>
-            <input type="text" id="f_cpf" maxlength="20" placeholder="000.000.000-00"
+            <label><span id="lbl_cpf">CNPJ</span> <span class="req">*</span></label>
+            <input type="text" id="f_cpf" maxlength="20" placeholder="00.000.000/0000-00"
                    oninput="mascaraDoc(this)" onblur="onBlurDoc()">
           </div>
           <div class="form-group" id="grp_rg">
@@ -2171,12 +2223,6 @@ html.ms-embedded-tech.ms-page-clientes .cards-grid {
           <div class="form-group">
             <label>Zona de Venda</label>
             <input type="text" id="f_zonavenda" maxlength="50">
-          </div>
-          <div class="form-group">
-            <label>Vendedor</label>
-            <select id="f_cod_vendedor">
-              <option value="">— Selecione —</option>
-            </select>
           </div>
           <div class="form-group">
             <label>Limite de Crédito (R$)</label>
@@ -3015,7 +3061,7 @@ let _selecionados = new Set();   // IDs selecionados para ações em massa
 let _cacheRows  = [];            // última página carregada (para exportar selecionados)
 let _cliRotaMap = new Map();     // id_cliente → { id_rota, descricao, status_visita }
 let _cliVisitaMap = new Map();   // id_cliente → { id, data_visita, hora_visita }
-let _filtrosAvancados = { tipo:'', cidade:'', sem_compra:'', suspensa:false };
+let _filtrosAvancados = { tipo:'', cidade:'', cod_segmento:'', sem_compra:'', suspensa:false, cadastro_periodo:'', cadastro_de:'', cadastro_ate:'' };
 
 // ── INICIALIZAÇÃO ─────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
@@ -3031,6 +3077,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const r = await api('/api/config/flags');
     if (r.ok) _sysConfig = await r.json();
   } catch {}
+  atualizarUiVendedorObrigatorio();
 
   aplicarPermissoesClientes();
   syncSelectPerPage();
@@ -3099,7 +3146,66 @@ function mudarPag(pag) {
 }
 
 // ── CARREGAR LISTA ────────────────────────────────────────────────────────────
+function onCadastroPeriodoChange() {
+  const v = document.getElementById('fa_cadastro_periodo')?.value || '';
+  const ateWrap = document.getElementById('fa_cadastro_ate_wrap');
+  const deWrap = document.getElementById('fa_cadastro_de_wrap');
+  if (ateWrap) {
+    const lbl = ateWrap.querySelector('label');
+    if (lbl) lbl.textContent = v === 'intervalo' ? 'Cadastro até' : 'Cadastrados até';
+    ateWrap.style.display = (v === 'ate' || v === 'intervalo') ? '' : 'none';
+  }
+  if (deWrap) deWrap.style.display = v === 'intervalo' ? '' : 'none';
+}
+
+function sincronizarFiltrosAvancadosDoForm() {
+  const tipoEl = document.getElementById('fa_tipo');
+  if (!tipoEl) return _filtrosAvancados;
+  _filtrosAvancados.tipo = tipoEl.value.trim();
+  _filtrosAvancados.cidade = (document.getElementById('fa_cidade')?.value || '').trim();
+  _filtrosAvancados.cod_segmento = document.getElementById('fa_cod_segmento')?.value || '';
+  _filtrosAvancados.sem_compra = document.getElementById('fa_sem_compra')?.value || '';
+  _filtrosAvancados.suspensa = !!document.getElementById('fa_suspensa')?.checked;
+  _filtrosAvancados.cadastro_periodo = document.getElementById('fa_cadastro_periodo')?.value || '';
+  _filtrosAvancados.cadastro_de = document.getElementById('fa_cadastro_de')?.value || '';
+  _filtrosAvancados.cadastro_ate = document.getElementById('fa_cadastro_ate')?.value || '';
+  const segLabel = document.getElementById('fa_cod_segmento')?.selectedOptions?.[0]?.textContent?.trim() || '';
+  _filtrosAvancados._seg_label = (_filtrosAvancados.cod_segmento && segLabel && segLabel !== 'Todos') ? segLabel : '';
+  const cp = _filtrosAvancados.cadastro_periodo;
+  const cadLabels = { hoje: 'Cadastro: hoje', semana: 'Cadastro: semana', mes: 'Cadastro: mês', ate: 'Cadastro até', intervalo: 'Cadastro período' };
+  _filtrosAvancados._cadastro_label = cadLabels[cp] || '';
+  return _filtrosAvancados;
+}
+
+function buildClientesFaParams(fa) {
+  fa = fa || {};
+  return [
+    fa.tipo       ? `&tipo_cliente=${encodeURIComponent(fa.tipo)}`       : '',
+    fa.cidade     ? `&cidade=${encodeURIComponent(fa.cidade)}`           : '',
+    fa.cod_segmento ? `&cod_segmento=${encodeURIComponent(fa.cod_segmento)}` : '',
+    fa.sem_compra ? `&sem_compra_dias=${fa.sem_compra}`                  : '',
+    fa.suspensa   ? `&suspensa=S`                                        : '',
+    fa.cadastro_periodo ? `&cadastro_periodo=${encodeURIComponent(fa.cadastro_periodo)}` : '',
+    fa.cadastro_de ? `&cadastro_de=${encodeURIComponent(fa.cadastro_de)}` : '',
+    fa.cadastro_ate ? `&cadastro_ate=${encodeURIComponent(fa.cadastro_ate)}` : '',
+    fa.lat        ? `&lat=${fa.lat}`                                     : '',
+    fa.lng        ? `&lng=${fa.lng}`                                     : '',
+    fa.raio       ? `&raio=${fa.raio}`                                   : ''
+  ].join('');
+}
+
+function atualizarBadgeFiltrosAvancados() {
+  const fa = _filtrosAvancados || {};
+  const ativos = [fa.tipo, fa.cidade, fa.cod_segmento, fa.sem_compra, fa.cadastro_periodo].filter(Boolean).length + (fa.suspensa ? 1 : 0);
+  const badge = document.getElementById('fphBadge');
+  if (badge) { badge.textContent = ativos; badge.style.display = ativos > 0 ? '' : 'none'; }
+  const labelEl = document.getElementById('filtroAtivoLabel');
+  if (labelEl) labelEl.style.display = ativos > 0 ? '' : 'none';
+}
+
 async function carregar() {
+  sincronizarFiltrosAvancadosDoForm();
+  atualizarBadgeFiltrosAvancados();
   const inputEl = document.getElementById('inputBusca');
   _q = inputEl ? inputEl.value.trim() : '';
 
@@ -3109,15 +3215,7 @@ async function carregar() {
 
   const offset = _pagAtual * PER_PAGE;
   const fa = _filtrosAvancados || {};
-  const faParams = [
-    fa.tipo       ? `&tipo_cliente=${encodeURIComponent(fa.tipo)}`       : '',
-    fa.cidade     ? `&cidade=${encodeURIComponent(fa.cidade)}`           : '',
-    fa.sem_compra ? `&sem_compra_dias=${fa.sem_compra}`                  : '',
-    fa.suspensa   ? `&suspensa=S`                                        : '',
-    fa.lat        ? `&lat=${fa.lat}`                                     : '',
-    fa.lng        ? `&lng=${fa.lng}`                                     : '',
-    fa.raio       ? `&raio=${fa.raio}`                                   : ''
-  ].join('');
+  const faParams = buildClientesFaParams(fa);
   const url = `/api/clientes?status=${encodeURIComponent(_filtro)}&q=${encodeURIComponent(_q)}&limit=${PER_PAGE}&offset=${offset}${faParams}`;
 
   try {
@@ -3691,7 +3789,7 @@ function abrirDrawer() {
   _syncCliFormViewport();
   window.addEventListener('resize', _syncCliFormViewport);
   _setToolbarVisivel(false);
-  aplicarRegraVendedor();
+  garantirFlagsCarteira().then(() => aplicarRegraVendedor());
   document.getElementById('formBodyScroll')?.scrollTo(0, 0);
   window.scrollTo({ top: 0, behavior: 'smooth' });
   initSetasAbas();
@@ -3714,7 +3812,7 @@ function fecharDrawer() {
 
 // ── LIMPAR / PREENCHER FORM ───────────────────────────────────────────────────
 const CAMPOS_FORM = [
-  'tipo_cadastro','codigo_cliente',
+  'codigo_cliente',
   'nome','apelido','cpf','rg','sexo','dtnascimento',
   'foneprincipal','fonesecundario','celularcomprador','contato','email','site','skype',
   'instragam','facebook','linkedin',
@@ -4101,12 +4199,50 @@ async function salvar() {
   }
   document.getElementById('f_nome').classList.remove('err');
 
+  const isPJ = document.querySelector('[name="tipo_pessoa"]:checked')?.value === 'JURIDICA';
+  const docEl = document.getElementById('f_cpf');
+  const doc = docEl.value.replace(/\D/g, '');
+  if (!doc) {
+    docEl.classList.add('err');
+    toast(isPJ ? 'CNPJ é obrigatório' : 'CPF é obrigatório', 'err');
+    switchTab('tab-principal', document.querySelector('.tab-btn'));
+    docEl.focus();
+    return;
+  }
+  if (!validarDocCliente(doc, isPJ)) {
+    docEl.classList.add('err');
+    toast(isPJ ? 'CNPJ inválido' : 'CPF inválido', 'err');
+    switchTab('tab-principal', document.querySelector('.tab-btn'));
+    docEl.focus();
+    return;
+  }
+  docEl.classList.remove('err');
+
+  if (vendedorObrigatorioNoForm()) {
+    const vendEl = document.getElementById('f_cod_vendedor');
+    const vendVal = vendEl?.value;
+    if (!_codVendedorInformado(vendVal)) {
+      vendEl?.classList.add('err');
+      toast('Vendedor / representante é obrigatório (carteira fechada)', 'err');
+      switchTab('tab-principal', document.querySelector('.tab-btn'));
+      vendEl?.focus();
+      return;
+    }
+    vendEl?.classList.remove('err');
+  }
+
   const body = { tipo_pessoa: document.querySelector('[name="tipo_pessoa"]:checked').value };
   CAMPOS_FORM.forEach(id => {
     const el = document.getElementById('f_' + id);
     if (!el) return;
     body[id] = el.value || null;
   });
+  // Garante vendedor mesmo com select desabilitado (travado no usuário logado)
+  const vendSel = document.getElementById('f_cod_vendedor');
+  if (vendSel) {
+    const v = vendSel.value?.trim();
+    body.cod_vendedor = _codVendedorInformado(v) ? v : null;
+  }
   // Sub-records
   body.contatos       = _subData.contatos;
   body.socios         = _subData.socios;
@@ -4232,25 +4368,93 @@ function excluirClienteLinha(id, nome, evt) {
 }
 
 // ── CATEGORIAS (segmento) ─────────────────────────────────────────────────────
+let _categoriasFiltroCache = null;
+
+async function garantirCategoriasFiltro() {
+  if (_categoriasFiltroCache?.length) return _categoriasFiltroCache;
+  await carregarCategorias();
+  return _categoriasFiltroCache || [];
+}
+
 async function carregarCategorias() {
   try {
     const r = await api('/api/categorias');
     if (!r.ok) return;
     const data = await r.json();
     const categorias = Array.isArray(data) ? data : (data.categorias || data.data || []);
-    const sel = document.getElementById('f_cod_segmento');
-    if (!sel) return;
-    while (sel.options.length > 1) sel.remove(1);
-    categorias.forEach(c => {
-      const opt = document.createElement('option');
-      opt.value       = c.id;
-      opt.textContent = c.descricao || c.nome;
-      sel.appendChild(opt);
+    _categoriasFiltroCache = categorias;
+    ['f_cod_segmento', 'fa_cod_segmento'].forEach((selId) => {
+      const sel = document.getElementById(selId);
+      if (!sel) return;
+      const keep = sel.value;
+      while (sel.options.length > 1) sel.remove(1);
+      categorias.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value       = String(c.id);
+        opt.textContent = c.descricao || c.nome;
+        sel.appendChild(opt);
+      });
+      if (keep) sel.value = keep;
     });
   } catch {}
 }
 
 // ── VENDEDORES ────────────────────────────────────────────────────────────────
+function _carteiraFechadaModo() {
+  const m = String(_sysConfig.carteira_politica || '').toUpperCase();
+  return m === 'FECHADA' || m === 'EQUIPE';
+}
+
+function _codVendedorInformado(val) {
+  const s = String(val ?? '').trim();
+  return s !== '' && s !== '0';
+}
+
+function vendedorObrigatorioNoForm() {
+  return _carteiraFechadaModo();
+}
+
+/** Combo travado no usuário logado (vendedor/preposto), não para admin/backoffice. */
+function _vendedorTravadoNoForm() {
+  if (_usuLogado.tipo_usuario === 'PREPOSTO' && _usuLogado.id_gerente) return true;
+  if (_sysConfig.gacessartodosclientes === 'S') return true;
+  const isAdmin = _usuLogado.perfil == 1 || _usuLogado.role === 'admin';
+  if (_carteiraFechadaModo() && !isAdmin && permCliente('acessartodosclientes') !== 'S') return true;
+  return false;
+}
+
+function atualizarUiVendedorObrigatorio() {
+  const req = document.getElementById('lbl_vendedor_req');
+  const wrap = document.getElementById('lbl_vendedor_wrap');
+  const sel = document.getElementById('f_cod_vendedor');
+  const obrig = vendedorObrigatorioNoForm();
+  if (req) {
+    req.style.display = obrig ? 'inline' : 'none';
+    req.hidden = false;
+  }
+  if (wrap) wrap.classList.toggle('label-obrig', obrig);
+  if (sel) {
+    sel.required = obrig;
+    sel.setAttribute('aria-required', obrig ? 'true' : 'false');
+    sel.title = obrig
+      ? 'Obrigatório com carteira fechada ou por equipe'
+      : (sel.disabled ? sel.title : '');
+  }
+}
+
+/** Recarrega flags se carteira_politica ainda não veio do servidor (ex.: após salvar config). */
+async function garantirFlagsCarteira() {
+  if (_sysConfig.carteira_politica) {
+    atualizarUiVendedorObrigatorio();
+    return;
+  }
+  try {
+    const r = await api('/api/config/flags');
+    if (r.ok) _sysConfig = { ..._sysConfig, ...(await r.json()) };
+  } catch {}
+  atualizarUiVendedorObrigatorio();
+}
+
 async function carregarVendedores() {
   const sel = document.getElementById('f_cod_vendedor');
   if (!sel) return;
@@ -4278,10 +4482,11 @@ async function carregarVendedores() {
     sel.disabled = true;
     sel.title    = 'Cliente vinculado ao representante (preposto)';
     _vendedores  = [{ id: _usuLogado.id_gerente, nome: nomeRep }];
+    atualizarUiVendedorObrigatorio();
     return;
   }
 
-  if (_sysConfig.gacessartodosclientes === 'S') {
+  if (_vendedorTravadoNoForm()) {
     // Bloqueia o select e fixa o usuário logado como vendedor
     const opt = document.createElement('option');
     opt.value        = _usuLogado.id || '';
@@ -4291,6 +4496,7 @@ async function carregarVendedores() {
     sel.disabled = true;
     sel.title    = 'Vendedor definido automaticamente pelo sistema';
     _vendedores  = [{ id: _usuLogado.id, nome: _usuLogado.name }];
+    atualizarUiVendedorObrigatorio();
     return;
   }
 
@@ -4317,6 +4523,7 @@ async function carregarVendedores() {
     sel.disabled = true;
     sel.title = 'Sem permissão para alterar vendedor';
   }
+  atualizarUiVendedorObrigatorio();
 }
 
 // Aplica as regras do vendedor ao abrir o formulário
@@ -4327,14 +4534,16 @@ function aplicarRegraVendedor() {
   if (_usuLogado.tipo_usuario === 'PREPOSTO' && _usuLogado.id_gerente) {
     sel.value    = _usuLogado.id_gerente;
     sel.disabled = true;
+    atualizarUiVendedorObrigatorio();
     return;
   }
-  if (_sysConfig.gacessartodosclientes === 'S') {
+  if (_vendedorTravadoNoForm()) {
     sel.value    = _usuLogado.id || '';
     sel.disabled = true;
   } else {
     sel.disabled = false;
   }
+  atualizarUiVendedorObrigatorio();
 }
 
 
@@ -4546,6 +4755,32 @@ async function carregarClientesPrincipais(excluirId, selecionarId) {
 }
 
 // ── TIPO PESSOA ───────────────────────────────────────────────────────────────
+function validarDocCliente(doc, isPJ) {
+  const c = String(doc || '').replace(/\D/g, '');
+  if (isPJ) {
+    if (c.length !== 14 || /^(\d)\1{13}$/.test(c)) return false;
+    const calc = (str, pesos) => {
+      let soma = 0;
+      for (let i = 0; i < pesos.length; i++) soma += parseInt(str[i], 10) * pesos[i];
+      const resto = soma % 11;
+      return resto < 2 ? 0 : 11 - resto;
+    };
+    return calc(c, [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]) === parseInt(c[12], 10)
+      && calc(c, [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]) === parseInt(c[13], 10);
+  }
+  if (c.length !== 11 || /^(\d)\1{10}$/.test(c)) return false;
+  let soma = 0;
+  for (let i = 0; i < 9; i++) soma += parseInt(c[i], 10) * (10 - i);
+  let resto = (soma * 10) % 11;
+  if (resto === 10 || resto === 11) resto = 0;
+  if (resto !== parseInt(c[9], 10)) return false;
+  soma = 0;
+  for (let i = 0; i < 10; i++) soma += parseInt(c[i], 10) * (11 - i);
+  resto = (soma * 10) % 11;
+  if (resto === 10 || resto === 11) resto = 0;
+  return resto === parseInt(c[10], 10);
+}
+
 function toggleTipoPessoa() {
   const isPJ = document.querySelector('[name="tipo_pessoa"]:checked')?.value === 'JURIDICA';
   document.getElementById('lbl_cpf').textContent = isPJ ? 'CNPJ' : 'CPF';
@@ -5623,7 +5858,8 @@ function _downloadCSV(conteudo, nome) {
 async function exportCSV() {
   try {
     toast('Preparando exportação…', 'ok');
-    const url = `/api/clientes?status=${encodeURIComponent(_filtro)}&q=${encodeURIComponent(_q)}&limit=10000&offset=0`;
+    const fa = _filtrosAvancados || {};
+    const url = `/api/clientes?status=${encodeURIComponent(_filtro)}&q=${encodeURIComponent(_q)}&limit=10000&offset=0${buildClientesFaParams(fa)}`;
     const r   = await api(url);
     if (!r.ok) throw new Error('Erro na requisição');
     const data = await r.json();
@@ -6290,21 +6526,8 @@ function debounceAplicarFiltro() {
 }
 
 function aplicarFiltroAvancado() {
-  _filtrosAvancados.tipo       = document.getElementById('fa_tipo').value.trim();
-  _filtrosAvancados.cidade     = document.getElementById('fa_cidade').value.trim();
-  _filtrosAvancados.sem_compra = document.getElementById('fa_sem_compra').value;
-  _filtrosAvancados.suspensa   = document.getElementById('fa_suspensa').checked;
-
-  // Conta filtros ativos
-  const ativos = [_filtrosAvancados.tipo, _filtrosAvancados.cidade,
-                  _filtrosAvancados.sem_compra].filter(Boolean).length
-                 + (_filtrosAvancados.suspensa ? 1 : 0);
-  const badge = document.getElementById('fphBadge');
-  badge.textContent = ativos;
-  badge.style.display = ativos > 0 ? '' : 'none';
-  const labelEl = document.getElementById('filtroAtivoLabel');
-  if (labelEl) labelEl.style.display = ativos > 0 ? '' : 'none';
-
+  sincronizarFiltrosAvancadosDoForm();
+  atualizarBadgeFiltrosAvancados();
   _pagAtual = 0;
   carregar();
 }
@@ -6312,9 +6535,17 @@ function aplicarFiltroAvancado() {
 function limparFiltrosAvancados() {
   document.getElementById('fa_tipo').value = '';
   document.getElementById('fa_cidade').value = '';
+  document.getElementById('fa_cod_segmento').value = '';
   document.getElementById('fa_sem_compra').value = '';
   document.getElementById('fa_suspensa').checked = false;
-  _filtrosAvancados = { tipo:'', cidade:'', sem_compra:'', suspensa:false };
+  const cp = document.getElementById('fa_cadastro_periodo');
+  if (cp) cp.value = '';
+  const cde = document.getElementById('fa_cadastro_de');
+  if (cde) cde.value = '';
+  const cat = document.getElementById('fa_cadastro_ate');
+  if (cat) cat.value = '';
+  onCadastroPeriodoChange();
+  _filtrosAvancados = { tipo:'', cidade:'', cod_segmento:'', sem_compra:'', suspensa:false, cadastro_periodo:'', cadastro_de:'', cadastro_ate:'' };
   const badge = document.getElementById('fphBadge');
   badge.style.display = 'none';
   const labelEl = document.getElementById('filtroAtivoLabel');
@@ -6324,10 +6555,17 @@ function limparFiltrosAvancados() {
 }
 
 function salvarFiltroFavorito() {
+  sincronizarFiltrosAvancadosDoForm();
   const f = { ..._filtrosAvancados };
   const nome = [
     f.tipo && `Tipo:${f.tipo}`,
     f.cidade && `Cidade:${f.cidade}`,
+    (f._seg_label || f.cod_segmento) && `Segmento:${f._seg_label || f.cod_segmento}`,
+    f.cadastro_periodo === 'hoje' && 'Cadastro:hoje',
+    f.cadastro_periodo === 'semana' && 'Cadastro:semana',
+    f.cadastro_periodo === 'mes' && 'Cadastro:mês',
+    f.cadastro_periodo === 'ate' && (f.cadastro_ate ? `Cadastro até ${f.cadastro_ate}` : 'Cadastro até'),
+    f.cadastro_periodo === 'intervalo' && [f.cadastro_de && `De ${f.cadastro_de}`, f.cadastro_ate && `Até ${f.cadastro_ate}`].filter(Boolean).join(' '),
     f.sem_compra && `Sem compra +${f.sem_compra}d`,
     f.suspensa && 'Suspensos'
   ].filter(Boolean).join(', ');
@@ -6349,13 +6587,23 @@ function renderFavFiltros() {
     </span>`).join('');
 }
 
-function aplicarFavFiltro(i) {
+async function aplicarFavFiltro(i) {
   const f = _favFiltros[i]?.filtro;
   if (!f) return;
+  await garantirCategoriasFiltro();
+  setFiltroPanelOpen(true);
   document.getElementById('fa_tipo').value    = f.tipo || '';
   document.getElementById('fa_cidade').value  = f.cidade || '';
+  document.getElementById('fa_cod_segmento').value = f.cod_segmento ? String(f.cod_segmento) : '';
   document.getElementById('fa_sem_compra').value = f.sem_compra || '';
   document.getElementById('fa_suspensa').checked = !!f.suspensa;
+  const cp = document.getElementById('fa_cadastro_periodo');
+  if (cp) cp.value = f.cadastro_periodo || '';
+  const cde = document.getElementById('fa_cadastro_de');
+  if (cde) cde.value = f.cadastro_de || '';
+  const cat = document.getElementById('fa_cadastro_ate');
+  if (cat) cat.value = f.cadastro_ate || '';
+  onCadastroPeriodoChange();
   aplicarFiltroAvancado();
 }
 

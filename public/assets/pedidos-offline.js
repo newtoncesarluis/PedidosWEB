@@ -328,26 +328,35 @@
     if (!count()) closeQueueModal();
   }
 
+  let _syncEmAndamento = false;
   async function syncEntries(apiJFn, entries) {
     if (!isOnline()) return { ok: false, error: 'Sem conexão', synced: 0, failed: 0 };
     const api = resolveApiJ(apiJFn);
     if (!entries.length) return { ok: true, synced: 0, failed: 0 };
+    // Trava: impede que duas sincronizações simultâneas (dois toques/duas abas)
+    // enviem a mesma entrada antes de ela ser removida da fila e dupliquem o pedido.
+    if (_syncEmAndamento) return { ok: false, error: 'Sincronização já em andamento', synced: 0, failed: 0 };
+    _syncEmAndamento = true;
     let synced = 0;
     let failed = 0;
     const errors = [];
-    for (const entry of entries) {
-      try {
-        const body = normalizeBodyDescProd(entry.body);
-        const r = await api('/api/pedidos', 'POST', body);
-        if (r.status === 401) throw new Error('Sessão expirada — faça login online e sincronize novamente');
-        const data = await r.json();
-        if (!r.ok) throw new Error(data.error || 'Erro ao sincronizar');
-        remove(entry.localId);
-        synced++;
-      } catch (e) {
-        failed++;
-        errors.push(e.message || String(e));
+    try {
+      for (const entry of entries) {
+        try {
+          const body = normalizeBodyDescProd(entry.body);
+          const r = await api('/api/pedidos', 'POST', body);
+          if (r.status === 401) throw new Error('Sessão expirada — faça login online e sincronize novamente');
+          const data = await r.json();
+          if (!r.ok) throw new Error(data.error || 'Erro ao sincronizar');
+          remove(entry.localId);
+          synced++;
+        } catch (e) {
+          failed++;
+          errors.push(e.message || String(e));
+        }
       }
+    } finally {
+      _syncEmAndamento = false;
     }
     updateBadge();
     return { ok: failed === 0, synced, failed, errors };

@@ -33,7 +33,10 @@
   }
 
   function userIdFromToken(t) {
-    const p = decodeJwtPayload(t);
+    // Sem argumento, usar o token do storage — chamado sem arg em hasValidPack/
+    // updatePackBadge; antes retornava '' e o pacote era dado como inexistente
+    // ("Sem pacote offline") mesmo recém-preparado.
+    const p = decodeJwtPayload(t || token());
     return p ? String(p.id || p.idusuario || '') : '';
   }
 
@@ -389,6 +392,10 @@
       const t = norm(opts.cidade);
       list = list.filter((c) => norm(c.cidade).includes(t));
     }
+    if (opts.cod_segmento && parseInt(opts.cod_segmento, 10) > 0) {
+      const segId = String(parseInt(opts.cod_segmento, 10));
+      list = list.filter((c) => String(c.cod_segmento || '').trim() === segId);
+    }
     if (opts.suspensa === 'S') {
       list = list.filter((c) => String(c.venda_suspensa || '').toUpperCase() === 'S');
     }
@@ -595,14 +602,28 @@
 
   function tabelasDisponiveis(pack, cliId, forId, venId) {
     const vinc = pack.vinculosTabela || [];
+    const prepostoCtx = pack.prepostoVenCtx?.[String(venId)] || null;
+    const idsPermitidos = prepostoCtx?.idsPermitidos ?? null;
+    if (idsPermitidos && !idsPermitidos.length) {
+      return { tabelas: [], origem: null };
+    }
+    const allow = idsPermitidos
+      ? new Set(idsPermitidos.map((id) => parseInt(id, 10)).filter(Boolean))
+      : null;
+
     const priorities = [
-      { id: cliId, tipo: 'CLIENTE' },
       { id: forId, tipo: 'FORNECEDOR' },
-      { id: venId, tipo: 'VENDEDOR' }
+      { id: venId, tipo: 'VENDEDOR' },
+      { id: cliId, tipo: 'CLIENTE' }
     ];
     for (const p of priorities) {
       if (!p.id || p.id === 'null' || p.id === '0') continue;
-      const rows = vinc.filter(v => String(v.tipo_entidade) === p.tipo && String(v.id_entidade) === String(p.id));
+      let entId = p.id;
+      if (p.tipo === 'VENDEDOR' && prepostoCtx) entId = prepostoCtx.idEntidade;
+      let rows = vinc.filter(v => String(v.tipo_entidade) === p.tipo && String(v.id_entidade) === String(entId));
+      if (allow) {
+        rows = rows.filter((r) => allow.has(parseInt(r.id_tabela, 10)));
+      }
       if (rows.length) {
         return {
           tabelas: rows.map(r => ({ id_tabela: r.id_tabela, descricao: r.descricao })),
@@ -759,6 +780,7 @@
         offset: q.get('offset'),
         tipo_cliente: q.get('tipo_cliente'),
         cidade: q.get('cidade'),
+        cod_segmento: q.get('cod_segmento'),
         sem_compra_dias: q.get('sem_compra_dias'),
         suspensa: q.get('suspensa'),
         lat: q.get('lat'),
@@ -880,6 +902,37 @@
       return jsonResp(rows);
     }
 
+    const mKitPedido = path.match(/^\/api\/fornecedores\/(\d+)\/kit-pedido$/);
+    if (mKitPedido) {
+      const idForn = mKitPedido[1];
+      const forn = (pack.fornecedores || []).find(x => String(x.id) === idForn) || {};
+      const kit = (pack.kitPedidoPorFornecedor || {})[idForn] || { itens: [] };
+      const codCliente = parseInt(q.get('cod_cliente'), 10) || 0;
+      const pedidoId = parseInt(q.get('pedido_id'), 10) || 0;
+      let primeiraCompra = null;
+      if (codCliente) {
+        const pedidos = pack.pedidosRecentes || [];
+        const n = pedidos.filter((p) => {
+          if (String(p.cod_cliente) !== String(codCliente)) return false;
+          if (String(p.cod_fornecedor) !== String(idForn)) return false;
+          if (pedidoId && String(p.id) === String(pedidoId)) return false;
+          const tp = String(p.tipo_pedido || 'PEDIDO').toUpperCase();
+          return tp !== 'ORCAMENTO' && tp !== 'ORÇAMENTO';
+        }).length;
+        primeiraCompra = n === 0;
+      }
+      return jsonResp({
+        habilita_kit_pedido: forn.habilita_kit_pedido || 'N',
+        kit_desconto_pct: forn.kit_desconto_pct,
+        desconto_primeira_compra_pct: forn.desconto_primeira_compra_pct,
+        promo_primeira_compra_exige_kit: forn.promo_primeira_compra_exige_kit || 'N',
+        promo_condicao_pagto: forn.promo_condicao_pagto,
+        promo_texto_banner: forn.promo_texto_banner,
+        itens: kit.itens || [],
+        primeira_compra: primeiraCompra,
+      });
+    }
+
     const mTab = path.match(/^\/api\/tabela-precos\/disponiveis-para\/([^/]+)\/([^/]+)\/([^/]+)$/);
     if (mTab) {
       return jsonResp(tabelasDisponiveis(pack, mTab[1], mTab[2], mTab[3]));
@@ -919,6 +972,36 @@
 
     if (path.startsWith('/api/pedidos/ultimo-por-cliente/')) {
       return jsonResp({ pedido: null });
+    }
+
+    if (path === '/api/pedidos/obs-proximo' || path.startsWith('/api/pedidos/obs-proximo?')) {
+      const codCli = parseInt(q.get('cod_cliente'), 10);
+      const codForn = parseInt(q.get('cod_fornecedor'), 10);
+      if (!codCli || !codForn) return jsonResp({ pendente: null });
+      const lista = (pack.pedidosRecentes || []).filter((p) => {
+        if (String(p.cod_cliente) !== String(codCli)) return false;
+        if (String(p.cod_fornecedor) !== String(codForn)) return false;
+        const txt = String(p.obs_proximo_pedido || '').trim();
+        if (!txt) return false;
+        return String(p.obs_proximo_consumido || 'N').toUpperCase() !== 'S';
+      });
+      lista.sort((a, b) => {
+        const da = String(a.data_abertura || '');
+        const db = String(b.data_abertura || '');
+        if (da !== db) return db.localeCompare(da);
+        return (parseInt(b.id, 10) || 0) - (parseInt(a.id, 10) || 0);
+      });
+      const row = lista[0];
+      if (!row) return jsonResp({ pendente: null });
+      return jsonResp({
+        pendente: {
+          id: row.id,
+          numero: row.numero,
+          texto: String(row.obs_proximo_pedido || '').trim(),
+          data_abertura: row.data_abertura,
+        },
+        offline: true,
+      });
     }
 
     if (path.startsWith('/api/pedidos/comissoes-faturamento/')) {

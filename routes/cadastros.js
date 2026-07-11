@@ -315,6 +315,11 @@ async function ensureUsuarioColumns(pool) {
     ['comissao_vista', 'DECIMAL(15,3) DEFAULT 0'],
     ['comissao_prazo', 'DECIMAL(15,3) DEFAULT 0'],
     ['vlr_meta', 'DECIMAL(15,3) DEFAULT 0'],
+    ['instancia', 'VARCHAR(100) NULL DEFAULT NULL'],
+    ['chave', 'VARCHAR(250) NULL DEFAULT NULL'],
+    ['numero_whatsApp', 'VARCHAR(50) NULL DEFAULT NULL'],
+    ['status', 'VARCHAR(30) NULL DEFAULT NULL'],
+    ['data_conexao', 'DATETIME NULL DEFAULT NULL'],
     ['tipo_usuario', "VARCHAR(20) NOT NULL DEFAULT 'REPRESENTANTE'"],
     ['comissao_preposto_pct', 'DECIMAL(5,2) NOT NULL DEFAULT 6.00'],
     ['id_gerente', 'INT DEFAULT NULL'],
@@ -499,6 +504,7 @@ router.post('/usuarios', async (req, res) => {
     );
     const newId = r.insertId;
     await _updateUsuarioOpcional(pool, newId, req.body);
+    await ensureVendedorVinculadoAuto(pool, newId, req.body);
     res.status(201).json({ ok:true, id:newId });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -582,6 +588,7 @@ router.put('/usuarios/:id', async (req, res) => {
     vals.push(req.params.id);
     await pool.query(`UPDATE usuarios SET ${base.join(',')} WHERE idusuario=? AND COALESCE(excluido, 'N')='N'`, vals);
     await _updateUsuarioOpcional(pool, req.params.id, req.body);
+    await ensureVendedorVinculadoAuto(pool, req.params.id, req.body);
     res.json({ ok:true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -607,13 +614,38 @@ router.post('/usuarios/:id/avatar', uploadUsr.single('arquivo'), async (req, res
   }
 });
 
+async function ensureVendedorVinculadoAuto(pool, userId, body) {
+  const uid = parseInt(userId, 10);
+  if (!uid) return;
+  if (body.id_vendedor != null && body.id_vendedor !== '') return;
+
+  const tipo = String(body.tipo_usuario || 'REPRESENTANTE').toUpperCase();
+  if (tipo === 'PREPOSTO' || tipo === 'ADMIN') return;
+
+  const idperfil = parseInt(body.idperfil, 10);
+  if (!idperfil) return;
+
+  let permiteVender = false;
+  if (body.p_vender !== undefined && body.p_vender !== null) {
+    permiteVender = body.p_vender === 'S' || body.p_vender === true;
+  } else {
+    const [[perfil]] = await pool.query(
+      `SELECT p_vender FROM perfil WHERE id = ? LIMIT 1`,
+      [idperfil]
+    ).catch(() => [[]]);
+    permiteVender = String(perfil?.p_vender || 'N').toUpperCase() === 'S';
+  }
+  if (!permiteVender) return;
+
+  await pool.query(`UPDATE usuarios SET id_vendedor = ? WHERE idusuario = ?`, [uid, uid]);
+}
+
 async function _updateUsuarioOpcional(pool, id, body) {
   const n = v => v === 'S' || v === true ? 'S' : 'N';
-  const sets = [];
-  const vals = [];
-
+  // NÃO incluir rota_vendedor aqui — é tabela separada (rota_vendedor), não coluna de usuarios.
+  // Um UPDATE com coluna inexistente falhava inteiro e o .catch engolia o erro,
+  // impedindo gravar id_vendedor (e o restante dos vínculos).
   const opt = {
-    rota_vendedor: body.rota_vendedor||null,
     acessartodosclientes: n(body.acessartodosclientes),
     empresapadrao: body.empresapadrao||null,
     cod_grupo: body.cod_grupo||null,
@@ -687,12 +719,10 @@ async function _updateUsuarioOpcional(pool, id, body) {
     excluir_natureza: n(body.excluir_natureza),
   };
 
+  // Grava coluna a coluna: se alguma não existir na base legada, as demais (ex.: id_vendedor) ainda salvam.
   for (const [col, val] of Object.entries(opt)) {
-    sets.push(`${col}=?`); vals.push(val);
+    await pool.query(`UPDATE usuarios SET \`${col}\`=? WHERE idusuario=?`, [val, id]).catch(() => {});
   }
-  vals.push(id);
-  await pool.query(`UPDATE usuarios SET ${sets.join(',')} WHERE idusuario=?`, vals)
-    .catch(()=>{});
 }
 
 router.delete('/usuarios/:id', async (req, res) => {
@@ -754,15 +784,28 @@ router.post('/usuarios/:id/tabelas', async (req, res) => {
 router.post('/usuarios/:id/fornecedores', async (req, res) => {
   try {
     const pool = getPool();
+    await ensureUsuarioColumns(pool);
     const { id_fornecedores } = req.body;
     if (!Array.isArray(id_fornecedores))
       return res.status(400).json({ error:'id_fornecedores deve ser array' });
 
     const [[usr]] = await pool.query(`SELECT id_vendedor FROM usuarios WHERE idusuario=?`, [req.params.id]);
-    if (!usr || !usr.id_vendedor) 
-      return res.status(400).json({ error: 'Usuário não possui vendedor vinculado para salvar fornecedores' });
+    let codVendedor = usr?.id_vendedor || null;
 
-    const codVendedor = usr.id_vendedor;
+    // Fallback: se o front enviou id_vendedor no body e o usuário ainda não tem, grava agora
+    const idVendBody = req.body.id_vendedor != null && req.body.id_vendedor !== ''
+      ? parseInt(req.body.id_vendedor, 10)
+      : null;
+    if (!codVendedor && idVendBody) {
+      await pool.query(`UPDATE usuarios SET id_vendedor = ? WHERE idusuario = ?`, [idVendBody, req.params.id]);
+      codVendedor = idVendBody;
+    }
+
+    // Sem vendedor e sem fábricas marcadas: nada a gravar (não é erro)
+    if (!codVendedor) {
+      if (!id_fornecedores.length) return res.json({ ok: true, vinculadas: 0 });
+      return res.status(400).json({ error: 'Usuário não possui vendedor vinculado para salvar fornecedores' });
+    }
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
@@ -1413,10 +1456,16 @@ router.get('/segmentos', async (req, res) => {
   try {
     const pool = getPool();
     // Segmentos agora aponta para a tabela categoria conforme solicitado
-    const [rows] = await pool.query(`SELECT id, descricao, status FROM categoria WHERE excluido='N' ORDER BY descricao`);
+    const [rows] = await pool.query(`SELECT id, descricao, status FROM categoria WHERE COALESCE(excluido,'N')='N' ORDER BY descricao`);
     res.json({ segmentos: rows });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
+function _normStatusSegmento(st) {
+  const v = String(st || 'A').trim().toUpperCase();
+  if (v === 'A') return 'A';
+  return 'I';
+}
 
 router.post('/segmentos', async (req, res) => {
   try {
@@ -1425,7 +1474,7 @@ router.post('/segmentos', async (req, res) => {
     const pool = getPool();
     const { descricao, status } = req.body;
     if (!descricao) return res.status(400).json({ error: 'Descrição é obrigatória' });
-    const [r] = await pool.query(`INSERT INTO categoria (descricao, status, excluido) VALUES (?,?,'N')`, [descricao, status || 'A']);
+    const [r] = await pool.query(`INSERT INTO categoria (descricao, status, excluido) VALUES (?,?,'N')`, [descricao, _normStatusSegmento(status)]);
     res.status(201).json({ ok: true, id: r.insertId });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -1436,7 +1485,7 @@ router.put('/segmentos/:id', async (req, res) => {
     if (pc.alterar !== 'S') return negarCad(res, 'Sem permissão para alterar segmentos');
     const pool = getPool();
     const { descricao, status } = req.body;
-    await pool.query(`UPDATE categoria SET descricao=?, status=? WHERE id=?`, [descricao, status || 'A', req.params.id]);
+    await pool.query(`UPDATE categoria SET descricao=?, status=? WHERE id=?`, [descricao, _normStatusSegmento(status), req.params.id]);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

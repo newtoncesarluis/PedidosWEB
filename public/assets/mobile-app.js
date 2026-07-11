@@ -328,3 +328,123 @@ if (window.self !== window.top) {
   window.sysrep = window.sysrep || {};
   window.sysrep.hardenAutofill = hardenRoot;
 })();
+
+/** Pedidos — rodapé da lista em uma linha (funciona mesmo com pedidos.html em cache). */
+(function () {
+  'use strict';
+
+  if ((location.pathname || '').indexOf('/pages/pedidos.html') < 0) return;
+
+  var STYLE_ID = 'sysrep-pedidos-footer-layout';
+  var CSS = [
+    '@media (min-width:769px){',
+    '#listSection>.pagination-footer,#listSection>#pedidosPaginationFooter.pagination-footer{display:flex!important;flex-direction:column!important;padding:7px 12px!important;}',
+    '#listSection .pagination-footer-row{display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;align-items:center!important;gap:10px!important;width:100%!important;min-width:0!important;}',
+    '#listSection .pagination-footer .pag-info-text{flex:0 0 auto!important;width:auto!important;}',
+    '#listSection #statusStripSlot{flex:1 1 auto!important;min-width:0!important;overflow-x:auto!important;overflow-y:hidden!important;}',
+    '#listSection .pagination-footer .pag-controls{display:inline-flex!important;flex:0 0 auto!important;flex-wrap:nowrap!important;width:auto!important;min-width:max-content!important;align-items:center!important;gap:6px!important;}',
+    '#listSection .pagination-footer .pag-numbers{display:inline-flex!important;flex:0 0 auto!important;flex-wrap:nowrap!important;}',
+    '#listSection .pagination-footer .pag-select{flex:0 0 auto!important;width:auto!important;}',
+    '#syncTimestampFooter,.pag-sync-ts{display:none!important;}',
+    '}'
+  ].join('');
+
+  function injectStyle() {
+    if (document.getElementById(STYLE_ID)) return;
+    var st = document.createElement('style');
+    st.id = STYLE_ID;
+    st.textContent = CSS;
+    (document.head || document.documentElement).appendChild(st);
+  }
+
+  function ensureFooterRow() {
+    var footer = document.getElementById('pedidosPaginationFooter')
+      || document.querySelector('#listSection .pagination-footer');
+    if (!footer) return null;
+
+    var sync = document.getElementById('syncTimestampFooter');
+    if (sync) sync.remove();
+
+    var row = footer.querySelector('.pagination-footer-row');
+    if (!row) {
+      row = document.createElement('div');
+      row.className = 'pagination-footer-row';
+      while (footer.firstChild) row.appendChild(footer.firstChild);
+      footer.appendChild(row);
+    }
+    return footer;
+  }
+
+  function enforceLayout() {
+    if (!window.matchMedia('(min-width:769px)').matches) return;
+    var footer = ensureFooterRow();
+    if (!footer || footer.style.display === 'none') return;
+
+    var row = footer.querySelector('.pagination-footer-row') || footer;
+    row.style.setProperty('display', 'flex', 'important');
+    row.style.setProperty('flex-direction', 'row', 'important');
+    row.style.setProperty('flex-wrap', 'nowrap', 'important');
+    row.style.setProperty('align-items', 'center', 'important');
+    row.style.setProperty('width', '100%', 'important');
+
+    var slot = document.getElementById('statusStripSlot');
+    if (slot) {
+      slot.style.setProperty('flex', '1 1 auto', 'important');
+      slot.style.setProperty('min-width', '0', 'important');
+      slot.style.setProperty('overflow-x', 'auto', 'important');
+    }
+
+    var ctrl = footer.querySelector('.pag-controls');
+    if (ctrl) {
+      ctrl.style.setProperty('display', 'inline-flex', 'important');
+      ctrl.style.setProperty('flex', '0 0 auto', 'important');
+      ctrl.style.setProperty('flex-wrap', 'nowrap', 'important');
+      ctrl.style.setProperty('width', 'auto', 'important');
+      ctrl.style.setProperty('min-width', 'max-content', 'important');
+    }
+
+    var info = document.getElementById('pag-info-text');
+    if (info) info.style.setProperty('flex', '0 0 auto', 'important');
+  }
+
+  function boot() {
+    injectStyle();
+    ensureFooterRow();
+    enforceLayout();
+  }
+
+  function watchFooter() {
+    var footer = document.querySelector('#listSection .pagination-footer');
+    if (!footer || typeof MutationObserver === 'undefined') return;
+    var obs = new MutationObserver(function () {
+      ensureFooterRow();
+      enforceLayout();
+    });
+    obs.observe(footer, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
+    var slot = document.getElementById('statusStripSlot');
+    if (slot) obs.observe(slot, { childList: true, subtree: true });
+    var nums = document.getElementById('pag-numbers');
+    if (nums) obs.observe(nums, { childList: true, subtree: true });
+  }
+
+  function init() {
+    boot();
+    watchFooter();
+    window.addEventListener('resize', enforceLayout, { passive: true });
+    var n = 0;
+    var tick = function () {
+      enforceLayout();
+      if (++n < 40) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+
+  window.sysrep = window.sysrep || {};
+  window.sysrep.enforcePedidosFooterLayout = enforceLayout;
+})();

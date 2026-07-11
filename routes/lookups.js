@@ -57,7 +57,9 @@ router.get('/local-arm', async (req, res) => {
 // GET /api/lookups/tipograde → tabela: tipograde
 router.get('/tipograde', async (req, res) => {
   const rows = await query(
-    `SELECT id, nome, tipo FROM tipograde WHERE excluido='N' ORDER BY nome`
+    `SELECT id, nome, tipo FROM tipograde
+     WHERE excluido='N' AND (status='A' OR status IS NULL OR status='')
+     ORDER BY nome`
   );
   res.json(rows);
 });

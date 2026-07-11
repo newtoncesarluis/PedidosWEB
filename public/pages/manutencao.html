@@ -795,12 +795,21 @@ async function executar() {
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
+function _manutToken() {
+  return sessionStorage.getItem('token') || localStorage.getItem('token');
+}
+
 async function api(url, opts = {}) {
+  const t = _manutToken();
   const res = await fetch(url, {
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(t ? { Authorization: 'Bearer ' + t } : {}) },
     credentials: 'include',
     ...opts,
   });
+  if (res.status === 401) {
+    window.top.location.replace('/login.html');
+    throw new Error('Sessão expirada');
+  }
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Erro desconhecido');
   return data;

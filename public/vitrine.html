@@ -572,6 +572,21 @@ body{background:var(--bg)}
       </button>
     </div>
     <div id="vt-cart-items"></div>
+    <div id="vt-contato-fields" style="display:none;margin-bottom:12px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:600;color:var(--text2)">
+          Seu nome
+          <input id="vt-contato-nome" type="text" autocomplete="name" placeholder="Nome completo"
+            style="width:100%;border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;font:inherit;font-size:13px;background:#f8fafc;color:var(--text);outline:none;box-sizing:border-box">
+        </label>
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:600;color:var(--text2)">
+          WhatsApp / telefone
+          <input id="vt-contato-tel" type="tel" inputmode="tel" autocomplete="tel" placeholder="(00) 00000-0000"
+            style="width:100%;border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;font:inherit;font-size:13px;background:#f8fafc;color:var(--text);outline:none;box-sizing:border-box">
+        </label>
+      </div>
+      <p style="font-size:11px;color:var(--text3);margin:0;line-height:1.4">Seus dados vão para o representante confirmar o pedido.</p>
+    </div>
     <textarea id="vt-cart-obs" placeholder="Observação (opcional)…"></textarea>
     <div class="vt-cart-total"><span>Total</span><span id="vt-total-val">R$ 0,00</span></div>
     <div id="vt-send-err"></div>
@@ -1052,10 +1067,13 @@ body{background:var(--bg)}
   }
 
   function render() {
-    const { cliente, representante } = _dados;
-    document.getElementById('vt-nome-cliente').textContent = cliente?.nome || 'Catálogo';
+    const { cliente, representante, link_aberto, historico_disponivel } = _dados;
+    const aberto = link_aberto || !cliente;
+    document.getElementById('vt-nome-cliente').textContent = aberto ? 'Catálogo de produtos' : (cliente?.nome || 'Catálogo');
     document.getElementById('vt-nome-rep').textContent = representante?.nome ? 'Representante: ' + representante.nome : '';
-    document.title = (cliente?.nome || 'Catálogo') + ' — Vitrine Digital';
+    document.title = (aberto ? 'Catálogo' : (cliente?.nome || 'Catálogo')) + ' — Vitrine Digital';
+    document.getElementById('vt-hist-btn').style.display = historico_disponivel ? '' : 'none';
+    document.getElementById('vt-contato-fields').style.display = aberto ? '' : 'none';
     document.getElementById('vt-loading').style.display = 'none';
     renderSeletorTabela();
     renderTabs();
@@ -1256,18 +1274,39 @@ body{background:var(--bg)}
       id:p.id, descricao:p.descricao, unidade:p.unidade||'UN', preco:p.preco, quantidade:q
     }));
     if (!itens.length) return;
+    const aberto = _dados.link_aberto || !_dados.cliente;
+    const body = {
+      itens,
+      obs: document.getElementById('vt-cart-obs').value.trim(),
+      id_tabela: _tabelaAtiva,
+    };
+    if (aberto) {
+      body.contato = {
+        nome: document.getElementById('vt-contato-nome').value.trim(),
+        telefone: document.getElementById('vt-contato-tel').value.trim(),
+      };
+      if (!body.contato.nome || body.contato.telefone.length < 8) {
+        errEl.textContent = 'Informe seu nome e telefone para enviar o pedido.';
+        errEl.style.display = 'block';
+        return;
+      }
+    }
     const oldHTML = btn.innerHTML;
     btn.disabled = true; btn.textContent = 'Enviando…'; errEl.style.display = 'none';
     try {
       const r = await fetch('/api/vitrine/' + token + '/pedido', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({itens, obs: document.getElementById('vt-cart-obs').value.trim(), id_tabela: _tabelaAtiva})
+        body:JSON.stringify(body)
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.erro || 'Erro ao enviar');
       _cart = {}; updateBadge();
       document.getElementById('vt-cart-overlay').classList.remove('open');
       document.getElementById('vt-cart-obs').value = '';
+      if (aberto) {
+        document.getElementById('vt-contato-nome').value = '';
+        document.getElementById('vt-contato-tel').value = '';
+      }
       const pedidos = d.pedidos || [];
       const numEl = document.getElementById('vt-num-pedido');
       document.getElementById('vt-success-titulo').textContent =

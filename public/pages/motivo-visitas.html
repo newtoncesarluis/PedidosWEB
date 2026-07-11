@@ -170,12 +170,15 @@ input:focus,select:focus { border-color:var(--accent);box-shadow:0 0 0 3px rgba(
 <div id="toast-container"></div>
 <div id="dropMenu" class="dropdown-menu"></div>
 
+<script src="/assets/sysrep-api.js?v=1.1.3.24"></script>
 <script>
 let S = { filtroStatus: 'T', registroId: null };
+async function api(url, options = {}) {
+  return SysRepApi.fetch(url, options);
+}
 async function buscar() {
   try {
-    const r = await fetch('/api/motivo-visitas');
-    const d = await r.json();
+    const d = await api('/api/motivo-visitas');
     let lista = d.motivo_visitas || [];
     const q = document.getElementById('inputBusca').value.toLowerCase();
     if (S.filtroStatus !== 'T') lista = lista.filter(x => x.status === S.filtroStatus);
@@ -212,8 +215,7 @@ function abrirNovo() {
 }
 async function abrirEditar(id) {
   try {
-    const r = await fetch('/api/motivo-visitas');
-    const d = await r.json(); const f = d.motivo_visitas.find(x => x.id === id);
+    const d = await api('/api/motivo-visitas'); const f = d.motivo_visitas.find(x => x.id === id);
     if (!f) return; S.registroId = id;
     document.getElementById('f_id').value = f.id;
     document.getElementById('f_descricao').value = f.descricao;
@@ -227,11 +229,12 @@ async function salvar() {
   const payload = { descricao: document.getElementById('f_descricao').value.trim(), status: document.getElementById('f_status').value };
   if (!payload.descricao) return toast('Preencha a descrição','err');
   try {
-    const r = await fetch(S.registroId ? `/api/motivo-visitas/${S.registroId}` : '/api/motivo-visitas', {
-      method: S.registroId ? 'PUT' : 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
+    await api(S.registroId ? `/api/motivo-visitas/${S.registroId}` : '/api/motivo-visitas', {
+      method: S.registroId ? 'PUT' : 'POST', body: JSON.stringify(payload)
     });
-    if (r.ok) { toast('Salvo!','ok'); voltarLista(); } else toast('Erro ao salvar','err');
-  } catch(e) { toast('Erro de comunicação','err'); }
+    toast('Salvo!', 'ok');
+    voltarLista();
+  } catch(e) { toast(e.message || 'Erro ao salvar', 'err'); }
 }
 function abrirDrop(e, id) {
   e.stopPropagation(); const m = document.getElementById('dropMenu');
@@ -243,9 +246,10 @@ function abrirDrop(e, id) {
 async function excluir(id) {
   if (!confirm('Excluir?')) return;
   try {
-    const r = await fetch(`/api/motivo-visitas/${id}`, { method: 'DELETE' });
-    if (r.ok) { toast('Excluído!','ok'); buscar(); }
-  } catch(e) { toast('Erro ao excluir','err'); }
+    await api(`/api/motivo-visitas/${id}`, { method: 'DELETE' });
+    toast('Excluído!', 'ok');
+    buscar();
+  } catch(e) { toast('Erro ao excluir', 'err'); }
 }
 function toast(msg, tipo='ok') {
   const t = document.createElement('div'); t.className = `toast toast-${tipo}`; t.textContent = msg;

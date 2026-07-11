@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Dashboards Comerciais</title>
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<script src="/assets/comissao-preposto-ui.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg: var(--content-bg);
+    --card: var(--card-bg);
+    --border: var(--card-border);
+    --text: var(--content-text);
+    --t2: var(--text2);
+    --acc: var(--accent);
+    --acc-soft: var(--accent-soft);
+    --ok:#059669; --warn:#d97706; --danger:#dc2626;
+    --shadow: 0 10px 30px rgba(0,0,0,.07);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:var(--font);background:var(--bg);color:var(--text)}
+  .page{min-height:100vh;display:flex;flex-direction:column}
+
+  .toolbar{position:sticky;top:0;z-index:30;background:var(--card);border-bottom:1px solid var(--border);
+    padding:12px 16px;display:flex;flex-wrap:wrap;align-items:end;gap:10px;box-shadow:0 2px 10px rgba(0,0,0,.03)}
+  .title-wrap{min-width:200px;margin-right:auto}
+  .eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--t2);font-weight:800}
+  h1{margin:2px 0 0;font-size:20px;line-height:1.1}
+  .filter{display:flex;flex-direction:column;gap:4px;min-width:120px}
+  .filter label{font-size:10px;text-transform:uppercase;color:var(--t2);font-weight:800;letter-spacing:.6px}
+  .filter input,.filter select{height:34px;border:1.5px solid var(--border);border-radius:9px;padding:0 9px;
+    background:var(--bg);color:var(--text);font:inherit;outline:none}
+  .filter input:focus,.filter select:focus{border-color:var(--acc);box-shadow:0 0 0 3px var(--acc-soft)}
+  .btn{height:34px;border:none;border-radius:9px;padding:0 14px;font:inherit;font-weight:700;cursor:pointer;white-space:nowrap}
+  .btn-primary{background:var(--acc);color:var(--btn-text,#fff)}
+  .btn-secondary{background:var(--bg);color:var(--text);border:1.5px solid var(--border)}
+  .btn-ghost{background:transparent;color:var(--text);border:1.5px solid var(--border)}
+
+  .tabs{display:flex;gap:6px;overflow-x:auto;padding:10px 16px 0;background:var(--card);border-bottom:1px solid var(--border)}
+  .tab{appearance:none;border:none;background:transparent;color:var(--t2);font:inherit;font-weight:700;font-size:13px;
+    padding:9px 14px;border-radius:9px 9px 0 0;cursor:pointer;white-space:nowrap;border-bottom:3px solid transparent}
+  .tab:hover{color:var(--text)}
+  .tab.active{color:var(--acc);border-bottom-color:var(--acc);background:var(--bg)}
+
+  .content{padding:16px;display:grid;gap:14px}
+  .subpills{display:flex;gap:8px;flex-wrap:wrap}
+  .pill{appearance:none;border:1.5px solid var(--border);background:var(--card);color:var(--text);font:inherit;
+    font-weight:700;font-size:12px;padding:6px 13px;border-radius:999px;cursor:pointer}
+  .pill.active{background:var(--acc);color:var(--btn-text,#fff);border-color:var(--acc)}
+
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+  .kpi{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;box-shadow:var(--shadow)}
+  .kpi-label{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--t2);font-weight:800}
+  .kpi-value{font-size:23px;font-weight:800;margin-top:7px}
+  .kpi-sub{margin-top:5px;font-size:12px;color:var(--t2)}
+  .kpi-sub[data-dir="up"]{color:var(--ok)} .kpi-sub[data-dir="down"]{color:var(--danger)}
+
+  .panel{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px;box-shadow:var(--shadow)}
+  .panel h2{margin:0 0 3px;font-size:15px}
+  .panel-sub{font-size:12px;color:var(--t2);margin-bottom:12px}
+  .chart-wrap{position:relative;height:340px}
+  .chart-hint{font-size:11px;color:var(--t2);margin-top:8px;text-align:center}
+
+  table.grid{width:100%;border-collapse:collapse;font-size:13px}
+  table.grid th,table.grid td{padding:9px 10px;text-align:left;border-bottom:1px solid var(--border)}
+  table.grid th{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--t2);font-weight:800}
+  table.grid td.num,table.grid th.num{text-align:right;font-variant-numeric:tabular-nums}
+  table.grid tbody tr{cursor:pointer}
+  table.grid tbody tr:hover{background:var(--acc-soft)}
+  .delta{font-weight:800} .delta[data-dir="up"]{color:var(--ok)} .delta[data-dir="down"]{color:var(--danger)}
+  .placeholder{border:1px dashed var(--border);border-radius:8px;padding:16px;background:rgba(148,163,184,.05);
+    font-size:13px;color:var(--t2);text-align:center}
+  .grid-2{display:grid;grid-template-columns:1.4fr .6fr;gap:14px}
+  @media (max-width:980px){.grid-2{grid-template-columns:1fr}.chart-wrap{height:280px}}
+
+  .loading,.error{padding:16px;border-radius:8px;font-size:13px;background:var(--card);border:1px solid var(--border)}
+  .error{color:var(--danger)}
+
+  /* Modal de detalhe */
+  .modal-back{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:flex-start;justify-content:center;
+    z-index:60;padding:24px;overflow:auto}
+  .modal-back.open{display:flex}
+  .modal{background:var(--card);border:1px solid var(--border);border-radius:14px;width:min(960px,100%);box-shadow:0 24px 60px rgba(0,0,0,.3)}
+  .modal-head{display:flex;align-items:flex-start;gap:12px;padding:16px 18px;border-bottom:1px solid var(--border)}
+  .modal-head h3{margin:0;font-size:16px}
+  .modal-head .sub{font-size:12px;color:var(--t2);margin-top:3px}
+  .modal-x{margin-left:auto;border:none;background:transparent;color:var(--t2);font-size:22px;cursor:pointer;line-height:1}
+  .modal-tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px 18px;border-bottom:1px solid var(--border)}
+  .modal-tools .spacer{margin-left:auto}
+  .modal-body{padding:0 4px;max-height:52vh;overflow:auto}
+  .modal-foot{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:12px 18px;border-top:1px solid var(--border)}
+  .pagebtns{display:flex;gap:6px;align-items:center}
+  .pagebtns button{height:32px;min-width:32px;border:1.5px solid var(--border);background:var(--bg);color:var(--text);
+    border-radius:8px;font:inherit;font-weight:700;cursor:pointer;padding:0 10px}
+  .pagebtns button:disabled{opacity:.4;cursor:default}
+  .muted{font-size:12px;color:var(--t2)}
+  .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;background:var(--acc-soft);color:var(--acc)}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="toolbar">
+    <div class="title-wrap">
+      <div class="eyebrow">Comercial</div>
+      <h1>Dashboards Comerciais</h1>
+    </div>
+    <div class="filter"><label>Ano de</label><select id="fAnoIni"></select></div>
+    <div class="filter"><label>Ano até</label><select id="fAnoFim"></select></div>
+    <div class="filter"><label>Situação</label>
+      <select id="fSituacao">
+        <option value="TODOS">Todas</option>
+        <option value="PENDENTE">Pendente</option>
+        <option value="APROVADO">Aprovado</option>
+        <option value="CANCELADO">Cancelado</option>
+      </select>
+    </div>
+    <div class="filter" id="fUfWrap"><label>UF</label>
+      <input id="fUf" type="text" maxlength="2" placeholder="SP" autocomplete="off" style="text-transform:uppercase">
+    </div>
+    <div class="filter" id="fSegWrap"><label>Segmento</label>
+      <input id="fSeg" type="text" placeholder="Segmento" autocomplete="off">
+    </div>
+    <div class="filter" id="fVendWrap" style="display:none"><label>Vendedor</label>
+      <select id="fVend"><option value="">Todos</option></select>
+    </div>
+    <button class="btn btn-primary" id="btnAplicar">Atualizar</button>
+    <button class="btn btn-secondary" id="btnLimpar">Limpar</button>
+  </div>
+
+  <div class="tabs" id="tabs"></div>
+
+  <div class="content">
+    <div id="stateBox" class="loading">Carregando…</div>
+    <div id="view"></div>
+  </div>
+</div>
+
+<!-- Modal de detalhe -->
+<div class="modal-back" id="modalBack">
+  <div class="modal">
+    <div class="modal-head">
+      <div>
+        <h3 id="mTitle">Detalhe</h3>
+        <div class="sub" id="mSub"></div>
+      </div>
+      <button class="modal-x" id="mClose">&times;</button>
+    </div>
+    <div class="modal-tools">
+      <span class="muted">Registros por página</span>
+      <select id="mPageSize" class="filter" style="height:32px;border:1.5px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text)">
+        <option>10</option><option selected>20</option><option>50</option><option>100</option>
+      </select>
+      <span class="badge" id="mTotal">0 registros</span>
+      <span class="muted" id="mSoma"></span>
+      <div class="spacer"></div>
+      <button class="btn btn-ghost" id="mExcel">Excel</button>
+      <button class="btn btn-ghost" id="mPdf">PDF</button>
+      <button class="btn btn-ghost" id="mPrint">Imprimir</button>
+    </div>
+    <div class="modal-body"><div id="mTableWrap"></div></div>
+    <div class="modal-foot">
+      <span class="muted" id="mPageInfo"></span>
+      <div class="spacer" style="margin-left:auto"></div>
+      <div class="pagebtns" id="mPager"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Helpers ───────────────────────────────────────────────────────────────
+const money = v => Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+const intg  = v => Number(v||0).toLocaleString('pt-BR');
+const pct   = v => `${Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})}%`;
+const esc   = s => String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const trunc = (s,n=26)=>{ s=String(s??''); return s.length>n? s.slice(0,n-1)+'…': s; };
+const fmtDate = d => { if(!d) return '—'; const s=String(d).slice(0,10).split('-'); return s.length===3? `${s[2]}/${s[1]}/${s[0]}`: d; };
+function token(){ return localStorage.getItem('token')||sessionStorage.getItem('token')||''; }
+async function api(url){ const r=await fetch(url,{headers:{Authorization:'Bearer '+token()}}); if(!r.ok) throw new Error('Falha ao carregar dados'); return r.json(); }
+function css(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim()||'#0ea5e9'; }
+const YEAR_COLORS = ['#0ea5e9','#22c55e','#f59e0b','#a855f7','#ef4444','#14b8a6','#6366f1'];
+
+let CHARTS = [];
+function clearCharts(){ CHARTS.forEach(c=>{try{c.destroy()}catch(_){}}); CHARTS=[]; }
+
+// ── Filtros globais ───────────────────────────────────────────────────────
+function fillYears(){
+  const now = new Date().getFullYear();
+  const ini = document.getElementById('fAnoIni'), fim = document.getElementById('fAnoFim');
+  for(let y=now; y>=now-9; y--){
+    ini.insertAdjacentHTML('beforeend',`<option value="${y}">${y}</option>`);
+    fim.insertAdjacentHTML('beforeend',`<option value="${y}">${y}</option>`);
+  }
+  ini.value = String(now-2); fim.value = String(now);
+}
+function vendFilterId(){
+  const sel = document.getElementById('fVend');
+  return window.ComissaoPrepostoUi
+    ? ComissaoPrepostoUi.resolveVendedorFilterId(sel)
+    : (sel?.value || '');
+}
+function globalParams(){
+  const p = new URLSearchParams();
+  p.set('ano_ini', document.getElementById('fAnoIni').value);
+  p.set('ano_fim', document.getElementById('fAnoFim').value);
+  const sit = document.getElementById('fSituacao').value; if(sit&&sit!=='TODOS') p.set('situacao', sit);
+  const uf = document.getElementById('fUf').value.trim(); if(uf) p.set('uf', uf);
+  const seg = document.getElementById('fSeg').value.trim(); if(seg) p.set('segmento', seg);
+  const vend = vendFilterId(); if(vend) p.set('id_vendedor', vend);
+  return p;
+}
+async function fillVendedores(){
+  try{
+    const data = await api('/api/pedidos/lookup/vendedores');
+    const list = data.vendedores||[];
+    const sel = document.getElementById('fVend'), wrap = document.getElementById('fVendWrap');
+    if (window.ComissaoPrepostoUi) {
+      ComissaoPrepostoUi.populateVendedorSelect(sel, list, { wrapId: 'fVendWrap', emptyLabel: 'Todos', showWrap: true });
+      return;
+    }
+    if(list.length<=1 && list[0]){
+      sel.innerHTML = `<option value="${list[0].id}">${esc(list[0].nome||list[0].nome_vendedor)}</option>`;
+      sel.value = String(list[0].id); sel.disabled = true; wrap.style.display='';
+    }else if(list.length>1){
+      sel.innerHTML = '<option value="">Todos</option>'+list.map(v=>`<option value="${v.id}">${esc(v.nome||v.nome_vendedor)}</option>`).join('');
+      wrap.style.display='';
+    }
+  }catch(_){}
+}
+
+// ── Abas ──────────────────────────────────────────────────────────────────
+const TABS = [
+  { id:'geral',      label:'Visão Geral',  render:renderGeral },
+  { id:'fabricas',   label:'Fábricas',     render:()=>renderDim('fabricas',[['fornecedor','Por Fábrica']]) },
+  { id:'clientes',   label:'Clientes',     render:()=>renderDim('clientes',[['cliente','Por Cliente']]) },
+  { id:'produtos',   label:'Produtos',     render:()=>renderDim('produtos',[['produto','Por Produto'],['familia','Por Família']]) },
+  { id:'vendedores', label:'Vendedores',   render:()=>renderDim('vendedores',[['vendedor','Por Vendedor']]) },
+  { id:'geografico', label:'Geográfico',   render:()=>renderDim('geografico',[['estado','Por Estado'],['cidade','Por Cidade'],['segmento','Por Segmento']]) },
+  { id:'financeiro', label:'Financeiro',   render:renderFinanceiro },
+];
+let activeTab = 'geral';
+const subState = {};   // guarda a sub-dimensão escolhida por aba
+
+function buildTabs(){
+  document.getElementById('tabs').innerHTML = TABS.map(t=>
+    `<button class="tab${t.id===activeTab?' active':''}" data-tab="${t.id}">${t.label}</button>`).join('');
+  document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{ activeTab=b.dataset.tab; buildTabs(); loadActive(); });
+}
+function setState(msg,isErr){
+  const s=document.getElementById('stateBox');
+  if(msg){ s.style.display=''; s.className=isErr?'error':'loading'; s.textContent=msg; }
+  else { s.style.display='none'; }
+}
+async function loadActive(){
+  clearCharts();
+  document.getElementById('view').innerHTML='';
+  setState('Atualizando…',false);
+  try{ await (TABS.find(t=>t.id===activeTab).render()); setState('',false); }
+  catch(err){ setState(err.message||'Erro ao carregar',true); }
+}
+
+// ── Aba genérica de dimensão (ano a ano) ──────────────────────────────────
+async function renderDim(tabId, dims){
+  if(!subState[tabId]) subState[tabId] = dims[0][0];
+  const dim = subState[tabId];
+  const view = document.getElementById('view');
+  view.innerHTML = `
+    ${dims.length>1? `<div class="subpills" id="sub_${tabId}">`+
+      dims.map(([d,l])=>`<button class="pill${d===dim?' active':''}" data-d="${d}">${l}</button>`).join('')+`</div>`:''}
+    <div class="kpis" id="dimKpis"></div>
+    <div class="panel">
+      <h2 id="dimChartTitle"></h2>
+      <div class="panel-sub">Comparação de faturamento entre os anos selecionados — clique numa barra para ver o detalhe.</div>
+      <div class="chart-wrap"><canvas id="dimChart"></canvas></div>
+    </div>
+    <div class="panel">
+      <h2>Tabela comparativa</h2>
+      <div class="panel-sub">Clique numa linha para abrir o detalhe paginado (com exportação).</div>
+      <div id="dimTable"></div>
+    </div>`;
+  if(dims.length>1){
+    document.querySelectorAll(`#sub_${tabId} .pill`).forEach(b=>b.onclick=()=>{ subState[tabId]=b.dataset.d; renderDim(tabId,dims); });
+  }
+
+  const data = await api('/api/analytics/comercial/dash/series?dim='+dim+'&'+globalParams().toString());
+  const anos = data.anos||[];
+  const series = data.series||[];
+  document.getElementById('dimChartTitle').textContent = `Faturamento por ano — ${data.label}`;
+
+  // KPIs
+  const totGeral = series.reduce((a,s)=>a+Number(s.total||0),0);
+  const ultimo = anos[anos.length-1], penult = anos[anos.length-2];
+  let somaUlt=0, somaPen=0;
+  series.forEach(s=>{ somaUlt+=Number(s.porAno[ultimo]||0); somaPen+=Number(s.porAno[penult]||0); });
+  const varAno = somaPen? ((somaUlt-somaPen)/somaPen)*100 : (somaUlt?100:0);
+  const top1 = series[0];
+  document.getElementById('dimKpis').innerHTML = [
+    ['Total no período', money(totGeral), `${intg(series.length)} ${data.label.toLowerCase()}(s) no top`],
+    [`Faturamento ${ultimo||''}`, money(somaUlt), penult? `${varAno>=0?'▲':'▼'} ${pct(Math.abs(varAno))} vs ${penult}`:'', varAno>=0?'up':'down'],
+    [`Líder`, top1? trunc(top1.nome,22):'—', top1? money(top1.total):''],
+    ['Anos comparados', anos.join(' · ')||'—', ''],
+  ].map(([l,v,s,dir])=>`<div class="kpi"><div class="kpi-label">${l}</div><div class="kpi-value">${esc(v)}</div>${s?`<div class="kpi-sub"${dir?` data-dir="${dir}"`:''}>${esc(s)}</div>`:''}</div>`).join('');
+
+  // Chart agrupado por ano
+  if(!series.length){
+    document.getElementById('dimChart').parentElement.innerHTML='<div class="placeholder">Sem dados reais para o filtro atual.</div>';
+  }else{
+    const labels = series.map(s=>trunc(s.nome,22));
+    const datasets = anos.map((a,i)=>({
+      label:String(a), data:series.map(s=>Number(s.porAno[a]||0)),
+      backgroundColor:YEAR_COLORS[i%YEAR_COLORS.length], borderRadius:4, maxBarThickness:34,
+    }));
+    const ctx = document.getElementById('dimChart');
+    const ch = new Chart(ctx,{ type:'bar',
+      data:{labels,datasets},
+      options:{ responsive:true, maintainAspectRatio:false,
+        onClick:(e,els)=>{ if(els&&els[0]){ const s=series[els[0].index]; if(s) openDetail(dim,data.label,s.id,s.nome); } },
+        plugins:{ legend:{labels:{color:css('--content-text')}},
+          tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${money(c.parsed.y)}`}}},
+        scales:{ x:{ticks:{color:css('--text2'),maxRotation:60,minRotation:30}},
+          y:{ticks:{color:css('--text2'),callback:v=>'R$ '+intg(v)},grid:{color:'rgba(148,163,184,.15)'}}}}
+    });
+    CHARTS.push(ch);
+  }
+
+  // Tabela comparativa
+  const tbl = document.getElementById('dimTable');
+  if(!series.length){ tbl.innerHTML='<div class="placeholder">Sem dados.</div>'; return; }
+  const head = `<tr><th>#</th><th>${esc(data.label)}</th>${anos.map(a=>`<th class="num">${a}</th>`).join('')}<th class="num">Total</th><th class="num">Δ ${penult||''}→${ultimo||''}</th></tr>`;
+  const body = series.map((s,idx)=>{
+    const cu=Number(s.porAno[ultimo]||0), cp=Number(s.porAno[penult]||0);
+    const d = cp? ((cu-cp)/cp)*100 : (cu?100:0);
+    const dir = d>0?'up':d<0?'down':'flat';
+    return `<tr data-id="${esc(s.id)}" data-nome="${esc(s.nome)}">
+      <td>${idx+1}</td><td>${esc(trunc(s.nome,40))}</td>
+      ${anos.map(a=>`<td class="num">${money(s.porAno[a]||0)}</td>`).join('')}
+      <td class="num"><strong>${money(s.total)}</strong></td>
+      <td class="num delta" data-dir="${dir}">${penult?`${d>0?'+':''}${pct(d)}`:'—'}</td></tr>`;
+  }).join('');
+  tbl.innerHTML = `<table class="grid"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+  tbl.querySelectorAll('tbody tr').forEach(tr=>tr.onclick=()=>openDetail(dim,data.label,tr.dataset.id,tr.dataset.nome));
+}
+
+// ── Aba Visão Geral ───────────────────────────────────────────────────────
+async function renderGeral(){
+  const p = new URLSearchParams();
+  p.set('dt_inicio', document.getElementById('fAnoFim').value+'-01-01');
+  p.set('dt_fim', document.getElementById('fAnoFim').value+'-12-31');
+  const sit=document.getElementById('fSituacao').value; if(sit&&sit!=='TODOS') p.set('situacao',sit);
+  const vend=vendFilterId(); if(vend) p.set('id_vendedor',vend);
+  const data = await api('/api/analytics/comercial/overview?'+p.toString());
+  const k = data.kpis||{}, c = data.comparativos||{};
+  const view = document.getElementById('view');
+  view.innerHTML = `
+    <div class="kpis">
+      ${kpiCard('Faturamento',money(k.valor_total),deltaTxt(c.faturamento),deltaDir(c.faturamento))}
+      ${kpiCard('Pedidos',intg(k.total_pedidos),deltaTxt(c.pedidos),deltaDir(c.pedidos))}
+      ${kpiCard('Ticket Médio',money(k.ticket_medio),deltaTxt(c.ticket_medio),deltaDir(c.ticket_medio))}
+      ${kpiCard('Clientes',intg(k.total_clientes),`${intg(k.total_fornecedores)} fábricas`,'')}
+      ${kpiCard('Aprovação',pct(k.taxa_aprovacao),`${intg(k.aprovados)} aprovados`,'')}
+      ${kpiCard('Cancelamento',pct(k.taxa_cancelamento),`${intg(k.cancelados)} cancelados`,'')}
+    </div>
+    <div class="grid-2">
+      <div class="panel"><h2>Faturamento mensal (${document.getElementById('fAnoFim').value})</h2>
+        <div class="panel-sub">Evolução de faturamento por mês.</div>
+        <div class="chart-wrap"><canvas id="gSerie"></canvas></div></div>
+      <div class="panel"><h2>Situação dos pedidos</h2>
+        <div class="panel-sub">Distribuição por status.</div>
+        <div class="chart-wrap"><canvas id="gStatus"></canvas></div></div>
+    </div>
+    <div class="grid-2">
+      <div class="panel"><h2>Top Clientes</h2><div class="panel-sub">Clique para o detalhe.</div><div id="gCli"></div></div>
+      <div class="panel"><h2>Top Produtos</h2><div class="panel-sub">Maior valor faturado.</div><div id="gProd"></div></div>
+    </div>`;
+
+  const serie = data.serie_mensal||[];
+  if(serie.length){
+    CHARTS.push(new Chart(document.getElementById('gSerie'),{ type:'line',
+      data:{labels:serie.map(s=>s.periodo),datasets:[{label:'Faturamento',data:serie.map(s=>Number(s.valor_total||0)),
+        borderColor:css('--accent'),backgroundColor:'rgba(14,165,233,.15)',fill:true,tension:.3,pointRadius:3}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
+        tooltip:{callbacks:{label:c=>money(c.parsed.y)}}},
+        scales:{x:{ticks:{color:css('--text2')}},y:{ticks:{color:css('--text2'),callback:v=>'R$ '+intg(v)},grid:{color:'rgba(148,163,184,.15)'}}}}}));
+  } else document.getElementById('gSerie').parentElement.innerHTML='<div class="placeholder">Sem dados.</div>';
+
+  const st = data.status||[];
+  if(st.length){
+    CHARTS.push(new Chart(document.getElementById('gStatus'),{ type:'doughnut',
+      data:{labels:st.map(s=>s.situacao),datasets:[{data:st.map(s=>Number(s.valor_total||0)),
+        backgroundColor:YEAR_COLORS}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:css('--content-text')}},
+        tooltip:{callbacks:{label:c=>`${c.label}: ${money(c.parsed)}`}}}}}));
+  } else document.getElementById('gStatus').parentElement.innerHTML='<div class="placeholder">Sem dados.</div>';
+
+  simpleRank('gCli',(data.rankings?.clientes||[]),'nome_cliente',r=>money(r.valor_total),r=>`${intg(r.total_pedidos)} pedidos`,
+    r=>openDetail('cliente','Cliente',r.id_cliente,r.nome_cliente));
+  simpleRank('gProd',(data.rankings?.produtos||[]),'desc_prod',r=>money(r.valor_total),r=>`${intg(r.quantidade_total)} un`,
+    r=>openDetail('produto','Produto',r.cod_produto,r.desc_prod));
+}
+
+// ── Aba Financeiro ────────────────────────────────────────────────────────
+async function renderFinanceiro(){
+  const p = new URLSearchParams();
+  p.set('dt_inicio', document.getElementById('fAnoIni').value+'-01-01');
+  p.set('dt_fim', document.getElementById('fAnoFim').value+'-12-31');
+  const vend=vendFilterId(); if(vend) p.set('id_vendedor',vend);
+  const data = await api('/api/analytics/comercial/financeiro-pedidos?'+p.toString());
+  const k=data.kpis||{};
+  const view=document.getElementById('view');
+  view.innerHTML = `
+    <div class="kpis">
+      ${kpiCard('Carteira total',money(k.carteira_total),'',' ')}
+      ${kpiCard('Em aberto',money(k.total_aberto),`${intg(k.total_parcelas)} parcelas`,'')}
+      ${kpiCard('Recebido',money(k.total_recebido),pct(k.percentual_recebido)+' da carteira','')}
+      ${kpiCard('Vencido',money(k.total_vencido),`${intg(k.qtd_vencida)} parcelas`,'down')}
+      ${kpiCard('Inadimplência',pct(k.inadimplencia),'do saldo em aberto','')}
+      ${kpiCard('Clientes expostos',intg(k.clientes_expostos),'com parcelas','')}
+    </div>
+    <div class="grid-2">
+      <div class="panel"><h2>Aging da carteira</h2><div class="panel-sub">Parcelas em aberto por faixa de atraso.</div>
+        <div class="chart-wrap"><canvas id="fAging"></canvas></div></div>
+      <div class="panel"><h2>Status</h2><div class="panel-sub">Valor por situação.</div>
+        <div class="chart-wrap"><canvas id="fStatus"></canvas></div></div>
+    </div>
+    <div class="panel"><h2>Clientes com maior exposição</h2><div class="panel-sub">Clique para o detalhe de pedidos.</div><div id="fCli"></div></div>`;
+
+  const ag=data.aging||[];
+  if(ag.length){
+    CHARTS.push(new Chart(document.getElementById('fAging'),{type:'bar',
+      data:{labels:ag.map(a=>a.faixa),datasets:[{label:'Valor',data:ag.map(a=>Number(a.valor_total||0)),
+        backgroundColor:ag.map((a,i)=>YEAR_COLORS[i%YEAR_COLORS.length]),borderRadius:4}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
+        tooltip:{callbacks:{label:c=>money(c.parsed.y)}}},
+        scales:{x:{ticks:{color:css('--text2')}},y:{ticks:{color:css('--text2'),callback:v=>'R$ '+intg(v)},grid:{color:'rgba(148,163,184,.15)'}}}}}));
+  } else document.getElementById('fAging').parentElement.innerHTML='<div class="placeholder">Sem dados.</div>';
+
+  const st=data.status||[];
+  if(st.length){
+    CHARTS.push(new Chart(document.getElementById('fStatus'),{type:'doughnut',
+      data:{labels:st.map(s=>s.faixa_status),datasets:[{data:st.map(s=>Number(s.valor_total||0)),backgroundColor:YEAR_COLORS}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:css('--content-text')}},
+        tooltip:{callbacks:{label:c=>`${c.label}: ${money(c.parsed)}`}}}}}));
+  } else document.getElementById('fStatus').parentElement.innerHTML='<div class="placeholder">Sem dados.</div>';
+
+  simpleRank('fCli',(data.rankings?.clientes||[]),'nome_cliente',r=>money(r.aberto),r=>`Vencido ${money(r.vencido)}`,
+    r=>openDetail('cliente','Cliente',r.id_cliente,r.nome_cliente));
+}
+
+// ── Componentes auxiliares ────────────────────────────────────────────────
+function kpiCard(label,value,sub,dir){
+  return `<div class="kpi"><div class="kpi-label">${label}</div><div class="kpi-value">${esc(value)}</div>${sub?`<div class="kpi-sub"${dir&&dir!==' '?` data-dir="${dir}"`:''}>${esc(sub)}</div>`:''}</div>`;
+}
+function deltaTxt(c){ if(!c) return ''; const v=Number(c.variacao_pct||0); return `${v>0?'▲':v<0?'▼':''} ${pct(Math.abs(v))} vs anterior`; }
+function deltaDir(c){ if(!c) return ''; const v=Number(c.variacao_pct||0); return v>0?'up':v<0?'down':''; }
+function simpleRank(elId,rows,titleKey,mainFmt,subFmt,onClick){
+  const box=document.getElementById(elId);
+  if(!rows||!rows.length){ box.innerHTML='<div class="placeholder">Sem dados.</div>'; return; }
+  box.innerHTML = `<table class="grid"><tbody>${rows.map((r,i)=>
+    `<tr data-i="${i}"><td style="width:28px">${i+1}</td><td>${esc(trunc(r[titleKey],38))}<div class="muted">${esc(subFmt(r))}</div></td>
+     <td class="num"><strong>${mainFmt(r)}</strong></td></tr>`).join('')}</tbody></table>`;
+  box.querySelectorAll('tbody tr').forEach(tr=>tr.onclick=()=>onClick(rows[+tr.dataset.i]));
+}
+
+// ── Modal de detalhe (paginado + exportação) ──────────────────────────────
+const M = { dim:'', label:'', id:'', nome:'', page:1, pageSize:20, level:'pedido', rows:[], total:0, totalPages:1, soma:0 };
+function detailParams(extra){
+  const p = globalParams();
+  p.set('dim', M.dim); p.set('id', M.id);
+  p.set('page', extra?.page ?? M.page); p.set('page_size', extra?.page_size ?? M.pageSize);
+  return p;
+}
+async function fetchDetail(){
+  const data = await api('/api/analytics/comercial/dash/detalhe?'+detailParams().toString());
+  M.level=data.level; M.rows=data.rows||[]; M.total=data.total||0; M.totalPages=data.total_pages||1; M.soma=data.soma||0;
+}
+function renderDetailTable(){
+  const wrap=document.getElementById('mTableWrap');
+  if(!M.rows.length){ wrap.innerHTML='<div class="placeholder">Sem registros.</div>'; return; }
+  let head, body;
+  if(M.level==='item'){
+    head=`<tr><th>Pedido</th><th>Data</th><th>Cliente</th><th>Produto</th><th class="num">Qtd</th><th class="num">Valor</th><th>Situação</th></tr>`;
+    body=M.rows.map(r=>`<tr><td>${esc(r.numero)}</td><td>${fmtDate(r.data)}</td><td>${esc(trunc(r.nome_cliente,28))}</td>
+      <td>${esc(trunc(r.desc_prod,30))}</td><td class="num">${intg(r.quantidade)}</td><td class="num">${money(r.valor)}</td><td>${esc(r.situacao||'')}</td></tr>`).join('');
+  }else{
+    head=`<tr><th>Pedido</th><th>Data</th><th>Cliente</th><th>Fábrica</th><th>Vendedor</th><th>Situação</th><th class="num">Valor</th></tr>`;
+    body=M.rows.map(r=>`<tr><td>${esc(r.numero)}</td><td>${fmtDate(r.data)}</td><td>${esc(trunc(r.nome_cliente,24))}</td>
+      <td>${esc(trunc(r.nome_fornecedor,18))}</td><td>${esc(trunc(r.nome_vendedor,16))}</td><td>${esc(r.situacao||'')}</td><td class="num">${money(r.valor)}</td></tr>`).join('');
+  }
+  wrap.innerHTML=`<table class="grid"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+}
+function renderPager(){
+  document.getElementById('mTotal').textContent = `${intg(M.total)} registros`;
+  document.getElementById('mSoma').textContent = `Σ ${money(M.soma)}`;
+  document.getElementById('mPageInfo').textContent = `Página ${M.page} de ${M.totalPages}`;
+  const pg=document.getElementById('mPager');
+  const b=(lbl,pageTo,dis)=>`<button data-p="${pageTo}" ${dis?'disabled':''}>${lbl}</button>`;
+  let html=b('«',1,M.page<=1)+b('‹',M.page-1,M.page<=1);
+  const from=Math.max(1,M.page-2), to=Math.min(M.totalPages,M.page+2);
+  for(let i=from;i<=to;i++) html+=`<button data-p="${i}" ${i===M.page?'style="background:var(--acc);color:var(--btn-text,#fff);border-color:var(--acc)"':''}>${i}</button>`;
+  html+=b('›',M.page+1,M.page>=M.totalPages)+b('»',M.totalPages,M.page>=M.totalPages);
+  pg.innerHTML=html;
+  pg.querySelectorAll('button').forEach(btn=>btn.onclick=async()=>{ const t=+btn.dataset.p; if(t===M.page||t<1||t>M.totalPages) return; M.page=t; await reloadDetail(); });
+}
+async function reloadDetail(){
+  document.getElementById('mTableWrap').innerHTML='<div class="loading">Carregando…</div>';
+  try{ await fetchDetail(); renderDetailTable(); renderPager(); }
+  catch(err){ document.getElementById('mTableWrap').innerHTML=`<div class="error">${esc(err.message)}</div>`; }
+}
+async function openDetail(dim,label,id,nome){
+  M.dim=dim; M.label=label; M.id=id; M.nome=nome; M.page=1;
+  M.pageSize=+document.getElementById('mPageSize').value||20;
+  document.getElementById('mTitle').textContent=`${label}: ${nome}`;
+  const yi=document.getElementById('fAnoIni').value, yf=document.getElementById('fAnoFim').value;
+  document.getElementById('mSub').textContent=`Anos ${yi}–${yf} · pedidos detalhados conforme filtros aplicados`;
+  document.getElementById('modalBack').classList.add('open');
+  await reloadDetail();
+}
+function closeDetail(){ document.getElementById('modalBack').classList.remove('open'); }
+
+// Exportação: busca TODOS os registros do detalhe (sem paginar) e gera arquivo
+async function fetchAllDetail(){
+  const p=detailParams({page:1,page_size:10000});
+  const data=await api('/api/analytics/comercial/dash/detalhe?'+p.toString());
+  return data.rows||[];
+}
+function detailColumns(){
+  return M.level==='item'
+    ? [['Pedido',r=>r.numero],['Data',r=>fmtDate(r.data)],['Cliente',r=>r.nome_cliente],['Produto',r=>r.desc_prod],['Qtd',r=>r.quantidade],['Valor',r=>Number(r.valor||0)],['Situação',r=>r.situacao||'']]
+    : [['Pedido',r=>r.numero],['Data',r=>fmtDate(r.data)],['Cliente',r=>r.nome_cliente],['Fábrica',r=>r.nome_fornecedor],['Vendedor',r=>r.nome_vendedor],['Situação',r=>r.situacao||''],['Valor',r=>Number(r.valor||0)]];
+}
+async function exportExcel(){
+  const rows=await fetchAllDetail(); const cols=detailColumns();
+  const brl=v=>typeof v==='number'? String(v).replace('.',','):String(v??'');
+  const sep=';';
+  let csv=cols.map(c=>`"${c[0]}"`).join(sep)+'\r\n';
+  rows.forEach(r=>{ csv+=cols.map(c=>{ const v=c[1](r); return `"${String(v??'').replace(/"/g,'""').replace(/^(\d+)\.(\d+)$/,'$1,$2')}"`; }).join(sep)+'\r\n'; });
+  const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=`detalhe_${M.dim}_${(M.nome||'').replace(/[^\w]+/g,'_').slice(0,30)}.csv`; a.click(); URL.revokeObjectURL(a.href);
+}
+async function exportPrint(asPdf){
+  const rows=await fetchAllDetail(); const cols=detailColumns();
+  const yi=document.getElementById('fAnoIni').value, yf=document.getElementById('fAnoFim').value;
+  const head=cols.map(c=>`<th>${esc(c[0])}</th>`).join('');
+  const body=rows.map(r=>`<tr>${cols.map(c=>{ const v=c[1](r); const num=c[0]==='Valor'||c[0]==='Qtd';
+    return `<td class="${num?'n':''}">${c[0]==='Valor'?money(v):esc(v)}</td>`; }).join('')}</tr>`).join('');
+  const total=rows.reduce((a,r)=>a+(M.level==='item'?Number(r.valor||0):Number(r.valor||0)),0);
+  const w=window.open('','_blank');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(M.label)} — ${esc(M.nome)}</title>
+    <style>body{font-family:Arial,Helvetica,sans-serif;color:#111;padding:18px}
+    h1{font-size:18px;margin:0 0 2px} .meta{color:#555;font-size:12px;margin-bottom:14px}
+    table{width:100%;border-collapse:collapse;font-size:12px} th,td{border:1px solid #ccc;padding:5px 7px;text-align:left}
+    th{background:#f1f5f9} td.n,th.n{text-align:right} tfoot td{font-weight:bold;background:#f8fafc}
+    @media print{button{display:none}}</style></head><body>
+    <h1>${esc(M.label)}: ${esc(M.nome)}</h1>
+    <div class="meta">Anos ${yi}–${yf} · ${rows.length} registros · Total ${money(total)} · gerado em ${new Date().toLocaleString('pt-BR')}</div>
+    <table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>
+    <script>window.onload=function(){window.print();}<\/script></body></html>`);
+  w.document.close();
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────
+document.getElementById('btnAplicar').onclick=loadActive;
+document.getElementById('btnLimpar').onclick=()=>{
+  document.getElementById('fSituacao').value='TODOS';
+  document.getElementById('fUf').value=''; document.getElementById('fSeg').value='';
+  const v=document.getElementById('fVend'); if(!v.disabled) v.value='';
+  loadActive();
+};
+document.getElementById('mClose').onclick=closeDetail;
+document.getElementById('modalBack').onclick=e=>{ if(e.target.id==='modalBack') closeDetail(); };
+document.getElementById('mPageSize').onchange=async e=>{ M.pageSize=+e.target.value||20; M.page=1; await reloadDetail(); };
+document.getElementById('mExcel').onclick=()=>exportExcel().catch(err=>alert(err.message));
+document.getElementById('mPdf').onclick=()=>exportPrint(true).catch(err=>alert(err.message));
+document.getElementById('mPrint').onclick=()=>exportPrint(false).catch(err=>alert(err.message));
+
+fillYears();
+buildTabs();
+fillVendedores().finally(loadActive);
+
+window.addEventListener('message',ev=>{
+  if(ev.data&&ev.data.type==='theme-changed'){ document.documentElement.setAttribute('data-theme',ev.data.theme); }
+});
+</script>
+</body>
+</html>

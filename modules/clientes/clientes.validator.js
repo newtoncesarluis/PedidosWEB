@@ -67,11 +67,32 @@ function validarCliente(body, config = {}) {
     errors.push('Nome é obrigatório');
   }
 
+  const doc = String(body.cpf || '').replace(/\D/g, '');
+  const tipo = String(body.tipo_pessoa || 'JURIDICA').toUpperCase();
+  const isPJ = tipo === 'JURIDICA' || tipo === 'J';
+
+  if (!doc) {
+    errors.push(isPJ ? 'CNPJ é obrigatório' : 'CPF é obrigatório');
+  } else if (isPJ) {
+    if (doc.length !== 14) errors.push('CNPJ deve ter 14 dígitos');
+    else if (!validarCNPJ(doc)) errors.push('CNPJ inválido');
+  } else {
+    if (doc.length !== 11) errors.push('CPF deve ter 11 dígitos');
+    else if (!validarCPF(doc)) errors.push('CPF inválido');
+  }
+
   // Se o sistema estiver configurado para FAST, ramo de atividades é obrigatório
   if (config.gcostumizadopara === 'FAST') {
     if (!body.ramoatividades || !String(body.ramoatividades).trim()) {
       errors.push('Ramo de atividades é obrigatório');
     }
+  }
+
+  // Se carteira fechada/equipe, vendedor é obrigatório
+  const { vendedorObrigatorioNaCarteira, codVendedorInformado } = require('../../config/carteira-politica');
+  if (vendedorObrigatorioNaCarteira(config)
+      && !codVendedorInformado(body.cod_vendedor)) {
+    errors.push('Vendedor / representante é obrigatório');
   }
 
   return { valid: errors.length === 0, errors };

@@ -11,12 +11,38 @@
 <meta http-equiv="Expires" content="0">
 <title>PedidosWeb — Login</title>
 <script src="/assets/mobile-route.js"></script>
-<script src="/assets/pedidos-offline-pack.js?v=20260607j"></script>
+<script>
+(function () {
+  function loginMobileUi() {
+    if (window.SysRepMobile && typeof SysRepMobile.isMobileShellMode === 'function') {
+      return SysRepMobile.isMobileShellMode();
+    }
+    try { return window.matchMedia('(max-width: 920px)').matches; }
+    catch (_) { return typeof window.innerWidth === 'number' && window.innerWidth <= 920; }
+  }
+  if (loginMobileUi()) document.documentElement.classList.add('login-mobile-ui');
+})();
+</script>
+<script src="/assets/pedidos-offline-pack.js?v=20260702a"></script>
+<script src="/assets/offline-login.js?v=20260702a"></script>
 <script>
 (function () {
   if (navigator.onLine !== false) return;
+  // Proteção anti-loop: se já tentamos redirecionar offline nesta sessão e
+  // voltamos para o login, o token provavelmente está expirado — não redirecionar de novo.
+  try { if (sessionStorage.getItem('sysrep_offline_redirect')) return; } catch (_) {}
   var t = sessionStorage.getItem('token') || localStorage.getItem('token');
   if (!t) return;
+  // Checar expiração do JWT antes de redirecionar (token expirado = loop garantido)
+  try {
+    var payload = JSON.parse(atob(t.split('.')[1]));
+    if (payload.exp && payload.exp * 1000 < Date.now()) {
+      // Token expirado — limpar e mostrar login normalmente
+      try { localStorage.removeItem('token'); sessionStorage.removeItem('token'); } catch (_) {}
+      return;
+    }
+  } catch (_) { return; } // token malformado — não redirecionar
+  try { sessionStorage.setItem('sysrep_offline_redirect', '1'); } catch (_) {}
   var dest = (window.SysRepMobile && typeof SysRepMobile.postLoginTarget === 'function')
     ? SysRepMobile.postLoginTarget() : ('/mobile-shell.html?_=' + Date.now());
   location.replace(dest);
@@ -152,6 +178,72 @@
     object-fit: contain;
     display: none;
   }
+  .logo-empresa-nome {
+    display: none;
+    font-size: 12px;
+    font-weight: 500;
+    color: #94a3b8;
+    text-align: center;
+    max-width: min(280px, 90%);
+    line-height: 1.45;
+    letter-spacing: 0.01em;
+  }
+  .login-footer-line {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: nowrap;
+    margin-bottom: 2px;
+  }
+  .login-footer-mobile-brand { display: none; }
+  .login-footer-sep {
+    opacity: 0.45;
+    font-size: 12px;
+    line-height: 1;
+    user-select: none;
+  }
+  .login-footer-pw-logo {
+    height: 16px;
+    width: auto;
+    max-width: 88px;
+    object-fit: contain;
+    opacity: 0.72;
+    vertical-align: middle;
+  }
+  #login-version {
+    font-size: 11px;
+    font-weight: 600;
+    color: #8b93a8;
+    letter-spacing: 0.02em;
+    line-height: 1;
+  }
+  .login-footer-copy {
+    font-size: 11px;
+    color: #9aa0b4;
+    line-height: 1.5;
+  }
+
+  /* Mobile UI (classe aplicada no <html> antes do paint) */
+  html.login-mobile-ui .logo #login_logo_fallback_img { display: none !important; }
+  html.login-mobile-ui .login-footer-desktop-text { display: none; }
+  html.login-mobile-ui .login-footer-mobile-brand { display: inline-flex; align-items: center; }
+  html.login-mobile-ui .login-footer-pw-logo {
+    height: 32px;
+    max-width: 142px;
+    opacity: 0.94;
+  }
+  html.login-mobile-ui .login-footer-line { gap: 11px; }
+  html.login-mobile-ui #login-version { font-size: 12px; }
+  html.login-mobile-ui .logo img#login_logo_img {
+    display: block;
+    max-height: min(140px, 28vh);
+    max-width: min(340px, 94%);
+    width: auto;
+    height: auto;
+    object-fit: contain;
+  }
+  html.login-mobile-ui .logo { min-height: 100px; margin-bottom: 32px; }
   .logo svg { display: none; }
   .logo-name { display: none; }
   .logo-subtitle { display: none; }
@@ -389,7 +481,24 @@
       max-width: 100%; min-height: 100svh;
       display: flex; flex-direction: column; justify-content: center;
     }
-    .logo { display: flex; margin-bottom: 24px; }
+    .logo { display: flex; margin-bottom: 32px; min-height: 100px; }
+    .logo img#login_logo_img {
+      max-height: min(140px, 28vh);
+      max-width: min(340px, 94%);
+      width: auto;
+      height: auto;
+      object-fit: contain;
+    }
+    .logo #login_logo_fallback_img { display: none !important; }
+    .login-footer-desktop-text { display: none; }
+    .login-footer-mobile-brand { display: inline-flex; align-items: center; }
+    .login-footer-pw-logo {
+      height: 32px;
+      max-width: 142px;
+      opacity: 0.94;
+    }
+    .login-footer-line { gap: 11px; }
+    #login-version { font-size: 12px; }
     .form-heading { display: none; }
     .field input, .field select { font-size: 16px; padding: 13px 14px; }
     .pass-wrap input { padding-right: 46px; }
@@ -701,11 +810,26 @@
 <div class="login-form-panel">
 <div class="card">
 
-  <!-- Logo (imagem da empresa cadastrada em Empresas → Logo, ou padrão) -->
+  <!-- Logo (mobile: empresa ao abrir; desktop: oculto) -->
   <div class="logo" id="login_brand">
-    <img id="login_logo_img" alt="">
+    <img id="login_logo_img"
+         src="/api/login-logo"
+         alt="Logo da empresa"
+         onerror="window._loginLogoTenantFail && window._loginLogoTenantFail(this)">
+    <div class="logo-empresa-nome" id="login_empresa_nome" aria-hidden="true"></div>
     <img class="logo-brand-img" id="login_logo_fallback_img" src="https://cohrp.com.br/LogoPedidoWeb/pedidsoweb.jpeg" alt="PedidosWeb - CRM de Vendas">
   </div>
+  <script>
+  window._loginLogoTenantFail = function (img) {
+    if (img) img.style.display = 'none';
+    if (!document.documentElement.classList.contains('login-mobile-ui')) return;
+    var el = document.getElementById('login_empresa_nome');
+    if (!el) return;
+    el.textContent = 'Aguardando logo da empresa';
+    el.style.display = 'block';
+    el.setAttribute('aria-hidden', 'false');
+  };
+  </script>
 
   <!-- Logo no painel branco (desktop: acima do form; mobile: já vem pela .logo abaixo) -->
   <div class="form-logo" id="form_logo_desktop">
@@ -798,8 +922,15 @@
   </div>
 
   <div class="card-footer">
-    PedidosWEB · <span id="login-version">v—</span><br>
-    © 2020 NC Sistemas
+    <div class="login-footer-line">
+      <span class="login-footer-desktop-text">PedidosWEB · </span>
+      <span class="login-footer-mobile-brand">
+        <img class="login-footer-pw-logo" src="https://cohrp.com.br/LogoPedidoWeb/pedidsoweb.jpeg" alt="PedidosWeb">
+      </span>
+      <span class="login-footer-sep" aria-hidden="true">·</span>
+      <span id="login-version">v—</span>
+    </div>
+    <div class="login-footer-copy">© 2020 NC Sistemas</div>
     <div id="lic_licensee_bar"></div>
   </div>
 
@@ -922,11 +1053,155 @@ let _empresasQueryKey = '';
 let _logoSessionKey = '';
 /** Parâmetros locais da instalação (logo padrão, fonte) — de empresas-usuario */
 let _parametrosLocaisCache = null;
+/** Logo padrão do tenant (carregado sem senha — login mobile). */
+let _tenantBrandCache = null;
+const LOGIN_AGUARDANDO_LOGO = 'Aguardando logo da empresa';
 
-/** Logo do login permanece fixo (o que foi aberto na tela) — não muda por empresa. */
-function atualizarLogoLoginPorEmpresa() { /* intencional: logo fixo no login */ }
+function isLoginMobileLayout() {
+  if (document.documentElement.classList.contains('login-mobile-ui')) return true;
+  if (window.SysRepMobile && typeof SysRepMobile.isMobileShellMode === 'function' && SysRepMobile.isMobileShellMode()) {
+    return true;
+  }
+  try { return window.matchMedia('(max-width: 920px)').matches; }
+  catch (_) { return typeof window.innerWidth === 'number' && window.innerWidth <= 920; }
+}
+
+function _syncLoginMobileUiClass() {
+  const on = isLoginMobileLayout();
+  document.documentElement.classList.toggle('login-mobile-ui', on);
+  return on;
+}
+
+function _empresaSelecionadaLogin() {
+  const sel = document.getElementById('sel_empresa');
+  const idStr = sel && sel.value ? String(sel.value) : '';
+  if (idStr) {
+    const found = empresasCache.find((e) => String(e.id_empresa) === idStr);
+    if (found) return found;
+  }
+  if (empresasCache.length === 1) return empresasCache[0];
+  return null;
+}
+
+function _urlLogoEmpresaLogin(emp) {
+  if (!emp || !emp.id_empresa) return '';
+  if (_logoSessionKey) {
+    return '/api/auth/empresa/' + encodeURIComponent(emp.id_empresa)
+      + '/brand-logo?ls=' + encodeURIComponent(_logoSessionKey);
+  }
+  return '/api/login-logo?id=' + encodeURIComponent(emp.id_empresa);
+}
+
+function _mostrarAguardandoLogoEmpresa() {
+  const el = document.getElementById('login_empresa_nome');
+  const img = document.getElementById('login_logo_img');
+  if (!el) return;
+  if (img) img.style.display = 'none';
+  el.textContent = LOGIN_AGUARDANDO_LOGO;
+  el.style.display = 'block';
+  el.setAttribute('aria-hidden', 'false');
+}
+
+function _esconderNomeEmpresaLogin() {
+  const el = document.getElementById('login_empresa_nome');
+  if (!el) return;
+  el.style.display = 'none';
+  el.textContent = '';
+  el.setAttribute('aria-hidden', 'true');
+}
+
+function _empresaParaLogoLogin() {
+  return _empresaSelecionadaLogin() || _tenantBrandCache || null;
+}
+
+/** Mobile: logo da empresa no topo; PedidosWeb discreto no rodapé. Desktop: inalterado. */
+function atualizarLogoLoginPorEmpresa() {
+  const imgEmp = document.getElementById('login_logo_img');
+  const imgFallback = document.getElementById('login_logo_fallback_img');
+  if (!imgEmp || !imgFallback) return;
+
+  _syncLoginMobileUiClass();
+
+  if (!isLoginMobileLayout()) {
+    imgEmp.style.display = 'none';
+    _esconderNomeEmpresaLogin();
+    imgFallback.style.display = '';
+    return;
+  }
+
+  imgFallback.style.display = 'none';
+  imgEmp.style.display = 'block';
+  const emp = _empresaParaLogoLogin();
+  if (!emp) return; /* mantém /api/login-logo do HTML */
+
+  const src = _urlLogoEmpresaLogin(emp);
+  if (!src) {
+    _mostrarAguardandoLogoEmpresa();
+    return;
+  }
+
+  _esconderNomeEmpresaLogin();
+  if (imgEmp.getAttribute('src') !== src) {
+    imgEmp.onerror = function () {
+      imgEmp.style.display = 'none';
+      _mostrarAguardandoLogoEmpresa();
+    };
+    imgEmp.onload = function () {
+      imgEmp.style.display = 'block';
+    };
+    imgEmp.src = src;
+  }
+  imgEmp.alt = emp.Razao_empresa || emp.razao_empresa || 'Logo da empresa';
+}
+
+async function carregarLogoTenantLogin() {
+  if (!_syncLoginMobileUiClass()) return;
+  try {
+    const r = await fetch('/api/auth/login-tenant-brand', { cache: 'no-store' });
+    if (!r.ok) return;
+    const data = await r.json();
+    if (!data || !data.ok) return;
+    _tenantBrandCache = {
+      id_empresa: data.id_empresa,
+      Razao_empresa: data.razao_empresa || data.Razao_empresa || '',
+      logo_relatorio: data.logo_relatorio || null,
+      logo_url: data.logo_url || null,
+    };
+    atualizarLogoLoginPorEmpresa();
+  } catch (_) {}
+}
 let sistemasBloqueado = false;
 let _chaveAtiva = '';
+
+/** ID persistente deste aparelho (controle de acessos). Gerado 1x e guardado no localStorage. */
+function _getDeviceId() {
+  try {
+    let id = localStorage.getItem('sysrep_device_id');
+    if (!id) {
+      id = (crypto?.randomUUID ? crypto.randomUUID() : 'dev-' + Date.now() + '-' + Math.random().toString(16).slice(2))
+        .replace(/-/g, '').slice(0, 32);
+      localStorage.setItem('sysrep_device_id', id);
+    }
+    return id;
+  } catch (_) {
+    return null;
+  }
+}
+
+/** Localização GPS do navegador (com permissão). Resolve null se negado/indisponível — nunca trava o login. */
+function _getGeo() {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) return resolve(null);
+    let done = false;
+    const finish = (v) => { if (!done) { done = true; resolve(v); } };
+    const t = setTimeout(() => finish(null), 4000); // teto de espera p/ não travar o login
+    navigator.geolocation.getCurrentPosition(
+      (pos) => { clearTimeout(t); finish({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }); },
+      () => { clearTimeout(t); finish(null); }, // negado ou erro → segue sem GPS
+      { enableHighAccuracy: false, timeout: 3500, maximumAge: 600000 }
+    );
+  });
+}
 
 // ─── DEV LOCALHOST: seletor de base de testes ───────────────────────────────
 function _isLocalhost() {
@@ -1030,7 +1305,18 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (!(token && offlineOk && !navigator.onLine)) {
     await verificarMensalidade();
     if (sistemasBloqueado) return;
+    if (await tentarRedirectDemoOnboarding()) return;
   }
+
+  // Pré-preenche usuário vindo da tela demo (ex.: ?usuario=ADMIN)
+  try {
+    const qp = new URLSearchParams(location.search);
+    const uDemo = qp.get('usuario');
+    if (uDemo) {
+      const elU = document.getElementById('loginusu');
+      if (elU && !elU.value) elU.value = uDemo;
+    }
+  } catch (_) {}
 
   // 3. Redireciona se já logado
   if (token) {
@@ -1048,6 +1334,19 @@ window.addEventListener('DOMContentLoaded', async () => {
         irParaApp();
         return;
       }
+      // SW devolve 503 {offline:true} quando a rede cai (sem estourar o fetch) —
+      // é falha de REDE, não token inválido: manter a sessão e abrir o app em
+      // modo limitado (mesmo tratamento do catch abaixo). Sem isso o token era
+      // APAGADO e o usuário ficava trancado fora do app offline.
+      let _respOff = r.status === 503;
+      try {
+        const _d = await r.clone().json();
+        _respOff = _respOff || !!(_d && (_d.offline === true || _d.error === 'offline'));
+      } catch (_) {}
+      if (_respOff) {
+        irParaApp();
+        return;
+      }
       sessionStorage.removeItem('token');
       localStorage.removeItem('token');
     } catch {
@@ -1057,7 +1356,18 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  _syncLoginMobileUiClass();
+  carregarLogoTenantLogin();
   document.getElementById('loginusu').focus();
+  atualizarLogoLoginPorEmpresa();
+  window.addEventListener('resize', function () {
+    _syncLoginMobileUiClass();
+    atualizarLogoLoginPorEmpresa();
+  }, { passive: true });
+
+  const _lu0 = document.getElementById('loginusu')?.value?.trim();
+  const _sn0 = document.getElementById('senhausu')?.value;
+  if (_lu0 && _sn0) carregarEmpresasUsuario();
 
   // Enter no campo usuário → vai para senha
   document.getElementById('loginusu').addEventListener('keypress', (e) => {
@@ -1066,6 +1376,13 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   // Ao sair do campo senha → carrega empresas do usuário (LiberaTrocaEmpresa do Delphi)
   document.getElementById('senhausu').addEventListener('blur', () => carregarEmpresasUsuario());
+  document.getElementById('senhausu').addEventListener('input', function () {
+    clearTimeout(window._empresasInputTimer);
+    const lu = document.getElementById('loginusu').value.trim();
+    const sn = document.getElementById('senhausu').value;
+    if (!lu || !sn) return;
+    window._empresasInputTimer = setTimeout(() => carregarEmpresasUsuario(), 450);
+  });
 
   // Combo empresa: Enter ou clique confirma → simula botão Entrar
   // Seta para cima/baixo apenas navega, não dispara login
@@ -1100,6 +1417,58 @@ window.addEventListener('DOMContentLoaded', async () => {
 });
 
 // ─── Verifica licença ──────────────────────────────────────────────────────
+function _licencaEhDemo(data) {
+  if (!data || !data.valid) return false;
+  if (data.onboarding_demo === true) return true;
+  if (data.demo === true) return true;
+  const tipo = String(data.tipo || '').toLowerCase();
+  const status = String(data.status || '').toLowerCase();
+  return tipo === 'demo' || tipo === 'trial' || status === 'demo' || status === 'trial';
+}
+
+/** Redireciona para demo-bemvindo.html na 1ª visita (fail-open). */
+async function tentarRedirectDemoOnboarding() {
+  try {
+    if (localStorage.getItem('sysrep_demo_onboarding_done') === '1') return false;
+    const storedChave = (localStorage.getItem('sysrep_chave_licenca') || '').trim();
+    const checkUrl = '/api/license/check' + (storedChave ? '?chave=' + encodeURIComponent(storedChave) : '');
+    const lr = await fetch(checkUrl);
+    if (!lr.ok) return false;
+    const lic = await lr.json();
+    if (!_licencaEhDemo(lic)) return false;
+    const deviceId = _getDeviceId();
+    if (!deviceId) return false;
+    const chave = lic.chave_licenca || storedChave || 'LOCAL-DEMO';
+    const qs = new URLSearchParams({
+      chave,
+      device_id: deviceId,
+      modo_demo: lic.demo ? '1' : '0',
+      lic_demo: '1',
+    });
+    const sr = await fetch('/api/demo/onboarding-status?' + qs.toString());
+    let st = null;
+    if (sr.ok) st = await sr.json();
+    if (st?.concluido) {
+      localStorage.setItem('sysrep_demo_onboarding_done', '1');
+      return false;
+    }
+    if (st?.show) {
+      // Proteção anti-loop: se já redirecionamos para o onboarding nesta sessão
+      // (ex.: usuário voltou via botão Voltar do Android sem preencher o form),
+      // não redirecionar novamente — mostrar o login normalmente.
+      try { if (sessionStorage.getItem('sysrep_demo_redirect_ok') === '1') return false; } catch (_) {}
+      try { sessionStorage.setItem('sysrep_demo_redirect_ok', '1'); } catch (_) {}
+      location.replace('/demo-bemvindo.html?chave=' + encodeURIComponent(chave));
+      return true;
+    }
+    // Painel NC offline/indisponível: fail-safe — não redirecionar (evita loop infinito
+    // quando o painel está inacessível do servidor de produção).
+    return false;
+  } catch (_) {
+    return false;
+  }
+}
+
 async function verificarMensalidade() {
   try {
     const storedChave = (localStorage.getItem('sysrep_chave_licenca') || '').trim();
@@ -1227,7 +1596,7 @@ function mostrarLoginOfflineSemSessao() {
   if (fu) fu.classList.remove('open');
   const el = document.getElementById('error_msg');
   if (el) {
-    el.innerHTML = '📵 <strong>Sem internet.</strong> Entre com Wi‑Fi ou dados uma vez, depois use <strong>Mais → Preparar offline</strong> no app. Na próxima vez abrirá sem rede.';
+    el.innerHTML = '📵 <strong>Sem internet.</strong> Se você já entrou neste aparelho nos últimos 7 dias, faça login normalmente — o sistema entra em <strong>modo offline</strong>. Senão, conecte-se uma vez e use <strong>Mais → Preparar offline</strong>.';
     el.classList.add('alert-show');
   }
 }
@@ -1324,26 +1693,81 @@ async function doLogin(e) {
 
   const selEmpPre = document.getElementById('sel_empresa');
   if (selEmpPre && selEmpPre.options.length <= 1 && loginusu && senhausu) {
-    await carregarEmpresasUsuario();
-    atualizarLogoLoginPorEmpresa();
+    // Falha aqui não pode impedir o login (rede lenta → combo fica vazio, segue)
+    try {
+      await carregarEmpresasUsuario();
+      atualizarLogoLoginPorEmpresa();
+    } catch (_) {}
   }
 
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span>Entrando...';
   err.classList.remove('alert-show');
 
+  // ── Login OFFLINE: valida a senha contra o hash do último login online ────
+  async function _tentarLoginOffline() {
+    if (!window.SysRepOfflineLogin || !SysRepOfflineLogin.suporta()) return false;
+    let r;
+    try { r = await SysRepOfflineLogin.tentar(loginusu, senhausu); } catch (_) { return false; }
+    if (r && r.ok) {
+      var _destOff = (window.SysRepMobile && typeof SysRepMobile.postLoginTarget === 'function')
+        ? SysRepMobile.postLoginTarget() : ('/home.html?_=' + Date.now());
+      if (window.self !== window.top) {
+        try {
+          if ((window.top.location.pathname || '').indexOf('mobile-shell') >= 0) {
+            window.top.location.reload();
+            return true;
+          }
+        } catch (_) {}
+        window.top.location.replace(_destOff);
+      } else {
+        window.location.replace(_destOff);
+      }
+      return true;
+    }
+    if (r && r.motivo === 'senha') {
+      showError('Senha não confere com a última usada neste aparelho');
+      markError('senhausu');
+      return true; // erro específico já exibido — não mostrar o genérico
+    }
+    if (r && r.motivo === 'expirado') {
+      showError('Login offline expirado (mais de 7 dias) — conecte-se para entrar');
+      return true;
+    }
+    return false; // sem cadastro/suporte → segue para a mensagem padrão
+  }
+
+  if (navigator.onLine === false) {
+    const _entrouOff = await _tentarLoginOffline();
+    if (!_entrouOff) showError('Sem internet — este usuário precisa entrar online uma vez neste aparelho');
+    btn.disabled = false;
+    btn.innerHTML = 'Entrar';
+    return;
+  }
+
   try {
+    const _geo = await _getGeo();
     const r = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ loginusu, senhausu, id_empresa, chave_licenca: _chaveAtiva || null })
+      body: JSON.stringify({ loginusu, senhausu, id_empresa, chave_licenca: _chaveAtiva || null,
+        device_id: _getDeviceId(), latitude: _geo?.latitude ?? null, longitude: _geo?.longitude ?? null })
     });
 
     // Lê tentativas restantes antes de parsear o body
     _atualizarAvisoTentativas(r.headers);
 
-    const data = await r.json();
+    let data;
+    try {
+      data = await r.json();
+    } catch (_) {
+      // Resposta não-JSON (ex.: 502/504 do nginx durante restart do deploy)
+      showError('Servidor respondeu com erro ' + r.status + ' — aguarde alguns segundos e tente de novo');
+      btn.disabled = false;
+      btn.innerHTML = 'Entrar';
+      return;
+    }
 
     if (r.status === 429) {
       _mostrarBloqueioRateLimit(data.resetAt);
@@ -1370,6 +1794,17 @@ async function doLogin(e) {
       if (data.parametros_locais) localStorage.setItem('parametros_locais', JSON.stringify(data.parametros_locais));
       else localStorage.removeItem('parametros_locais');
       localStorage.setItem('sysrep_has_used_system', '1');
+      // Guarda credencial p/ login offline (hash PBKDF2 — a senha não é gravada)
+      if (window.SysRepOfflineLogin && SysRepOfflineLogin.suporta()) {
+        try {
+          await SysRepOfflineLogin.salvar(loginusu, senhausu, {
+            token: data.token,
+            user: data.user,
+            empresa: data.empresa || null,
+            parametros_locais: data.parametros_locais || null
+          });
+        } catch (_) {}
+      }
       var _destLogin = (window.SysRepMobile && typeof SysRepMobile.postLoginTarget === 'function')
         ? SysRepMobile.postLoginTarget() : ('/home.html?_=' + Date.now());
       if (window.self !== window.top) {
@@ -1400,8 +1835,21 @@ async function doLogin(e) {
       markError('senhausu');
       document.getElementById('loginusu').focus();
     }
-  } catch {
-    showError('Não foi possível conectar ao servidor');
+  } catch (eLogin) {
+    // Rede caiu no meio (Wi-Fi sem internet, sinal fraco) — tenta o login offline
+    const _entrouOffCatch = await _tentarLoginOffline();
+    if (_entrouOffCatch) {
+      btn.disabled = false;
+      btn.innerHTML = 'Entrar';
+      return;
+    }
+    // Diferencia sem-internet de outras falhas para diagnóstico em campo
+    if (navigator.onLine === false) {
+      showError('Sem internet no aparelho — conecte-se ao Wi-Fi ou dados para entrar');
+    } else {
+      showError('Não foi possível conectar ao servidor — verifique sua internet e tente de novo'
+        + (eLogin && eLogin.message ? ' (' + String(eLogin.message).slice(0, 80) + ')' : ''));
+    }
   }
 
   btn.disabled = false;
@@ -1570,11 +2018,23 @@ function showError(msg) {
 // ── Verificação de banco (chamada antes de tudo no DOMContentLoaded) ─────────
 async function verificarBancoDados() {
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 1500);
+  // 6s — 1,5s abortava em 4G/latência alta e mostrava "Servidor inacessível" à toa
+  const timer = setTimeout(() => ctrl.abort(), 6000);
   try {
     const r = await fetch('/api/dbconfig/status', { signal: ctrl.signal });
     clearTimeout(timer);
-    if (!r.ok) return { configured: false, reason: 'api_error' };
+    if (!r.ok) {
+      // Service Worker responde 503 {offline:true} quando a rede cai (em vez de
+      // estourar o fetch) — é falha de REDE, não banco vazio: nunca abrir o modal
+      // de configuração inicial nesse caso.
+      let offline = r.status === 503;
+      try {
+        const d = await r.clone().json();
+        offline = offline || !!(d && (d.offline === true || d.error === 'offline'));
+      } catch (_) {}
+      if (offline) return { configured: false, reason: 'server_unreachable' };
+      return { configured: false, reason: 'api_error' };
+    }
     return await r.json();
   } catch {
     clearTimeout(timer);

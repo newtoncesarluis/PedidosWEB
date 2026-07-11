@@ -1,11 +1,11 @@
 /**
  * suporte-notificador.js
- * Bot que roda no servidor da licença (Hostinger) e monitora db_nresolutions.
+ * Bot que monitora nc_painel.solicitacoes (Painel NC central).
  * - A cada 30s: busca solicitações novas (notificado_wa=0) e notifica via WA
  * - Exporta sendWaAtualizacao() para o PATCH de licencas.js notificar interações
  */
 
-const { getNREPool }    = require('./db-nresolution');
+const { getPainelPool }    = require('./db-painel');
 const { sendWaLicenca } = require('./wa-licenca');
 
 const TIPO_EMOJI = { ideia: '✨', bug: '🐛', melhoria: '💡', duvida: '❓' };
@@ -25,7 +25,7 @@ function hora() {
 
 // ── Polling: novas solicitações ───────────────────────────────────────────────
 async function notificarPendentes() {
-  const pool = getNREPool();
+  const pool = getPainelPool();
   const [rows] = await pool.query(
     `SELECT id, chave_licenca, titulo, descricao, tipo, origem
      FROM solicitacoes WHERE notificado_wa = 0 ORDER BY id ASC LIMIT 5`

@@ -4,6 +4,9 @@
 const express = require('express');
 const router = express.Router();
 const { getPool } = require('../config/database');
+const { ensureTabelaPrecoItensDecimal } = require('../config/schema-migrations');
+const { validarCodFabricanteFornecedor } = require('../config/produto-cod-fabricante');
+const { getProdTabela } = require('../config/produto-colunas');
 
 const CAMPOS_DATA = new Set([
   'dt_cadastro', 'dt_atualizacao', 'dt_validade', 'dt_vencimento',
@@ -49,7 +52,7 @@ const CAMPOS_NUMERICOS = new Set([
   'kilo_embalagem', 'peso_liquido', 'comissao',
 ]);
 // Campos inteiros — processados separadamente com parseInt (nunca como monetário)
-const CAMPOS_INTEIROS_FIXOS = new Set(['embalagemmaster', 'multiplo_venda']);
+const CAMPOS_INTEIROS_FIXOS = new Set(['embalagemmaster', 'multiplo_venda', 'qtd_minima_pedido']);
 
 /** Campos de preço/imposto no cadastro `produto` — não gravar na ficha em modo tabela de preço. */
 const CAMPOS_PRECO_PRODUTO = new Set([
@@ -74,6 +77,7 @@ const DEFAULT_CAMPOS_PRODUTO = [
   { nome_campo: 'precopeso',        apelido: 'Preço por Peso (S/N)',tipo: 'texto',  ordem: 12.5, obrigatorio: 'N' },
   { nome_campo: 'embalagemmaster',  apelido: 'Embalagem Master',   tipo: 'inteiro', ordem: 13, obrigatorio: 'N' },
   { nome_campo: 'multiplo_venda',   apelido: 'Múltiplo de Venda',  tipo: 'inteiro', ordem: 14, obrigatorio: 'N' },
+  { nome_campo: 'qtd_minima_pedido', apelido: 'Qtd. Mínima Pedido', tipo: 'inteiro', ordem: 14.5, obrigatorio: 'N' },
   { nome_campo: 'peso_liquido',     apelido: 'Peso Líquido',       tipo: 'decimal', ordem: 15, obrigatorio: 'N' },
   { nome_campo: 'ncm',              apelido: 'NCM',                tipo: 'texto',   ordem: 16, obrigatorio: 'N' },
   { nome_campo: 'cod_barras',       apelido: 'Cód. Barras',        tipo: 'texto',   ordem: 17, obrigatorio: 'N' },
@@ -101,7 +105,7 @@ async function ensureDefaultCamposProduto(pool) {
       );
     }
     // Garante tipo correto para campos inteiros (bases antigas podem ter 'decimal')
-    const inteiros = ['multiplo_venda', 'embalagemmaster'];
+    const inteiros = ['multiplo_venda', 'embalagemmaster', 'qtd_minima_pedido'];
     for (const nc of inteiros) {
       await pool.query(
         `UPDATE campos_importacao SET tipo='inteiro' WHERE tabela='produto' AND nome_campo=? AND tipo <> 'inteiro'`,
@@ -583,6 +587,11 @@ router.post('/importar-linha', async (req, res) => {
   try {
     await ensureTabelaPadraoCols(pool);
     await ensureDefaultCamposProduto(pool);
+    const { ensureProdutoColunas } = require('../config/produto-colunas');
+    await ensureProdutoColunas(pool);
+    // Bases legadas podem ter preco/valor_tabela como INT → grava decimal falha.
+    // Converte p/ DECIMAL(15,2) na 1ª importação (cacheado por base).
+    await ensureTabelaPrecoItensDecimal(pool).catch(() => {});
     conn = await pool.getConnection();
     await conn.beginTransaction();
 
@@ -663,6 +672,15 @@ router.post('/importar-linha', async (req, res) => {
       }
     }
 
+    if (Object.prototype.hasOwnProperty.call(dadosParaSalvar, 'qtd_minima_pedido')) {
+      const qm = parseInt(dadosParaSalvar.qtd_minima_pedido, 10);
+      if (Number.isFinite(qm) && qm >= 0) {
+        dadosParaSalvar.qtd_minima_pedido = String(qm);
+      } else {
+        delete dadosParaSalvar.qtd_minima_pedido;
+      }
+    }
+
     // Auto-cria categoria se o segmento importado não existir na tabela categoria
     if (dadosParaSalvar.segmento && dadosParaSalvar.segmento.trim()) {
       const segVal = dadosParaSalvar.segmento.trim();
@@ -679,6 +697,25 @@ router.post('/importar-linha', async (req, res) => {
     const metaTabela = getMetaProdutoTabela(campos);
     const idTabelaPadrao = modo_tabela ? await obterIdTabelaPadraoAuto(conn) : null;
 
+    async function validarCodFabImportacao(excludeId) {
+      const tb = await getProdTabela(conn);
+      let codFab = dadosParaSalvar.cod_fabricante;
+      let idForn = dadosParaSalvar.cod_fornecedorpadrao ?? cod_fornecedor;
+      if (excludeId && (codFab === undefined || idForn === undefined || idForn === '')) {
+        const [[cur]] = await conn.query(
+          `SELECT cod_fabricante, cod_fornecedorpadrao FROM \`${tb}\` WHERE id = ? LIMIT 1`,
+          [excludeId]
+        ).catch(() => [[null]]);
+        if (codFab === undefined) codFab = cur?.cod_fabricante;
+        if (idForn === undefined || idForn === '') idForn = cur?.cod_fornecedorpadrao;
+      }
+      return validarCodFabricanteFornecedor(conn, {
+        codFabricante: codFab,
+        idFornecedor: idForn,
+        excludeId,
+      });
+    }
+
     if (status_cadastro === 'S' && cod_produto) {
       if (Object.keys(dadosParaSalvar).length === 0 && (!modo_tabela || tabelaUpdatesRaw.length === 0)) {
         await conn.rollback();
@@ -687,6 +724,13 @@ router.post('/importar-linha', async (req, res) => {
       }
 
       const cols = Object.keys(dadosParaSalvar).filter((c) => c !== 'id');
+
+      const valCod = await validarCodFabImportacao(cod_produto);
+      if (!valCod.ok) {
+        await conn.rollback();
+        conn.release();
+        return res.json({ ok: false, msg: valCod.error });
+      }
 
       // Captura saldo anterior ANTES de atualizar (para o movimento_estoque)
       let saldoAnterior = null;
@@ -780,6 +824,13 @@ router.post('/importar-linha', async (req, res) => {
       dadosParaSalvar.origem = 'ATUALIZACAO ONLINE';
     }
     dadosParaSalvar.excluido = 'N';
+
+    const valCodNovo = await validarCodFabImportacao(null);
+    if (!valCodNovo.ok) {
+      await conn.rollback();
+      conn.release();
+      return res.json({ ok: false, msg: valCodNovo.error });
+    }
 
     const insertCols = Object.keys(dadosParaSalvar);
     const placeholders = insertCols.map(() => '?').join(',');

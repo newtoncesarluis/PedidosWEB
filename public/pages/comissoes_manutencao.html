@@ -117,6 +117,28 @@
             backdrop-filter: blur(4px);
             z-index: 9999; display: none; align-items: center; justify-content: center;
         }
+
+        /* Modal centralizado (página em iframe na home) */
+        #editModal.modal.show,
+        #baixaModal.modal.show,
+        #baixaItemModal.modal.show,
+        #estornoModal.modal.show {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            padding: 1rem;
+        }
+        #editModal .modal-dialog,
+        #baixaModal .modal-dialog,
+        #baixaItemModal .modal-dialog,
+        #estornoModal .modal-dialog {
+            margin: 0 auto !important;
+            position: fixed !important;
+            top: 50% !important;
+            left: 50% !important;
+            transform: translate(-50%, -50%) !important;
+            max-height: calc(100vh - 2rem);
+        }
     </style>
 </head>
 <body>
@@ -126,12 +148,68 @@
 </div>
 
 <div class="container-fluid py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
         <div>
             <h4 class="m-0 fw-800"><i class="fas fa-tools text-primary me-2"></i>Manutenção de Comissões</h4>
-            <p class="text-muted small m-0">Ajuste de percentuais e valores retroativos</p>
+            <p class="text-muted small m-0">Ajuste de percentuais, duplicatas, arquivamento de histórico e valores retroativos</p>
         </div>
-        <a href="comissoes_dash.html" class="btn btn-premium btn-secondary-modern"><i class="fas fa-arrow-left"></i> Voltar ao Dashboard</a>
+        <div class="d-flex gap-2 flex-wrap">
+          <button type="button" class="btn btn-premium btn-secondary-modern" onclick="analisarDuplicatas()">
+            <i class="fas fa-search"></i> Analisar Duplicatas
+          </button>
+          <button type="button" class="btn btn-premium btn-primary-gradient" id="btn-corrigir-dup" onclick="corrigirDuplicatas()" disabled style="background:linear-gradient(135deg,#f59e0b,#d97706);">
+            <i class="fas fa-wand-magic-sparkles"></i> Corrigir Duplicatas
+          </button>
+          <a href="comissoes_dash.html" class="btn btn-premium btn-secondary-modern"><i class="fas fa-arrow-left"></i> Voltar</a>
+        </div>
+    </div>
+
+    <div class="main-card mb-4" id="card-dup">
+      <div class="px-3 py-2 border-bottom" style="background:#fffbeb;" id="dup-resumo">
+        <span class="small text-muted">A análise de duplicatas roda ao abrir esta página. Use os botões acima para repetir ou corrigir.</span>
+      </div>
+      <div class="table-responsive" id="dup-tabela-wrap" style="display:none;">
+        <table class="table table-modern table-hover m-0">
+          <thead>
+            <tr>
+              <th>Pedido</th>
+              <th class="text-center">Tipo</th>
+              <th class="text-center">Esperado</th>
+              <th class="text-center">Ativas</th>
+              <th class="text-center">Duplicatas</th>
+              <th class="text-center">Manter</th>
+              <th class="text-end">Valor duplicado</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-dup"></tbody>
+        </table>
+      </div>
+    </div>
+
+
+    <div class="main-card mb-4" id="card-baixa-lote">
+      <div class="px-3 py-3 border-bottom" style="background:#f0fdf4;">
+        <div class="d-flex flex-wrap align-items-end gap-3 justify-content-between">
+          <div>
+            <h6 class="fw-800 m-0"><i class="fas fa-box-archive text-success me-2"></i>Arquivar histórico (baixa sem financeiro)</h6>
+            <p class="small text-muted m-0 mt-1">Remove comissões antigas das telas e relatórios, como exclusão lógica. <b>Não</b> estorna status nem mexe em Contas a Pagar.</p>
+          </div>
+          <div class="d-flex flex-wrap align-items-end gap-2">
+            <div>
+              <label class="filter-label">Lançadas até</label>
+              <input type="date" class="form-control form-modern" id="baixa_ate_data" style="width:160px">
+            </div>
+            <button type="button" class="btn btn-premium btn-secondary-modern" onclick="simularBaixaLote()">
+              <i class="fas fa-calculator"></i> Simular
+            </button>
+            <button type="button" class="btn btn-premium" id="btn-baixa-lote" onclick="abrirModalBaixaLote()" disabled style="background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;">
+              <i class="fas fa-box-archive"></i> Arquivar em lote
+            </button>
+          </div>
+        </div>
+        <p class="small text-muted mb-0 mt-2">Vendedor, fábrica e status: use os filtros da tabela abaixo.</p>
+        <div id="baixa-preview" class="mt-2 small text-muted">Informe a data e clique em Simular para ver quantas comissões serão arquivadas.</div>
+      </div>
     </div>
 
     <div class="main-card">
@@ -149,8 +227,10 @@
                     <label class="filter-label">Status</label>
                     <select class="form-select form-modern" id="filter_status">
                         <option value="T">Todos</option>
-                        <option value="P" selected>Pendentes</option>
-                        <option value="Q">Pagos</option>
+                        <option value="P">Pendente</option>
+                        <option value="C">Conferido</option>
+                        <option value="R">Pago</option>
+                        <option value="I">Inadimplente</option>
                     </select>
                 </div>
                 <div class="col-md-1">
@@ -291,6 +371,67 @@
     </div>
 </div>
 
+
+<!-- Modal Arquivar (baixa) -->
+<div class="modal fade" id="baixaModal" tabindex="-1">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header" style="background:linear-gradient(135deg,#16a34a,#15803d)">
+                <h6 class="modal-title fw-bold text-white"><i class="fas fa-box-archive me-2"></i>Arquivar Comissões</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="baixa_ate_confirm" value="">
+                <div id="baixa_modal_info" class="p-2 rounded mb-3" style="background:#f8fafc;border:1px solid #e2e8f0;font-size:12px"></div>
+                <div class="mb-3">
+                    <label class="small fw-bold text-muted">Motivo <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control form-control-sm" id="baixa_motivo" placeholder="Ex: zerar histórico antes de nova rotina...">
+                </div>
+                <div class="mb-1">
+                    <label class="small fw-bold text-muted">Sua senha <span class="text-danger">*</span></label>
+                    <input type="password" class="form-control form-control-sm" id="baixa_senha" placeholder="Confirme sua senha de acesso">
+                </div>
+                <p class="text-muted mt-2" style="font-size:10px">Os registros ficam com <b>excluido=S</b> no banco, mas <b>sem</b> alterar financeiro ou status de pagamento.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-sm btn-success" id="btn_confirmar_baixa" onclick="confirmarBaixaLote()">
+                    <i class="fas fa-box-archive me-1"></i>Confirmar Arquivamento
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Arquivar item -->
+<div class="modal fade" id="baixaItemModal" tabindex="-1">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header" style="background:linear-gradient(135deg,#64748b,#475569)">
+                <h6 class="modal-title fw-bold text-white"><i class="fas fa-box-archive me-2"></i>Arquivar esta comissão</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="baixa_item_info" class="p-2 rounded mb-3" style="background:#f8fafc;border:1px solid #e2e8f0;font-size:12px"></div>
+                <div class="mb-3">
+                    <label class="small fw-bold text-muted">Motivo <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control form-control-sm" id="baixa_item_motivo" placeholder="Motivo do arquivamento">
+                </div>
+                <div class="mb-1">
+                    <label class="small fw-bold text-muted">Sua senha <span class="text-danger">*</span></label>
+                    <input type="password" class="form-control form-control-sm" id="baixa_item_senha">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-sm btn-secondary" id="btn_confirmar_baixa_item" onclick="confirmarBaixaItem()">
+                    <i class="fas fa-box-archive me-1"></i>Arquivar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Modal de Estorno -->
 <div class="modal fade" id="estornoModal" tabindex="-1">
     <div class="modal-dialog modal-sm modal-dialog-centered">
@@ -323,31 +464,78 @@
 
 <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script src="/assets/comissao-preposto-ui.js"></script>
+<script src="/assets/comissao-preposto-ui.js?v=20260630b"></script>
 
 <script>
     let currentEdit = null;
     let currentEstorno = null;
     let _jwtComissao = { isPreposto: false };
 
+    async function apiComissao(url, opts = {}) {
+        const headers = { ...(opts.headers || {}) };
+        const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+        if (token) headers.Authorization = `Bearer ${token}`;
+        if (opts.body != null && !headers['Content-Type'] && !(opts.body instanceof FormData)) {
+            if (opts.body instanceof URLSearchParams) {
+                headers['Content-Type'] = 'application/x-www-form-urlencoded;charset=UTF-8';
+            } else {
+                headers['Content-Type'] = 'application/json';
+            }
+        }
+        const next = { ...opts, headers };
+        if (window.ComissaoPrepostoUi && ComissaoPrepostoUi.apiFetch) {
+            return ComissaoPrepostoUi.apiFetch(url, next);
+        }
+        const r = await fetch(url, { ...next, credentials: 'include' });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(data.error || `Erro ${r.status}`);
+        return data;
+    }
+
+    /** POST com body legível pelo Express (urlencoded) — não depende de JSON parse */
+    function postFormComissao(url, fields) {
+        const body = new URLSearchParams();
+        Object.entries(fields || {}).forEach(([k, v]) => {
+            if (v != null && v !== '') body.set(k, String(v));
+        });
+        return apiComissao(url, { method: 'POST', body });
+    }
+
+    function showBsModal(selector) {
+        const el = document.querySelector(selector);
+        if (!el) return;
+        try { window.scrollTo({ top: 0, behavior: 'instant' }); } catch (_) { window.scrollTo(0, 0); }
+        bootstrap.Modal.getOrCreateInstance(el).show();
+    }
+
     function _statusBadge(s) {
         const map = {
-            P: ['#dbeafe','#1e40af','Pendente'],
-            C: ['#fef3c7','#92400e','Conferida'],
-            R: ['#dcfce7','#166534','Recebida'],
+            P: ['#fef3c7','#92400e','Pendente'],
+            C: ['#dbeafe','#1e40af','Conferido'],
+            R: ['#dcfce7','#166534','Pago'],
+            I: ['#fee2e2','#991b1b','Inadimplente'],
             G: ['#f3f4f6','#374151','Gerada'],
         };
         const [bg, color, label] = map[s] || ['#f3f4f6','#374151', s || '—'];
         return `<span style="background:${bg};color:${color};border-radius:5px;padding:2px 9px;font-size:10px;font-weight:700">${label}</span>`;
     }
 
+    function _initBaixaData() {
+        const el = document.getElementById('baixa_ate_data');
+        if (el && !el.value) {
+            const d = new Date();
+            el.value = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        }
+    }
+
     $(document).ready(function() {
         _jwtComissao = (window.ComissaoPrepostoUi && ComissaoPrepostoUi.readJwtComissao()) || { isPreposto: false };
         loadLookups();
+        _initBaixaData();
     });
 
     async function loadLookups() {
-        const res = await fetch('/api/pedidos/lookups').then(r => r.json());
+        const res = await apiComissao('/api/pedidos/lookups');
         const pop = (id, list) => {
             const sel = $('#' + id);
             (list || []).forEach(i => sel.append(`<option value="${i.id}">${i.nome}</option>`));
@@ -377,7 +565,7 @@
 
         $('#loading').css('display', 'flex');
         try {
-            const res = await fetch('/api/comissoes/admin/extrato?' + params.toString()).then(r => r.json());
+            const res = await apiComissao('/api/comissoes/admin/extrato?' + params.toString());
             const rows = res.data || [];
             
             if(!rows.length) {
@@ -412,6 +600,9 @@
                             <button class="btn btn-outline-primary btn-edit me-1" onclick='openEdit(${JSON.stringify(r)})' title="Ajustar valor/percentual">
                                 <i class="fas fa-edit"></i>
                             </button>
+                            <button class="btn btn-outline-secondary btn-edit me-1" onclick='abrirBaixaItem(${JSON.stringify(r)})' title="Arquivar (baixa sem financeiro)">
+                                <i class="fas fa-box-archive"></i>
+                            </button>
                             ${(r.status_comissao === 'C' || r.status_comissao === 'R') ? `
                             <button class="btn btn-outline-danger btn-edit" onclick='abrirEstorno(${JSON.stringify(r)})' title="Estornar para Pendente">
                                 <i class="fas fa-undo-alt"></i>
@@ -440,16 +631,14 @@
         else                           badges += `<span class="badge bg-light text-dark border">ST incluso na base</span>`;
         $('#edit_forn_rules').html(badges);
 
-        new bootstrap.Modal('#editModal').show();
+        showBsModal('#editModal');
     }
 
     async function recalcularComissao() {
         if (!currentEdit) return;
         if (!confirm('Recalcular o valor desta comissão aplicando as regras atuais do fornecedor?')) return;
         try {
-            const res = await fetch(`/api/comissoes/admin/recalcular/${currentEdit.id}`, {
-                method: 'POST', credentials: 'include'
-            }).then(r => r.json());
+            const res = await apiComissao(`/api/comissoes/admin/recalcular/${currentEdit.id}`, { method: 'POST' });
             if (res.ok) {
                 const fmt = v => new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
                 $('#edit_vlr_final').val(fmt(res.vlr_pago));
@@ -499,7 +688,7 @@
         $('#estorno_motivo').val('');
         $('#estorno_senha').val('');
         $('#btn_confirmar_estorno').prop('disabled', false).html('<i class="fas fa-undo-alt me-1"></i>Confirmar Estorno');
-        new bootstrap.Modal('#estornoModal').show();
+        showBsModal('#estornoModal');
         setTimeout(() => $('#estorno_motivo').focus(), 300);
     }
 
@@ -514,12 +703,7 @@
         btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Processando…');
 
         try {
-            const res = await fetch(`/api/comissoes/${currentEstorno.id}/estornar`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({ senha, motivo })
-            }).then(r => r.json());
+            const res = await postFormComissao(`/api/comissoes/${currentEstorno.id}/estornar`, { senha, motivo });
 
             if (res.ok) {
                 bootstrap.Modal.getInstance('#estornoModal').hide();
@@ -539,14 +723,13 @@
 
         $('#loading').css('display', 'flex');
         try {
-            const res = await fetch(`/api/comissoes/${currentEdit.id}/update-perc`, {
+            const res = await apiComissao(`/api/comissoes/${currentEdit.id}/update-perc`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     perc: $('#edit_perc').val(),
                     valor: $('#edit_vlr_final').val()
                 })
-            }).then(r => r.json());
+            });
 
             if(res.ok) {
                 bootstrap.Modal.getInstance('#editModal').hide();
@@ -555,6 +738,228 @@
                 alert("Erro ao salvar: " + res.error);
             }
         } catch(e) { console.error(e); } finally { $('#loading').hide(); }
+    }
+
+    // ── Duplicatas ─────────────────────────────────────────────────────────────
+    let _dupAnalise = null;
+
+    async function analisarDuplicatas() {
+        $('#loading').css('display','flex');
+        document.getElementById('btn-corrigir-dup').disabled = true;
+        try {
+            const res = await apiComissao('/api/comissoes/admin/analisar-duplicatas');
+            _dupAnalise = res;
+            renderDupAnalise(res);
+            document.getElementById('btn-corrigir-dup').disabled = !(res.resumo?.total_duplicatas > 0);
+        } catch(e) {
+            if (!String(e.message || '').includes('Sessão expirada')) {
+                alert('Erro: ' + e.message);
+            }
+        } finally { $('#loading').hide(); }
+    }
+
+    function renderDupAnalise(res) {
+        const r = res.resumo || {};
+        const afetados = res.pedidos_afetados || [];
+        const resumo = document.getElementById('dup-resumo');
+        const wrap = document.getElementById('dup-tabela-wrap');
+        const tbody = document.getElementById('tbody-dup');
+
+        if (!r.total_duplicatas) {
+            resumo.innerHTML = `<span class="small fw-700 text-success"><i class="fas fa-circle-check me-1"></i>Nenhuma duplicata em ${res.pedidos_verificados || 0} pedido(s) verificado(s).</span>`;
+            wrap.style.display = 'none';
+            return;
+        }
+
+        resumo.innerHTML = `<span class="small fw-700 text-warning"><i class="fas fa-triangle-exclamation me-1"></i>${r.pedidos_com_duplicata} pedido(s) com duplicata — ${r.total_duplicatas} lançamento(s) a remover — ${fmtR(r.valor_duplicado)} em valores repetidos</span>`;
+        wrap.style.display = '';
+        tbody.innerHTML = afetados.map(p => `
+            <tr>
+              <td class="fw-bold">${p.pedido}</td>
+              <td class="text-center"><span class="badge ${p.com_tipo === 'UNICA' ? 'bg-secondary' : 'bg-info'}">${p.com_tipo === 'UNICA' ? 'Única' : 'Parcelada'}</span></td>
+              <td class="text-center">${p.max_esperado_por_vendedor}</td>
+              <td class="text-center">${p.total_ativas}</td>
+              <td class="text-center text-danger fw-bold">${p.duplicatas}</td>
+              <td class="text-center text-success fw-bold">${p.manter}</td>
+              <td class="text-end">${fmtR(p.valor_duplicado)}</td>
+            </tr>
+        `).join('');
+    }
+
+    async function corrigirDuplicatas() {
+        if (!_dupAnalise?.resumo?.total_duplicatas) {
+            alert('Execute a análise primeiro.');
+            return;
+        }
+        const r = _dupAnalise.resumo;
+        const ok = confirm(
+            `Remover ${r.total_duplicatas} lançamento(s) duplicado(s) em ${r.pedidos_com_duplicata} pedido(s)?\n\n` +
+            `Valor repetido: ${fmtR(r.valor_duplicado)}\n\n` +
+            'Os registros extras serão desativados (não apagados). Comissões legítimas por parcela serão mantidas.'
+        );
+        if (!ok) return;
+        $('#loading').css('display','flex');
+        try {
+            const res = await apiComissao('/api/comissoes/admin/corrigir-duplicatas', {
+                method:'POST',
+                body: JSON.stringify({})
+            });
+            if (res.ok) {
+                alert(res.message || `${res.total_removidas} removida(s).`);
+                searchCommissions();
+                analisarDuplicatas();
+            } else {
+                alert('Erro: ' + (res.error || 'desconhecido'));
+            }
+        } catch(e) { alert('Erro: ' + e.message); }
+        finally { $('#loading').hide(); }
+    }
+
+    // ── Baixa / arquivamento (sem financeiro) ─────────────────────────────────
+    let _baixaPreview = null;
+    let currentBaixaItem = null;
+
+    function hojeIsoLocal() {
+        const d = new Date();
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+
+    function _baixaFiltrosPayload() {
+        const selVend = document.getElementById('filter_vendedor');
+        const idVendedor = window.ComissaoPrepostoUi
+            ? ComissaoPrepostoUi.resolveVendedorFilterId(selVend, _jwtComissao)
+            : $('#filter_vendedor').val();
+        return {
+            ate_data: $('#baixa_ate_data').val(),
+            id_vendedor: idVendedor,
+            id_fornecedor: $('#filter_fornecedor').val(),
+            status: $('#filter_status').val(),
+        };
+    }
+
+    async function simularBaixaLote() {
+        const p = _baixaFiltrosPayload();
+        if (!p.ate_data) { alert('Informe a data limite.'); return; }
+        $('#loading').css('display', 'flex');
+        document.getElementById('btn-baixa-lote').disabled = true;
+        try {
+            const qs = new URLSearchParams(p).toString();
+            const res = await apiComissao('/api/comissoes/admin/preview-baixa-lote?' + qs);
+            _baixaPreview = res;
+            document.getElementById('baixa_ate_confirm').value = p.ate_data;
+            const el = document.getElementById('baixa-preview');
+            if (!res.qtd) {
+                el.innerHTML = '<span class="text-success fw-bold"><i class="fas fa-circle-check me-1"></i>Nenhuma comissão encontrada para arquivar com esses filtros.</span>';
+                return;
+            }
+            const ps = res.por_status || {};
+            el.innerHTML = '<span class="fw-bold text-warning"><i class="fas fa-triangle-exclamation me-1"></i>' +
+                res.qtd + ' comissão(ões) — ' + fmtR(res.total) +
+                '</span> <span class="text-muted">(Pend: ' + (ps.pendente||0) + ' · Conf: ' + (ps.conferida||0) +
+                ' · Pago: ' + (ps.paga||0) + ' · Inad: ' + (ps.inadimplente||0) + ')</span>';
+            document.getElementById('btn-baixa-lote').disabled = false;
+        } catch (e) {
+            alert('Erro: ' + e.message);
+        } finally { $('#loading').hide(); }
+    }
+
+    function abrirModalBaixaLote() {
+        if (!_baixaPreview?.qtd) {
+            alert('Execute a simulação primeiro.');
+            return;
+        }
+        const p = _baixaFiltrosPayload();
+        const ate = p.ate_data || _baixaPreview.ate_data || '';
+        document.getElementById('baixa_ate_confirm').value = ate;
+        $('#baixa_modal_info').html(
+            '<div class="mb-1"><b>' + _baixaPreview.qtd + '</b> comissão(ões) até <b>' + fmtD(p.ate_data) + '</b></div>' +
+            '<div class="text-muted">Total: ' + fmtR(_baixaPreview.total) + '</div>'
+        );
+        $('#baixa_motivo').val('Arquivamento de histórico — início de nova rotina');
+        $('#baixa_senha').val('');
+        showBsModal('#baixaModal');
+        setTimeout(() => $('#baixa_motivo').focus(), 300);
+    }
+
+    async function confirmarBaixaLote() {
+        const motivo = $('#baixa_motivo').val().trim();
+        const senha = $('#baixa_senha').val().trim();
+        if (!motivo) { alert('Informe o motivo.'); return; }
+        if (!senha) { alert('Informe sua senha.'); return; }
+
+        const filtros = _baixaFiltrosPayload();
+        const ate = String(
+            $('#baixa_ate_confirm').val() ||
+            $('#baixa_ate_data').val() ||
+            _baixaPreview?.ate_data ||
+            ''
+        ).trim();
+        if (!ate) {
+            alert('Data limite não encontrada. Feche o modal, informe «Lançadas até» e clique em Simular de novo.');
+            return;
+        }
+
+        const btn = $('#btn_confirmar_baixa');
+        btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Processando…');
+        try {
+            const res = await postFormComissao('/api/comissoes/admin/baixa-lote', {
+                ate_data: ate,
+                id_vendedor: filtros.id_vendedor,
+                id_fornecedor: filtros.id_fornecedor,
+                status: filtros.status,
+                motivo,
+                senha,
+            });
+            if (res.ok) {
+                bootstrap.Modal.getInstance('#baixaModal').hide();
+                alert(res.message || (res.afetadas + ' arquivada(s).'));
+                _baixaPreview = null;
+                document.getElementById('baixa-preview').textContent = 'Informe a data e clique em Simular para ver quantas comissões serão arquivadas.';
+                document.getElementById('btn-baixa-lote').disabled = true;
+                searchCommissions();
+            } else {
+                alert('Erro: ' + (res.error || 'desconhecido'));
+            }
+        } catch (e) {
+            alert('Erro: ' + e.message);
+        } finally {
+            btn.prop('disabled', false).html('<i class="fas fa-box-archive me-1"></i>Confirmar Arquivamento');
+        }
+    }
+
+    function abrirBaixaItem(row) {
+        currentBaixaItem = row;
+        const fmt = v => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
+        $('#baixa_item_info').html(
+            '<div class="d-flex justify-content-between mb-1"><span class="text-muted">Pedido</span><b>#' + row.numero + ' (' + row.parcela + '/' + row.qt_parcelas + ')</b></div>' +
+            '<div class="d-flex justify-content-between"><span class="text-muted">Comissão</span><b>' + fmt(row.vlr_comissao) + '</b></div>'
+        );
+        $('#baixa_item_motivo').val('');
+        $('#baixa_item_senha').val('');
+        showBsModal('#baixaItemModal');
+    }
+
+    async function confirmarBaixaItem() {
+        if (!currentBaixaItem?.id) return;
+        const motivo = $('#baixa_item_motivo').val().trim();
+        const senha = $('#baixa_item_senha').val().trim();
+        if (!motivo) { alert('Informe o motivo.'); return; }
+        if (!senha) { alert('Informe sua senha.'); return; }
+        const btn = $('#btn_confirmar_baixa_item');
+        btn.prop('disabled', true);
+        try {
+            const res = await postFormComissao('/api/comissoes/admin/baixa-item/' + currentBaixaItem.id, { motivo, senha });
+            if (res.ok) {
+                bootstrap.Modal.getInstance('#baixaItemModal').hide();
+                searchCommissions();
+            } else {
+                alert('Erro: ' + (res.error || 'desconhecido'));
+            }
+        } catch (e) {
+            alert('Erro: ' + e.message);
+        } finally {
+            btn.prop('disabled', false);
+        }
     }
 
     // ── Inadimplência ──────────────────────────────────────────────────────────
@@ -567,11 +972,10 @@
         if (!ok) return;
         $('#loading').css('display','flex');
         try {
-            const res = await fetch('/api/comissoes/admin/bloquear-inadimplentes', {
-                method:'POST', credentials:'include',
-                headers:{'Content-Type':'application/json'},
+            const res = await apiComissao('/api/comissoes/admin/bloquear-inadimplentes', {
+                method:'POST',
                 body: JSON.stringify({ dias_carencia: dc })
-            }).then(r => r.json());
+            });
             if (res.ok) {
                 alert(`${res.bloqueadas} comissão(ões) bloqueada(s) com sucesso.`);
                 carregarInadimplentes();
@@ -584,7 +988,7 @@
 
     async function carregarInadimplentes() {
         try {
-            const res = await fetch('/api/comissoes/admin/inadimplentes', {credentials:'include'}).then(r => r.json());
+            const res = await apiComissao('/api/comissoes/admin/inadimplentes');
             const rows = res.data || [];
             const card = document.getElementById('card-inad');
             const tbody = document.getElementById('tbody-inad');
@@ -623,11 +1027,10 @@
         if (!confirm(`Reativar ${ids.length} comissão(ões) para Pendente?`)) return;
         $('#loading').css('display','flex');
         try {
-            const res = await fetch('/api/comissoes/admin/reativar-inadimplentes', {
-                method:'POST', credentials:'include',
-                headers:{'Content-Type':'application/json'},
+            const res = await apiComissao('/api/comissoes/admin/reativar-inadimplentes', {
+                method:'POST',
                 body: JSON.stringify({ ids })
-            }).then(r => r.json());
+            });
             if (res.ok) { alert(`${res.reativadas} reativada(s).`); carregarInadimplentes(); }
             else alert('Erro: ' + (res.error||'desconhecido'));
         } catch(e) { alert('Erro: ' + e.message); }
@@ -638,19 +1041,21 @@
         if (!confirm('Reativar TODAS as comissões bloqueadas por inadimplência?')) return;
         $('#loading').css('display','flex');
         try {
-            const res = await fetch('/api/comissoes/admin/reativar-inadimplentes', {
-                method:'POST', credentials:'include',
-                headers:{'Content-Type':'application/json'},
+            const res = await apiComissao('/api/comissoes/admin/reativar-inadimplentes', {
+                method:'POST',
                 body: JSON.stringify({ ids: [] })
-            }).then(r => r.json());
+            });
             if (res.ok) { alert(`${res.reativadas} reativada(s).`); carregarInadimplentes(); }
             else alert('Erro: ' + (res.error||'desconhecido'));
         } catch(e) { alert('Erro: ' + e.message); }
         finally { $('#loading').hide(); }
     }
 
-    // Carrega a lista de inadimplentes ao abrir a página
-    $(document).ready(function() { carregarInadimplentes(); });
+    // Carrega listas ao abrir a página
+    $(document).ready(function() {
+        carregarInadimplentes();
+        analisarDuplicatas();
+    });
 </script>
 
 </body>

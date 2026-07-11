@@ -4,7 +4,7 @@ const multer  = require('multer');
 const path    = require('path');
 const fs      = require('fs');
 
-const { getNREPool }        = require('../config/db-nresolution');
+const { getPainelPool }     = require('../config/db-painel');
 const { authMiddleware }    = require('../middleware/auth');
 const { sendMail }          = require('../config/mailer');
 const { sendMessage }       = require('../config/alert');
@@ -71,7 +71,7 @@ router.post('/solicitar', uploadMiddleware, async (req, res) => {
     return res.status(400).json({ error: 'Licença não identificada' });
   }
 
-  const pool = getNREPool();
+  const pool = getPainelPool();
   try {
     const [result] = await pool.query(
       `INSERT INTO solicitacoes (chave_licenca, titulo, descricao, tipo, origem) VALUES (?, ?, ?, ?, ?)`,
@@ -142,7 +142,7 @@ router.get('/minhas', async (req, res) => {
   const chave_licenca = req.user?.chave_licenca;
   if (!chave_licenca) return res.status(400).json({ error: 'Licença não identificada' });
   try {
-    const [rows] = await getNREPool().query(
+    const [rows] = await getPainelPool().query(
       `SELECT id, titulo, tipo, origem, status, resposta_dev, data_criacao, data_atualizacao,
               (SELECT COUNT(*) FROM solicitacoes_anexos WHERE id_solicitacao = s.id) AS qtd_anexos
        FROM solicitacoes s
@@ -161,7 +161,7 @@ router.get('/:id', async (req, res) => {
   const chave_licenca = req.user?.chave_licenca;
   if (!chave_licenca) return res.status(400).json({ error: 'Licença não identificada' });
   try {
-    const pool = getNREPool();
+    const pool = getPainelPool();
     const [[sol]] = await pool.query(
       `SELECT * FROM solicitacoes WHERE id = ? AND chave_licenca = ?`,
       [req.params.id, chave_licenca]

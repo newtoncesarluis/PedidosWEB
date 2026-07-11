@@ -31,6 +31,15 @@ async function _tabelaProduto(pool) {
   return r.length ? 'produto' : 'produtos';
 }
 
+// produto.cod_fornecedor não existe nesta base — coluna real é cod_fornecedorpadrao
+async function _colFornecedor(pool, tabela) {
+  const [cols] = await pool.query(`DESCRIBE ${tabela}`);
+  const fields = cols.map(c => c.Field);
+  if (fields.includes('cod_fornecedorpadrao')) return 'cod_fornecedorpadrao';
+  if (fields.includes('cod_fornecedor')) return 'cod_fornecedor';
+  return null;
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 // GET /api/estoque/saldos
 // Lista posição atual do estoque com alertas de mínimo e máximo
@@ -39,6 +48,7 @@ router.get('/saldos', async (req, res) => {
   try {
     const pool   = getPool();
     const tabela = await _tabelaProduto(pool);
+    const colForn = await _colFornecedor(pool, tabela);
     const { q, fornecedor, alerta, page = 1, limit = 60 } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
     const params = [];
@@ -48,8 +58,8 @@ router.get('/saldos', async (req, res) => {
       where += ` AND (p.descricao LIKE ? OR p.ID = ?)`;
       params.push(`%${q}%`, parseInt(q) || 0);
     }
-    if (fornecedor) {
-      where += ` AND p.cod_fornecedor = ?`;
+    if (fornecedor && colForn) {
+      where += ` AND p.${colForn} = ?`;
       params.push(parseInt(fornecedor));
     }
     if (alerta === 'baixo') {
@@ -65,9 +75,9 @@ router.get('/saldos', async (req, res) => {
               IFNULL(p.estoque_maximo,0)   AS estoque_maximo,
               IFNULL(p.estoque_seguranca,0) AS estoque_seguranca,
               p.situacao, p.unidade,
-              f.nome AS fornecedor
+              ${colForn ? 'f.nome' : 'NULL'} AS fornecedor
        FROM ${tabela} p
-       LEFT JOIN fornecedores f ON f.id = p.cod_fornecedor
+       ${colForn ? `LEFT JOIN fornecedores f ON f.id = p.${colForn}` : ''}
        ${where}
        ORDER BY p.descricao
        LIMIT ? OFFSET ?`,

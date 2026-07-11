@@ -41,6 +41,8 @@ const {
   gravarDestaqueComercial,
   excluirDestaqueComercial,
 } = require('../config/produtos-destaque');
+const { ensureProdutoColunas, getProdTabela, listProdutoColunas } = require('../config/produto-colunas');
+const { validarCodFabricanteFornecedor } = require('../config/produto-cod-fabricante');
 
 function _parseCodCliente(v) {
   return parseOptInt(v);
@@ -134,28 +136,13 @@ async function _gravarPromocao(pool, prodId, body, promoId = null) {
   return { status: 201, json: { ok: true, id: r.insertId } };
 }
 
-// ─── cache DESCRIBE ───────────────────────────────────────────────────────────
-let _colunasCache = null;
+// ─── cache DESCRIBE (por tenant) ─────────────────────────────────────────────
 async function getColunasReais(pool) {
-  if (_colunasCache) return _colunasCache;
-  const tb = await getTabela(pool);
-  const [rows] = await pool.query(`DESCRIBE ${tb}`);
-  _colunasCache = rows.map(r => r.Field);
-  return _colunasCache;
+  return listProdutoColunas(pool);
 }
 
-let _colunasExtrasMigrated = false;
 async function ensureColunasExtras(pool) {
-  if (_colunasExtrasMigrated) return;
-  const tb = await getTabela(pool);
-  await pool.query(
-    `ALTER TABLE ${tb} ADD COLUMN multiplo_venda INT NOT NULL DEFAULT 1 COMMENT 'Multiplo de venda (qtd deve ser multiplo deste valor)'`
-  ).catch(() => {});
-  await pool.query(
-    `ALTER TABLE ${tb} ADD COLUMN segmento VARCHAR(100) NULL DEFAULT NULL COMMENT 'Segmento/categoria do produto'`
-  ).catch(() => {});
-  _colunasCache = null;
-  _colunasExtrasMigrated = true;
+  await ensureProdutoColunas(pool);
 }
 
 function filtrarBody(body, colunas) {
@@ -177,12 +164,8 @@ function aplicarUpper(body) {
 }
 
 // tabela pode ser "produto" ou "produtos" — detecta automaticamente
-let _tabela = null;
 async function getTabela(pool) {
-  if (_tabela) return _tabela;
-  const [rows] = await pool.query(`SHOW TABLES LIKE 'produto'`);
-  _tabela = rows.length ? 'produto' : 'produtos';
-  return _tabela;
+  return getProdTabela(pool);
 }
 
 // ─── Multer — galeria de imagens de produto ───────────────────────────────────
@@ -1125,6 +1108,7 @@ router.delete('/:id/promocoes/:promoId', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const pool = getPool();
+    await ensureColunasExtras(pool);
     const tb = await getTabela(pool);
     const [rows] = await pool.query(
       `SELECT * FROM ${tb} WHERE ID=? AND (excluido='N' OR excluido IS NULL OR excluido='') LIMIT 1`,
@@ -1148,6 +1132,12 @@ router.post('/', async (req, res) => {
     if (!body.situacao) body.situacao = 'A';
     if (!body.excluido) body.excluido = 'N';
 
+    const valCod = await validarCodFabricanteFornecedor(pool, {
+      codFabricante: body.cod_fabricante,
+      idFornecedor: body.cod_fornecedorpadrao,
+    });
+    if (!valCod.ok) return res.status(400).json({ error: valCod.error });
+
     const keys = Object.keys(body);
     const [r] = await pool.query(
       `INSERT INTO ${tb} (${keys.map(k=>`\`${k}\``).join(',')}, dt_cadastro)
@@ -1168,6 +1158,24 @@ router.put('/:id', async (req, res) => {
     const body = aplicarUpper(filtrarBody(req.body, cols));
 
     if (!body.descricao?.trim()) return res.status(400).json({ error: 'Descrição obrigatória' });
+
+    let codFabCheck = body.cod_fabricante;
+    let idFornCheck = body.cod_fornecedorpadrao;
+    if (codFabCheck === undefined || idFornCheck === undefined) {
+      const [[cur]] = await pool.query(
+        `SELECT cod_fabricante, cod_fornecedorpadrao FROM ${tb} WHERE ID = ? LIMIT 1`,
+        [req.params.id]
+      ).catch(() => [[null]]);
+      if (codFabCheck === undefined) codFabCheck = cur?.cod_fabricante;
+      if (idFornCheck === undefined) idFornCheck = cur?.cod_fornecedorpadrao;
+    }
+
+    const valCod = await validarCodFabricanteFornecedor(pool, {
+      codFabricante: codFabCheck,
+      idFornecedor: idFornCheck,
+      excludeId: req.params.id,
+    });
+    if (!valCod.ok) return res.status(400).json({ error: valCod.error });
 
     const keys = Object.keys(body);
     if (!keys.length) return res.status(400).json({ error: 'Nenhum campo para atualizar' });

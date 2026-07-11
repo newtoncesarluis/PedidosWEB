@@ -360,6 +360,16 @@
                     <option value="recebimento" selected>Pelo Recebimento (Liquidação)</option>
                 </select>
             </div>
+            <div class="col-md-2">
+                <label class="filter-label">Status</label>
+                <select class="form-select form-modern" id="filter_status">
+                    <option value="T">Todos</option>
+                    <option value="P">Pendente</option>
+                    <option value="C">Conferido</option>
+                    <option value="R">Pago</option>
+                    <option value="I">Inadimplente</option>
+                </select>
+            </div>
         </div>
     </div>
 
@@ -367,33 +377,39 @@
     <div class="kpi-grid">
         <div class="kpi-card">
             <i class="fas fa-wallet"></i>
-            <div class="kpi-tit">Total Bruto</div>
+            <div class="kpi-tit">Provisão Total</div>
             <div class="kpi-val" id="kpi_total">R$ 0,00</div>
-            <small class="text-primary fw-bold">Previsão Global</small>
-        </div>
-        <div class="kpi-card">
-            <i class="fas fa-hand-holding-usd"></i>
-            <div class="kpi-tit">Liquidadas</div>
-            <div class="kpi-val text-success" id="kpi_pagas">R$ 0,00</div>
-            <small class="text-success fw-bold"><i class="fas fa-check"></i> Dinheiro em caixa</small>
+            <small class="text-primary fw-bold">Soma do período</small>
         </div>
         <div class="kpi-card">
             <i class="fas fa-hourglass-half"></i>
-            <div class="kpi-tit">Pendentes</div>
+            <div class="kpi-tit">Pendente</div>
             <div class="kpi-val text-warning" id="kpi_pendentes">R$ 0,00</div>
-            <small class="text-warning fw-bold"><i class="fas fa-clock"></i> Aguardando</small>
+            <small class="text-warning fw-bold">Aguardando baixa</small>
+        </div>
+        <div class="kpi-card">
+            <i class="fas fa-clipboard-check"></i>
+            <div class="kpi-tit">Conferido</div>
+            <div class="kpi-val text-primary" id="kpi_conferido">R$ 0,00</div>
+            <small class="text-primary fw-bold">Aguardando aceite</small>
+        </div>
+        <div class="kpi-card">
+            <i class="fas fa-hand-holding-usd"></i>
+            <div class="kpi-tit">Pago</div>
+            <div class="kpi-val text-success" id="kpi_pagas">R$ 0,00</div>
+            <small class="text-success fw-bold">Liquidado</small>
+        </div>
+        <div class="kpi-card">
+            <i class="fas fa-ban"></i>
+            <div class="kpi-tit">Inadimplente</div>
+            <div class="kpi-val text-danger" id="kpi_inadimplente">R$ 0,00</div>
+            <small class="text-danger fw-bold">Parcela em atraso</small>
         </div>
         <div class="kpi-card">
             <i class="fas fa-chart-line"></i>
             <div class="kpi-tit">Ticket Médio</div>
             <div class="kpi-val" id="kpi_ticket">R$ 0,00</div>
-            <small class="text-muted">Média por Parcela</small>
-        </div>
-        <div class="kpi-card">
-            <i class="fas fa-ban"></i>
-            <div class="kpi-tit">Cancelados</div>
-            <div class="kpi-val text-danger" id="kpi_canceladas">R$ 0,00</div>
-            <small class="text-danger">Total Estornado</small>
+            <small class="text-muted">Média por parcela paga</small>
         </div>
         <div class="kpi-card card-meta">
             <i class="fas fa-bullseye"></i>
@@ -646,18 +662,23 @@
         const params = new URLSearchParams({
             dt_ini: $('#filter_inicio').val(), dt_fim: $('#filter_fim').val(),
             id_vendedor: idVendedor, id_fornecedor: $('#filter_fornecedor').val(),
-            id_cliente: $('#filter_cliente').val(), tipo_data: $('#filter_tipo_data').val()
+            id_cliente: $('#filter_cliente').val(), tipo_data: $('#filter_tipo_data').val(),
+            status: $('#filter_status').val() || 'T'
         });
 
         try {
-            const res = await fetch('/api/comissoes/dashboard?' + params.toString()).then(r => r.json());
+            const fetchFn = (window.ComissaoPrepostoUi && ComissaoPrepostoUi.apiFetch)
+                ? (u) => ComissaoPrepostoUi.apiFetch(u) : (u) => fetch(u).then(r => r.json());
+            const res = await fetchFn('/api/comissoes/dashboard?' + params.toString());
             
             const fmt = v => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
-            $('#kpi_total').text(fmt(res.kpis.total));
-            $('#kpi_pagas').text(fmt(res.kpis.pago));
-            $('#kpi_pendentes').text(fmt(res.kpis.pendente));
-            $('#kpi_ticket').text(fmt(res.kpis.ticket));
-            $('#kpi_canceladas').text(fmt(res.kpis.cancelado));
+            const k = res.kpis || {};
+            $('#kpi_total').text(fmt(k.total));
+            $('#kpi_pendentes').text(fmt(k.pendente));
+            $('#kpi_conferido').text(fmt(k.conferido));
+            $('#kpi_pagas').text(fmt(k.liquidado != null ? k.liquidado : k.pago));
+            $('#kpi_inadimplente').text(fmt(k.inadimplente));
+            $('#kpi_ticket').text(fmt(k.ticket));
 
             if(res.charts.metas && res.charts.metas.length) {
                 const rel = res.charts.metas.reduce((a, b) => a + b.realizado, 0);
@@ -731,7 +752,7 @@
         // Aplica filtro específico do clique
         if (chartId === 'chartVendedor') params.id_vendedor = filterId;
         if (chartId === 'chartFornecedor') params.id_fornecedor = filterId;
-        if (chartId === 'chartStatus') params.status = filterId === 'Pago' ? 'Q' : 'P';
+        if (chartId === 'chartStatus') params.status = filterId || 'T';
         if (chartId === 'chartRegioes') params.uf = filterId;
 
         dtDrill = $('#drillTable').DataTable({

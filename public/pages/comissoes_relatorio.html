@@ -327,8 +327,17 @@
 
 <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
 <script src="/assets/comissao-preposto-ui.js"></script>
+<script src="/assets/comissao-status-ui.js"></script>
 
 <script>
+    async function apiRelatorio(url) {
+        if (window.ComissaoPrepostoUi && ComissaoPrepostoUi.apiFetch) {
+            return ComissaoPrepostoUi.apiFetch(url);
+        }
+        const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+        const r = await fetch(url, { headers: token ? { Authorization: 'Bearer ' + token } : {}, credentials: 'include' });
+        return r.json();
+    }
     let lookupData = { vendedores: [] };
     let _tipoUsuarioRel = 'REPRESENTANTE';
     let _userIdRel = null;
@@ -358,7 +367,7 @@
 
     async function loadLookups() {
         _lerJwtRelatorio();
-        const res = await fetch('/api/pedidos/lookups').then(r => r.json());
+        const res = await apiRelatorio('/api/pedidos/lookups');
         lookupData = res;
         const pop = (id, list) => {
             const sel = $('#' + id);
@@ -410,7 +419,7 @@
         $('#report_body').html('<tr><td colspan="8" class="text-center py-5"><div class="spinner-border text-primary"></div></td></tr>');
 
         try {
-            const res = await fetch('/api/comissoes/admin/extrato?' + params.toString()).then(r => r.json());
+            const res = await apiRelatorio('/api/comissoes/admin/extrato?' + params.toString());
             const rows = res.data || [];
             
             if(!rows.length) {
@@ -445,9 +454,7 @@
                         <td class="text-end">${fmt(vP)}</td>
                         <td class="text-center"><span class="badge bg-light text-dark border">${parseFloat(r.comissao).toFixed(2)}%</span></td>
                         <td class="text-end fw-800 text-primary">${fmt(vC)}</td>
-                        <td class="text-center">
-                            ${r.status_comissao === 'Q' ? '<span class="badge bg-success-subtle text-success">PAGO</span>' : '<span class="badge bg-warning-subtle text-warning">A CONFERIR</span>'}
-                        </td>
+                        <td class="text-center">${window.ComissaoStatusUi ? ComissaoStatusUi.badgeHtml(r.status_comissao) : r.status_comissao}</td>
                     </tr>
                 `;
             });

@@ -31,8 +31,11 @@
           <a class="nav-link" href="?sec=cadastro">Como cadastrar usuarios</a>
           <a class="nav-link" href="?sec=alteracao">Como alterar usuarios</a>
           <a class="nav-link" href="?sec=representante">Cadastrar representante</a>
+          <a class="nav-link" href="?sec=vendedor-vinculado">Vendedor vinculado</a>
           <a class="nav-link" href="?sec=preposto">Cadastrar preposto</a>
           <a class="nav-link" href="?sec=preposto-clientes">Clientes que o preposto enxerga</a>
+          <a class="nav-link" href="?sec=preposto-pedidos">Pedidos que o preposto enxerga</a>
+          <a class="nav-link" href="?sec=preposto-tabelas">Tabelas de preco do preposto</a>
           <a class="nav-link" href="?sec=preposto-fabricas">Comissoes e fabricas do preposto</a>
           <a class="nav-link" href="?sec=preposto-ocultar">Ocultar fabrica para preposto</a>
           <a class="nav-link" href="?sec=acesso-permissoes">Acesso e permissoes</a>
@@ -67,6 +70,11 @@
             <li>Clique em <strong>Salvar Usuario</strong>.</li>
           </ol>
           <p>No salvamento, o sistema grava o usuario e, em seguida, salva empresas liberadas, tabelas de preco, fornecedores vinculados e foto de perfil quando informados.</p>
+          <div class="tip">
+            <strong>Representante comercial:</strong> se o perfil tiver <strong>Permite Vender</strong> e o tipo for <strong>Representante Principal</strong>,
+            o <strong>Vendedor Vinculado</strong> e preenchido automaticamente ao salvar.
+            Detalhes em <a href="?sec=vendedor-vinculado">Vendedor vinculado</a>.
+          </div>
         </section>
 
         <section class="section help-section" id="alteracao">
@@ -90,8 +98,8 @@
           <p>O representante principal e o vendedor titular da carteira. Ele usa login proprio, aparece nos pedidos e pode ter prepostos vinculados.</p>
           <ol class="steps">
             <li>Crie um novo usuario na tela de usuarios (admin).</li>
-            <li>Na aba <strong>Acesso</strong>, defina login, senha e um perfil compativel com vendas.</li>
-            <li>Na aba <strong>Vinculos</strong>, informe regiao/rota e, se necessario, o vendedor vinculado e fornecedores liberados.</li>
+            <li>Na aba <strong>Acesso</strong>, defina login, senha e um perfil com <strong>Permite Vender</strong> ativo.</li>
+            <li>Na aba <strong>Vinculos</strong>, informe regiao/rota se quiser limitar clientes. O <strong>Vendedor Vinculado</strong> e preenchido automaticamente ao salvar (veja secao dedicada).</li>
             <li>Na aba <strong>Vendas e Comissoes</strong>, selecione tipo <strong>Representante Principal</strong>.</li>
             <li>Preencha percentuais de comissao a vista e a prazo e a meta mensal em reais.</li>
             <li>Salve o usuario.</li>
@@ -102,10 +110,117 @@
               <tbody>
                 <tr><td>Tipo Representante Principal</td><td>Define o papel comercial do usuario no sistema.</td></tr>
                 <tr><td>Regiao / Rota</td><td>Limita ou organiza a area comercial do representante.</td></tr>
-                <tr><td>Fornecedores liberados</td><td>Exige vendedor vinculado preenchido para gravar os fornecedores.</td></tr>
+                <tr><td>Fornecedores bloqueados</td><td>Lista negra de fabricas ocultas no pedido. Exige vendedor vinculado para gravar.</td></tr>
                 <tr><td>Meta mensal</td><td>Usada nos dashboards de atingimento de meta.</td></tr>
               </tbody>
             </table>
+          </div>
+        </section>
+
+        <section class="section help-section" id="vendedor-vinculado">
+          <h3>Vendedor Vinculado (aba Vinculos)</h3>
+          <p>
+            O campo <strong>Vendedor Vinculado</strong> liga o <em>login do usuario</em> ao <em>codigo comercial de vendedor</em>
+            usado em rotinas legadas: bloqueio de fabricas (<code>fornecedor_vendedor</code>), alguns relatorios e filtros por vendedor.
+            <strong>Nao e cadastrar o vendedor de novo</strong> — e informar qual codigo comercial aquele login representa.
+          </p>
+
+          <div class="callout">
+            <strong>Login x Vendedor:</strong> ao criar o usuario <em>Carlos</em>, voce ja cadastrou quem entra no sistema.
+            O vendedor vinculado diz ao sistema qual <em>codigo de vendedor</em> usar nas tabelas comerciais.
+            Para um representante que vende na propria carteira, esse codigo e o <strong>proprio Carlos</strong>.
+          </div>
+
+          <h4 style="margin-top:18px">Preenchimento automatico</h4>
+          <p>Desde a versao atual, o sistema preenche sozinho quando todas as condicoes abaixo sao verdadeiras:</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Condicao</th><th>Valor esperado</th></tr></thead>
+              <tbody>
+                <tr><td>Tipo de usuario (aba Vendas e Comissoes)</td><td><strong>Representante Principal</strong></td></tr>
+                <tr><td>Perfil de acesso</td><td><strong>Permite Vender</strong> = Sim (<code>p_vender</code> no perfil)</td></tr>
+                <tr><td>Campo Vendedor Vinculado</td><td>Ainda vazio (— nenhum —)</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            Ao salvar, o sistema grava <code>id_vendedor = idusuario</code> (o usuario fica vinculado a si mesmo).
+            Na edicao, se o campo estiver vazio e as regras acima valerem, o combo ja mostra o proprio nome antes de salvar.
+            Um texto de ajuda aparece abaixo do campo quando o auto-vinculo vai ocorrer.
+          </p>
+
+          <h4 style="margin-top:18px">Quando preencher manualmente</h4>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Situacao</th><th>O que escolher em Vendedor Vinculado</th></tr></thead>
+              <tbody>
+                <tr><td>Representante que vende (padrao)</td><td>Deixe em branco e salve — ou selecione <strong>ele mesmo</strong> na lista</td></tr>
+                <tr><td>Preposto / auxiliar</td><td>Em geral o <strong>representante principal</strong>, nao o preposto. O vinculo de equipe e o <code>id_gerente</code> (Tela Prepostos)</td></tr>
+                <tr><td>Admin, financeiro, TI (nao vende)</td><td><strong>— nenhum —</strong></td></tr>
+                <tr><td>Base legada com codigo diferente</td><td>O vendedor da lista cujo <code>id</code> corresponde ao codigo antigo do Delphi</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h4 style="margin-top:18px">Para que serve na pratica</h4>
+          <ul class="rules">
+            <li><strong>Fornecedores bloqueados:</strong> sem vendedor vinculado, a lista negra de fabricas <em>nao grava</em> ao salvar.</li>
+            <li><strong>Regiao / Rota:</strong> campo separado — restringe clientes; nao substitui o vendedor vinculado.</li>
+            <li><strong>Pedidos:</strong> quem vende no pedido e quem esta logado (<code>id_usuario</code> do pedido), nao o campo vendedor vinculado diretamente.</li>
+            <li><strong>Relatorios e comissoes:</strong> o vinculo ajuda a amarrar o login ao codigo usado em filtros e historico comercial.</li>
+          </ul>
+
+          <h4 style="margin-top:18px">Perguntas frequentes</h4>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Pergunta</th><th>Resposta</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td>Cadastrei o Carlos e depois tenho que vincular o Carlos de novo?</td>
+                  <td><strong>Nao manualmente</strong>, se ele for representante com perfil de venda. Ao salvar, o sistema vincula sozinho. So escolha na mao se for preposto, admin ou caso especial.</td>
+                </tr>
+                <tr>
+                  <td>Por que o combo lista outros nomes se eu acabei de criar o usuario?</td>
+                  <td>A lista traz todos os usuarios ativos com permissao de venda. Serve para vincular um login a <em>outro</em> codigo (ex.: preposto → representante) ou bases legadas.</td>
+                </tr>
+                <tr>
+                  <td>Marquei fabricas bloqueadas e nao salvou. Por que?</td>
+                  <td>Falta <strong>Vendedor Vinculado</strong>. Preencha (ou salve o usuario representante de novo para o auto-vinculo) e salve outra vez.</td>
+                </tr>
+                <tr>
+                  <td>Preposto deve se vincular a si mesmo?</td>
+                  <td><strong>Nao.</strong> Preposto usa carteira do representante via <code>id_gerente</code>. O vendedor vinculado, quando usado, costuma ser o do representante — nao o auto-vinculo do preposto.</td>
+                </tr>
+                <tr>
+                  <td>Mudei o perfil para um sem &quot;Permite Vender&quot;. O vinculo some?</td>
+                  <td>O valor ja gravado permanece ate voce limpar manualmente. Novos auto-vinculos so ocorrem ao salvar com perfil de venda e campo vazio.</td>
+                </tr>
+                <tr>
+                  <td>Usuario antigo sem vendedor vinculado. O que fazer?</td>
+                  <td>Edite o usuario, confira tipo <strong>Representante</strong> e perfil com <strong>Permite Vender</strong>, deixe o campo vazio e salve — o sistema preenche. Ou selecione o proprio nome no combo.</td>
+                </tr>
+                <tr>
+                  <td>Qual a diferenca entre Vendedor Vinculado e Vendedor do Pedido?</td>
+                  <td>No pedido, o vendedor do documento e quem esta selecionado no campo vendedor do pedido (em geral o logado). Vendedor vinculado e configuracao do <em>cadastro de usuario</em> para fabricas bloqueadas e codigo comercial legado.</td>
+                </tr>
+                <tr>
+                  <td>Qual a diferenca para Regiao / Rota?</td>
+                  <td><strong>Regiao / Rota</strong> filtra <em>quais clientes</em> o usuario ve. <strong>Vendedor Vinculado</strong> e o codigo comercial do login — sao independentes.</td>
+                </tr>
+                <tr>
+                  <td>Desmarquei &quot;Usar permissoes do perfil&quot; e tirei Permite Vender. Ainda vincula sozinho?</td>
+                  <td><strong>Nao.</strong> O auto-vinculo considera o perfil <em>ou</em> a permissao individual <strong>Permite Vender</strong> na aba Permissoes. Sem venda liberada, o campo permanece vazio.</td>
+                </tr>
+                <tr>
+                  <td>Posso vincular um usuario a outro vendedor da lista?</td>
+                  <td><strong>Sim</strong>, quando o login nao e o proprio vendedor titular — ex.: preposto ligado ao codigo do representante ou migracao de base legada. Basta escolher o nome na lista antes de salvar.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="tip">
+            <strong>Dica:</strong> ao cadastrar um representante novo, basta nome, login, senha, perfil de venda e tipo Representante Principal.
+            O passo extra na aba Vinculos so e necessario para regiao, fabricas bloqueadas ou vinculos especiais.
           </div>
         </section>
 
@@ -172,6 +287,66 @@
 
           <h4 style="margin-top:18px">Comissoes no celular do preposto</h4>
           <p>O preposto acompanha as proprias comissoes pelo aplicativo, em <strong>Minhas Comissoes</strong>. Ele ve somente a comissao dele — o percentual e os valores do representante e da fabrica ficam ocultos.</p>
+        </section>
+
+        <section class="section help-section" id="preposto-pedidos">
+          <h3>Pedidos que o preposto enxerga</h3>
+          <p>Mesmo compartilhando a carteira de clientes do representante, voce pode escolher se o preposto <strong>ve ou nao as vendas do representante</strong>. Isso e definido por preposto, no cadastro da <strong>Tela Prepostos</strong>, no campo <strong>Pedidos que o preposto enxerga</strong>.</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Opcao</th><th>O que o preposto ve na lista de Pedidos</th><th>Quando usar</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td><strong>Pedidos da carteira do representante</strong> (padrao)</td>
+                  <td>Os pedidos lancados pelo representante <em>mais</em> os pedidos do proprio preposto.</td>
+                  <td>Quando o preposto pode acompanhar todo o movimento da carteira.</td>
+                </tr>
+                <tr>
+                  <td><strong>Somente os pedidos dele</strong></td>
+                  <td>Apenas os pedidos que o proprio preposto lancou. As vendas do representante ficam ocultas.</td>
+                  <td>Quando o preposto nao deve ver o faturamento/vendas do representante.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="callout">A <strong>carteira de clientes continua compartilhada</strong> nas duas opcoes — o preposto segue podendo visitar e vender para os mesmos clientes. O que muda e apenas a <strong>lista de pedidos/vendas</strong> que ele visualiza.</div>
+          <h4 style="margin-top:18px">Como configurar</h4>
+          <ol class="steps">
+            <li>Abra a <strong>Tela Prepostos</strong> e edite o preposto.</li>
+            <li>No campo <strong>Pedidos que o preposto enxerga</strong>, escolha <strong>Somente os pedidos dele</strong>.</li>
+            <li>Clique em <strong>Salvar</strong>.</li>
+          </ol>
+          <div class="callout">A mudanca vale na hora: o preposto nao precisa sair e entrar de novo para o efeito aparecer.</div>
+        </section>
+
+        <section class="section help-section" id="preposto-tabelas">
+          <h3>Tabelas de preco do preposto</h3>
+          <p>O preposto <strong>nao tem tabela de preco propria</strong>: ele usa as tabelas do representante ao qual esta vinculado. Voce decide se ele herda <strong>todas</strong> as tabelas do representante ou apenas <strong>algumas selecionadas</strong>.</p>
+          <div class="step-warn">⚠️ Pre-requisito: a tabela precisa primeiro estar <strong>liberada para o representante</strong>. Isso e feito na <strong>Tela Usuarios</strong>, editando o representante, na secao <strong>Tabelas de Preco Liberadas</strong>. Criar a tabela nao basta — ela so chega ao preposto depois de liberada para o representante.</div>
+          <h4 style="margin-top:18px">Dois modos</h4>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Modo</th><th>O que o preposto usa</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td><strong>Todas as tabelas do representante</strong> (padrao)</td>
+                  <td>Herda automaticamente todas as tabelas liberadas para o representante.</td>
+                </tr>
+                <tr>
+                  <td><strong>Somente tabelas selecionadas</strong></td>
+                  <td>Usa apenas o subconjunto de tabelas que voce marcar para aquele preposto.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h4 style="margin-top:18px">Como selecionar tabelas para o preposto</h4>
+          <ol class="steps">
+            <li>Garanta que a tabela esta <strong>liberada para o representante</strong> (Tela Usuarios › Tabelas de Preco Liberadas).</li>
+            <li>Na <strong>Tela Prepostos</strong>, edite o preposto e em <strong>Tabelas de preco</strong> escolha <strong>Somente tabelas selecionadas</strong>.</li>
+            <li>Clique em <strong>Escolher tabelas</strong> (aparece logo abaixo do campo) e marque as tabelas desejadas.</li>
+            <li>Clique em <strong>Salvar selecao</strong>.</li>
+          </ol>
+          <div class="callout">Se ao abrir <strong>Escolher tabelas</strong> a lista vier vazia, e porque o representante ainda nao tem nenhuma tabela liberada — volte na Tela Usuarios e libere primeiro.</div>
         </section>
 
         <section class="section help-section" id="preposto-fabricas">
@@ -308,7 +483,7 @@
                 <tr><td>Geral</td><td>Foto, nome, situacao, apelido, tipo pessoa, CPF/CNPJ, RG/IE, e-mail.</td></tr>
                 <tr><td>Endereco</td><td>CEP com busca automatica, logradouro, bairro, cidade, UF, WhatsApp, telefone, Skype.</td></tr>
                 <tr><td>Acesso</td><td>Login, senha, perfil, grupo, empresa padrao, empresas liberadas.</td></tr>
-                <tr><td>Vinculos</td><td>Vendedor vinculado, regiao/rota, fornecedores liberados.</td></tr>
+                <tr><td>Vinculos</td><td><a href="?sec=vendedor-vinculado">Vendedor vinculado</a>, regiao/rota, fornecedores bloqueados.</td></tr>
                 <tr><td>Tabelas de Preco</td><td>Tabelas que o usuario pode usar.</td></tr>
                 <tr><td>Permissoes / E-mail</td><td>Excecoes de permissao, SMTP, observacoes internas.</td></tr>
                 <tr><td>Vendas e Comissoes</td><td>Tipo de usuario, comissoes, meta mensal.</td></tr>
@@ -336,15 +511,16 @@
           </div>
           <div class="tip">
             <strong>Importante:</strong> para que o bloqueio grave corretamente, o campo
-            <strong>Vendedor Vinculado</strong> (tambem na aba Vinculos) deve estar preenchido.
-            Sem esse vinculo, a configuracao de fornecedores nao e salva.
+            <strong>Vendedor Vinculado</strong> deve estar preenchido.
+            Representantes recebem o auto-vinculo ao salvar — veja <a href="?sec=vendedor-vinculado">Vendedor vinculado</a>.
+            Sem esse vinculo, a configuracao de fabricas bloqueadas nao e salva.
           </div>
           <h4 style="margin-top:18px">Campos da aba Vinculos</h4>
           <div class="table-wrap">
             <table>
               <thead><tr><th>Campo</th><th>Finalidade</th></tr></thead>
               <tbody>
-                <tr><td>Vendedor Vinculado</td><td>Liga o login ao cadastro de vendedor. Usado para comissoes, historico e filtros de relatorios.</td></tr>
+                <tr><td>Vendedor Vinculado</td><td>Codigo comercial do login. Representante: auto-vinculo a si mesmo ao salvar. Ver secao <a href="?sec=vendedor-vinculado">Vendedor vinculado</a>.</td></tr>
                 <tr><td>Regiao / Rota</td><td>Restringe quais clientes aparecem para o vendedor. Sem selecao, ve todos os clientes.</td></tr>
                 <tr><td>Fornecedores Bloqueados</td><td>Fabricas marcadas aqui ficam ocultas na busca do pedido. Sem marcacao, ve todas.</td></tr>
               </tbody>
@@ -357,7 +533,7 @@
           <ul class="rules">
             <li>Sem nome e login, o sistema nao salva o usuario.</li>
             <li>Na criacao, a senha e obrigatoria; na edicao, deixe em branco para manter a atual.</li>
-            <li>Fornecedores liberados so gravam quando existe vendedor vinculado.</li>
+            <li>Fornecedores bloqueados so gravam quando existe vendedor vinculado (representante recebe auto-vinculo ao salvar).</li>
             <li>Preposto criado pela tela Usuarios pode nao aparecer na lista do representante se nao houver vinculo <code>id_gerente</code>.</li>
             <li>Login duplicado no cadastro de preposto retorna erro e impede a gravacao.</li>
             <li>Perfis de acesso devem existir antes do cadastro do usuario.</li>

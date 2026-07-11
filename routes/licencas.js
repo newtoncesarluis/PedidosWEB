@@ -667,6 +667,7 @@ router.delete('/api-keys/:id', async (req, res) => {
 
 // ── SOLICITAÇÕES DE MELHORIA ─────────────────────────────────────────────────
 const { getNREPool } = require('../config/db-nresolution');
+const { getPainelPool } = require('../config/db-painel');
 
 // GET /api/licencas/solicitacoes — lista todas (admin)
 router.get('/solicitacoes', async (req, res) => {
@@ -676,7 +677,7 @@ router.get('/solicitacoes', async (req, res) => {
     const params = [];
     if (status) { where += ' AND s.status = ?'; params.push(status); }
     if (chave)  { where += ' AND s.chave_licenca LIKE ?'; params.push(`%${chave}%`); }
-    const [rows] = await getNREPool().query(
+    const [rows] = await getPainelPool().query(
       `SELECT s.*,
               (SELECT COUNT(*) FROM solicitacoes_anexos WHERE id_solicitacao = s.id) AS qtd_anexos
        FROM solicitacoes s
@@ -693,7 +694,7 @@ router.get('/solicitacoes', async (req, res) => {
 // GET /api/licencas/solicitacoes/stats — contadores por status
 router.get('/solicitacoes/stats', async (req, res) => {
   try {
-    const [rows] = await getNREPool().query(
+    const [rows] = await getPainelPool().query(
       `SELECT status, COUNT(*) as total FROM solicitacoes GROUP BY status`
     );
     const stats = { pendente: 0, em_analise: 0, em_desenvolvimento: 0, concluido: 0, recusado: 0 };
@@ -708,7 +709,7 @@ router.get('/solicitacoes/stats', async (req, res) => {
 // GET /api/licencas/solicitacoes/:id — detalhe com anexos
 router.get('/solicitacoes/:id', async (req, res) => {
   try {
-    const pool = getNREPool();
+    const pool = getPainelPool();
     const [[sol]] = await pool.query(`SELECT * FROM solicitacoes WHERE id = ?`, [req.params.id]);
     if (!sol) return res.status(404).json({ error: 'Não encontrada' });
     const [anexos] = await pool.query(
@@ -773,7 +774,7 @@ router.patch('/solicitacoes/:id', async (req, res) => {
     return res.status(400).json({ error: 'Status inválido' });
   }
   try {
-    const pool = getNREPool();
+    const pool = getPainelPool();
     const sets = [];
     const params = [];
     if (status)       { sets.push('status = ?');       params.push(status); }

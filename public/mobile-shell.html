@@ -17,11 +17,13 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="format-detection" content="telephone=no, address=no, email=no">
 <link rel="stylesheet" href="/assets/themes.css">
+<link rel="stylesheet" href="/assets/novidades-modal.css?v=20260629b">
 <script src="/assets/themes.js"></script>
+<script src="/assets/mobile-route.js"></script>
 <script src="/assets/mobile-client-log.js"></script>
-<script src="/assets/pedidos-offline.js?v=20260607j"></script>
-<script src="/assets/pedidos-offline-pack.js?v=20260607j"></script>
-<script src="/assets/offline-db.js?v=20260607j"></script>
+<script src="/assets/pedidos-offline.js?v=20260702a"></script>
+<script src="/assets/pedidos-offline-pack.js?v=20260702a"></script>
+<script src="/assets/offline-db.js?v=20260702a"></script>
 <script>
 (function () {
   if (navigator.onLine !== false) return;
@@ -509,6 +511,18 @@
     transform: translateX(-50%) translateY(110%);
     opacity: 0;
     pointer-events: none;
+  }
+  /* Formulário do pedido (Dados/Itens/Entrega) aberto: some só a barra inferior
+     (mantém o título no topo) e devolve o espaço pro conteúdo. Independente de
+     .ms-chrome-hidden — não altera a lógica existente da home. */
+  body.ms-pedido-form-open {
+    --ms-nav-h: 0px;
+  }
+  body.ms-pedido-form-open #ms-nav,
+  body.ms-pedido-form-open #ms-float-bar,
+  body.ms-pedido-form-open #ms-btn-back,
+  body.ms-pedido-form-open #ms-btn-novo-pedido {
+    display: none !important;
   }
   body.has-banner { --banner-h: 34px; }
   #ms-frame {
@@ -1471,6 +1485,10 @@
         <span class="ms-sheet-ico" style="background:rgba(249,115,22,.12);color:#c2410c"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 20h5V4H2v16h5"/><path d="M17 20v-4a3 3 0 00-3-3h-4a3 3 0 00-3 3v4"/><path d="M15 9a3 3 0 11-6 0 3 3 0 016 0z"/></svg></span>
         Leads
       </button>
+      <button type="button" class="ms-sheet-link" id="ms-sheet-vitrine-aberta">
+        <span class="ms-sheet-ico" style="background:rgba(14,165,233,.12);color:#0369a1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></span>
+        Vitrine Digital (link aberto)
+      </button>
       <button type="button" class="ms-sheet-link" data-ms-href="/pages/comercial-clientes-inativos.html">
         <span class="ms-sheet-ico" style="background:rgba(239,68,68,.12);color:#b91c1c"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" y1="8" x2="22" y2="13"/><line x1="22" y1="8" x2="17" y2="13"/></svg></span>
         Clientes Inativos
@@ -1544,6 +1562,12 @@
       <button type="button" class="ms-sheet-link" id="ms-btn-theme">
         <span class="ms-sheet-ico" style="background:rgba(99,102,241,.12);color:#4338ca"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/></svg></span>
         Tema / Aparência
+      </button>
+
+      <button type="button" class="ms-sheet-link" id="ms-btn-novidades">
+        <span class="ms-sheet-ico" style="background:rgba(14,165,233,.12);color:#0369a1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"/><path d="M5 19l1 3 1-3 3-1-3-1-1-3-1 3-3 1 3 1 1 3z"/><path d="M19 13l.75 2.25L22 16l-2.25.75L19 19l-.75-2.25L16 16l2.25-.75L19 13z"/></svg></span>
+        Novidades do sistema
+        <span id="ms-nov-badge" style="margin-left:auto;font-size:10px;font-weight:800;padding:2px 7px;border-radius:999px;background:#f59e0b;color:#1c1917;display:none"></span>
       </button>
 
       <button type="button" class="ms-sheet-link" id="ms-btn-sobre">
@@ -1649,6 +1673,16 @@ window.msToast = function (msg, type) {
       });
     }
 
+    // Com Service Worker ativo, navegação normal offline funciona (SW serve o HTML
+    // do cache) — e é o MESMO ambiente do online (?_ms=, location real). O fallback
+    // srcdoc abaixo fica só para aparelho sem SW (não intercepta <script src> de
+    // iframe srcdoc de forma confiável → página abria "morta", sem dados).
+    var swAtivo = !!(navigator.serviceWorker && navigator.serviceWorker.controller);
+    if (semRede && swAtivo) {
+      irPedidos();
+      return;
+    }
+
     if (semRede && packOk && typeof pack.loadShellPage === 'function') {
       try {
         var html = await pack.loadShellPage('/pages/pedidos.html');
@@ -1694,6 +1728,32 @@ window.msToast = function (msg, type) {
       });
     }
   } catch(_) {}
+
+  if (typeof SysRepNovidadesInit === 'function') {
+    try {
+      var _novUser = JSON.parse(sessionStorage.getItem('user') || localStorage.getItem('user') || '{}');
+      SysRepNovidadesInit({
+        userId: _novUser.idusuario || _novUser.id,
+        tenant: localStorage.getItem('chave_licenca') || '',
+        autoShow: true,
+        delayMs: 1400,
+      });
+    } catch (_) {}
+  }
+
+  (function () {
+    var btn = document.getElementById('ms-btn-novidades');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      var sheet = document.getElementById('ms-sheet-overlay');
+      if (sheet) sheet.classList.remove('open');
+      if (typeof SysRepNovidadesAbrir === 'function') {
+        SysRepNovidadesAbrir({ somenteNovas: false });
+      } else {
+        window.location.href = '/pages/novidades.html?_=' + Date.now();
+      }
+    });
+  })();
 
   // Oculta nav Clientes se perfil não tem acesso à tela
   (function () {
@@ -3707,6 +3767,10 @@ window.msToast = function (msg, type) {
     if (data.type !== 'mobile-pedidos-form-state') return;
     pedidosFormOpen = !!data.open;
     window._msPedidosFormOpen = pedidosFormOpen;
+    // Esconde a barra de navegação inferior só enquanto o formulário do pedido
+    // (Dados/Itens/Entrega) está aberto — independente da lógica de chrome da
+    // home, pra não arriscar afetar outras telas.
+    document.body.classList.toggle('ms-pedido-form-open', pedidosFormOpen);
 
     var badge = document.getElementById('ms-badge-filtros');
     if (badge && !pedidosFormOpen) {
@@ -4278,21 +4342,6 @@ window.msToast = function (msg, type) {
       run();
     }
   })();
-  if (window.sysrepAttachSwReload) sysrepAttachSwReload(safeReload);
-
-  // Polling: detecta novo deploy mesmo com tab aberta há muito tempo
-  (function () {
-    var _ver = null;
-    fetch('/api/version', { cache: 'no-store' }).then(r => r.json()).then(d => { _ver = d.v; }).catch(() => {});
-    setInterval(function () {
-      if (!_ver) return;
-      fetch('/api/version', { cache: 'no-store' })
-        .then(r => r.json())
-        .then(d => { if (d.v !== _ver) safeReload(); })
-        .catch(() => {});
-    }, 5 * 60 * 1000);
-  })();
-
   var frame = document.getElementById('ms-frame');
   var ptr = document.getElementById('ms-ptr');
   var ptrActive = false;
@@ -4740,7 +4789,7 @@ window.msToast = function (msg, type) {
         </span>
         <div>
           <div class="vitrine-title" id="vitrineShellTitle">Vitrine Digital</div>
-          <div class="vitrine-sub">Link de catálogo para o cliente</div>
+          <div class="vitrine-sub" id="vitrineShellSub">Link de catálogo para o cliente</div>
         </div>
       </div>
       <button type="button" class="vitrine-close" id="btnVitrineShellClose" title="Fechar" aria-label="Fechar">
@@ -4871,9 +4920,18 @@ window.msToast = function (msg, type) {
     var esc = function (s) {
       return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
     };
+    var subEl = document.getElementById('vitrineShellSub');
+    if (subEl) {
+      subEl.textContent = data.link_aberto
+        ? 'Link aberto — visitante informa nome e telefone no pedido'
+        : 'Link de catálogo para o cliente';
+    }
+    var desc = data.link_aberto
+      ? 'Link aberto válido até <strong>' + esc(expira) + '</strong>. Compartilhe em redes ou WhatsApp — quem abrir preenche nome e telefone ao enviar o pedido.'
+      : 'Link válido até <strong>' + esc(expira) + '</strong>. Compartilhe com o cliente para que ele consulte produtos e faça pedidos.';
     bodyEl.innerHTML =
       '<div class="vitrine-body">' +
-        '<p class="vitrine-desc">Link válido até <strong>' + esc(expira) + '</strong>. Compartilhe com o cliente para que ele consulte produtos e faça pedidos.</p>' +
+        '<p class="vitrine-desc">' + desc + '</p>' +
         '<div class="vitrine-link-row">' +
           '<input class="vitrine-link-input" id="mv-shell-link" readonly value="' + esc(link) + '">' +
           '<button type="button" class="btn btn-primary" id="btnVitrineShellCopy">Copiar</button>' +
@@ -4955,27 +5013,50 @@ window.msToast = function (msg, type) {
       if (errEl) errEl.textContent = String(data.message || 'Erro ao gerar link');
     }
   });
+
+  document.getElementById('ms-sheet-vitrine-aberta')?.addEventListener('click', function (e) {
+    e.preventDefault();
+    var sheet = document.getElementById('ms-sheet-overlay');
+    if (sheet) sheet.classList.remove('open');
+    window.dispatchEvent(new MessageEvent('message', { data: { type: 'ms-vitrine-loading' } }));
+    var tkn = sessionStorage.getItem('token') || localStorage.getItem('token') || '';
+    fetch('/api/vitrine/gerar', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + tkn, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ link_aberto: true, dias_validade: 60 })
+    })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (res) {
+        if (!res.ok) throw new Error(res.d.erro || 'Erro ao gerar link');
+        var link = location.origin + res.d.link;
+        var expira = String(res.d.expira || '').split('-').reverse().join('/');
+        if (expira.length > 10) expira = expira.slice(0, 10);
+        window.dispatchEvent(new MessageEvent('message', {
+          data: {
+            type: 'ms-vitrine-show',
+            link: link,
+            expira: expira,
+            path: res.d.link,
+            waUrl: 'https://wa.me/?text=' + encodeURIComponent('Olá! Confira nosso catálogo de produtos: ' + link),
+            link_aberto: true
+          }
+        }));
+      })
+      .catch(function (err) {
+        window.dispatchEvent(new MessageEvent('message', {
+          data: { type: 'ms-vitrine-error', message: err.message || 'Erro ao gerar link' }
+        }));
+      });
+  });
 })();
 </script>
+<script src="/assets/version-update.js"></script>
+<script src="/assets/novidades-modal.js?v=20260629b"></script>
 <script>
 /* ===== Versão do app + banner "Atualizar agora" (detecta novo deploy) ===== */
 (function () {
   'use strict';
-  var VERSION_URL = '/api/version';
-  var baselineBuild = null;   // build id carregado nesta sessão
   var bannerShown = false;
-  var checking = false;
-
-  function setVersionLabel(versao) {
-    var el = document.getElementById('ms-app-version');
-    if (el && versao) el.textContent = 'v' + versao;
-  }
-
-  function fetchVersion() {
-    return fetch(VERSION_URL, { cache: 'no-store' })
-      .then(function (r) { return r.ok ? r.json() : null; })
-      .catch(function () { return null; });
-  }
 
   function showUpdateBanner() {
     if (bannerShown) return;
@@ -5021,29 +5102,15 @@ window.msToast = function (msg, type) {
     });
   }
 
-  function checkForUpdate() {
-    if (checking || bannerShown || navigator.onLine === false) return;
-    checking = true;
-    fetchVersion().then(function (d) {
-      checking = false;
-      if (!d) return;
-      if (baselineBuild == null) { baselineBuild = d.v; return; }
-      if (d.v && d.v !== baselineBuild) showUpdateBanner();
+  if (window.sysrepVersionUpdateInit) {
+    sysrepVersionUpdateInit({
+      onUpdate: showUpdateBanner,
+      onVersion: function (d) {
+        var el = document.getElementById('ms-app-version');
+        if (el && d && d.versao) el.textContent = 'v' + d.versao;
+      }
     });
   }
-
-  // Baseline + rótulo inicial
-  fetchVersion().then(function (d) {
-    if (!d) return;
-    baselineBuild = d.v;
-    setVersionLabel(d.versao);
-  });
-
-  document.addEventListener('visibilitychange', function () {
-    if (document.visibilityState === 'visible') checkForUpdate();
-  });
-  window.addEventListener('focus', checkForUpdate);
-  setInterval(checkForUpdate, 90000);
 })();
 </script>
 

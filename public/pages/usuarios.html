@@ -658,7 +658,7 @@ select { cursor:pointer; }
     </button>
   </div>
   <div style="display:flex;align-items:center;gap:8px">
-    <input type="text" id="inp-search" placeholder="Buscar usuário..." oninput="carregarUsuarios()" class="search-input" style="padding:5px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px;width:240px;outline:none">
+    <input type="text" id="inp-search" name="busca-usuario-nofill" placeholder="Buscar usuário..." oninput="carregarUsuarios()" autocomplete="off" readonly onfocus="this.removeAttribute('readonly')" class="search-input" style="padding:5px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:12px;width:240px;outline:none">
   </div>
 </div>
 
@@ -805,12 +805,12 @@ select { cursor:pointer; }
               <input type="text" id="f-loginusu" required>
             </div>
             <div class="form-group">
-              <label>Senha <span class="req">*</span></label>
+              <label>Senha <span class="req" id="f-senhausu-req">*</span></label>
               <input type="password" id="f-senhausu" autocomplete="new-password">
             </div>
             <div class="form-group">
               <label>Perfil de Acesso <span class="req">*</span></label>
-              <select id="f-idperfil" required><option value="">Carregando...</option></select>
+              <select id="f-idperfil" required onchange="onPerfilOuTipoUsuarioChange()"><option value="">Carregando...</option></select>
             </div>
             <div class="form-group">
               <label>Grupo de Usuário</label>
@@ -834,7 +834,8 @@ select { cursor:pointer; }
           <div class="form-grid">
             <div class="form-group">
               <label>Vendedor Vinculado</label>
-              <select id="f-id_vendedor"><option value="">— nenhum —</option></select>
+              <select id="f-id_vendedor" onchange="atualizarHintVendedorVinculado()"><option value="">— nenhum —</option></select>
+              <small id="hint-vendedor-vinculado" style="display:none;font-size:10px;color:var(--text2);margin-top:4px"></small>
             </div>
             <div class="form-group">
               <label>Região / Rota</label>
@@ -912,7 +913,7 @@ select { cursor:pointer; }
           <div class="form-grid">
             <div class="form-group">
               <label>Tipo de Usuário</label>
-              <select id="f-tipo_usuario" onchange="togglePreposto()">
+              <select id="f-tipo_usuario" onchange="togglePreposto(); onPerfilOuTipoUsuarioChange()">
                 <option value="REPRESENTANTE">Representante Principal</option>
                 <option value="PREPOSTO">Preposto / Vendedor Auxiliar</option>
                 <option value="ADMIN">Administrador</option>
@@ -1011,6 +1012,74 @@ function togglePreposto() {
       if (el) el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2);font-size:12px">Salve o usuário primeiro para configurar comissões por fábrica.</div>';
     }
   }
+}
+
+/** Perfil com Permite Vender = S (ou permissão individual na aba Permissões). */
+function perfilOuUsuarioPermiteVender() {
+  const usarPerfil = document.getElementById('f-usar-perfil')?.checked !== false;
+  if (!usarPerfil) {
+    const chk = document.getElementById('p-p_vender');
+    return chk ? chk.checked : false;
+  }
+  const idperfil = parseInt(_getElVal('f-idperfil'), 10);
+  if (!idperfil) return false;
+  const p = (_perfis || []).find(x => String(x.id) === String(idperfil));
+  return String(p?.p_vender || 'N').toUpperCase() === 'S';
+}
+
+function deveAutoVincularVendedor() {
+  const tipo = String(_getElVal('f-tipo_usuario') || 'REPRESENTANTE').toUpperCase();
+  if (tipo === 'PREPOSTO' || tipo === 'ADMIN') return false;
+  return perfilOuUsuarioPermiteVender();
+}
+
+function garantirOpcaoVendedorCombo(id, nome) {
+  const sel = document.getElementById('f-id_vendedor');
+  if (!sel || !id) return;
+  const sid = String(id);
+  if (sel.querySelector(`option[value="${sid}"]`)) return;
+  const opt = document.createElement('option');
+  opt.value = sid;
+  opt.textContent = nome || `Usuário #${id}`;
+  sel.appendChild(opt);
+}
+
+/** Preenche Vendedor Vinculado com o próprio usuário quando elegível e campo vazio. */
+function aplicarVendedorVinculadoAuto(usuarioId, silencioso) {
+  if (!usuarioId || _getElVal('f-id_vendedor')) return false;
+  if (!deveAutoVincularVendedor()) return false;
+  const nome = _getElVal('f-nomeusu') || _getElVal('f-apelido') || `Usuário #${usuarioId}`;
+  garantirOpcaoVendedorCombo(usuarioId, nome);
+  _setElVal('f-id_vendedor', usuarioId);
+  if (!silencioso) {
+    toast('Vendedor vinculado automaticamente a este usuário', 'ok', 3500);
+  }
+  atualizarHintVendedorVinculado();
+  return true;
+}
+
+function atualizarHintVendedorVinculado() {
+  const hint = document.getElementById('hint-vendedor-vinculado');
+  if (!hint) return;
+  if (_getElVal('f-id_vendedor')) {
+    hint.style.display = 'none';
+    hint.textContent = '';
+    return;
+  }
+  if (!deveAutoVincularVendedor()) {
+    hint.style.display = 'none';
+    hint.textContent = '';
+    return;
+  }
+  hint.style.display = 'block';
+  hint.textContent = _editId
+    ? 'Representante com perfil de venda: ao salvar, ficará vinculado a este usuário.'
+    : 'Representante com perfil de venda: após salvar, será vinculado automaticamente a este usuário.';
+}
+
+function onPerfilOuTipoUsuarioChange() {
+  if (_editId) aplicarVendedorVinculadoAuto(_editId, true);
+  atualizarHintVendedorVinculado();
 }
 
 let _fabData = []; // cache para filtro
@@ -1345,7 +1414,7 @@ function renderPermissoesGrid() {
   if (!grid) return;
   grid.innerHTML = perms.map(p => `
     <div class="chk-item" onclick="const c=this.querySelector('input'); if(!c.disabled){c.checked=!c.checked}">
-      <input type="checkbox" id="p-${p.k}" data-perm="${p.k}" class="chk-perm" onclick="event.stopPropagation()">
+      <input type="checkbox" id="p-${p.k}" data-perm="${p.k}" class="chk-perm" onclick="event.stopPropagation()" onchange="onPerfilOuTipoUsuarioChange()">
       <label>${p.l}</label>
     </div>
   `).join('');
@@ -1683,6 +1752,8 @@ async function exibirForm(id = null) {
   subbar.style.display   = 'none';
 
   _setElText('form-title', id ? 'Editar Usuário' : 'Novo Usuário');
+  const senhaReq = document.getElementById('f-senhausu-req');
+  if (senhaReq) senhaReq.style.display = id ? 'none' : '';
   setTab(0, document.querySelector('.form-tab'));
 
   // Limpa/Prepara formulário
@@ -1733,12 +1804,16 @@ async function exibirForm(id = null) {
     `).join('') || '<div style="text-align:center;padding:20px;color:var(--text2);font-size:12px">Nenhum fornecedor disponível</div>';
 
     // Fase 2: dados do usuário para edição
-    if (!id) return;
+    if (!id) {
+      atualizarHintVendedorVinculado();
+      return;
+    }
 
     const usr = await api(`../api/usuarios/${id}`);
 
     _setElVal('f-nomeusu', usr.nomeusu);
     _setElVal('f-loginusu', usr.loginusu);
+    _setElVal('f-senhausu', usr.senhausu || '');
     _setElVal('f-situacao', usr.SITUACAO || usr.situacao || 'ATIVO');
     _setElVal('f-apelido', usr.apelido);
     _setElVal('f-email', usr.email);
@@ -1781,6 +1856,8 @@ async function exibirForm(id = null) {
       document.getElementById('fab-list').innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2);font-size:12px"><span class="spinner"></span> Carregando fábricas...</div>';
       _fabData = [];
     }
+    if (!usr.id_vendedor) aplicarVendedorVinculadoAuto(id, true);
+    else atualizarHintVendedorVinculado();
 
     // Permissões
     const temPermCustom = usr.incluir_pedvendas === 'S' || usr.alterar_pedvendas === 'S' ||
@@ -1847,6 +1924,7 @@ function togglePermissoes(usar) {
   grid.style.opacity = usar ? '0.5' : '1';
   grid.style.pointerEvents = usar ? 'none' : 'auto';
   grid.querySelectorAll('input').forEach(i => i.disabled = usar);
+  onPerfilOuTipoUsuarioChange();
 }
 
 async function salvar() {
@@ -1904,6 +1982,11 @@ async function salvar() {
     if (!body.idperfil) return toast('Perfil de Acesso é obrigatório', 'error');
     if (!_editId && !body.senhausu) return toast('Senha é obrigatória para novo usuário', 'error');
 
+    if (_editId && !body.id_vendedor && deveAutoVincularVendedor()) {
+      aplicarVendedorVinculadoAuto(_editId, true);
+      body.id_vendedor = String(_editId);
+    }
+
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner"></span> Gravando...';
 
@@ -1912,6 +1995,11 @@ async function salvar() {
     
     const res = await api(path, { method, body });
     const id = _editId || res.id;
+
+    if (!body.id_vendedor && deveAutoVincularVendedor()) {
+      aplicarVendedorVinculadoAuto(id, true);
+      body.id_vendedor = String(id);
+    }
 
     // Salva vínculos (Empresas, Tabelas e Fornecedores)
     const id_empresas = Array.from(document.querySelectorAll('.chk-emp:checked')).map(c => parseInt(c.dataset.id));
@@ -1937,12 +2025,16 @@ async function salvar() {
       api(`../api/usuarios/${id}/empresas`, { method: 'POST', body: { id_empresas } }),
       api(`/api/tabela-precos/vinculos/VENDEDOR/${id}`, { method: 'POST', body: { tabelas: id_tabelas } }),
       (() => {
+        // Sem fábricas marcadas e sem vendedor: nada a gravar (lista vazia = ver todas)
+        if (!id_fornecedores.length && !body.id_vendedor) return Promise.resolve();
         if (id_fornecedores.length > 0 && !body.id_vendedor) {
           toast('Fornecedores não foram gravados: preencha o campo "Vendedor Vinculado" na aba Vínculos e salve novamente.', 'info', 7000);
           return Promise.resolve();
         }
-        return api(`../api/usuarios/${id}/fornecedores`, { method: 'POST', body: { id_fornecedores } })
-          .catch(e => toast(`Fornecedores não gravados: ${e.message}`, 'info'));
+        return api(`../api/usuarios/${id}/fornecedores`, {
+          method: 'POST',
+          body: { id_fornecedores, id_vendedor: body.id_vendedor || null }
+        }).catch(e => toast(`Fornecedores não gravados: ${e.message}`, 'info'));
       })(),
       api(`../api/usuarios/${id}/comissoes-fornecedor`, { method: 'POST', body: { comissoes: comissoesFab } })
         .catch(e => { if (comissoesFab.length > 0) toast(`Comissões não gravadas: ${e.message}`, 'info'); })
