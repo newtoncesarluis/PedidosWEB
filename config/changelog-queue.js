@@ -10,6 +10,137 @@
  */
 module.exports = [
   {
+    versao: '1.1.3.70',
+    tipo: 'BUG',
+    titulo: 'Mobile: mesmo produto no pedido agora soma corretamente',
+    descricao:
+      'No app mobile, ao incluir o mesmo produto de novo (ex.: Adidas Super Nova), o sistema criava outra linha em vez de somar a quantidade. ' +
+      'Corrigido: toque duplo em Incluir não duplica mais, e com a fábrica em «Somar na mesma linha» as quantidades são unificadas automaticamente.',
+    data_lancamento: '2026-07-14',
+  },
+  {
+    versao: '1.1.3.69',
+    tipo: 'MELHORIA',
+    titulo: 'Home: Showroom em destaque ao lado da Vitrine',
+    descricao:
+      'Na home (desktop), a Vitrine Digital e o novo Showroom aparecem em dois cards lado a lado, com resumo e atalho para cada um. ' +
+      'O banner «Tem uma ideia ou encontrou um bug?» virou ícone no rodapé, ao lado de Novidades — a home fica mais limpa sem perder o acesso ao suporte.',
+    data_lancamento: '2026-07-14',
+  },
+  {
+    versao: '1.1.3.69',
+    tipo: 'BUG',
+    titulo: 'Home: aba Pedidos não ficava presa após fechar',
+    descricao:
+      'Ao fechar a última aba (ex.: Pedidos) e voltar ao dashboard, a etiqueta da aba continuava visível no rodapé da tela. ' +
+      'Agora a barra de abas é limpa corretamente ao fechar a última tela.',
+    data_lancamento: '2026-07-14',
+  },
+  {
+    versao: '1.1.3.68',
+    tipo: 'MELHORIA',
+    titulo: 'Fotos de produto sem corte na lista e no pedido',
+    descricao:
+      'As miniaturas de produto na lista de Produtos (desktop e mobile) e na tela de Pedidos (itens, busca, cards no celular e impressão/PDF) passam a mostrar a foto completa, sem cortar nas bordas do quadrado.',
+    data_lancamento: '2026-07-14',
+  },
+  {
+    versao: '1.1.3.68',
+    tipo: 'MELHORIA',
+    titulo: 'Showroom: sem menu lateral + pedidos pendentes',
+    descricao:
+      'O Showroom ficou no padrão do sistema: sem a barra lateral de ícones. No topo ficam Carrinho e Pedidos pendentes. ' +
+      'A lista de pendentes usa a mesma regra de visibilidade da tela de Pedidos (vendedor vê os seus; gerente a equipe; admin todos). ' +
+      'Disponível também no celular/tablet (Mais → Showroom).',
+    data_lancamento: '2026-07-14',
+  },
+  {
+    versao: '1.1.3.68',
+    tipo: 'NOVO',
+    titulo: 'Showroom independente — pré-pedido visual',
+    descricao:
+      'Novo Showroom (Comercial → Vendas ou botão na barra superior): navegação visual com coleções, fotos, detalhe e grade — igual às telas de força de vendas. ' +
+      'Monte o carrinho, informe cliente, condição/forma de pagamento e tipo do pedido, e finalize. O pedido entra em Pedidos como Pendente (origem SHOWROOM). ' +
+      'Independente da tela de Pedidos, no mesmo espírito da Vitrine Digital. O botão Catálogo dentro do pedido continua disponível.',
+    data_lancamento: '2026-07-14',
+  },
+  {
+    versao: '1.1.3.68',
+    tipo: 'NOVO',
+    titulo: 'Catálogos Visuais — montar coleções para o Showroom e o pedido',
+    descricao:
+      'Em Comercial → Catálogos Visuais você monta coleções com capa e produtos (um a um ou em lote por fábrica/tabela). ' +
+      'As coleções alimentam o Showroom e o botão Catálogo na aba Itens do pedido.',
+    data_lancamento: '2026-07-14',
+  },
+  {
+    versao: '1.1.3.68',
+    tipo: 'MELHORIA',
+    titulo: 'Enviar WhatsApp: caixa de mensagem com formatação, emoji e anexo',
+    descricao:
+      'Ao clicar em «Enviar WhatsApp» na tela de Clientes, agora abre uma caixa de mensagem completa — negrito, itálico, riscado, emojis e opção de anexar arquivo (imagem, PDF, documento até 10MB). ' +
+      'Substitui a caixa simples de texto usada antes. Continua enviando pela API (EuAtendo/Evolution) quando configurada, com registro no histórico do cliente.',
+    data_lancamento: '2026-07-14',
+  },
+  {
+    versao: '1.1.3.68',
+    tipo: 'MELHORIA',
+    titulo: 'WhatsApp na lista de clientes usa a API quando configurada',
+    descricao:
+      'Ao clicar no ícone verde ou em «Enviar WhatsApp» na tela de Clientes, se o EuAtendo (ou Evolution) estiver configurado e online, a mensagem sai pela API — sem abrir o WhatsApp Web (wa.me). ' +
+      'Você digita o texto na caixa de mensagem; o envio fica registrado no histórico do cliente. Sem API, continua abrindo o wa.me.',
+    data_lancamento: '2026-07-14',
+  },
+  {
+    versao: '1.1.3.68',
+    tipo: 'MELHORIA',
+    titulo: 'Catálogo: incluir produtos em lote por fábrica ou tabela',
+    descricao:
+      'Ao montar um catálogo visual, além de buscar produto a produto, agora dá para incluir em lote todos os itens de uma fábrica ou de uma tabela de preço. ' +
+      'Itens já na lista não são duplicados; dá para limpar a lista e ajustar antes de salvar.',
+    data_lancamento: '2026-07-14',
+  },
+  {
+    versao: '1.1.3.68',
+    tipo: 'MELHORIA',
+    titulo: 'Catálogo visual: por coleção, fábrica ou tabela de preço',
+    descricao:
+      'No botão Catálogo do pedido, escolha como navegar: Coleções (montadas por você), Fábricas (catálogo completo da indústria) ou Tabelas de preço (produtos com preço na tabela). ' +
+      'O fluxo de fotos, detalhe, grade/quantidade e inclusão no pedido pendente é o mesmo nos três modos.',
+    data_lancamento: '2026-07-14',
+  },
+  {
+    versao: '1.1.3.68',
+    tipo: 'NOVO',
+    titulo: 'Campanhas WhatsApp — envio em massa para clientes',
+    descricao:
+      'Nova tela Vendas → Campanhas WhatsApp: selecione clientes por região, vendedor ou dias sem compra, ' +
+      'escreva a mensagem com variáveis ({nome}, {cidade}) e dispare com ritmo controlado (6–12s entre mensagens, proteção anti-bloqueio). ' +
+      'Acompanhe o progresso em tempo real; cada envio entra no histórico do cliente. ' +
+      'Funciona com EuAtendo (ApiChat) ou Evolution API. Guia completo em Ajuda → Campanhas WhatsApp.',
+    data_lancamento: '2026-07-14',
+  },
+  {
+    versao: '1.1.3.68',
+    tipo: 'NOVO',
+    titulo: 'Histórico de mensagens enviadas ao cliente',
+    descricao:
+      'Cada envio de pedido por WhatsApp ou e-mail agora fica registrado no cliente: data, canal, número/e-mail de destino, quem enviou, pedido vinculado e status (enviado ou falhou, com o motivo). ' +
+      'Consulte no botão «Histórico» da tela de Clientes — seção «Mensagens Enviadas», abaixo dos pedidos.',
+    data_lancamento: '2026-07-14',
+  },
+  {
+    versao: '1.1.3.68',
+    tipo: 'NOVO',
+    titulo: 'WhatsApp: integração com a plataforma EuAtendo',
+    descricao:
+      'Novo provedor de envio de mensagens WhatsApp: além da Evolution API, agora é possível usar o EuAtendo (plataforma hospedada, sem QR Code por usuário). ' +
+      'Configure em Configurações de API → WhatsApp — API de Envio, escolhendo o provedor «EuAtendo» e informando o token da conexão. ' +
+      'O envio de pedidos em PDF e as mensagens de teste passam a sair pela plataforma escolhida. ' +
+      'Passo a passo completo em Ajuda → Configurações → Configurações WhatsApp.',
+    data_lancamento: '2026-07-14',
+  },
+  {
     versao: '1.1.3.68',
     tipo: 'BUG',
     titulo: 'Clientes: lista vazia com isolamento por empresa (legado)',

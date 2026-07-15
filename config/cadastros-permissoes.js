@@ -92,6 +92,8 @@ const COMERCIAL_TELAS = [
   { col: 'tela_dash_panico', jwt: 'gtela_dash_panico', page: '/pages/panico-vendedor.html', label: 'Pânico do Vendedor — Heatmap' },
   { col: 'tela_dash_gamificacao', jwt: 'gtela_dash_gamificacao', page: '/pages/gamificacao.html', label: 'Gamificação — Ranking & Metas' },
   { col: 'tela_dash_mapa_oportunidades', jwt: 'gtela_dash_mapa_oportunidades', page: '/pages/mapa-oportunidades.html', label: 'Mapa de Oportunidades — Cliente x Fábrica' },
+  { col: 'tela_campanhas_wa', jwt: 'gtela_campanhas_wa', page: '/pages/comercial-campanhas-whatsapp.html', label: 'Campanhas WhatsApp' },
+  { col: 'tela_catalogos', jwt: 'gtela_catalogos', page: '/pages/comercial-catalogos.html', label: 'Catálogos Visuais' },
 ];
 
 /** Todas as telas com coluna tela_* no perfil (cadastros + comercial) */

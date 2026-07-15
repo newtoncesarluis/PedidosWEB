@@ -4392,6 +4392,24 @@ router.post('/:id/enviar', async (req, res) => {
     const pdfBuffer = pdf_base64 ? Buffer.from(pdf_base64, 'base64') : null;
     const results  = {};
 
+    // ── Histórico de envios no cliente (cliente_mensagens) ──────────────────
+    const { registrarMensagemCliente } = require('../config/cliente-mensagens');
+    let _codClienteEnvio = null;
+    try {
+      const [[pedRow]] = await pool.query(
+        `SELECT cod_cliente FROM pedidos WHERE id=? LIMIT 1`, [req.params.id]
+      );
+      _codClienteEnvio = pedRow?.cod_cliente || null;
+    } catch {}
+    const logEnvio = (extra) => registrarMensagemCliente(pool, {
+      cod_cliente: _codClienteEnvio,
+      id_pedido:   parseInt(req.params.id, 10) || null,
+      id_usuario:  userId || null,
+      mensagem:    mensagem || `Pedido Nº ${numero_pedido || req.params.id}`,
+      anexo:       pdfBuffer ? fileName : null,
+      ...extra,
+    });
+
     // ── Email ───────────────────────────────────────────────────────────────
     if ((via === 'email' || via === 'ambos') && emails?.length) {
       try {
@@ -4446,8 +4464,10 @@ router.post('/:id/enviar', async (req, res) => {
           `UPDATE pedidos SET emailclienteenviado='S' WHERE id=? AND COALESCE(excluido,'N')='N'`,
           [req.params.id]
         ).catch(() => {});
+        void logEnvio({ canal: 'EMAIL', destino: emails.join(', ') });
       } catch (err) {
         results.email = { ok: false, error: err.message };
+        void logEnvio({ canal: 'EMAIL', destino: emails.join(', '), status: 'FALHOU', erro: err.message });
       }
     }
 
@@ -4459,45 +4479,70 @@ router.post('/:id/enviar', async (req, res) => {
         mensagem || `Segue o Pedido Nº ${numero_pedido}`
       )}`;
       try {
-        const [cfgRows] = await pool.query(
-          `SELECT w_urlplataforma, w_apiglobal FROM configuracao WHERE excluido='N' ORDER BY id DESC LIMIT 1`
-        ).catch(() => [[]]);
-        if (!cfgRows[0]?.w_urlplataforma) {
-          throw new Error('Evolution API não configurada');
-        }
-        const cfg = { url: cfgRows[0].w_urlplataforma, apikey: cfgRows[0].w_apiglobal };
+        // ── Provedor EuAtendo: endpoint único com Bearer token, sem instância ──
+        const { euatendoAtivo, enviarTextoEuAtendo, enviarMediaEuAtendo } = require('../config/euatendo');
+        const ea = await euatendoAtivo(pool).catch(() => null);
+        if (ea) {
+          const caption = mensagem || `Segue em anexo o Pedido Nº ${numero_pedido}`;
+          if (pdfBuffer) {
+            await enviarMediaEuAtendo(ea, numero, {
+              buffer:   pdfBuffer,
+              filename: fileName,
+              mimetype: 'application/pdf',
+              caption,
+            });
+          } else {
+            await enviarTextoEuAtendo(ea, numero, caption);
+          }
+          results.whatsapp = { ok: true, via: 'api', provedor: 'EUATENDO' };
+          void logEnvio({ canal: 'WHATSAPP', provedor: 'EUATENDO', destino: numero });
+        } else {
+          // ── Provedor Evolution: instância do usuário + sendMedia ──────────
+          const [cfgRows] = await pool.query(
+            `SELECT w_urlplataforma, w_apiglobal FROM configuracao WHERE excluido='N' ORDER BY id DESC LIMIT 1`
+          ).catch(() => [[]]);
+          if (!cfgRows[0]?.w_urlplataforma) {
+            throw new Error('Evolution API não configurada');
+          }
+          const cfg = { url: cfgRows[0].w_urlplataforma, apikey: cfgRows[0].w_apiglobal };
 
-        const [uRows] = await pool.query(
-          `SELECT instancia FROM usuarios WHERE idusuario=? AND excluido='N' LIMIT 1`, [userId]
-        ).catch(() => [[]]);
-        if (!uRows[0]?.instancia) {
-          throw new Error('Usuário sem instância WhatsApp configurada');
-        }
-        const instancia = uRows[0].instancia;
+          const [uRows] = await pool.query(
+            `SELECT instancia FROM usuarios WHERE idusuario=? AND excluido='N' LIMIT 1`, [userId]
+          ).catch(() => [[]]);
+          if (!uRows[0]?.instancia) {
+            throw new Error('Usuário sem instância WhatsApp configurada');
+          }
+          const instancia = uRows[0].instancia;
 
-        const st = await evoRequest(cfg.url, `/instance/connectionState/${instancia}`, 'GET', cfg.apikey);
-        const state = st.body?.instance?.state || st.body?.state || '';
-        if (state !== 'open') {
-          throw new Error('WhatsApp desconectado — reconecte em Configurações');
-        }
+          const st = await evoRequest(cfg.url, `/instance/connectionState/${instancia}`, 'GET', cfg.apikey);
+          const state = st.body?.instance?.state || st.body?.state || '';
+          if (state !== 'open') {
+            throw new Error('WhatsApp desconectado — reconecte em Configurações');
+          }
 
-        if (!pdf_base64) {
-          throw new Error('PDF do pedido é obrigatório para envio pelo WhatsApp');
-        }
+          if (!pdf_base64) {
+            throw new Error('PDF do pedido é obrigatório para envio pelo WhatsApp');
+          }
 
-        const r = await evoRequest(cfg.url, `/message/sendMedia/${instancia}`, 'POST', cfg.apikey, {
-          number:    numero,
-          mediatype: 'document',
-          mimetype:  'application/pdf',
-          caption:   mensagem || `Segue em anexo o Pedido Nº ${numero_pedido}`,
-          media:     pdf_base64,
-          fileName,
-        });
-        results.whatsapp = r.status < 300
-          ? { ok: true, via: 'api' }
-          : { ok: false, error: JSON.stringify(r.body).slice(0, 200), wa_link: waLink, fallback: true };
+          const r = await evoRequest(cfg.url, `/message/sendMedia/${instancia}`, 'POST', cfg.apikey, {
+            number:    numero,
+            mediatype: 'document',
+            mimetype:  'application/pdf',
+            caption:   mensagem || `Segue em anexo o Pedido Nº ${numero_pedido}`,
+            media:     pdf_base64,
+            fileName,
+          });
+          results.whatsapp = r.status < 300
+            ? { ok: true, via: 'api' }
+            : { ok: false, error: JSON.stringify(r.body).slice(0, 200), wa_link: waLink, fallback: true };
+          void logEnvio({
+            canal: 'WHATSAPP', provedor: 'EVOLUTION', destino: numero,
+            ...(results.whatsapp.ok ? {} : { status: 'FALHOU', erro: results.whatsapp.error }),
+          });
+        }
       } catch (err) {
         results.whatsapp = { ok: false, error: err.message, wa_link: waLink, fallback: true };
+        void logEnvio({ canal: 'WHATSAPP', destino: numero, status: 'FALHOU', erro: err.message });
       }
     }
 

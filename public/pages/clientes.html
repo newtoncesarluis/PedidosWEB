@@ -1925,6 +1925,7 @@ html.ms-embedded-tech.ms-page-clientes .cards-grid {
               <th>Nome / Apelido</th>
               <th>CPF / CNPJ</th>
               <th>Fone</th>
+              <th>WhatsApp</th>
               <th>Cidade / UF</th>
               <th>Tipo</th>
               <th>Status</th>
@@ -3276,6 +3277,20 @@ function _avatarHtml(nome, fotoUrl, baseCls) {
   return `<div class="${baseCls} ${avCls}">${escHtml(initials)}</div>`;
 }
 
+// Badge do último envio de WhatsApp (c.ultimo_whatsapp_envio / c.ultimo_whatsapp_status)
+function _ultimoWhatsappBadge(c) {
+  if (!c.ultimo_whatsapp_envio) return '<span style="color:#94a3b8;font-size:11px">—</span>';
+  const d = new Date(c.ultimo_whatsapp_envio);
+  const fmt = d.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' }) + ' ' +
+              d.toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
+  const falhou = c.ultimo_whatsapp_status === 'FALHOU';
+  const cor = falhou ? '#b91c1c' : '#15803d';
+  const bg  = falhou ? 'rgba(239,68,68,.12)' : 'rgba(34,197,94,.12)';
+  const icone = falhou ? '✕' : '✓';
+  const titulo = falhou ? 'Último envio falhou' : 'Último envio de WhatsApp';
+  return `<span title="${titulo}" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:${cor};background:${bg};padding:2px 7px;border-radius:999px;white-space:nowrap">${icone} ${fmt}</span>`;
+}
+
 function renderTabela(rows, offset) {
   if (isClientesMobileEmbed()) {
     renderCards(rows, offset);
@@ -3309,16 +3324,17 @@ function renderTabela(rows, offset) {
   pag.style.display   = 'flex';
 
   const agora = Date.now();
-  // helper: botão WhatsApp
-  const waBtn = fone => {
+  // helper: botão WhatsApp (API se configurada, senão wa.me)
+  const waBtn = (fone, idCli) => {
     const n = (fone || '').replace(/\D/g,'');
     if (n.length < 10) return '';
-    return `<a class="btn-wa" href="https://wa.me/55${n}" target="_blank"
-               onclick="event.stopPropagation()" title="Abrir WhatsApp">
+    const id = parseInt(idCli, 10) || 0;
+    return `<button type="button" class="btn-wa" title="${_waApiPronta ? 'Enviar via API WhatsApp' : 'Abrir WhatsApp'}"
+      onclick="event.stopPropagation();abrirWhatsAppCliente(${id},'${n}')">
       <svg viewBox="0 0 32 32" fill="currentColor">
         <path d="M16 3C9.4 3 4 8.4 4 15c0 2.4.7 4.6 1.8 6.5L4 29l7.8-1.8A13 13 0 0016 27c6.6 0 12-5.4 12-12S22.6 3 16 3zm0 2c5.5 0 10 4.5 10 10s-4.5 10-10 10a10 10 0 01-5-1.4l-.5-.3-4.7 1.1 1.1-4.6-.3-.5A10 10 0 016 15C6 9.5 10.5 5 16 5zm-3.2 4.8c-.3 0-.7.1-1 .5-.3.4-1.2 1.3-1.2 3.1s1.2 3.5 1.4 3.8c.2.2 2.3 3.8 5.8 5.2 3.2 1.3 3.2.9 3.8.8.6-.1 2.4-1 2.8-1.9.3-.9.3-1.8.2-1.9-.1-.2-.4-.3-.8-.5-.4-.2-2.4-1.2-2.8-1.3-.4-.2-.6-.2-.9.2-.3.4-1 1.3-1.3 1.6-.2.3-.5.3-.9.1-.4-.2-1.8-.7-3.4-2.1-1.2-1.1-2.1-2.5-2.3-2.9-.2-.4 0-.6.2-.9.2-.2.4-.5.6-.7.2-.2.3-.4.4-.7.1-.3.1-.5 0-.7-.1-.2-.9-2.2-1.3-3-.3-.8-.7-.7-.9-.7z"/>
       </svg>
-    </a>`;
+    </button>`;
   };
 
   tbody.innerHTML = rows.map((c, i) => {
@@ -3358,7 +3374,9 @@ function renderTabela(rows, offset) {
         </div>
       </td>
       <td>${docFmt || '—'}</td>
-      <td style="white-space:nowrap">${escHtml(c.foneprincipal || '—')}${waBtn(c.foneprincipal)}</td>
+      <td style="white-space:nowrap">${escHtml(c.foneprincipal || '—')}${waBtn(_foneWaCliente(c) || c.foneprincipal, c.id)}</td>
+      <td style="white-space:nowrap${c.ultimo_whatsapp_envio ? ';cursor:pointer' : ''}"
+          ${c.ultimo_whatsapp_envio ? `onclick="event.stopPropagation();abrirHistorico(${c.id},'${escHtml(c.nome).replace(/'/g,"\\'")}',null)" title="Ver histórico de mensagens"` : ''}>${_ultimoWhatsappBadge(c)}</td>
       <td>${escHtml(cidUF)}</td>
       <td><span style="font-size:11px">${escHtml(c.tipo_cliente || '—')}</span></td>
       <td><span class="badge ${statusBadge}">${statusLabel}</span>
@@ -5580,15 +5598,16 @@ function _telBtnHtml(fone) {
   </a>`;
 }
 
-function _waBtnHtml(fone) {
+function _waBtnHtml(fone, idCli) {
   const n = (fone || '').replace(/\D/g,'');
   if (n.length < 10) return '';
-  return `<a class="btn-wa" href="https://wa.me/55${n}" target="_blank"
-             onclick="event.stopPropagation()" title="WhatsApp">
+  const id = parseInt(idCli, 10) || 0;
+  return `<button type="button" class="btn-wa" title="${_waApiPronta ? 'Enviar via API WhatsApp' : 'Abrir WhatsApp'}"
+    onclick="event.stopPropagation();abrirWhatsAppCliente(${id},'${n}')">
     <svg viewBox="0 0 32 32" fill="currentColor">
       <path d="M16 3C9.4 3 4 8.4 4 15c0 2.4.7 4.6 1.8 6.5L4 29l7.8-1.8A13 13 0 0016 27c6.6 0 12-5.4 12-12S22.6 3 16 3zm0 2c5.5 0 10 4.5 10 10s-4.5 10-10 10a10 10 0 01-5-1.4l-.5-.3-4.7 1.1 1.1-4.6-.3-.5A10 10 0 016 15C6 9.5 10.5 5 16 5zm-3.2 4.8c-.3 0-.7.1-1 .5-.3.4-1.2 1.3-1.2 3.1s1.2 3.5 1.4 3.8c.2.2 2.3 3.8 5.8 5.2 3.2 1.3 3.2.9 3.8.8.6-.1 2.4-1 2.8-1.9.3-.9.3-1.8.2-1.9-.1-.2-.4-.3-.8-.5-.4-.2-2.4-1.2-2.8-1.3-.4-.2-.6-.2-.9.2-.3.4-1 1.3-1.3 1.6-.2.3-.5.3-.9.1-.4-.2-1.8-.7-3.4-2.1-1.2-1.1-2.1-2.5-2.3-2.9-.2-.4 0-.6.2-.9.2-.2.4-.5.6-.7.2-.2.3-.4.4-.7.1-.3.1-.5 0-.7-.1-.2-.9-2.2-1.3-3-.3-.8-.7-.7-.9-.7z"/>
     </svg>
-  </a>`;
+  </button>`;
 }
 
 function _cliDocLinha(c) {
@@ -5600,16 +5619,16 @@ function _cliDocLinha(c) {
 }
 
 function _cliCardQuickEmbed(c) {
-  const telDigits = (c.foneprincipal || c.celular || '').replace(/\D/g, '');
-  const waQ = telDigits.length >= 10 ? `https://wa.me/55${telDigits}` : '';
+  const telDigits = (typeof _foneWaCliente === 'function' ? _foneWaCliente(c) : '')
+    || (c.foneprincipal || c.celular || '').replace(/\D/g, '');
   const visitQ = `/pages/visitas.html?novo=1&cliente_id=${c.id}&cliente_nome=${encodeURIComponent(c.nome || '')}`;
   const mapQ = `/pages/clientes.html?mapa=1&id=${c.id}`;
   const nomeJs = (c.nome || '').replace(/'/g, "\\'");
   const btns = [
     `<button type="button" class="cli-qbtn cli-qbtn-pedido" onclick="abrirNovoPedidoCliente(${c.id},'${nomeJs}')">Pedido</button>`
   ];
-  if (waQ) {
-    btns.push(`<button type="button" class="cli-qbtn cli-qbtn-wa" onclick="window.open('${waQ}','_blank')">WhatsApp</button>`);
+  if (telDigits.length >= 10) {
+    btns.push(`<button type="button" class="cli-qbtn cli-qbtn-wa" onclick="abrirWhatsAppCliente(${c.id},'${telDigits}')">WhatsApp</button>`);
   }
   btns.push(
     `<button type="button" class="cli-qbtn cli-qbtn-vis" onclick="msNavCliente('${visitQ}','Visita')">Visita</button>`,
@@ -5749,7 +5768,7 @@ function renderCards(rows, offset) {
               d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
           </svg>
           <span style="display:flex;align-items:center;gap:4px">
-            ${escHtml(c.foneprincipal)}${_waBtnHtml(c.foneprincipal)}${_telBtnHtml(c.foneprincipal)}
+            ${escHtml(c.foneprincipal)}${_waBtnHtml(_foneWaCliente(c) || c.foneprincipal, c.id)}${_telBtnHtml(c.foneprincipal)}
           </span>
         </div>` : ''}
         ${cidUF ? `<div class="cli-card-row">
@@ -5766,6 +5785,14 @@ function renderCards(rows, offset) {
               d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
           </svg>
           <span>Última compra: ${ultCompra}</span>
+        </div>` : ''}
+        ${c.ultimo_whatsapp_envio ? `<div class="cli-card-row" style="cursor:pointer"
+             onclick="event.stopPropagation();abrirHistorico(${c.id},'${escHtml(c.nome).replace(/'/g,"\\'")}',event)"
+             title="Ver histórico de mensagens">
+          <svg viewBox="0 0 32 32" fill="currentColor" style="width:16px;height:16px;color:#25D366">
+            <path d="M16 3C9.4 3 4 8.4 4 15c0 2.4.7 4.6 1.8 6.5L4 29l7.8-1.8A13 13 0 0016 27c6.6 0 12-5.4 12-12S22.6 3 16 3z"/>
+          </svg>
+          <span>WhatsApp: ${_ultimoWhatsappBadge(c)}</span>
         </div>` : ''}
       </div>
 
@@ -6030,14 +6057,12 @@ function abrirMenuAcoes(id, nome, evt) {
       Novo pedido
     </button>`
   );
-  if (_waApiUrl) {
-    items.push(`<button class="dropdown-item" onclick="fecharDropdown();enviarMsgWa(${id})">
+  items.push(`<button class="dropdown-item" onclick="fecharDropdown();enviarMsgWa(${id})">
       <svg viewBox="0 0 32 32" fill="#16a34a" style="width:14px;height:14px">
         <path d="M16 3C9.4 3 4 8.4 4 15c0 2.4.7 4.6 1.8 6.5L4 29l7.8-1.8A13 13 0 0016 27c6.6 0 12-5.4 12-12S22.6 3 16 3z"/>
       </svg>
-      Enviar WhatsApp
+      Enviar WhatsApp${_waApiPronta ? ' (API)' : ''}
     </button>`);
-  }
   items.push(
     `<button class="dropdown-item" onclick="fecharDropdown();abrirFinanceiroCliente(${id},'${nomeJs}')">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -6319,14 +6344,13 @@ function renderQuickView(c) {
     aniTxt = `${d.toLocaleDateString('pt-BR')} (${dias === 0 ? '🎂 hoje!' : `em ${dias} dias`})`;
   }
 
-  const fone = (c.foneprincipal || '').replace(/\D/g,'');
-  const waLink = fone.length >= 10 ? `https://wa.me/55${fone}` : '';
+  const fone = _foneWaCliente(c) || (c.foneprincipal || '').replace(/\D/g,'');
 
-  // WA btn no footer
+  // WA btn no footer — API se configurada
   const qvBtnWa = document.getElementById('qvBtnWa');
-  if (waLink) {
+  if (fone.length >= 10) {
     qvBtnWa.style.display = '';
-    qvBtnWa.onclick = () => window.open(waLink,'_blank');
+    qvBtnWa.onclick = () => abrirWhatsAppCliente(c.id, fone);
   } else { qvBtnWa.style.display = 'none'; }
 
   // Histórico btn
@@ -6632,45 +6656,235 @@ function renderInsights(rows, total) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// 8. WHATSAPP API (eutendo)
+// 8. WHATSAPP — API (EuAtendo / Evolution) ou wa.me como fallback
 // ═══════════════════════════════════════════════════════════
-let _waApiUrl = '';
-let _waApiKey = '';
+let _waApiPronta = false;
+let _waProvedor = '';
 
-async function carregarWaConfig() {
-  try {
-    const r = await api('/api/config/api');
-    if (!r.ok) return;
-    const d = await r.json();
-    if (d.w_urlplataforma && d.w_apiglobal) {
-      _waApiUrl = d.w_urlplataforma;
-      _waApiKey = d.w_apiglobal;
-    }
-  } catch {}
+/** Telefone preferencial p/ WhatsApp: campo WhatsApp → celular comprador → fone principal */
+function _foneWaCliente(c) {
+  if (!c) return '';
+  const candidatos = [c.fonesecundario, c.celularcomprador, c.foneprincipal, c.celular];
+  for (const f of candidatos) {
+    const n = String(f || '').replace(/\D/g, '');
+    if (n.length >= 10) return n;
+  }
+  return '';
 }
 
-async function enviarMsgWa(idCliente) {
+function _numeroWaComDdi(digits) {
+  let n = String(digits || '').replace(/\D/g, '');
+  if (!n) return '';
+  if (!n.startsWith('55') && (n.length === 10 || n.length === 11)) n = '55' + n;
+  return n;
+}
+
+async function carregarWaConfig() {
+  _waApiPronta = false;
+  _waProvedor = '';
   try {
-    const r = await api(`/api/clientes/${idCliente}`);
+    const r = await api('/api/whatsapp/status');
     if (!r.ok) return;
-    const c = await r.json();
-    const fone = (c.foneprincipal || '').replace(/\D/g,'');
-    if (!fone || fone.length < 10) { toast('Sem telefone cadastrado', 'warn'); return; }
-    const numero = fone.length === 11 ? fone : `55${fone}`;
-    if (_waApiUrl && _waApiKey) {
-      // Enviar via Evolution API (eutendo)
-      const url = `${_waApiUrl}/message/sendText/Entregas`;
-      const resp = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'apikey': _waApiKey },
-        body: JSON.stringify({ number: numero, text: `Olá, ${c.nome}! ` })
-      });
-      if (resp.ok) { toast('Mensagem enviada via API WhatsApp', 'ok'); }
-      else { window.open(`https://wa.me/${numero}`, '_blank'); }
-    } else {
-      window.open(`https://wa.me/${numero}`, '_blank');
+    const d = await r.json();
+    if (d.conectado === true) {
+      _waApiPronta = true;
+      _waProvedor = d.provedor || (d.instancia ? 'EVOLUTION' : 'API');
     }
-  } catch { toast('Erro ao enviar mensagem', 'err'); }
+  } catch (_) { /* sem API — usa wa.me */ }
+}
+
+/**
+ * Clique no ícone / menu WhatsApp.
+ * Se a API estiver pronta (EuAtendo ou Evolution): envia via POST /api/whatsapp/enviar.
+ * Senão: abre wa.me (fallback).
+ */
+async function abrirWhatsAppCliente(idCliente, foneDigits) {
+  try {
+    // Revalida status na hora do clique (config pode ter carregado depois da lista)
+    if (!_waApiPronta) await carregarWaConfig();
+
+    let nome = 'cliente';
+    let numero = _numeroWaComDdi(foneDigits);
+    let cod = parseInt(idCliente, 10) || null;
+
+    if (!numero || numero.length < 12) {
+      if (!cod) { toast('Sem telefone cadastrado', 'warn'); return; }
+      const r = await api(`/api/clientes/${cod}`);
+      if (!r.ok) { toast('Não foi possível carregar o cliente', 'err'); return; }
+      const c = await r.json();
+      nome = c.nome || nome;
+      numero = _numeroWaComDdi(_foneWaCliente(c));
+      if (!numero) { toast('Sem telefone/WhatsApp cadastrado', 'warn'); return; }
+    } else if (cod) {
+      try {
+        const r = await api(`/api/clientes/${cod}`);
+        if (r.ok) {
+          const c = await r.json();
+          nome = c.nome || nome;
+          const pref = _foneWaCliente(c);
+          if (pref) numero = _numeroWaComDdi(pref);
+        }
+      } catch (_) { /* usa o número da lista */ }
+    }
+
+    // Sem API → wa.me
+    if (!_waApiPronta) {
+      window.open(`https://wa.me/${numero}`, '_blank');
+      return;
+    }
+
+    _abrirModalWaEnviar({ cod, numero, nome });
+  } catch (e) {
+    toast(e.message || 'Erro ao enviar WhatsApp', 'err');
+  }
+}
+
+// ═══ MODAL ENVIAR WHATSAPP — texto formatado + emoji + anexo ═════════════════
+let _waEnvioAtual = null; // { cod, numero, nome }
+let _waAnexo = null;      // { base64, nome, tipo, tamanho }
+
+function _abrirModalWaEnviar({ cod, numero, nome }) {
+  _waEnvioAtual = { cod, numero, nome };
+  _waAnexo = null;
+  document.getElementById('waenv_destino').textContent = `${nome} — ${numero}`;
+  document.getElementById('waenv_texto').value = `Olá, ${nome}!`;
+  document.getElementById('waenv_anexo_chip').style.display = 'none';
+  document.getElementById('waenv_anexo_input').value = '';
+  document.getElementById('waenv_status').style.display = 'none';
+  _waIniciarEmojiPicker();
+  const modal = document.getElementById('modalWaEnviar');
+  modal.classList.add('aberto');
+  setTimeout(() => document.getElementById('waenv_texto').focus(), 100);
+}
+
+function fecharModalWaEnviar() {
+  document.getElementById('modalWaEnviar').classList.remove('aberto');
+  _waEnvioAtual = null;
+  _waAnexo = null;
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && document.getElementById('modalWaEnviar')?.classList.contains('aberto')) {
+    fecharModalWaEnviar();
+  }
+});
+
+/** Envolve o texto selecionado com o caractere de formatação do WhatsApp (*negrito*, _itálico_, ~riscado~). */
+function _waFormatar(char) {
+  const ta = document.getElementById('waenv_texto');
+  const ini = ta.selectionStart, fim = ta.selectionEnd;
+  const texto = ta.value;
+  const selecionado = texto.slice(ini, fim);
+  const novo = texto.slice(0, ini) + char + selecionado + char + texto.slice(fim);
+  ta.value = novo;
+  if (selecionado) {
+    ta.selectionStart = ini + 1; ta.selectionEnd = fim + 1;
+  } else {
+    ta.selectionStart = ta.selectionEnd = ini + 1;
+  }
+  ta.focus();
+}
+
+function _waIniciarEmojiPicker() {
+  const emojis = [
+    '😀','😂','😍','🥰','😎','🤔','😅','🙏','👍','👎',
+    '❤️','🔥','✅','⚠️','📦','🚀','💰','📱','📞','📧',
+    '🎉','⭐','💡','🗓️','⏰','💪','🤝','👋'
+  ];
+  const container = document.getElementById('waenv_emoji_btns');
+  if (!container || container.dataset.montado) return;
+  container.dataset.montado = '1';
+  container.innerHTML = emojis.map(e =>
+    `<button type="button" class="waenv-emoji-btn" onclick="_waInserirEmoji('${e}')" title="${e}">${e}</button>`
+  ).join('');
+}
+
+function _waInserirEmoji(emoji) {
+  const ta = document.getElementById('waenv_texto');
+  const pos = ta.selectionStart;
+  ta.value = ta.value.slice(0, pos) + emoji + ta.value.slice(pos);
+  ta.selectionStart = ta.selectionEnd = pos + emoji.length;
+  ta.focus();
+}
+
+const WA_ANEXO_MAX_BYTES = 10 * 1024 * 1024;
+
+function _waSelecionarAnexo(input) {
+  const file = input.files?.[0];
+  if (!file) return;
+  if (file.size > WA_ANEXO_MAX_BYTES) {
+    toast('Arquivo maior que 10MB', 'warn');
+    input.value = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    _waAnexo = { base64: reader.result, nome: file.name, tipo: file.type, tamanho: file.size };
+    document.getElementById('waenv_anexo_nome').textContent =
+      `${file.name} (${(file.size / 1024).toFixed(0)}KB)`;
+    document.getElementById('waenv_anexo_chip').style.display = 'inline-flex';
+  };
+  reader.onerror = () => toast('Erro ao ler o arquivo', 'err');
+  reader.readAsDataURL(file);
+}
+
+function _waRemoverAnexo() {
+  _waAnexo = null;
+  document.getElementById('waenv_anexo_input').value = '';
+  document.getElementById('waenv_anexo_chip').style.display = 'none';
+}
+
+function _waMostrarStatus(msg, tipo) {
+  const el = document.getElementById('waenv_status');
+  el.className = 'waenv-status ' + tipo;
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+async function _waEnviarModal() {
+  if (!_waEnvioAtual) return;
+  const texto = document.getElementById('waenv_texto').value.trim();
+  if (!texto && !_waAnexo) { toast('Digite uma mensagem ou anexe um arquivo', 'warn'); return; }
+
+  const btn = document.getElementById('waenv_btn_enviar');
+  btn.disabled = true;
+  const btnHtmlOrig = btn.innerHTML;
+  btn.innerHTML = 'Enviando...';
+  _waMostrarStatus('Enviando mensagem…', 'info');
+
+  try {
+    const body = {
+      numero: _waEnvioAtual.numero,
+      mensagem: texto,
+      cod_cliente: _waEnvioAtual.cod || undefined,
+    };
+    if (_waAnexo) {
+      body.anexo_base64 = _waAnexo.base64;
+      body.anexo_nome = _waAnexo.nome;
+      body.anexo_tipo = _waAnexo.tipo;
+    }
+    const resp = await apiJ('/api/whatsapp/enviar', 'POST', body);
+    const d = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      _waMostrarStatus(d.error || 'Falha no envio pela API', 'err');
+      toast(d.error || 'Falha no envio pela API', 'err');
+      return;
+    }
+    toast(`Mensagem enviada via ${d.provedor === 'EUATENDO' ? 'EuAtendo' : (d.provedor || 'API')}`, 'ok');
+    fecharModalWaEnviar();
+    if (typeof carregar === 'function') carregar(true);
+  } catch (e) {
+    _waMostrarStatus(e.message || 'Erro ao enviar', 'err');
+    toast(e.message || 'Erro ao enviar WhatsApp', 'err');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = btnHtmlOrig;
+  }
+}
+
+/** Compatível com o menu de ações */
+async function enviarMsgWa(idCliente) {
+  return abrirWhatsAppCliente(idCliente);
 }
 </script>
 
@@ -6719,87 +6933,77 @@ async function enviarMsgWa(idCliente) {
 
 /* ── Card ── */
 .mhist-card {
-  background:#fff; border-radius:16px; width:100%; max-width:1140px;
-  box-shadow:0 32px 100px rgba(0,0,0,.28), 0 0 0 1px rgba(255,255,255,.08);
+  background:var(--card,#fff); border-radius:14px; width:100%; max-width:1140px;
+  box-shadow:0 24px 70px rgba(0,0,0,.22), 0 0 0 1px var(--border,rgba(0,0,0,.06));
   animation:mhSlideUp .22s cubic-bezier(.16,1,.3,1);
   overflow:hidden;
 }
 @keyframes mhSlideUp { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
 
-/* ── Header ── */
+/* ── Header (padrão dos demais modais do sistema — plano, sem gradiente) ── */
 .mhist-head {
   display:flex; align-items:center; justify-content:space-between;
-  padding:20px 24px;
-  background:linear-gradient(135deg,var(--accent) 0%,var(--accent-hover) 60%,#065f46 100%);
-  position:relative; overflow:hidden;
-}
-.mhist-head::before {
-  content:''; position:absolute; right:-40px; top:-40px;
-  width:180px; height:180px; border-radius:50%;
-  background:rgba(255,255,255,.06); pointer-events:none;
-}
-.mhist-head::after {
-  content:''; position:absolute; left:30%; bottom:-30px;
-  width:120px; height:120px; border-radius:50%;
-  background:rgba(255,255,255,.04); pointer-events:none;
+  padding:18px 22px;
+  background:var(--card,#fff);
+  border-bottom:1px solid var(--border,#e2e8f0);
 }
 .mhist-head-icon {
-  width:42px; height:42px; border-radius:12px;
-  background:rgba(255,255,255,.18); display:flex;
-  align-items:center; justify-content:center; flex-shrink:0;
-  margin-right:14px;
+  width:38px; height:38px; border-radius:10px;
+  background:linear-gradient(135deg,var(--accent),var(--accent-hover));
+  display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  margin-right:12px;
 }
-.mhist-head-icon svg { width:22px; height:22px; color:#fff; stroke:#fff; }
-.mhist-head-title { font-weight:700; font-size:16px; color:#fff; }
+.mhist-head-icon svg { width:19px; height:19px; color:#fff; stroke:#fff; }
+.mhist-head-title { font-weight:700; font-size:15px; color:var(--text,#1e293b); }
 .mhist-head-sub {
-  font-size:12px; color:rgba(255,255,255,.75); margin-top:2px;
+  font-size:12px; color:var(--text2,#64748b); margin-top:2px;
   font-weight:500;
 }
 .mhist-close {
-  background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.25);
-  cursor:pointer; color:#fff; line-height:1; padding:7px 10px;
+  background:none; border:none;
+  cursor:pointer; color:var(--text2,#64748b); line-height:1; padding:7px 10px;
   border-radius:8px; font-size:18px; transition:.15s; flex-shrink:0;
   margin-left:12px;
 }
-.mhist-close:hover { background:rgba(255,255,255,.28); transform:scale(1.05); }
+.mhist-close:hover { background:var(--border,#e2e8f0); color:var(--text,#1e293b); }
 
 /* ── Stats bar ── */
 .mhist-stats {
-  display:flex; gap:0; border-bottom:1px solid #f1f5f9;
-  background:#fafcff;
+  display:flex; gap:0; border-bottom:1px solid var(--border,#f1f5f9);
+  background:var(--bg,#fafcff);
 }
 .mhist-stat {
   flex:1; padding:14px 18px; text-align:center;
-  border-right:1px solid #f1f5f9; position:relative;
+  border-right:1px solid var(--border,#f1f5f9); position:relative;
 }
 .mhist-stat:last-child { border-right:none; }
 .mhist-stat-val {
   font-size:20px; font-weight:800; color:var(--accent);
   font-variant-numeric:tabular-nums; line-height:1.2;
 }
-.mhist-stat-lbl { font-size:10.5px; color:#94a3b8; margin-top:2px; text-transform:uppercase; letter-spacing:.05em; }
+.mhist-stat-lbl { font-size:10.5px; color:var(--text2,#94a3b8); margin-top:2px; text-transform:uppercase; letter-spacing:.05em; }
 
 /* ── Body ── */
-.mhist-body { padding:18px 20px 24px; }
+.mhist-body { padding:18px 20px 24px; background:var(--card,#fff); }
 
 /* ── Hint ── */
 .mhist-hint {
   display:flex; align-items:center; gap:6px;
-  font-size:11.5px; color:#64748b; margin-bottom:14px;
+  font-size:11.5px; color:var(--text2,#64748b); margin-bottom:14px;
 }
 .mhist-hint svg { width:14px; height:14px; color:var(--accent); flex-shrink:0; }
 
 /* ── Tabela principal ── */
 .mhist-main-tbl { width:100%; border-collapse:collapse; font-size:13px; }
 .mhist-main-tbl thead tr {
-  background:linear-gradient(90deg,var(--accent-soft),#f8fafc);
+  background:var(--bg,#f8fafc);
 }
 .mhist-main-tbl th {
   padding:10px 12px; text-align:left; font-size:11px;
   font-weight:700; text-transform:uppercase; letter-spacing:.06em;
-  color:var(--accent-hover); border-bottom:2px solid var(--accent-soft); white-space:nowrap;
+  color:var(--text2,#64748b); border-bottom:1.5px solid var(--border,#e2e8f0); white-space:nowrap;
 }
-.mhist-main-tbl td { padding:11px 12px; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
+.mhist-main-tbl td { padding:11px 12px; border-bottom:1px solid var(--border,#f1f5f9); vertical-align:middle; color:var(--text,#1e293b); }
 
 /* Linha de pedido */
 .mhist-ped-row { cursor:pointer; transition:background .12s; }
@@ -6809,22 +7013,22 @@ async function enviarMsgWa(idCliente) {
 }
 .mhist-ped-row .mhist-num-badge {
   display:inline-block; background:var(--accent-soft); color:var(--accent);
-  border:1px solid #99f6e4; border-radius:6px;
+  border:1px solid var(--accent-soft); border-radius:6px;
   padding:2px 8px; font-weight:700; font-size:12px;
 }
 
 /* Chevron */
 .mhist-chev {
   width:26px; height:26px; border-radius:8px;
-  background:#f8fafc; border:1px solid #e2e8f0;
+  background:var(--bg,#f8fafc); border:1px solid var(--border,#e2e8f0);
   display:inline-flex; align-items:center; justify-content:center;
   transition:transform .2s, background .15s;
-  color:#64748b;
+  color:var(--text2,#64748b);
 }
 .mhist-chev svg { width:14px; height:14px; }
 .mhist-ped-row.expandido .mhist-chev {
   transform:rotate(180deg);
-  background:var(--accent-soft); border-color:#5eead4; color:var(--accent);
+  background:var(--accent-soft); border-color:var(--accent); color:var(--accent);
 }
 
 /* ── Linha detalhe (accordion) ── */
@@ -6836,33 +7040,32 @@ async function enviarMsgWa(idCliente) {
 .mhist-det-wrap.aberto { max-height:1200px; }
 .mhist-det-inner {
   padding:16px 20px 20px;
-  background:linear-gradient(180deg,var(--accent-soft) 0%,#f8fffe 100%);
+  background:var(--bg,#f8fffe);
 }
 .mhist-det-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
 @media(max-width:720px){ .mhist-det-grid { grid-template-columns:1fr; } }
 
 /* Seção de itens/parcelas */
 .mhist-sec {
-  background:#fff; border-radius:10px;
-  border:1px solid var(--accent-soft);
-  box-shadow:0 2px 8px rgba(13,148,136,.06);
+  background:var(--card,#fff); border-radius:10px;
+  border:1px solid var(--border,#e2e8f0);
   overflow:hidden;
 }
 .mhist-sec-head {
   display:flex; align-items:center; justify-content:space-between;
-  padding:9px 14px; background:linear-gradient(90deg,var(--accent-soft),#f8fffe);
-  border-bottom:1px solid #e6fff9;
+  padding:9px 14px; background:var(--bg,#f8fffe);
+  border-bottom:1px solid var(--border,#e6fff9);
 }
 .mhist-sec-head-title {
   font-size:11px; font-weight:700; text-transform:uppercase;
-  letter-spacing:.06em; color:var(--accent-hover);
+  letter-spacing:.06em; color:var(--text2,#64748b);
   display:flex; align-items:center; gap:6px;
 }
 .mhist-sec-head-title svg { width:13px; height:13px; }
 .mhist-sec-badge {
   font-size:10px; font-weight:700; padding:2px 7px;
   border-radius:20px; background:var(--accent-soft); color:var(--accent);
-  border:1px solid #99f6e4;
+  border:1px solid var(--accent-soft);
 }
 
 /* Tabela interna */
@@ -6870,10 +7073,10 @@ async function enviarMsgWa(idCliente) {
 .mhist-tbl th {
   padding:7px 10px; font-size:10.5px; font-weight:700;
   text-transform:uppercase; letter-spacing:.04em;
-  color:#64748b; background:#fafffe;
-  border-bottom:1px solid #e6fff9; white-space:nowrap;
+  color:var(--text2,#64748b); background:var(--bg,#fafffe);
+  border-bottom:1px solid var(--border,#e6fff9); white-space:nowrap;
 }
-.mhist-tbl td { padding:7px 10px; border-bottom:1px solid #f0faf9; color:#334155; }
+.mhist-tbl td { padding:7px 10px; border-bottom:1px solid var(--border,#f0faf9); color:var(--text,#334155); }
 .mhist-tbl tr:last-child td { border-bottom:none; }
 .mhist-tbl tbody tr:hover td { background:var(--accent-soft); }
 
@@ -6900,17 +7103,119 @@ async function enviarMsgWa(idCliente) {
 /* Empty / Loading */
 .mhist-empty {
   display:flex; flex-direction:column; align-items:center;
-  justify-content:center; padding:48px 24px; color:#94a3b8; font-size:13px; gap:10px;
+  justify-content:center; padding:48px 24px; color:var(--text2,#94a3b8); font-size:13px; gap:10px;
 }
 .mhist-empty svg { width:40px; height:40px; opacity:.35; }
 
 /* Spinner */
 .mhist-spinner {
   width:36px; height:36px; border-radius:50%;
-  border:3px solid #e2e8f0; border-top-color:var(--accent);
+  border:3px solid var(--border,#e2e8f0); border-top-color:var(--accent);
   animation:spin .7s linear infinite;
 }
 @keyframes spin { to{transform:rotate(360deg)} }
+
+/* ═══════════════════════════════════════════════════════════════
+   MODAL ENVIAR WHATSAPP — mensagem com formatação, emojis e anexo
+═══════════════════════════════════════════════════════════════ */
+#modalWaEnviar {
+  display:none; position:fixed; inset:0; z-index:9100;
+  background:rgba(15,23,42,.6);
+  backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px);
+  align-items:center; justify-content:center; padding:16px;
+  animation:mhFadeIn .18s ease;
+}
+#modalWaEnviar.aberto { display:flex; }
+
+.waenv-card {
+  background:var(--card,#fff); border-radius:14px; width:100%; max-width:480px;
+  box-shadow:0 24px 70px rgba(0,0,0,.22), 0 0 0 1px var(--border,rgba(0,0,0,.06));
+  animation:mhSlideUp .22s cubic-bezier(.16,1,.3,1);
+  max-height:92vh; display:flex; flex-direction:column; overflow:hidden;
+}
+
+.waenv-head {
+  display:flex; align-items:center; padding:16px 18px;
+  border-bottom:1px solid var(--border,#e2e8f0); flex-shrink:0;
+}
+.waenv-head-icon {
+  width:36px; height:36px; border-radius:10px;
+  background:linear-gradient(135deg,#25D366,#128C7E);
+  display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  margin-right:12px;
+}
+.waenv-head-icon svg { width:18px; height:18px; color:#fff; }
+.waenv-head-title { font-weight:700; font-size:14px; color:var(--text,#1e293b); }
+.waenv-head-sub { font-size:12px; color:var(--text2,#64748b); margin-top:1px; }
+.waenv-close {
+  background:none; border:none; cursor:pointer; color:var(--text2,#64748b);
+  line-height:1; padding:7px 10px; border-radius:8px; font-size:16px;
+  transition:.15s; flex-shrink:0; margin-left:auto;
+}
+.waenv-close:hover { background:var(--border,#e2e8f0); color:var(--text,#1e293b); }
+
+.waenv-body { padding:16px 18px; overflow-y:auto; }
+
+.waenv-textarea-wrap {
+  border:1.5px solid var(--border,#e2e8f0); border-radius:10px;
+  overflow:hidden; background:var(--card,#fff);
+}
+.waenv-textarea-wrap:focus-within { border-color:var(--accent); }
+#waenv_texto {
+  width:100%; min-height:96px; padding:10px 12px; border:none; outline:none;
+  resize:vertical; font-size:13px; font-family:inherit; line-height:1.5;
+  background:transparent; color:var(--text,#1e293b); display:block;
+}
+.waenv-toolbar {
+  display:flex; align-items:center; gap:4px; flex-wrap:wrap;
+  background:var(--bg,#f9fafb); border-top:1px solid var(--border,#e2e8f0);
+  padding:6px 8px;
+}
+.waenv-fmt-btn {
+  background:none; border:1px solid var(--border,#e2e8f0); border-radius:6px;
+  padding:3px 9px; font-size:11px; font-weight:700; cursor:pointer;
+  color:var(--text2,#64748b); transition:.12s; font-family:inherit;
+}
+.waenv-fmt-btn:hover { background:var(--accent-soft); color:var(--accent); border-color:var(--accent); }
+.waenv-toolbar-sep { width:1px; height:16px; background:var(--border,#e2e8f0); margin:0 2px; flex-shrink:0; }
+.waenv-emoji-btn {
+  background:none; border:none; cursor:pointer; font-size:16px;
+  padding:2px 3px; border-radius:4px; line-height:1; transition:.1s;
+}
+.waenv-emoji-btn:hover { background:var(--border,#e2e8f0); }
+
+.waenv-anexo-row { margin-top:12px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.waenv-anexo-btn {
+  display:inline-flex; align-items:center; gap:6px;
+  border:1.5px dashed var(--border,#e2e8f0); border-radius:8px;
+  padding:7px 12px; font-size:12px; font-weight:600; color:var(--text2,#64748b);
+  cursor:pointer; transition:.15s;
+}
+.waenv-anexo-btn:hover { border-color:var(--accent); color:var(--accent); background:var(--accent-soft); }
+.waenv-anexo-btn svg { width:14px; height:14px; }
+.waenv-anexo-chip {
+  display:inline-flex; align-items:center; gap:7px;
+  background:var(--accent-soft); color:var(--accent);
+  padding:5px 10px 5px 12px; border-radius:999px; font-size:12px; font-weight:600;
+  max-width:260px;
+}
+.waenv-anexo-chip span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.waenv-anexo-chip button {
+  background:none; border:none; cursor:pointer; color:var(--accent);
+  font-size:14px; line-height:1; padding:0; display:flex;
+}
+
+.waenv-status {
+  margin-top:12px; padding:9px 12px; border-radius:8px; font-size:12px; font-weight:600;
+}
+.waenv-status.ok  { background:#dcfce7; color:#15803d; }
+.waenv-status.err { background:#fee2e2; color:#991b1b; }
+.waenv-status.info { background:var(--accent-soft); color:var(--accent); }
+
+.waenv-foot {
+  display:flex; gap:8px; justify-content:flex-end;
+  padding:14px 18px; border-top:1px solid var(--border,#e2e8f0); flex-shrink:0;
+}
 </style>
 
 <div id="modalHistorico">
@@ -6955,6 +7260,63 @@ async function enviarMsgWa(idCliente) {
       <div class="mhist-empty"><div class="mhist-spinner"></div></div>
     </div>
 
+  </div>
+</div>
+
+<!-- ── MODAL ENVIAR WHATSAPP ────────────────────────────────────────────────────── -->
+<div id="modalWaEnviar" onclick="if(event.target===this)fecharModalWaEnviar()">
+  <div class="waenv-card" onclick="event.stopPropagation()">
+    <div class="waenv-head">
+      <div class="waenv-head-icon">
+        <svg viewBox="0 0 32 32" fill="currentColor">
+          <path d="M16 3C9.4 3 4 8.4 4 15c0 2.4.7 4.6 1.8 6.5L4 29l7.8-1.8A13 13 0 0016 27c6.6 0 12-5.4 12-12S22.6 3 16 3zm0 2c5.5 0 10 4.5 10 10s-4.5 10-10 10a10 10 0 01-5-1.4l-.5-.3-4.7 1.1 1.1-4.6-.3-.5A10 10 0 016 15C6 9.5 10.5 5 16 5zm-3.2 4.8c-.3 0-.7.1-1 .5-.3.4-1.2 1.3-1.2 3.1s1.2 3.5 1.4 3.8c.2.2 2.3 3.8 5.8 5.2 3.2 1.3 3.2.9 3.8.8.6-.1 2.4-1 2.8-1.9.3-.9.3-1.8.2-1.9-.1-.2-.4-.3-.8-.5-.4-.2-2.4-1.2-2.8-1.3-.4-.2-.6-.2-.9.2-.3.4-1 1.3-1.3 1.6-.2.3-.5.3-.9.1-.4-.2-1.8-.7-3.4-2.1-1.2-1.1-2.1-2.5-2.3-2.9-.2-.4 0-.6.2-.9.2-.2.4-.5.6-.7.2-.2.3-.4.4-.7.1-.3.1-.5 0-.7-.1-.2-.9-2.2-1.3-3-.3-.8-.7-.7-.9-.7z"/>
+        </svg>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div class="waenv-head-title">Enviar WhatsApp</div>
+        <div class="waenv-head-sub" id="waenv_destino">—</div>
+      </div>
+      <button class="waenv-close" onclick="fecharModalWaEnviar()" title="Fechar (Esc)">✕</button>
+    </div>
+
+    <div class="waenv-body">
+      <div class="waenv-textarea-wrap">
+        <textarea id="waenv_texto" placeholder="Digite a mensagem..."></textarea>
+        <div class="waenv-toolbar">
+          <button type="button" class="waenv-fmt-btn" onclick="_waFormatar('*')" title="Negrito">B</button>
+          <button type="button" class="waenv-fmt-btn" onclick="_waFormatar('_')" title="Itálico">I</button>
+          <button type="button" class="waenv-fmt-btn" onclick="_waFormatar('~')" title="Riscado">S</button>
+          <span class="waenv-toolbar-sep"></span>
+          <span id="waenv_emoji_btns" style="display:flex;flex-wrap:wrap;gap:1px"></span>
+        </div>
+      </div>
+
+      <div class="waenv-anexo-row">
+        <label class="waenv-anexo-btn" for="waenv_anexo_input" id="waenv_anexo_label">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
+          </svg>
+          Anexar arquivo
+        </label>
+        <input type="file" id="waenv_anexo_input" style="display:none" onchange="_waSelecionarAnexo(this)">
+        <span class="waenv-anexo-chip" id="waenv_anexo_chip" style="display:none">
+          <span id="waenv_anexo_nome">—</span>
+          <button type="button" onclick="_waRemoverAnexo()" title="Remover anexo">✕</button>
+        </span>
+      </div>
+
+      <div class="waenv-status" id="waenv_status" style="display:none"></div>
+    </div>
+
+    <div class="waenv-foot">
+      <button class="btn btn-ghost" onclick="fecharModalWaEnviar()">Cancelar</button>
+      <button class="btn btn-primary" id="waenv_btn_enviar" onclick="_waEnviarModal()">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+        </svg>
+        Enviar
+      </button>
+    </div>
   </div>
 </div>
 
@@ -7096,9 +7458,15 @@ async function abrirHistorico(idCliente, nomeCliente, evt) {
   document.body.style.overflow = 'hidden';
 
   try {
-    const r = await api(`/api/clientes/${idCliente}/historico`);
+    const [r, rMsg] = await Promise.all([
+      api(`/api/clientes/${idCliente}/historico`),
+      api(`/api/clientes/${idCliente}/mensagens`).catch(() => null),
+    ]);
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const lista = await r.json();
+    let msgs = [];
+    try { if (rMsg && rMsg.ok) msgs = await rMsg.json(); } catch {}
+    const msgsHtml = _mhistMsgsHtml(msgs);
 
     if (!Array.isArray(lista) || lista.length === 0) {
       body.innerHTML = `<div class="mhist-empty">
@@ -7107,7 +7475,7 @@ async function abrirHistorico(idCliente, nomeCliente, evt) {
             d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
         </svg>
         <span>Nenhum pedido encontrado para este cliente.</span>
-      </div>`;
+      </div>` + msgsHtml;
       return;
     }
 
@@ -7266,7 +7634,8 @@ async function abrirHistorico(idCliente, nomeCliente, evt) {
           </thead>
           <tbody>${linhas}</tbody>
         </table>
-      </div>`;
+      </div>
+      ${msgsHtml}`;
 
   } catch(e) {
     body.innerHTML = `<div class="mhist-empty" style="color:#dc2626">
@@ -7277,6 +7646,87 @@ async function abrirHistorico(idCliente, nomeCliente, evt) {
       <span>Erro ao carregar histórico: ${escHtml(e.message)}</span>
     </div>`;
   }
+}
+
+// ── Seção "Mensagens Enviadas" do modal histórico (WhatsApp / E-mail) ────────
+function _mhistMsgsHtml(msgs) {
+  if (!Array.isArray(msgs) || msgs.length === 0) return '';
+  const fmtDH = v => {
+    if (!v) return '—';
+    const d = new Date(v);
+    return d.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'2-digit' })
+      + ' ' + d.toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
+  };
+  const canalBadge = m => m.canal === 'EMAIL'
+    ? '<span class="mhist-badge" style="background:#e0e7ff;color:#3730a3">E-mail</span>'
+    : `<span class="mhist-badge" style="background:#dcfce7;color:#166534">WhatsApp${m.provedor === 'EUATENDO' ? ' · ApiChat' : ''}</span>`;
+  const stBadge = m => m.status === 'FALHOU'
+    ? `<span class="mhist-badge" style="background:#fee2e2;color:#991b1b;cursor:help" title="${escHtml(m.erro || 'Erro não informado')}">✕ Falhou</span>`
+    : '<span class="mhist-badge" style="background:#dcfce7;color:#15803d">✓ Enviado</span>';
+
+  // Origem do envio: campanha (nome_campanha, ou prefixo legado "[Campanha: X]"
+  // gravado antes da coluna id_campanha existir) → pedido → avulso.
+  const LEGADO_CAMPANHA_RE = /^\[Campanha:\s*([^\]]+)\]\s*/;
+  const origemInfo = m => {
+    const legado = !m.nome_campanha && m.mensagem ? m.mensagem.match(LEGADO_CAMPANHA_RE) : null;
+    const nomeCampanha = m.nome_campanha || (legado ? legado[1] : null);
+    if (nomeCampanha) {
+      return {
+        badge: `<span class="mhist-badge" style="background:#ede9fe;color:#5b21b6" title="Campanha WhatsApp">📣 ${escHtml(nomeCampanha)}</span>`,
+        msg: legado ? m.mensagem.replace(LEGADO_CAMPANHA_RE, '') : m.mensagem,
+      };
+    }
+    if (m.numero_pedido) {
+      return {
+        badge: `<span class="mhist-num-badge" title="Envio do pedido">📦 ${escHtml(String(m.numero_pedido))}</span>`,
+        msg: m.mensagem,
+      };
+    }
+    return { badge: '<span style="color:#94a3b8;font-size:11px">Avulso</span>', msg: m.mensagem };
+  };
+
+  const rows = msgs.map(m => {
+    const origem = origemInfo(m);
+    return `<tr>
+    <td style="white-space:nowrap;color:#475569">${fmtDH(m.data_envio)}</td>
+    <td>${canalBadge(m)}</td>
+    <td style="font-size:11.5px;color:#475569;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(m.destino || '')}">${escHtml(m.destino || '—')}</td>
+    <td>${origem.badge}</td>
+    <td style="font-size:11.5px;color:#475569">${escHtml(m.nome_usuario || '—')}</td>
+    <td style="font-size:11.5px;color:#64748b;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(origem.msg || '')}">
+      ${m.anexo ? `<span style="color:#0ea5e9" title="${escHtml(m.anexo)}">📎</span> ` : ''}${escHtml(origem.msg || '—')}
+    </td>
+    <td>${stBadge(m)}</td>
+  </tr>`;
+  }).join('');
+
+  return `
+    <div class="mhist-sec" style="margin-top:16px">
+      <div class="mhist-sec-head">
+        <div class="mhist-sec-head-title">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/>
+          </svg>
+          Mensagens Enviadas
+        </div>
+        <span class="mhist-sec-badge">${msgs.length} ${msgs.length === 1 ? 'envio' : 'envios'}</span>
+      </div>
+      <div class="mhist-hint" style="margin-bottom:10px">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        Status mostra se o envio foi confirmado pelo provedor — não indica se o cliente abriu/leu a mensagem (sem confirmação de leitura no momento).
+      </div>
+      <div style="overflow-x:auto">
+        <table class="mhist-tbl">
+          <thead><tr>
+            <th>Data</th><th>Canal</th><th>Destino</th><th>Origem</th>
+            <th>Enviado por</th><th>Mensagem</th><th>Status</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
 }
 
 function toggleHistDet(sid, rowEl) {

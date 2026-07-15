@@ -221,6 +221,26 @@ async function listar(filters, config, user) {
 
   const countVals = [...vals];
 
+  // Último envio de WhatsApp por cliente (para badge "Enviado em" na lista).
+  // Tabela cliente_mensagens é criada on-demand — garante que exista antes de
+  // fazer o subselect (evita "Table doesn't exist" derrubando a listagem).
+  let temClienteMensagens = true;
+  try {
+    const { ensureClienteMensagensTable } = require('../../config/cliente-mensagens');
+    await ensureClienteMensagensTable(pool);
+  } catch {
+    temClienteMensagens = false;
+  }
+  const waCols = temClienteMensagens
+    ? `,
+      (SELECT cm.data_envio FROM cliente_mensagens cm
+       WHERE cm.cod_cliente = c.id AND cm.canal = 'WHATSAPP'
+       ORDER BY cm.data_envio DESC LIMIT 1) AS ultimo_whatsapp_envio,
+      (SELECT cm.status FROM cliente_mensagens cm
+       WHERE cm.cod_cliente = c.id AND cm.canal = 'WHATSAPP'
+       ORDER BY cm.data_envio DESC LIMIT 1) AS ultimo_whatsapp_status`
+    : `, NULL AS ultimo_whatsapp_envio, NULL AS ultimo_whatsapp_status`;
+
   const mainSql = `
     SELECT
       c.id,
@@ -236,6 +256,7 @@ async function listar(filters, config, user) {
       u.nomeusu AS nome_vendedor,
       rr.descricao AS nome_regiao
       ${distanceCol}
+      ${waCols}
     FROM clientes c
     LEFT JOIN usuarios u ON u.idusuario = c.cod_vendedor AND u.excluido = 'N'
     LEFT JOIN regiao_rota rr ON rr.id = c.regiao AND rr.excluido = 'N'
@@ -259,6 +280,7 @@ async function listar(filters, config, user) {
       u.nomeusu AS nome_vendedor,
       NULL AS nome_regiao
       ${distanceCol}
+      ${waCols}
     FROM clientes c
     LEFT JOIN usuarios u ON u.idusuario = c.cod_vendedor AND u.excluido = 'N'
     ${whereClause}

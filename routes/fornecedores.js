@@ -169,6 +169,10 @@ async function ensureColumns(pool) {
     await pool.query(`ALTER TABLE fornecedores ADD COLUMN promo_texto_banner VARCHAR(200) NULL DEFAULT NULL`).catch(() => {});
     _colunasCache = null;
   }
+  if (!cols.has('vendasduplicaritem')) {
+    await pool.query(`ALTER TABLE fornecedores ADD COLUMN vendasduplicaritem CHAR(1) NOT NULL DEFAULT 'S'`).catch(() => {});
+    _colunasCache = null;
+  }
   // Tabela de e-mails da fábrica
   await pool.query(`
     CREATE TABLE IF NOT EXISTS fornecedor_emails (
@@ -572,6 +576,11 @@ router.get('/:id', async (req, res) => {
     if (!rows[0]) return res.status(404).json({ error: 'Fornecedor não encontrado' });
     let row = rows[0];
     row.logo_imagem = await resolveFornecedorLogoCaminho(pool, row.id);
+    if (row.vendasduplicaritem !== undefined) {
+      row.vendasduplicaritem = normalizeVendasDuplicarItem(row.vendasduplicaritem);
+    } else {
+      row.vendasduplicaritem = 'S';
+    }
     if (isPrepostoUser(req)) row = stripFornecedorComissaoRep(row);
     res.json(row);
   } catch (err) {

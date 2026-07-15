@@ -226,6 +226,61 @@ const historicoLista = async (req, res) => {
   }
 };
 
+// ─── HISTÓRICO: mensagens enviadas (WhatsApp/E-mail) ─────────────────────────
+const mensagensLista = async (req, res) => {
+  try {
+    const pool = getPool();
+    const prepCtx = await getPrepostoContext(pool, req);
+    const check = await assertUsuarioPodeAcessarCliente(pool, req.params.id, req.user, prepCtx);
+    if (!check.ok) return res.status(check.status || 403).json({ error: check.error });
+
+    const { ensureClienteMensagensTable } = require('../../config/cliente-mensagens');
+    await ensureClienteMensagensTable(pool);
+
+    // Garante campanhas_whatsapp (criada on-demand) antes do JOIN, para o
+    // nome da campanha aparecer mesmo que o tenant nunca tenha aberto a tela
+    // de Campanhas — evita "Table doesn't exist" derrubando o histórico.
+    try {
+      const { ensureCampanhasWhatsappTabelas } = require('../../routes/campanhas-whatsapp');
+      await ensureCampanhasWhatsappTabelas(pool);
+    } catch { /* módulo de campanhas indisponível — segue sem nome de campanha */ }
+
+    const [rows] = await pool.query(
+      `SELECT cm.id, cm.canal, cm.provedor, cm.destino, cm.mensagem, cm.anexo,
+              cm.status, cm.erro, cm.data_envio, cm.id_pedido, cm.id_campanha,
+              p.numero AS numero_pedido, u.nomeusu AS nome_usuario,
+              cw.nome AS nome_campanha
+       FROM cliente_mensagens cm
+       LEFT JOIN pedidos  p  ON p.id = cm.id_pedido
+       LEFT JOIN usuarios u  ON u.idusuario = cm.id_usuario
+       LEFT JOIN campanhas_whatsapp cw ON cw.id = cm.id_campanha
+       WHERE cm.cod_cliente = ?
+       ORDER BY cm.data_envio DESC, cm.id DESC
+       LIMIT 50`,
+      [req.params.id]
+    ).catch(async () => {
+      // Fallback sem o JOIN de campanhas (ex.: tabela criada por outra rota
+      // sem passar por ensureTabelas, ou corrida entre requisições).
+      return pool.query(
+        `SELECT cm.id, cm.canal, cm.provedor, cm.destino, cm.mensagem, cm.anexo,
+                cm.status, cm.erro, cm.data_envio, cm.id_pedido, cm.id_campanha,
+                p.numero AS numero_pedido, u.nomeusu AS nome_usuario,
+                NULL AS nome_campanha
+         FROM cliente_mensagens cm
+         LEFT JOIN pedidos  p  ON p.id = cm.id_pedido
+         LEFT JOIN usuarios u  ON u.idusuario = cm.id_usuario
+         WHERE cm.cod_cliente = ?
+         ORDER BY cm.data_envio DESC, cm.id DESC
+         LIMIT 50`,
+        [req.params.id]
+      );
+    });
+    res.json(rows);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+};
+
 // ─── HISTÓRICO: detalhe de pedido (itens + parcelas) ─────────────────────────
 const historicoDetalhe = async (req, res) => {
   try {
@@ -408,6 +463,7 @@ module.exports = {
   excluirRefBancaria,
   excluirRefComercial,
   historicoLista,
+  mensagensLista,
   historicoDetalhe,
   financeiro,
   ligacoes,

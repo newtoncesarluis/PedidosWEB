@@ -250,6 +250,10 @@ const FB_EXTRA_COLS = {
   ig_instancia:           "ALTER TABLE configuracao ADD COLUMN ig_instancia VARCHAR(100) NULL DEFAULT NULL",
   ig_autoreply:           "ALTER TABLE configuracao ADD COLUMN ig_autoreply CHAR(1) NOT NULL DEFAULT 'N'",
   ig_reply_msg:           "ALTER TABLE configuracao ADD COLUMN ig_reply_msg TEXT NULL",
+  wa_provedor:            "ALTER TABLE configuracao ADD COLUMN wa_provedor VARCHAR(20) NOT NULL DEFAULT 'EVOLUTION'",
+  euatendo_url:           "ALTER TABLE configuracao ADD COLUMN euatendo_url VARCHAR(250) NULL DEFAULT NULL",
+  euatendo_token:         "ALTER TABLE configuracao ADD COLUMN euatendo_token VARCHAR(500) NULL DEFAULT NULL",
+  euatendo_validado_em:   "ALTER TABLE configuracao ADD COLUMN euatendo_validado_em DATETIME NULL DEFAULT NULL",
 };
 
 async function ensureConfigCols(pool) {
@@ -287,7 +291,8 @@ router.get('/api', async (req, res) => {
     const [rows] = await pool.query(
       `SELECT id, w_apiglobal, w_urlplataforma, empresa_liberada, senha_acesso,
               fb_verify_token, fb_page_access_token, fb_default_id_empresa, fb_default_id_vendedor,
-              ig_instancia, ig_autoreply, ig_reply_msg
+              ig_instancia, ig_autoreply, ig_reply_msg,
+              wa_provedor, euatendo_url, euatendo_token, euatendo_validado_em
        FROM configuracao WHERE excluido = 'N' ORDER BY id DESC LIMIT 1`
     );
     const row = rows[0] || {};
@@ -303,10 +308,12 @@ router.get('/api', async (req, res) => {
       row.fb_verify_token = newToken;
     }
 
-    // Nunca retorna o PAT completo — apenas flag de configurado
+    // Nunca retorna tokens completos — apenas flag de configurado
     const out = { ...row };
     out.fb_pat_configurado = !!out.fb_page_access_token;
     delete out.fb_page_access_token;
+    out.euatendo_token_configurado = !!out.euatendo_token;
+    delete out.euatendo_token;
     res.json(out);
   } catch (err) {
     logError('GET /api/config/api', err);
@@ -321,7 +328,8 @@ router.post('/api', async (req, res) => {
     const {
       senha_admin, w_apiglobal, w_urlplataforma, empresa_liberada, senha_acesso,
       fb_page_access_token, fb_default_id_empresa, fb_default_id_vendedor, regenerar_fb_token,
-      ig_instancia, ig_autoreply, ig_reply_msg
+      ig_instancia, ig_autoreply, ig_reply_msg,
+      wa_provedor, euatendo_url, euatendo_token
     } = req.body;
 
     if (senha_admin !== 'kzf010557f') {
@@ -347,31 +355,48 @@ router.post('/api', async (req, res) => {
     const url = w_urlplataforma ? w_urlplataforma.replace(/\/$/, '') : null;
     const newFbToken = regenerar_fb_token ? genToken() : undefined;
 
+    const provedor    = wa_provedor ? String(wa_provedor).toUpperCase() : undefined;
+    const euatendoUrl = euatendo_url !== undefined
+      ? (euatendo_url ? String(euatendo_url).replace(/\/$/, '') : null)
+      : undefined;
+
     if (existing[0]) {
-      const sets = [
-        'w_apiglobal=?', 'w_urlplataforma=?', 'empresa_liberada=?', 'senha_acesso=?',
-        'fb_default_id_empresa=?', 'fb_default_id_vendedor=?',
-        'ig_instancia=?', 'ig_autoreply=?', 'ig_reply_msg=?'
-      ];
-      const vals = [
-        w_apiglobal || null, url, empresa_liberada || null, senha_acesso || null,
-        fb_default_id_empresa ? parseInt(fb_default_id_empresa, 10) : 1,
-        fb_default_id_vendedor ? parseInt(fb_default_id_vendedor, 10) : null,
-        ig_instancia || null,
-        ig_autoreply === 'S' ? 'S' : 'N',
-        ig_reply_msg || null,
-      ];
-      if (fb_page_access_token) { sets.push('fb_page_access_token=?'); vals.push(fb_page_access_token); }
-      if (newFbToken)            { sets.push('fb_verify_token=?');      vals.push(newFbToken); }
-      vals.push(existing[0].id);
-      await pool.query(`UPDATE configuracao SET ${sets.join(', ')} WHERE id=?`, vals);
+      // Cada seção da tela salva só os próprios campos — atualiza apenas o que veio no body,
+      // para uma seção não apagar a configuração da outra.
+      const sets = [];
+      const vals = [];
+      const set = (col, val) => { sets.push(`${col}=?`); vals.push(val); };
+
+      if ('w_apiglobal'            in req.body) set('w_apiglobal', w_apiglobal || null);
+      if ('w_urlplataforma'        in req.body) set('w_urlplataforma', url);
+      if ('empresa_liberada'       in req.body) set('empresa_liberada', empresa_liberada || null);
+      if ('senha_acesso'           in req.body) set('senha_acesso', senha_acesso || null);
+      if ('fb_default_id_empresa'  in req.body) set('fb_default_id_empresa', fb_default_id_empresa ? parseInt(fb_default_id_empresa, 10) : 1);
+      if ('fb_default_id_vendedor' in req.body) set('fb_default_id_vendedor', fb_default_id_vendedor ? parseInt(fb_default_id_vendedor, 10) : null);
+      if ('ig_instancia'           in req.body) set('ig_instancia', ig_instancia || null);
+      if ('ig_autoreply'           in req.body) set('ig_autoreply', ig_autoreply === 'S' ? 'S' : 'N');
+      if ('ig_reply_msg'           in req.body) set('ig_reply_msg', ig_reply_msg || null);
+      if (provedor    !== undefined) set('wa_provedor', provedor === 'EUATENDO' ? 'EUATENDO' : 'EVOLUTION');
+      if (euatendoUrl !== undefined) set('euatendo_url', euatendoUrl);
+      if (fb_page_access_token) set('fb_page_access_token', fb_page_access_token);
+      if (euatendo_token) {                                                 // em branco = mantém o atual
+        set('euatendo_token', euatendo_token);
+        set('euatendo_validado_em', null);   // token novo → exige novo teste p/ selo "liberado"
+      }
+      if (newFbToken)           set('fb_verify_token', newFbToken);
+
+      if (sets.length) {
+        vals.push(existing[0].id);
+        await pool.query(`UPDATE configuracao SET ${sets.join(', ')} WHERE id=?`, vals);
+      }
       res.json({ ok: true, acao: 'update', id: existing[0].id, ...(newFbToken ? { fb_verify_token: newFbToken } : {}) });
     } else {
       const [result] = await pool.query(
         `INSERT INTO configuracao (w_apiglobal, w_urlplataforma, empresa_liberada, senha_acesso,
            fb_page_access_token, fb_default_id_empresa, fb_default_id_vendedor, fb_verify_token,
-           ig_instancia, ig_autoreply, ig_reply_msg, excluido)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'N')`,
+           ig_instancia, ig_autoreply, ig_reply_msg,
+           wa_provedor, euatendo_url, euatendo_token, excluido)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'N')`,
         [
           w_apiglobal || null, url, empresa_liberada || null, senha_acesso || null,
           fb_page_access_token || null,
@@ -381,6 +406,9 @@ router.post('/api', async (req, res) => {
           ig_instancia || null,
           ig_autoreply === 'S' ? 'S' : 'N',
           ig_reply_msg || null,
+          provedor === 'EUATENDO' ? 'EUATENDO' : 'EVOLUTION',
+          euatendoUrl || null,
+          euatendo_token || null,
         ]
       );
       res.status(201).json({ ok: true, acao: 'insert', id: result.insertId, ...(newFbToken ? { fb_verify_token: newFbToken } : {}) });

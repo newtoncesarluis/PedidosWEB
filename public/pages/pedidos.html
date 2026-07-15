@@ -24,6 +24,7 @@
 <script src="/assets/ajuda-tours.js"></script>
 <script src="/assets/comissao-preposto-ui.js"></script>
 <script src="/assets/vendas-duplicar-item.js"></script>
+<script src="/assets/catalogo-pedido-ui.js?v=20260714b"></script>
 
 <!-- Leaflet Map -->
 <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
@@ -2254,7 +2255,7 @@ html.sysrep-ms-embed #offlineQueueBadge { display: none !important; }
   margin-bottom: 4px;
 }
 .itens-card-head-left { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
-.itens-card-foto { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; flex-shrink: 0; cursor: pointer; }
+.itens-card-foto { width: 40px; height: 40px; border-radius: 8px; object-fit: contain; object-position: center; flex-shrink: 0; cursor: pointer; background: var(--card, #fff); border: 1px solid var(--border); }
 .itens-card-foto-ph {
   width: 40px; height: 40px; border-radius: 8px; border: 1px dashed var(--border);
   display: inline-flex; align-items: center; justify-content: center; color: var(--border); background: var(--bg);
@@ -2449,7 +2450,7 @@ html.sysrep-ms-embed #offlineQueueBadge { display: none !important; }
   cursor: pointer; touch-action: manipulation;
   flex-shrink: 0; margin-top: 1px;
 }
-.itens-row-dense__foto img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.itens-row-dense__foto img { width: 100%; height: 100%; object-fit: contain; object-position: center; display: block; background: var(--card, #fff); }
 .itens-row-dense__body {
   flex: 1 1 0;
   min-width: 0;
@@ -2637,9 +2638,9 @@ html.sysrep-ms-embed .itens-list-dense-wrap { padding: 4px 8px 8px; }
 .it-unidade { font-size: var(--base-font-size, 13px); font-weight: 700; color: var(--text2); white-space: nowrap; }
 .it-td-pct { color: var(--danger); font-size: var(--base-font-size, 13px); font-weight: 800; }
 .it-img {
-  width: 48px; height: 48px; object-fit: cover;
+  width: 48px; height: 48px; object-fit: contain; object-position: center;
   border-radius: 6px; border: 1px solid var(--border);
-  cursor: pointer; flex-shrink: 0; background: var(--bg); transition: .15s;
+  cursor: pointer; flex-shrink: 0; background: var(--card, var(--bg, #fff)); transition: .15s;
   display: block;
 }
 .it-img:hover { transform: scale(1.06); box-shadow: 0 3px 10px rgba(0,0,0,.18); }
@@ -2688,7 +2689,7 @@ html.sysrep-ms-embed .itens-list-dense-wrap { padding: 4px 8px 8px; }
   scrollbar-width:thin; }
 .fpo-thumb { width:80px; height:80px; border-radius:6px; overflow:hidden; flex-shrink:0;
   border:2px solid var(--border); cursor:pointer; transition:border-color .15s; background:var(--bg); }
-.fpo-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+.fpo-thumb img { width:100%; height:100%; object-fit:contain; object-position:center; display:block; background:var(--card, #fff); }
 .fpo-thumb.active { border-color:var(--accent); box-shadow:0 0 0 2px rgba(var(--accent-rgb),.25); }
 .fpo-thumb:hover:not(.active) { border-color:var(--text2); }
 /* hint rodapé */
@@ -6428,6 +6429,10 @@ html:not(.sysrep-ms-embed) #offlineQueueBadge { display: none !important; }
             <button type="button" id="btnItensSelecionar" class="itens-tool-btn" title="Selecionar vários itens para excluir em lote">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 11l3 3L22 4M4 4h7v7H4z"/></svg>
               <span class="itens-sel-lbl">Selecionar</span>
+            </button>
+            <button type="button" id="btnAbrirCatalogoVisual" class="itens-tool-btn" title="Catálogo visual — coleções / fábrica / tabela" onclick="typeof abrirCatalogoPedido==='function'&&abrirCatalogoPedido()">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+              Catálogo
             </button>
             <button type="button" id="btnAplicarKitFornecedor" class="itens-tool-btn" title="Incluir itens do kit cadastrado na fábrica" style="display:none">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
@@ -11002,7 +11007,10 @@ async function validarItemPedidoAntesIncluir(ctx = {}) {
     }
   }
   if (_vendasDuplicarItemBloqueia() && prodId) {
-    const jaExiste = _subData.itens.some((i, idx) => !i._delete && i.cod_produto === prodId && idx !== editIdx);
+    const pid = parseInt(prodId, 10);
+    const jaExiste = _subData.itens.some((i, idx) =>
+      !i._delete && parseInt(i.cod_produto, 10) === pid && idx !== editIdx
+    );
     if (jaExiste) {
       erros.push({ message: 'Este item já está na lista. Esta fábrica não permite itens duplicados.', tab: 'tab-itens' });
     }
@@ -12732,6 +12740,10 @@ function normalizarVlrPadraoItem(i) {
 
 // ── SUB-RECORDS (ITENS / PARCELAS) ────────────────────────────────────────────
 function renderSubrec(tipo) {
+  // Segurança: no modo Somar, nunca exibir o mesmo produto em linhas separadas
+  if (tipo === 'itens' && fundirTodasDuplicatasItensPedido()) {
+    atualizarTotalItens();
+  }
   const cont = document.getElementById(tipo === 'itens' ? 'itensList' : 'parcelasList');
   const data = _subData[tipo].filter(x => !x._delete);
   
@@ -13950,7 +13962,7 @@ async function abrirModalGrade() {
   if (iconEl) {
     if (fotoUrl) {
       iconEl.style.background = 'var(--border)';
-      iconEl.innerHTML = `<img src="${escHtml(fotoUrl)}" alt="" style="width:100%;height:100%;object-fit:cover"
+      iconEl.innerHTML = `<img src="${escHtml(fotoUrl)}" alt="" style="width:100%;height:100%;object-fit:contain;object-position:center"
         onerror="this.parentElement.style.background='linear-gradient(135deg,var(--accent),var(--accent-hover))';
                  this.parentElement.innerHTML='<svg fill=\\'none\\' stroke=\\'#fff\\' viewBox=\\'0 0 24 24\\' style=\\'width:20px;height:20px\\'><path stroke-linecap=\\'round\\' stroke-linejoin=\\'round\\' stroke-width=\\'2.5\\' d=\\'M4 6h16M4 10h16M4 14h16M4 18h16\\'/></svg>'">`;
     } else {
@@ -14327,7 +14339,7 @@ tfoot td{font-weight:900;font-size:14px;background:#f0fdfa;border-top:2px solid 
 .footer{margin-top:20px;font-size:10px;color:#9ca3af;text-align:right;border-top:1px solid #e5e7eb;padding-top:8px}
 </style></head><body>
 <div style="display:flex;align-items:flex-start;gap:16px;margin-bottom:20px">
-  ${fotoUrl ? `<img src="${fotoUrl}" style="width:72px;height:72px;object-fit:cover;border-radius:10px;flex-shrink:0" onerror="this.style.display='none'">` : ''}
+  ${fotoUrl ? `<img src="${fotoUrl}" style="width:72px;height:72px;object-fit:contain;object-position:center;border-radius:10px;flex-shrink:0;background:var(--card,#fff);border:1px solid var(--border)" onerror="this.style.display='none'">` : ''}
   <div><h1>${nomeProd}</h1><div class="meta">${metaLinha}</div></div>
 </div>
 <table>
@@ -14986,7 +14998,7 @@ async function aplicarKitFornecedorPedido() {
     const idxPed = findPedidoItemIdxByProduto(prodIdKit);
     const qtdExist = idxPed >= 0 ? (parseFloat(_subData.itens[idxPed].quantidade) || 0) : 0;
     if (qtdExist >= qtdAjust - 0.0001) continue;
-    const feito = await incluirOuAtualizarMercosItem(prod, qtdAjust, { silent: true, skipIndisp: true });
+    const feito = await incluirOuAtualizarMercosItem(prod, qtdAjust, { silent: true, skipIndisp: true, atualizarExistente: true });
     if (feito) incluidos++;
   }
   renderSubrec('itens');
@@ -15047,7 +15059,7 @@ async function aplicarKitFeirinhaCampanha() {
       const idxPed = findPedidoItemIdxByProduto(prodIdKit);
       const qtdExist = idxPed >= 0 ? (parseFloat(_subData.itens[idxPed].quantidade) || 0) : 0;
       if (qtdExist >= qtdAjust - 0.0001) continue;
-      const feito = await incluirOuAtualizarMercosItem(prod, qtdAjust, { silent: true, skipIndisp: true });
+      const feito = await incluirOuAtualizarMercosItem(prod, qtdAjust, { silent: true, skipIndisp: true, atualizarExistente: true });
       if (feito) incluidos++;
     }
     renderSubrec('itens');
@@ -15144,7 +15156,7 @@ async function incluirProdutoFeirinhaSugestao(codProduto, qtd) {
       await selecionarProdutoReposicao(codProduto, qtdAjust);
       return;
     }
-    await incluirOuAtualizarMercosItem(prod, qtdAjust, { skipIndisp: true });
+    await incluirOuAtualizarMercosItem(prod, qtdAjust, { skipIndisp: true, atualizarExistente: true, somar: true });
     atualizarResumoFeirinha();
   } catch (e) {
     toast('Erro ao incluir produto sugerido', 'err');
@@ -16183,6 +16195,68 @@ function findPedidoItemIdxByProduto(prodId) {
   return -1;
 }
 
+/** Serializa inclusão Mercos por produto (evita duplicata por toque rápido no +/−). */
+const _mercosIncluirLocks = Object.create(null);
+async function withMercosProdLock(prodId, fn) {
+  const id = parseInt(prodId, 10);
+  if (!id) return fn();
+  const prev = _mercosIncluirLocks[id] || Promise.resolve();
+  let release;
+  const done = new Promise((r) => { release = r; });
+  _mercosIncluirLocks[id] = prev.then(() => done);
+  await prev;
+  try {
+    return await fn();
+  } finally {
+    release();
+  }
+}
+
+/**
+ * Com vendasduplicaritem=S, funde linhas duplicadas do mesmo produto (ex.: corrida no mobile)
+ * na primeira ocorrência.
+ */
+function fundirDuplicatasProdutoNoPedido(prodId) {
+  if (!fornecedorConsolidaItemPedido()) return -1;
+  const id = parseInt(prodId, 10);
+  if (!id) return -1;
+  const idxs = [];
+  for (let i = 0; i < (_subData.itens || []).length; i++) {
+    const it = _subData.itens[i];
+    if (!it._delete && parseInt(it.cod_produto, 10) === id) idxs.push(i);
+  }
+  if (idxs.length <= 1) return idxs[0] ?? -1;
+  let base = _subData.itens[idxs[0]];
+  for (let k = 1; k < idxs.length; k++) {
+    const other = _subData.itens[idxs[k]];
+    base = consolidarItemPedidoExistente(base, other);
+    other._delete = true;
+  }
+  recalcItemTotaisPedido(base);
+  _subData.itens[idxs[0]] = base;
+  return idxs[0];
+}
+
+/** Funde todas as duplicatas do pedido quando a fábrica está em modo Somar. */
+function fundirTodasDuplicatasItensPedido() {
+  if (!fornecedorConsolidaItemPedido()) return false;
+  const seen = new Set();
+  let mudou = false;
+  for (let i = 0; i < (_subData.itens || []).length; i++) {
+    const it = _subData.itens[i];
+    if (!it || it._delete) continue;
+    const id = parseInt(it.cod_produto, 10);
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const antes = (_subData.itens || []).filter((x) => !x._delete && parseInt(x.cod_produto, 10) === id).length;
+    if (antes > 1) {
+      fundirDuplicatasProdutoNoPedido(id);
+      mudou = true;
+    }
+  }
+  return mudou;
+}
+
 /** Chave estável para mesclar linhas de grade ao somar o mesmo produto. */
 function _gradeQtdPedidoKey(g) {
   if (g.id_descricao_grade != null && g.id_descricao_grade !== '') return String(g.id_descricao_grade);
@@ -16255,9 +16329,16 @@ function consolidarItemPedidoExistente(existing, incoming) {
 }
 
 function getMercosQtdNoPedido(prodId) {
-  const idx = findPedidoItemIdxByProduto(prodId);
-  if (idx < 0) return 0;
-  return parseFloat(_subData.itens[idx].quantidade) || 0;
+  const id = parseInt(prodId, 10);
+  if (!id) return 0;
+  let total = 0;
+  for (let i = 0; i < (_subData.itens || []).length; i++) {
+    const it = _subData.itens[i];
+    if (!it._delete && parseInt(it.cod_produto, 10) === id) {
+      total += parseFloat(it.quantidade) || 0;
+    }
+  }
+  return total;
 }
 
 async function recalcItemQtdMercos(item) {
@@ -16349,64 +16430,123 @@ async function incluirOuAtualizarMercosItem(prod, qtd, opts = {}) {
   prod = await enrichProdutoDescricao(prod);
   const prodId = parseInt(prod.cod_produto || prod.id, 10);
   if (!prodId) return false;
-  const idx = findPedidoItemIdxByProduto(prodId);
-  const existItem = idx >= 0 ? _subData.itens[idx] : null;
-  const indisp = String(prod.disponivel || 'S').toUpperCase() === 'N';
-  const val = await validarItemPedidoAntesIncluir({
-    prodId,
-    qtd,
-    prod,
-    itemSnapshot: existItem,
-    mv: parseInt(prod.multiplo_venda ?? existItem?.multiplo_venda_produto, 10) || 1,
-    qtdMinimaPedido: parseInt(prod.qtd_minima_pedido ?? existItem?.qtd_minima_pedido_produto, 10) || 0,
-    indisponivel: false,
-    descProd: prod.desc_produto || prod.descricao || 'Produto',
-    editIdx: idx,
-    erroEstoque: pedidoControlaEstoque() && prod.estoque_atual != null && qtd > parseFloat(prod.estoque_atual)
-      ? `Quantidade (${qtd}) maior que o estoque (${parseFloat(prod.estoque_atual)}).`
-      : null
+
+  return withMercosProdLock(prodId, async () => {
+    const modo = _vendasDuplicarItemModo();
+    // S: funde duplicatas antigas (corrida) antes de decidir
+    if (modo === 'S') fundirDuplicatasProdutoNoPedido(prodId);
+
+    let idx = findPedidoItemIdxByProduto(prodId);
+    // D = nova linha: só atualiza se o caller pedir (ex.: botão +/− na linha)
+    if (modo === 'D' && !opts.atualizarExistente) idx = -1;
+
+    // N = bloquear: não cria 2ª linha nem “soma de novo”; +/− em item existente usa atualizarExistente
+    if (modo === 'N' && idx >= 0 && !opts.atualizarExistente) {
+      await mostrarModalValidacaoPedido([{
+        message: 'Este item já está na lista. Esta fábrica não permite itens duplicados.',
+        tab: 'tab-itens'
+      }]);
+      return false;
+    }
+
+    let qtdFinal = parseFloat(qtd) || 0;
+    // S + somar: catálogo / “incluir de novo” soma na linha (não substitui)
+    if (modo === 'S' && opts.somar && idx >= 0) {
+      qtdFinal = Math.round(((parseFloat(_subData.itens[idx].quantidade) || 0) + qtdFinal) * 1000) / 1000;
+    }
+
+    const existItem = idx >= 0 ? _subData.itens[idx] : null;
+    const indisp = String(prod.disponivel || 'S').toUpperCase() === 'N';
+    const val = await validarItemPedidoAntesIncluir({
+      prodId,
+      qtd: qtdFinal,
+      prod,
+      itemSnapshot: existItem,
+      mv: parseInt(prod.multiplo_venda ?? existItem?.multiplo_venda_produto, 10) || 1,
+      qtdMinimaPedido: parseInt(prod.qtd_minima_pedido ?? existItem?.qtd_minima_pedido_produto, 10) || 0,
+      indisponivel: false,
+      descProd: prod.desc_produto || prod.descricao || 'Produto',
+      editIdx: idx,
+      erroEstoque: pedidoControlaEstoque() && prod.estoque_atual != null && qtdFinal > parseFloat(prod.estoque_atual)
+        ? `Quantidade (${qtdFinal}) maior que o estoque (${parseFloat(prod.estoque_atual)}).`
+        : null
+    });
+    if (!val.ok) {
+      await mostrarModalValidacaoPedido(val.erros);
+      return false;
+    }
+    if (indisp && !opts.skipIndisp) {
+      const seguir = await confirmarAsync(
+        'Produto indisponível',
+        `«${prod.desc_produto || prod.descricao || 'Produto'}» está marcado como indisponível.\n\nDeseja incluir mesmo assim?`,
+        { danger: false, icon: '⛔', labelOk: 'Incluir mesmo assim', labelCancel: 'Não incluir' }
+      );
+      if (!seguir) return false;
+    }
+    if (val.erroEstoque && !opts.skipEstoque) {
+      const seguir = await confirmarAsync(
+        'Estoque insuficiente',
+        val.erroEstoque + '\n\nDeseja incluir o item mesmo assim?',
+        { danger: false, icon: '📦', labelOk: 'Incluir mesmo assim', labelCancel: 'Não incluir' }
+      );
+      if (!seguir) return false;
+    }
+
+    // Reavalia após awaits (outra inclusão pode ter ocorrido — lock cobre o mesmo produto)
+    if (modo === 'S') fundirDuplicatasProdutoNoPedido(prodId);
+    idx = findPedidoItemIdxByProduto(prodId);
+    if (modo === 'D' && !opts.atualizarExistente) idx = -1;
+
+    const isNovo = idx < 0;
+    if (idx >= 0) {
+      const item = _subData.itens[idx];
+      if (opts.grade_qtd?.length) {
+        if (modo === 'S' && opts.somar && item.grade_qtd?.length) {
+          item.grade_qtd = mergeGradeQtdPedido(item.grade_qtd, opts.grade_qtd);
+          item.quantidade = Math.round(
+            item.grade_qtd.reduce((s, g) => s + (parseFloat(g.quantidade) || 0), 0) * 1000
+          ) / 1000;
+        } else {
+          item.grade_qtd = opts.grade_qtd;
+          item.quantidade = qtdFinal;
+        }
+        if (opts.id_grade) item.id_grade = opts.id_grade;
+        if (opts.tipo_grade) item.tipo_grade = opts.tipo_grade;
+      } else {
+        item.quantidade = qtdFinal;
+      }
+      if (opts.obsitem != null) item.obsitem = String(opts.obsitem).trim().slice(0, 100);
+      if (prod.multiplo_venda != null) item.multiplo_venda_produto = parseInt(prod.multiplo_venda, 10) || 1;
+      if (prod.qtd_minima_pedido != null) item.qtd_minima_pedido_produto = parseInt(prod.qtd_minima_pedido, 10) || 0;
+      await recalcItemQtdMercos(item);
+    } else {
+      const novo = await buildMercosItemFromProd(prod, qtdFinal);
+      if (opts.grade_qtd?.length) {
+        novo.grade_qtd = opts.grade_qtd;
+        novo.id_grade = opts.id_grade || prod.tipograde || null;
+        novo.tipo_grade = opts.tipo_grade || (prod.tipograde != null ? String(prod.tipograde) : null);
+        novo.quantidade = qtdFinal;
+      }
+      if (opts.obsitem != null) novo.obsitem = String(opts.obsitem).trim().slice(0, 100);
+      recalcItemTotaisPedido(novo);
+      _subData.itens.push(novo);
+    }
+    renderSubrec('itens');
+    atualizarTotalItens();
+    if (isNovo) _scrollUltimoItemItens();
+    if (!opts.silent) {
+      const msgSomou = !isNovo && modo === 'S' && opts.somar;
+      toast(
+        (prod.desc_produto || prod.descricao || 'Produto') + (msgSomou ? ' — quantidade somada' : (idx >= 0 ? ' atualizado' : ' adicionado')),
+        'ok'
+      );
+    }
+    if (document.getElementById('bus_prod_tbody')) {
+      renderProdutosAvancado(_produtosAvancadoCache);
+    }
+    atualizarMercosBuscaRodape();
+    return true;
   });
-  if (!val.ok) {
-    await mostrarModalValidacaoPedido(val.erros);
-    return false;
-  }
-  if (indisp && !opts.skipIndisp) {
-    const seguir = await confirmarAsync(
-      'Produto indisponível',
-      `«${prod.desc_produto || prod.descricao || 'Produto'}» está marcado como indisponível.\n\nDeseja incluir mesmo assim?`,
-      { danger: false, icon: '⛔', labelOk: 'Incluir mesmo assim', labelCancel: 'Não incluir' }
-    );
-    if (!seguir) return false;
-  }
-  if (val.erroEstoque && !opts.skipEstoque) {
-    const seguir = await confirmarAsync(
-      'Estoque insuficiente',
-      val.erroEstoque + '\n\nDeseja incluir o item mesmo assim?',
-      { danger: false, icon: '📦', labelOk: 'Incluir mesmo assim', labelCancel: 'Não incluir' }
-    );
-    if (!seguir) return false;
-  }
-  const isNovo = idx < 0;
-  if (idx >= 0) {
-    const item = _subData.itens[idx];
-    item.quantidade = qtd;
-    if (prod.multiplo_venda != null) item.multiplo_venda_produto = parseInt(prod.multiplo_venda, 10) || 1;
-    if (prod.qtd_minima_pedido != null) item.qtd_minima_pedido_produto = parseInt(prod.qtd_minima_pedido, 10) || 0;
-    await recalcItemQtdMercos(item);
-  } else {
-    _subData.itens.push(await buildMercosItemFromProd(prod, qtd));
-  }
-  renderSubrec('itens');
-  atualizarTotalItens();
-  if (isNovo) _scrollUltimoItemItens();
-  if (!opts.silent) {
-    toast((prod.desc_produto || prod.descricao || 'Produto') + (idx >= 0 ? ' atualizado' : ' adicionado'), 'ok');
-  }
-  if (document.getElementById('bus_prod_tbody')) {
-    renderProdutosAvancado(_produtosAvancadoCache);
-  }
-  atualizarMercosBuscaRodape();
-  return true;
 }
 
 async function adjustMercosProdutoQtd(prod, delta) {
@@ -16415,6 +16555,7 @@ async function adjustMercosProdutoQtd(prod, delta) {
     toast('Produto com grade — toque no nome do produto para informar os tamanhos', 'warn');
     return;
   }
+  if (fornecedorConsolidaItemPedido()) fundirDuplicatasProdutoNoPedido(prodId);
   const idx = findPedidoItemIdxByProduto(prodId);
   const exist = idx >= 0 ? _subData.itens[idx] : null;
   const regrasSrc = exist ? Object.assign({}, prod, {
@@ -16455,7 +16596,7 @@ async function adjustMercosProdutoQtd(prod, delta) {
     }
     return;
   }
-  await incluirOuAtualizarMercosItem(prod, novaQtd, { silent: true });
+  await incluirOuAtualizarMercosItem(prod, novaQtd, { silent: true, atualizarExistente: true });
 }
 
 function mercosFonteListaBusca() {
@@ -16523,12 +16664,16 @@ async function abrirMercosEditorProduto(prodId) {
   const prod = _produtosAvancadoCache.find(p => String(p.cod_produto) === String(prodId));
   if (!prod) return;
   const exigeGrade = _habilitaGrades === 'S' && prod.tipograde;
+  const modo = _vendasDuplicarItemModo();
+  if (modo === 'S') fundirDuplicatasProdutoNoPedido(prodId);
   const idx = findPedidoItemIdxByProduto(prodId);
-  const ativarFluxo = mercosCatalogoMobileAtivo() && idx >= 0;
+  // D = nova linha: toque no produto abre formulário de inclusão (não edita a linha existente)
+  const forcarNovaLinha = idx >= 0 && modo === 'D';
+  const ativarFluxo = mercosCatalogoMobileAtivo() && idx >= 0 && !forcarNovaLinha;
   _buscaProdutoAutoAposIncluir = false;
   if (typeof fecharModalHist === 'function') fecharModalHist({ manterFluxoMercos: ativarFluxo });
   _mercosFluxoAjusteComercial = ativarFluxo;
-  if (idx >= 0) {
+  if (idx >= 0 && !forcarNovaLinha) {
     await editarItem(idx);
   } else {
     _mercosFluxoAjusteComercial = false;
@@ -16699,7 +16844,7 @@ async function adicionarProdutoCatalogoRapido(prod) {
   const qtdIni = typeof PedidoItemRegras !== 'undefined'
     ? PedidoItemRegras.quantidadeInicial(PedidoItemRegras.parseRegras(prod))
     : Math.max(parseInt(prod.multiplo_venda, 10) || 1, 1);
-  await incluirOuAtualizarMercosItem(prod, qtdIni);
+  await incluirOuAtualizarMercosItem(prod, qtdIni, { somar: true });
 }
 
 function resetMobileCatalogPanel() {
@@ -16745,11 +16890,25 @@ function toggleMobileCatalogPanel() {
   }
 }
 
+let _subrecConfirmBusy = false;
+
 function confirmarSubrec(tipo) {
+  if (tipo === 'itens') {
+    if (_subrecConfirmBusy) return;
+    _subrecConfirmBusy = true;
+  }
   void _confirmarSubrecAsync(tipo);
 }
 
 async function _confirmarSubrecAsync(tipo) {
+  try {
+    await _confirmarSubrecAsyncBody(tipo);
+  } finally {
+    if (tipo === 'itens') _subrecConfirmBusy = false;
+  }
+}
+
+async function _confirmarSubrecAsyncBody(tipo) {
   let item = {};
   let idxConsolidar = -1;
   if (tipo === 'itens') {
@@ -16762,6 +16921,7 @@ async function _confirmarSubrecAsync(tipo) {
 
     const prodId = parseInt(sel.value, 10);
     if (_editandoItemIdx < 0 && fornecedorConsolidaItemPedido()) {
+      fundirDuplicatasProdutoNoPedido(prodId);
       idxConsolidar = findPedidoItemIdxByProduto(prodId);
     }
 
@@ -16903,6 +17063,13 @@ async function _confirmarSubrecAsync(tipo) {
     if (!item.vencimento || !item.valor) return;
   }
 
+  // Reavalia consolidação DEPOIS dos awaits (toque duplo / inclusão paralela no mobile)
+  if (tipo === 'itens' && _editandoItemIdx < 0 && fornecedorConsolidaItemPedido()) {
+    const pid = parseInt(item.cod_produto, 10);
+    fundirDuplicatasProdutoNoPedido(pid);
+    idxConsolidar = findPedidoItemIdxByProduto(pid);
+  }
+
   if (tipo === 'itens' && _editandoItemIdx >= 0) {
     const idxGravacao = _editandoItemIdx;
     const savedProdId = parseInt(item.cod_produto, 10);
@@ -16933,12 +17100,16 @@ async function _confirmarSubrecAsync(tipo) {
     await sincronizarPromocaoItemPedido(merged, window._prodSubrecAtual);
     recalcItemTotaisPedido(merged);
     _subData.itens[idxConsolidar] = merged;
+    fundirDuplicatasProdutoNoPedido(merged.cod_produto);
     renderSubrec('itens');
     atualizarTotalItens();
     toast(`Quantidade somada ao item existente (total: ${merged.quantidade})`, 'ok');
     _resetSubrecItemForm();
   } else {
     _subData[tipo].push(item);
+    if (tipo === 'itens' && fornecedorConsolidaItemPedido()) {
+      fundirDuplicatasProdutoNoPedido(item.cod_produto);
+    }
     renderSubrec(tipo);
     if (tipo === 'itens') {
       _scrollUltimoItemItens();
@@ -19229,7 +19400,7 @@ async function incluirReposicaoSugeridos(lista) {
     const mv = parseInt(prod.multiplo_venda, 10) || 1;
     const qtdAjust = mv > 1 ? Math.ceil(qtd / mv) * mv : qtd;
     if (_habilitaGrades === 'S' && prod.tipograde) continue;
-    const feito = await incluirOuAtualizarMercosItem(prod, qtdAjust, { silent: true, skipIndisp: true });
+    const feito = await incluirOuAtualizarMercosItem(prod, qtdAjust, { silent: true, skipIndisp: true, atualizarExistente: true });
     if (feito) incluidos++;
   }
   renderSubrec('itens');
@@ -19303,7 +19474,7 @@ async function selecionarProdutoReposicao(id, qtdSugerida) {
     return;
   }
   if (mercosCatalogoMobileAtivo()) {
-    await incluirOuAtualizarMercosItem(prod, qtdAjust);
+    await incluirOuAtualizarMercosItem(prod, qtdAjust, { atualizarExistente: true });
     return;
   }
   await selecionarProdutoAvancado(id);
@@ -21104,7 +21275,7 @@ async function imprimirPedidoAtual() {
     // ICMS "por dentro" — não soma no total c/ imposto (apenas IPI + ST)
     const _tot1    = _base1 + _ipiVal1 + _stVal1;
     const cells = [
-      showFotoPDF        ? `<td class="tc" style="padding:3px 6px">${i.foto_principal ? `<img src="${h(i.foto_principal)}" style="width:56px;height:56px;object-fit:cover;border-radius:5px;display:block;margin:0 auto" onerror="this.style.display='none'">` : ''}</td>` : '',
+      showFotoPDF        ? `<td class="tc" style="padding:3px 6px">${i.foto_principal ? `<img src="${h(i.foto_principal)}" style="width:56px;height:56px;object-fit:contain;object-position:center;border-radius:5px;display:block;margin:0 auto;background:#fff" onerror="this.style.display='none'">` : ''}</td>` : '',
       cfg.col_seq        ? `<td class="tc">${idx + 1}</td>` : '',
       cfg.col_cod        ? `<td class="tc">${h(usarCodFab ? (i.cod_fabricante||i.cod_produto||'') : (i.cod_produto||''))}</td>` : '',
                            `<td class="td">${descHtml}</td>`,
@@ -25481,6 +25652,14 @@ function checkUrlParams() {
     }
   }
 
+  // Filtro de situação via URL (ex.: Showroom → Pedidos pendentes)
+  const stUrl = String(urlParams.get('status') || '').toUpperCase();
+  if (stUrl === 'PENDENTE' || stUrl === 'APROVADO' || stUrl === 'FATURADO' || stUrl === 'CANCELADO' || stUrl === 'ENVIADO') {
+    const selSt = document.getElementById('f_status');
+    if (selSt) selSt.value = stUrl;
+    _filtro = '';
+  }
+
   // Filtro por cliente (vindo do mapa ou link direto)
   const clienteId = urlParams.get('cliente');
   if (clienteId) {
@@ -25662,6 +25841,9 @@ async function onFornecedorSelecionado(id, nome) {
   try {
     const r = await api(`/api/fornecedores/${id}`);
     _fornecedorConfig = await r.json();
+    if (window.VendasDuplicarItem) {
+      _fornecedorConfig.vendasduplicaritem = VendasDuplicarItem.normalize(_fornecedorConfig.vendasduplicaritem);
+    }
     _fornecedorNomeSnapshot = _fornecedorConfig.nome || _fornecedorConfig.apelido || _fornecedorNomeSnapshot;
   } catch (e) {
     _fornecedorConfig = {};
@@ -27635,7 +27817,7 @@ async function gerarHtmlImpressao() {
       return obs ? `${base}${obs}` : base;
     })();
     const fotoTd = showFotosPDF
-      ? `<td class="tc" style="padding:3px 5px;width:70px">${i.foto_principal ? `<img src="${h(i.foto_principal)}" style="width:60px;height:60px;object-fit:cover;border-radius:5px;display:block;margin:0 auto" onerror="this.style.display='none'">` : ''}</td>`
+      ? `<td class="tc" style="padding:3px 5px;width:70px">${i.foto_principal ? `<img src="${h(i.foto_principal)}" style="width:60px;height:60px;object-fit:contain;object-position:center;border-radius:5px;display:block;margin:0 auto;background:#fff" onerror="this.style.display='none'">` : ''}</td>`
       : '';
     const _base2   = baseTotalItemImpressao(i);
     const _ipiPct2 = parseFloat(i.ipi_percentual ?? i.ipi) || 0;

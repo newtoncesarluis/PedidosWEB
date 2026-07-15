@@ -72,6 +72,7 @@ router.get('/:id/historico',            ctrl.historicoLista);
 router.get('/:id/historico/:numpedido', ctrl.historicoDetalhe);
 router.get('/:id/financeiro',           ctrl.financeiro);
 router.get('/:id/ligacoes',             ctrl.ligacoes);
+router.get('/:id/mensagens',            ctrl.mensagensLista);
 
 // ─── CRUD principal ───────────────────────────────────────────────────────────
 router.get('/', ctrl.listar);

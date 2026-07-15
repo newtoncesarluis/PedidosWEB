@@ -3,6 +3,9 @@ const router  = express.Router();
 const axios   = require('axios');
 const { getPool } = require('../config/database');
 const { logError } = require('../config/logger');
+const {
+  euatendoAtivo, enviarTextoEuAtendo, enviarMediaEuAtendo, EUATENDO_URL_PADRAO,
+} = require('../config/euatendo');
 
 // ─── helper: faz request HTTP/HTTPS para a Evolution API (via axios) ─────────
 async function apiRequest(baseUrl, path, method = 'GET', apikey, body = null, timeoutMs = 15000) {
@@ -243,6 +246,13 @@ router.get('/qr/:instanceName', async (req, res) => {
 router.get('/status', async (req, res) => {
   try {
     const pool = getPool();
+
+    // EuAtendo ativo → sempre pronto (plataforma hospedada, sem instância/QR)
+    const ea = await euatendoAtivo(pool).catch(() => null);
+    if (ea) {
+      return res.json({ conectado: true, status: 'open', provedor: 'EUATENDO' });
+    }
+
     const [rows] = await pool.query(
       'SELECT instancia FROM usuarios WHERE idusuario=? AND excluido=\'N\'', 
       [req.user.id]
@@ -352,8 +362,16 @@ router.post('/enviar-teste', async (req, res) => {
       return res.status(400).json({ error: 'usuarioId, numero e mensagem obrigatórios' });
     }
 
-    const cfg  = await getConfig();
     const pool = getPool();
+
+    // EuAtendo ativo → envia pela plataforma (não depende de instância do usuário)
+    const ea = await euatendoAtivo(pool).catch(() => null);
+    if (ea) {
+      await enviarTextoEuAtendo(ea, numero, mensagem);
+      return res.json({ ok: true, provedor: 'EUATENDO' });
+    }
+
+    const cfg  = await getConfig();
 
     const [rows] = await pool.query(
       'SELECT instancia, chave FROM usuarios WHERE idusuario=? AND excluido=\'N\' LIMIT 1',
@@ -604,6 +622,144 @@ router.post('/desconectar-usuario/:usuarioId', async (req, res) => {
 
     res.json({ ok: true });
   } catch (err) { logError(`${req.method} ${req.path}`, err); res.status(500).json({ error: err.message }); }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/whatsapp/testar-euatendo
+// Testa a API do EuAtendo enviando uma mensagem real para o número informado
+// Body: { url?, token?, numero, mensagem? }  (sem url/token usa o que está salvo)
+// ─────────────────────────────────────────────────────────────────────────────
+router.post('/testar-euatendo', async (req, res) => {
+  try {
+    const { url, token, numero, mensagem } = req.body;
+    if (!numero) return res.status(400).json({ error: 'Informe o número de destino do teste' });
+
+    let cfg;
+    if (token) {
+      cfg = { url: (url || EUATENDO_URL_PADRAO).replace(/\/$/, ''), token };
+    } else {
+      const { getEuAtendoConfig } = require('../config/euatendo');
+      cfg = await getEuAtendoConfig(getPool());
+      if (url) cfg.url = String(url).replace(/\/$/, '');
+      if (!cfg.token) return res.status(400).json({ error: 'Token do EuAtendo não configurado — informe o token ou salve a configuração primeiro' });
+    }
+
+    const r = await enviarTextoEuAtendo(cfg, numero,
+      mensagem || 'Teste de integração SysRepWeb ↔ EuAtendo ✅');
+
+    // Teste OK = conexão liberada — registra para exibir o selo "ApiChat liberado"
+    const validadoEm = new Date();
+    await getPool().query(
+      `UPDATE configuracao SET euatendo_validado_em=NOW()
+       WHERE excluido='N' ORDER BY id DESC LIMIT 1`
+    ).catch(() => {});
+
+    res.json({ ok: true, status: r.status, validado_em: validadoEm.toISOString() });
+  } catch (err) {
+    res.json({ ok: false, error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/whatsapp/enviar
+// Envio genérico de texto (+ anexo opcional) para um cliente — roteia pelo
+// provedor configurado.
+// Body: { numero, mensagem, cod_cliente?, id_pedido?,
+//         anexo_base64?, anexo_nome?, anexo_tipo? }
+//   EuAtendo:  endpoint único com Bearer token
+//   Evolution: instância do usuário logado
+// Com cod_cliente informado, o envio (ou a falha) entra no histórico do cliente.
+// Limite de anexo: 10MB — base64 adiciona ~33%, o body parser aceita até 20MB.
+// ─────────────────────────────────────────────────────────────────────────────
+const ANEXO_MAX_BYTES = 10 * 1024 * 1024;
+
+router.post('/enviar', async (req, res) => {
+  const {
+    numero, mensagem, cod_cliente, id_pedido,
+    anexo_base64, anexo_nome, anexo_tipo,
+  } = req.body || {};
+  const pool = getPool();
+  const { registrarMensagemCliente } = require('../config/cliente-mensagens');
+  const logEnvio = (extra) => registrarMensagemCliente(pool, {
+    cod_cliente: parseInt(cod_cliente, 10) || null,
+    id_pedido:   parseInt(id_pedido, 10) || null,
+    id_usuario:  req.user?.id || null,
+    canal:       'WHATSAPP',
+    destino:     numero,
+    mensagem,
+    anexo:       anexo_base64 ? (anexo_nome || 'anexo') : null,
+    ...extra,
+  });
+
+  try {
+    if (!numero || (!mensagem && !anexo_base64)) {
+      return res.status(400).json({ error: 'numero e mensagem (ou anexo) obrigatórios' });
+    }
+
+    let anexoBuffer = null;
+    if (anexo_base64) {
+      anexoBuffer = Buffer.from(String(anexo_base64).replace(/^data:[^,]+,/, ''), 'base64');
+      if (anexoBuffer.length > ANEXO_MAX_BYTES) {
+        return res.status(400).json({ error: 'Anexo maior que 10MB' });
+      }
+    }
+
+    const ea = await euatendoAtivo(pool).catch(() => null);
+    if (ea) {
+      if (anexoBuffer) {
+        await enviarMediaEuAtendo(ea, numero, {
+          buffer: anexoBuffer,
+          filename: anexo_nome || 'anexo',
+          mimetype: anexo_tipo || 'application/octet-stream',
+          caption: mensagem || '',
+        });
+      } else {
+        await enviarTextoEuAtendo(ea, numero, mensagem);
+      }
+      void logEnvio({ provedor: 'EUATENDO' });
+      return res.json({ ok: true, provedor: 'EUATENDO' });
+    }
+
+    // Evolution: usa a instância do usuário logado
+    const cfg = await getConfig();
+    const [rows] = await pool.query(
+      'SELECT instancia, chave FROM usuarios WHERE idusuario=? AND excluido=\'N\' LIMIT 1',
+      [req.user.id]
+    );
+    const instancia = rows[0]?.instancia;
+    if (!instancia) return res.status(400).json({ error: 'Usuário sem instância WhatsApp configurada' });
+
+    const instKey     = rows[0]?.chave || cfg.apikey;
+    const numeroLimpo = String(numero).replace(/\D/g, '');
+
+    let r;
+    if (anexoBuffer) {
+      const mediatype = /^image\//.test(anexo_tipo || '') ? 'image' : 'document';
+      r = await apiRequest(cfg.url, `/message/sendMedia/${instancia}`, 'POST', instKey, {
+        number:    numeroLimpo,
+        mediatype,
+        mimetype:  anexo_tipo || 'application/octet-stream',
+        caption:   mensagem || '',
+        media:     anexoBuffer.toString('base64'),
+        fileName:  anexo_nome || 'anexo',
+      });
+    } else {
+      r = await apiRequest(cfg.url, `/message/sendText/${instancia}`, 'POST', instKey,
+        { number: numeroLimpo, text: mensagem });
+    }
+
+    if (r.status === 200 || r.status === 201) {
+      void logEnvio({ provedor: 'EVOLUTION' });
+      res.json({ ok: true, provedor: 'EVOLUTION' });
+    } else {
+      const erro = `Erro ${r.status}: ${JSON.stringify(r.body)}`;
+      void logEnvio({ provedor: 'EVOLUTION', status: 'FALHOU', erro });
+      res.status(500).json({ error: erro });
+    }
+  } catch (err) {
+    void logEnvio({ status: 'FALHOU', erro: err.message });
+    logError(`${req.method} ${req.path}`, err); res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;

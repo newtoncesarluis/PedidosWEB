@@ -310,12 +310,13 @@ function _isLocalhostDev(req) {
   return ip === '127.0.0.1' || ip === '::1' || ip === 'localhost';
 }
 
-// GET /api/dev/bases — lista as bases já baixadas neste PC + qual está ativa
-app.get('/api/dev/bases', (req, res) => {
+// GET /api/dev/bases — lista TODAS as licenças ativas (servidor de licenças +
+// cache local .enc); fallback para o cache se o servidor estiver fora
+app.get('/api/dev/bases', async (req, res) => {
   if (!_isLocalhostDev(req)) return res.status(404).json({ error: 'not found' });
   try {
-    const { listDevBases } = require('./config/database');
-    res.json({ ok: true, bases: listDevBases() });
+    const { listDevBasesFull } = require('./config/database');
+    res.json({ ok: true, bases: await listDevBasesFull() });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
   }
@@ -709,6 +710,8 @@ app.get('/api/pedidos/pdf-download/:token', (req, res) => {
 app.use('/api/estoque',   authMiddleware, require('./routes/estoque'));
 app.use('/api/pedidos',   authMiddleware, require('./routes/pedidos'));
 app.use('/api/feirinha',  authMiddleware, require('./routes/feirinha'));
+app.use('/api/campanhas-whatsapp', authMiddleware, require('./routes/campanhas-whatsapp'));
+app.use('/api/catalogos', authMiddleware, require('./routes/catalogos'));
 app.use('/api/xml',       authMiddleware, require('./routes/xml'));
 app.use('/api/excel',     authMiddleware, require('./routes/excel'));
 app.use('/api/analytics', authMiddleware, require('./routes/analytics'));

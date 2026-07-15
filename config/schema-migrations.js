@@ -744,6 +744,39 @@ const CREATE_IF_NOT_EXISTS = [
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   },
   {
+    name: 'catalogos',
+    sql: `CREATE TABLE IF NOT EXISTS catalogos (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      nome VARCHAR(200) NOT NULL,
+      subtitulo VARCHAR(200) NULL DEFAULT NULL,
+      cod_fornecedor INT NULL DEFAULT NULL,
+      imagem_capa VARCHAR(500) NULL DEFAULT NULL,
+      cor_fundo VARCHAR(20) NULL DEFAULT '#1f2937',
+      ordem INT NOT NULL DEFAULT 0,
+      ativo CHAR(1) NOT NULL DEFAULT 'S',
+      excluido CHAR(1) NOT NULL DEFAULT 'N',
+      observacoes TEXT NULL,
+      id_usuario INT NULL DEFAULT NULL,
+      dtcadastro DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_cat_forn (cod_fornecedor),
+      INDEX idx_cat_ativo (ativo, excluido),
+      INDEX idx_cat_ordem (ordem)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  },
+  {
+    name: 'catalogos_itens',
+    sql: `CREATE TABLE IF NOT EXISTS catalogos_itens (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      id_catalogo INT NOT NULL,
+      cod_produto INT NOT NULL,
+      ordem INT NOT NULL DEFAULT 0,
+      excluido CHAR(1) NOT NULL DEFAULT 'N',
+      INDEX idx_ci_cat (id_catalogo),
+      INDEX idx_ci_prod (cod_produto),
+      UNIQUE KEY uq_ci_cat_prod (id_catalogo, cod_produto)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  },
+  {
     name: 'meta_vendas_vendedor',
     sql: `CREATE TABLE IF NOT EXISTS meta_vendas_vendedor (
       id          INT AUTO_INCREMENT PRIMARY KEY,
@@ -1073,6 +1106,7 @@ async function runMigrations(pool) {
 
 const PROMOCOES_TABLE_NAMES = ['produto_promocoes', 'promocoes_campanha', 'promocoes_campanha_escopo', 'produtos_destaque'];
 const FEIRINHA_TABLE_NAMES = ['campanhas_feirinha', 'campanhas_feirinha_itens', 'feirinha_share_tokens'];
+const CATALOGOS_TABLE_NAMES = ['catalogos', 'catalogos_itens'];
 
 /** Cache por base (DATABASE.table.column) — evita SHOW COLUMNS repetido */
 const _ensureColCache = new Set();
@@ -1529,4 +1563,23 @@ async function ensureFeirinhaTables(pool) {
   }
 }
 
-module.exports = { runMigrations, ensurePromocoesCampanhaTables, ensureFeirinhaTables, ensureTableColumns, ensurePerfilCadastroColumns, ensureItenspedPromoColumns, ensureItenspedObsitemColumn, ensurePedidoRetornoColumns, ensurePedidoObsProximoColumns, backfillItenspedObsitemLegado, ensureItenspedTipoPrecoWidth, ensureTabelaPrecoCondPagamentoNullable, ensureVitrineColumns, ensureTabelaPrecoItensDecimal };
+async function ensureCatalogosTables(pool) {
+  if (!pool) return false;
+  try {
+    for (const t of CREATE_IF_NOT_EXISTS) {
+      if (!CATALOGOS_TABLE_NAMES.includes(t.name)) continue;
+      try {
+        await pool.query(t.sql);
+      } catch (e) {
+        console.warn(`[schema] ensure ${t.name}:`, e.message);
+      }
+    }
+    const [rows] = await pool.query("SHOW TABLES LIKE 'catalogos'");
+    return rows.length > 0;
+  } catch (e) {
+    console.warn('[schema] ensureCatalogosTables:', e.message);
+    return false;
+  }
+}
+
+module.exports = { runMigrations, ensurePromocoesCampanhaTables, ensureFeirinhaTables, ensureCatalogosTables, ensureTableColumns, ensurePerfilCadastroColumns, ensureItenspedPromoColumns, ensureItenspedObsitemColumn, ensurePedidoRetornoColumns, ensurePedidoObsProximoColumns, backfillItenspedObsitemLegado, ensureItenspedTipoPrecoWidth, ensureTabelaPrecoCondPagamentoNullable, ensureVitrineColumns, ensureTabelaPrecoItensDecimal };

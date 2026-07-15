@@ -518,6 +518,46 @@ function listDevBases() {
 }
 
 /**
+ * Versão completa (async): mescla o cache local (.enc) com TODAS as licenças
+ * ativas do servidor de licenças — bases novas aparecem no seletor de dev
+ * mesmo sem nunca terem sido usadas neste PC. Se o servidor de licenças
+ * estiver fora, cai no cache local (comportamento antigo).
+ */
+async function listDevBasesFull() {
+  const cached = listDevBases();
+  if (process.env.NODE_ENV === 'production') return cached;
+  try {
+    const { getLicensePool } = require('./db-license');
+    const licPool = getLicensePool();
+    const [rows] = await licPool.query(
+      `SELECT * FROM sistema_licencas WHERE ativo = 1`
+    );
+    const byChave = new Map(cached.map((b) => [b.chave.toUpperCase(), b]));
+    const atual = (readLicenseBinding()?.chave_licenca || '').trim().toUpperCase();
+    for (const row of rows) {
+      const chave = String(row.chave_licenca || '').trim();
+      if (!chave || byChave.has(chave.toUpperCase())) continue;
+      let cfg = null;
+      try { cfg = extractMysqlConfigFromLicenseRow(row); } catch {}
+      // Sem banco configurado = licença de outro produto — não serve para o seletor
+      if (!cfg?.database) continue;
+      byChave.set(chave.toUpperCase(), {
+        chave,
+        razao: row.razao_social || row.nome || chave,
+        database: cfg.database,
+        atual: chave.toUpperCase() === atual,
+      });
+    }
+    const out = Array.from(byChave.values());
+    out.sort((a, b) => String(a.razao).localeCompare(String(b.razao)));
+    return out;
+  } catch (e) {
+    console.warn('[dev-bases] servidor de licenças indisponível, usando só cache local:', e.message);
+    return cached;
+  }
+}
+
+/**
  * Troca a base ativa em DEV (bound mode) sem reiniciar: grava o binding e recria o
  * pool global apontando para o banco da nova chave. Bloqueado em produção.
  */
@@ -581,6 +621,7 @@ module.exports = {
   getGlobalPool: () => pool,
   destroyPoolForLicense,
   listDevBases,
+  listDevBasesFull,
   rebindBoundPool,
   _poolMapKeys: () => _poolMap.keys(),
 };

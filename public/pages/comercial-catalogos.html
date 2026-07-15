@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Catálogos Visuais</title>
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<style>
+  :root { --bg:var(--content-bg); --card:var(--card-bg); --border:var(--card-border); --text:var(--content-text); --text2:var(--text2); --accent:var(--accent); --accent-soft:var(--accent-soft); --danger:#dc2626; --shadow:0 10px 30px rgba(0,0,0,.08); }
+  *{box-sizing:border-box} body{margin:0;font-family:var(--font);background:var(--bg);color:var(--text)}
+  .page{min-height:100vh;display:flex;flex-direction:column}
+  .toolbar{position:sticky;top:0;z-index:20;background:var(--card);border-bottom:1px solid var(--border);padding:14px 18px;display:flex;flex-wrap:wrap;align-items:end;gap:12px}
+  .title-wrap{margin-right:auto}.eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--text2);font-weight:800}
+  h1{margin:3px 0 0;font-size:22px}.subtitle{margin-top:6px;font-size:12px;color:var(--text2);max-width:640px;line-height:1.45}
+  .filter{display:flex;flex-direction:column;gap:5px;min-width:140px}.filter label{font-size:10px;text-transform:uppercase;color:var(--text2);font-weight:800}
+  .filter input,.filter select{height:36px;border:1.5px solid var(--border);border-radius:10px;padding:0 10px;background:var(--card);color:var(--text);font:inherit}
+  .filter select option{color:var(--text);background:var(--card)}
+  .btn{height:36px;border:none;border-radius:10px;padding:0 14px;font:inherit;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+  .btn-primary{background:var(--accent);color:var(--btn-text,#fff)}
+  .btn-secondary{background:var(--bg);color:var(--text);border:1.5px solid var(--border)}
+  .btn-danger{background:var(--danger);color:#fff}
+  .btn-sm{height:30px;padding:0 10px;font-size:11px}
+  .content{padding:18px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+  .card{border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--card);box-shadow:var(--shadow);cursor:pointer;transition:transform .15s,border-color .15s}
+  .card:hover{border-color:var(--accent);transform:translateY(-2px)}
+  .card-cover{height:140px;background:#1f2937;background-size:cover;background-position:center;position:relative}
+  .card-cover::after{content:'';position:absolute;inset:0;background:linear-gradient(transparent 40%,rgba(0,0,0,.65))}
+  .card-cover-title{position:absolute;left:12px;right:12px;bottom:10px;color:#fff;font-weight:800;font-size:15px;z-index:1;text-shadow:0 1px 4px rgba(0,0,0,.5)}
+  .card-body{padding:12px 14px}
+  .meta{font-size:12px;color:var(--text2);line-height:1.45}
+  .badge{font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent)}
+  .badge.off{background:rgba(148,163,184,.15);color:var(--text2)}
+  .empty{padding:40px;text-align:center;color:var(--text2);font-size:13px}
+
+  /* Modal largo — duas colunas */
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;display:none;align-items:stretch;justify-content:center;padding:12px}
+  .modal-overlay.show{display:flex}
+  .modal{
+    background:var(--card);border:1px solid var(--border);border-radius:14px;
+    width:min(1200px,98vw);height:min(920px,96vh);max-height:96vh;
+    display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--shadow);
+  }
+  .modal-head{padding:14px 18px 10px;border-bottom:1px solid var(--border);flex-shrink:0}
+  .modal-head h3{margin:0;font-size:18px}
+  .modal-head .hint{margin:6px 0 0;font-size:12px;color:var(--text2)}
+  .modal-body{flex:1;min-height:0;display:grid;grid-template-columns:340px 1fr;overflow:hidden}
+  .modal-left{padding:14px 16px;overflow:auto;border-right:1px solid var(--border);background:var(--bg)}
+  .modal-right{padding:14px 16px;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .form-grid .full{grid-column:1/-1}
+  .form-grid label{font-size:10px;text-transform:uppercase;color:var(--text2);font-weight:800;display:block;margin-bottom:4px}
+  .form-grid input,.form-grid select,.form-grid textarea{width:100%;border:1.5px solid var(--border);border-radius:10px;padding:8px 10px;background:var(--card);color:var(--text);font:inherit}
+  .form-grid select option{color:var(--text);background:var(--card)}
+  .form-grid textarea{min-height:52px;resize:vertical}
+  .capa-preview{width:100%;height:88px;border-radius:10px;background:#1f2937;background-size:cover;background-position:center;border:1px solid var(--border);margin-top:6px}
+  .modal-foot{display:flex;gap:8px;justify-content:flex-end;padding:12px 16px;border-top:1px solid var(--border);flex-shrink:0;flex-wrap:wrap;background:var(--card)}
+
+  .prod-panel-title{font-size:13px;font-weight:800;margin:0 0 8px}
+  .kit-search-wrap{position:relative;margin-bottom:8px}
+  .kit-search-wrap input{width:100%;height:38px;border:1.5px solid var(--border);border-radius:10px;padding:0 12px;background:var(--card);color:var(--text);font:inherit}
+  .kit-ac{position:absolute;left:0;right:0;top:100%;z-index:20;background:var(--card);border:1px solid var(--border);border-radius:10px;max-height:220px;overflow:auto;display:none;box-shadow:var(--shadow)}
+  .kit-ac.show{display:block}
+  .kit-ac-item{padding:10px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center}
+  .kit-ac-item:hover{background:var(--accent-soft)}
+  .kit-ac-item img{width:36px;height:36px;object-fit:cover;border-radius:6px}
+  .lote-bar{display:grid;grid-template-columns:1fr auto 1fr auto;gap:8px;align-items:end;margin-bottom:8px}
+  .lote-bar .filter{min-width:0}
+  .lote-status{font-size:12px;color:var(--accent);font-weight:700;min-height:18px;margin-bottom:6px}
+  .itens-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+  .itens-toolbar .grow{flex:1;min-width:160px}
+  .itens-toolbar input{width:100%;height:34px;border:1.5px solid var(--border);border-radius:8px;padding:0 10px;background:var(--card);color:var(--text);font:inherit;font-size:12px}
+  .kit-table-wrap{flex:1;min-height:0;overflow:auto;border:1px solid var(--border);border-radius:10px;background:var(--card)}
+  .kit-table{width:100%;border-collapse:collapse;font-size:12px}
+  .kit-table th{position:sticky;top:0;background:var(--bg);color:var(--text2);text-align:left;padding:8px 10px;font-size:10px;text-transform:uppercase;border-bottom:1px solid var(--border);z-index:1}
+  .kit-table td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:middle;color:var(--text)}
+  .kit-table tr:hover td{background:var(--accent-soft)}
+  .kit-table img{width:40px;height:40px;object-fit:cover;border-radius:6px;background:var(--border);display:block}
+  .kit-table .cod{font-weight:800;white-space:nowrap}
+  .kit-table .desc{line-height:1.35}
+  .paginacao{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding-top:10px;flex-shrink:0}
+  .paginacao .info{font-size:12px;color:var(--text2);font-weight:600}
+  .paginacao .nav{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .paginacao select{height:32px;border:1.5px solid var(--border);border-radius:8px;padding:0 8px;background:var(--card);color:var(--text);font:inherit;font-size:12px}
+  .paginacao select option{color:var(--text);background:var(--card)}
+
+  @media(max-width:900px){
+    .modal{width:100%;height:100%;max-height:100%;border-radius:0}
+    .modal-body{grid-template-columns:1fr;overflow:auto}
+    .modal-left{border-right:none;border-bottom:1px solid var(--border);max-height:none}
+    .modal-right{min-height:420px}
+    .lote-bar{grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="toolbar">
+    <div class="title-wrap">
+      <div class="eyebrow">Comercial · Pedidos</div>
+      <h1>Catálogos Visuais</h1>
+      <div class="subtitle">Monte coleções com capa e produtos — ou use no pedido também por fábrica / tabela de preço. No pedido, o vendedor abre o catálogo na frente do cliente e inclui no pedido pendente.</div>
+    </div>
+    <div class="filter">
+      <label>Fábrica</label>
+      <select id="f_fornecedor"><option value="">Todas</option></select>
+    </div>
+    <div class="filter">
+      <label>Buscar</label>
+      <input type="search" id="f_busca" placeholder="Nome do catálogo…" autocomplete="off">
+    </div>
+    <div class="filter">
+      <label>Exibir</label>
+      <select id="f_todos">
+        <option value="0">Só ativos</option>
+        <option value="1">Todos</option>
+      </select>
+    </div>
+    <button type="button" class="btn btn-primary" id="btnNovo">+ Novo catálogo</button>
+  </div>
+  <div class="content">
+    <div class="grid" id="lista"><div class="empty">Carregando…</div></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="modalTitle">Novo catálogo</h3>
+      <p class="hint">Dados à esquerda · produtos à direita (paginado). Inclua um a um ou em lote por fábrica / tabela.</p>
+    </div>
+    <input type="hidden" id="m_id">
+    <div class="modal-body">
+      <div class="modal-left">
+        <div class="form-grid">
+          <div class="full">
+            <label>Nome do catálogo</label>
+            <input type="text" id="m_nome" maxlength="200" placeholder="Ex.: FLAMENGO 2026" autocomplete="off">
+          </div>
+          <div class="full">
+            <label>Subtítulo</label>
+            <input type="text" id="m_subtitulo" maxlength="200" placeholder="Ex.: Coleção verão — linha oficial" autocomplete="off">
+          </div>
+          <div class="full">
+            <label>Fábrica (opcional)</label>
+            <select id="m_fornecedor"><option value="">Todas / mista</option></select>
+          </div>
+          <div>
+            <label>Ordem</label>
+            <input type="number" id="m_ordem" value="0" min="0">
+          </div>
+          <div>
+            <label>Ativo</label>
+            <select id="m_ativo"><option value="S">Sim</option><option value="N">Não</option></select>
+          </div>
+          <div>
+            <label>Cor de fundo</label>
+            <input type="color" id="m_cor" value="#1f2937">
+          </div>
+          <div class="full">
+            <label>Capa (imagem)</label>
+            <input type="file" id="m_capa_file" accept="image/*">
+            <div class="capa-preview" id="m_capa_preview"></div>
+          </div>
+          <div class="full">
+            <label>Observações</label>
+            <textarea id="m_obs" placeholder="Opcional" rows="2"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-right">
+        <div class="prod-panel-title">Produtos do catálogo</div>
+        <div class="kit-search-wrap">
+          <input type="search" id="kit_busca" placeholder="Adicionar um a um: nome ou referência…" autocomplete="off">
+          <div class="kit-ac" id="kit_ac"></div>
+        </div>
+        <div class="lote-bar">
+          <div class="filter">
+            <label>Fábrica em lote</label>
+            <select id="lote_fabrica"><option value="">Selecione…</option></select>
+          </div>
+          <button type="button" class="btn btn-secondary btn-sm" id="btnLoteFabrica">+ Incluir</button>
+          <div class="filter">
+            <label>Tabela em lote</label>
+            <select id="lote_tabela"><option value="">Selecione…</option></select>
+          </div>
+          <button type="button" class="btn btn-secondary btn-sm" id="btnLoteTabela">+ Incluir</button>
+        </div>
+        <div class="lote-status" id="lote_status"></div>
+        <div class="itens-toolbar">
+          <div class="grow">
+            <input type="search" id="lista_filtro" placeholder="Filtrar na lista (código ou descrição)…" autocomplete="off">
+          </div>
+          <span class="meta" id="itens_count">0 produto(s)</span>
+          <button type="button" class="btn btn-secondary btn-sm" id="btnLimparItens">Limpar lista</button>
+        </div>
+        <div class="kit-table-wrap">
+          <table class="kit-table">
+            <thead>
+              <tr>
+                <th style="width:52px">Foto</th>
+                <th style="width:110px">Código</th>
+                <th>Descrição</th>
+                <th style="width:90px"></th>
+              </tr>
+            </thead>
+            <tbody id="kit_list"></tbody>
+          </table>
+        </div>
+        <div class="paginacao">
+          <div class="info" id="pag_info">Página 1</div>
+          <div class="nav">
+            <label class="meta" style="display:flex;align-items:center;gap:6px">
+              Por página
+              <select id="pag_size">
+                <option value="25">25</option>
+                <option value="50" selected>50</option>
+                <option value="100">100</option>
+                <option value="200">200</option>
+              </select>
+            </label>
+            <button type="button" class="btn btn-secondary btn-sm" id="pag_prev">‹ Anterior</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="pag_next">Próxima ›</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn btn-danger btn-sm" id="btnExcluir" style="display:none;margin-right:auto">Excluir</button>
+      <button type="button" class="btn btn-secondary" id="btnFechar">Cancelar</button>
+      <button type="button" class="btn btn-primary" id="btnSalvar">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const token = () => sessionStorage.getItem('token') || localStorage.getItem('token');
+async function api(url, opts = {}) {
+  const { headers: extraHeaders, ...rest } = opts;
+  return fetch(url, {
+    credentials: 'include',
+    ...rest,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer ' + (token() || ''),
+      ...(extraHeaders || {}),
+    },
+  });
+}
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+let _fornecedores = [];
+let _tabelas = [];
+let _itens = [];
+let _capaUrl = '';
+let _buscaTimer = null;
+let _loteBusy = false;
+let _pagina = 1;
+let _pageSize = 50;
+let _filtroLista = '';
+
+function setLoteStatus(msg) {
+  const el = document.getElementById('lote_status');
+  if (el) el.textContent = msg || '';
+}
+
+function mergeItens(novos) {
+  const seen = new Set(_itens.map(i => parseInt(i.cod_produto, 10)));
+  let add = 0;
+  for (const p of novos) {
+    const cod = parseInt(p.cod_produto || p.id || p.ID, 10);
+    if (!cod || seen.has(cod)) continue;
+    seen.add(cod);
+    _itens.push({
+      cod_produto: cod,
+      cod_fabricante: p.cod_fabricante || '',
+      desc_produto: p.desc_produto || p.descricao || '',
+      foto_principal: p.foto_principal || '',
+    });
+    add++;
+  }
+  return add;
+}
+
+function itensFiltrados() {
+  const q = (_filtroLista || '').toLowerCase().trim();
+  if (!q) return _itens.map((it, idx) => ({ it, idx }));
+  return _itens
+    .map((it, idx) => ({ it, idx }))
+    .filter(({ it }) =>
+      `${it.cod_fabricante || ''} ${it.cod_produto || ''} ${it.desc_produto || ''}`.toLowerCase().includes(q)
+    );
+}
+
+function totalPaginas() {
+  const n = itensFiltrados().length;
+  return Math.max(1, Math.ceil(n / _pageSize));
+}
+
+function renderItens() {
+  const list = document.getElementById('kit_list');
+  const cnt = document.getElementById('itens_count');
+  const info = document.getElementById('pag_info');
+  const filtrados = itensFiltrados();
+  const pages = totalPaginas();
+  if (_pagina > pages) _pagina = pages;
+  if (_pagina < 1) _pagina = 1;
+  const start = (_pagina - 1) * _pageSize;
+  const slice = filtrados.slice(start, start + _pageSize);
+
+  if (cnt) {
+    cnt.textContent = _filtroLista
+      ? `${filtrados.length} de ${_itens.length} produto(s)`
+      : `${_itens.length} produto(s)`;
+  }
+  if (info) {
+    const de = filtrados.length ? start + 1 : 0;
+    const ate = Math.min(start + _pageSize, filtrados.length);
+    info.textContent = filtrados.length
+      ? `Mostrando ${de}–${ate} · Página ${_pagina} de ${pages}`
+      : 'Nenhum produto nesta página';
+  }
+
+  if (!filtrados.length) {
+    list.innerHTML = `<tr><td colspan="4" style="padding:28px;text-align:center;color:var(--text2)">${
+      _itens.length ? 'Nenhum produto com este filtro.' : 'Nenhum produto ainda — use a busca ou inclua em lote.'
+    }</td></tr>`;
+    return;
+  }
+
+  list.innerHTML = slice.map(({ it, idx }) => `
+    <tr>
+      <td>${it.foto_principal
+        ? `<img src="${esc(it.foto_principal)}" alt="" onerror="this.replaceWith(document.createTextNode('—'))">`
+        : '—'}</td>
+      <td class="cod">${esc(it.cod_fabricante || it.cod_produto)}</td>
+      <td class="desc">${esc(it.desc_produto || '')}</td>
+      <td><button type="button" class="btn btn-secondary btn-sm" data-rm="${idx}">Remover</button></td>
+    </tr>
+  `).join('');
+
+  list.querySelectorAll('[data-rm]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      _itens.splice(parseInt(btn.dataset.rm, 10), 1);
+      renderItens();
+    });
+  });
+}
+
+async function carregarTabelasLote() {
+  try {
+    const r = await api('/api/tabela-precos?limit=200');
+    const d = await r.json();
+    _tabelas = (d.tabelas || []).filter(t => {
+      const ativo = String(t.Tabela_Ativa || t.ativo || 'S').toUpperCase();
+      return ativo !== 'N' && ativo !== 'I';
+    });
+  } catch (_) { _tabelas = []; }
+  const sel = document.getElementById('lote_tabela');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Selecione…</option>' + _tabelas.map(t =>
+    `<option value="${t.id}">${esc(t.Descricao || t.descricao || ('Tabela #' + t.id))}</option>`
+  ).join('');
+}
+
+async function carregarProdutosBuscaPaginada(extraParams) {
+  const page = 100;
+  let offset = 0;
+  let total = null;
+  const all = [];
+  for (let i = 0; i < 50; i++) {
+    const params = new URLSearchParams({
+      catalogo: '1',
+      limit: String(page),
+      offset: String(offset),
+      q: '',
+    });
+    Object.keys(extraParams || {}).forEach((k) => {
+      if (extraParams[k] != null && extraParams[k] !== '') params.set(k, String(extraParams[k]));
+    });
+    const r = await api('/api/pedidos/produtos/busca?' + params.toString());
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Erro ao buscar produtos');
+    const rows = d.data || d.produtos || [];
+    all.push(...rows);
+    if (d.total != null) total = d.total;
+    offset += rows.length;
+    setLoteStatus(`Carregando… ${all.length}${total != null ? ' / ' + total : ''} produto(s)`);
+    if (!rows.length) break;
+    if (total != null && all.length >= total) break;
+    if (rows.length < page) break;
+  }
+  return all;
+}
+
+async function incluirLoteFabrica() {
+  if (_loteBusy) return;
+  const id = document.getElementById('lote_fabrica').value
+    || document.getElementById('m_fornecedor').value;
+  if (!id) return alert('Selecione a fábrica para incluir em lote');
+  const nome = document.getElementById('lote_fabrica').selectedOptions[0]?.text
+    || document.getElementById('m_fornecedor').selectedOptions[0]?.text
+    || ('#' + id);
+  if (!confirm(`Incluir em lote todos os produtos ativos da fábrica «${nome}»?\n\nItens já na lista não serão duplicados.`)) return;
+  _loteBusy = true;
+  try {
+    setLoteStatus('Buscando produtos da fábrica…');
+    const rows = await carregarProdutosBuscaPaginada({ id_fornecedor: id });
+    const add = mergeItens(rows);
+    _pagina = 1;
+    renderItens();
+    if (!document.getElementById('m_fornecedor').value) {
+      document.getElementById('m_fornecedor').value = id;
+    }
+    setLoteStatus(`Pronto: +${add} novo(s). Total na lista: ${_itens.length}.`);
+  } catch (e) {
+    setLoteStatus('');
+    alert(e.message || 'Erro ao incluir por fábrica');
+  } finally {
+    _loteBusy = false;
+  }
+}
+
+async function incluirLoteTabela() {
+  if (_loteBusy) return;
+  const id = document.getElementById('lote_tabela').value;
+  if (!id) return alert('Selecione a tabela de preço');
+  const nome = document.getElementById('lote_tabela').selectedOptions[0]?.text || ('#' + id);
+  if (!confirm(`Incluir em lote todos os produtos da tabela «${nome}»?\n\nItens já na lista não serão duplicados.`)) return;
+  _loteBusy = true;
+  try {
+    setLoteStatus('Buscando produtos da tabela…');
+    const forn = document.getElementById('m_fornecedor').value || document.getElementById('lote_fabrica').value || '';
+    const extra = { id_tabela: id };
+    if (forn) extra.id_fornecedor = forn;
+    const rows = await carregarProdutosBuscaPaginada(extra);
+    const add = mergeItens(rows);
+    _pagina = 1;
+    renderItens();
+    setLoteStatus(`Pronto: +${add} novo(s). Total na lista: ${_itens.length}.`);
+  } catch (e) {
+    setLoteStatus('');
+    alert(e.message || 'Erro ao incluir por tabela');
+  } finally {
+    _loteBusy = false;
+  }
+}
+
+async function carregarFornecedores() {
+  try {
+    const r = await api('/api/lookups/fornecedores');
+    const d = await r.json();
+    _fornecedores = Array.isArray(d) ? d : (d.itens || d.fornecedores || []);
+    if (!Array.isArray(_fornecedores)) _fornecedores = [];
+  } catch (_) { _fornecedores = []; }
+  const opts = '<option value="">Todas</option>' + _fornecedores.map(f =>
+    `<option value="${f.id}">${esc(f.nome || f.apelido || ('#' + f.id))}</option>`
+  ).join('');
+  document.getElementById('f_fornecedor').innerHTML = opts;
+  document.getElementById('m_fornecedor').innerHTML = '<option value="">Todas / mista</option>' + _fornecedores.map(f =>
+    `<option value="${f.id}">${esc(f.nome || f.apelido || ('#' + f.id))}</option>`
+  ).join('');
+  document.getElementById('lote_fabrica').innerHTML = '<option value="">Selecione…</option>' + _fornecedores.map(f =>
+    `<option value="${f.id}">${esc(f.nome || f.apelido || ('#' + f.id))}</option>`
+  ).join('');
+}
+
+async function carregarLista() {
+  const q = document.getElementById('f_busca').value.trim();
+  const forn = document.getElementById('f_fornecedor').value;
+  const todos = document.getElementById('f_todos').value;
+  const params = new URLSearchParams();
+  if (q) params.set('q', q);
+  if (forn) params.set('cod_fornecedor', forn);
+  if (todos === '1') params.set('todos', '1');
+  const el = document.getElementById('lista');
+  el.innerHTML = '<div class="empty">Carregando…</div>';
+  try {
+    const r = await api('/api/catalogos?' + params.toString());
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Erro ao listar');
+    const list = d.catalogos || [];
+    if (!list.length) {
+      el.innerHTML = '<div class="empty">Nenhum catálogo. Clique em «+ Novo catálogo» para montar o primeiro.</div>';
+      return;
+    }
+    el.innerHTML = list.map(c => {
+      const cover = c.imagem_capa
+        ? `background-image:url('${esc(c.imagem_capa)}')`
+        : `background:${esc(c.cor_fundo || '#1f2937')}`;
+      return `<div class="card" data-id="${c.id}">
+        <div class="card-cover" style="${cover}"><div class="card-cover-title">${esc(c.nome)}</div></div>
+        <div class="card-body">
+          <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+            <span class="badge ${c.ativo==='S'?'':'off'}">${c.ativo==='S'?'Ativo':'Inativo'}</span>
+            <span class="meta">${c.qtd_itens || 0} produto(s)</span>
+          </div>
+          <div class="meta" style="margin-top:6px">${esc(c.subtitulo || c.nome_fornecedor || 'Sem fábrica')}</div>
+        </div>
+      </div>`;
+    }).join('');
+    el.querySelectorAll('.card').forEach(card => {
+      card.addEventListener('click', () => abrirEditar(card.dataset.id));
+    });
+  } catch (e) {
+    el.innerHTML = `<div class="empty">${esc(e.message)}</div>`;
+  }
+}
+
+function atualizarCapaPreview() {
+  const el = document.getElementById('m_capa_preview');
+  if (_capaUrl) {
+    el.style.backgroundImage = `url('${_capaUrl}')`;
+    el.style.backgroundColor = '';
+  } else {
+    el.style.backgroundImage = '';
+    el.style.backgroundColor = document.getElementById('m_cor').value || '#1f2937';
+  }
+}
+
+function resetPaginaLista() {
+  _pagina = 1;
+  _filtroLista = '';
+  const f = document.getElementById('lista_filtro');
+  if (f) f.value = '';
+  _pageSize = parseInt(document.getElementById('pag_size').value, 10) || 50;
+}
+
+function abrirNovo() {
+  document.getElementById('modalTitle').textContent = 'Novo catálogo';
+  document.getElementById('m_id').value = '';
+  document.getElementById('m_nome').value = '';
+  document.getElementById('m_subtitulo').value = '';
+  document.getElementById('m_fornecedor').value = '';
+  document.getElementById('m_ordem').value = '0';
+  document.getElementById('m_cor').value = '#1f2937';
+  document.getElementById('m_ativo').value = 'S';
+  document.getElementById('m_obs').value = '';
+  document.getElementById('m_capa_file').value = '';
+  document.getElementById('btnExcluir').style.display = 'none';
+  _itens = [];
+  _capaUrl = '';
+  setLoteStatus('');
+  document.getElementById('lote_fabrica').value = '';
+  document.getElementById('lote_tabela').value = '';
+  resetPaginaLista();
+  renderItens();
+  atualizarCapaPreview();
+  document.getElementById('modalOverlay').classList.add('show');
+}
+
+async function abrirEditar(id) {
+  const r = await api('/api/catalogos/' + id);
+  const d = await r.json();
+  if (!r.ok) return alert(d.error || 'Erro');
+  const c = d.catalogo;
+  document.getElementById('modalTitle').textContent = 'Editar catálogo';
+  document.getElementById('m_id').value = c.id;
+  document.getElementById('m_nome').value = c.nome || '';
+  document.getElementById('m_subtitulo').value = c.subtitulo || '';
+  document.getElementById('m_fornecedor').value = c.cod_fornecedor || '';
+  document.getElementById('m_ordem').value = c.ordem || 0;
+  document.getElementById('m_cor').value = c.cor_fundo || '#1f2937';
+  document.getElementById('m_ativo').value = c.ativo || 'S';
+  document.getElementById('m_obs').value = c.observacoes || '';
+  document.getElementById('m_capa_file').value = '';
+  document.getElementById('btnExcluir').style.display = '';
+  _itens = (d.itens || []).map(it => ({
+    cod_produto: it.cod_produto,
+    cod_fabricante: it.cod_fabricante,
+    desc_produto: it.desc_produto,
+    foto_principal: it.foto_principal,
+  }));
+  _capaUrl = c.imagem_capa || '';
+  setLoteStatus('');
+  document.getElementById('lote_fabrica').value = c.cod_fornecedor || '';
+  document.getElementById('lote_tabela').value = '';
+  resetPaginaLista();
+  renderItens();
+  atualizarCapaPreview();
+  document.getElementById('modalOverlay').classList.add('show');
+}
+
+async function salvar() {
+  const btn = document.getElementById('btnSalvar');
+  const id = document.getElementById('m_id').value;
+  const nome = document.getElementById('m_nome').value.trim();
+  if (!nome) return alert('Informe o nome do catálogo');
+
+  // blob: é só preview local — não gravar no banco (capa sobe depois via /capa)
+  const capaAtual = (_capaUrl && !String(_capaUrl).startsWith('blob:')) ? _capaUrl : null;
+
+  const body = {
+    nome,
+    subtitulo: document.getElementById('m_subtitulo').value.trim(),
+    cod_fornecedor: document.getElementById('m_fornecedor').value || null,
+    ordem: parseInt(document.getElementById('m_ordem').value, 10) || 0,
+    cor_fundo: document.getElementById('m_cor').value || '#1f2937',
+    ativo: document.getElementById('m_ativo').value,
+    observacoes: document.getElementById('m_obs').value.trim(),
+    imagem_capa: capaAtual,
+    itens: _itens.map((it, i) => ({ cod_produto: it.cod_produto, ordem: i + 1 })),
+  };
+
+  const prevLbl = btn ? btn.textContent : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Salvando…';
+  }
+  try {
+    const r = await api(id ? '/api/catalogos/' + id : '/api/catalogos', {
+      method: id ? 'PUT' : 'POST',
+      body: JSON.stringify(body),
+    });
+    let d = {};
+    try { d = await r.json(); } catch (_) { d = {}; }
+    if (!r.ok) {
+      alert(d.error || ('Erro ao salvar (HTTP ' + r.status + ')'));
+      return;
+    }
+    const catId = id || d.id;
+    if (!catId) {
+      alert('Salvo, mas não retornou o ID do catálogo. Atualize a lista.');
+      document.getElementById('modalOverlay').classList.remove('show');
+      carregarLista();
+      return;
+    }
+    const file = document.getElementById('m_capa_file').files[0];
+    if (file) {
+      try {
+        const fd = new FormData();
+        fd.append('arquivo', file);
+        const ru = await fetch('/api/catalogos/' + catId + '/capa', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { Authorization: 'Bearer ' + (token() || '') },
+          body: fd,
+        });
+        if (!ru.ok) {
+          const du = await ru.json().catch(() => ({}));
+          alert('Catálogo salvo, mas a capa falhou: ' + (du.error || ru.status));
+        }
+      } catch (eCapa) {
+        alert('Catálogo salvo, mas a capa falhou: ' + (eCapa.message || eCapa));
+      }
+    }
+    document.getElementById('modalOverlay').classList.remove('show');
+    setLoteStatus('');
+    await carregarLista();
+    alert('Catálogo salvo com sucesso!');
+  } catch (e) {
+    console.error('[catalogos salvar]', e);
+    alert('Erro ao salvar: ' + (e.message || e));
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = prevLbl || 'Salvar';
+    }
+  }
+}
+
+async function excluir() {
+  const id = document.getElementById('m_id').value;
+  if (!id || !confirm('Excluir este catálogo?')) return;
+  const r = await api('/api/catalogos/' + id, { method: 'DELETE' });
+  const d = await r.json();
+  if (!r.ok) return alert(d.error || 'Erro');
+  document.getElementById('modalOverlay').classList.remove('show');
+  carregarLista();
+}
+
+async function buscarProdutos(q) {
+  const ac = document.getElementById('kit_ac');
+  if (!q || q.length < 2) { ac.classList.remove('show'); return; }
+  try {
+    const forn = document.getElementById('m_fornecedor').value;
+    const params = new URLSearchParams({ q, status: 'A', limit: '20' });
+    if (forn) params.set('fornecedor', forn);
+    const r = await api('/api/produtos?' + params.toString());
+    const d = await r.json();
+    const list = d.produtos || d.itens || d || [];
+    if (!Array.isArray(list) || !list.length) {
+      ac.innerHTML = '<div class="kit-ac-item">Nenhum produto</div>';
+      ac.classList.add('show');
+      return;
+    }
+    ac.innerHTML = list.map(p => {
+      const id = p.ID || p.id || p.cod_produto;
+      const foto = p.foto_principal || '';
+      return `<div class="kit-ac-item" data-id="${id}"
+        data-fab="${esc(p.cod_fabricante || '')}"
+        data-desc="${esc(p.descricao || p.desc_produto || '')}"
+        data-foto="${esc(foto)}">
+        ${foto ? `<img src="${esc(foto)}" alt="">` : ''}
+        <span><strong>${esc(p.cod_fabricante || id)}</strong> — ${esc(p.descricao || p.desc_produto || '')}</span>
+      </div>`;
+    }).join('');
+    ac.classList.add('show');
+    ac.querySelectorAll('.kit-ac-item[data-id]').forEach(el => {
+      el.addEventListener('click', () => {
+        const cod = parseInt(el.dataset.id, 10);
+        if (!cod || _itens.some(i => i.cod_produto === cod)) {
+          ac.classList.remove('show');
+          return;
+        }
+        _itens.push({
+          cod_produto: cod,
+          cod_fabricante: el.dataset.fab,
+          desc_produto: el.dataset.desc,
+          foto_principal: el.dataset.foto,
+        });
+        _pagina = totalPaginas();
+        renderItens();
+        document.getElementById('kit_busca').value = '';
+        ac.classList.remove('show');
+      });
+    });
+  } catch (_) {
+    ac.classList.remove('show');
+  }
+}
+
+document.getElementById('btnNovo').onclick = abrirNovo;
+document.getElementById('btnFechar').onclick = () => document.getElementById('modalOverlay').classList.remove('show');
+document.getElementById('btnSalvar').onclick = salvar;
+document.getElementById('btnExcluir').onclick = excluir;
+document.getElementById('btnLoteFabrica').onclick = incluirLoteFabrica;
+document.getElementById('btnLoteTabela').onclick = incluirLoteTabela;
+document.getElementById('btnLimparItens').onclick = () => {
+  if (!_itens.length) return;
+  if (!confirm('Limpar todos os produtos da lista?')) return;
+  _itens = [];
+  setLoteStatus('');
+  resetPaginaLista();
+  renderItens();
+};
+document.getElementById('pag_prev').onclick = () => {
+  if (_pagina > 1) { _pagina--; renderItens(); }
+};
+document.getElementById('pag_next').onclick = () => {
+  if (_pagina < totalPaginas()) { _pagina++; renderItens(); }
+};
+document.getElementById('pag_size').onchange = () => {
+  _pageSize = parseInt(document.getElementById('pag_size').value, 10) || 50;
+  _pagina = 1;
+  renderItens();
+};
+document.getElementById('lista_filtro').oninput = (e) => {
+  _filtroLista = e.target.value;
+  _pagina = 1;
+  clearTimeout(_buscaTimer);
+  _buscaTimer = setTimeout(renderItens, 150);
+};
+document.getElementById('m_fornecedor').onchange = () => {
+  const v = document.getElementById('m_fornecedor').value;
+  if (v && !document.getElementById('lote_fabrica').value) {
+    document.getElementById('lote_fabrica').value = v;
+  }
+};
+document.getElementById('f_busca').oninput = () => { clearTimeout(_buscaTimer); _buscaTimer = setTimeout(carregarLista, 300); };
+document.getElementById('f_fornecedor').onchange = carregarLista;
+document.getElementById('f_todos').onchange = carregarLista;
+document.getElementById('m_cor').oninput = atualizarCapaPreview;
+document.getElementById('m_capa_file').onchange = (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  _capaUrl = URL.createObjectURL(f);
+  atualizarCapaPreview();
+};
+document.getElementById('kit_busca').oninput = (e) => {
+  clearTimeout(_buscaTimer);
+  _buscaTimer = setTimeout(() => buscarProdutos(e.target.value.trim()), 280);
+};
+
+(async () => {
+  await carregarFornecedores();
+  await carregarTabelasLote();
+  await carregarLista();
+})();
+</script>
+</body>
+</html>

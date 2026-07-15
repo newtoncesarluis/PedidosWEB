@@ -29,6 +29,8 @@
           <a class="nav-link" href="?sec=visao-geral">Visão geral</a>
           <a class="nav-link" href="?sec=config-sistema">Config. do Sistema</a>
           <a class="nav-link" href="?sec=whatsapp">Configurações WhatsApp</a>
+          <a class="nav-link" href="?sec=whatsapp" style="padding-left:20px;font-size:11px">↳ EuAtendo (ApiChat)</a>
+          <a class="nav-link" href="?sec=whatsapp" style="padding-left:20px;font-size:11px">↳ Evolution API</a>
           <a class="nav-link" href="?sec=marca">Marca da instalação</a>
           <a class="nav-link" href="?sec=config-sistema" style="padding-left:20px;font-size:11px">↳ Exibir centavos nos preços</a>
           <a class="nav-link" href="?sec=lgpd">LGPD</a>
@@ -83,14 +85,60 @@
         </section>
 
         <section class="section help-section" id="whatsapp">
-          <h3>Configurações WhatsApp</h3>
+          <h3>Configurações WhatsApp — API de Envio</h3>
+          <p>O sistema envia mensagens e o <strong>PDF do pedido</strong> direto no WhatsApp do cliente. O envio pode sair por <strong>dois provedores</strong> — escolha um deles em <strong>Configurações de API → card "WhatsApp — API de Envio"</strong> (a tela pede a <em>senha administrativa</em> para liberar a edição).</p>
+
+          <h4 style="margin-top:16px">Qual provedor escolher?</h4>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th></th><th>EuAtendo (ApiChat)</th><th>Evolution API</th></tr></thead>
+              <tbody>
+                <tr><td><strong>Tipo</strong></td><td>Plataforma hospedada (contratada)</td><td>Servidor próprio (self-hosted)</td></tr>
+                <tr><td><strong>Conexão</strong></td><td>Um <strong>token</strong> por empresa — sem QR Code</td><td>Instância por usuário + QR Code no celular</td></tr>
+                <tr><td><strong>Número que envia</strong></td><td>O número conectado no painel do EuAtendo</td><td>O WhatsApp de cada vendedor</td></tr>
+                <tr><td><strong>Manutenção</strong></td><td>Praticamente zero</td><td>Reconectar QR quando a sessão cai</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h4 id="euatendo" style="margin-top:20px">EuAtendo (ApiChat) — como configurar</h4>
           <ol class="steps">
-            <li>Acesse <strong>Configurações WhatsApp</strong> (menu ou atalho na home).</li>
-            <li>Informe URL da Evolution API (ou provedor), instância, token/chave de API.</li>
-            <li>Teste conexão — status na barra inferior da home deve mostrar «WhatsApp conectado».</li>
-            <li>Configure templates de mensagem para pedidos, cobrança ou notificações automáticas quando disponível.</li>
-            <li>Envios manuais usam <code>wa.me</code> com texto formatado a partir das telas de pedido/cliente.</li>
+            <li>No <strong>painel do EuAtendo</strong>, abra o cadastro da sua <strong>conexão</strong> WhatsApp e copie o <strong>token de autenticação</strong> (o mesmo usado como <code>Bearer</code> na API).</li>
+            <li>No sistema, acesse <strong>Configurações de API</strong> e informe a <strong>senha administrativa</strong> para desbloquear.</li>
+            <li>No card <strong>WhatsApp — API de Envio</strong>, mude o <strong>Provedor de envio</strong> para <strong>EuAtendo (plataforma hospedada, Bearer token)</strong>.</li>
+            <li><strong>URL da API</strong>: deixe em branco (usa <code>https://apichat.euatendo.app</code>). Só preencha se o EuAtendo indicar outro endereço.</li>
+            <li>Cole o <strong>Token da Conexão</strong> e clique em <strong>Salvar</strong>.</li>
+            <li>Informe o seu celular em <strong>Número para teste</strong> (formato <code>5514999999999</code> — DDI + DDD + número) e clique em <strong>Testar Conexão</strong>. O teste <strong>envia uma mensagem real</strong> para esse número.</li>
+            <li>Mensagem chegou? O selo verde <strong>«ApiChat liberado»</strong> aparece no card — a integração está pronta.</li>
           </ol>
+          <div class="callout info">
+            <strong>Selo de status do ApiChat:</strong><br>
+            🟢 <strong>ApiChat liberado</strong> — o último teste de envio funcionou (mostra data/hora).<br>
+            🟡 <strong>Aguardando validação</strong> — token salvo, mas ainda sem teste aprovado. Use «Testar Conexão».<br>
+            Ao <strong>trocar o token</strong>, o selo volta para amarelo até um novo teste passar — o verde nunca fica desatualizado.
+          </div>
+
+          <h4 style="margin-top:20px">EuAtendo — como utilizar no dia a dia</h4>
+          <ol class="steps">
+            <li>Depois de liberado, <strong>nada muda na rotina</strong>: nas telas de pedido, use <strong>Enviar → WhatsApp</strong> normalmente.</li>
+            <li>O <strong>PDF do pedido vai em anexo automaticamente</strong>, com a mensagem como legenda — o cliente recebe sem você abrir o WhatsApp.</li>
+            <li>Na <strong>home</strong>, o botão do WhatsApp fica verde com o status <strong>«● ApiChat EuAtendo»</strong> — não há QR Code para escanear nem instância para conectar.</li>
+            <li>As mensagens saem do <strong>número conectado no painel do EuAtendo</strong> (o mesmo para todos os vendedores).</li>
+            <li><strong>Todo envio fica registrado no cliente</strong>: na tela de Clientes, botão <strong>Histórico</strong> → seção <strong>Mensagens Enviadas</strong> (data, canal, destino, quem enviou e status — inclusive falhas com o motivo). Vale para WhatsApp (qualquer provedor) e e-mail.</li>
+            <li>Para conferir ou trocar o token, volte em <strong>Configurações de API</strong>.</li>
+          </ol>
+          <div class="callout warn">O EuAtendo cobre o <strong>envio</strong> de mensagens. Recursos que dependem de <em>receber</em> mensagens (bot do vendedor, captura de Instagram DM) continuam usando a Evolution API.</div>
+          <div class="callout">Para enviar mensagens <strong>em massa</strong> (promoções, reativação de clientes), use <strong>Vendas → Campanhas WhatsApp</strong> — guia completo em <a href="/pages/ajuda-campanhas-whatsapp.html">Ajuda: Campanhas WhatsApp</a>.</div>
+
+          <h4 id="evolution" style="margin-top:20px">Evolution API — como configurar</h4>
+          <ol class="steps">
+            <li>Em <strong>Configurações de API</strong>, mantenha o provedor em <strong>Evolution API</strong>.</li>
+            <li>Informe a <strong>URL da Plataforma</strong> e a <strong>API Key Global</strong> da sua instalação Evolution e clique em <strong>Testar Conexão</strong> / <strong>Salvar</strong>.</li>
+            <li>Na tabela <strong>Usuários — Instâncias WhatsApp</strong>, clique em <strong>QR Code</strong> no vendedor, dê um nome à instância e escaneie com o WhatsApp do celular dele.</li>
+            <li>Status <strong>CONECTADO</strong> = pronto. Cada vendedor envia pelo próprio número.</li>
+            <li>Se a sessão cair (badge cinza), gere um novo QR Code e escaneie de novo.</li>
+          </ol>
+          <div class="callout">Sem API configurada, o envio manual ainda funciona via link <code>wa.me</code> com o texto formatado — mas aí o PDF precisa ser anexado à mão na conversa.</div>
         </section>
 
         <section class="section help-section" id="marca">
@@ -223,7 +271,10 @@
             <table>
               <thead><tr><th>Sintoma</th><th>Causa</th><th>Solução</th></tr></thead>
               <tbody>
-                <tr><td>WhatsApp não conecta</td><td>Token ou instância inválidos</td><td>Revisar credenciais na Evolution API</td></tr>
+                <tr><td>WhatsApp não conecta (Evolution)</td><td>Token ou instância inválidos</td><td>Revisar credenciais na Evolution API; gerar novo QR Code</td></tr>
+                <tr><td>Teste do EuAtendo falha</td><td>Token errado ou conexão inativa no painel EuAtendo</td><td>Copiar o token novamente do cadastro da conexão; conferir se a conexão está ativa no EuAtendo</td></tr>
+                <tr><td>Selo do ApiChat fica amarelo</td><td>Token salvo mas nenhum teste aprovado ainda</td><td>Informar número para teste e clicar em <strong>Testar Conexão</strong> — verde só após mensagem entregue</td></tr>
+                <tr><td>Pedido não envia PDF no WhatsApp</td><td>Provedor sem teste OK / instância desconectada</td><td>EuAtendo: validar com Testar Conexão. Evolution: reconectar QR Code do vendedor</td></tr>
                 <tr><td>Usuário não vê menu Cadastros</td><td><code>acessar_cadastros = N</code></td><td>Marque <strong>Acesso Cadastros = S</strong> no perfil; novo login</td></tr>
                 <tr><td>Não abre Clientes / Fornec. / Produtos</td><td><code>tela_* = N</code></td><td>Libere <strong>Acessar tela de … = S</strong> na aba correspondente do perfil</td></tr>
                 <tr><td>Vê tela mas não cadastra</td><td>Incluir = N</td><td>Ajuste <em>Incluir</em> na mesma aba do perfil (telas principais e auxiliares)</td></tr>
