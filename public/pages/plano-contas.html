@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<title>Plano de Contas | SysRepWeb</title>
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<style>
+* { margin:0;padding:0;box-sizing:border-box; }
+body { font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg,#f0f2f5);color:var(--text,#111827);min-height:100vh; }
+.toolbar-bar { background:var(--card,#fff);border-bottom:1px solid var(--border,#e5e7eb);padding:8px 16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;position:sticky;top:0;z-index:100; }
+.btn { display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit; }
+.btn-primary { background:var(--accent,#3b82f6);color:#fff; }
+.btn-ghost { background:var(--card,#fff);color:var(--text2,#6b7280);border:1.5px solid var(--border,#e5e7eb); }
+.btn-outline { background:var(--card,#fff);color:var(--accent,#3b82f6);border:1.5px solid var(--accent,#3b82f6); }
+.subbar { background:var(--card,#f9fafb);border-bottom:1px solid var(--border,#e5e7eb);padding:5px 16px;display:flex;justify-content:space-between;gap:8px; }
+.content-area { padding:14px 16px; }
+.table-card { background:var(--card,#fff);border:1px solid var(--border,#e5e7eb);border-radius:10px;overflow:hidden; }
+table { width:100%;border-collapse:collapse; }
+thead th { background:var(--card,#f9fafb);padding:7px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text2,#6b7280);border-bottom:1px solid var(--border,#e5e7eb); }
+tbody tr { cursor:pointer; }
+tbody tr:hover { background:var(--accent-soft,#eff6ff); }
+tbody td { padding:7px 12px;border-bottom:1px solid var(--border,#e5e7eb);font-size:12px;color:var(--text); }
+.badge { display:inline-flex;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600; }
+.badge-A { background:#dcfce7;color:#15803d; }
+.badge-I { background:#f3f4f6;color:#6b7280; }
+.badge-tipo { background:#e0e7ff;color:#3730a3; }
+#formSection { display:none; }
+.form-card { background:var(--card,#fff);border:1px solid var(--border,#e5e7eb);border-radius:10px;overflow:hidden; }
+.form-card-head { padding:12px 18px;border-bottom:1px solid var(--border,#e5e7eb); }
+.form-body { padding:20px 18px; }
+.form-grid { display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px; }
+@media(max-width:700px){ .form-grid { grid-template-columns:1fr; } }
+.form-group { display:flex;flex-direction:column;gap:4px; }
+.form-group.full { grid-column:1/-1; }
+label { font-size:11px;font-weight:700;color:var(--text2,#6b7280);text-transform:uppercase; }
+input, select { padding:8px 10px;border:1.5px solid var(--border,#d1d5db);border-radius:6px;font-size:13px;width:100%;background:var(--card,#fff);color:var(--text); }
+select option { color:var(--text);background:var(--card,#fff); }
+.indent-1 { padding-left:8px; }
+.indent-2 { padding-left:22px; }
+.indent-3 { padding-left:36px; }
+.indent-4 { padding-left:50px; }
+#toast-container { position:fixed;bottom:24px;right:24px;z-index:99999;display:flex;flex-direction:column;gap:8px; }
+.toast { padding:11px 16px;border-radius:9px;font-size:13px;font-weight:600; }
+.toast-ok { background:#1a1a2e;color:#fff; }
+.toast-err { background:#ef4444;color:#fff; }
+.btn-acoes { background:var(--card,#f3f4f6);border:1px solid var(--border,#e5e7eb);padding:4px 7px;border-radius:6px;cursor:pointer;color:var(--text); }
+.dropdown-menu { position:fixed;background:var(--card,#fff);border:1px solid var(--border,#e5e7eb);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.14);z-index:6500;min-width:160px;padding:4px;display:none; }
+.dropdown-item { display:flex;padding:8px 12px;border-radius:7px;font-size:12px;cursor:pointer;border:none;background:none;width:100%;text-align:left;color:var(--text); }
+.dropdown-item:hover { background:var(--accent-soft,#eff6ff); }
+</style>
+</head>
+<body>
+<div class="toolbar-bar">
+  <strong style="margin-right:auto">Plano de Contas</strong>
+  <button class="btn btn-ghost" onclick="carregarModelo()" title="Só cria contas cujo número ainda não existe — não altera nem apaga nada">Carregar plano modelo</button>
+  <button class="btn btn-outline" onclick="abrirNovo()">+ Nova Conta</button>
+</div>
+<div class="subbar">
+  <button class="btn btn-ghost" onclick="buscar()">Atualizar</button>
+  <input type="text" id="inputBusca" placeholder="Buscar conta…" oninput="buscar()"
+         style="padding:5px 10px;border:1.5px solid var(--border,#e5e7eb);border-radius:7px;font-size:12px;width:260px;background:var(--card);color:var(--text)">
+</div>
+<div class="content-area">
+  <div id="listSection">
+    <div class="table-card">
+      <table>
+        <thead>
+          <tr>
+            <th>Número</th>
+            <th>Descrição</th>
+            <th>Tipo</th>
+            <th>Grupo</th>
+            <th>Status</th>
+            <th style="width:60px"></th>
+          </tr>
+        </thead>
+        <tbody id="tbody"><tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text2)">Carregando…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+  <div id="formSection">
+    <div class="form-card">
+      <div class="form-card-head"><strong id="formSub">Nova Conta</strong></div>
+      <div class="form-body">
+        <form id="mainForm" onsubmit="return false">
+          <input type="hidden" id="f_id">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Número / Máscara</label>
+              <input type="text" id="f_numero" placeholder="Ex: 3.01.001" maxlength="30">
+            </div>
+            <div class="form-group full">
+              <label>Descrição *</label>
+              <input type="text" id="f_descricao" required placeholder="Ex: Despesas com pessoal">
+            </div>
+            <div class="form-group">
+              <label>Conta pai (sintética)</label>
+              <select id="f_id_pai"><option value="">— Raiz —</option></select>
+            </div>
+            <div class="form-group">
+              <label>Tipo</label>
+              <select id="f_tipo">
+                <option value="ANALITICA">Analítica (aceita lançamento)</option>
+                <option value="SINTETICA">Sintética (agrupadora)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Grupo</label>
+              <select id="f_grupo">
+                <option value="DESPESA">Despesa</option>
+                <option value="RECEITA">Receita</option>
+                <option value="ATIVO">Ativo</option>
+                <option value="PASSIVO">Passivo</option>
+                <option value="PATRIMONIO">Patrimônio</option>
+                <option value="OUTROS">Outros</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Status</label>
+              <select id="f_status"><option value="A">Ativo</option><option value="I">Inativo</option></select>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div style="padding:15px;border-top:1px solid var(--border,#e5e7eb);display:flex;justify-content:flex-end;gap:10px">
+        <button class="btn btn-ghost" onclick="voltarLista()">Cancelar</button>
+        <button class="btn btn-primary" onclick="salvar()">Salvar</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="toast-container"></div>
+<div id="dropMenu" class="dropdown-menu"></div>
+<script>
+let S = { dados: [], registroId: null };
+
+function authHeaders(extra) {
+  const h = Object.assign({}, extra || {});
+  try {
+    const t = localStorage.getItem('token') || sessionStorage.getItem('token');
+    if (t) h.Authorization = 'Bearer ' + t;
+  } catch (_) {}
+  return h;
+}
+
+async function buscar() {
+  try {
+    const r = await fetch('/api/plano-contas', { headers: authHeaders(), credentials: 'include', cache: 'no-store' });
+    const d = await r.json().catch(() => ({}));
+    if (r.status === 401) return toast(d.error || 'Sessão expirada','err');
+    S.dados = d.plano_contas || [];
+    const q = (document.getElementById('inputBusca').value || '').toLowerCase();
+    let lista = S.dados.slice();
+    if (q) lista = lista.filter(x => `${x.numero||''} ${x.descricao||''}`.toLowerCase().includes(q));
+    lista.sort((a,b) => String(a.numero||'').localeCompare(String(b.numero||''),'pt-BR'));
+    renderLista(lista);
+    fillPai();
+  } catch(e) { toast('Erro ao carregar','err'); }
+}
+
+function renderLista(rows) {
+  const tbody = document.getElementById('tbody');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text2)">Nenhuma conta cadastrada</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(f => {
+    const niv = Math.min(Math.max(parseInt(f.nivel,10)||1, 1), 4);
+    return `<tr onclick="abrirEditar(${f.id})">
+      <td class="indent-${niv}" style="font-family:monospace;font-weight:700">${f.numero || '—'}</td>
+      <td class="indent-${niv}" style="font-weight:600">${f.descricao}</td>
+      <td><span class="badge badge-tipo">${f.tipo || 'ANALITICA'}</span></td>
+      <td>${f.grupo || '—'}</td>
+      <td><span class="badge badge-${f.status==='A'?'A':'I'}">${f.status==='A'?'Ativo':'Inativo'}</span></td>
+      <td onclick="event.stopPropagation()"><button class="btn-acoes" onclick="abrirDrop(event,${f.id})">⋮</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function fillPai() {
+  const sel = document.getElementById('f_id_pai');
+  const cur = S.registroId;
+  const sint = S.dados.filter(x => String(x.tipo).toUpperCase() === 'SINTETICA' && x.id !== cur);
+  sel.innerHTML = '<option value="">— Raiz —</option>' + sint.map(p =>
+    `<option value="${p.id}">${p.numero || ''} — ${p.descricao}</option>`
+  ).join('');
+}
+
+function abrirNovo() {
+  if (!guardCadIncluir('Sem permissão para incluir plano de contas')) return;
+  S.registroId = null;
+  document.getElementById('mainForm').reset();
+  document.getElementById('f_tipo').value = 'ANALITICA';
+  document.getElementById('f_grupo').value = 'DESPESA';
+  document.getElementById('f_status').value = 'A';
+  document.getElementById('formSub').textContent = 'Nova Conta';
+  fillPai();
+  document.getElementById('listSection').style.display = 'none';
+  document.getElementById('formSection').style.display = 'block';
+}
+
+function abrirEditar(id) {
+  const f = S.dados.find(x => x.id === id);
+  if (!f) return;
+  S.registroId = id;
+  fillPai();
+  document.getElementById('f_id').value = f.id;
+  document.getElementById('f_numero').value = f.numero || '';
+  document.getElementById('f_descricao').value = f.descricao || '';
+  document.getElementById('f_id_pai').value = f.id_pai || '';
+  document.getElementById('f_tipo').value = f.tipo || 'ANALITICA';
+  document.getElementById('f_grupo').value = f.grupo || 'DESPESA';
+  document.getElementById('f_status').value = f.status || 'A';
+  document.getElementById('formSub').textContent = 'Editar: ' + f.descricao;
+  document.getElementById('listSection').style.display = 'none';
+  document.getElementById('formSection').style.display = 'block';
+  if (!podeAlterarCad()) aplicarFormSomenteLeituraCad();
+}
+
+function voltarLista() {
+  document.getElementById('formSection').style.display = 'none';
+  document.getElementById('listSection').style.display = 'block';
+  buscar();
+}
+
+async function salvar() {
+  if (!guardCadSalvar(!!S.registroId, 'Sem permissão para incluir', 'Sem permissão para alterar')) return;
+  const payload = {
+    numero: document.getElementById('f_numero').value.trim(),
+    descricao: document.getElementById('f_descricao').value.trim(),
+    id_pai: document.getElementById('f_id_pai').value || null,
+    tipo: document.getElementById('f_tipo').value,
+    grupo: document.getElementById('f_grupo').value,
+    status: document.getElementById('f_status').value,
+  };
+  if (!payload.descricao) return toast('Preencha a descrição','err');
+  try {
+    const id = S.registroId;
+    const r = await fetch(id ? `/api/plano-contas/${id}` : '/api/plano-contas', {
+      method: id ? 'PUT' : 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok) { toast('Salvo!','ok'); voltarLista(); }
+    else toast(d.error || 'Erro ao salvar','err');
+  } catch(e) { toast('Erro na comunicação','err'); }
+}
+
+function abrirDrop(e, id) {
+  e.stopPropagation();
+  const m = document.getElementById('dropMenu');
+  m.innerHTML = podeExcluirCad() ? `<button class="dropdown-item" style="color:#ef4444" onclick="excluir(${id})">Excluir</button>` : '';
+  if (!m.innerHTML.trim()) return;
+  m.style.display = 'block';
+  const rect = e.currentTarget.getBoundingClientRect();
+  m.style.top = (rect.bottom + 5) + 'px';
+  m.style.left = (rect.left - 130) + 'px';
+  window.onclick = () => { m.style.display = 'none'; };
+}
+
+async function excluir(id) {
+  if (!guardCadExcluir('Sem permissão para excluir')) return;
+  if (!confirm('Excluir esta conta?')) return;
+  const r = await fetch(`/api/plano-contas/${id}`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+    credentials: 'include',
+  });
+  const d = await r.json().catch(() => ({}));
+  if (r.ok) { toast('Excluído','ok'); buscar(); }
+  else toast(d.error || 'Erro','err');
+}
+
+/** Seed seguro: API só INSERE números inexistentes — nunca sobrescreve. */
+async function carregarModelo() {
+  if (!guardCadIncluir('Sem permissão para incluir plano de contas')) return;
+  if (!confirm(
+    'Carregar o plano modelo gerencial?\n\n' +
+    '• Só cria contas cujo número ainda não existe\n' +
+    '• Não altera nem exclui contas já cadastradas\n' +
+    '• Pode repetir o comando sem risco'
+  )) return;
+  try {
+    const r = await fetch('/api/plano-contas/modelo', {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      credentials: 'include',
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) return toast(d.error || 'Erro ao carregar modelo', 'err');
+    toast(`Modelo: ${d.inseridas || 0} nova(s), ${d.ignoradas || 0} já existia(m)`, 'ok');
+    buscar();
+  } catch (e) {
+    toast('Erro na comunicação', 'err');
+  }
+}
+
+function toast(msg, tipo='ok') {
+  const t = document.createElement('div');
+  t.className = `toast toast-${tipo}`;
+  t.textContent = msg;
+  document.getElementById('toast-container').appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
+document.addEventListener('cad-perm-ready', () => {
+  if (typeof aplicarUiPermissoesCad === 'function') aplicarUiPermissoesCad();
+  buscar();
+});
+</script>
+<script src="/assets/cadastros-permissao.js"></script>
+</body>
+</html>

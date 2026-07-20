@@ -333,8 +333,9 @@ select option { background: var(--bg); color: var(--text); }
     .kpi-val { font-size: 13px; }
     .analytics-grid { grid-template-columns: 1fr; }
     #table_receber { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    thead th:nth-child(4), thead th:nth-child(5) { display: none; }
-    tbody td:nth-child(4), tbody td:nth-child(5) { display: none; }
+    /* Conta + Documento (mantém Natureza visível no mobile) */
+    thead th:nth-child(5), thead th:nth-child(6) { display: none; }
+    tbody td:nth-child(5), tbody td:nth-child(6) { display: none; }
     .slide-panel { width: 100%; right: -100%; }
     .slide-panel.open { right: 0; }
     .bulk-bar { width: 90%; flex-direction: column; border-radius: 20px; gap: 10px; padding: 16px; }
@@ -594,6 +595,18 @@ html.sysrep-ms-embed .receber-table-wrap { max-height: none; }
                     <select class="form-control" id="filter_natureza" autocomplete="off"><option value="">Todas</option></select>
                 </div>
                 <div class="filter-group">
+                    <label for="filter_planoconta">Conta contábil</label>
+                    <select class="form-control" id="filter_planoconta" autocomplete="off" title="Opcional — não altera a busca se vazio">
+                        <option value="">Todas</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="filter_centrocusto">Centro de custo</label>
+                    <select class="form-control" id="filter_centrocusto" autocomplete="off" title="Opcional — não altera a busca se vazio">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="filter-group">
                     <label for="f_dt_ini">Venc. de</label>
                     <input type="date" class="form-control" id="f_dt_ini" autocomplete="off">
                 </div>
@@ -621,6 +634,7 @@ html.sysrep-ms-embed .receber-table-wrap { max-height: none; }
                     <th>Vencimento</th>
                     <th>Cliente / Pagador</th>
                     <th>Receita / Natureza</th>
+                    <th>Conta</th>
                     <th>Documento</th>
                     <th>Valor</th>
                     <th>Status</th>
@@ -692,7 +706,17 @@ html.sysrep-ms-embed .receber-table-wrap { max-height: none; }
         </div>
         <div class="form-group">
             <label>Receita / Natureza</label>
-            <select id="f_natureza" class="form-control"></select>
+            <select id="f_natureza" class="form-control" onchange="sugerirContaDaNatureza()"></select>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
+            <div class="form-group">
+                <label>Conta contábil <span style="font-weight:500;text-transform:none;color:var(--text2)">(opcional)</span></label>
+                <select id="f_planoconta" class="form-control" title="Se vazio, usa a conta da Natureza"></select>
+            </div>
+            <div class="form-group">
+                <label>Centro de custo <span style="font-weight:500;text-transform:none;color:var(--text2)">(opcional)</span></label>
+                <select id="f_centrocusto" class="form-control"></select>
+            </div>
         </div>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
             <div class="form-group">
@@ -795,9 +819,22 @@ function limparFiltros() {
     document.getElementById('filter_status').value = 'T';
     document.getElementById('search_forn').value = '';
     document.getElementById('filter_natureza').value = '';
+    const fPc = document.getElementById('filter_planoconta');
+    const fCc = document.getElementById('filter_centrocusto');
+    if (fPc) fPc.value = '';
+    if (fCc) fCc.value = '';
     document.getElementById('f_dt_ini').value = '';
     document.getElementById('f_dt_fim').value = '';
     buscarReceber();
+}
+
+function qsFiltroContabil() {
+    const pc = document.getElementById('filter_planoconta')?.value || '';
+    const cc = document.getElementById('filter_centrocusto')?.value || '';
+    let s = '';
+    if (pc) s += `&id_planoconta=${encodeURIComponent(pc)}`;
+    if (cc) s += `&id_centrocusto=${encodeURIComponent(cc)}`;
+    return s;
 }
 
 function buscarReceber() {
@@ -870,7 +907,7 @@ async function fetchData() {
             return;
         }
 
-        let url = `/api/receber?page=${currentPage}&limit=50&status=${status}&fornecedor=${encodeURIComponent(search)}&id_receitas=${nat}&dt_inicio=${dIni}&dt_fim=${dFim}`;
+        let url = `/api/receber?page=${currentPage}&limit=50&status=${status}&fornecedor=${encodeURIComponent(search)}&id_receitas=${nat}&dt_inicio=${dIni}&dt_fim=${dFim}${qsFiltroContabil()}`;
         const r = await fetch(url, { headers: authHeaders(), cache: 'no-store' });
         if (!r.ok) {
             const errBody = await r.json().catch(() => ({}));
@@ -891,7 +928,7 @@ async function fetchData() {
         updatePagination(0, 50);
         const body = document.getElementById('table_body');
         if (body) {
-            body.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--danger)">Erro ao carregar: ${(e && e.message) || 'falha na API'}. Reinicie o servidor Node se acabou de atualizar o código.</td></tr>`;
+            body.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--danger)">Erro ao carregar: ${(e && e.message) || 'falha na API'}. Reinicie o servidor Node se acabou de atualizar o código.</td></tr>`;
         }
     }
 }
@@ -927,18 +964,22 @@ function renderDesktopTable(rows) {
     const list = Array.isArray(rows) ? rows : [];
     body.innerHTML = '';
     if (!list.length) {
-        body.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text2)">Nenhum lançamento encontrado para os filtros atuais</td></tr>';
+        body.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text2)">Nenhum lançamento encontrado para os filtros atuais</td></tr>';
         return;
     }
     list.forEach(row => {
         const isRec = row.status_display === 'LIQUIDADO' || row.status_display === 'RECEBIDO';
         const stClass = isRec ? 'badge-pago' : (row.status_display === 'EM ATRASO' ? 'badge-vencido' : 'badge-aberto');
+        const contaTxt = row.planoconta_nome
+            ? `${row.planoconta_numero ? row.planoconta_numero + ' — ' : ''}${row.planoconta_nome}`
+            : '—';
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td>${!isRec ? `<input type="checkbox" class="row-check" value="${row.id}" onchange="updateBulkBar()">` : ''}</td>
             <td>${fmtDate(row.vencimento)}</td>
             <td><div style="font-weight:700">${row.nome_fornecedor || 'Desconhecido'}</div></td>
             <td><div style="font-size:12px">${row.nome_receita || '-'}</div></td>
+            <td><div style="font-size:11px" title="${contaTxt}">${contaTxt}</div></td>
             <td>${row.numero || row.doc || '-'}</td>
             <td style="font-weight:800; color:var(--accent)">${fmtCur(row.valor)}</td>
             <td><span class="badge ${stClass}">${isRec ? 'RECEBIDO' : row.status_display}</span></td>
@@ -1058,6 +1099,20 @@ function resetForm() {
     document.getElementById('f_venc').value = new Date().toISOString().split('T')[0];
     document.getElementById('f_obs').value = '';
     document.getElementById('f_meses').value = 1;
+    const selNat = document.getElementById('f_natureza');
+    if (selNat) selNat.value = '';
+    const selPc = document.getElementById('f_planoconta');
+    const selCc = document.getElementById('f_centrocusto');
+    if (selPc) { selPc.value = ''; selPc.dataset.manual = ''; }
+    if (selCc) selCc.value = '';
+}
+
+function sugerirContaDaNatureza() {
+    const sel = document.getElementById('f_natureza');
+    const selPc = document.getElementById('f_planoconta');
+    if (!sel || !selPc || selPc.dataset.manual === '1') return;
+    const opt = sel.selectedOptions?.[0];
+    selPc.value = opt?.dataset?.planoconta || '';
 }
 
 function fecharPanel() { document.getElementById('panel_form').classList.remove('open'); }
@@ -1072,6 +1127,8 @@ async function salvar() {
         vencimento: document.getElementById('f_venc').value,
         valor: document.getElementById('f_valor').value,
         id_receitas: document.getElementById('f_natureza').value,
+        id_planoconta: document.getElementById('f_planoconta')?.value || null,
+        id_centrocusto: document.getElementById('f_centrocusto')?.value || null,
         status: document.getElementById('f_status').value,
         obs: document.getElementById('f_obs').value,
         recorrencia: document.getElementById('f_meses').value
@@ -1100,6 +1157,7 @@ async function abrirEditar(id) {
     const conta = _globalContas.find(c => c.id == id);
     if (!conta) return;
     resetForm();
+    await loadLookups();
     document.getElementById('f_id').value = conta.id;
     document.getElementById('f_num').value = conta.numero || '';
     document.getElementById('f_nome').value = conta.nome_fornecedor || '';
@@ -1107,6 +1165,14 @@ async function abrirEditar(id) {
     document.getElementById('f_venc').value = conta.vencimento ? new Date(conta.vencimento).toISOString().split('T')[0] : '';
     document.getElementById('f_valor').value = conta.valor;
     document.getElementById('f_natureza').value = conta.id_receitas || '';
+    const selPc = document.getElementById('f_planoconta');
+    const selCc = document.getElementById('f_centrocusto');
+    if (selPc) {
+        selPc.value = conta.id_planoconta || '';
+        selPc.dataset.manual = conta.id_planoconta ? '1' : '';
+        if (!conta.id_planoconta) sugerirContaDaNatureza();
+    }
+    if (selCc) selCc.value = conta.id_centrocusto || '';
     document.getElementById('f_obs').value = conta.obs || '';
     document.getElementById('group_recorrencia').style.display = 'none';
     document.getElementById('panel_form').classList.add('open');
@@ -1217,12 +1283,55 @@ async function loadLookups() {
         el.innerHTML = '<option value="">Todas</option>';
         elForm.innerHTML = '<option value="">Selecione...</option>';
         data.forEach(i => {
-            const opt = `<option value="${i.id}">${i.nome || i.descricao || ''}</option>`;
+            const pc = i.id_planoconta || '';
+            const opt = `<option value="${i.id}" data-planoconta="${pc}">${i.nome || i.descricao || ''}</option>`;
             el.innerHTML += opt;
             elForm.innerHTML += opt;
         });
     };
     fill('filter_natureza', nats);
+
+    try {
+        const [rpc, rcc] = await Promise.all([
+            fetch('/api/plano-contas?analiticas=1', { headers: authHeaders() }),
+            fetch('/api/centro-custo?analiticas=1', { headers: authHeaders() }),
+        ]);
+        const dpc = await rpc.json().catch(() => ({}));
+        const dcc = await rcc.json().catch(() => ({}));
+        const selPc = document.getElementById('f_planoconta');
+        const selCc = document.getElementById('f_centrocusto');
+        if (selPc) {
+            const cur = selPc.value;
+            const manual = selPc.dataset.manual || '';
+            selPc.innerHTML = '<option value="">— Usar conta da Natureza —</option>' +
+                (dpc.plano_contas || []).map(p => `<option value="${p.id}">${p.numero ? p.numero + ' — ' : ''}${p.descricao}</option>`).join('');
+            selPc.value = cur || '';
+            selPc.dataset.manual = manual;
+            selPc.onchange = () => { selPc.dataset.manual = '1'; };
+        }
+        if (selCc) {
+            const curCc = selCc.value;
+            selCc.innerHTML = '<option value="">— Nenhum —</option>' +
+                (dcc.centro_custo || []).map(c => `<option value="${c.id}">${c.codigo ? c.codigo + ' — ' : ''}${c.descricao}</option>`).join('');
+            selCc.value = curCc || '';
+        }
+        const fPc = document.getElementById('filter_planoconta');
+        const fCc = document.getElementById('filter_centrocusto');
+        if (fPc) {
+            const cur = fPc.value;
+            fPc.innerHTML = '<option value="">Todas</option>' +
+                (dpc.plano_contas || []).map(p => `<option value="${p.id}">${p.numero ? p.numero + ' — ' : ''}${p.descricao}</option>`).join('');
+            fPc.value = cur || '';
+        }
+        if (fCc) {
+            const cur = fCc.value;
+            fCc.innerHTML = '<option value="">Todos</option>' +
+                (dcc.centro_custo || []).map(c => `<option value="${c.id}">${c.codigo ? c.codigo + ' — ' : ''}${c.descricao}</option>`).join('');
+            fCc.value = cur || '';
+        }
+    } catch (e) {
+        console.warn('loadLookups plano/centro:', e);
+    }
 
     const forns = await fetch('/api/fornecedores/lookup?todostipos=true', { headers: authHeaders() }).then(r => r.json());
     document.getElementById('list_clientes').innerHTML = forns.map(f => `<option value="${f.nome}" data-id="${f.id}">${f.nome} (${f.id})</option>`).join('');

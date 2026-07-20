@@ -24,7 +24,7 @@
 <script src="/assets/ajuda-tours.js"></script>
 <script src="/assets/comissao-preposto-ui.js"></script>
 <script src="/assets/vendas-duplicar-item.js"></script>
-<script src="/assets/catalogo-pedido-ui.js?v=20260714b"></script>
+<script src="/assets/catalogo-pedido-ui.js?v=20260716a"></script>
 
 <!-- Leaflet Map -->
 <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
@@ -2787,7 +2787,7 @@ html.sysrep-ms-embed .itens-list-dense-wrap { padding: 4px 8px 8px; }
   display: flex; align-items: center; gap: 6px;
 }
 .bulk-info strong { color: var(--accent); font-size: 14px; }
-.bulk-actions { display: flex; align-items: center; gap: 6px; }
+.bulk-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .btn-bulk {
   padding: 7px 14px; border-radius: 14px; border: none;
   font-size: 11px; font-weight: 700; cursor: pointer; font-family: inherit;
@@ -2799,8 +2799,38 @@ html.sysrep-ms-embed .itens-list-dense-wrap { padding: 4px 8px 8px; }
 .btn-bulk-approve:hover { background: #059669; }
 .btn-bulk-cancel  { background: #ef4444; color: #fff; }
 .btn-bulk-cancel:hover { background: #dc2626; }
-.btn-bulk-outline { background: rgba(255,255,255,.1); color: #fff; }
-.btn-bulk-outline:hover { background: rgba(255,255,255,.18); }
+.btn-bulk-outline {
+  background: var(--bg, #f8fafc); color: var(--text, #0f172a);
+  border: 1px solid var(--border, #e5e7eb);
+}
+.btn-bulk-outline:hover { border-color: var(--accent, #4361ee); color: var(--accent, #4361ee); }
+.bulk-more-wrap { position: relative; }
+.bulk-more-menu {
+  display: none; position: absolute; bottom: calc(100% + 8px); right: 0;
+  min-width: 250px; max-width: min(300px, calc(100vw - 24px));
+  background: var(--card, #fff); color: var(--text); border: 1px solid var(--border, #e5e7eb);
+  border-radius: 12px; box-shadow: 0 12px 32px rgba(15,23,42,.16);
+  padding: 6px; z-index: 5001;
+}
+.bulk-more-menu.show { display: block; }
+.bulk-more-item {
+  width: 100%; display: flex; align-items: center; gap: 8px; text-align: left;
+  padding: 9px 10px; border: none; border-radius: 8px; background: transparent;
+  color: var(--text); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.bulk-more-item:hover { background: var(--bg, #f1f5f9); }
+.bulk-more-item svg { width: 14px; height: 14px; flex-shrink: 0; }
+.bulk-more-item.danger { color: #dc2626; }
+.bulk-more-sep { height: 1px; background: var(--border, #e5e7eb); margin: 4px 6px; }
+@media (max-width: 720px) {
+  .bulk-bar {
+    left: 8px; right: 8px; transform: none; width: auto; max-width: none;
+    bottom: 72px; flex-wrap: wrap; justify-content: center; padding: 10px 12px; gap: 10px;
+  }
+  .bulk-info { border-right: none; padding: 0; width: 100%; justify-content: center; }
+  .bulk-actions { justify-content: center; width: 100%; }
+  .bulk-more-menu { right: auto; left: 50%; transform: translateX(-50%); }
+}
 
 /* ── TOAST ───────────────────────────────────────────── */
 #toast-container {
@@ -6065,16 +6095,50 @@ html:not(.sysrep-ms-embed) #offlineQueueBadge { display: none !important; }
       <span id="bulkCount" style="color:var(--accent); font-size:18px; margin-right:4px">0</span> itens selecionados
     </div>
     <div class="bulk-actions">
-       <button id="btnBulkApprove" class="btn-bulk btn-bulk-approve">
+       <button type="button" id="btnBulkApprove" class="btn-bulk btn-bulk-approve">
          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
          Aprovar
        </button>
-       <button id="btnBulkCancel" class="btn-bulk btn-bulk-cancel">
+       <button type="button" id="btnBulkCancel" class="btn-bulk btn-bulk-cancel">
          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
          Cancelar
        </button>
-       <button id="btnBulkClear" class="btn-bulk btn-bulk-outline">Desmarcar</button>
-       <button id="btnBulkExport" class="btn-bulk btn-bulk-outline">Baixar CSV</button>
+       <div class="bulk-more-wrap" id="bulkMoreWrap">
+         <button type="button" id="btnBulkMore" class="btn-bulk btn-bulk-outline" title="Outras ações dos pedidos selecionados" aria-haspopup="true" aria-expanded="false">
+           Mais ações
+           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7"/></svg>
+         </button>
+         <div class="bulk-more-menu" id="bulkMoreMenu" role="menu">
+           <button type="button" class="bulk-more-item" data-bulk-action="comissoes" style="color:#5b21b6">
+             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V6m0 12v-2m9-4a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+             Comissão &amp; Faturamentos
+           </button>
+           <button type="button" class="bulk-more-item" data-bulk-action="faturar" id="btnBulkFaturar" style="color:#5b21b6">
+             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V6m0 12v-2m9-4a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+             Faturar pedido
+           </button>
+           <div class="bulk-more-sep"></div>
+           <button type="button" class="bulk-more-item" data-bulk-action="visita" style="color:#f59e0b">
+             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+             Agendar Visita
+           </button>
+           <button type="button" class="bulk-more-item" data-bulk-action="retorno" style="color:#d97706">
+             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+             Agendar Retorno
+           </button>
+           <button type="button" class="bulk-more-item" data-bulk-action="enviado">
+             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+             Marcar Enviado p/ representada
+           </button>
+           <div class="bulk-more-sep"></div>
+           <button type="button" class="bulk-more-item danger" data-bulk-action="excluir">
+             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+             Cancelar pedido e excluir
+           </button>
+         </div>
+       </div>
+       <button type="button" id="btnBulkClear" class="btn-bulk btn-bulk-outline">Desmarcar</button>
+       <button type="button" id="btnBulkExport" class="btn-bulk btn-bulk-outline">Baixar CSV</button>
     </div>
   </div>
 </div> <!-- FIM listSection -->
@@ -7132,10 +7196,38 @@ function parcelaDateDisplayBR(v) {
   return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('pt-BR');
 }
 
+/** Hora de abertura do pedido (TIME MySQL, Date ou HH:MM[:SS]) → HH:MM. */
+function formatHoraAbertura(v) {
+  if (v == null || v === '') return '—';
+  if (v instanceof Date && !Number.isNaN(v.getTime())) {
+    return v.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', hour12: false });
+  }
+  const s = String(v).trim();
+  const hm = s.match(/^(\d{1,2}):(\d{2})(?::\d{2})?/);
+  if (hm) return `${String(hm[1]).padStart(2, '0')}:${hm[2]}`;
+  const iso = s.match(/T(\d{2}):(\d{2})/);
+  if (iso) return `${iso[1]}:${iso[2]}`;
+  return '—';
+}
+
+function pedidosGridColVisivel(id) {
+  const c = _cols && _cols.find((x) => x.id === id);
+  return !!(c && c.visible);
+}
+
+/** Data (+ hora se a coluna HORA estiver visível na grade). */
+function dataAberturaListaFmt(p) {
+  const dataFmt = p?.data_abertura ? parcelaDateDisplayBR(p.data_abertura) : '—';
+  if (!pedidosGridColVisivel(30)) return dataFmt;
+  const h = formatHoraAbertura(p?.hora_abertura);
+  return h !== '—' ? `${dataFmt} ${h}` : dataFmt;
+}
+
 // ── ENGINE DE GRID DINÂMICA ───────────────────────────────────────────────────
 const PEDIDOS_GRID_COL_DEFAULTS = [
   { id: 1,  label: 'NÚMERO',          field: 'numero',    visible: true,  width: 80 },
   { id: 2,  label: 'DATA',            field: 'data',      visible: true },
+  { id: 30, label: 'HORA',            field: 'hora',      visible: false, width: 70, align: 'center' },
   { id: 3,  label: 'CLIENTE / CNPJ',  field: 'cliente',   visible: true },
   { id: 4,  label: 'FÁBRICA',         field: 'fabrica',   visible: true },
   { id: 5,  label: 'VENDEDOR',        field: 'vendedor',  visible: true },
@@ -8072,6 +8164,45 @@ function bindListStaticControls() {
   if (btnBulkCancel) btnBulkCancel.addEventListener('click', () => bulkUpdate('CANCELADO'));
   if (btnBulkClear) btnBulkClear.addEventListener('click', bulkClear);
   if (btnBulkExport) btnBulkExport.addEventListener('click', exportCSVSelecionados);
+  const btnBulkMore = document.getElementById('btnBulkMore');
+  const bulkMoreMenu = document.getElementById('bulkMoreMenu');
+  const bulkMoreWrap = document.getElementById('bulkMoreWrap');
+  function closeBulkMoreMenu() {
+    if (bulkMoreMenu) bulkMoreMenu.classList.remove('show');
+    if (btnBulkMore) btnBulkMore.setAttribute('aria-expanded', 'false');
+  }
+  function toggleBulkMoreMenu(e) {
+    if (e) e.stopPropagation();
+    if (!bulkMoreMenu) return;
+    const open = !bulkMoreMenu.classList.contains('show');
+    closeBulkMoreMenu();
+    if (open) {
+      const btnFat = document.getElementById('btnBulkFaturar');
+      if (btnFat) btnFat.style.display = permPedido('faturar_pedido') === 'N' ? 'none' : '';
+      bulkMoreMenu.classList.add('show');
+      if (btnBulkMore) btnBulkMore.setAttribute('aria-expanded', 'true');
+    }
+  }
+  if (btnBulkMore) btnBulkMore.addEventListener('click', toggleBulkMoreMenu);
+  if (bulkMoreMenu) {
+    bulkMoreMenu.addEventListener('click', (e) => {
+      const item = e.target.closest('[data-bulk-action]');
+      if (!item) return;
+      e.stopPropagation();
+      const action = item.dataset.bulkAction;
+      closeBulkMoreMenu();
+      if (action === 'comissoes') bulkAcaoComissoes();
+      else if (action === 'faturar') bulkAcaoFaturar();
+      else if (action === 'visita') bulkAcaoAgendarVisita();
+      else if (action === 'retorno') bulkAcaoAgendarRetorno();
+      else if (action === 'enviado') bulkAcaoMarcarEnviado();
+      else if (action === 'excluir') bulkExcluir();
+    });
+  }
+  document.addEventListener('click', (e) => {
+    if (bulkMoreWrap && !bulkMoreWrap.contains(e.target)) closeBulkMoreMenu();
+  });
+  window._closeBulkMoreMenu = closeBulkMoreMenu;
   if (activeFilters) {
     activeFilters.addEventListener('click', (event) => {
       if (event.target.closest('[data-clear-filters]')) limparFiltrosAvancados();
@@ -10188,6 +10319,7 @@ function renderTabela(rows, offset) {
       switch(c.id) {
         case 1: val = `<span style="font-weight:700;color:var(--content-text)">${escHtml(p.numero || p.id)}</span>`; break;
         case 2: val = p.data_abertura ? parcelaDateDisplayBR(p.data_abertura) : '—'; break;
+        case 30: val = formatHoraAbertura(p.hora_abertura); break;
         case 3: {
           const nomeCliente = p.nome_client_fmt || p.nome_cliente || '—';
           val = `<div class="client-cell">
@@ -17521,9 +17653,7 @@ async function _salvarPedidoImpl() {
     ...i,
     obsitem: String(i.obsitem ?? '').trim().slice(0, 100),
   }));
-  for (const item of itensParaSalvar) {
-    await sincronizarPromocaoItemPedido(item);
-  }
+  await Promise.all(itensParaSalvar.map((item) => sincronizarPromocaoItemPedido(item)));
   if (itensParaSalvar.length) {
     renderSubrec('itens');
     atualizarTotalItens();
@@ -18934,7 +19064,7 @@ function renderCards(rows, offset) {
     const sel      = _selecionados.has(p.id);
     const bdCls    = getPedidoStatusBadgeClass(p.situacao_pedido);
     const situacao = p.situacao_pedido || 'INDEFINIDO';
-    const dataFmt  = p.data_abertura ? new Date(String(p.data_abertura).slice(0,10) + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
+    const dataFmt  = dataAberturaListaFmt(p);
     const vendedor = p.nomeusu || p.nome_vendedor || '—';
     const empresa  = p.nome_empresa || '—';
     
@@ -19132,7 +19262,7 @@ function renderKanban(rows) {
 }
 
 function renderKanbanCard(p) {
-  const dataFmt  = p.data_abertura ? new Date(String(p.data_abertura).slice(0,10) + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
+  const dataFmt  = dataAberturaListaFmt(p);
   const tipoText = p.tipo_pedido || 'PEDIDO';
   const tagCls   = _ehOrcamento(tipoText) ? 'tag-orcamento' : 'tag-pedido';
   const nomeCli  = p.nome_cliente || '—';
@@ -19300,6 +19430,7 @@ function selectAll(checked) {
 function updateBulkBar() {
   const bar = document.getElementById('bulkBar');
   const n = _selecionados.size;
+  if (typeof window._closeBulkMoreMenu === 'function') window._closeBulkMoreMenu();
   if (n > 0 && !isDrawerOpen()) {
     if (bar) bar.classList.add('show');
     const cnt = document.getElementById('bulkCount');
@@ -20506,7 +20637,10 @@ async function bulkAprovar() {
 async function bulkExcluir() {
   if (!_selecionados.size) return;
   const ids = Array.from(_selecionados);
-  confirmar(`Excluir ${ids.length} pedidos?`, 'Esta ação não pode ser desfeita.', async () => {
+  confirmar(
+    `Cancelar e excluir ${ids.length} pedido(s)?`,
+    'Os pedidos serão excluídos (soft delete). Esta ação não pode ser desfeita pela lista.',
+    async () => {
     let ok = 0;
     let fail = 0;
     for (const id of ids) {
@@ -20528,6 +20662,102 @@ async function bulkExcluir() {
     else if (fail) toast('Não foi possível excluir os pedidos selecionados', 'err');
     else toast('Pedidos excluídos', 'ok');
   }, { danger: true, icon: '🗑️', labelOk: 'Sim, excluir' });
+}
+
+function _bulkIds() {
+  return Array.from(_selecionados).map((id) => parseInt(id, 10)).filter(Boolean);
+}
+
+function _bulkPedidos() {
+  return _bulkIds().map((id) => getPedidoCacheById(id) || { id });
+}
+
+function bulkAcaoComissoes() {
+  const ids = _bulkIds();
+  if (!ids.length) return;
+  if (ids.length > 1) {
+    toast('Comissão & Faturamentos abre um pedido por vez — selecione só 1', 'warn');
+    return;
+  }
+  abrirModalComissoesFaturamento(ids[0]);
+}
+
+function bulkAcaoFaturar() {
+  const ids = _bulkIds();
+  if (!ids.length) return;
+  if (permPedido('faturar_pedido') === 'N') {
+    toast('Sem permissão para faturar pedidos', 'err');
+    return;
+  }
+  if (ids.length > 1) {
+    toast('Faturamento abre um pedido por vez — selecione só 1', 'warn');
+    return;
+  }
+  abrirModalFaturamento(ids[0]);
+}
+
+function bulkAcaoAgendarVisita() {
+  const peds = _bulkPedidos();
+  if (!peds.length) return;
+  const clientes = new Set(
+    peds.map((p) => parseInt(p.id_cliente || p.cod_cliente || 0, 10)).filter(Boolean)
+  );
+  if (!clientes.size) {
+    toast('Não foi possível identificar o cliente dos pedidos selecionados', 'err');
+    return;
+  }
+  if (clientes.size > 1) {
+    toast('Para agendar visita, selecione pedidos do mesmo cliente', 'warn');
+    return;
+  }
+  const cid = [...clientes][0];
+  const nome = peds[0].fantasia_cliente || peds[0].nome_cliente || '';
+  abrirModalVisita(cid, nome);
+}
+
+function bulkAcaoAgendarRetorno() {
+  const ids = _bulkIds();
+  if (!ids.length) return;
+  if (ids.length === 1) {
+    abrirModalRetornoPedido(ids[0]);
+    return;
+  }
+  abrirModalRetornoPedido(ids[0], ids);
+}
+
+async function bulkAcaoMarcarEnviado() {
+  const ids = _bulkIds();
+  if (!ids.length) return;
+  confirmar(
+    `Marcar ${ids.length} pedido(s) como enviado p/ representada?`,
+    'Pedidos já faturados, cancelados ou enviados serão ignorados.',
+    async () => {
+      let ok = 0;
+      let fail = 0;
+      let skip = 0;
+      for (const id of ids) {
+        const ped = getPedidoCacheById(id) || {};
+        const sit = String(ped.situacao_pedido || '').toUpperCase();
+        if (sit === 'CANCELADO' || sit === 'FATURADO' || sit === 'ENVIADO') {
+          skip++;
+          continue;
+        }
+        try {
+          const r = await apiJ(`/api/pedidos/${id}/marcar-enviado`, 'POST', { desmarcar: false });
+          if (r.ok) ok++;
+          else fail++;
+        } catch (_) {
+          fail++;
+        }
+      }
+      bulkClear();
+      carregar();
+      if (fail && ok) toast(`${ok} marcado(s), ${fail} com erro${skip ? `, ${skip} ignorado(s)` : ''}`, 'warn');
+      else if (fail && !ok) toast('Não foi possível marcar os pedidos', 'err');
+      else toast(`${ok} pedido(s) marcado(s) como enviado${skip ? ` · ${skip} ignorado(s)` : ''}`, 'ok');
+    },
+    { icon: '📦', labelOk: 'Marcar como enviado' }
+  );
 }
 
 // ── QUICK VIEW ────────────────────────────────────────────────────────────────
@@ -26550,22 +26780,34 @@ function limparFiltroGerafinanceiroUrl() {
 }
 
 let _mrIdPedido = null;
-function abrirModalRetornoPedido(id) {
+let _mrBulkIds = null;
+function abrirModalRetornoPedido(id, bulkIds) {
   const ped = getPedidoCacheById(id) || {};
   _mrIdPedido = id;
+  _mrBulkIds = Array.isArray(bulkIds) && bulkIds.length > 1
+    ? bulkIds.map((x) => parseInt(x, 10)).filter(Boolean)
+    : null;
   const doc = _ehOrcamento(ped.tipo_pedido) ? 'Orçamento' : 'Pedido';
-  document.getElementById('mrPedidoLabel').textContent = `${doc} #${ped.numero || id} · ${ped.nome_cliente || '—'}`;
-  document.getElementById('mr_data').value = _normIsoDatePed(ped.data_retorno);
-  document.getElementById('mr_obs').value = (ped.obs_retorno || '').trim();
+  const lbl = document.getElementById('mrPedidoLabel');
+  if (_mrBulkIds) {
+    lbl.textContent = `${_mrBulkIds.length} pedidos selecionados · retorno em lote`;
+  } else {
+    lbl.textContent = `${doc} #${ped.numero || id} · ${ped.nome_cliente || '—'}`;
+  }
+  document.getElementById('mr_data').value = _mrBulkIds ? '' : _normIsoDatePed(ped.data_retorno);
+  document.getElementById('mr_obs').value = _mrBulkIds ? '' : (ped.obs_retorno || '').trim();
   document.getElementById('modalRetornoPedido').style.display = 'flex';
 }
 function fecharModalRetornoPedido() {
   document.getElementById('modalRetornoPedido').style.display = 'none';
   _mrIdPedido = null;
+  _mrBulkIds = null;
 }
 async function salvarRetornoPedido() {
-  const id = _mrIdPedido;
-  if (!id) return;
+  const ids = (_mrBulkIds && _mrBulkIds.length)
+    ? _mrBulkIds
+    : (_mrIdPedido ? [_mrIdPedido] : []);
+  if (!ids.length) return;
   const data = document.getElementById('mr_data').value || null;
   const obs = (document.getElementById('mr_obs').value || '').trim().slice(0, 255);
   if (data && !/^\d{4}-\d{2}-\d{2}$/.test(data)) {
@@ -26575,15 +26817,28 @@ async function salvarRetornoPedido() {
   const btn = document.getElementById('btnSalvarRetornoPedido');
   if (btn) { btn.disabled = true; btn.textContent = 'Salvando…'; }
   try {
-    const r = await apiJ(`/api/pedidos/${id}`, 'POST', {
-      pedido: { data_retorno: data, obs_retorno: data ? obs : '' },
-    });
-    if (!r.ok) {
-      const j = await r.json().catch(() => ({}));
-      throw new Error(j.error || 'Erro ao salvar retorno');
+    let ok = 0;
+    let fail = 0;
+    for (const id of ids) {
+      try {
+        const r = await apiJ(`/api/pedidos/${id}`, 'POST', {
+          pedido: { data_retorno: data, obs_retorno: data ? obs : '' },
+        });
+        if (r.ok) ok++;
+        else fail++;
+      } catch (_) {
+        fail++;
+      }
     }
-    toast(data ? 'Retorno agendado' : 'Agendamento removido', 'ok');
+    if (!ok && fail) throw new Error('Erro ao salvar retorno');
+    toast(
+      data
+        ? (ids.length > 1 ? `Retorno agendado em ${ok} pedido(s)` : 'Retorno agendado')
+        : (ids.length > 1 ? `Agendamento removido de ${ok} pedido(s)` : 'Agendamento removido'),
+      fail ? 'warn' : 'ok'
+    );
     fecharModalRetornoPedido();
+    if (ids.length > 1) bulkClear();
     carregar(document.documentElement.classList.contains('sysrep-ms-embed'));
   } catch (e) {
     toast(e.message || 'Erro ao agendar retorno', 'err');

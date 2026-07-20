@@ -14,6 +14,8 @@ const COLUNAS_PADRAO = [
   { column: 'comissao', type: 'DECIMAL(5,2) NULL DEFAULT 0' },
   { column: 'st', type: 'DECIMAL(5,2) NULL DEFAULT 0' },
   { column: 'valor_puxada', type: 'DECIMAL(15,4) NULL DEFAULT 0' },
+  /** Opt-in: cor/variação aponta para o produto mãe (SKU continua pedível). */
+  { column: 'id_referencia', type: 'INT NULL DEFAULT NULL' },
 ];
 
 async function dbKey(pool) {

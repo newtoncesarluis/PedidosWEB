@@ -221,9 +221,18 @@ input:focus,select:focus { border-color:var(--accent);box-shadow:0 0 0 3px rgba(
 <script>
 let S = { filtroStatus: 'T', registroId: null };
 
+function authHeaders(extra) {
+  const h = Object.assign({}, extra || {});
+  try {
+    const t = localStorage.getItem('token') || sessionStorage.getItem('token');
+    if (t) h.Authorization = 'Bearer ' + t;
+  } catch (_) {}
+  return h;
+}
+
 async function buscar() {
   try {
-    const r = await fetch('/api/despesas');
+    const r = await fetch('/api/despesas', { headers: authHeaders(), credentials: 'include', cache: 'no-store' });
     const d = await r.json();
     let lista = d.despesas || [];
     const q = document.getElementById('inputBusca').value.toLowerCase();
@@ -258,10 +267,12 @@ function renderLista(rows) {
 
 async function loadPlanoContas() {
   try {
-    const r = await fetch('/api/plano-contas');
+    const r = await fetch('/api/plano-contas?analiticas=1', { headers: authHeaders(), credentials: 'include' });
     const d = await r.json();
     const sel = document.getElementById('f_id_planoconta');
-    sel.innerHTML = '<option value="">Nenhum</option>' + (d.plano_contas || []).map(p => `<option value="${p.id}">${p.numero} - ${p.descricao}</option>`).join('');
+    sel.innerHTML = '<option value="">Nenhum</option>' + (d.plano_contas || []).map(p =>
+      `<option value="${p.id}">${p.numero ? p.numero + ' — ' : ''}${p.descricao}</option>`
+    ).join('');
   } catch(e) {}
 }
 
@@ -282,7 +293,7 @@ function abrirNovo() {
 
 async function abrirEditar(id) {
   try {
-    const r = await fetch('/api/despesas');
+    const r = await fetch('/api/despesas', { headers: authHeaders(), credentials: 'include' });
     const d = await r.json();
     const f = d.despesas.find(x => x.id === id);
     if (!f) return;
@@ -319,11 +330,13 @@ async function salvar() {
     const id = S.registroId;
     const r = await fetch(id ? `/api/despesas/${id}` : '/api/despesas', {
       method: id ? 'PUT' : 'POST',
-      headers: {'Content-Type':'application/json'},
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      credentials: 'include',
       body: JSON.stringify(payload)
     });
+    const err = await r.json().catch(() => ({}));
     if (r.ok) { toast('Salvo com sucesso!','ok'); voltarLista(); }
-    else { toast('Erro ao salvar','err'); }
+    else { toast(err.error || 'Erro ao salvar','err'); }
   } catch(e) { toast('Erro na comunicação','err'); }
 }
 
@@ -343,7 +356,7 @@ async function excluir(id) {
   if (!guardCadExcluir('Sem permissão para excluir despesas')) return;
   if (!confirm('Deseja excluir esta despesa?')) return;
   try {
-    const r = await fetch(`/api/despesas/${id}`, { method: 'DELETE' });
+    const r = await fetch(`/api/despesas/${id}`, { method: 'DELETE', headers: authHeaders(), credentials: 'include' });
     if (r.ok) { toast('Excluído!','ok'); buscar(); }
   } catch(e) { toast('Erro ao excluir','err'); }
 }

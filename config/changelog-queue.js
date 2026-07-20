@@ -10,6 +10,180 @@
  */
 module.exports = [
   {
+    versao: '1.1.3.74',
+    tipo: 'BUG',
+    titulo: 'Busca de produtos no pedido muito mais rápida',
+    descricao:
+      'Corrigida lentidão ao pesquisar produtos para incluir itens no pedido (em algumas bases a busca levava ' +
+      'mais de 30 segundos). A listagem e a pesquisa do catálogo agora respondem em instantes.',
+    data_lancamento: '2026-07-20',
+  },
+  {
+    versao: '1.1.3.72',
+    tipo: 'MELHORIA',
+    titulo: 'Showroom mais rápido para vender',
+    descricao:
+      'O Showroom ganhou visual mais limpo, cards com descrição e preço, barra fixa do carrinho com total, ' +
+      'e botão claro «Adicionar ao pedido» no detalhe do produto — facilitando a venda com o cliente na frente.',
+    data_lancamento: '2026-07-16',
+  },
+  {
+    versao: '1.1.3.72',
+    tipo: 'MELHORIA',
+    titulo: 'Referência mãe: criar cores, importar e catálogos',
+    descricao:
+      'No cadastro de Produtos, a referência mãe ganhou o botão «Adicionar cor» (clona e já vincula o SKU). ' +
+      'Na Importação de Preços, mapeie a coluna «Referência mãe» (ID ou Cód. Fabricante da mãe — importe as mães antes). ' +
+      'Em Catálogos Visuais, ao adicionar a mãe você pode incluir as cores automaticamente.',
+    data_lancamento: '2026-07-16',
+  },
+  {
+    versao: '1.1.3.72',
+    tipo: 'MELHORIA',
+    titulo: 'Showroom: referência mãe com seleção de cores',
+    descricao:
+      'No Showroom, produtos vinculados como cores aparecem agrupados na referência mãe. ' +
+      'Ao abrir a referência, escolha a cor (com foto) antes de incluir no carrinho. ' +
+      'Pedido e estoque continuam no SKU da cor; produtos sem vínculo seguem iguais.',
+    data_lancamento: '2026-07-16',
+  },
+  {
+    versao: '1.1.3.72',
+    tipo: 'NOVO',
+    titulo: 'Referência mãe e cores no produto (opt-in)',
+    descricao:
+      'No cadastro de Produtos (aba Outras Informações) você pode vincular um SKU como cor de uma referência mãe — sem mudar pedido, preço ou estoque. ' +
+      'Produtos sem vínculo continuam iguais. O Showroom ainda não agrupa (próxima etapa).',
+    data_lancamento: '2026-07-16',
+  },
+  {
+    versao: '1.1.3.72',
+    tipo: 'BUG',
+    titulo: 'Perfis: Plano de Contas e Balancete no cadastro',
+    descricao:
+      'As permissões de Plano de Contas, Centro de Custo e Balancete passaram a aparecer em Sistema → Perfis. ' +
+      'Antes, ao salvar um perfil essas telas podiam sumir do menu. O salvamento também deixa de zerar permissões que o formulário não envia.',
+    data_lancamento: '2026-07-16',
+  },
+  {
+    versao: '1.1.3.72',
+    tipo: 'BUG',
+    titulo: 'Plano de Contas: erro numero_pai ao salvar',
+    descricao:
+      'Em bases com plano de contas do Delphi, salvar ou carregar o modelo podia falhar com «Field numero_pai doesn\'t have a default value». ' +
+      'O sistema agora preenche o número da conta pai e aceita o campo legado sem alterar suas contas existentes.',
+    data_lancamento: '2026-07-16',
+  },
+  {
+    versao: '1.1.3.72',
+    tipo: 'BUG',
+    titulo: 'DRE e Plano de Contas: sessão ao salvar/carregar',
+    descricao:
+      'O DRE, Plano de Contas, Centro de Custo, Despesas e Natureza não enviavam o token de autenticação e podiam mostrar «sessão expirada» mesmo logado. Agora as telas enviam o token corretamente.',
+    data_lancamento: '2026-07-16',
+  },
+  {
+    versao: '1.1.3.72',
+    tipo: 'MELHORIA',
+    titulo: 'Filtros e razão do Plano de Contas',
+    descricao:
+      'Nas listagens de Contas a Pagar e a Receber você pode filtrar por conta contábil e centro de custo (opcional). ' +
+      'No Receber a coluna Conta aparece na grade; no Pagar ative Conta/Centro em Colunas. ' +
+      'No Plano de Contas há «Carregar plano modelo» (só cria números que ainda não existem). ' +
+      'No Balancete, clique numa conta analítica para ver o razão dos lançamentos do período.',
+    data_lancamento: '2026-07-16',
+  },
+  {
+    versao: '1.1.3.72',
+    tipo: 'MELHORIA',
+    titulo: 'Plano de Contas: sugestão automática e balancete com grupos',
+    descricao:
+      'Ao escolher a Despesa/Natureza no título, a conta contábil é sugerida automaticamente. ' +
+      'O Balancete consolida totais nas contas sintéticas (grupos), destaca hierarquia e permite exportar CSV.',
+    data_lancamento: '2026-07-16',
+  },
+  {
+    versao: '1.1.3.72',
+    tipo: 'BUG',
+    titulo: 'DRE e BI passam a usar Despesa e Plano de Contas',
+    descricao:
+      'O DRE e a Inteligência Financeira classificavam despesas pela tabela Natureza (join errado). ' +
+      'Agora usam a Despesa do título (id_despesas) e o Plano de Contas (conta do título ou da Despesa). ' +
+      'O DRE ganhou o bloco «Despesas por Plano de Contas»; o gráfico de categorias do BI segue a mesma regra.',
+    data_lancamento: '2026-07-16',
+  },
+  {
+    versao: '1.1.3.72',
+    tipo: 'NOVO',
+    titulo: 'Plano de Contas e Centro de Custo (gerencial)',
+    descricao:
+      'Cadastre o Plano de Contas (hierárquico: sintética/analítica) e Centros de Custo em Cadastros. ' +
+      'Vincule a conta em Despesas e Natureza; nos títulos de Pagar/Receber dá para informar conta e centro (opcional). ' +
+      'Em Financeiro → Balancete Gerencial você vê entradas e saídas liquidadas por conta no período.',
+    data_lancamento: '2026-07-16',
+  },
+  {
+    versao: '1.1.3.72',
+    tipo: 'MELHORIA',
+    titulo: 'Ajuda: como baixar fotos de produtos',
+    descricao:
+      'Na Central de Ajuda → Produtos há o tópico «Como baixar fotos»: ZIP de um produto ou do filtro da lista, lotes de 500 quando há muitos itens, e o padrão de nomes igual à importação.',
+    data_lancamento: '2026-07-16',
+  },
+  {
+    versao: '1.1.3.72',
+    tipo: 'MELHORIA',
+    titulo: 'Pedidos: mais ações na barra de seleção',
+    descricao:
+      'Ao selecionar pedidos na lista, o rodapé ganhou o menu «Mais ações»: Comissão & Faturamentos, Faturar, Agendar Visita, Agendar Retorno, Marcar Enviado e Excluir — sem lotar a barra. ' +
+      'Comissão/Faturar pedem 1 pedido; visita exige o mesmo cliente; retorno pode ser em lote.',
+    data_lancamento: '2026-07-16',
+  },
+  {
+    versao: '1.1.3.72',
+    tipo: 'MELHORIA',
+    titulo: 'Tabela de Preços: liberar no Showroom',
+    descricao:
+      'No cadastro da tabela de preços há a opção «Aparece no Showroom?». ' +
+      'Por padrão fica Não — só as tabelas marcadas com Sim entram na lista de tabelas do Showroom. Coleções e catálogo por fábrica continuam normalmente.',
+    data_lancamento: '2026-07-16',
+  },
+  {
+    versao: '1.1.3.72',
+    tipo: 'MELHORIA',
+    titulo: 'Pedidos: coluna Hora de abertura na lista',
+    descricao:
+      'Na lista de Pedidos, a coluna «HORA» mostra a hora de abertura do pedido. ' +
+      'Ela vem desligada por padrão — ative em Colunas (ícone de engrenagem) se quiser ver na grade, nos cards e no kanban.',
+    data_lancamento: '2026-07-16',
+  },
+  {
+    versao: '1.1.3.72',
+    tipo: 'NOVO',
+    titulo: 'Tabela de Preços: exportar itens para Excel',
+    descricao:
+      'Ao abrir uma tabela de preços, use o botão «Exportar Excel» na grade de itens para baixar a planilha (.xlsx) com código, fabricante, descrição, preços, desconto, valor de tabela, ativo e vigência.',
+    data_lancamento: '2026-07-16',
+  },
+  {
+    versao: '1.1.3.72',
+    tipo: 'NOVO',
+    titulo: 'Produtos: baixar fotos para o computador',
+    descricao:
+      'Na tela de Produtos, use «Baixar Fotos» para gerar um ZIP com as fotos do filtro atual (até 500 produtos), ' +
+      'ou abra um produto na aba Fotos e use «Baixar» só daquele item. Os arquivos saem com o nome do cód. fabricante — o mesmo padrão da importação em lote.',
+    data_lancamento: '2026-07-16',
+  },
+  {
+    versao: '1.1.3.72',
+    tipo: 'MELHORIA',
+    titulo: 'Showroom: fotos das referências sem corte',
+    descricao:
+      'Na grade de referências do Showroom, as fotos do produto passam a aparecer inteiras (sem cortar nas bordas), com margem e cards um pouco maiores no tablet/desktop. ' +
+      'Itens sem foto mostram um ícone de câmera mais visível.',
+    data_lancamento: '2026-07-16',
+  },
+  {
     versao: '1.1.3.70',
     tipo: 'BUG',
     titulo: 'Mobile: mesmo produto no pedido agora soma corretamente',

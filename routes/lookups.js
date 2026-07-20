@@ -147,7 +147,8 @@ router.get('/natureza', async (req, res) => {
     await resolveNaturezaLabelColumn(pool);
     const label = naturezaLabelColumnName();
     const rows = await query(
-      `SELECT id, \`${label}\` AS nome FROM natureza WHERE excluido='N' AND (status='A' OR status IS NULL) ORDER BY \`${label}\``
+      `SELECT id, \`${label}\` AS nome, id_planoconta
+       FROM natureza WHERE excluido='N' AND (status='A' OR status IS NULL) ORDER BY \`${label}\``
     );
     res.json(rows);
   } catch (err) {
@@ -163,7 +164,7 @@ router.get('/despesas', async (req, res) => {
     const labelSql = despesasLabelExpr('d');
     const orderSql = despesasOrderExpr('d');
     const [rows] = await pool.query(
-      `SELECT d.id AS id_despesas, ${labelSql} AS nome
+      `SELECT d.id AS id_despesas, ${labelSql} AS nome, d.id_planoconta
        FROM despesas d
        WHERE d.excluido = 'N'
        ORDER BY ${orderSql}`

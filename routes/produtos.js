@@ -3,6 +3,7 @@ const router  = express.Router();
 const multer  = require('multer');
 const path    = require('path');
 const fs      = require('fs');
+const archiver = require('archiver');
 const { getPool } = require('../config/database');
 const {
   PROMO_SELECT_COLS,
@@ -43,6 +44,13 @@ const {
 } = require('../config/produtos-destaque');
 const { ensureProdutoColunas, getProdTabela, listProdutoColunas } = require('../config/produto-colunas');
 const { validarCodFabricanteFornecedor } = require('../config/produto-cod-fabricante');
+const {
+  ensureProdutoReferenciaCol,
+  validarVinculoReferencia,
+  listarReferenciasMae,
+  obterGrupoReferencia,
+  parseIdReferenciaBody,
+} = require('../config/produto-referencia');
 
 function _parseCodCliente(v) {
   return parseOptInt(v);
@@ -143,6 +151,20 @@ async function getColunasReais(pool) {
 
 async function ensureColunasExtras(pool) {
   await ensureProdutoColunas(pool);
+  await ensureProdutoReferenciaCol(pool);
+}
+
+/** Aplica id_referencia no body (permite NULL para desvincular). */
+async function aplicarIdReferenciaNoBody(pool, reqBody, body, idProduto) {
+  const parsed = parseIdReferenciaBody(reqBody);
+  if (!parsed.presente) return { ok: true, body };
+  const val = await validarVinculoReferencia(pool, {
+    idProduto,
+    idReferencia: parsed.id_referencia,
+  });
+  if (!val.ok) return { ok: false, error: val.error };
+  body.id_referencia = val.id_referencia;
+  return { ok: true, body };
 }
 
 function filtrarBody(body, colunas) {
@@ -272,6 +294,23 @@ router.get('/notificacoes', async (req, res) => {
 });
 
 // ─── GET /api/produtos/grupos ─────────────────────────────────────────────────
+/** Lista produtos que podem ser referência mãe (opt-in — não altera listagem padrão). */
+router.get('/referencias-mae', async (req, res) => {
+  try {
+    const pool = getPool();
+    const rows = await listarReferenciasMae(pool, {
+      q: req.query.q || '',
+      fornecedor: req.query.fornecedor || req.query.cod_fornecedor || null,
+      limit: req.query.limit,
+      excludeId: req.query.exclude_id || null,
+    });
+    res.json({ referencias: rows });
+  } catch (err) {
+    console.error('[produtos/referencias-mae]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/grupos', async (req, res) => {
   try {
     const pool = getPool();
@@ -673,6 +712,197 @@ router.post('/importar-fotos',
   } catch (err) {
     (req.files || []).forEach(f => { try { fs.rmSync(f.path, { force: true }); } catch {} });
     res.status(500).json({ error: `Erro interno: ${err.message}` });
+  }
+});
+
+// ─── POST /api/produtos/exportar-fotos → ZIP (ids ou mesmos filtros da lista) ──
+// Lotes de até 500 produtos; use offset/limit no body para baixar catálogos grandes em vários ZIPs.
+const EXPORT_FOTOS_MAX_PROD = 500;
+
+function _safeZipBaseName(s) {
+  const t = String(s || '')
+    .replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80);
+  return t || 'produto';
+}
+
+async function _buildWhereExportFotos(pool, tb, body = {}) {
+  const cols = await getColunasReais(pool);
+  const temSegmento = cols.includes('segmento');
+  const temFotoPrinc = cols.includes('foto_principal');
+  const temFornPadrao = cols.includes('cod_fornecedorpadrao');
+
+  const q = String(body.q || '').trim();
+  const status = body.status || 'todos';
+  const grupo = String(body.grupo || '').trim();
+  const disponivel = body.disponivel || '';
+  const fornecedor = body.fornecedor || '';
+  const com_foto = body.com_foto || 'S';
+
+  const where = [`(p.excluido='N' OR p.excluido IS NULL OR p.excluido='')`];
+  const vals = [];
+
+  if (status === 'A') where.push(`p.situacao='A'`);
+  else if (status === 'I') where.push(`p.situacao='I'`);
+  else if (status === 'E') where.push(`p.situacao='E'`);
+
+  if (q) {
+    where.push(`(p.descricao LIKE ? OR p.id LIKE ? OR p.cod_barras LIKE ? OR p.cod_fabricante LIKE ? OR p.apelido LIKE ?)`);
+    const lk = `%${q}%`;
+    vals.push(lk, lk, lk, lk, lk);
+  }
+  if (grupo) { where.push(`p.nome_grupo LIKE ?`); vals.push(`%${grupo}%`); }
+  if (disponivel) { where.push(`p.disponivel=?`); vals.push(disponivel); }
+  if (fornecedor && temFornPadrao) { where.push(`p.cod_fornecedorpadrao=?`); vals.push(fornecedor); }
+  if (body.segmento && temSegmento) { where.push(`p.segmento=?`); vals.push(body.segmento); }
+  if (temFotoPrinc && com_foto === 'S') {
+    where.push(`(p.foto_principal IS NOT NULL AND p.foto_principal<>'')`);
+  } else if (temFotoPrinc && com_foto === 'N') {
+    where.push(`(p.foto_principal IS NULL OR p.foto_principal='')`);
+  }
+
+  where.push(`EXISTS (SELECT 1 FROM produto_imagens pi WHERE pi.cod_produto=p.ID AND pi.filename IS NOT NULL AND pi.filename<>'')`);
+  return { whereSql: where.join(' AND '), vals };
+}
+
+async function _resolverIdsExportFotos(pool, tb, body = {}) {
+  const idsRaw = Array.isArray(body.ids) ? body.ids : [];
+  let ids = [...new Set(idsRaw.map((x) => parseInt(x, 10)).filter((n) => Number.isFinite(n) && n > 0))];
+  const limit = Math.min(
+    EXPORT_FOTOS_MAX_PROD,
+    Math.max(1, parseInt(body.limit, 10) || EXPORT_FOTOS_MAX_PROD)
+  );
+  const offset = Math.max(0, parseInt(body.offset, 10) || 0);
+
+  if (ids.length) {
+    const total = ids.length;
+    ids = ids.slice(offset, offset + limit);
+    return { ids, total, limit, offset, hasMore: offset + ids.length < total };
+  }
+
+  const { whereSql, vals } = await _buildWhereExportFotos(pool, tb, body);
+  const [[{ total }]] = await pool.query(
+    `SELECT COUNT(*) AS total FROM ${tb} p WHERE ${whereSql}`,
+    vals
+  );
+  const totalN = Number(total) || 0;
+  if (!totalN) return { ids: [], total: 0, limit, offset, hasMore: false };
+
+  const [rows] = await pool.query(
+    `SELECT p.ID AS id FROM ${tb} p WHERE ${whereSql} ORDER BY p.descricao LIMIT ? OFFSET ?`,
+    [...vals, limit, offset]
+  );
+  return {
+    ids: rows.map((r) => r.id),
+    total: totalN,
+    limit,
+    offset,
+    hasMore: offset + rows.length < totalN,
+  };
+}
+
+router.post('/exportar-fotos', async (req, res) => {
+  try {
+    const pool = getPool();
+    const tb = await getTabela(pool);
+    const body = req.body || {};
+    const apenasPrincipal = body.apenas_principal === true || body.apenas_principal === 'S';
+
+    const resolved = await _resolverIdsExportFotos(pool, tb, body);
+    if (resolved.error) return res.status(400).json({ error: resolved.error });
+    const ids = resolved.ids || [];
+    if (!ids.length) {
+      return res.status(404).json({ error: 'Nenhum produto com foto local para baixar' });
+    }
+
+    const ph = ids.map(() => '?').join(',');
+    const [prods] = await pool.query(
+      `SELECT ID AS id, cod_fabricante, descricao FROM ${tb} WHERE ID IN (${ph})`,
+      ids
+    );
+    const prodMap = new Map(prods.map((p) => [String(p.id), p]));
+
+    let sqlImg = `
+      SELECT cod_produto, filename, is_principal, ordem, id
+      FROM produto_imagens
+      WHERE cod_produto IN (${ph}) AND filename IS NOT NULL AND filename<>''
+    `;
+    if (apenasPrincipal) sqlImg += ` AND is_principal=1`;
+    sqlImg += ` ORDER BY cod_produto, is_principal DESC, ordem, id`;
+
+    const [imgs] = await pool.query(sqlImg, ids);
+    const entries = [];
+    const usedNames = new Set();
+    const seqByProd = new Map(); // último índice usado no nome (1 = principal)
+
+    for (const img of imgs) {
+      const disk = _prodImgDiskPath(img.cod_produto, img.filename);
+      if (!fs.existsSync(disk)) continue;
+      const prod = prodMap.get(String(img.cod_produto));
+      const base = _safeZipBaseName(prod?.cod_fabricante || prod?.id || img.cod_produto);
+      const ext = path.extname(img.filename).toLowerCase() || '.jpg';
+      let entryName;
+      if (img.is_principal) {
+        entryName = `${base}${ext}`;
+        if (!seqByProd.has(img.cod_produto)) seqByProd.set(img.cod_produto, 1);
+      } else {
+        const next = (seqByProd.get(img.cod_produto) || 1) + 1;
+        seqByProd.set(img.cod_produto, next);
+        entryName = `${base}(${next})${ext}`;
+      }
+      // Colisão (mesmo cód. fabricante em produtos diferentes)
+      if (usedNames.has(entryName.toLowerCase())) {
+        entryName = `${base}_${img.cod_produto}${img.is_principal ? '' : `(${img.id})`}${ext}`;
+      }
+      let finalName = entryName;
+      let i = 2;
+      while (usedNames.has(finalName.toLowerCase())) {
+        finalName = `${base}_${img.cod_produto}_${i}${ext}`;
+        i++;
+      }
+      usedNames.add(finalName.toLowerCase());
+      entries.push({ disk, name: finalName });
+    }
+
+    if (!entries.length) {
+      return res.status(404).json({ error: 'Nenhuma foto encontrada no disco para estes produtos' });
+    }
+
+    const stamp = new Date().toISOString().slice(0, 10);
+    const lote = Math.floor((resolved.offset || 0) / (resolved.limit || EXPORT_FOTOS_MAX_PROD)) + 1;
+    const totalLotes = Math.max(1, Math.ceil((resolved.total || ids.length) / (resolved.limit || EXPORT_FOTOS_MAX_PROD)));
+    const zipName = ids.length === 1 && !(resolved.total > 1)
+      ? `fotos_produto_${ids[0]}_${stamp}.zip`
+      : (totalLotes > 1
+        ? `fotos_produtos_${stamp}_lote${lote}de${totalLotes}.zip`
+        : `fotos_produtos_${stamp}.zip`);
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${zipName}"`);
+    res.setHeader('X-Fotos-Exportadas', String(entries.length));
+    res.setHeader('X-Produtos-Exportados', String(ids.length));
+    res.setHeader('X-Produtos-Total', String(resolved.total || ids.length));
+    res.setHeader('X-Export-Offset', String(resolved.offset || 0));
+    res.setHeader('X-Export-Limit', String(resolved.limit || EXPORT_FOTOS_MAX_PROD));
+    res.setHeader('X-Export-Has-More', resolved.hasMore ? '1' : '0');
+    res.setHeader('X-Export-Lote', String(lote));
+    res.setHeader('X-Export-Total-Lotes', String(totalLotes));
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, X-Fotos-Exportadas, X-Produtos-Exportados, X-Produtos-Total, X-Export-Offset, X-Export-Limit, X-Export-Has-More, X-Export-Lote, X-Export-Total-Lotes');
+
+    const archive = archiver('zip', { zlib: { level: 6 } });
+    archive.on('error', (err) => {
+      if (!res.headersSent) res.status(500).json({ error: err.message });
+      else res.end();
+    });
+    archive.pipe(res);
+    for (const e of entries) {
+      archive.file(e.disk, { name: e.name });
+    }
+    await archive.finalize();
+  } catch (err) {
+    if (!res.headersSent) res.status(500).json({ error: err.message });
   }
 });
 
@@ -1104,6 +1334,19 @@ router.delete('/:id/promocoes/:promoId', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+/** Grupo referência mãe + cores (somente leitura — não altera pedido). */
+router.get('/:id/variacoes', async (req, res) => {
+  try {
+    const pool = getPool();
+    const grupo = await obterGrupoReferencia(pool, req.params.id);
+    if (!grupo) return res.status(404).json({ error: 'Produto não encontrado' });
+    res.json(grupo);
+  } catch (err) {
+    console.error('[produtos/variacoes]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── GET /api/produtos/:id ────────────────────────────────────────────────────
 router.get('/:id', async (req, res) => {
   try {
@@ -1126,7 +1369,7 @@ router.post('/', async (req, res) => {
     await ensureColunasExtras(pool);
     const tb = await getTabela(pool);
     const cols = await getColunasReais(pool);
-    const body = aplicarUpper(filtrarBody(req.body, cols));
+    let body = aplicarUpper(filtrarBody(req.body, cols));
 
     if (!body.descricao?.trim()) return res.status(400).json({ error: 'Descrição obrigatória' });
     if (!body.situacao) body.situacao = 'A';
@@ -1137,6 +1380,10 @@ router.post('/', async (req, res) => {
       idFornecedor: body.cod_fornecedorpadrao,
     });
     if (!valCod.ok) return res.status(400).json({ error: valCod.error });
+
+    const refApply = await aplicarIdReferenciaNoBody(pool, req.body, body, null);
+    if (!refApply.ok) return res.status(400).json({ error: refApply.error });
+    body = refApply.body;
 
     const keys = Object.keys(body);
     const [r] = await pool.query(
@@ -1155,7 +1402,7 @@ router.put('/:id', async (req, res) => {
     await ensureColunasExtras(pool);
     const tb = await getTabela(pool);
     const cols = await getColunasReais(pool);
-    const body = aplicarUpper(filtrarBody(req.body, cols));
+    let body = aplicarUpper(filtrarBody(req.body, cols));
 
     if (!body.descricao?.trim()) return res.status(400).json({ error: 'Descrição obrigatória' });
 
@@ -1176,6 +1423,10 @@ router.put('/:id', async (req, res) => {
       excludeId: req.params.id,
     });
     if (!valCod.ok) return res.status(400).json({ error: valCod.error });
+
+    const refApply = await aplicarIdReferenciaNoBody(pool, req.body, body, req.params.id);
+    if (!refApply.ok) return res.status(400).json({ error: refApply.error });
+    body = refApply.body;
 
     const keys = Object.keys(body);
     if (!keys.length) return res.status(400).json({ error: 'Nenhum campo para atualizar' });

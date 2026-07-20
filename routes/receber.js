@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { getPool } = require('../config/database');
 const { resolveNaturezaLabelColumn, naturezaLabelExpr } = require('../config/natureza-label');
+const { ensureFinanceiroContabilCols } = require('../config/plano-contas-schema');
 
 const SQL_EXCLUIDO = "(p.excluido = 'N' OR p.excluido IS NULL OR p.excluido = '')";
 const SQL_ABERTO = "(p.status IN ('ABERTA','ABERTO') OR p.status IS NULL OR p.status = '')";
@@ -37,7 +38,10 @@ function validarEntradas(req, res, next) {
 // ─── LISTAR CONTAS A RECEBER ──────────────────────────────────────────────────
 router.get('/', async (req, res) => {
   const pool = getPool();
-  const { page, limit, status, fornecedor, id_receitas, dt_inicio, dt_fim } = req.query;
+  const {
+    page, limit, status, fornecedor, id_receitas, dt_inicio, dt_fim,
+    id_planoconta, id_centrocusto, cod_cliente,
+  } = req.query;
 
   let where = SQL_EXCLUIDO;
   const params = [];
@@ -68,7 +72,6 @@ router.get('/', async (req, res) => {
     where += ' AND (p.nome_fornecedor LIKE ? OR CAST(p.cod_fornecedor AS CHAR) LIKE ? OR p.doc LIKE ? OR p.numero LIKE ?)';
     params.push(`%${fornecedor}%`, `%${fornecedor}%`, `%${fornecedor}%`, `%${fornecedor}%`);
   }
-  const { cod_cliente } = req.query;
   if (cod_cliente) {
     where += ' AND p.id_cliente = ?';
     params.push(cod_cliente);
@@ -77,6 +80,16 @@ router.get('/', async (req, res) => {
   if (recId > 0) {
     where += ' AND p.id_receitas = ?';
     params.push(recId);
+  }
+  const planoId = parseInt(id_planoconta, 10);
+  if (planoId > 0) {
+    where += ` AND COALESCE(p.id_planoconta, (SELECT n2.id_planoconta FROM natureza n2 WHERE n2.id = p.id_receitas LIMIT 1)) = ?`;
+    params.push(planoId);
+  }
+  const centroId = parseInt(id_centrocusto, 10);
+  if (centroId > 0) {
+    where += ' AND p.id_centrocusto = ?';
+    params.push(centroId);
   }
 
   const p = parseInt(page) || 1;
@@ -90,13 +103,22 @@ router.get('/', async (req, res) => {
     const [totalRows] = await pool.query(`SELECT COUNT(*) as total FROM receber p WHERE ${where}`, params);
     const total = totalRows[0]?.total || 0;
 
+    await ensureFinanceiroContabilCols(pool).catch(() => {});
+
     const [rows] = await pool.query(`
       SELECT 
         p.*, 
-        ${natLabel} AS nome_receita, 
+        ${natLabel} AS nome_receita,
+        COALESCE(p.id_planoconta, n.id_planoconta) AS id_planoconta_resolvido,
+        pc.numero AS planoconta_numero,
+        pc.descricao AS planoconta_nome,
+        cc.codigo AS centrocusto_codigo,
+        cc.descricao AS centrocusto_nome,
         ${SQL_STATUS_DISPLAY} AS status_display
       FROM receber p
       LEFT JOIN natureza n ON p.id_receitas = n.id
+      LEFT JOIN plano_contas pc ON pc.id = COALESCE(p.id_planoconta, n.id_planoconta)
+      LEFT JOIN centro_custo cc ON cc.id = p.id_centrocusto
       WHERE ${where} 
       ORDER BY p.vencimento ASC 
       LIMIT ? OFFSET ?
@@ -242,6 +264,13 @@ router.post('/', validarEntradas, async (req, res) => {
   const numRecorrencias = parseInt(data.recorrencia) || 1;
   
   try {
+    await ensureFinanceiroContabilCols(pool);
+    const idPlano = data.id_planoconta !== undefined && data.id_planoconta !== ''
+      ? (parseInt(data.id_planoconta, 10) || null)
+      : null;
+    const idCentro = data.id_centrocusto !== undefined && data.id_centrocusto !== ''
+      ? (parseInt(data.id_centrocusto, 10) || null)
+      : null;
     // Auto-cadastra o cliente/pagador caso seja novo
     let finalCodFornecedor = data.cod_fornecedor || null;
     if (!finalCodFornecedor && data.nome_fornecedor) {
@@ -275,15 +304,17 @@ router.post('/', validarEntradas, async (req, res) => {
           numero, tipo, vencimento, valor, status, obs, doc, 
           cod_fornecedor, nome_fornecedor, id_receitas, 
           id_cliente, cod_vendedor, data_pagto, valor_pago, 
-          forma_pagto, juros, vlrjuros, vlracressimo, excluido
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'N')
+          forma_pagto, juros, vlrjuros, vlracressimo,
+          id_planoconta, id_centrocusto, excluido
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'N')
       `, [
         data.numero || null, data.tipo || 'MANUAL', dataVenc, parseFloat(data.valor) || 0, 
         status, data.obs || null, data.doc || null,
         finalCodFornecedor, data.nome_fornecedor || null,
         data.id_receitas || null, data.id_cliente || null, data.cod_vendedor || null,
         dataPagto, vlrPago, data.forma_pagto || null,
-        parseFloat(data.juros) || 0, parseFloat(data.vlrjuros) || 0, parseFloat(data.vlracressimo) || 0
+        parseFloat(data.juros) || 0, parseFloat(data.vlrjuros) || 0, parseFloat(data.vlracressimo) || 0,
+        idPlano, idCentro
       ]);
       results.push(result.insertId);
     }
@@ -360,11 +391,19 @@ router.put('/:id', validarEntradas, async (req, res) => {
         }
       }
 
+      if (data.id_planoconta !== undefined) {
+        data.id_planoconta = parseInt(data.id_planoconta, 10) || null;
+      }
+      if (data.id_centrocusto !== undefined) {
+        data.id_centrocusto = parseInt(data.id_centrocusto, 10) || null;
+      }
+
       const allowed = [
         'numero', 'vencimento', 'valor', 'status', 'obs', 'doc', 
         'cod_fornecedor', 'nome_fornecedor', 'id_receitas', 
         'data_pagto', 'forma_pagto', 'valor_pago', 
-        'juros', 'vlrjuros', 'vlracressimo'
+        'juros', 'vlrjuros', 'vlracressimo',
+        'id_planoconta', 'id_centrocusto'
       ];
       
       allowed.forEach(field => {

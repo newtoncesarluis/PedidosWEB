@@ -14,6 +14,8 @@
     fonte: null,
     itens: [],
     produto: null,
+    variacoesCores: [],
+    variacoesMae: null,
     imagens: [],
     imgIdx: 0,
     gradeItens: [],
@@ -155,122 +157,167 @@
   }
 
   const CSS = `
-.afv-overlay{display:none;position:fixed;inset:0;z-index:2147483600;background:var(--content-bg,#f3f4f6);color:#111}
+.afv-overlay{--afv-accent:#0d9488;--afv-accent-h:#0f766e;--afv-soft:color-mix(in srgb,var(--afv-accent) 12%,transparent);display:none;position:fixed;inset:0;z-index:2147483600;background:var(--content-bg,#f1f5f9);color:var(--content-text,#0f172a);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 .afv-overlay.show{display:flex;flex-direction:column}
 .afv-overlay.afv-standalone{position:fixed}
-.afv-main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--content-bg,#f3f4f6);color:#111;width:100%}
-.afv-top{display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--card,#fff);border-bottom:1px solid var(--card-border,#e5e7eb);flex-shrink:0;flex-wrap:wrap}
-.afv-top-title{flex:1;font-size:18px;font-weight:800;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--content-text,#0f172a)}
+.afv-main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--content-bg,#f1f5f9);color:var(--content-text,#0f172a);width:100%;min-height:0}
+.afv-top{display:flex;align-items:center;gap:8px;padding:10px 14px;padding-top:max(10px,env(safe-area-inset-top));background:var(--card,#fff);border-bottom:1px solid var(--card-border,#e2e8f0);flex-shrink:0;flex-wrap:wrap;backdrop-filter:saturate(1.2) blur(8px)}
+.afv-top-title{flex:1;font-size:17px;font-weight:800;letter-spacing:-.02em;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--content-text,#0f172a)}
+.afv-top-sub{display:block;font-size:11px;font-weight:600;color:var(--text2,#64748b);margin-top:1px;overflow:hidden;text-overflow:ellipsis}
 .afv-top-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.afv-top-btn{height:36px;padding:0 12px;border:1.5px solid var(--card-border,#e5e7eb);border-radius:10px;background:var(--card,#fff);color:var(--content-text,#334155);font:inherit;font-size:12px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
-.afv-top-btn:hover{border-color:#94a3b8}
-.afv-top-btn.primary{background:#0d9488;border-color:#0d9488;color:#fff}
+.afv-top-btn{height:38px;padding:0 12px;border:1px solid var(--card-border,#e2e8f0);border-radius:12px;background:var(--card,#fff);color:var(--content-text,#334155);font:inherit;font-size:12px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;transition:border-color .15s,background .15s,transform .12s}
+.afv-top-btn:hover{border-color:var(--afv-accent)}
+.afv-top-btn:active{transform:scale(.98)}
+.afv-top-btn.primary{background:var(--afv-accent);border-color:var(--afv-accent);color:#fff}
+.afv-top-btn.primary:hover{background:var(--afv-accent-h)}
 .afv-top-btn.cart{position:relative}
-.afv-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:#3b82f6;color:#fff;font-size:10px;font-weight:800}
-.afv-icon-btn{width:36px;height:36px;border:none;border-radius:10px;background:#f3f4f6;color:#334155;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
-.afv-tools{padding:10px 14px;background:#fff;border-bottom:1px solid #e5e7eb;flex-shrink:0;display:grid;gap:10px}
-.afv-search{display:flex;align-items:center;gap:8px;height:42px;padding:0 12px;border:1px solid #e5e7eb;border-radius:10px;background:#fff;color:#64748b}
-.afv-search input{flex:1;border:none;outline:none;background:transparent;font:inherit;font-size:14px;color:#111}
-.afv-tool-btns{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
-.afv-chip{height:34px;padding:0 12px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;font:inherit;font-size:11px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:6px;color:#334155}
-.afv-chip:hover{border-color:#94a3b8}
-.afv-sort{display:flex;gap:14px;justify-content:flex-end}
-.afv-sort-btn{border:none;background:none;font:inherit;font-size:11px;font-weight:800;color:#94a3b8;cursor:pointer;letter-spacing:.04em}
-.afv-sort-btn.is-on{color:#0f172a}
-.afv-body{flex:1;overflow:auto;padding:14px;min-height:0}
-.afv-grid-col{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
-.afv-banner{position:relative;min-height:170px;border-radius:8px;overflow:hidden;cursor:pointer;background:#1f2937;background-size:cover;background-position:center;box-shadow:0 4px 16px rgba(0,0,0,.12);transition:transform .15s}
-.afv-banner:hover{transform:translateY(-2px)}
-.afv-banner::after{content:'';position:absolute;inset:0;background:linear-gradient(transparent 30%,rgba(0,0,0,.75))}
-.afv-banner-lbl{position:absolute;left:14px;right:14px;bottom:12px;z-index:1;color:#fff;font-weight:800;font-size:16px;text-shadow:0 1px 4px rgba(0,0,0,.5)}
+.afv-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:#2563eb;color:#fff;font-size:10px;font-weight:800}
+.afv-icon-btn{width:40px;height:40px;border:none;border-radius:12px;background:var(--content-bg,#f1f5f9);color:var(--content-text,#334155);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:background .15s}
+.afv-icon-btn:hover{background:var(--afv-soft)}
+.afv-tools{padding:10px 14px;background:var(--card,#fff);border-bottom:1px solid var(--card-border,#e2e8f0);flex-shrink:0;display:grid;gap:10px}
+.afv-search{display:flex;align-items:center;gap:8px;height:44px;padding:0 14px;border:1.5px solid var(--card-border,#e2e8f0);border-radius:14px;background:var(--content-bg,#f8fafc);color:var(--text2,#64748b);transition:border-color .15s,box-shadow .15s}
+.afv-search:focus-within{border-color:var(--afv-accent);box-shadow:0 0 0 3px var(--afv-soft);background:var(--card,#fff)}
+.afv-search input{flex:1;border:none;outline:none;background:transparent;font:inherit;font-size:15px;color:var(--content-text,#0f172a)}
+.afv-search input::placeholder{color:var(--text2,#94a3b8)}
+.afv-tool-btns{display:flex;gap:8px;flex-wrap:wrap}
+.afv-chip{height:36px;padding:0 14px;border:1px solid var(--card-border,#e2e8f0);border-radius:999px;background:var(--card,#fff);font:inherit;font-size:12px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;color:var(--content-text,#334155);transition:border-color .15s,background .15s}
+.afv-chip:hover{border-color:var(--afv-accent);background:var(--afv-soft)}
+.afv-sort{display:flex;gap:4px;justify-content:flex-end;background:var(--content-bg,#f1f5f9);padding:3px;border-radius:10px;width:fit-content;margin-left:auto}
+.afv-sort-btn{border:none;background:transparent;font:inherit;font-size:11px;font-weight:800;color:var(--text2,#94a3b8);cursor:pointer;letter-spacing:.02em;padding:6px 12px;border-radius:8px}
+.afv-sort-btn.is-on{color:var(--content-text,#0f172a);background:var(--card,#fff);box-shadow:0 1px 3px rgba(15,23,42,.08)}
+.afv-body{flex:1;overflow:auto;padding:14px 14px calc(14px + env(safe-area-inset-bottom));min-height:0;scrollbar-width:thin}
+.afv-overlay.has-dock .afv-body{padding-bottom:calc(88px + env(safe-area-inset-bottom))}
+.afv-home-hero{margin:0 0 16px;padding:16px 18px;border-radius:16px;background:linear-gradient(135deg,var(--afv-accent),#115e59);color:#fff}
+.afv-home-greet{font-size:18px;font-weight:800;letter-spacing:-.02em}
+.afv-home-hint{font-size:13px;opacity:.9;margin-top:4px;line-height:1.4;max-width:36em}
+.afv-sec{margin-bottom:20px}
+.afv-sec-title{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text2,#64748b);margin:0 0 10px;padding-left:2px}
+.afv-grid-col{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+.afv-banner{position:relative;min-height:148px;border-radius:16px;overflow:hidden;cursor:pointer;background:#1f2937;background-size:cover;background-position:center;box-shadow:0 2px 12px rgba(15,23,42,.1);transition:transform .18s ease,box-shadow .18s}
+.afv-banner:hover{transform:translateY(-3px);box-shadow:0 10px 28px rgba(15,23,42,.16)}
+.afv-banner:active{transform:translateY(-1px)}
+.afv-banner::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,transparent 25%,rgba(0,0,0,.72))}
+.afv-banner-lbl{position:absolute;left:14px;right:14px;bottom:14px;z-index:1;color:#fff;font-weight:800;font-size:15px;text-shadow:0 1px 4px rgba(0,0,0,.4)}
 .afv-banner-sub{display:block;font-size:11px;font-weight:600;opacity:.9;margin-top:3px}
-.afv-grid-ref{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:12px}
-.afv-ref{background:#fff;border:1px solid #e5e7eb;border-radius:4px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column}
-.afv-ref:hover{border-color:#94a3b8}
-.afv-ref-img{aspect-ratio:1;background:#f8fafc;display:flex;align-items:center;justify-content:center;overflow:hidden}
-.afv-ref-img img{width:100%;height:100%;object-fit:cover}
-.afv-ref-code{padding:8px 6px;text-align:center;font-size:11px;font-weight:700;color:#64748b}
-.afv-empty{padding:48px 16px;text-align:center;color:#64748b;font-size:13px}
-.afv-detalhe{display:grid;grid-template-columns:72px 1fr;gap:16px;max-width:900px;margin:0 auto;min-height:calc(100% - 20px)}
+.afv-grid-ref{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.afv-ref{position:relative;background:var(--card,#fff);border:1px solid var(--card-border,#e2e8f0);border-radius:14px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;transition:border-color .15s,box-shadow .15s,transform .15s;content-visibility:auto;contain-intrinsic-size:auto 220px}
+.afv-ref:hover{border-color:var(--afv-accent);box-shadow:0 8px 20px rgba(15,23,42,.08);transform:translateY(-2px)}
+.afv-ref-img{aspect-ratio:1;background:var(--content-bg,#f8fafc);display:flex;align-items:center;justify-content:center;overflow:hidden;padding:10px;box-sizing:border-box}
+.afv-ref-img img{width:100%;height:100%;object-fit:contain;object-position:center}
+.afv-ref-empty{width:36%;max-width:48px;height:auto;opacity:.35;color:var(--text2,#94a3b8)}
+.afv-ref-body{padding:10px 10px 12px;display:flex;flex-direction:column;gap:3px;min-height:72px}
+.afv-ref-code{font-size:11px;font-weight:800;color:var(--text2,#64748b);line-height:1.25;word-break:break-word}
+.afv-ref-nome{font-size:12px;font-weight:600;color:var(--content-text,#0f172a);line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.afv-ref-preco{font-size:13px;font-weight:800;color:var(--afv-accent);margin-top:auto;padding-top:4px}
+.afv-ref-badge{position:absolute;top:8px;right:8px;background:rgba(15,23,42,.82);color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;backdrop-filter:blur(4px)}
+.afv-empty{padding:56px 20px;text-align:center;color:var(--text2,#64748b);font-size:14px;line-height:1.5}
+.afv-detalhe{display:grid;grid-template-columns:72px 1fr;gap:16px;max-width:960px;margin:0 auto;padding-bottom:8px}
+.afv-cores{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 8px;padding:0;justify-content:center}
+.afv-cor-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;border:1.5px solid var(--card-border,#d1d5db);background:var(--card,#fff);color:var(--content-text,#111);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;transition:border-color .15s,background .15s}
+.afv-cor-chip.is-on{border-color:var(--afv-accent);background:var(--afv-soft);color:var(--afv-accent-h);box-shadow:0 0 0 1px var(--afv-accent)}
+.afv-cor-chip img{width:24px;height:24px;border-radius:50%;object-fit:cover;background:var(--content-bg,#e5e7eb)}
 .afv-thumbs{display:flex;flex-direction:column;gap:8px;align-items:center}
-.afv-thumb{width:64px;height:64px;border:2px solid #e5e7eb;border-radius:6px;overflow:hidden;cursor:pointer;background:#fff;padding:0}
-.afv-thumb.is-on{border-color:#0d9488}
-.afv-thumb img{width:100%;height:100%;object-fit:cover}
-.afv-stage{position:relative;background:#fff;border-radius:8px;border:1px solid #e5e7eb;display:flex;flex-direction:column;align-items:center;padding:16px;min-height:420px}
-.afv-stage-nome{font-size:13px;font-weight:700;color:#334155;margin-bottom:12px;text-align:center}
-.afv-stage-img{max-width:100%;max-height:380px;object-fit:contain}
-.afv-fabs{position:absolute;right:16px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:12px}
-.afv-fab{width:52px;height:52px;border-radius:50%;border:none;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 6px 16px rgba(0,0,0,.18);background:#fff;color:#64748b}
-.afv-fab.cart{background:#16a34a;color:#fff}
+.afv-thumb{width:64px;height:64px;border:2px solid var(--card-border,#e2e8f0);border-radius:10px;overflow:hidden;cursor:pointer;background:var(--card,#fff);padding:0;transition:border-color .15s}
+.afv-thumb.is-on{border-color:var(--afv-accent)}
+.afv-thumb img{width:100%;height:100%;object-fit:contain;object-position:center;background:var(--card,#fff)}
+.afv-stage{position:relative;background:var(--card,#fff);border-radius:16px;border:1px solid var(--card-border,#e2e8f0);display:flex;flex-direction:column;align-items:center;padding:18px 18px 88px;min-height:400px}
+.afv-stage-nome{font-size:14px;font-weight:700;color:var(--content-text,#334155);margin-bottom:8px;text-align:center;line-height:1.35;max-width:36em}
+.afv-stage-img{max-width:100%;max-height:min(420px,55vh);object-fit:contain}
+.afv-fabs{position:absolute;right:14px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:10px}
+.afv-fab{width:48px;height:48px;border-radius:50%;border:none;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(15,23,42,.14);background:var(--card,#fff);color:var(--text2,#64748b);transition:transform .12s}
+.afv-fab:active{transform:scale(.94)}
 .afv-fab.heart.is-on{color:#ef4444}
-.afv-preco-box{position:absolute;right:16px;bottom:16px;background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:8px 12px;font-weight:800;font-size:14px}
-.afv-edit{max-width:720px;margin:0 auto;background:#fff;border-radius:10px;border:1px solid #e5e7eb;padding:18px;display:flex;flex-direction:column;min-height:calc(100% - 8px)}
+.afv-cta-bar{position:absolute;left:12px;right:12px;bottom:12px;display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:14px;background:var(--content-bg,#f8fafc);border:1px solid var(--card-border,#e2e8f0);box-shadow:0 4px 16px rgba(15,23,42,.08)}
+.afv-cta-price{font-size:16px;font-weight:800;color:var(--content-text,#0f172a);white-space:nowrap}
+.afv-cta-bar .afv-save{flex:1;height:44px}
+.afv-edit{max-width:720px;margin:0 auto;background:var(--card,#fff);border-radius:16px;border:1px solid var(--card-border,#e2e8f0);padding:20px;display:flex;flex-direction:column;min-height:calc(100% - 8px)}
 .afv-edit-top{display:flex;gap:16px;align-items:flex-start;margin-bottom:18px}
-.afv-edit-top img{width:110px;height:110px;object-fit:cover;border-radius:8px;background:#f1f5f9}
-.afv-edit-meta{font-size:13px;line-height:1.55}
+.afv-edit-top img{width:110px;height:110px;object-fit:contain;object-position:center;border-radius:12px;background:var(--content-bg,#f8fafc);padding:4px;box-sizing:border-box}
+.afv-edit-meta{font-size:13px;line-height:1.55;color:var(--content-text,#334155)}
 .afv-grade{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:8px 0 18px}
-.afv-gcell{width:78px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;padding:8px 4px;display:flex;flex-direction:column;align-items:center;gap:6px}
-.afv-gbtn{width:34px;height:34px;border:none;border-radius:8px;font-size:18px;font-weight:800;cursor:pointer;line-height:1}
-.afv-gbtn.plus{background:#0d9488;color:#fff}
+.afv-gcell{width:78px;background:var(--content-bg,#f8fafc);border:1px solid var(--card-border,#e2e8f0);border-radius:12px;padding:8px 4px;display:flex;flex-direction:column;align-items:center;gap:6px}
+.afv-gbtn{width:36px;height:36px;border:none;border-radius:10px;font-size:18px;font-weight:800;cursor:pointer;line-height:1}
+.afv-gbtn.plus{background:var(--afv-accent);color:#fff}
 .afv-gbtn.minus{background:#fecaca;color:#b91c1c}
-.afv-gqtd{font-size:18px;font-weight:900;min-height:24px}
-.afv-glbl{font-size:11px;font-weight:700;color:#64748b}
+.afv-gqtd{font-size:18px;font-weight:900;min-height:24px;color:var(--content-text,#0f172a)}
+.afv-glbl{font-size:11px;font-weight:700;color:var(--text2,#64748b)}
 .afv-qtd-wrap{display:flex;align-items:center;justify-content:center;gap:12px;margin:12px 0}
-.afv-qtd-wrap input{width:84px;height:42px;text-align:center;font-size:18px;font-weight:800;border:1.5px solid #e5e7eb;border-radius:10px}
-.afv-obs{width:100%;height:40px;border:1.5px solid #e5e7eb;border-radius:10px;padding:0 12px;font:inherit;margin-top:6px}
-.afv-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:auto;padding-top:16px;border-top:1px solid #e5e7eb}
-.afv-save{height:46px;padding:0 22px;border:none;border-radius:10px;background:#0d9488;color:#fff;font:inherit;font-weight:800;cursor:pointer;letter-spacing:.03em}
+.afv-qtd-wrap input{width:84px;height:44px;text-align:center;font-size:18px;font-weight:800;border:1.5px solid var(--card-border,#e2e8f0);border-radius:12px;background:var(--card,#fff);color:var(--content-text,#0f172a)}
+.afv-obs{width:100%;height:42px;border:1.5px solid var(--card-border,#e2e8f0);border-radius:12px;padding:0 12px;font:inherit;margin-top:6px;background:var(--card,#fff);color:var(--content-text,#0f172a);box-sizing:border-box}
+.afv-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:auto;padding-top:16px;border-top:1px solid var(--card-border,#e2e8f0)}
+.afv-save{height:48px;padding:0 22px;border:none;border-radius:12px;background:var(--afv-accent);color:#fff;font:inherit;font-weight:800;cursor:pointer;letter-spacing:.02em;transition:background .15s,transform .12s}
+.afv-save:hover{background:var(--afv-accent-h)}
+.afv-save:active{transform:scale(.98)}
 .afv-save:disabled{opacity:.55;cursor:not-allowed}
-.afv-more{display:block;margin:16px auto;height:38px;padding:0 18px;border-radius:10px;border:1.5px solid #e5e7eb;background:#fff;font:inherit;font-weight:700;cursor:pointer}
+.afv-more{display:block;margin:16px auto;height:40px;padding:0 20px;border-radius:12px;border:1.5px solid var(--card-border,#e2e8f0);background:var(--card,#fff);color:var(--content-text,#334155);font:inherit;font-weight:700;cursor:pointer}
 .afv-cart-list{display:grid;gap:10px;max-width:820px;margin:0 auto}
-.afv-cart-row{display:flex;gap:12px;align-items:center;background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px}
-.afv-cart-row img{width:64px;height:64px;object-fit:cover;border-radius:8px;background:#f1f5f9;flex-shrink:0}
-.afv-cart-meta{flex:1;min-width:0;font-size:13px;line-height:1.45}
+.afv-cart-row{display:flex;gap:12px;align-items:center;background:var(--card,#fff);border:1px solid var(--card-border,#e2e8f0);border-radius:14px;padding:12px}
+.afv-cart-row img{width:64px;height:64px;object-fit:contain;object-position:center;border-radius:10px;background:var(--content-bg,#f8fafc);padding:3px;box-sizing:border-box;flex-shrink:0}
+.afv-cart-meta{flex:1;min-width:0;font-size:13px;line-height:1.45;color:var(--content-text,#334155)}
 .afv-cart-meta strong{display:block;font-size:13px}
-.afv-cart-rm{border:none;background:#fee2e2;color:#b91c1c;border-radius:8px;height:34px;padding:0 12px;font:inherit;font-weight:700;cursor:pointer}
-.afv-pre{max-width:560px;margin:0 auto;background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px;display:grid;gap:12px}
-.afv-pre h3{margin:0;font-size:16px}
-.afv-pre label{font-size:10px;text-transform:uppercase;font-weight:800;color:#64748b;display:block;margin-bottom:4px}
-.afv-pre input,.afv-pre select,.afv-pre textarea{width:100%;height:40px;border:1.5px solid #e5e7eb;border-radius:10px;padding:0 12px;font:inherit;background:#fff;color:#111;box-sizing:border-box}
+.afv-cart-rm{border:none;background:#fee2e2;color:#b91c1c;border-radius:10px;height:36px;padding:0 12px;font:inherit;font-weight:700;cursor:pointer}
+.afv-pre{max-width:560px;margin:0 auto;background:var(--card,#fff);border:1px solid var(--card-border,#e2e8f0);border-radius:16px;padding:20px;display:grid;gap:14px}
+.afv-pre h3{margin:0;font-size:17px;letter-spacing:-.02em;color:var(--content-text,#0f172a)}
+.afv-pre label{font-size:10px;text-transform:uppercase;font-weight:800;color:var(--text2,#64748b);display:block;margin-bottom:4px}
+.afv-pre input,.afv-pre select,.afv-pre textarea{width:100%;height:42px;border:1.5px solid var(--card-border,#e2e8f0);border-radius:12px;padding:0 12px;font:inherit;background:var(--card,#fff);color:var(--content-text,#0f172a);box-sizing:border-box}
 .afv-pre textarea{height:72px;padding:10px 12px;resize:vertical}
-.afv-pre select option{color:#111;background:#fff}
+.afv-pre select option{color:var(--content-text,#0f172a);background:var(--card,#fff)}
 .afv-ac{position:relative}
-.afv-ac-list{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:20;max-height:220px;overflow:auto;background:#fff;border:1.5px solid #e5e7eb;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);display:none}
+.afv-ac-list{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:20;max-height:220px;overflow:auto;background:var(--card,#fff);border:1.5px solid var(--card-border,#e2e8f0);border-radius:12px;box-shadow:0 12px 32px rgba(15,23,42,.14);display:none}
 .afv-ac-list.show{display:block}
-.afv-ac-item{padding:10px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid #f1f5f9}
-.afv-ac-item:hover{background:#f0fdfa}
-.afv-ac-item small{display:block;font-size:11px;color:#64748b;margin-top:2px}
-.afv-cli-sel{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;background:#f0fdfa;border:1px solid #99f6e4;font-size:13px}
-.afv-cli-sel button{margin-left:auto;border:none;background:none;color:#0d9488;font:inherit;font-weight:700;cursor:pointer}
-.afv-resumo{font-size:13px;color:#334155;background:#f8fafc;border-radius:10px;padding:10px 12px;line-height:1.5}
-.afv-ok{max-width:480px;margin:40px auto;text-align:center;background:#fff;border-radius:12px;border:1px solid #e5e7eb;padding:28px 20px}
+.afv-ac-item{padding:12px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--card-border,#f1f5f9);color:var(--content-text,#0f172a)}
+.afv-ac-item:hover{background:var(--afv-soft)}
+.afv-ac-item small{display:block;font-size:11px;color:var(--text2,#64748b);margin-top:2px}
+.afv-cli-sel{display:flex;align-items:center;gap:8px;padding:12px 14px;border-radius:12px;background:var(--afv-soft);border:1px solid color-mix(in srgb,var(--afv-accent) 35%,transparent);font-size:13px;color:var(--content-text,#0f172a)}
+.afv-cli-sel button{margin-left:auto;border:none;background:none;color:var(--afv-accent);font:inherit;font-weight:700;cursor:pointer}
+.afv-resumo{font-size:13px;color:var(--content-text,#334155);background:var(--content-bg,#f8fafc);border-radius:12px;padding:12px 14px;line-height:1.5}
+.afv-ok{max-width:480px;margin:40px auto;text-align:center;background:var(--card,#fff);border-radius:16px;border:1px solid var(--card-border,#e2e8f0);padding:32px 22px}
 .afv-ok h3{margin:0 0 8px;color:#16a34a}
 .afv-pend-list{display:grid;gap:10px;max-width:900px;margin:0 auto}
-.afv-pend-row{display:flex;gap:12px;align-items:flex-start;justify-content:space-between;background:var(--card,#fff);border:1px solid var(--card-border,#e5e7eb);border-radius:10px;padding:12px 14px;cursor:pointer;flex-wrap:wrap}
-.afv-pend-row:hover{border-color:#0d9488}
-.afv-pend-meta{font-size:13px;line-height:1.45;min-width:0;flex:1}
+.afv-pend-row{display:flex;gap:12px;align-items:flex-start;justify-content:space-between;background:var(--card,#fff);border:1px solid var(--card-border,#e2e8f0);border-radius:14px;padding:14px;cursor:pointer;flex-wrap:wrap;transition:border-color .15s}
+.afv-pend-row:hover{border-color:var(--afv-accent)}
+.afv-pend-meta{font-size:13px;line-height:1.45;min-width:0;flex:1;color:var(--content-text,#334155)}
 .afv-pend-meta strong{display:block;font-size:14px}
-.afv-pend-sub{font-size:11px;color:#64748b;margin-top:2px}
-.afv-pend-val{font-size:14px;font-weight:800;color:#0d9488;white-space:nowrap}
+.afv-pend-sub{font-size:11px;color:var(--text2,#64748b);margin-top:2px}
+.afv-pend-val{font-size:15px;font-weight:800;color:var(--afv-accent);white-space:nowrap}
 .afv-pend-badge{display:inline-block;font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;background:#fef3c7;color:#b45309;margin-left:6px}
-.afv-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:2147483646;background:#0f172a;color:#fff;padding:10px 18px;border-radius:999px;font-size:13px;font-weight:700;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+.afv-dock{display:none;position:sticky;bottom:0;z-index:5;margin-top:auto;flex-shrink:0;padding:10px 14px calc(10px + env(safe-area-inset-bottom));background:var(--card,#fff);border-top:1px solid var(--card-border,#e2e8f0);box-shadow:0 -8px 28px rgba(15,23,42,.1)}
+.afv-overlay.has-dock .afv-dock{display:flex;align-items:center;gap:12px}
+.afv-dock-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.afv-dock-info span{font-size:12px;font-weight:600;color:var(--text2,#64748b)}
+.afv-dock-info strong{font-size:17px;font-weight:800;color:var(--content-text,#0f172a);letter-spacing:-.02em}
+.afv-dock-cta{height:48px;padding:0 20px;border:none;border-radius:12px;background:var(--afv-accent);color:#fff;font:inherit;font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap;transition:background .15s}
+.afv-dock-cta:hover{background:var(--afv-accent-h)}
+.afv-toast{position:fixed;bottom:calc(24px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);z-index:2147483646;background:#0f172a;color:#fff;padding:12px 20px;border-radius:999px;font-size:13px;font-weight:700;box-shadow:0 8px 24px rgba(0,0,0,.25);max-width:min(92vw,420px);text-align:center}
+.afv-overlay.has-dock .afv-toast{bottom:calc(96px + env(safe-area-inset-bottom))}
 .afv-toast-err{background:#b91c1c}.afv-toast-warn{background:#b45309}
 @media(max-width:720px){
   .afv-detalhe{grid-template-columns:1fr}
-  .afv-thumbs{flex-direction:row;overflow:auto}
-  .afv-fabs{position:static;transform:none;flex-direction:row;justify-content:center;margin-top:14px}
-  .afv-preco-box{position:static;margin-top:12px}
+  .afv-thumbs{flex-direction:row;overflow:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+  .afv-fabs{position:static;transform:none;flex-direction:row;justify-content:center;margin:12px 0 0}
+  .afv-stage{padding-bottom:18px}
+  .afv-cta-bar{position:sticky;bottom:0;left:0;right:0;margin:14px -4px 0;z-index:2}
   .afv-tool-btns{justify-content:stretch}
   .afv-chip{flex:1;justify-content:center}
-  .afv-top-title{font-size:16px;min-width:120px}
-  .afv-top-btn{font-size:11px;padding:0 10px}
-  .afv-top-btn .afv-badge{margin-left:2px}
+  .afv-top-title{font-size:15px;min-width:100px}
+  .afv-top-btn{font-size:11px;padding:0 10px;height:36px}
+  .afv-top-btn .afv-lbl-desk{display:none}
+  .afv-top-btn .afv-lbl-mob{display:inline !important}
+  .afv-grid-ref{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+  .afv-ref-img{padding:6px}
+  .afv-home-hero{padding:14px 16px}
+  .afv-grid-col{grid-template-columns:1fr}
+}
+@media(min-width:900px){
+  .afv-grid-ref{grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:14px}
+  .afv-body{padding:18px 22px calc(18px + env(safe-area-inset-bottom))}
 }
 `;
 
   function ensure(opts) {
     let el = document.getElementById('catalogoAfvOverlay');
-    if (el && el.querySelector('.afv-rail')) {
+    // Recria se estrutura antiga (sem dock sticky)
+    if (el && (el.querySelector('.afv-rail') || !el.querySelector('#afvDock'))) {
       el.remove();
       el = null;
     }
@@ -282,13 +329,16 @@
       <div class="afv-main">
         <header class="afv-top">
           <button type="button" class="afv-icon-btn" id="afvBack" title="Voltar">${ico('back')}</button>
-          <div class="afv-top-title" id="afvTitle">Coleções</div>
+          <div style="flex:1;min-width:0">
+            <div class="afv-top-title" id="afvTitle">Showroom</div>
+            <span class="afv-top-sub" id="afvSub" hidden></span>
+          </div>
           <div class="afv-top-actions">
             <button type="button" class="afv-top-btn cart" id="afvBtnCart" title="Carrinho">
-              ${ico('bag')} Carrinho <span class="afv-badge" id="afvBadge">0</span>
+              ${ico('bag')}<span class="afv-lbl-desk"> Carrinho</span> <span class="afv-badge" id="afvBadge">0</span>
             </button>
-            <button type="button" class="afv-top-btn primary" id="afvBtnPendentes" title="Pedidos pendentes (mesma regra de visibilidade do sistema)">
-              Pedidos pendentes
+            <button type="button" class="afv-top-btn primary" id="afvBtnPendentes" title="Pedidos pendentes">
+              <span class="afv-lbl-desk">Pendentes</span><span class="afv-lbl-mob" style="display:none">Pend.</span>
             </button>
             <button type="button" class="afv-icon-btn" id="afvClose" title="Fechar">${ico('x')}</button>
           </div>
@@ -296,18 +346,25 @@
         <div class="afv-tools" id="afvTools">
           <div class="afv-search">
             ${ico('search')}
-            <input type="search" id="afvBusca" placeholder="Pesquisar" autocomplete="off">
+            <input type="search" id="afvBusca" placeholder="Buscar coleção, fábrica ou referência…" autocomplete="off">
           </div>
           <div class="afv-tool-btns" id="afvToolBtns">
             <button type="button" class="afv-chip" data-acao="fav">${ico('heart')} Favoritos</button>
             <button type="button" class="afv-chip" data-acao="completo">${ico('grid')} Catálogo completo</button>
           </div>
           <div class="afv-sort" id="afvSort">
-            <button type="button" class="afv-sort-btn" data-sort="cadastro">Cadastro ▾</button>
+            <button type="button" class="afv-sort-btn" data-sort="cadastro">Cadastro</button>
             <button type="button" class="afv-sort-btn is-on" data-sort="nome">Nome</button>
           </div>
         </div>
         <div class="afv-body" id="afvBody"></div>
+        <div class="afv-dock" id="afvDock" aria-live="polite">
+          <div class="afv-dock-info">
+            <span id="afvDockQtd">0 itens</span>
+            <strong id="afvDockTotal">R$&nbsp;0,00</strong>
+          </div>
+          <button type="button" class="afv-dock-cta" id="afvDockCta">Ver carrinho</button>
+        </div>
       </div>`;
     document.body.appendChild(el);
 
@@ -323,6 +380,7 @@
     document.getElementById('afvClose').onclick = fechar;
     document.getElementById('afvBack').onclick = voltar;
     document.getElementById('afvBtnCart').onclick = () => { S.view = 'carrinho'; render(); };
+    document.getElementById('afvDockCta').onclick = () => { S.view = 'carrinho'; render(); };
     document.getElementById('afvBtnPendentes').onclick = () => abrirPendentes();
     document.getElementById('afvBusca').oninput = (e) => {
       S.busca = e.target.value.trim();
@@ -417,7 +475,14 @@
     if (S.view === 'prepedido') { S.view = 'carrinho'; render(); return; }
     if (S.view === 'carrinho') { S.view = 'colecoes'; render(); return; }
     if (S.view === 'editar') { S.view = 'detalhe'; render(); return; }
-    if (S.view === 'detalhe') { S.view = 'refs'; S.produto = null; render(); return; }
+    if (S.view === 'detalhe') {
+      S.view = 'refs';
+      S.produto = null;
+      S.variacoesCores = [];
+      S.variacoesMae = null;
+      render();
+      return;
+    }
     if (S.view === 'refs') {
       S.view = 'colecoes';
       S.fonte = null;
@@ -431,9 +496,37 @@
     fechar();
   }
 
+  function setSub(txt) {
+    const el = document.getElementById('afvSub');
+    if (!el) return;
+    if (txt) {
+      el.textContent = txt;
+      el.hidden = false;
+    } else {
+      el.textContent = '';
+      el.hidden = true;
+    }
+  }
+
   function atualizarBadge() {
+    const qtd = cartQtd();
+    const nItens = S.cart.length;
     const b = document.getElementById('afvBadge');
-    if (b) b.textContent = String(Math.round(cartQtd()) || S.cart.length || 0);
+    if (b) b.textContent = String(Math.round(qtd) || nItens || 0);
+
+    const ov = document.getElementById('catalogoAfvOverlay');
+    const showDock = qtd > 0 && ['colecoes', 'refs', 'detalhe', 'editar'].includes(S.view);
+    if (ov) ov.classList.toggle('has-dock', showDock);
+
+    const dq = document.getElementById('afvDockQtd');
+    const dt = document.getElementById('afvDockTotal');
+    if (dq) {
+      const pcs = Math.round(qtd);
+      dq.textContent = nItens
+        ? `${nItens} produto${nItens !== 1 ? 's' : ''} · ${pcs} un.`
+        : 'Carrinho vazio';
+    }
+    if (dt) dt.textContent = money(cartTotal());
   }
 
   async function abrirPendentes() {
@@ -552,14 +645,15 @@
   async function carregarTabelas() {
     const map = new Map();
     try {
-      const d = await apiJson('/api/tabela-precos/disponiveis-para/0/0/' + (userId() || 0));
+      const d = await apiJson('/api/tabela-precos/disponiveis-para/0/0/' + (userId() || 0) + '?showroom=1');
       (d.tabelas || []).forEach((t) => {
         const id = t.id_tabela || t.id;
         if (id) map.set(String(id), { id, descricao: t.descricao || ('Tabela ' + id) });
       });
     } catch (_) {}
     try {
-      const d2 = await apiJson('/api/tabela-precos?limit=80');
+      // Só tabelas com «Aparece no Showroom? = Sim» (default N no cadastro)
+      const d2 = await apiJson('/api/tabela-precos?limit=80&showroom=1');
       (d2.tabelas || []).forEach((t) => {
         if (!t.id || map.has(String(t.id))) return;
         const ativo = String(t.Tabela_Ativa || t.ativo || 'S').toUpperCase();
@@ -588,7 +682,36 @@
       disponivel: p.disponivel,
       cod_fornecedor: forn,
       nome_fornecedor: p.nome_fornecedor || '',
+      id_referencia: parseInt(p.id_referencia, 10) || null,
+      cor1: p.cor1 || '',
+      qtd_cores: parseInt(p.qtd_cores, 10) || 0,
     };
+  }
+
+  /** Coleção: 1 card por referência (prefere a mãe se estiver na lista). */
+  function colapsarItensReferencia(itens) {
+    const map = new Map();
+    const order = [];
+    for (const raw of itens || []) {
+      const it = { ...raw };
+      const cod = parseInt(it.cod_produto, 10) || 0;
+      const idRef = parseInt(it.id_referencia, 10) || 0;
+      const key = idRef > 0 ? idRef : cod;
+      if (!key) continue;
+      const existing = map.get(key);
+      if (!existing) {
+        it.qtd_cores = idRef > 0 ? 1 : 0;
+        map.set(key, it);
+        order.push(key);
+      } else {
+        existing.qtd_cores = (existing.qtd_cores || 0) + 1;
+        if (idRef === 0 && (parseInt(existing.id_referencia, 10) || 0) > 0) {
+          it.qtd_cores = existing.qtd_cores;
+          map.set(key, it);
+        }
+      }
+    }
+    return order.map((k) => map.get(k));
   }
 
   async function abrirColecao(id) {
@@ -597,7 +720,7 @@
       const d = await apiJson('/api/catalogos/' + id);
       const fornCat = d.catalogo?.cod_fornecedor || null;
       S.fonte = { tipo: 'colecao', id, nome: d.catalogo?.nome || 'Coleção', cod_fornecedor: fornCat };
-      S.itens = (d.itens || []).map((p) => normItem(p, fornCat));
+      S.itens = colapsarItensReferencia((d.itens || []).map((p) => normItem(p, fornCat)));
       S.total = S.itens.length;
       S.offset = S.itens.length;
       S.view = 'refs';
@@ -672,6 +795,7 @@
     try {
       const params = new URLSearchParams({
         catalogo: '1',
+        agrupar_referencia: '1',
         limit: String(PAGE),
         offset: String(S.offset),
         q: S.busca || '',
@@ -728,59 +852,73 @@
     atualizarBadge();
 
     if (S.view === 'colecoes') {
-      title.textContent = 'Coleções';
+      title.textContent = 'Showroom';
+      setSub(userNome() ? `Vendedor: ${userNome()}` : 'Escolha uma coleção para vender');
       tools.style.display = '';
-      sort.style.display = '';
+      sort.style.display = 'none';
       const toolBtns = document.getElementById('afvToolBtns');
       if (toolBtns) toolBtns.style.display = '';
       const buscaInp = document.getElementById('afvBusca');
-      if (buscaInp) buscaInp.placeholder = 'Pesquisar';
-      const cards = [];
-      filtrarBusca(S.catalogos, (c) => `${c.nome} ${c.subtitulo || ''} ${c.nome_fornecedor || ''}`).forEach((c) => {
-        const bg = c.imagem_capa
-          ? `background-image:url('${esc(c.imagem_capa)}')`
-          : `background:${esc(c.cor_fundo || '#1f2937')}`;
-        cards.push(`<div class="afv-banner" data-tipo="colecao" data-id="${c.id}" style="${bg}">
-          <div class="afv-banner-lbl">${esc(c.nome)}
-            <span class="afv-banner-sub">${esc(c.subtitulo || (c.qtd_itens || 0) + ' referências')}</span>
-          </div>
-        </div>`);
-      });
-      filtrarBusca(S.fabricas, (f) => `${f.nome || ''} ${f.id}`).slice(0, 12).forEach((f, i) => {
-        cards.push(`<div class="afv-banner" data-tipo="fabrica" data-id="${f.id}" data-nome="${esc(f.nome || '')}" style="background:${CORES[i % CORES.length]}">
-          <div class="afv-banner-lbl">${esc(f.nome || ('#' + f.id))}
-            <span class="afv-banner-sub">Catálogo completo da fábrica</span>
-          </div>
-        </div>`);
-      });
-      filtrarBusca(S.tabelas, (t) => `${t.descricao || ''} ${t.id}`).slice(0, 8).forEach((t, i) => {
-        cards.push(`<div class="afv-banner" data-tipo="tabela" data-id="${t.id}" data-nome="${esc(t.descricao || '')}" style="background:${CORES[(i + 3) % CORES.length]}">
-          <div class="afv-banner-lbl">${esc(t.descricao || ('Tabela ' + t.id))}
-            <span class="afv-banner-sub">Tabela de preço</span>
-          </div>
-        </div>`);
-      });
-      if (!cards.length) {
-        body.innerHTML = `<div class="afv-empty">Nenhuma coleção.<br>Cadastre em Comercial → Catálogos Visuais<br>ou use CATÁLOGO COMPLETO / uma fábrica.</div>`;
-        return;
-      }
-      body.innerHTML = `<div class="afv-grid-col">${cards.join('')}</div>`;
-      body.querySelectorAll('.afv-banner').forEach((el) => {
+      if (buscaInp) buscaInp.placeholder = 'Buscar coleção, fábrica ou tabela…';
+
+      const bindBanner = (el) => {
         el.onclick = () => {
           if (el.dataset.tipo === 'colecao') abrirColecao(el.dataset.id);
           else if (el.dataset.tipo === 'fabrica') abrirFabrica(el.dataset.id, el.dataset.nome);
           else abrirTabela(el.dataset.id, el.dataset.nome);
         };
+      };
+
+      const colCards = filtrarBusca(S.catalogos, (c) => `${c.nome} ${c.subtitulo || ''} ${c.nome_fornecedor || ''}`).map((c) => {
+        const bg = c.imagem_capa
+          ? `background-image:url('${esc(c.imagem_capa)}')`
+          : `background:${esc(c.cor_fundo || '#1f2937')}`;
+        return `<div class="afv-banner" data-tipo="colecao" data-id="${c.id}" style="${bg}">
+          <div class="afv-banner-lbl">${esc(c.nome)}
+            <span class="afv-banner-sub">${esc(c.subtitulo || (c.qtd_itens || 0) + ' referências')}</span>
+          </div>
+        </div>`;
       });
+      const fabCards = filtrarBusca(S.fabricas, (f) => `${f.nome || ''} ${f.id}`).slice(0, 12).map((f, i) =>
+        `<div class="afv-banner" data-tipo="fabrica" data-id="${f.id}" data-nome="${esc(f.nome || '')}" style="background:${CORES[i % CORES.length]}">
+          <div class="afv-banner-lbl">${esc(f.nome || ('#' + f.id))}
+            <span class="afv-banner-sub">Catálogo completo da fábrica</span>
+          </div>
+        </div>`);
+      const tabCards = filtrarBusca(S.tabelas, (t) => `${t.descricao || ''} ${t.id}`).slice(0, 8).map((t, i) =>
+        `<div class="afv-banner" data-tipo="tabela" data-id="${t.id}" data-nome="${esc(t.descricao || '')}" style="background:${CORES[(i + 3) % CORES.length]}">
+          <div class="afv-banner-lbl">${esc(t.descricao || ('Tabela ' + t.id))}
+            <span class="afv-banner-sub">Tabela de preço</span>
+          </div>
+        </div>`);
+
+      if (!colCards.length && !fabCards.length && !tabCards.length) {
+        body.innerHTML = `<div class="afv-empty">Nenhuma coleção disponível.<br>Cadastre em Comercial → Catálogos Visuais<br>ou use <strong>Catálogo completo</strong> / uma fábrica.</div>`;
+        return;
+      }
+
+      const nome = userNome();
+      const hero = `<div class="afv-home-hero">
+        <div class="afv-home-greet">${nome ? `Olá, ${esc(nome.split(' ')[0])}` : 'Showroom'}</div>
+        <div class="afv-home-hint">Mostre as fotos ao cliente, escolha a cor e monte o pedido — o carrinho fica sempre à mão.</div>
+      </div>`;
+      const sec = (titulo, cards) => cards.length
+        ? `<section class="afv-sec"><h2 class="afv-sec-title">${titulo}</h2><div class="afv-grid-col">${cards.join('')}</div></section>`
+        : '';
+      body.innerHTML = hero + sec('Coleções', colCards) + sec('Fábricas', fabCards) + sec('Tabelas de preço', tabCards);
+      body.querySelectorAll('.afv-banner').forEach(bindBanner);
       return;
     }
 
     if (S.view === 'refs') {
-      title.textContent = 'Referências';
+      title.textContent = S.fonte?.nome || 'Referências';
+      setSub(S.fonte?.tipo === 'favoritos' ? 'Seus favoritos' : 'Toque na referência para ver fotos e cores');
       tools.style.display = '';
       sort.style.display = '';
       const toolBtns = document.getElementById('afvToolBtns');
       if (toolBtns) toolBtns.style.display = '';
+      const buscaInp = document.getElementById('afvBusca');
+      if (buscaInp) buscaInp.placeholder = 'Buscar código ou descrição…';
       let list = S.fonte?.tipo === 'colecao' || S.fonte?.tipo === 'favoritos'
         ? filtrarBusca(S.itens, (it) => `${it.cod_fabricante} ${it.desc_produto} ${it.cod_produto}`)
         : S.itens;
@@ -792,15 +930,32 @@
       const more = (S.fonte?.tipo !== 'colecao' && S.fonte?.tipo !== 'favoritos' && (S.total == null || S.itens.length < S.total))
         ? `<button type="button" class="afv-more" id="afvMore">${S.loadingMore ? 'Carregando…' : 'Carregar mais'}</button>`
         : '';
+      const emptyFoto = `<svg class="afv-ref-empty" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7a2 2 0 012-2h2.5l1.2-1.8A1 1 0 019.5 3h5a1 1 0 01.8.4L16.5 5H19a2 2 0 012 2v11a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/><circle cx="12" cy="13" r="3.5"/></svg>`;
       body.innerHTML = `<div class="afv-grid-ref">${list.map((it) => {
-        const foto = it.foto_principal
-          ? `<img src="${esc(it.foto_principal)}" alt="" loading="lazy" onerror="this.parentElement.textContent='📷'">`
-          : '📷';
+        const fotoHtml = it.foto_principal
+          ? `<img src="${esc(it.foto_principal)}" alt="" loading="lazy" decoding="async">`
+          : emptyFoto;
+        const badge = (it.qtd_cores > 0)
+          ? `<span class="afv-ref-badge">${it.qtd_cores} cor${it.qtd_cores > 1 ? 'es' : ''}</span>`
+          : '';
+        const preco = (parseFloat(it.vlr_venda) || 0) > 0
+          ? `<div class="afv-ref-preco">${money(it.vlr_venda)}</div>`
+          : '';
+        const nome = it.desc_produto
+          ? `<div class="afv-ref-nome">${esc(it.desc_produto)}</div>`
+          : '';
         return `<div class="afv-ref" data-id="${it.cod_produto}">
-          <div class="afv-ref-img">${foto}</div>
-          <div class="afv-ref-code">${esc(it.cod_fabricante || it.cod_produto)}</div>
+          <div class="afv-ref-img">${fotoHtml}${badge}</div>
+          <div class="afv-ref-body">
+            <div class="afv-ref-code">${esc(it.cod_fabricante || it.cod_produto)}</div>
+            ${nome}
+            ${preco}
+          </div>
         </div>`;
       }).join('')}</div>${more}`;
+      body.querySelectorAll('.afv-ref-img img').forEach((img) => {
+        img.onerror = () => { img.replaceWith(Object.assign(document.createElement('div'), { innerHTML: emptyFoto }).firstChild); };
+      });
       body.querySelectorAll('.afv-ref').forEach((el) => {
         el.onclick = () => abrirDetalhe(parseInt(el.dataset.id, 10));
       });
@@ -810,11 +965,24 @@
 
     if (S.view === 'detalhe') {
       const p = S.produto;
-      title.textContent = 'Ref.: ' + (p.cod_fabricante || p.cod_produto);
+      const maeCod = S.variacoesMae?.cod_fabricante || S.variacoesMae?.id || p.cod_fabricante || p.cod_produto;
+      title.textContent = 'Ref. ' + maeCod;
+      setSub(p.cor1 ? `Cor: ${p.cor1}` : 'Escolha a cor e adicione ao pedido');
       tools.style.display = 'none';
       const imgs = S.imagens.length ? S.imagens : (p.foto_principal ? [p.foto_principal] : []);
       const src = imgs[S.imgIdx] || p.foto_principal || '';
       const favOn = S.favoritos.has(String(p.cod_produto));
+      const coresHtml = (S.variacoesCores && S.variacoesCores.length)
+        ? `<div class="afv-cores" id="afvCores" aria-label="Cores disponíveis">${S.variacoesCores.map((c) => {
+            const on = parseInt(c.cod_produto, 10) === parseInt(p.cod_produto, 10) ? 'is-on' : '';
+            const lbl = c.cor1 || c.cod_fabricante || ('#' + c.cod_produto);
+            const thumb = c.foto_principal
+              ? `<img src="${esc(c.foto_principal)}" alt="">`
+              : '';
+            return `<button type="button" class="afv-cor-chip ${on}" data-cod="${c.cod_produto}">${thumb}${esc(lbl)}</button>`;
+          }).join('')}</div>`
+        : '';
+      const corLbl = p.cor1 ? ` · ${p.cor1}` : '';
       body.innerHTML = `<div class="afv-detalhe">
         <div class="afv-thumbs">
           <button type="button" class="afv-icon-btn" id="afvThumbUp" title="Anterior">▲</button>
@@ -824,14 +992,17 @@
           <button type="button" class="afv-icon-btn" id="afvThumbDn" title="Próxima">▼</button>
         </div>
         <div class="afv-stage">
-          <div class="afv-stage-nome">${esc(p.cod_fabricante || p.cod_produto)} — ${esc(p.desc_produto || '')}</div>
-          ${src ? `<img class="afv-stage-img" src="${esc(src)}" alt="">` : ''}
+          <div class="afv-stage-nome">${esc(p.cod_fabricante || p.cod_produto)}${esc(corLbl)} — ${esc(p.desc_produto || '')}</div>
+          ${coresHtml}
+          ${src ? `<img class="afv-stage-img" src="${esc(src)}" alt="">` : '<div class="afv-empty">Sem foto deste produto</div>'}
           <div class="afv-fabs">
             <button type="button" class="afv-fab heart ${favOn ? 'is-on' : ''}" id="afvFav" title="Favorito">${ico('heart')}</button>
             <button type="button" class="afv-fab" id="afvInfo" title="Detalhes">${ico('list')}</button>
-            <button type="button" class="afv-fab cart" id="afvCart" title="Incluir no carrinho">${ico('bag')}</button>
           </div>
-          <div class="afv-preco-box">${money(p.vlr_venda)}</div>
+          <div class="afv-cta-bar">
+            <div class="afv-cta-price">${money(p.vlr_venda)}</div>
+            <button type="button" class="afv-save" id="afvCart">Adicionar ao pedido</button>
+          </div>
         </div>
       </div>`;
       document.getElementById('afvCart').onclick = () => abrirEditar();
@@ -843,6 +1014,9 @@
         render();
       };
       document.getElementById('afvInfo').onclick = () => toast((p.desc_produto || '') + ' · ' + money(p.vlr_venda), 'ok');
+      body.querySelectorAll('.afv-cor-chip').forEach((btn) => {
+        btn.onclick = () => selecionarCorSku(parseInt(btn.dataset.cod, 10));
+      });
       body.querySelectorAll('.afv-thumb').forEach((t) => {
         t.onclick = () => { S.imgIdx = parseInt(t.dataset.i, 10) || 0; render(); };
       });
@@ -857,7 +1031,8 @@
 
     if (S.view === 'editar') {
       const p = S.produto;
-      title.textContent = 'Editar Produto';
+      title.textContent = 'Quantidade';
+      setSub(p.cod_fabricante || p.desc_produto || 'Defina a quantidade');
       tools.style.display = 'none';
       const temGrade = !!(S.habilitaGrade === 'S' && p.tipograde && S.gradeItens.length);
       let mid = '';
@@ -896,7 +1071,7 @@
         <input type="text" class="afv-obs" id="afvObs" maxlength="100" value="${esc(S.obsItem)}" placeholder="Opcional">
         <div class="afv-foot">
           <div><strong>Total:</strong> ${money(totalVlr)} &nbsp;·&nbsp; <strong>Itens:</strong> ${totalQtd}</div>
-          <button type="button" class="afv-save" id="afvSalvar">ADICIONAR AO CARRINHO</button>
+          <button type="button" class="afv-save" id="afvSalvar">Adicionar ao pedido</button>
         </div>
       </div>`;
       if (temGrade) {
@@ -920,9 +1095,12 @@
 
     if (S.view === 'carrinho') {
       title.textContent = 'Carrinho';
+      setSub('Revise os itens com o cliente antes de seguir');
       tools.style.display = 'none';
       if (!S.cart.length) {
-        body.innerHTML = `<div class="afv-empty">Carrinho vazio.<br>Escolha uma coleção e adicione produtos.</div>`;
+        body.innerHTML = `<div class="afv-empty">Carrinho vazio.<br>Escolha uma coleção e adicione produtos.<br>
+          <button type="button" class="afv-save" id="afvVoltarHome" style="margin-top:16px">Escolher coleção</button></div>`;
+        document.getElementById('afvVoltarHome')?.addEventListener('click', () => { S.view = 'colecoes'; render(); });
         return;
       }
       body.innerHTML = `<div class="afv-cart-list">
@@ -932,7 +1110,7 @@
             <div class="afv-cart-meta">
               <strong>${esc(it.cod_fabricante || it.cod_produto)} — ${esc(it.desc_produto || '')}</strong>
               <div>${it.quantidade} × ${money(it.vlr_venda)} = <strong>${money((it.quantidade || 0) * (it.vlr_venda || 0))}</strong></div>
-              ${it.grade_resumo ? `<div style="font-size:11px;color:#64748b">${esc(it.grade_resumo)}</div>` : ''}
+              ${it.grade_resumo ? `<div style="font-size:11px;color:var(--text2,#64748b)">${esc(it.grade_resumo)}</div>` : ''}
             </div>
             <button type="button" class="afv-cart-rm" data-idx="${idx}">Remover</button>
           </div>`).join('')}
@@ -940,8 +1118,8 @@
           <strong>${S.cart.length}</strong> produto(s) · Qtd total <strong>${cartQtd()}</strong> · Total <strong>${money(cartTotal())}</strong>
         </div>
         <div class="afv-foot" style="border:none;padding-top:0">
-          <button type="button" class="afv-chip" id="afvLimparCart">Limpar carrinho</button>
-          <button type="button" class="afv-save" id="afvIrPre">CONTINUAR → PRÉ-PEDIDO</button>
+          <button type="button" class="afv-chip" id="afvLimparCart">Limpar</button>
+          <button type="button" class="afv-save" id="afvIrPre">Continuar → Pré-pedido</button>
         </div>
       </div>`;
       body.querySelectorAll('.afv-cart-rm').forEach((btn) => {
@@ -962,6 +1140,7 @@
 
     if (S.view === 'prepedido') {
       title.textContent = 'Pré-pedido';
+      setSub('Cliente e condições — pedido fica PENDENTE');
       tools.style.display = 'none';
       const condOpts = S.condicoes.map((c) => {
         const id = c.id || c.id_forma || c.id_condicao;
@@ -1014,7 +1193,7 @@
         </div>
         <div class="afv-foot" style="border:none;padding-top:4px">
           <button type="button" class="afv-chip" id="afvVoltarCart">← Carrinho</button>
-          <button type="button" class="afv-save" id="afvFinalizar">FINALIZAR → PEDIDO PENDENTE</button>
+          <button type="button" class="afv-save" id="afvFinalizar">Finalizar pedido pendente</button>
         </div>
       </div>`;
       bindPrePedido();
@@ -1023,6 +1202,7 @@
 
     if (S.view === 'pendentes') {
       title.textContent = 'Pedidos pendentes';
+      setSub('Mesma visibilidade da tela de Pedidos');
       tools.style.display = '';
       sort.style.display = 'none';
       document.getElementById('afvToolBtns').style.display = 'none';
@@ -1073,13 +1253,14 @@
 
     if (S.view === 'sucesso') {
       title.textContent = 'Pedido enviado';
+      setSub('Pronto — você pode acompanhar em Pendentes');
       tools.style.display = 'none';
       const nums = (S.lastPedidos || []).map((p) => '#' + (p.numero || p.id)).join(', ');
       body.innerHTML = `<div class="afv-ok">
         <h3>Pré-pedido gravado!</h3>
-        <p style="font-size:14px;color:#475569;line-height:1.5">Pedido(s) <strong>${esc(nums || 'criado')}</strong> com status <strong>PENDENTE</strong>.</p>
+        <p style="font-size:14px;color:var(--text2,#475569);line-height:1.5">Pedido(s) <strong>${esc(nums || 'criado')}</strong> com status <strong>PENDENTE</strong>.</p>
         <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:18px">
-          <button type="button" class="afv-save" id="afvVerPendentes">VER PENDENTES</button>
+          <button type="button" class="afv-save" id="afvVerPendentes">Ver pendentes</button>
           <button type="button" class="afv-chip" id="afvVerPedidos">Abrir Pedidos</button>
           <button type="button" class="afv-chip" id="afvNovoShow">Novo showroom</button>
         </div>
@@ -1161,22 +1342,83 @@
     }
   }
 
-  async function abrirDetalhe(cod) {
-    const p = S.itens.find((it) => parseInt(it.cod_produto, 10) === cod);
-    if (!p) return;
-    S.produto = p;
+  async function carregarImagensProduto(cod) {
+    S.imagens = S.produto?.foto_principal ? [S.produto.foto_principal] : [];
     S.imgIdx = 0;
-    S.imagens = p.foto_principal ? [p.foto_principal] : [];
-    S.view = 'detalhe';
-    render();
     try {
       const d = await apiJson('/api/produtos/' + cod + '/imagens');
       const imgs = (d.imagens || d || []).map((x) => x.url || x.caminho || x.filename).filter(Boolean);
       if (imgs.length) {
         S.imagens = imgs.map((u) => (String(u).startsWith('/') || String(u).startsWith('http') ? u : '/uploads/produtos/' + cod + '/' + u));
-        if (S.view === 'detalhe') render();
       }
     } catch (_) {}
+  }
+
+  async function abrirDetalhe(cod) {
+    const p = S.itens.find((it) => parseInt(it.cod_produto, 10) === cod);
+    if (!p) return;
+    S.produto = p;
+    S.variacoesCores = [];
+    S.variacoesMae = null;
+    S.imgIdx = 0;
+    S.imagens = p.foto_principal ? [p.foto_principal] : [];
+    S.view = 'detalhe';
+    render();
+    await carregarImagensProduto(cod);
+    if (S.view === 'detalhe') render();
+    try {
+      const g = await apiJson('/api/produtos/' + cod + '/variacoes');
+      const cores = g.cores || [];
+      if (cores.length) {
+        S.variacoesMae = g.mae || null;
+        S.variacoesCores = cores.map((c) => normItem(c, p.cod_fornecedor));
+        // Se abriu a mãe e há cores, seleciona a 1ª cor como SKU pedível padrão
+        if (g.papel === 'mae' && S.variacoesCores[0]) {
+          await selecionarCorSku(S.variacoesCores[0].cod_produto, { silent: true });
+        } else if (S.view === 'detalhe') {
+          render();
+        }
+      }
+    } catch (_) {}
+  }
+
+  /**
+   * Troca o SKU ativo para a cor escolhida (pedido continua no filho).
+   * Busca preço da tabela atual sem agrupar (para achar a cor).
+   */
+  async function selecionarCorSku(codProduto, { silent } = {}) {
+    const cod = parseInt(codProduto, 10);
+    if (!cod) return;
+    let next = S.variacoesCores.find((c) => parseInt(c.cod_produto, 10) === cod);
+    if (!next && S.variacoesMae && parseInt(S.variacoesMae.id, 10) === cod) {
+      next = normItem(S.variacoesMae, S.produto?.cod_fornecedor);
+    }
+    if (!next) return;
+
+    // Preço da tabela / fábrica atual (sem agrupar_referencia para achar o filho)
+    try {
+      const params = new URLSearchParams({
+        catalogo: '1',
+        q: String(cod),
+        limit: '8',
+      });
+      if (S.fonte?.tipo === 'fabrica') {
+        params.set('id_fornecedor', S.fonte.id);
+        if (S.pre.id_tabela) params.set('id_tabela', S.pre.id_tabela);
+      } else if (S.fonte?.tipo === 'tabela') {
+        params.set('id_tabela', S.fonte.id);
+      } else if (S.pre.id_tabela) {
+        params.set('id_tabela', S.pre.id_tabela);
+      }
+      const d = await apiJson('/api/pedidos/produtos/busca?' + params.toString());
+      const row = (d.data || []).find((p) => parseInt(p.cod_produto || p.id, 10) === cod);
+      if (row) next = { ...next, ...normItem(row, next.cod_fornecedor) };
+    } catch (_) {}
+
+    S.produto = next;
+    await carregarImagensProduto(cod);
+    if (S.view === 'detalhe') render();
+    if (!silent) toast((next.cor1 || next.cod_fabricante || 'Cor') + ' selecionada', 'ok');
   }
 
   async function abrirEditar() {
@@ -1387,7 +1629,7 @@
       toast('Pedido(s) pendente(s) criado(s)', 'ok');
     } catch (e) {
       toast(e.message || 'Erro ao gravar pedido', 'err');
-      if (btn) { btn.disabled = false; btn.textContent = 'FINALIZAR → PEDIDO PENDENTE'; }
+      if (btn) { btn.disabled = false; btn.textContent = 'Finalizar pedido pendente'; }
     }
   }
 

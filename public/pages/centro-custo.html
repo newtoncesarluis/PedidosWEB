@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Centro de Custo | SysRepWeb</title>
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<style>
+* { margin:0;padding:0;box-sizing:border-box; }
+body { font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg,#f0f2f5);color:var(--text,#111827);min-height:100vh; }
+.toolbar-bar { background:var(--card,#fff);border-bottom:1px solid var(--border,#e5e7eb);padding:8px 16px;display:flex;align-items:center;gap:8px;position:sticky;top:0;z-index:100; }
+.btn { display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit; }
+.btn-primary { background:var(--accent,#3b82f6);color:#fff; }
+.btn-ghost { background:var(--card,#fff);color:var(--text2,#6b7280);border:1.5px solid var(--border,#e5e7eb); }
+.btn-outline { background:var(--card,#fff);color:var(--accent,#3b82f6);border:1.5px solid var(--accent,#3b82f6); }
+.subbar { background:var(--card,#f9fafb);border-bottom:1px solid var(--border,#e5e7eb);padding:5px 16px;display:flex;justify-content:space-between; }
+.content-area { padding:14px 16px; }
+.table-card { background:var(--card,#fff);border:1px solid var(--border,#e5e7eb);border-radius:10px;overflow:hidden; }
+table { width:100%;border-collapse:collapse; }
+thead th { background:var(--card,#f9fafb);padding:7px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text2,#6b7280);border-bottom:1px solid var(--border,#e5e7eb); }
+tbody tr { cursor:pointer; }
+tbody tr:hover { background:var(--accent-soft,#eff6ff); }
+tbody td { padding:7px 12px;border-bottom:1px solid var(--border,#e5e7eb);font-size:12px;color:var(--text); }
+.badge { display:inline-flex;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600; }
+.badge-A { background:#dcfce7;color:#15803d; }
+.badge-I { background:#f3f4f6;color:#6b7280; }
+#formSection { display:none; }
+.form-card { background:var(--card,#fff);border:1px solid var(--border,#e5e7eb);border-radius:10px; }
+.form-body { padding:20px 18px; }
+.form-grid { display:grid;grid-template-columns:1fr 1fr;gap:12px; }
+.form-group { display:flex;flex-direction:column;gap:4px; }
+.form-group.full { grid-column:1/-1; }
+label { font-size:11px;font-weight:700;color:var(--text2,#6b7280);text-transform:uppercase; }
+input, select { padding:8px 10px;border:1.5px solid var(--border,#d1d5db);border-radius:6px;font-size:13px;width:100%;background:var(--card,#fff);color:var(--text); }
+select option { color:var(--text);background:var(--card,#fff); }
+#toast-container { position:fixed;bottom:24px;right:24px;z-index:99999; }
+.toast { padding:11px 16px;border-radius:9px;font-size:13px;font-weight:600;margin-top:8px; }
+.toast-ok { background:#1a1a2e;color:#fff; }
+.toast-err { background:#ef4444;color:#fff; }
+.btn-acoes { background:var(--card,#f3f4f6);border:1px solid var(--border,#e5e7eb);padding:4px 7px;border-radius:6px;cursor:pointer; }
+.dropdown-menu { position:fixed;background:var(--card,#fff);border:1px solid var(--border,#e5e7eb);border-radius:10px;z-index:6500;min-width:160px;padding:4px;display:none; }
+.dropdown-item { display:block;padding:8px 12px;border:none;background:none;width:100%;text-align:left;font-size:12px;cursor:pointer;color:var(--text);border-radius:7px; }
+</style>
+</head>
+<body>
+<div class="toolbar-bar">
+  <strong style="margin-right:auto">Centro de Custo</strong>
+  <button class="btn btn-outline" onclick="abrirNovo()">+ Novo Centro</button>
+</div>
+<div class="subbar">
+  <button class="btn btn-ghost" onclick="buscar()">Atualizar</button>
+  <input type="text" id="inputBusca" placeholder="Buscar…" oninput="buscar()"
+         style="padding:5px 10px;border:1.5px solid var(--border,#e5e7eb);border-radius:7px;font-size:12px;width:260px;background:var(--card);color:var(--text)">
+</div>
+<div class="content-area">
+  <div id="listSection">
+    <div class="table-card">
+      <table>
+        <thead><tr><th>Código</th><th>Descrição</th><th>Tipo</th><th>Status</th><th style="width:60px"></th></tr></thead>
+        <tbody id="tbody"><tr><td colspan="5" style="text-align:center;padding:40px;color:var(--text2)">Carregando…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+  <div id="formSection">
+    <div class="form-card">
+      <div style="padding:12px 18px;border-bottom:1px solid var(--border,#e5e7eb)"><strong id="formSub">Novo Centro</strong></div>
+      <div class="form-body">
+        <form id="mainForm" onsubmit="return false">
+          <div class="form-grid">
+            <div class="form-group"><label>Código</label><input type="text" id="f_codigo" maxlength="30" placeholder="Ex: ADM"></div>
+            <div class="form-group full"><label>Descrição *</label><input type="text" id="f_descricao" required></div>
+            <div class="form-group"><label>Centro pai</label><select id="f_id_pai"><option value="">— Raiz —</option></select></div>
+            <div class="form-group"><label>Tipo</label>
+              <select id="f_tipo"><option value="ANALITICA">Analítico</option><option value="SINTETICA">Sintético</option></select>
+            </div>
+            <div class="form-group"><label>Status</label>
+              <select id="f_status"><option value="A">Ativo</option><option value="I">Inativo</option></select>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div style="padding:15px;border-top:1px solid var(--border,#e5e7eb);display:flex;justify-content:flex-end;gap:10px">
+        <button class="btn btn-ghost" onclick="voltarLista()">Cancelar</button>
+        <button class="btn btn-primary" onclick="salvar()">Salvar</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="toast-container"></div>
+<div id="dropMenu" class="dropdown-menu"></div>
+<script>
+let S = { dados: [], registroId: null };
+
+function authHeaders(extra) {
+  const h = Object.assign({}, extra || {});
+  try {
+    const t = localStorage.getItem('token') || sessionStorage.getItem('token');
+    if (t) h.Authorization = 'Bearer ' + t;
+  } catch (_) {}
+  return h;
+}
+
+async function buscar() {
+  try {
+    const r = await fetch('/api/centro-custo', { headers: authHeaders(), credentials: 'include', cache: 'no-store' });
+    const d = await r.json().catch(() => ({}));
+    if (r.status === 401) return toast(d.error || 'Sessão expirada','err');
+    S.dados = d.centro_custo || [];
+    const q = (document.getElementById('inputBusca').value || '').toLowerCase();
+    let lista = S.dados;
+    if (q) lista = lista.filter(x => `${x.codigo||''} ${x.descricao||''}`.toLowerCase().includes(q));
+    renderLista(lista);
+    fillPai();
+  } catch(e) { toast('Erro ao carregar','err'); }
+}
+
+function renderLista(rows) {
+  const tbody = document.getElementById('tbody');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--text2)">Nenhum centro cadastrado</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(f => `<tr onclick="abrirEditar(${f.id})">
+    <td style="font-family:monospace;font-weight:700">${f.codigo || '—'}</td>
+    <td style="font-weight:600">${f.descricao}</td>
+    <td>${f.tipo || 'ANALITICA'}</td>
+    <td><span class="badge badge-${f.status==='A'?'A':'I'}">${f.status==='A'?'Ativo':'Inativo'}</span></td>
+    <td onclick="event.stopPropagation()"><button class="btn-acoes" onclick="abrirDrop(event,${f.id})">⋮</button></td>
+  </tr>`).join('');
+}
+
+function fillPai() {
+  const sel = document.getElementById('f_id_pai');
+  const cur = S.registroId;
+  const pais = S.dados.filter(x => String(x.tipo).toUpperCase() === 'SINTETICA' && x.id !== cur);
+  sel.innerHTML = '<option value="">— Raiz —</option>' + pais.map(p =>
+    `<option value="${p.id}">${p.codigo || ''} — ${p.descricao}</option>`
+  ).join('');
+}
+
+function abrirNovo() {
+  if (!guardCadIncluir('Sem permissão para incluir centro de custo')) return;
+  S.registroId = null;
+  document.getElementById('mainForm').reset();
+  document.getElementById('f_tipo').value = 'ANALITICA';
+  document.getElementById('f_status').value = 'A';
+  document.getElementById('formSub').textContent = 'Novo Centro';
+  fillPai();
+  document.getElementById('listSection').style.display = 'none';
+  document.getElementById('formSection').style.display = 'block';
+}
+
+function abrirEditar(id) {
+  const f = S.dados.find(x => x.id === id);
+  if (!f) return;
+  S.registroId = id;
+  fillPai();
+  document.getElementById('f_codigo').value = f.codigo || '';
+  document.getElementById('f_descricao').value = f.descricao || '';
+  document.getElementById('f_id_pai').value = f.id_pai || '';
+  document.getElementById('f_tipo').value = f.tipo || 'ANALITICA';
+  document.getElementById('f_status').value = f.status || 'A';
+  document.getElementById('formSub').textContent = 'Editar: ' + f.descricao;
+  document.getElementById('listSection').style.display = 'none';
+  document.getElementById('formSection').style.display = 'block';
+  if (!podeAlterarCad()) aplicarFormSomenteLeituraCad();
+}
+
+function voltarLista() {
+  document.getElementById('formSection').style.display = 'none';
+  document.getElementById('listSection').style.display = 'block';
+  buscar();
+}
+
+async function salvar() {
+  if (!guardCadSalvar(!!S.registroId, 'Sem permissão para incluir', 'Sem permissão para alterar')) return;
+  const payload = {
+    codigo: document.getElementById('f_codigo').value.trim(),
+    descricao: document.getElementById('f_descricao').value.trim(),
+    id_pai: document.getElementById('f_id_pai').value || null,
+    tipo: document.getElementById('f_tipo').value,
+    status: document.getElementById('f_status').value,
+  };
+  if (!payload.descricao) return toast('Preencha a descrição','err');
+  const id = S.registroId;
+  const r = await fetch(id ? `/api/centro-custo/${id}` : '/api/centro-custo', {
+    method: id ? 'PUT' : 'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    credentials: 'include',
+    body: JSON.stringify(payload),
+  });
+  const d = await r.json().catch(() => ({}));
+  if (r.ok) { toast('Salvo!','ok'); voltarLista(); }
+  else toast(d.error || 'Erro','err');
+}
+
+function abrirDrop(e, id) {
+  e.stopPropagation();
+  const m = document.getElementById('dropMenu');
+  m.innerHTML = podeExcluirCad() ? `<button class="dropdown-item" style="color:#ef4444" onclick="excluir(${id})">Excluir</button>` : '';
+  if (!m.innerHTML.trim()) return;
+  m.style.display = 'block';
+  const rect = e.currentTarget.getBoundingClientRect();
+  m.style.top = (rect.bottom + 5) + 'px';
+  m.style.left = (rect.left - 130) + 'px';
+  window.onclick = () => { m.style.display = 'none'; };
+}
+
+async function excluir(id) {
+  if (!guardCadExcluir('Sem permissão')) return;
+  if (!confirm('Excluir este centro?')) return;
+  const r = await fetch(`/api/centro-custo/${id}`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+    credentials: 'include',
+  });
+  const d = await r.json().catch(() => ({}));
+  if (r.ok) { toast('Excluído','ok'); buscar(); }
+  else toast(d.error || 'Erro','err');
+}
+
+function toast(msg, tipo='ok') {
+  const t = document.createElement('div');
+  t.className = `toast toast-${tipo}`;
+  t.textContent = msg;
+  document.getElementById('toast-container').appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
+document.addEventListener('cad-perm-ready', () => {
+  if (typeof aplicarUiPermissoesCad === 'function') aplicarUiPermissoesCad();
+  buscar();
+});
+</script>
+<script src="/assets/cadastros-permissao.js"></script>
+</body>
+</html>

@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Balancete Gerencial | SysRepWeb</title>
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<style>
+* { margin:0;padding:0;box-sizing:border-box; }
+body { font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg,#f0f2f5);color:var(--text,#111827);min-height:100vh; }
+.toolbar-bar { background:var(--card,#fff);border-bottom:1px solid var(--border,#e5e7eb);padding:10px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;top:0;z-index:100; }
+.btn { display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit; }
+.btn-primary { background:var(--accent,#3b82f6);color:#fff; }
+.btn-ghost { background:var(--card,#fff);color:var(--text2,#6b7280);border:1.5px solid var(--border,#e5e7eb); }
+.content-area { padding:14px 16px; }
+.filters { display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin-bottom:14px;background:var(--card,#fff);border:1px solid var(--border,#e5e7eb);border-radius:10px;padding:14px; }
+.form-group { display:flex;flex-direction:column;gap:4px; }
+label { font-size:11px;font-weight:700;color:var(--text2,#6b7280);text-transform:uppercase; }
+input, select { padding:8px 10px;border:1.5px solid var(--border,#d1d5db);border-radius:6px;font-size:13px;background:var(--card,#fff);color:var(--text); }
+select option { color:var(--text);background:var(--card,#fff); }
+.kpis { display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px; }
+@media(max-width:700px){ .kpis { grid-template-columns:1fr; } }
+.kpi { background:var(--card,#fff);border:1px solid var(--border,#e5e7eb);border-radius:10px;padding:14px; }
+.kpi-l { font-size:11px;font-weight:700;color:var(--text2,#6b7280);text-transform:uppercase; }
+.kpi-v { font-size:20px;font-weight:800;margin-top:4px; }
+.table-card { background:var(--card,#fff);border:1px solid var(--border,#e5e7eb);border-radius:10px;overflow:hidden;margin-bottom:14px; }
+table { width:100%;border-collapse:collapse; }
+thead th { background:var(--card,#f9fafb);padding:8px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text2,#6b7280);border-bottom:1px solid var(--border,#e5e7eb); }
+tbody td { padding:8px 12px;border-bottom:1px solid var(--border,#e5e7eb);font-size:12px; }
+td.num { text-align:right;font-variant-numeric:tabular-nums; }
+.hint { font-size:12px;color:var(--text2,#6b7280);margin-top:10px; }
+tr.row-analitica { cursor:pointer; }
+tr.row-analitica:hover { background:var(--accent-soft,#eff6ff); }
+tr.row-ativa { outline:2px solid var(--accent,#3b82f6); outline-offset:-2px; }
+.razao-head { display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border-bottom:1px solid var(--border,#e5e7eb);flex-wrap:wrap; }
+.razao-head strong { font-size:13px; }
+.razao-meta { font-size:12px;color:var(--text2,#6b7280); }
+#razao_panel { display:none; }
+</style>
+</head>
+<body>
+<div class="toolbar-bar">
+  <strong style="margin-right:auto">Balancete Gerencial</strong>
+  <button class="btn btn-primary" onclick="exportarCsv()" style="background:var(--card,#fff);color:var(--accent,#3b82f6);border:1.5px solid var(--accent,#3b82f6)">Exportar CSV</button>
+  <button class="btn btn-primary" onclick="carregar()">Atualizar</button>
+</div>
+<div class="content-area">
+  <div class="filters">
+    <div class="form-group"><label>Início</label><input type="date" id="dt_inicio"></div>
+    <div class="form-group"><label>Fim</label><input type="date" id="dt_fim"></div>
+    <div class="form-group" style="min-width:220px">
+      <label>Centro de custo</label>
+      <select id="id_centrocusto"><option value="">Todos</option></select>
+    </div>
+    <button class="btn btn-primary" onclick="carregar()">Gerar</button>
+  </div>
+  <div class="kpis">
+    <div class="kpi"><div class="kpi-l">Entradas (Receber)</div><div class="kpi-v" id="k_ent">—</div></div>
+    <div class="kpi"><div class="kpi-l">Saídas (Pagar)</div><div class="kpi-v" id="k_sai">—</div></div>
+    <div class="kpi"><div class="kpi-l">Saldo (E − S)</div><div class="kpi-v" id="k_sal">—</div></div>
+  </div>
+  <div class="table-card">
+    <table>
+      <thead>
+        <tr>
+          <th>Conta</th>
+          <th>Descrição</th>
+          <th>Grupo</th>
+          <th style="text-align:right">Entradas</th>
+          <th style="text-align:right">Saídas</th>
+          <th style="text-align:right">Saldo</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"><tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text2)">Informe o período e clique em Gerar</td></tr></tbody>
+    </table>
+  </div>
+  <p class="hint" id="hint_sem"></p>
+  <p class="hint">Clique em uma conta analítica para ver o razão (lançamentos liquidados do período). Somente leitura — não altera títulos.</p>
+
+  <div class="table-card" id="razao_panel">
+    <div class="razao-head">
+      <div>
+        <strong id="razao_titulo">Razão</strong>
+        <div class="razao-meta" id="razao_meta"></div>
+      </div>
+      <button type="button" class="btn btn-ghost" onclick="fecharRazao()">Fechar</button>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Data</th>
+          <th>Origem</th>
+          <th>Nome</th>
+          <th>Doc</th>
+          <th style="text-align:right">Valor</th>
+        </tr>
+      </thead>
+      <tbody id="razao_tbody"></tbody>
+    </table>
+  </div>
+</div>
+<script>
+function hojeIso() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+}
+function primeiroDiaMes() {
+  const h = hojeIso();
+  return h.slice(0, 8) + '01';
+}
+function money(v) {
+  return (Number(v) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+function fmtDate(d) {
+  if (!d) return '—';
+  const s = String(d).slice(0, 10);
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? m[3] + '/' + m[2] + '/' + m[1] : s;
+}
+function authHeaders(extra) {
+  const h = Object.assign({}, extra || {});
+  try {
+    const t = localStorage.getItem('token') || sessionStorage.getItem('token');
+    if (t) h.Authorization = 'Bearer ' + t;
+  } catch (_) {}
+  return h;
+}
+
+async function loadCentros() {
+  try {
+    const r = await fetch('/api/centro-custo?analiticas=1', { headers: authHeaders() });
+    const d = await r.json();
+    const sel = document.getElementById('id_centrocusto');
+    sel.innerHTML = '<option value="">Todos</option>' + (d.centro_custo || []).map(c =>
+      `<option value="${c.id}">${c.codigo ? c.codigo + ' — ' : ''}${c.descricao}</option>`
+    ).join('');
+  } catch (_) {}
+}
+
+function fecharRazao() {
+  document.getElementById('razao_panel').style.display = 'none';
+  document.querySelectorAll('tr.row-ativa').forEach(tr => tr.classList.remove('row-ativa'));
+}
+
+async function abrirRazao(idConta, el) {
+  if (!(idConta > 0)) return;
+  const dtIni = document.getElementById('dt_inicio').value;
+  const dtFim = document.getElementById('dt_fim').value;
+  if (!dtIni || !dtFim) return alert('Informe o período');
+
+  document.querySelectorAll('tr.row-ativa').forEach(tr => tr.classList.remove('row-ativa'));
+  if (el) el.classList.add('row-ativa');
+
+  const panel = document.getElementById('razao_panel');
+  const tbody = document.getElementById('razao_tbody');
+  panel.style.display = 'block';
+  tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text2)">Carregando…</td></tr>';
+
+  const cc = document.getElementById('id_centrocusto')?.value || '';
+  const url = `/api/contabil/razao?id_planoconta=${idConta}&dt_inicio=${encodeURIComponent(dtIni)}&dt_fim=${encodeURIComponent(dtFim)}${cc ? '&id_centrocusto=' + encodeURIComponent(cc) : ''}`;
+  try {
+    const r = await fetch(url, { headers: authHeaders() });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:24px;color:#ef4444">${d.error || 'Erro'}</td></tr>`;
+      return;
+    }
+    const c = d.conta || {};
+    document.getElementById('razao_titulo').textContent =
+      `Razão — ${c.numero || ''} ${c.descricao || ''}`.trim();
+    const t = d.totais || {};
+    document.getElementById('razao_meta').textContent =
+      `${t.qtd || 0} lançamento(s) · Entradas ${money(t.entradas)} · Saídas ${money(t.saidas)} · Saldo ${money(t.saldo)}`;
+
+    const lanc = d.lancamentos || [];
+    if (!lanc.length) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:28px;color:var(--text2)">Nenhum lançamento liquidado nesta conta no período</td></tr>';
+      return;
+    }
+    tbody.innerHTML = lanc.map(l => {
+      const ent = l.origem === 'RECEBER';
+      return `<tr>
+        <td>${fmtDate(l.data_ref || l.data_pagto || l.vencimento)}</td>
+        <td>${ent ? 'Receber' : 'Pagar'}</td>
+        <td>${l.nome || '—'}</td>
+        <td>${l.doc || l.numero || '—'}</td>
+        <td class="num" style="font-weight:700;color:${ent ? 'var(--success,#16a34a)' : 'var(--danger,#ef4444)'}">${ent ? '+' : '−'} ${money(l.valor)}</td>
+      </tr>`;
+    }).join('');
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } catch (e) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:#ef4444">Falha ao carregar razão</td></tr>';
+  }
+}
+
+async function carregar() {
+  const dtIni = document.getElementById('dt_inicio').value;
+  const dtFim = document.getElementById('dt_fim').value;
+  const cc = document.getElementById('id_centrocusto').value;
+  if (!dtIni || !dtFim) return alert('Informe o período');
+  fecharRazao();
+  const url = `/api/contabil/balancete?dt_inicio=${encodeURIComponent(dtIni)}&dt_fim=${encodeURIComponent(dtFim)}${cc ? '&id_centrocusto=' + cc : ''}`;
+  const r = await fetch(url, { headers: authHeaders() });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    document.getElementById('tbody').innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;color:#ef4444">${d.error || 'Erro'}</td></tr>`;
+    return;
+  }
+  document.getElementById('k_ent').textContent = money(d.totais?.entradas);
+  document.getElementById('k_sai').textContent = money(d.totais?.saidas);
+  document.getElementById('k_sal').textContent = money(d.totais?.saldo);
+  window._balanceteRows = d.linhas || [];
+  window._balanceteMeta = d;
+  const rows = window._balanceteRows;
+  const tbody = document.getElementById('tbody');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text2)">Nenhum lançamento liquidado com conta no período</td></tr>';
+  } else {
+    tbody.innerHTML = rows.map(l => {
+      const niv = Math.min(Math.max(parseInt(l.nivel, 10) || 1, 1), 5);
+      const pad = (niv - 1) * 14;
+      const syn = l.sintetico ? 'font-weight:800;background:rgba(148,163,184,.08)' : '';
+      const clickable = !l.sintetico && l.id;
+      const cls = clickable ? 'row-analitica' : '';
+      const onclk = clickable ? `onclick="abrirRazao(${l.id}, this)" title="Ver razão desta conta"` : '';
+      return `<tr class="${cls}" ${onclk} style="${syn}">
+      <td style="font-family:monospace;font-weight:700;padding-left:${8 + pad}px">${l.numero || '—'}</td>
+      <td style="padding-left:${8 + pad}px">${l.descricao}${l.sintetico ? ' <span style="font-size:10px;color:var(--text2)">(grupo)</span>' : ''}${clickable ? ' <span style="font-size:10px;color:var(--accent,#3b82f6)">ver razão</span>' : ''}</td>
+      <td>${l.grupo || '—'}</td>
+      <td class="num">${money(l.entradas)}</td>
+      <td class="num">${money(l.saidas)}</td>
+      <td class="num" style="font-weight:700">${money(l.saldo)}</td>
+    </tr>`;
+    }).join('');
+  }
+  const sc = d.sem_conta || {};
+  document.getElementById('hint_sem').textContent =
+    `Títulos liquidados sem conta contábil no período — Pagar: ${sc.pagar?.qtd || 0} (${money(sc.pagar?.total)}); Receber: ${sc.receber?.qtd || 0} (${money(sc.receber?.total)}). Totais do topo somam só contas analíticas (grupos são consolidação). Vincule a conta na Despesa/Natureza ou no título.`;
+}
+
+function exportarCsv() {
+  const rows = window._balanceteRows || [];
+  if (!rows.length) return alert('Gere o balancete antes de exportar.');
+  const meta = window._balanceteMeta || {};
+  const lines = [
+    ['Numero', 'Descricao', 'Tipo', 'Grupo', 'Entradas', 'Saidas', 'Saldo'].join(';'),
+    ...rows.map(l => [
+      l.numero || '',
+      `"${String(l.descricao || '').replace(/"/g, '""')}"`,
+      l.sintetico ? 'SINTETICA' : (l.tipo || 'ANALITICA'),
+      l.grupo || '',
+      String(l.entradas || 0).replace('.', ','),
+      String(l.saidas || 0).replace('.', ','),
+      String(l.saldo || 0).replace('.', ','),
+    ].join(';')),
+  ];
+  const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `balancete_${meta.periodo?.dt_inicio || ''}_${meta.periodo?.dt_fim || ''}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+document.getElementById('dt_inicio').value = primeiroDiaMes();
+document.getElementById('dt_fim').value = hojeIso();
+loadCentros().then(carregar);
+</script>
+</body>
+</html>

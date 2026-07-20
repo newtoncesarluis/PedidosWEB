@@ -1108,6 +1108,18 @@ html.ms-embedded-tech.ms-page-contas-pagar .slide-panel.open { right: 0 !importa
                     </select>
                 </div>
                 <div class="filter-group">
+                    <label for="filter_planoconta">Conta contábil</label>
+                    <select class="form-control" id="filter_planoconta" autocomplete="off" title="Opcional — não altera a busca se vazio">
+                        <option value="">Todas</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="filter_centrocusto">Centro de custo</label>
+                    <select class="form-control" id="filter_centrocusto" autocomplete="off" title="Opcional — não altera a busca se vazio">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="filter-group">
                     <label for="f_dt_ini">Venc. de</label>
                     <input type="date" class="form-control" id="f_dt_ini" autocomplete="off">
                 </div>
@@ -1215,7 +1227,17 @@ html.ms-embedded-tech.ms-page-contas-pagar .slide-panel.open { right: 0 !importa
         </div>
         <div class="form-group">
             <label for="f_natureza">Natureza</label>
-            <select id="f_natureza" class="form-control" autocomplete="off" title="Categoria de despesa (tabela despesas)"></select>
+            <select id="f_natureza" class="form-control" autocomplete="off" title="Categoria de despesa (tabela despesas)" onchange="sugerirContaDaDespesa()"></select>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
+            <div class="form-group">
+                <label for="f_planoconta">Conta contábil <span style="font-weight:500;text-transform:none;color:var(--text2)">(opcional)</span></label>
+                <select id="f_planoconta" class="form-control" autocomplete="off" title="Se vazio, usa a conta da Despesa"></select>
+            </div>
+            <div class="form-group">
+                <label for="f_centrocusto">Centro de custo <span style="font-weight:500;text-transform:none;color:var(--text2)">(opcional)</span></label>
+                <select id="f_centrocusto" class="form-control" autocomplete="off"></select>
+            </div>
         </div>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
             <div class="form-group">
@@ -1460,6 +1482,10 @@ function limparFiltros() {
     document.getElementById('filter_status').value = 'T';
     document.getElementById('search_forn').value = '';
     document.getElementById('filter_natureza').value = '';
+    const fPc = document.getElementById('filter_planoconta');
+    const fCc = document.getElementById('filter_centrocusto');
+    if (fPc) fPc.value = '';
+    if (fCc) fCc.value = '';
     const ordEl = document.getElementById('filter_ordem');
     if (ordEl) {
         ordEl.value = 'venc_antigo';
@@ -1468,6 +1494,15 @@ function limparFiltros() {
     applyPeriodoRecorrente();
     updatePagarFiltersHint();
     buscarPagar();
+}
+
+function qsFiltroContabil() {
+    const pc = document.getElementById('filter_planoconta')?.value || '';
+    const cc = document.getElementById('filter_centrocusto')?.value || '';
+    let s = '';
+    if (pc) s += `&id_planoconta=${encodeURIComponent(pc)}`;
+    if (cc) s += `&id_centrocusto=${encodeURIComponent(cc)}`;
+    return s;
 }
 
 const fmtCur = v => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
@@ -1507,6 +1542,8 @@ const PAGAR_GRID_COL_DEFAULTS = [
     { id: 1,  label: 'Vencimento',         field: 'vencimento',       visible: true,  width: 96 },
     { id: 2,  label: 'Favorecido',         field: 'nome_fornecedor',  visible: true },
     { id: 3,  label: 'Natureza',           field: 'nome_natureza',    visible: true },
+    { id: 18, label: 'Conta Contábil',     field: 'planoconta_nome',  visible: false },
+    { id: 19, label: 'Centro de Custo',    field: 'centrocusto_nome', visible: false },
     { id: 4,  label: 'Despesa',            field: 'nome_despesa',     visible: false },
     { id: 5,  label: 'Documento',          field: 'doc',              visible: true },
     { id: 6,  label: 'Número',             field: 'numero',           visible: false },
@@ -1618,6 +1655,14 @@ function pagarCellHtml(col, row) {
         case 'numeronf': return row.numeronf || row.numero_nf || '-';
         case 'nome_fornecedor': return `<div style="font-weight:700">${row.nome_fornecedor || '-'}</div>`;
         case 'nome_natureza': return `<div style="font-size:12px">${row.nome_natureza || row.nome_despesa || '-'}</div>`;
+        case 'planoconta_nome': {
+            const n = row.planoconta_numero ? `${row.planoconta_numero} — ` : '';
+            return `<div style="font-size:11px">${row.planoconta_nome ? n + row.planoconta_nome : '—'}</div>`;
+        }
+        case 'centrocusto_nome': {
+            const c = row.centrocusto_codigo ? `${row.centrocusto_codigo} — ` : '';
+            return `<div style="font-size:11px">${row.centrocusto_nome ? c + row.centrocusto_nome : '—'}</div>`;
+        }
         case 'nome_despesa': return row.despesas || row.nome_despesa || '-';
         case 'doc': return row.doc || row.numero || '-';
         case 'numero': return row.numero || '-';
@@ -1857,7 +1902,7 @@ async function fetchPagarFiltrados(opts = {}) {
     const filtroData = opts.filtroDataPagto ? '&filtro_data=pagto' : '';
 
     while (page <= 200) {
-        const url = `/api/pagar?page=${page}&limit=${pageSize}&status=${encodeURIComponent(status)}&fornecedor=${encodeURIComponent(search)}&id_despesas=${nat}&dt_inicio=${encodeURIComponent(dtIni)}&dt_fim=${encodeURIComponent(dtFim)}&ordem=${encodeURIComponent(ordem)}${filtroData}`;
+        const url = `/api/pagar?page=${page}&limit=${pageSize}&status=${encodeURIComponent(status)}&fornecedor=${encodeURIComponent(search)}&id_despesas=${nat}&dt_inicio=${encodeURIComponent(dtIni)}&dt_fim=${encodeURIComponent(dtFim)}&ordem=${encodeURIComponent(ordem)}${filtroData}${qsFiltroContabil()}`;
         const r = await fetch(url, { headers: authHeaders(), cache: 'no-store' });
         if (!r.ok) {
             const errBody = await r.json().catch(() => ({}));
@@ -2103,7 +2148,7 @@ async function fetchData() {
         }
 
         const ordem = getPagarOrdem();
-        let url = `/api/pagar?page=${currentPage}&limit=50&status=${status}&fornecedor=${encodeURIComponent(search)}&id_despesas=${nat}&dt_inicio=${dIni}&dt_fim=${dFim}&ordem=${ordem}`;
+        let url = `/api/pagar?page=${currentPage}&limit=50&status=${status}&fornecedor=${encodeURIComponent(search)}&id_despesas=${nat}&dt_inicio=${dIni}&dt_fim=${dFim}&ordem=${ordem}${qsFiltroContabil()}`;
         const r = await fetch(url, { headers: authHeaders(), cache: 'no-store' });
         if (!r.ok) {
             const errBody = await r.json().catch(() => ({}));
@@ -2482,6 +2527,20 @@ function resetForm() {
     document.getElementById('f_venc').value = hojeIsoLocal();
     document.getElementById('f_obs').value = '';
     document.getElementById('f_meses').value = 1;
+    const selNat = document.getElementById('f_natureza');
+    if (selNat) selNat.value = '';
+    const selPc = document.getElementById('f_planoconta');
+    const selCc = document.getElementById('f_centrocusto');
+    if (selPc) { selPc.value = ''; selPc.dataset.manual = ''; }
+    if (selCc) selCc.value = '';
+}
+
+function sugerirContaDaDespesa() {
+    const sel = document.getElementById('f_natureza');
+    const selPc = document.getElementById('f_planoconta');
+    if (!sel || !selPc || selPc.dataset.manual === '1') return;
+    const opt = sel.selectedOptions?.[0];
+    selPc.value = opt?.dataset?.planoconta || '';
 }
 
 function calcLiquidar() {
@@ -2597,7 +2656,8 @@ async function abrirEditar(id) {
     resetForm();
     const conta = _globalContas.find(c => c.id == id);
     if (!conta) return;
-    
+    await loadLookups();
+
     document.getElementById('panel_title').textContent = 'Editar Conta';
     document.getElementById('f_id').value = conta.id;
     document.getElementById('f_status').value = conta.status;
@@ -2610,6 +2670,14 @@ async function abrirEditar(id) {
     document.getElementById('f_cod_fornecedor').value = conta.cod_fornecedor || '';
     document.getElementById('f_nome').value = conta.nome_fornecedor || '';
     document.getElementById('f_natureza').value = conta.id_despesas || '';
+    const selPc = document.getElementById('f_planoconta');
+    const selCc = document.getElementById('f_centrocusto');
+    if (selPc) {
+        selPc.value = conta.id_planoconta || '';
+        selPc.dataset.manual = conta.id_planoconta ? '1' : '';
+        if (!conta.id_planoconta) sugerirContaDaDespesa();
+    }
+    if (selCc) selCc.value = conta.id_centrocusto || '';
     let vencIso = '';
     if (conta.vencimento && /^\d{4}-\d{2}-\d{2}/.test(String(conta.vencimento))) {
         vencIso = String(conta.vencimento).slice(0, 10);
@@ -2639,6 +2707,8 @@ async function salvar() {
         valor: document.getElementById('f_valor').value,
         id_despesas: idDespesas,
         despesas: despesasNome && despesasNome !== 'Selecione...' ? despesasNome : null,
+        id_planoconta: document.getElementById('f_planoconta')?.value || null,
+        id_centrocusto: document.getElementById('f_centrocusto')?.value || null,
         status: document.getElementById('f_status').value,
         obs: document.getElementById('f_obs').value,
         recorrencia: document.getElementById('f_meses').value
@@ -2697,7 +2767,8 @@ async function loadLookups() {
         const opts = (data || []).map(i => {
             const vid = i.id_despesas;
             const vn = i.nome;
-            return `<option value="${vid}">${vn}</option>`;
+            const pc = i.id_planoconta || '';
+            return `<option value="${vid}" data-planoconta="${pc}">${vn}</option>`;
         }).join('');
         el.innerHTML = `<option value="">${label}</option>` + opts;
     };
@@ -2715,6 +2786,48 @@ async function loadLookups() {
         fill('f_natureza', desps, 'Selecione...');
     } catch (e) {
         console.warn('loadLookups despesas (servidor offline?):', e);
+    }
+
+    try {
+        const [rpc, rcc] = await Promise.all([
+            fetch('/api/plano-contas?analiticas=1', { headers: authHeaders() }),
+            fetch('/api/centro-custo?analiticas=1', { headers: authHeaders() }),
+        ]);
+        const dpc = await rpc.json().catch(() => ({}));
+        const dcc = await rcc.json().catch(() => ({}));
+        const selPc = document.getElementById('f_planoconta');
+        const selCc = document.getElementById('f_centrocusto');
+        if (selPc) {
+            const cur = selPc.value;
+            const manual = selPc.dataset.manual || '';
+            selPc.innerHTML = '<option value="">— Usar conta da Despesa —</option>' +
+                (dpc.plano_contas || []).map(p => `<option value="${p.id}">${p.numero ? p.numero + ' — ' : ''}${p.descricao}</option>`).join('');
+            selPc.value = cur || '';
+            selPc.dataset.manual = manual;
+            selPc.onchange = () => { selPc.dataset.manual = '1'; };
+        }
+        if (selCc) {
+            const curCc = selCc.value;
+            selCc.innerHTML = '<option value="">— Nenhum —</option>' +
+                (dcc.centro_custo || []).map(c => `<option value="${c.id}">${c.codigo ? c.codigo + ' — ' : ''}${c.descricao}</option>`).join('');
+            selCc.value = curCc || '';
+        }
+        const fPc = document.getElementById('filter_planoconta');
+        const fCc = document.getElementById('filter_centrocusto');
+        if (fPc) {
+            const cur = fPc.value;
+            fPc.innerHTML = '<option value="">Todas</option>' +
+                (dpc.plano_contas || []).map(p => `<option value="${p.id}">${p.numero ? p.numero + ' — ' : ''}${p.descricao}</option>`).join('');
+            fPc.value = cur || '';
+        }
+        if (fCc) {
+            const cur = fCc.value;
+            fCc.innerHTML = '<option value="">Todos</option>' +
+                (dcc.centro_custo || []).map(c => `<option value="${c.id}">${c.codigo ? c.codigo + ' — ' : ''}${c.descricao}</option>`).join('');
+            fCc.value = cur || '';
+        }
+    } catch (e) {
+        console.warn('loadLookups plano/centro:', e);
     }
 
     const forns = await fetch('/api/fornecedores/lookup?todostipos=true', { headers: authHeaders() }).then(r => r.json());

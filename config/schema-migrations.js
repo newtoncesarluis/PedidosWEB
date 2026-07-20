@@ -57,9 +57,23 @@ const MIGRATIONS = [
   { table: 'receber', column: 'valor_pago',       type: "DECIMAL(15,2) DEFAULT NULL" },
   { table: 'receber', column: 'data_pagto',       type: "DATE NULL DEFAULT NULL" },
   { table: 'receber', column: 'forma_pagto',      type: "VARCHAR(50) DEFAULT NULL" },
+  { table: 'receber', column: 'id_planoconta',    type: "INT DEFAULT NULL" },
+  { table: 'receber', column: 'id_centrocusto',   type: "INT DEFAULT NULL" },
+
+  // ── PAGAR / PLANO DE CONTAS GERENCIAL ─────────────────────────────────────
+  { table: 'pagar', column: 'id_planoconta', type: "INT DEFAULT NULL" },
+  { table: 'pagar', column: 'id_centrocusto', type: "INT DEFAULT NULL" },
+  { table: 'plano_contas', column: 'id_pai', type: "INT DEFAULT NULL" },
+  { table: 'plano_contas', column: 'nivel', type: "INT DEFAULT 1" },
+  { table: 'plano_contas', column: 'tipo', type: "VARCHAR(20) DEFAULT 'ANALITICA'" },
+  { table: 'plano_contas', column: 'grupo', type: "VARCHAR(20) DEFAULT 'DESPESA'" },
+  { table: 'plano_contas', column: 'aceita_lancamento', type: "CHAR(1) DEFAULT 'S'" },
+  { table: 'plano_contas', column: 'status', type: "CHAR(1) DEFAULT 'A'" },
+  { table: 'natureza', column: 'id_planoconta', type: "INT DEFAULT NULL" },
 
   // ── DESPESAS (Delphi: nome; cadastro web antigo: descricao) ───────────────
   { table: 'despesas', column: 'nome', type: "VARCHAR(100) DEFAULT NULL" },
+  { table: 'despesas', column: 'id_planoconta', type: "INT DEFAULT NULL" },
 
   // ── USUARIOS / PREPOSTO ───────────────────────────────────────────────────
   // Modo de visibilidade da carteira para o preposto: TODOS (toda a carteira do
@@ -285,6 +299,7 @@ const MIGRATIONS = [
   // ── TABELA_PRECO_CABECALHO — visibilidade no app mobile ──────────────────────
   // DEFAULT 'S' para não quebrar tabelas existentes (já aparecem no mobile)
   { table: 'tabela_preco_cabecalho', column: 'aparece_mobile', type: "CHAR(1) NOT NULL DEFAULT 'S'" },
+  { table: 'tabela_preco_cabecalho', column: 'aparece_showroom', type: "ENUM('S','N') DEFAULT 'N'" },
 
   // ── FORNECEDORES — alerta de tabela de preço desatualizada ───────────────────
   { table: 'fornecedores', column: 'alertar_tabela_desatualizada', type: "CHAR(1) NOT NULL DEFAULT 'N'" },
@@ -921,6 +936,37 @@ const CREATE_IF_NOT_EXISTS = [
       INDEX idx_chg_data (data_lancamento)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   },
+  {
+    name: 'plano_contas',
+    sql: `CREATE TABLE IF NOT EXISTS plano_contas (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      numero VARCHAR(30) DEFAULT NULL,
+      descricao VARCHAR(150) NOT NULL,
+      id_pai INT DEFAULT NULL,
+      nivel INT DEFAULT 1,
+      tipo VARCHAR(20) DEFAULT 'ANALITICA',
+      grupo VARCHAR(20) DEFAULT 'DESPESA',
+      aceita_lancamento CHAR(1) DEFAULT 'S',
+      status CHAR(1) DEFAULT 'A',
+      excluido CHAR(1) DEFAULT 'N',
+      INDEX idx_pc_numero (numero),
+      INDEX idx_pc_pai (id_pai)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  },
+  {
+    name: 'centro_custo',
+    sql: `CREATE TABLE IF NOT EXISTS centro_custo (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      codigo VARCHAR(30) DEFAULT NULL,
+      descricao VARCHAR(150) NOT NULL,
+      id_pai INT DEFAULT NULL,
+      tipo VARCHAR(20) DEFAULT 'ANALITICA',
+      status CHAR(1) DEFAULT 'A',
+      excluido CHAR(1) DEFAULT 'N',
+      INDEX idx_cc_codigo (codigo),
+      INDEX idx_cc_pai (id_pai)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  },
   // ── CONTROLE DE ACESSOS ────────────────────────────────────────────────────
   // Resumo por aparelho: 1 linha por (usuário + empresa + dispositivo); o login
   // faz INSERT no 1º acesso e UPDATE (último acesso + contador) nos seguintes.
@@ -1253,10 +1299,11 @@ async function ensureTabelaPrecoCondPagamentoNullable(poolOrConn) {
 }
 
 /**
- * tabela_preco_cabecalho — flags da Vitrine Digital:
+ * tabela_preco_cabecalho — flags da Vitrine Digital / Showroom:
  *  - vitrine: tabela pode ser enviada/exibida na vitrine (default 'N')
  *  - usar_regras_fornecedor: aplica mínimo de faturamento e mínimo da condição
  *    de pagamento do fornecedor no pedido da vitrine (default 'N')
+ *  - aparece_showroom: tabela aparece no Showroom (default 'N' — liberar no cadastro)
  * Sem backfill: cada tabela começa 'N' e é liberada manualmente no cadastro.
  * Cacheado por base (DATABASE) — não re-checa schema a cada gravação.
  */
@@ -1270,7 +1317,8 @@ async function ensureVitrineColumns(poolOrConn) {
 
   const keyV = `${dbName}.tabela_preco_cabecalho.vitrine`;
   const keyU = `${dbName}.tabela_preco_cabecalho.usar_regras_fornecedor`;
-  if (_ensureColCache.has(keyV) && _ensureColCache.has(keyU)) return;
+  const keyS = `${dbName}.tabela_preco_cabecalho.aparece_showroom`;
+  if (_ensureColCache.has(keyV) && _ensureColCache.has(keyU) && _ensureColCache.has(keyS)) return;
 
   try {
     const [tables] = await poolOrConn.query("SHOW TABLES LIKE 'tabela_preco_cabecalho'");
@@ -1279,7 +1327,7 @@ async function ensureVitrineColumns(poolOrConn) {
     const [cols] = await poolOrConn.query(
       `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tabela_preco_cabecalho'
-         AND COLUMN_NAME IN ('vitrine','usar_regras_fornecedor')`
+         AND COLUMN_NAME IN ('vitrine','usar_regras_fornecedor','aparece_showroom')`
     );
     const have = new Set(cols.map((c) => c.COLUMN_NAME));
 
@@ -1298,6 +1346,14 @@ async function ensureVitrineColumns(poolOrConn) {
       console.log("[schema] + tabela_preco_cabecalho.usar_regras_fornecedor");
     }
     _ensureColCache.add(keyU);
+
+    if (!have.has('aparece_showroom')) {
+      await poolOrConn.query(
+        `ALTER TABLE \`tabela_preco_cabecalho\` ADD COLUMN \`aparece_showroom\` ENUM('S','N') DEFAULT 'N'`
+      );
+      console.log("[schema] + tabela_preco_cabecalho.aparece_showroom");
+    }
+    _ensureColCache.add(keyS);
   } catch (e) {
     console.warn('[schema] ensureVitrineColumns:', e.message);
   }

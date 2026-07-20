@@ -269,6 +269,13 @@ tbody td { padding:10px 12px; vertical-align:middle; }
             <option value="N">N - Não</option>
           </select>
         </div>
+        <div class="form-group">
+          <label>Aparece no Showroom?</label>
+          <select id="f_aparece_showroom" title="Quando 'Sim', esta tabela aparece na lista de tabelas do Showroom (venda visual)">
+            <option value="N">N - Não</option>
+            <option value="S">S - Sim</option>
+          </select>
+        </div>
       </div>
 
       <!-- GRID DE ITENS -->
@@ -283,6 +290,10 @@ tbody td { padding:10px 12px; vertical-align:middle; }
             <button class="btn btn-ghost btn-mini" onclick="abrirImportarLote()" style="color:var(--success,#22c55e);border-color:var(--success,#22c55e)">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
               Importar Lote
+            </button>
+            <button class="btn btn-ghost btn-mini" onclick="exportarExcelTabela()" title="Exportar itens desta tabela para Excel (.xlsx)">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+              Exportar Excel
             </button>
             <button class="btn btn-outline btn-mini" onclick="abrirBuscaProduto()">+ Adicionar Produto</button>
           </div>
@@ -509,6 +520,7 @@ tbody td { padding:10px 12px; vertical-align:middle; }
 
 <div class="toast" id="toast"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="/assets/cadastros-permissao.js"></script>
 <script>
 function getToken() {
@@ -681,6 +693,7 @@ function novoRegistro() {
   document.getElementById('f_ativa').value = 'S';
   document.getElementById('f_vitrine').value = 'N';
   const elAMr = document.getElementById('f_aparece_mobile'); if (elAMr) elAMr.value = 'S';
+  const elSRr = document.getElementById('f_aparece_showroom'); if (elSRr) elSRr.value = 'N';
   document.getElementById('f_usar_regras').value = 'N';
   renderItens();
   carregarLookups();
@@ -706,6 +719,7 @@ async function editarTabela(id) {
     document.getElementById('f_vitrine').value = data.vitrine === 'S' ? 'S' : 'N';
     document.getElementById('f_usar_regras').value = data.usar_regras_fornecedor === 'S' ? 'S' : 'N';
     const elAM = document.getElementById('f_aparece_mobile'); if (elAM) elAM.value = data.aparece_mobile === 'N' ? 'N' : 'S';
+    const elSR = document.getElementById('f_aparece_showroom'); if (elSR) elSR.value = data.aparece_showroom === 'S' ? 'S' : 'N';
 
     _itensTabela = data.itens || [];
     renderItens();
@@ -730,6 +744,7 @@ async function salvarTabela() {
     vitrine: document.getElementById('f_vitrine')?.value || 'N',
     usar_regras_fornecedor: document.getElementById('f_usar_regras')?.value || 'N',
     aparece_mobile: document.getElementById('f_aparece_mobile')?.value || 'S',
+    aparece_showroom: document.getElementById('f_aparece_showroom')?.value || 'N',
     itens: _itensTabela
   };
 
@@ -753,6 +768,56 @@ async function salvarTabela() {
   } catch (err) {
     showToast(err.message, 'error');
   } finally { btn.disabled = false; }
+}
+
+// ─── EXPORTAR EXCEL (client-side — não precisa reiniciar o servidor) ───
+function _safeFilePart(s) {
+  return String(s || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')
+    .replace(/\s+/g, '_')
+    .slice(0, 60) || 'tabela';
+}
+
+function exportarExcelTabela() {
+  if (!_itensTabela.length) {
+    showToast('Nenhum item na tabela para exportar', 'error');
+    return;
+  }
+  if (typeof XLSX === 'undefined') {
+    showToast('Biblioteca Excel não carregou. Verifique a internet e recarregue a página.', 'error');
+    return;
+  }
+
+  const rows = _itensTabela.map((it, idx) => ({
+    Seq: idx + 1,
+    'Cod. Produto': it.cod_produto ?? '',
+    'Cod. Fabricante': it.cod_fabricante || '',
+    Descricao: it.descricao || '',
+    Unidade: it.unidade || 'UN',
+    'Preco Base': Number(it.preco_base) || 0,
+    'Preco Venda': Number(it.preco_venda) || 0,
+    'Tipo Desc.': it.tipo_desconto || 'R',
+    'Vlr Desc.': Number(it.vlr_desconto) || 0,
+    'Vlr Tabela': Number(it.valor_tabela) || 0,
+    Ativo: it.ativo === 'N' ? 'N' : 'S',
+    Vigencia: it.vigencia ? String(it.vigencia).split('T')[0] : ''
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [
+    { wch: 6 }, { wch: 12 }, { wch: 18 }, { wch: 40 }, { wch: 8 },
+    { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 12 },
+    { wch: 8 }, { wch: 12 }
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Itens');
+
+  const desc = document.getElementById('f_descricao')?.value?.trim() || '';
+  const stamp = new Date().toISOString().slice(0, 10);
+  const nome = `tabela_preco_${_safeFilePart(desc || _editandoId || 'nova')}_${stamp}.xlsx`;
+  XLSX.writeFile(wb, nome);
+  showToast(`Excel gerado: ${_itensTabela.length} produto(s)`, 'success');
 }
 
 // ─── GESTÃO DE ITENS ───

@@ -1,6 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const { getPool } = require('../config/database');
+const {
+  resolveDespesasLabelColumn,
+  despesasLabelExpr,
+} = require('../config/despesas-label');
+const { ensureFinanceiroContabilCols } = require('../config/plano-contas-schema');
 
 /**
  * Endpoint principal do BI Financeiro
@@ -79,13 +84,23 @@ router.get('/dashboard', async (req, res) => {
             GROUP BY faixa
         `);
 
-        // 5. Composição de Despesas (Top 5 Categorias)
+        // 5. Composição de Despesas — prioriza Plano de Contas; fallback Despesa (id_despesas)
+        await ensureFinanceiroContabilCols(pool);
+        await resolveDespesasLabelColumn(pool);
+        const despLabel = despesasLabelExpr('d');
         const [despesasPorCategoria] = await pool.query(`
-            SELECT n.nome as categoria, SUM(p.valor) as total
+            SELECT
+              COALESCE(
+                NULLIF(TRIM(CONCAT_WS(' — ', NULLIF(TRIM(pc.numero), ''), NULLIF(TRIM(pc.descricao), ''))), ''),
+                ${despLabel},
+                'Não classificado'
+              ) AS categoria,
+              SUM(p.valor) AS total
             FROM pagar p
-            LEFT JOIN natureza n ON p.id_natureza = n.id
-            WHERE p.excluido = 'N'
-            GROUP BY n.nome
+            LEFT JOIN despesas d ON d.id = p.id_despesas
+            LEFT JOIN plano_contas pc ON pc.id = COALESCE(p.id_planoconta, d.id_planoconta)
+            WHERE (p.excluido = 'N' OR p.excluido IS NULL OR p.excluido = '')
+            GROUP BY categoria
             ORDER BY total DESC
             LIMIT 5
         `);
@@ -153,12 +168,25 @@ router.get('/insights', async (req, res) => {
             });
         }
 
+        await ensureFinanceiroContabilCols(pool);
+        await resolveDespesasLabelColumn(pool);
+        const despLabelInsight = despesasLabelExpr('d');
         const [maiorDespesa] = await pool.query(`
-            SELECT n.nome, SUM(p.valor) as total
+            SELECT
+              COALESCE(
+                NULLIF(TRIM(CONCAT_WS(' — ', NULLIF(TRIM(pc.numero), ''), NULLIF(TRIM(pc.descricao), ''))), ''),
+                ${despLabelInsight},
+                'Não classificado'
+              ) AS nome,
+              SUM(p.valor) AS total
             FROM pagar p
-            JOIN natureza n ON p.id_natureza = n.id
-            WHERE p.excluido = 'N' AND p.vencimento >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
-            GROUP BY n.nome ORDER BY total DESC LIMIT 1
+            LEFT JOIN despesas d ON d.id = p.id_despesas
+            LEFT JOIN plano_contas pc ON pc.id = COALESCE(p.id_planoconta, d.id_planoconta)
+            WHERE (p.excluido = 'N' OR p.excluido IS NULL OR p.excluido = '')
+              AND p.vencimento >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+            GROUP BY nome
+            ORDER BY total DESC
+            LIMIT 1
         `);
 
         if (maiorDespesa[0]) {

@@ -175,6 +175,10 @@
           <input type="search" id="kit_busca" placeholder="Adicionar um a um: nome ou referência…" autocomplete="off">
           <div class="kit-ac" id="kit_ac"></div>
         </div>
+        <label style="display:flex;align-items:center;gap:8px;margin:8px 0 0;font-size:12px;color:var(--text);cursor:pointer;user-select:none">
+          <input type="checkbox" id="kit_incluir_cores" checked>
+          Incluir cores ao adicionar referência mãe
+        </label>
         <div class="lote-bar">
           <div class="filter">
             <label>Fábrica em lote</label>
@@ -283,6 +287,41 @@ function mergeItens(novos) {
     add++;
   }
   return add;
+}
+
+function incluirCoresAoAddMae() {
+  return !!document.getElementById('kit_incluir_cores')?.checked;
+}
+
+/** Se o produto for referência mãe, inclui as cores (opt-in via checkbox). */
+async function expandirReferenciaMae(produtoBase) {
+  const cod = parseInt(produtoBase.cod_produto || produtoBase.id || produtoBase.ID, 10);
+  if (!cod) return [produtoBase];
+  if (!incluirCoresAoAddMae()) return [produtoBase];
+  try {
+    const r = await api('/api/produtos/' + cod + '/variacoes');
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !d.mae) return [produtoBase];
+    // Só expande quando o item clicado é a mãe (não uma cor isolada)
+    if (d.papel === 'cor') return [produtoBase];
+    const cores = d.cores || [];
+    if (!cores.length) return [produtoBase];
+    const lista = [produtoBase];
+    for (const c of cores) {
+      lista.push({
+        id: c.id,
+        ID: c.id,
+        cod_produto: c.id,
+        cod_fabricante: c.cod_fabricante || '',
+        descricao: c.descricao || '',
+        desc_produto: c.descricao || '',
+        foto_principal: c.foto_principal || '',
+      });
+    }
+    return lista;
+  } catch (_) {
+    return [produtoBase];
+  }
 }
 
 function itensFiltrados() {
@@ -700,22 +739,28 @@ async function buscarProdutos(q) {
     }).join('');
     ac.classList.add('show');
     ac.querySelectorAll('.kit-ac-item[data-id]').forEach(el => {
-      el.addEventListener('click', () => {
+      el.addEventListener('click', async () => {
         const cod = parseInt(el.dataset.id, 10);
-        if (!cod || _itens.some(i => i.cod_produto === cod)) {
+        if (!cod) {
           ac.classList.remove('show');
           return;
         }
-        _itens.push({
+        const base = {
           cod_produto: cod,
+          id: cod,
           cod_fabricante: el.dataset.fab,
           desc_produto: el.dataset.desc,
+          descricao: el.dataset.desc,
           foto_principal: el.dataset.foto,
-        });
+        };
+        const lote = await expandirReferenciaMae(base);
+        const add = mergeItens(lote);
         _pagina = totalPaginas();
         renderItens();
         document.getElementById('kit_busca').value = '';
         ac.classList.remove('show');
+        if (add > 1) setLoteStatus(`+${add} itens (referência + cores)`);
+        else if (!add) setLoteStatus('Produto já estava na lista');
       });
     });
   } catch (_) {

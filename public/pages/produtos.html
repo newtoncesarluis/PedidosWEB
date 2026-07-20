@@ -621,6 +621,14 @@ tbody td { padding:10px 12px; vertical-align:middle; }
     Importar Fotos
   </button>
 
+  <button class="btn btn-ghost" onclick="baixarFotosFiltroAtual()" title="Baixar fotos dos produtos do filtro atual (ZIP)">
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:13px;height:13px">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+    </svg>
+    Baixar Fotos
+  </button>
+
   <div class="view-toggle">
     <button class="vt-btn active" id="vt-lista" onclick="toggleView('lista')" title="Lista">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px">
@@ -1122,7 +1130,7 @@ tbody td { padding:10px 12px; vertical-align:middle; }
           </div>
           <div class="form-group">
             <label title="Obrigatório quando houver Cód. Fabricante/SKU — o código é único por fornecedor">Fornecedor Padrão</label>
-            <select id="f_cod_fornecedorpadrao">
+            <select id="f_cod_fornecedorpadrao" onchange="carregarReferenciasMaeSelect()">
               <option value="">— Selecione —</option>
             </select>
           </div>
@@ -1131,6 +1139,17 @@ tbody td { padding:10px 12px; vertical-align:middle; }
             <select id="f_cod_fornecedorcusto">
               <option value="">— Selecione —</option>
             </select>
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label>Referência mãe <span style="font-weight:500;text-transform:none;color:var(--text2)">(opcional)</span></label>
+            <select id="f_id_referencia" autocomplete="off" title="Deixe vazio se este produto for a referência principal ou avulso">
+              <option value="">— Nenhuma (avulso ou referência principal) —</option>
+            </select>
+            <small style="display:block;margin-top:4px;font-size:11px;color:var(--text2);line-height:1.35">
+              Vincule este SKU como <strong>cor</strong> de uma referência principal.
+              Na mãe, use <strong>+ Adicionar cor</strong> para clonar e já vincular. Pedido, preço e estoque ficam no SKU da cor.
+            </small>
+            <div id="box_cores_referencia" style="display:none;margin-top:8px;padding:10px 12px;border:1px solid var(--border,#e5e7eb);border-radius:8px;background:var(--card,#fff);font-size:12px;color:var(--text)"></div>
           </div>
         </div>
       </div>
@@ -1277,7 +1296,10 @@ tbody td { padding:10px 12px; vertical-align:middle; }
         <div id="galeriaContent" style="display:none">
           <div class="galeria-header">
             <span id="galeriaCount" class="galeria-count">0 / 8 fotos</span>
-            <button type="button" class="btn-add-foto" id="btnAddFoto" onclick="document.getElementById('inputFotos').click()">+ Adicionar fotos</button>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <button type="button" class="btn-add-foto" id="btnBaixarFotosProd" onclick="baixarFotosProdutoAtual()" disabled title="Baixar fotos deste produto (ZIP)">↓ Baixar</button>
+              <button type="button" class="btn-add-foto" id="btnAddFoto" onclick="document.getElementById('inputFotos').click()">+ Adicionar fotos</button>
+            </div>
             <input type="file" id="inputFotos" accept="image/jpeg,image/png,image/webp,image/gif" multiple style="display:none" onchange="uploadFotos(this)">
           </div>
           <div id="galeriaGrid" class="galeria-grid"></div>
@@ -1398,13 +1420,16 @@ function carregarGaleria(prodId) {
   const grid  = document.getElementById('galeriaGrid');
   const count = document.getElementById('galeriaCount');
   const btn   = document.getElementById('btnAddFoto');
+  const btnDl = document.getElementById('btnBaixarFotosProd');
   grid.innerHTML = '<span style="font-size:12px;color:var(--text2)">Carregando…</span>';
+  if (btnDl) btnDl.disabled = true;
 
   api(`/api/produtos/${prodId}/imagens`)
     .then(r => r.json())
     .then(imgs => {
       count.textContent = `${imgs.length} / 8 fotos`;
       btn.disabled = imgs.length >= 8;
+      if (btnDl) btnDl.disabled = !imgs.length;
 
       if (!imgs.length) {
         grid.innerHTML = '<p style="font-size:13px;color:var(--text2)">Nenhuma foto cadastrada.</p>';
@@ -1468,6 +1493,157 @@ async function deletarFoto(prodId, imgId) {
     showToast('Foto removida', 'success');
     carregarGaleria(prodId);
   } catch(err) { showToast(err.message || 'Erro', 'error'); }
+}
+
+async function _baixarFotosZip(body, fallbackName, { silent } = {}) {
+  const r = await fetch('/api/produtos/exportar-fotos', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer ' + _token
+    },
+    body: JSON.stringify(body)
+  });
+  if (!r.ok) {
+    let msg = 'Falha ao baixar fotos';
+    try {
+      const ct = r.headers.get('content-type') || '';
+      if (ct.includes('json')) {
+        const j = await r.json();
+        msg = j.error || msg;
+      } else {
+        const t = await r.text();
+        if (t) msg = t;
+      }
+    } catch (_) {}
+    throw new Error(msg);
+  }
+  const blob = await r.blob();
+  const cd = r.headers.get('Content-Disposition') || '';
+  const m = cd.match(/filename="?([^"]+)"?/i);
+  const name = (m && m[1]) || fallbackName;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2500);
+  const meta = {
+    fotos: parseInt(r.headers.get('X-Fotos-Exportadas') || '0', 10) || 0,
+    produtos: parseInt(r.headers.get('X-Produtos-Exportados') || '0', 10) || 0,
+    total: parseInt(r.headers.get('X-Produtos-Total') || '0', 10) || 0,
+    offset: parseInt(r.headers.get('X-Export-Offset') || '0', 10) || 0,
+    limit: parseInt(r.headers.get('X-Export-Limit') || '500', 10) || 500,
+    hasMore: r.headers.get('X-Export-Has-More') === '1',
+    lote: parseInt(r.headers.get('X-Export-Lote') || '1', 10) || 1,
+    totalLotes: parseInt(r.headers.get('X-Export-Total-Lotes') || '1', 10) || 1,
+    filename: name
+  };
+  if (!silent) {
+    let msg = 'Download iniciado';
+    if (meta.fotos) msg += `: ${meta.fotos} foto(s)`;
+    if (meta.produtos && meta.produtos !== 1) msg += ` · ${meta.produtos} produtos`;
+    if (meta.totalLotes > 1) msg += ` · lote ${meta.lote}/${meta.totalLotes}`;
+    showToast(msg, 'success');
+  }
+  return meta;
+}
+
+function _sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function baixarFotosProdutoAtual() {
+  if (!_editandoId) {
+    showToast('Salve o produto antes de baixar as fotos', 'error');
+    return;
+  }
+  const btn = document.getElementById('btnBaixarFotosProd');
+  if (btn) { btn.disabled = true; btn.textContent = 'Baixando…'; }
+  try {
+    await _baixarFotosZip({ ids: [_editandoId] }, `fotos_produto_${_editandoId}.zip`);
+  } catch (err) {
+    showToast(err.message || 'Erro ao baixar', 'error');
+  } finally {
+    if (btn) {
+      btn.textContent = '↓ Baixar';
+      btn.disabled = false;
+    }
+  }
+}
+
+async function baixarFotosFiltroAtual() {
+  const q = document.getElementById('searchInput').value.trim();
+  const grp = document.getElementById('fa_grupo').value;
+  const dis = document.getElementById('fa_disponivel').value;
+  const seg = document.getElementById('fa_segmento').value;
+  const fab = document.getElementById('fa_fabricante').value;
+  const fot = document.getElementById('fa_com_foto').value;
+  if (fot === 'N') {
+    showToast('O filtro está em «sem foto» — não há nada para baixar. Troque para «com foto» ou limpe o filtro.', 'error');
+    return;
+  }
+  const ok = confirm(
+    'Baixar as fotos dos produtos do filtro atual?\n\n' +
+    '• Se houver muitos produtos, serão vários ZIPs (lotes de 500)\n' +
+    '• Nomes no padrão da importação (cód. fabricante)\n' +
+    '• Só fotos locais da galeria (não baixa URLs externas)\n' +
+    '• Libere downloads múltiplos no navegador, se pedir'
+  );
+  if (!ok) return;
+
+  const baseBody = {
+    q,
+    status: (_status !== 'todos' && _status !== 'estbaixo') ? _status : 'todos',
+    grupo: grp,
+    disponivel: dis,
+    segmento: seg,
+    fornecedor: fab,
+    com_foto: fot || 'S',
+    limit: 500
+  };
+  const stamp = new Date().toISOString().slice(0, 10);
+  let offset = 0;
+  let lote = 0;
+  let totalFotos = 0;
+  let totalProd = 0;
+  let totalGeral = 0;
+
+  try {
+    showToast('Gerando ZIP…');
+    while (true) {
+      lote++;
+      const meta = await _baixarFotosZip(
+        { ...baseBody, offset },
+        `fotos_produtos_${stamp}_lote${lote}.zip`,
+        { silent: true }
+      );
+      totalFotos += meta.fotos || 0;
+      totalProd += meta.produtos || 0;
+      totalGeral = meta.total || totalGeral;
+      showToast(
+        meta.totalLotes > 1
+          ? `Lote ${meta.lote}/${meta.totalLotes} baixado (${meta.fotos} foto(s))…`
+          : `Download: ${meta.fotos} foto(s) · ${meta.produtos} produto(s)`,
+        'success'
+      );
+      if (!meta.hasMore) break;
+      offset += meta.limit || 500;
+      // Pausa para o navegador aceitar vários downloads sem bloquear
+      await _sleep(700);
+      if (lote >= 40) {
+        showToast('Parou em 40 lotes por segurança. Filtre (fábrica/grupo) e continue o restante.', 'error');
+        break;
+      }
+    }
+    if (lote > 1) {
+      showToast(`Concluído: ${totalFotos} foto(s) em ${lote} ZIP(s) · ${totalGeral || totalProd} produtos`, 'success');
+    }
+  } catch (err) {
+    showToast(err.message || 'Erro ao baixar', 'error');
+  }
 }
 
 // ── PROMOÇÕES (estilo Mercos) ─────────────────────────────────────────────────
@@ -2912,11 +3088,163 @@ function novoRegistro() {
   _editandoId = null;
   document.getElementById('formTitulo').textContent = 'Novo Produto';
   limparForm();
+  carregarReferenciasMaeSelect();
   carregarGaleria(null);
   carregarPromocoes(null);
   limparFormPromocao();
   carregarMultiplos(null);
   mostrarForm();
+}
+
+/** Opt-in: opções de referência mãe (não quebra cadastro se API falhar). */
+async function carregarReferenciasMaeSelect(selectedId) {
+  const sel = document.getElementById('f_id_referencia');
+  if (!sel) return;
+  const forn = document.getElementById('f_cod_fornecedorpadrao')?.value || '';
+  const cur = selectedId != null ? String(selectedId) : (sel.value || '');
+  const qs = new URLSearchParams({ limit: '80' });
+  if (forn) qs.set('fornecedor', forn);
+  if (_editandoId) qs.set('exclude_id', String(_editandoId));
+  try {
+    const r = await api('/api/produtos/referencias-mae?' + qs.toString());
+    const d = await r.json().catch(() => ({}));
+    const rows = d.referencias || [];
+    let html = '<option value="">— Nenhuma (avulso ou referência principal) —</option>';
+    for (const p of rows) {
+      const fab = p.cod_fabricante ? p.cod_fabricante + ' — ' : '';
+      const cor = p.cor1 ? ` [${p.cor1}]` : '';
+      const qtd = p.qtd_cores > 0 ? ` · ${p.qtd_cores} cor(es)` : '';
+      html += `<option value="${p.id}">${fab}${p.descricao || ''}${cor}${qtd}</option>`;
+    }
+    // Garante opção da mãe atual mesmo se não veio no filtro
+    if (cur && !rows.some(p => String(p.id) === String(cur))) {
+      html += `<option value="${cur}">#${cur} (vinculado)</option>`;
+    }
+    sel.innerHTML = html;
+    if (cur) sel.value = cur;
+  } catch (_) {
+    /* silencioso — campo opcional */
+  }
+}
+
+let _boxRefToken = 0;
+
+async function carregarBoxCoresReferencia(prodId) {
+  const box = document.getElementById('box_cores_referencia');
+  if (!box || !prodId) {
+    if (box) { box.style.display = 'none'; box.innerHTML = ''; }
+    return;
+  }
+  const token = ++_boxRefToken;
+  try {
+    const r = await api(`/api/produtos/${prodId}/variacoes`);
+    if (token !== _boxRefToken) return;
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !d.mae) {
+      box.style.display = 'none';
+      box.innerHTML = '';
+      return;
+    }
+    const cores = d.cores || [];
+    const maeLabel = `${d.mae.cod_fabricante ? d.mae.cod_fabricante + ' — ' : ''}${d.mae.descricao || ''}`;
+    let html = '';
+
+    if (d.papel === 'cor') {
+      html = `<strong>Cor da referência:</strong> ${maeLabel.replace(/</g, '&lt;')}`;
+      if (d.mae?.id) {
+        html += ` <button type="button" class="btn btn-ghost" style="font-size:11px;padding:3px 8px;margin-left:6px" onclick="abrirEdicao(${d.mae.id})">Abrir mãe</button>`;
+      }
+      if (cores.length > 1) {
+        html += `<div style="margin-top:4px;color:var(--text2)">${cores.length} cores no grupo</div>`;
+      }
+    } else {
+      // mãe (já tem cores) ou avulso (pode virar mãe ao adicionar a 1ª cor)
+      const titulo = d.papel === 'mae'
+        ? 'Este produto é a referência mãe'
+        : 'Referência / cores';
+      const sub = d.papel === 'mae'
+        ? `${cores.length} cor(es) vinculada(s) · pedido usa o SKU de cada cor`
+        : 'Ainda sem cores. Use «Adicionar cor» para clonar este produto como SKU da cor.';
+      html = `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <strong>${titulo}</strong>
+        <button type="button" class="btn btn-outline" style="font-size:12px;padding:5px 10px" onclick="adicionarCorDaMae(${prodId})">+ Adicionar cor</button>
+      </div>
+      <div style="margin-top:4px;color:var(--text2)">${sub}</div>`;
+      if (cores.length) {
+        html += '<ul style="margin:8px 0 0;padding-left:0;list-style:none">' +
+          cores.map(c => {
+            const lbl = `${c.cor1 || c.cod_fabricante || '#' + c.id} — ${c.descricao || ''}`;
+            return `<li style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid var(--border,#e5e7eb)">
+              <span style="font-size:12px">${lbl.replace(/</g, '&lt;')}</span>
+              <button type="button" class="btn btn-ghost" style="font-size:11px;padding:3px 8px" onclick="abrirEdicao(${c.id})">Editar</button>
+            </li>`;
+          }).join('') +
+          '</ul>';
+      }
+    }
+    if (token !== _boxRefToken) return;
+    box.innerHTML = html;
+    box.style.display = html ? 'block' : 'none';
+  } catch (_) {
+    if (token !== _boxRefToken) return;
+    box.style.display = 'none';
+  }
+}
+
+/**
+ * P2: clona a referência mãe como novo SKU já vinculado (cor).
+ * Usuário só precisa informar Cód. Fabricante, Cor 1 e fotos.
+ */
+async function adicionarCorDaMae(idMae) {
+  const maeId = parseInt(idMae, 10) || _editandoId;
+  if (!maeId) {
+    showToast('Salve a referência mãe antes de adicionar cores', 'error');
+    return;
+  }
+  if (_semPermAlterar) { showToast('Sem permissão para incluir', 'error'); return; }
+  try {
+    const r = await api(`/api/produtos/${maeId}`);
+    if (!r.ok) throw new Error('Não foi possível carregar a referência mãe');
+    const p = await r.json();
+    await window._lookupsReadyPromise;
+
+    _editandoId = null;
+    document.getElementById('formTitulo').textContent = 'Nova cor da referência';
+    limparForm();
+    preencherForm(p);
+    carregarGaleria(null);
+    carregarPromocoes(null);
+    limparFormPromocao();
+    carregarMultiplos(null);
+
+    _CLONE_LIMPAR_PROD.forEach(fid => {
+      const el = document.getElementById(fid);
+      if (el) el.value = '';
+    });
+    const elCor1 = document.getElementById('f_cor1');
+    const elCor2 = document.getElementById('f_cor2');
+    if (elCor1) elCor1.value = '';
+    if (elCor2) elCor2.value = '';
+    atualizarPreviewFotoExterna('');
+
+    await carregarReferenciasMaeSelect(maeId);
+    const selRef = document.getElementById('f_id_referencia');
+    if (selRef) selRef.value = String(maeId);
+
+    _boxRefToken++; // invalida carregarBoxCoresReferencia disparado pelo preencherForm da mãe
+    const box = document.getElementById('box_cores_referencia');
+    if (box) {
+      box.innerHTML = '<strong>Nova cor</strong><div style="margin-top:4px;color:var(--text2)">Já vinculada à referência mãe. Informe o Cód. Fabricante (SKU), a Cor 1 e salve. Depois adicione fotos na aba Fotos.</div>';
+      box.style.display = 'block';
+    }
+
+    mostrarForm();
+    showToast('Preencha o SKU e a cor, depois salve', 'success');
+    abrirAba('outras', document.querySelector('.form-tab[onclick*="outras"]') || document.querySelector('.form-tab'));
+    document.getElementById('f_cod_fabricante')?.focus();
+  } catch (err) {
+    showToast(err.message || 'Erro ao criar cor', 'error');
+  }
 }
 
 async function abrirEdicao(id, opts = {}) {
@@ -3043,7 +3371,7 @@ function limparForm() {
     'f_kilo_embalagem','f_embalagemmaster','f_multiplo_venda','f_qtd_minima_pedido','f_id_endereco',
     'f_ncm','f_cest','f_icms','f_ipi','f_vlr_pis','f_vlr_confins','f_vlr_st','f_origem',
     'f_cor1','f_cor2','f_solado','f_peso_liquido','f_tipograde','f_id_grade',
-    'f_cod_fornecedorpadrao','f_cod_fornecedorcusto','f_obs','f_obs2','f_foto_principal'];
+    'f_cod_fornecedorpadrao','f_cod_fornecedorcusto','f_id_referencia','f_obs','f_obs2','f_foto_principal'];
   ids.forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = el.tagName === 'SELECT' ? (el.options[0]?.value||'') : '';
@@ -3054,6 +3382,8 @@ function limparForm() {
   if (elPp) elPp.value = 'N';
   syncPrecoPesoProdutoForm();
   atualizarPreviewFotoExterna('');
+  const boxRef = document.getElementById('box_cores_referencia');
+  if (boxRef) { boxRef.style.display = 'none'; boxRef.innerHTML = ''; }
   abrirAba('geral', document.querySelector('.form-tab'));
 }
 
@@ -3121,6 +3451,11 @@ function preencherForm(p) {
   set('f_desconto_maximo',    p.desconto_maximo ?? '');
   const elBlq = document.getElementById('f_bloquear_desconto');
   if (elBlq) elBlq.checked = (p.bloquear_desconto === 'S');
+  // Referência mãe (opt-in) — carrega opções e seleciona vínculo
+  carregarReferenciasMaeSelect(p.id_referencia || null).then(() => {
+    set('f_id_referencia', p.id_referencia || '');
+    carregarBoxCoresReferencia(p.ID ?? p.id);
+  });
 }
 
 async function salvar() {
@@ -3204,6 +3539,7 @@ async function salvar() {
     tipograde:            v('f_id_grade'),
     cod_fornecedorpadrao: v('f_cod_fornecedorpadrao'),
     cod_fornecedorcusto:  v('f_cod_fornecedorcusto'),
+    id_referencia:        document.getElementById('f_id_referencia')?.value || null,
     obs:                  v('f_obs'),
     obs2:                 v('f_obs2'),
     desconto_maximo:      v('f_desconto_maximo') !== '' ? v('f_desconto_maximo') : null,

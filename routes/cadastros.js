@@ -13,10 +13,26 @@ const {
 const { ensurePerfilCadastroColumns } = require('../config/schema-migrations');
 const { resolveNaturezaLabelColumn } = require('../config/natureza-label');
 const {
+  resolveDespesasLabelColumn,
+  despesasLabelExpr,
+  despesasOrderExpr,
+} = require('../config/despesas-label');
+const {
   PERFIL_SN_FIELDS,
+  defaultForPerfilCol,
   permCrud,
   negarCad,
 } = require('../config/cadastros-permissoes');
+const {
+  ensurePlanoContasSchema,
+  ensureCentroCustoSchema,
+  ensureFinanceiroContabilCols,
+  normalizeTipoConta,
+  normalizeGrupoConta,
+  calcNivelPai,
+  planoContasLegacyWriteFields,
+} = require('../config/plano-contas-schema');
+const { seedPlanoContasModelo } = require('../config/plano-contas-modelo');
 
 /** Legado Delphi: excluido pode ser NULL ou vazio em registros ativos. */
 const EMPRESA_NAO_EXCLUIDA = `COALESCE(NULLIF(TRIM(excluido), ''), 'N') = 'N'`;
@@ -88,10 +104,9 @@ router.post('/perfis', async (req, res) => {
     await ensurePerfilPermissions(pool);
     const n = v => v === 'S' || v === true ? 'S' : 'N';
     const { descricao } = req.body;
-    const defS = new Set(['p_alterarcomissao', 'alterar_emb', 'alterardatapedido', 'trocarvendedorpedido', 'alteraprecovenda']);
     const values = PERFIL_SN_FIELDS.map((f) => {
       const raw = req.body[f];
-      if (raw === undefined && defS.has(f)) return 'S';
+      if (raw === undefined) return defaultForPerfilCol(f);
       return n(raw);
     });
     const ph = PERFIL_SN_FIELDS.map(() => '?').join(',');
@@ -118,17 +133,16 @@ router.put('/perfis/:id', async (req, res) => {
     await ensurePerfilPermissions(pool);
     const n = v => v === 'S' || v === true ? 'S' : 'N';
     const { descricao } = req.body;
-    const defS = new Set(['p_alterarcomissao', 'alterar_emb', 'alterardatapedido', 'trocarvendedorpedido', 'alteraprecovenda']);
-    const sets = PERFIL_SN_FIELDS.map((f) => `${f}=?`).join(',');
-    const values = PERFIL_SN_FIELDS.map((f) => {
-      const raw = req.body[f];
-      if (raw === undefined && defS.has(f)) return 'S';
-      return n(raw);
-    });
-    await pool.query(
-      `UPDATE perfil SET descricao=?, ${sets} WHERE id=?`,
-      [descricao || null, ...values, req.params.id]
-    );
+    // Só atualiza campos enviados — evita zerar permissões novas ausentes no form antigo
+    const sets = ['descricao=?'];
+    const values = [descricao || null];
+    for (const f of PERFIL_SN_FIELDS) {
+      if (req.body[f] === undefined) continue;
+      sets.push(`${f}=?`);
+      values.push(n(req.body[f]));
+    }
+    values.push(req.params.id);
+    await pool.query(`UPDATE perfil SET ${sets.join(', ')} WHERE id=?`, values);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -1358,14 +1372,7 @@ async function addColIfMissing(pool, table, col, def) {
 }
 
 async function ensurePlanoContasTable(pool) {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS plano_contas (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      numero VARCHAR(20),
-      descricao VARCHAR(100) NOT NULL,
-      excluido CHAR(1) DEFAULT 'N'
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8
-  `).catch(() => {});
+  await ensurePlanoContasSchema(pool);
 }
 
 async function ensureDespesasTable(pool) {
@@ -1392,7 +1399,17 @@ router.get('/despesas', async (req, res) => {
   try {
     const pool = getPool();
     await ensureDespesasTable(pool);
-    const [rows] = await pool.query(`SELECT d.*, p.descricao as planoconta_nome FROM despesas d LEFT JOIN plano_contas p ON p.id = d.id_planoconta WHERE d.excluido='N' ORDER BY d.descricao`);
+    await resolveDespesasLabelColumn(pool);
+    const label = despesasLabelExpr('d');
+    const orderBy = despesasOrderExpr('d');
+    const [rows] = await pool.query(
+      `SELECT d.*, ${label} AS descricao,
+              p.descricao AS planoconta_nome, p.numero AS planoconta_numero
+       FROM despesas d
+       LEFT JOIN plano_contas p ON p.id = d.id_planoconta
+       WHERE d.excluido='N'
+       ORDER BY ${orderBy}`
+    );
     res.json({ despesas: rows });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -1403,11 +1420,13 @@ router.post('/despesas', async (req, res) => {
     if (pc.incluir !== 'S') return negarCad(res, 'Sem permissão para incluir despesas');
     const pool = getPool();
     await ensureDespesasTable(pool);
+    const col = await resolveDespesasLabelColumn(pool);
     const { descricao, tipo, id_planoconta, status } = req.body;
     if (!descricao) return res.status(400).json({ error: 'Descrição é obrigatória' });
+    const idPc = parseInt(id_planoconta, 10) || null;
     const [r] = await pool.query(
-      `INSERT INTO despesas (descricao, tipo, id_planoconta, status, excluido) VALUES (?,?,?,?,'N')`,
-      [descricao, tipo || 'FIXA', id_planoconta || null, status || 'A']
+      `INSERT INTO despesas (\`${col}\`, tipo, id_planoconta, status, excluido) VALUES (?,?,?,?,'N')`,
+      [descricao, tipo || 'FIXA', idPc, status || 'A']
     );
     res.status(201).json({ ok: true, id: r.insertId });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -1418,10 +1437,12 @@ router.put('/despesas/:id', async (req, res) => {
     const pc = permCrud(req, { incluir: 'incluir_despesas', alterar: 'alterar_despesas', excluir: 'excluir_despesas' });
     if (pc.alterar !== 'S') return negarCad(res, 'Sem permissão para alterar despesas');
     const pool = getPool();
+    const col = await resolveDespesasLabelColumn(pool);
     const { descricao, tipo, id_planoconta, status } = req.body;
+    const idPc = parseInt(id_planoconta, 10) || null;
     await pool.query(
-      `UPDATE despesas SET descricao=?, tipo=?, id_planoconta=?, status=? WHERE id=?`,
-      [descricao, tipo || 'FIXA', id_planoconta || null, status || 'A', req.params.id]
+      `UPDATE despesas SET \`${col}\`=?, tipo=?, id_planoconta=?, status=? WHERE id=?`,
+      [descricao, tipo || 'FIXA', idPc, status || 'A', req.params.id]
     );
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -1569,6 +1590,7 @@ async function ensureNaturezaTable(pool) {
       dt_cadastro DATETIME DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3
   `).catch(() => {});
+  await ensureFinanceiroContabilCols(pool);
 }
 
 router.get('/natureza', async (req, res) => {
@@ -1577,7 +1599,11 @@ router.get('/natureza', async (req, res) => {
     await ensureNaturezaTable(pool);
     const col = await resolveNaturezaLabelColumn(pool);
     const [rows] = await pool.query(
-      `SELECT *, \`${col}\` AS descricao FROM natureza WHERE excluido='N' ORDER BY \`${col}\``
+      `SELECT n.*, n.\`${col}\` AS descricao,
+              p.numero AS planoconta_numero, p.descricao AS planoconta_nome
+       FROM natureza n
+       LEFT JOIN plano_contas p ON p.id = n.id_planoconta
+       WHERE n.excluido='N' ORDER BY n.\`${col}\``
     );
     res.json({ natureza: rows });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -1586,13 +1612,14 @@ router.get('/natureza', async (req, res) => {
 router.post('/natureza', async (req, res) => {
   try {
     const pool = getPool();
+    await ensureNaturezaTable(pool);
     const n = v => (v === 'S' || v === true) ? 'S' : 'N';
     const col = await resolveNaturezaLabelColumn(pool);
-    const { descricao, tipo, movimenta_estoque, status } = req.body;
+    const { descricao, tipo, movimenta_estoque, status, id_planoconta } = req.body;
     if (!descricao) return res.status(400).json({ error: 'Descrição é obrigatória' });
     const [r] = await pool.query(
-      `INSERT INTO natureza (\`${col}\`, tipo, movimenta_estoque, status, excluido) VALUES (?,?,?,?,'N')`,
-      [descricao, tipo || null, n(movimenta_estoque), status || 'A']
+      `INSERT INTO natureza (\`${col}\`, tipo, movimenta_estoque, status, id_planoconta, excluido) VALUES (?,?,?,?,?,'N')`,
+      [descricao, tipo || null, n(movimenta_estoque), status || 'A', parseInt(id_planoconta, 10) || null]
     );
     res.status(201).json({ ok: true, id: r.insertId });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -1601,12 +1628,13 @@ router.post('/natureza', async (req, res) => {
 router.put('/natureza/:id', async (req, res) => {
   try {
     const pool = getPool();
+    await ensureNaturezaTable(pool);
     const n = v => (v === 'S' || v === true) ? 'S' : 'N';
     const col = await resolveNaturezaLabelColumn(pool);
-    const { descricao, tipo, movimenta_estoque, status } = req.body;
+    const { descricao, tipo, movimenta_estoque, status, id_planoconta } = req.body;
     await pool.query(
-      `UPDATE natureza SET \`${col}\`=?, tipo=?, movimenta_estoque=?, status=? WHERE id=?`,
-      [descricao, tipo || null, n(movimenta_estoque), status || 'A', req.params.id]
+      `UPDATE natureza SET \`${col}\`=?, tipo=?, movimenta_estoque=?, status=?, id_planoconta=? WHERE id=?`,
+      [descricao, tipo || null, n(movimenta_estoque), status || 'A', parseInt(id_planoconta, 10) || null, req.params.id]
     );
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -1846,14 +1874,226 @@ router.delete('/tipo-pedidos/:id', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PLANO DE CONTAS
+// PLANO DE CONTAS (gerencial — hierárquico)
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/plano-contas', async (req, res) => {
   try {
     const pool = getPool();
     await ensurePlanoContasTable(pool);
-    const [rows] = await pool.query(`SELECT id, numero, descricao FROM plano_contas WHERE excluido='N' ORDER BY numero`);
+    const analiticas = req.query.analiticas === '1' || req.query.analiticas === 'S';
+    let sql = `
+      SELECT pc.*, pai.descricao AS pai_descricao, pai.numero AS pai_numero
+      FROM plano_contas pc
+      LEFT JOIN plano_contas pai ON pai.id = pc.id_pai
+      WHERE (pc.excluido='N' OR pc.excluido IS NULL)`;
+    if (analiticas) {
+      sql += ` AND UPPER(COALESCE(pc.tipo,'ANALITICA'))='ANALITICA'
+               AND COALESCE(pc.aceita_lancamento,'S')='S'
+               AND COALESCE(pc.status,'A')='A'`;
+    }
+    sql += ` ORDER BY COALESCE(pc.numero,''), pc.descricao`;
+    const [rows] = await pool.query(sql);
     res.json({ plano_contas: rows });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+/** Seed seguro: só cria números que ainda não existem. */
+router.post('/plano-contas/modelo', async (req, res) => {
+  try {
+    const pc = permCrud(req, { incluir: 'incluir_plano_contas', alterar: 'alterar_plano_contas', excluir: 'excluir_plano_contas' });
+    if (pc.incluir !== 'S') return negarCad(res, 'Sem permissão para incluir plano de contas');
+    const pool = getPool();
+    await ensurePlanoContasTable(pool);
+    const result = await seedPlanoContasModelo(pool);
+    res.json({ ok: true, ...result });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/plano-contas', async (req, res) => {
+  try {
+    const pc = permCrud(req, { incluir: 'incluir_plano_contas', alterar: 'alterar_plano_contas', excluir: 'excluir_plano_contas' });
+    if (pc.incluir !== 'S') return negarCad(res, 'Sem permissão para incluir plano de contas');
+    const pool = getPool();
+    await ensurePlanoContasTable(pool);
+    const { numero, descricao, id_pai, tipo, grupo, status } = req.body;
+    if (!descricao || !String(descricao).trim()) return res.status(400).json({ error: 'Descrição é obrigatória' });
+    const tipoN = normalizeTipoConta(tipo);
+    const idPai = parseInt(id_pai, 10) || null;
+    const nivel = await calcNivelPai(pool, idPai);
+    const aceita = tipoN === 'ANALITICA' ? 'S' : 'N';
+    const leg = await planoContasLegacyWriteFields(pool, idPai);
+    const [r] = await pool.query(
+      `INSERT INTO plano_contas (numero, descricao, id_pai, nivel, tipo, grupo, aceita_lancamento, status, excluido${leg.insertCols})
+       VALUES (?,?,?,?,?,?,?,?,'N'${leg.insertPlaceholders})`,
+      [
+        (numero || '').toString().trim() || null,
+        String(descricao).trim(),
+        idPai,
+        nivel,
+        tipoN,
+        normalizeGrupoConta(grupo),
+        aceita,
+        status === 'I' ? 'I' : 'A',
+        ...leg.values,
+      ]
+    );
+    res.status(201).json({ ok: true, id: r.insertId });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+async function temCicloPlanoContas(pool, id, idPai) {
+  if (!idPai) return false;
+  if (idPai === id) return true;
+  let cur = idPai;
+  for (let i = 0; i < 20; i++) {
+    if (cur === id) return true;
+    const [rows] = await pool.query(
+      `SELECT id_pai FROM plano_contas WHERE id=? AND (excluido='N' OR excluido IS NULL) LIMIT 1`,
+      [cur]
+    );
+    if (!rows.length || !rows[0].id_pai) return false;
+    cur = Number(rows[0].id_pai);
+  }
+  return false;
+}
+
+router.put('/plano-contas/:id', async (req, res) => {
+  try {
+    const pc = permCrud(req, { incluir: 'incluir_plano_contas', alterar: 'alterar_plano_contas', excluir: 'excluir_plano_contas' });
+    if (pc.alterar !== 'S') return negarCad(res, 'Sem permissão para alterar plano de contas');
+    const pool = getPool();
+    await ensurePlanoContasTable(pool);
+    const id = parseInt(req.params.id, 10);
+    const { numero, descricao, id_pai, tipo, grupo, status } = req.body;
+    if (!descricao || !String(descricao).trim()) return res.status(400).json({ error: 'Descrição é obrigatória' });
+    const idPai = parseInt(id_pai, 10) || null;
+    if (idPai && idPai === id) return res.status(400).json({ error: 'A conta não pode ser pai de si mesma' });
+    if (await temCicloPlanoContas(pool, id, idPai)) {
+      return res.status(400).json({ error: 'Hierarquia inválida: a conta pai cria um ciclo' });
+    }
+    const tipoN = normalizeTipoConta(tipo);
+    const nivel = await calcNivelPai(pool, idPai);
+    const aceita = tipoN === 'ANALITICA' ? 'S' : 'N';
+    const leg = await planoContasLegacyWriteFields(pool, idPai);
+    await pool.query(
+      `UPDATE plano_contas SET numero=?, descricao=?, id_pai=?, nivel=?, tipo=?, grupo=?, aceita_lancamento=?, status=?${leg.setSql}
+       WHERE id=?`,
+      [
+        (numero || '').toString().trim() || null,
+        String(descricao).trim(),
+        idPai,
+        nivel,
+        tipoN,
+        normalizeGrupoConta(grupo),
+        aceita,
+        status === 'I' ? 'I' : 'A',
+        ...leg.values,
+        id,
+      ]
+    );
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.delete('/plano-contas/:id', async (req, res) => {
+  try {
+    const pc = permCrud(req, { incluir: 'incluir_plano_contas', alterar: 'alterar_plano_contas', excluir: 'excluir_plano_contas' });
+    if (pc.excluir !== 'S') return negarCad(res, 'Sem permissão para excluir plano de contas');
+    const pool = getPool();
+    const id = parseInt(req.params.id, 10);
+    const [filhos] = await pool.query(
+      `SELECT id FROM plano_contas WHERE id_pai=? AND (excluido='N' OR excluido IS NULL) LIMIT 1`,
+      [id]
+    );
+    if (filhos.length) return res.status(400).json({ error: 'Exclua ou reclassifique as contas filhas antes' });
+    await pool.query(`UPDATE plano_contas SET excluido='S' WHERE id=?`, [id]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CENTRO DE CUSTO
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/centro-custo', async (req, res) => {
+  try {
+    const pool = getPool();
+    await ensureCentroCustoSchema(pool);
+    const analiticas = req.query.analiticas === '1' || req.query.analiticas === 'S';
+    let sql = `
+      SELECT cc.*, pai.descricao AS pai_descricao, pai.codigo AS pai_codigo
+      FROM centro_custo cc
+      LEFT JOIN centro_custo pai ON pai.id = cc.id_pai
+      WHERE (cc.excluido='N' OR cc.excluido IS NULL)`;
+    if (analiticas) {
+      sql += ` AND UPPER(COALESCE(cc.tipo,'ANALITICA'))='ANALITICA' AND COALESCE(cc.status,'A')='A'`;
+    }
+    sql += ` ORDER BY COALESCE(cc.codigo,''), cc.descricao`;
+    const [rows] = await pool.query(sql);
+    res.json({ centro_custo: rows });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/centro-custo', async (req, res) => {
+  try {
+    const pc = permCrud(req, { incluir: 'incluir_centro_custo', alterar: 'alterar_centro_custo', excluir: 'excluir_centro_custo' });
+    if (pc.incluir !== 'S') return negarCad(res, 'Sem permissão para incluir centro de custo');
+    const pool = getPool();
+    await ensureCentroCustoSchema(pool);
+    const { codigo, descricao, id_pai, tipo, status } = req.body;
+    if (!descricao || !String(descricao).trim()) return res.status(400).json({ error: 'Descrição é obrigatória' });
+    const [r] = await pool.query(
+      `INSERT INTO centro_custo (codigo, descricao, id_pai, tipo, status, excluido) VALUES (?,?,?,?,?,'N')`,
+      [
+        (codigo || '').toString().trim() || null,
+        String(descricao).trim(),
+        parseInt(id_pai, 10) || null,
+        normalizeTipoConta(tipo),
+        status === 'I' ? 'I' : 'A',
+      ]
+    );
+    res.status(201).json({ ok: true, id: r.insertId });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.put('/centro-custo/:id', async (req, res) => {
+  try {
+    const pc = permCrud(req, { incluir: 'incluir_centro_custo', alterar: 'alterar_centro_custo', excluir: 'excluir_centro_custo' });
+    if (pc.alterar !== 'S') return negarCad(res, 'Sem permissão para alterar centro de custo');
+    const pool = getPool();
+    await ensureCentroCustoSchema(pool);
+    const id = parseInt(req.params.id, 10);
+    const { codigo, descricao, id_pai, tipo, status } = req.body;
+    if (!descricao || !String(descricao).trim()) return res.status(400).json({ error: 'Descrição é obrigatória' });
+    const idPai = parseInt(id_pai, 10) || null;
+    if (idPai && idPai === id) return res.status(400).json({ error: 'O centro não pode ser pai de si mesmo' });
+    await pool.query(
+      `UPDATE centro_custo SET codigo=?, descricao=?, id_pai=?, tipo=?, status=? WHERE id=?`,
+      [
+        (codigo || '').toString().trim() || null,
+        String(descricao).trim(),
+        idPai,
+        normalizeTipoConta(tipo),
+        status === 'I' ? 'I' : 'A',
+        id,
+      ]
+    );
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.delete('/centro-custo/:id', async (req, res) => {
+  try {
+    const pc = permCrud(req, { incluir: 'incluir_centro_custo', alterar: 'alterar_centro_custo', excluir: 'excluir_centro_custo' });
+    if (pc.excluir !== 'S') return negarCad(res, 'Sem permissão para excluir centro de custo');
+    const pool = getPool();
+    const id = parseInt(req.params.id, 10);
+    const [filhos] = await pool.query(
+      `SELECT id FROM centro_custo WHERE id_pai=? AND (excluido='N' OR excluido IS NULL) LIMIT 1`,
+      [id]
+    );
+    if (filhos.length) return res.status(400).json({ error: 'Exclua ou reclassifique os centros filhos antes' });
+    await pool.query(`UPDATE centro_custo SET excluido='S' WHERE id=?`, [id]);
+    res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

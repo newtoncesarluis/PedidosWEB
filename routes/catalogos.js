@@ -104,6 +104,7 @@ async function listItensCatalogo(pool, idCatalogo) {
          ORDER BY pi.ordem ASC LIMIT 1
        )`;
   const tipograde = colSet.has('tipograde') ? 'IFNULL(p.tipograde, 0)' : '0';
+  const tipoprod = colSet.has('tipoprodutograde') ? 'p.tipoprodutograde' : 'NULL';
   const vlr = colSet.has('vlr_venda') ? 'COALESCE(p.vlr_venda, 0)' : '0';
   const mv = colSet.has('multiplo_venda') ? 'IFNULL(p.multiplo_venda, 1)' : '1';
   const qmin = colSet.has('qtd_minima_pedido') ? 'IFNULL(p.qtd_minima_pedido, 0)' : '0';
@@ -111,12 +112,15 @@ async function listItensCatalogo(pool, idCatalogo) {
   const kilo = colSet.has('kilo_embalagem') ? 'IFNULL(p.kilo_embalagem, 0)' : '0';
   const disp = colSet.has('disponivel') ? "IFNULL(p.disponivel, 'S')" : "'S'";
   const forn = colSet.has('cod_fornecedorpadrao') ? 'p.cod_fornecedorpadrao' : 'NULL';
+  const idRef = colSet.has('id_referencia') ? 'p.id_referencia' : 'NULL';
+  const cor1 = colSet.has('cor1') ? 'p.cor1' : 'NULL';
   const [rows] = await pool.query(
     `SELECT ci.id, ci.cod_produto, ci.ordem,
             p.descricao AS desc_produto,
             p.cod_fabricante,
             p.unidade,
             ${tipograde} AS tipograde,
+            ${tipoprod} AS tipoprodutograde,
             ${fotoExpr} AS foto_principal,
             ${vlr} AS vlr_venda,
             ${mv} AS multiplo_venda,
@@ -124,7 +128,9 @@ async function listItensCatalogo(pool, idCatalogo) {
             ${precopeso} AS precopeso,
             ${kilo} AS kilo_embalagem,
             ${disp} AS disponivel,
-            ${forn} AS cod_fornecedorpadrao
+            ${forn} AS cod_fornecedorpadrao,
+            ${idRef} AS id_referencia,
+            ${cor1} AS cor1
      FROM catalogos_itens ci
      INNER JOIN \`${tb}\` p ON p.\`${idCol}\` = ci.cod_produto
      WHERE ci.id_catalogo = ?

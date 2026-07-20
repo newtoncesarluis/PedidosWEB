@@ -189,9 +189,9 @@ router.post('/:id/clonar', async (req, res) => {
     if (!cabOrigem[0]) throw new Error('Tabela original não encontrada');
 
     const [resCab] = await conn.query(
-      `INSERT INTO tabela_preco_cabecalho (Descricao, Data_Inicial, Hora_Inicial, Data_Final, Hora_Final, Cond_Pagamento, Tabela_Ativa, vitrine, usar_regras_fornecedor, aparece_mobile, excluido)
-       VALUES (?, ?, ?, ?, ?, ?, 'N', ?, ?, ?, 'N')`,
-      [`CLONE - ${cabOrigem[0].Descricao}`, cabOrigem[0].Data_Inicial, cabOrigem[0].Hora_Inicial, cabOrigem[0].Data_Final, cabOrigem[0].Hora_Final, cabOrigem[0].Cond_Pagamento, _sn(cabOrigem[0].vitrine), _sn(cabOrigem[0].usar_regras_fornecedor), _sn(cabOrigem[0].aparece_mobile ?? 'S')]
+      `INSERT INTO tabela_preco_cabecalho (Descricao, Data_Inicial, Hora_Inicial, Data_Final, Hora_Final, Cond_Pagamento, Tabela_Ativa, vitrine, usar_regras_fornecedor, aparece_mobile, aparece_showroom, excluido)
+       VALUES (?, ?, ?, ?, ?, ?, 'N', ?, ?, ?, ?, 'N')`,
+      [`CLONE - ${cabOrigem[0].Descricao}`, cabOrigem[0].Data_Inicial, cabOrigem[0].Hora_Inicial, cabOrigem[0].Data_Final, cabOrigem[0].Hora_Final, cabOrigem[0].Cond_Pagamento, _sn(cabOrigem[0].vitrine), _sn(cabOrigem[0].usar_regras_fornecedor), _sn(cabOrigem[0].aparece_mobile ?? 'S'), _sn(cabOrigem[0].aparece_showroom ?? 'N')]
     );
 
     const novoId = resCab.insertId;
@@ -370,6 +370,7 @@ router.get('/disponiveis-para/:cliId/:forId/:venId', async (req, res) => {
     const { cliId, forId, venId } = req.params;
     const { tabelas, origem } = await buscarTabelasLiberadas(pool, cliId, forId, venId, {
       somenteMobile: req.query.mobile === '1',
+      somenteShowroom: req.query.showroom === '1',
     });
     res.json({ tabelas, origem });
   } catch (err) {
@@ -384,7 +385,7 @@ function filtrarTabelasPreposto(rows, idsPermitidos) {
 }
 
 /** Tabelas liberadas (fornecedor/fábrica > vendedor > cliente) — mesma regra de disponiveis-para. */
-async function buscarTabelasLiberadas(pool, cliId, forId, venId, { somenteMobile = false } = {}) {
+async function buscarTabelasLiberadas(pool, cliId, forId, venId, { somenteMobile = false, somenteShowroom = false } = {}) {
   const prepostoCtx = (venId && venId !== 'null' && venId !== '0')
     ? await resolverVendedorTabelaPreco(pool, venId)
     : null;
@@ -409,12 +410,14 @@ async function buscarTabelasLiberadas(pool, cliId, forId, venId, { somenteMobile
       let rows = await listarTabelasVinculadas(pool, idQuery, p.tipo);
       rows = filtrarTabelasPreposto(rows, idsPermitidos);
       if (somenteMobile) rows = rows.filter((r) => (r.aparece_mobile || 'S') === 'S');
+      if (somenteShowroom) rows = rows.filter((r) => (r.aparece_showroom || 'N') === 'S');
       if (rows.length > 0) {
         return {
           tabelas: rows.map((r) => ({
             id_tabela: r.id_tabela,
             descricao: r.descricao,
             aparece_mobile: r.aparece_mobile || 'S',
+            aparece_showroom: r.aparece_showroom || 'N',
           })),
           origem: p.tipo,
         };
@@ -614,6 +617,10 @@ router.get('/', async (req, res) => {
       where.push(`t.Descricao LIKE ?`);
       params.push(`%${q.trim()}%`);
     }
+    // Showroom: só tabelas liberadas (aparece_showroom='S')
+    if (String(req.query.showroom || '') === '1') {
+      where.push(`IFNULL(t.aparece_showroom,'N') = 'S'`);
+    }
 
     const [rows] = await pool.query(
       `SELECT t.*, f.descricao as condicao_pagto_desc
@@ -671,9 +678,9 @@ router.post('/', async (req, res) => {
     }
 
     const [resCab] = await conn.query(
-      `INSERT INTO tabela_preco_cabecalho (Descricao, Data_Inicial, Hora_Inicial, Data_Final, Hora_Final, Cond_Pagamento, Tabela_Ativa, vitrine, usar_regras_fornecedor, aparece_mobile, excluido)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'N')`,
-      [cab.Descricao, cab.Data_Inicial, cab.Hora_Inicial, cab.Data_Final, cab.Hora_Final, cab.Cond_Pagamento, cab.Tabela_Ativa || 'S', _sn(cab.vitrine), _sn(cab.usar_regras_fornecedor), _sn(cab.aparece_mobile ?? 'S')]
+      `INSERT INTO tabela_preco_cabecalho (Descricao, Data_Inicial, Hora_Inicial, Data_Final, Hora_Final, Cond_Pagamento, Tabela_Ativa, vitrine, usar_regras_fornecedor, aparece_mobile, aparece_showroom, excluido)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'N')`,
+      [cab.Descricao, cab.Data_Inicial, cab.Hora_Inicial, cab.Data_Final, cab.Hora_Final, cab.Cond_Pagamento, cab.Tabela_Ativa || 'S', _sn(cab.vitrine), _sn(cab.usar_regras_fornecedor), _sn(cab.aparece_mobile ?? 'S'), _sn(cab.aparece_showroom ?? 'N')]
     );
 
     const idTabela = resCab.insertId;
@@ -708,9 +715,9 @@ router.put('/:id', async (req, res) => {
 
     await conn.query(
       `UPDATE tabela_preco_cabecalho SET
-        Descricao = ?, Data_Inicial = ?, Hora_Inicial = ?, Data_Final = ?, Hora_Final = ?, Cond_Pagamento = ?, Tabela_Ativa = ?, vitrine = ?, usar_regras_fornecedor = ?, aparece_mobile = ?
+        Descricao = ?, Data_Inicial = ?, Hora_Inicial = ?, Data_Final = ?, Hora_Final = ?, Cond_Pagamento = ?, Tabela_Ativa = ?, vitrine = ?, usar_regras_fornecedor = ?, aparece_mobile = ?, aparece_showroom = ?
        WHERE id = ?`,
-      [cab.Descricao, cab.Data_Inicial, cab.Hora_Inicial, cab.Data_Final, cab.Hora_Final, cab.Cond_Pagamento, cab.Tabela_Ativa, _sn(cab.vitrine), _sn(cab.usar_regras_fornecedor), _sn(cab.aparece_mobile ?? 'S'), idTabela]
+      [cab.Descricao, cab.Data_Inicial, cab.Hora_Inicial, cab.Data_Final, cab.Hora_Final, cab.Cond_Pagamento, cab.Tabela_Ativa, _sn(cab.vitrine), _sn(cab.usar_regras_fornecedor), _sn(cab.aparece_mobile ?? 'S'), _sn(cab.aparece_showroom ?? 'N'), idTabela]
     );
 
     // Substituição de itens (Padrão Protheus: deleta e reinsere em lote)

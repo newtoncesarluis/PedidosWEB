@@ -719,6 +719,7 @@ app.use('/api/comissoes',     authMiddleware, require('./routes/comissoes'));
 app.use('/api/conciliacao',  authMiddleware, require('./routes/conciliacao'));
 app.use('/api/pagar',     authMiddleware, require('./routes/pagar'));
 app.use('/api/receber',   authMiddleware, require('./routes/receber'));
+app.use('/api/contabil',  authMiddleware, require('./routes/contabil-gerencial'));
 app.use('/api/financeiro', authMiddleware, require('./routes/financeiro'));
 app.use('/api/dre',       authMiddleware, require('./routes/dre'));
 app.use('/api/faturamento', authMiddleware, require('./routes/faturamento'));

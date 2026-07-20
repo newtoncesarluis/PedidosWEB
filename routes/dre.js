@@ -1,7 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const { getPool } = require('../config/database');
-const { resolveNaturezaLabelColumn, naturezaLabelExpr } = require('../config/natureza-label');
+const {
+  resolveDespesasLabelColumn,
+  despesasLabelExpr,
+} = require('../config/despesas-label');
+const { ensureFinanceiroContabilCols } = require('../config/plano-contas-schema');
 
 // GET /api/dre?dt_inicio=YYYY-MM-DD&dt_fim=YYYY-MM-DD
 router.get('/', async (req, res) => {
@@ -13,8 +17,9 @@ router.get('/', async (req, res) => {
   }
 
   try {
-    await resolveNaturezaLabelColumn(pool);
-    const natLabel = naturezaLabelExpr('n');
+    await ensureFinanceiroContabilCols(pool);
+    await resolveDespesasLabelColumn(pool);
+    const despLabel = despesasLabelExpr('d');
 
     // 1. Faturamento pedidos aprovados
     const [[fat]] = await pool.query(
@@ -52,21 +57,39 @@ router.get('/', async (req, res) => {
     const [[desp]] = await pool.query(
       `SELECT COALESCE(SUM(vlrpago), 0) AS total
        FROM pagar
-       WHERE status = 'LIQUIDADO'
-         AND excluido = 'N'
+       WHERE status IN ('LIQUIDADO','PAGO','BAIXADO','QUITADO')
+         AND (excluido = 'N' OR excluido IS NULL OR excluido = '')
          AND data_pagto BETWEEN ? AND ?`,
       [dt_inicio, dt_fim]
     );
 
-    // 5. Despesas por natureza
+    // 5. Despesas por categoria (tabela despesas / id_despesas — não id_natureza)
     const [despPorNat] = await pool.query(
-      `SELECT ${natLabel} AS natureza, COALESCE(SUM(p.vlrpago), 0) AS total
+      `SELECT ${despLabel} AS natureza, COALESCE(SUM(p.vlrpago), 0) AS total
        FROM pagar p
-       LEFT JOIN natureza n ON n.id = p.id_natureza
-       WHERE p.status = 'LIQUIDADO'
-         AND p.excluido = 'N'
+       LEFT JOIN despesas d ON d.id = p.id_despesas
+       WHERE p.status IN ('LIQUIDADO','PAGO','BAIXADO','QUITADO')
+         AND (p.excluido = 'N' OR p.excluido IS NULL OR p.excluido = '')
          AND p.data_pagto BETWEEN ? AND ?
-       GROUP BY p.id_natureza, ${natLabel}
+       GROUP BY p.id_despesas, ${despLabel}
+       ORDER BY total DESC`,
+      [dt_inicio, dt_fim]
+    );
+
+    // 5b. Despesas por plano de contas (override no título ou conta da despesa)
+    const [despPorConta] = await pool.query(
+      `SELECT
+         COALESCE(pc.numero, '') AS numero,
+         COALESCE(pc.descricao, 'Sem conta contábil') AS conta,
+         COALESCE(pc.grupo, 'OUTROS') AS grupo,
+         COALESCE(SUM(p.vlrpago), 0) AS total
+       FROM pagar p
+       LEFT JOIN despesas d ON d.id = p.id_despesas
+       LEFT JOIN plano_contas pc ON pc.id = COALESCE(p.id_planoconta, d.id_planoconta)
+       WHERE p.status IN ('LIQUIDADO','PAGO','BAIXADO','QUITADO')
+         AND (p.excluido = 'N' OR p.excluido IS NULL OR p.excluido = '')
+         AND p.data_pagto BETWEEN ? AND ?
+       GROUP BY COALESCE(p.id_planoconta, d.id_planoconta), pc.numero, pc.descricao, pc.grupo
        ORDER BY total DESC`,
       [dt_inicio, dt_fim]
     );
@@ -75,14 +98,14 @@ router.get('/', async (req, res) => {
     const [[aRec]] = await pool.query(
       `SELECT COALESCE(SUM(valor), 0) AS total
        FROM receber
-       WHERE status = 'ABERTA'
+       WHERE status IN ('ABERTA','ABERTO')
          AND (excluido = 'N' OR excluido IS NULL OR excluido = '')`
     );
     const [[aPag]] = await pool.query(
       `SELECT COALESCE(SUM(valor), 0) AS total
        FROM pagar
-       WHERE status = 'ABERTA'
-         AND excluido = 'N'`
+       WHERE status IN ('ABERTA','ABERTO')
+         AND (excluido = 'N' OR excluido IS NULL OR excluido = '')`
     );
 
     // 7. Evolução mensal (últimos 12 meses)
@@ -112,7 +135,8 @@ router.get('/', async (req, res) => {
         SELECT DATE_FORMAT(data_pagto, '%Y-%m-01') AS mes,
                0, 0, COALESCE(vlrpago, 0), 0
         FROM pagar
-        WHERE status = 'LIQUIDADO' AND excluido = 'N'
+        WHERE status IN ('LIQUIDADO','PAGO','BAIXADO','QUITADO')
+          AND (excluido = 'N' OR excluido IS NULL OR excluido = '')
           AND data_pagto >= DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL 11 MONTH), '%Y-%m-01')
         UNION ALL
         SELECT DATE_FORMAT(data_lancamento, '%Y-%m-01') AS mes,
@@ -140,6 +164,12 @@ router.get('/', async (req, res) => {
         operacional: despesas,
         por_natureza: despPorNat.map(r => ({
           natureza: r.natureza || 'Não classificado',
+          total: parseFloat(r.total),
+        })),
+        por_planoconta: despPorConta.map(r => ({
+          numero: r.numero || '',
+          conta: r.conta || 'Sem conta contábil',
+          grupo: r.grupo || 'OUTROS',
           total: parseFloat(r.total),
         })),
       },

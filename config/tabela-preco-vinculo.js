@@ -30,9 +30,13 @@ async function listarTabelasVinculadas(pool, entidadeId, tipoEntidade) {
     let descricao = `Tabela #${tid}`;
 
     let apareceMobile = 'S';
+    let apareceShowroom = 'N';
     try {
       const [[cab]] = await pool.query(
-        `SELECT Descricao, IFNULL(aparece_mobile,'S') AS aparece_mobile FROM tabela_preco_cabecalho
+        `SELECT Descricao,
+                IFNULL(aparece_mobile,'S') AS aparece_mobile,
+                IFNULL(aparece_showroom,'N') AS aparece_showroom
+         FROM tabela_preco_cabecalho
          WHERE id = ? AND excluido = 'N' AND Tabela_Ativa = 'S'
          LIMIT 1`,
         [tid]
@@ -40,9 +44,25 @@ async function listarTabelasVinculadas(pool, entidadeId, tipoEntidade) {
       if (cab) {
         descricao = String(cab.Descricao || descricao).trim();
         apareceMobile = cab.aparece_mobile || 'S';
+        apareceShowroom = cab.aparece_showroom || 'N';
         incluir = true;
       }
-    } catch (_) { /* cabecalho pode não existir em bases legadas */ }
+    } catch (_) {
+      /* coluna aparece_showroom pode faltar em bases antigas — tenta sem ela */
+      try {
+        const [[cab]] = await pool.query(
+          `SELECT Descricao, IFNULL(aparece_mobile,'S') AS aparece_mobile FROM tabela_preco_cabecalho
+           WHERE id = ? AND excluido = 'N' AND Tabela_Ativa = 'S'
+           LIMIT 1`,
+          [tid]
+        );
+        if (cab) {
+          descricao = String(cab.Descricao || descricao).trim();
+          apareceMobile = cab.aparece_mobile || 'S';
+          incluir = true;
+        }
+      } catch (__) { /* cabecalho pode não existir em bases legadas */ }
+    }
 
     if (!incluir) {
       try {
@@ -68,6 +88,7 @@ async function listarTabelasVinculadas(pool, entidadeId, tipoEntidade) {
       descricao,
       tabela_ativa: 'S',
       aparece_mobile: apareceMobile,
+      aparece_showroom: apareceShowroom,
     });
   }
 

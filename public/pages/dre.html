@@ -151,13 +151,27 @@ body { margin: 0; font-family: var(--font, 'Inter', 'Segoe UI', sans-serif); bac
       </div>
     </div>
 
-    <!-- Despesas por Natureza -->
+    <!-- Despesas por categoria (Despesas) -->
     <div class="panel">
-      <div class="panel-head"><h2>Despesas por Natureza</h2></div>
+      <div class="panel-head"><h2>Despesas por Categoria</h2></div>
       <div class="panel-body">
         <table class="dre-table" id="nat-table">
           <tbody></tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- Despesas por Plano de Contas -->
+    <div class="panel">
+      <div class="panel-head"><h2>Despesas por Plano de Contas</h2></div>
+      <div class="panel-body">
+        <table class="dre-table" id="pc-table">
+          <tbody></tbody>
+        </table>
+        <p style="font-size:11px;color:var(--text2);margin-top:10px;padding:0 4px">
+          Conta do título ou, se vazia, a conta vinculada na Despesa.
+          Relatório completo: <a href="/pages/balancete.html" onclick="if(window.parent&amp;&amp;window.parent.openTab){window.parent.openTab('/pages/balancete.html','Balancete Gerencial');return false;}">Balancete Gerencial</a>.
+        </p>
       </div>
     </div>
   </div>
@@ -203,6 +217,15 @@ function toast(msg, ok = true) {
   setTimeout(() => el.classList.remove('show'), 3000);
 }
 
+function authHeaders(extra) {
+  const h = Object.assign({ 'Content-Type': 'application/json' }, extra || {});
+  try {
+    const t = localStorage.getItem('token') || sessionStorage.getItem('token');
+    if (t) h.Authorization = 'Bearer ' + t;
+  } catch (_) {}
+  return h;
+}
+
 async function carregar() {
   const mes  = document.getElementById('sel-mes').value;
   const ano  = selAno.value;
@@ -213,12 +236,22 @@ async function carregar() {
   document.getElementById('empty-state').style.display = 'none';
 
   try {
-    const r = await fetch(`/api/dre?dt_inicio=${dt_inicio}&dt_fim=${dt_fim}`, { credentials: 'include' });
-    if (!r.ok) throw new Error(await r.text());
-    const d = await r.json();
+    const r = await fetch(`/api/dre?dt_inicio=${dt_inicio}&dt_fim=${dt_fim}`, {
+      headers: authHeaders(),
+      credentials: 'include',
+      cache: 'no-store',
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.status === 401 || d.redirect) {
+      toast(d.error || 'Sessão expirada. Faça login novamente.', false);
+      setTimeout(() => { window.location.href = '/login.html'; }, 1200);
+      document.getElementById('empty-state').style.display = '';
+      return;
+    }
+    if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
     renderDre(d, mes, ano);
   } catch (e) {
-    toast('Erro ao carregar DRE: ' + e.message, false);
+    toast('Erro ao carregar DRE: ' + (e.message || 'falha na API'), false);
     document.getElementById('empty-state').style.display = '';
   }
 }
@@ -277,19 +310,44 @@ function renderDre(d, mes, ano) {
     return `<tr class="${trClass}"><td class="${tdClass}">${r.label}</td><td class="val ${r.cls}">${valFmt}</td></tr>`;
   }).join('');
 
-  // Despesas por natureza
+  // Despesas por categoria (Despesas / id_despesas)
   const natTbody = document.querySelector('#nat-table tbody');
-  if (!d.despesas.por_natureza.length) {
+  const porNat = d.despesas.por_natureza || [];
+  if (!porNat.length) {
     natTbody.innerHTML = '<tr><td colspan="2" style="padding:20px;text-align:center;color:var(--text2)">Nenhuma despesa classificada no período</td></tr>';
   } else {
-    const totalNat = d.despesas.por_natureza.reduce((s, n) => s + n.total, 0);
-    natTbody.innerHTML = d.despesas.por_natureza.map(n => {
+    const totalNat = porNat.reduce((s, n) => s + n.total, 0);
+    natTbody.innerHTML = porNat.map(n => {
       const pctNat = totalNat ? ((n.total / totalNat) * 100).toFixed(1) : 0;
       return `<tr>
         <td>
           ${n.natureza}
           <div style="margin-top:4px;height:4px;background:rgba(148,163,184,.15);border-radius:99px;overflow:hidden">
             <div style="height:100%;width:${pctNat}%;background:var(--accent);border-radius:99px"></div>
+          </div>
+        </td>
+        <td class="val neg" style="width:130px">(${money(n.total)})</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // Despesas por plano de contas
+  const pcTbody = document.querySelector('#pc-table tbody');
+  const porPc = d.despesas.por_planoconta || [];
+  if (!pcTbody) { /* ok */ }
+  else if (!porPc.length) {
+    pcTbody.innerHTML = '<tr><td colspan="2" style="padding:20px;text-align:center;color:var(--text2)">Nenhuma despesa com conta no período — vincule o Plano de Contas nas Despesas</td></tr>';
+  } else {
+    const totalPc = porPc.reduce((s, n) => s + n.total, 0);
+    pcTbody.innerHTML = porPc.map(n => {
+      const pctPc = totalPc ? ((n.total / totalPc) * 100).toFixed(1) : 0;
+      const label = (n.numero ? n.numero + ' — ' : '') + n.conta;
+      return `<tr>
+        <td>
+          ${label}
+          <div style="font-size:10px;color:var(--text2);margin-top:2px">${n.grupo || ''}</div>
+          <div style="margin-top:4px;height:4px;background:rgba(148,163,184,.15);border-radius:99px;overflow:hidden">
+            <div style="height:100%;width:${pctPc}%;background:var(--accent);border-radius:99px"></div>
           </div>
         </td>
         <td class="val neg" style="width:130px">(${money(n.total)})</td>

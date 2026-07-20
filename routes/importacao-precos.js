@@ -88,6 +88,8 @@ const DEFAULT_CAMPOS_PRODUTO = [
   { nome_campo: 'estoque_maximo',   apelido: 'Estoque Máximo',     tipo: 'decimal', ordem: 22, obrigatorio: 'N' },
   { nome_campo: 'estoque_seguranca',apelido: 'Estoque Segurança',  tipo: 'decimal', ordem: 23, obrigatorio: 'N' },
   { nome_campo: 'segmento',          apelido: 'Categoria/Segmento', tipo: 'texto',   ordem: 24, obrigatorio: 'N' },
+  // Virtual: resolve para id_referencia (não é coluna). ID numérico ou Cód. Fabricante da mãe.
+  { nome_campo: 'referencia_mae',    apelido: 'Referência mãe',    tipo: 'texto',   ordem: 25, obrigatorio: 'N' },
 ];
 
 let _defaultCamposProdutoSeeded = false;
@@ -681,6 +683,38 @@ router.post('/importar-linha', async (req, res) => {
       }
     }
 
+    /**
+     * Campo virtual "Referência mãe" → id_referencia.
+     * Importe as mães antes das cores. Valor: ID ou Cód. Fabricante da mãe.
+     * Célula vazia desvincula. Não grava coluna referencia_mae.
+     */
+    async function aplicarReferenciaMaeImport(excludeId) {
+      if (!Object.prototype.hasOwnProperty.call(dadosParaSalvar, 'referencia_mae')) {
+        return { ok: true };
+      }
+      const rawMae = dadosParaSalvar.referencia_mae;
+      delete dadosParaSalvar.referencia_mae;
+      const { resolverReferenciaMaeImport, ensureProdutoReferenciaCol } = require('../config/produto-referencia');
+      await ensureProdutoReferenciaCol(conn);
+      let idForn = dadosParaSalvar.cod_fornecedorpadrao ?? cod_fornecedor;
+      if (excludeId && (idForn === undefined || idForn === '')) {
+        const tb = await getProdTabela(conn);
+        const [[cur]] = await conn.query(
+          `SELECT cod_fornecedorpadrao FROM \`${tb}\` WHERE id = ? LIMIT 1`,
+          [excludeId]
+        ).catch(() => [[null]]);
+        if (cur) idForn = cur.cod_fornecedorpadrao;
+      }
+      const r = await resolverReferenciaMaeImport(conn, {
+        valor: rawMae,
+        idFornecedor: idForn,
+        idProduto: excludeId || null,
+      });
+      if (!r.ok) return r;
+      dadosParaSalvar.id_referencia = r.id_referencia;
+      return { ok: true };
+    }
+
     // Auto-cria categoria se o segmento importado não existir na tabela categoria
     if (dadosParaSalvar.segmento && dadosParaSalvar.segmento.trim()) {
       const segVal = dadosParaSalvar.segmento.trim();
@@ -717,6 +751,13 @@ router.post('/importar-linha', async (req, res) => {
     }
 
     if (status_cadastro === 'S' && cod_produto) {
+      const refMaeUp = await aplicarReferenciaMaeImport(cod_produto);
+      if (!refMaeUp.ok) {
+        await conn.rollback();
+        conn.release();
+        return res.json({ ok: false, msg: refMaeUp.error });
+      }
+
       if (Object.keys(dadosParaSalvar).length === 0 && (!modo_tabela || tabelaUpdatesRaw.length === 0)) {
         await conn.rollback();
         conn.release();
@@ -807,14 +848,21 @@ router.post('/importar-linha', async (req, res) => {
       zerarPrecosProdutoInsert(dadosParaSalvar);
     }
 
+    if (cod_fornecedor && !Object.prototype.hasOwnProperty.call(dadosParaSalvar, 'cod_fornecedorpadrao')) {
+      dadosParaSalvar.cod_fornecedorpadrao = cod_fornecedor;
+    }
+
+    const refMaeIns = await aplicarReferenciaMaeImport(null);
+    if (!refMaeIns.ok) {
+      await conn.rollback();
+      conn.release();
+      return res.json({ ok: false, msg: refMaeIns.error });
+    }
+
     if (Object.keys(dadosParaSalvar).length === 0) {
       await conn.rollback();
       conn.release();
       return res.json({ ok: false, msg: 'Nenhum campo válido para salvar.' });
-    }
-
-    if (cod_fornecedor && !Object.prototype.hasOwnProperty.call(dadosParaSalvar, 'cod_fornecedorpadrao')) {
-      dadosParaSalvar.cod_fornecedorpadrao = cod_fornecedor;
     }
     if (!Object.prototype.hasOwnProperty.call(dadosParaSalvar, 'dt_cadastro')) {
       const _h = new Date();

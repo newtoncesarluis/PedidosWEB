@@ -57,6 +57,7 @@ async function _validarCarteiraClientePedido(req, poolOrConn, codCliente) {
   return { status: check.status || 403, error: check.error || 'Cliente fora da sua carteira' };
 }
 const { ensureProdutoColunas, getProdTabela } = require('../config/produto-colunas');
+const { sqlSomenteMaeOuAvulso } = require('../config/produto-referencia');
 const { pedidoEmitter, emitNovoPedido } = require('../config/pedido-events');
 
 async function _salvarObsProximoRegistro(conn, pedidoId, texto) {
@@ -570,6 +571,18 @@ async function ensureTables(pool) {
       ];
       for (const c of uCols)
         await pool.query(`ALTER TABLE usuarios ADD COLUMN ${c.name} ${c.type}`).catch(() => {});
+    })(),
+
+    // ── produto/produtos ─────────────────────────────────────────────────────
+    (async () => {
+      // Índice p/ a subquery qtd_cores (referência mãe) na busca de produtos do
+      // pedido. Sem ele, cada produto candidato dispara um full scan da própria
+      // tabela produto (DEPENDENT SUBQUERY) — busca levava ~30s em bases legadas.
+      await ensureProdutoColunas(pool).catch(() => {});
+      const tbProd = await getProdTabela(pool).catch(() => null);
+      if (tbProd) {
+        await pool.query(`ALTER TABLE \`${tbProd}\` ADD INDEX idx_prod_id_ref (id_referencia)`).catch(() => {});
+      }
     })(),
 
     // ── descricao_grades ──────────────────────────────────────────────────────
@@ -1681,10 +1694,11 @@ router.get('/produtos/busca', async (req, res) => {
     const pool = getPool();
     const tb = await _getProdTabela(pool);
     await _ensureProdCols(pool);
-    const { q = '', limit = 15, offset = 0, id_fornecedor, id_tabela, catalogo, somente_promocao, somente_destaque, somente_lancamento, segmento } = req.query;
+    const { q = '', limit = 15, offset = 0, id_fornecedor, id_tabela, catalogo, somente_promocao, somente_destaque, somente_lancamento, segmento, agrupar_referencia } = req.query;
     const offsetNum = Math.max(0, parseInt(offset) || 0);
     const tabelaId = (id_tabela && id_tabela !== 'null' && id_tabela !== '0') ? parseInt(id_tabela) : null;
     const isCatalogo = catalogo === '1' || catalogo === 'true';
+    const agruparRef = agrupar_referencia === '1' || agrupar_referencia === 'true' || agrupar_referencia === 'S';
     const filtrarPromo = somente_promocao === '1' || somente_promocao === 'true' || somente_promocao === 'S';
     const filtrarDestaque = somente_destaque === '1' || somente_destaque === 'true' || somente_destaque === 'S';
     const filtrarLancamento = somente_lancamento === '1' || somente_lancamento === 'true' || somente_lancamento === 'S';
@@ -1781,6 +1795,12 @@ router.get('/produtos/busca', async (req, res) => {
     const grupoJoinSql = prodCols.has('id_grupo')
       ? ' LEFT JOIN grupos g ON g.id = p.id_grupo '
       : '';
+
+    // Showroom: esconde cores filhas na grade (só com agrupar_referencia=1 e sem busca).
+    // Com busca/q preenchido, mantém filhos visíveis (favoritos por ID, SKU da cor).
+    if (agruparRef && !String(q || '').trim() && prodCols.has('id_referencia')) {
+      whereExtra += ` AND ${sqlSomenteMaeOuAvulso('p')}`;
+    }
 
     if (segmento && segmento.trim() && prodCols.has('segmento')) {
       whereExtra += ` AND p.segmento = ?`;
@@ -1900,6 +1920,14 @@ router.get('/produtos/busca', async (req, res) => {
     const selNomeGrupo = prodCols.has('nome_grupo') ? 'p.nome_grupo' : 'NULL AS nome_grupo';
     const selKit = prodCols.has('kit') ? "IFNULL(p.kit, 'N') AS kit" : "NULL AS kit";
     const selGrupoDesc = prodCols.has('id_grupo') ? 'g.descricao AS grupo_descricao' : 'NULL AS grupo_descricao';
+    const selIdRef = prodCols.has('id_referencia') ? 'p.id_referencia' : 'NULL AS id_referencia';
+    const selCor1 = prodCols.has('cor1') ? 'p.cor1' : 'NULL AS cor1';
+    const selQtdCores = prodCols.has('id_referencia')
+      ? `(SELECT COUNT(*) FROM ${tb} c
+          WHERE c.id_referencia = p.ID
+            AND (c.excluido='N' OR c.excluido IS NULL OR c.excluido='')
+            AND (c.situacao='A' OR c.situacao IS NULL OR c.situacao='')) AS qtd_cores`
+      : '0 AS qtd_cores';
 
     const [rows] = await pool.query(
       `SELECT p.ID as id, p.ID as cod_produto,
@@ -1929,7 +1957,8 @@ router.get('/produtos/busca', async (req, res) => {
               IFNULL(p.tipoprodutograde, '') as tipoprodutograde,
               IFNULL(p.bloquear_desconto, 'N') as bloquear_desconto,
               p.desconto_maximo,
-              IFNULL(p.peso_liquido, 0) as peso_liquido
+              IFNULL(p.peso_liquido, 0) as peso_liquido,
+              ${selIdRef}, ${selCor1}, ${selQtdCores}
        FROM ${tb} p
        ${join}${grupoJoinSql}
        WHERE (p.excluido = 'N' OR p.excluido IS NULL OR p.excluido = '')
@@ -3711,13 +3740,14 @@ router.post('/', async (req, res) => {
       }
     }
 
-    const errosGrade = await validarItensGradeObrigatoria(conn, itens);
+    const [errosGrade, errosQtd] = await Promise.all([
+      validarItensGradeObrigatoria(conn, itens),
+      validarItensQtdRegras(conn, itens),
+    ]);
     if (errosGrade) {
       await conn.rollback();
       return res.status(400).json({ error: errosGrade.join(' ') });
     }
-
-    const errosQtd = await validarItensQtdRegras(conn, itens);
     if (errosQtd) {
       await conn.rollback();
       return res.status(400).json({ error: errosQtd.join(' ') });
@@ -4009,12 +4039,14 @@ router.post('/:id', async (req, res) => {
 
     // Comissão calculada no backend quando itens são enviados (salvamento completo)
     if (pedido && itens && itens.length > 0) {
-      const errosGrade = await validarItensGradeObrigatoria(conn, itens);
+      const [errosGrade, errosQtd] = await Promise.all([
+        validarItensGradeObrigatoria(conn, itens),
+        validarItensQtdRegras(conn, itens),
+      ]);
       if (errosGrade) {
         await conn.rollback();
         return res.status(400).json({ error: errosGrade.join(' ') });
       }
-      const errosQtd = await validarItensQtdRegras(conn, itens);
       if (errosQtd) {
         await conn.rollback();
         return res.status(400).json({ error: errosQtd.join(' ') });
