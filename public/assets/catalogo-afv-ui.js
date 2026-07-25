@@ -30,6 +30,7 @@
     favoritos: new Set(),
     cart: [],
     habilitaGrade: 'N',
+    somaEmbalagem: 'N',
     condicoes: [],
     tiposPedido: [],
     pendentes: [],
@@ -110,8 +111,36 @@
   function cartQtd() {
     return S.cart.reduce((s, i) => s + (parseFloat(i.quantidade) || 0), 0);
   }
+
+  /** Embalagem/peso do item — mesma lógica do pedido (produto + soma_embalagem do sistema). */
+  function embalagemDoProduto(p) {
+    const PP = window.PrecoPesoProduto;
+    if (PP && PP.isPrecoPorPeso(p?.precopeso)) return PP.embalagemInicialProduto(p);
+    if (String(S.somaEmbalagem || 'N').toUpperCase() === 'S') {
+      const k = parseFloat(p?.kilo_embalagem) || 0;
+      return k > 0 ? k : 1;
+    }
+    return 1;
+  }
+
+  /** Total da linha: Qtd × [peso/emb] × preço quando precopeso ou soma_embalagem. */
+  function lineTotal(i) {
+    const PP = window.PrecoPesoProduto;
+    const q = parseFloat(i.quantidade) || 0;
+    const vu = parseFloat(i.vlr_venda) || 0;
+    if (!PP) return q * vu;
+    return PP.calcBaseItemTotal({
+      quantidade: q,
+      valorUnitario: vu,
+      embalagem: i.embalagem != null ? i.embalagem : embalagemDoProduto(i),
+      kilo_embalagem: i.kilo_embalagem,
+      precopeso: i.precopeso,
+      somaEmbalagempedido: S.somaEmbalagem || 'N',
+    });
+  }
+
   function cartTotal() {
-    return S.cart.reduce((s, i) => s + (parseFloat(i.quantidade) || 0) * (parseFloat(i.vlr_venda) || 0), 0);
+    return S.cart.reduce((s, i) => s + lineTotal(i), 0);
   }
   function userNome() {
     return sessionStorage.getItem('userName') || localStorage.getItem('userName')
@@ -596,7 +625,11 @@
     try {
       const d = await apiJson('/api/config/sistema');
       S.habilitaGrade = (d.habilitapedidograde || 'N') === 'S' ? 'S' : 'N';
-    } catch (_) { S.habilitaGrade = 'N'; }
+      S.somaEmbalagem = d.soma_embalagempedido || 'N';
+    } catch (_) {
+      S.habilitaGrade = 'N';
+      S.somaEmbalagem = 'N';
+    }
   }
 
   async function carregarCondicoes() {
@@ -632,7 +665,7 @@
 
   async function carregarFabricas() {
     try {
-      const d = await apiJson('/api/fornecedores?limit=500&status=A&somente_fabricas=true');
+      const d = await apiJson('/api/fornecedores?limit=200&status=A&somente_fabricas=true&lean=1');
       S.fabricas = d.fornecedores || d.data || (Array.isArray(d) ? d : []);
     } catch (_) {
       try {
@@ -769,17 +802,24 @@
     S.fonte = { tipo: 'favoritos', id: 'fav', nome: 'Favoritos' };
     S.view = 'refs';
     document.getElementById('afvBody').innerHTML = '<div class="afv-empty">Carregando favoritos…</div>';
-    const itens = [];
-    for (const id of ids.slice(0, 80)) {
-      try {
-        const d = await apiJson('/api/pedidos/produtos/busca?catalogo=1&q=' + encodeURIComponent(String(id)) + '&limit=5');
-        const row = (d.data || []).find((p) => parseInt(p.cod_produto || p.id, 10) === parseInt(id, 10));
-        if (row) itens.push(normItem(row));
-      } catch (_) {}
+    try {
+      const params = new URLSearchParams({
+        catalogo: '1',
+        showroom: '1',
+        limit: '80',
+        ids: ids.slice(0, 80).join(','),
+      });
+      const d = await apiJson('/api/pedidos/produtos/busca?' + params.toString());
+      const byId = new Map((d.data || []).map((p) => [parseInt(p.cod_produto || p.id, 10), p]));
+      S.itens = ids.slice(0, 80)
+        .map((id) => byId.get(parseInt(id, 10)))
+        .filter(Boolean)
+        .map((p) => normItem(p));
+      S.total = S.itens.length;
+      render();
+    } catch (e) {
+      document.getElementById('afvBody').innerHTML = `<div class="afv-empty">${esc(e.message)}</div>`;
     }
-    S.itens = itens;
-    S.total = itens.length;
-    render();
   }
 
   async function carregarProdutos({ reset = false } = {}) {
@@ -795,11 +835,14 @@
     try {
       const params = new URLSearchParams({
         catalogo: '1',
+        showroom: '1',
         agrupar_referencia: '1',
         limit: String(PAGE),
         offset: String(S.offset),
         q: S.busca || '',
       });
+      // 2ª página em diante: não precisa recalcular COUNT
+      if (!reset && S.total != null) params.set('skip_total', '1');
       if (S.fonte.tipo === 'fabrica') {
         params.set('id_fornecedor', S.fonte.id);
         if (S.pre.id_tabela) params.set('id_tabela', S.pre.id_tabela);
@@ -811,7 +854,8 @@
       const rows = (d.data || []).map((p) => normItem(p, fornFb));
       S.itens = reset ? rows : S.itens.concat(rows);
       S.offset = S.itens.length;
-      S.total = d.total != null ? d.total : null;
+      if (d.total != null) S.total = d.total;
+      else if (reset && rows.length < PAGE) S.total = rows.length;
       render();
     } catch (e) {
       if (reset) document.getElementById('afvBody').innerHTML = `<div class="afv-empty">${esc(e.message)}</div>`;
@@ -1470,6 +1514,7 @@
       const f = S.fabricas.find((x) => String(x.id) === String(forn));
       if (f) nomeForn = f.nome || '';
     }
+    const embIni = embalagemDoProduto(p);
     const line = {
       cod_produto: p.cod_produto,
       cod_fabricante: p.cod_fabricante,
@@ -1491,6 +1536,7 @@
       qtd_minima_pedido: p.qtd_minima_pedido,
       precopeso: p.precopeso,
       kilo_embalagem: p.kilo_embalagem,
+      embalagem: embIni,
     };
     const sameIdx = S.cart.findIndex((c) =>
       parseInt(c.cod_produto, 10) === parseInt(p.cod_produto, 10)
@@ -1556,13 +1602,44 @@
           nomeForn = f?.nome || '';
         }
         const totalQt = itens.reduce((s, i) => s + (parseFloat(i.quantidade) || 0), 0);
-        const vlrSub = itens.reduce((s, i) => s + (parseFloat(i.quantidade) || 0) * (parseFloat(i.vlr_venda) || 0), 0);
+        const vlrSub = itens.reduce((s, i) => s + lineTotal(i), 0);
         const vlrSubR = Math.round(vlrSub * 100) / 100;
+
+        // Regras da fábrica (mesmas do pedido): mínimo de faturamento e mínimo de caixas
+        try {
+          const fDet = await apiJson('/api/fornecedores/' + codForn);
+          const vlrMin = parseFloat(fDet.vlr_minimofaturamento) || 0;
+          if (vlrMin > 0 && vlrSubR < vlrMin - 0.005) {
+            const err = new Error(
+              `${nomeForn || 'Fábrica'}: total ${money(vlrSubR)} abaixo do faturamento mínimo (${money(vlrMin)}).`
+            );
+            err._bloqueioFabrica = true;
+            throw err;
+          }
+          const minCx = parseInt(fDet.min_cx_pedido, 10) || 0;
+          if (minCx > 0) {
+            const totalCx = itens.reduce((s, i) => {
+              const mult = parseInt(i.multiplo_venda, 10) || 1;
+              return s + ((parseFloat(i.quantidade) || 0) / mult);
+            }, 0);
+            if (totalCx < minCx) {
+              const err = new Error(
+                `${nomeForn || 'Fábrica'}: ${Math.floor(totalCx)} cx abaixo do mínimo de ${minCx} caixas.`
+              );
+              err._bloqueioFabrica = true;
+              throw err;
+            }
+          }
+        } catch (e) {
+          if (e && e._bloqueioFabrica) throw e;
+          // Se GET fornecedor falhar, não bloqueia — backend do pedido ainda valida o que puder
+        }
 
         const itensBody = itens.map((i) => {
           const q = parseFloat(i.quantidade) || 0;
           const vu = parseFloat(i.vlr_venda) || 0;
-          const tot = Math.round(q * vu * 100) / 100;
+          const tot = Math.round(lineTotal(i) * 100) / 100;
+          const emb = i.embalagem != null ? i.embalagem : embalagemDoProduto(i);
           return {
             cod_produto: i.cod_produto,
             cod_fabricante: i.cod_fabricante,
@@ -1573,6 +1650,9 @@
             valor_unitario: vu,
             vlr_padrao: vu,
             vlrtotal_itens: tot,
+            precopeso: i.precopeso || 'N',
+            kilo_embalagem: i.kilo_embalagem,
+            embalagem: emb,
             id_grade: i.id_grade || null,
             tipo_grade: i.tipo_grade || null,
             grade_qtd: i.grade_qtd || [],

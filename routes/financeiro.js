@@ -127,6 +127,142 @@ router.get('/dashboard', async (req, res) => {
 });
 
 /**
+ * Previsão de caixa consolidada (somente leitura).
+ * GET /api/financeiro/previsao?dias=30
+ * Despesas abertas (plano + centro) + recebimentos previstos + saldo bancário → saldo projetado.
+ */
+router.get('/previsao', async (req, res) => {
+  const pool = getPool();
+  try {
+    await ensureFinanceiroContabilCols(pool);
+    await resolveDespesasLabelColumn(pool);
+    const dias = Math.min(180, Math.max(7, parseInt(req.query.dias, 10) || 30));
+    const despLabel = despesasLabelExpr('d');
+
+    const [[saldoBancos]] = await pool.query(
+      `SELECT COALESCE(SUM(COALESCE(saldo,0)),0) AS total
+         FROM bancos
+        WHERE (excluido='N' OR excluido IS NULL OR excluido='')
+          AND (status='A' OR status IS NULL OR status='')`
+    ).catch(() => [[{ total: 0 }]]);
+
+    const [despesas] = await pool.query(`
+      SELECT
+        COALESCE(
+          NULLIF(TRIM(CONCAT_WS(' — ', NULLIF(TRIM(pc.numero), ''), NULLIF(TRIM(pc.descricao), ''))), ''),
+          ${despLabel},
+          'Não classificado'
+        ) AS plano_contas,
+        COALESCE(NULLIF(TRIM(cc.descricao), ''), '—') AS centro_custo,
+        p.vencimento,
+        p.valor,
+        p.doc,
+        p.nome_fornecedor,
+        p.obs
+      FROM pagar p
+      LEFT JOIN despesas d ON d.id = p.id_despesas
+      LEFT JOIN plano_contas pc ON pc.id = COALESCE(p.id_planoconta, d.id_planoconta)
+      LEFT JOIN centro_custo cc ON cc.id = p.id_centrocusto
+      WHERE (p.excluido='N' OR p.excluido IS NULL OR p.excluido='')
+        AND p.status = 'ABERTA'
+        AND p.vencimento BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL ? DAY)
+      ORDER BY p.vencimento, plano_contas
+    `, [dias]);
+
+    const [recebimentos] = await pool.query(`
+      SELECT r.vencimento, r.valor, r.doc,
+             COALESCE(NULLIF(TRIM(c.nome), ''), NULLIF(TRIM(c.apelido), ''), r.nome_cliente, '') AS nome_cliente,
+             r.obs
+        FROM receber r
+        LEFT JOIN clientes c ON c.id = r.cod_cliente
+       WHERE (r.excluido='N' OR r.excluido IS NULL OR r.excluido='')
+         AND r.status = 'ABERTA'
+         AND r.vencimento BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL ? DAY)
+       ORDER BY r.vencimento
+    `, [dias]).catch(() => [[]]);
+
+    // Cheques em carteira (se tabela existir)
+    let cheques = [];
+    try {
+      const [cols] = await pool.query(`SHOW TABLES LIKE 'cheques'`);
+      if (cols.length) {
+        const [ch] = await pool.query(`
+          SELECT bom_para AS vencimento, valor, numero AS doc, emitente AS nome_cliente, 'CHEQUE' AS tipo
+            FROM cheques
+           WHERE excluido='N' AND status='EM_CARTEIRA'
+             AND bom_para BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL ? DAY)
+           ORDER BY bom_para
+        `, [dias]);
+        cheques = ch;
+      }
+    } catch (_) {}
+
+    // Faturas de cartão abertas ainda não geradas no pagar
+    let faturasCartao = [];
+    try {
+      const [cols] = await pool.query(`SHOW TABLES LIKE 'cartao_faturas'`);
+      if (cols.length) {
+        const [ft] = await pool.query(`
+          SELECT f.data_vencimento AS vencimento, f.valor_total AS valor,
+                 CONCAT('FAT ', f.competencia) AS doc,
+                 c.descricao AS nome_fornecedor, 'CARTAO' AS tipo
+            FROM cartao_faturas f
+            JOIN cartoes_corporativos c ON c.id = f.id_cartao
+           WHERE f.excluido='N' AND f.status='ABERTA' AND (f.id_pagar IS NULL OR f.id_pagar=0)
+             AND f.data_vencimento BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL ? DAY)
+           ORDER BY f.data_vencimento
+        `, [dias]);
+        faturasCartao = ft;
+      }
+    } catch (_) {}
+
+    const totalDespesas = despesas.reduce((s, r) => s + (parseFloat(r.valor) || 0), 0)
+      + faturasCartao.reduce((s, r) => s + (parseFloat(r.valor) || 0), 0);
+    const totalReceber = recebimentos.reduce((s, r) => s + (parseFloat(r.valor) || 0), 0)
+      + cheques.reduce((s, r) => s + (parseFloat(r.valor) || 0), 0);
+    const saldoBancario = parseFloat(saldoBancos?.total) || 0;
+    const saldoProjetado = saldoBancario + totalReceber - totalDespesas;
+
+    // Série diária
+    const map = new Map();
+    const add = (data, ent, sai) => {
+      const k = String(data).slice(0, 10);
+      if (!map.has(k)) map.set(k, { data: k, entradas: 0, saidas: 0 });
+      const row = map.get(k);
+      row.entradas += ent;
+      row.saidas += sai;
+    };
+    recebimentos.forEach((r) => add(r.vencimento, parseFloat(r.valor) || 0, 0));
+    cheques.forEach((r) => add(r.vencimento, parseFloat(r.valor) || 0, 0));
+    despesas.forEach((r) => add(r.vencimento, 0, parseFloat(r.valor) || 0));
+    faturasCartao.forEach((r) => add(r.vencimento, 0, parseFloat(r.valor) || 0));
+
+    let acum = saldoBancario;
+    const serie = [...map.keys()].sort().map((k) => {
+      const row = map.get(k);
+      acum += row.entradas - row.saidas;
+      return { ...row, saldo_projetado: Math.round(acum * 100) / 100 };
+    });
+
+    res.json({
+      dias,
+      saldo_bancario: saldoBancario,
+      total_despesas: Math.round(totalDespesas * 100) / 100,
+      total_recebimentos: Math.round(totalReceber * 100) / 100,
+      saldo_projetado: Math.round(saldoProjetado * 100) / 100,
+      despesas,
+      faturas_cartao: faturasCartao,
+      recebimentos,
+      cheques_carteira: cheques,
+      serie,
+    });
+  } catch (err) {
+    console.error('[financeiro/previsao]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
  * Insights inteligentes baseados em IA (Regras de negócio)
  */
 router.get('/insights', async (req, res) => {

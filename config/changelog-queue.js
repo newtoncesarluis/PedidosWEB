@@ -10,6 +10,304 @@
  */
 module.exports = [
   {
+    versao: '1.1.3.86',
+    tipo: 'MELHORIA',
+    titulo: 'Desconto por Faixa visível sob o produto no pedido',
+    descricao:
+      'Na aba Itens, quando o Desconto por Faixa está aplicado, aparece um badge discreto sob a descrição do produto ' +
+      '(ex.: Desc. 8,95% + 80% + 30%), no mesmo estilo do acréscimo em lote.',
+    data_lancamento: '2026-07-24',
+  },
+  {
+    versao: '1.1.3.86',
+    tipo: 'BUG',
+    titulo: 'Desconto por Faixa reaparece ao reabrir o pedido',
+    descricao:
+      'Ao aplicar o Desconto por Faixa (DESC 01–10) no pedido e salvar, os campos voltavam para o padrão da fábrica ao reabrir. ' +
+      'Agora o sistema grava os valores usados no pedido e restaura o painel com os mesmos descontos.',
+    data_lancamento: '2026-07-24',
+  },
+  {
+    versao: '1.1.3.86',
+    tipo: 'BUG',
+    titulo: 'Contas a Receber: lote, filtro de status e lentidão',
+    descricao:
+      'Receber em lote não alterava o status e o filtro Aberta/Recebido/Em atraso não funcionava nas bases Delphi ' +
+      '(status legado «A RECEBER»). Corrigido o reconhecimento dos status, o recebimento em lote e a listagem ficou mais rápida.',
+    data_lancamento: '2026-07-24',
+  },
+  {
+    versao: '1.1.3.86',
+    tipo: 'BUG',
+    titulo: 'Receber em lote no Contas a Receber',
+    descricao:
+      'Ao marcar vários títulos e clicar em «Receber em Lote», nada acontecia — faltava o modal e a função no front. ' +
+      'Agora abre a tela de data/forma de pagamento e confirma o recebimento dos selecionados de uma vez.',
+    data_lancamento: '2026-07-24',
+  },
+  {
+    versao: '1.1.3.84',
+    tipo: 'BUG',
+    titulo: 'Pedido: «Permitir nova linha» do fornecedor era ignorado',
+    descricao:
+      'Na fábrica, a opção Mesmo produto no pedido → Permitir nova linha (não somar) às vezes era ignorada: ' +
+      'ao abrir ou redesenhar o pedido, o sistema fundia as linhas do mesmo código como se estivesse em «Somar». ' +
+      'Corrigido: a regra da fábrica é lida antes de montar os itens e só soma quando a opção for realmente Somar.',
+    data_lancamento: '2026-07-23',
+  },
+  {
+    versao: '1.1.3.82',
+    tipo: 'MELHORIA',
+    titulo: 'Consulta rápida de preços no celular e tablet',
+    descricao:
+      'A Consulta Rápida de Preços entrou no menu Mais do app mobile/tablet (Preço Rápido), ' +
+      'ao lado de Showroom e Vitrine. A tela ficou otimizada para toque: busca mais leve, sem fotos na lista e layout compacto.',
+    data_lancamento: '2026-07-22',
+  },
+  {
+    versao: '1.1.3.82',
+    tipo: 'NOVO',
+    titulo: 'Consulta rápida de preços com confronto de tabelas',
+    descricao:
+      'Nova tela em Cadastros › Preços › Consulta Rápida: busque o produto na frente do cliente, veja o preço de cadastro ' +
+      'e compare com todas as tabelas ativas. O sistema destaca a tabela mais barata (melhor para o cliente) e a de maior preço.',
+    data_lancamento: '2026-07-22',
+  },
+  {
+    versao: '1.1.3.82',
+    tipo: 'MELHORIA',
+    titulo: 'Showroom carrega produtos mais rápido',
+    descricao:
+      'A listagem de produtos no Showroom ficou mais ágil: busca enxuta (sem consultas extras de promoção/foto por linha), ' +
+      'favoritos em uma única chamada e lista de fábricas mais leve na abertura.',
+    data_lancamento: '2026-07-22',
+  },
+  {
+    versao: '1.1.3.82',
+    tipo: 'MELHORIA',
+    titulo: 'Showroom e Vitrine usam as mesmas regras de CX e kilos do pedido',
+    descricao:
+      'Carrinho do Showroom e da Vitrine Digital passam a calcular o total como na tela de Pedidos: ' +
+      'preço por peso (kg) do produto, soma de embalagem do sistema e, quando aplicável, mínimo de caixas e faturamento da fábrica.',
+    data_lancamento: '2026-07-22',
+  },
+  {
+    versao: '1.1.3.82',
+    tipo: 'MELHORIA',
+    titulo: 'Salvar pedido grande ficou mais rápido',
+    descricao:
+      'Pedidos com muitos itens salvam com menos espera: a tela não redesenha a lista antes de gravar; ' +
+      'o envio leva só os dados necessários; grades gravam em lote; e no servidor as validações/normalização ' +
+      'usam uma única consulta a produtos/sistemas (antes repetiam várias vezes a cada salvamento).',
+    data_lancamento: '2026-07-22',
+  },
+  {
+    versao: '1.1.3.80',
+    tipo: 'MELHORIA',
+    titulo: 'Mais colunas de preço na grade de itens do pedido',
+    descricao:
+      'Em Pedidos → Colunas dos itens → Preços e descontos, agora dá para marcar também Vlr Venda, Vlr Final ' +
+      '(unitário após desc./acrésc.), Vlr Desconto (R$) e Vlr Total — além de Vlr. Tabela, % e demais campos que já existiam.',
+    data_lancamento: '2026-07-22',
+  },
+  {
+    versao: '1.1.3.80',
+    tipo: 'BUG',
+    titulo: 'WhatsApp no cliente agora grava e mostra se foi enviado',
+    descricao:
+      'Ao enviar WhatsApp pela API na tela de Clientes, o sistema passa a gravar o histórico antes de responder. ' +
+      'A coluna WhatsApp da lista atualiza com a data/hora do envio (✓) e o histórico do cliente lista a mensagem. ' +
+      'Antes, o registro podia se perder porque a tela recarregava antes da gravação terminar.',
+    data_lancamento: '2026-07-22',
+  },
+  {
+    versao: '1.1.3.80',
+    tipo: 'NOVO',
+    titulo: 'Pré-visualizar impressão dos itens sem salvar',
+    descricao:
+      'Na aba Itens do pedido, o botão «Ver impressão» abre a pré-visualização do relatório com os valores atuais da tela ' +
+      '(incluindo desconto e acréscimo em lote ainda não salvos). Não grava o pedido — serve só para conferir como ficará a impressão.',
+    data_lancamento: '2026-07-22',
+  },
+  {
+    versao: '1.1.3.80',
+    tipo: 'BUG',
+    titulo: 'Acréscimo e desconto em lote agora gravam e reabrem corretos',
+    descricao:
+      'No pedido, o Acréscimo em Lote (sobre o total) e o Desconto por Faixa podiam aparecer certos na tela e ' +
+      'sumir ao salvar ou ao reabrir o pedido. Agora o percentual é gravado nos itens e mantido ao reabrir. ' +
+      'No acréscimo por valor unitário também não há mais aplicação em dobro na gravação.',
+    data_lancamento: '2026-07-22',
+  },
+  {
+    versao: '1.1.3.78',
+    tipo: 'NOVO',
+    titulo: 'Remover acréscimo e desconto dos itens selecionados',
+    descricao:
+      'Na aba Itens do pedido, use Selecionar para marcar os itens e clique em «Zerar acré/desc» para voltar ao valor ' +
+      'sem acréscimo e sem desconto. O preço unitário negociado de cada item é mantido — apenas os percentuais ' +
+      'aplicados são removidos.',
+    data_lancamento: '2026-07-22',
+  },
+  {
+    versao: '1.1.3.78',
+    tipo: 'BUG',
+    titulo: 'Acréscimo em lote não era gravado no pedido',
+    descricao:
+      'No pedido, o Acréscimo em Lote aplicado sobre o total dos itens aparecia na tela mas se perdia ao salvar — ' +
+      'o pedido era gravado sem o acréscimo. No modo por valor unitário ocorria o inverso: o percentual era aplicado ' +
+      'duas vezes na gravação. Agora o valor salvo é exatamente o que aparece na tela nos dois modos.',
+    data_lancamento: '2026-07-22',
+  },
+  {
+    versao: '1.1.3.78',
+    tipo: 'MELHORIA',
+    titulo: 'Salvar pedido mais rápido com muitos itens',
+    descricao:
+      'O salvamento de pedidos grandes ficou muito mais rápido. Duas mudanças: o sistema não faz mais uma consulta de ' +
+      'promoção por item antes de gravar (a promoção já aplicada é reaproveitada); e o PDF do envio para a fábrica ' +
+      'deixou de ser gerado durante o salvamento — agora ele é gerado apenas quando você confirma o envio, com aviso ' +
+      'próprio. O pedido é salvo e fechado na hora, sem esperar pela geração do PDF.',
+    data_lancamento: '2026-07-22',
+  },
+  {
+    versao: '1.1.3.78',
+    tipo: 'BUG',
+    titulo: 'Telas sem token: sessão expirada ao carregar',
+    descricao:
+      'Corrigido o erro «Sessão expirada ou não autenticado» em várias telas que não enviavam o token ' +
+      '(Peso por Vendedor/Rota, Performance de Representantes, Bancos, Cores, Transportadoras, Tipo de Frete, ' +
+      'Eventos/Cidades, Hotéis, Locais, Regiões, Faturamento, Conciliação, Gamificação e LGPD).',
+    data_lancamento: '2026-07-22',
+  },
+  {
+    versao: '1.1.3.74',
+    tipo: 'MELHORIA',
+    titulo: 'Ajuda atualizada: financeiro, pedidos e produtos em lote',
+    descricao:
+      'A Central de Ajuda agora explica Cartões Corporativos, Cheques, Previsão de Caixa, Cadastros Financeiros, ' +
+      'ações em lote nos Pedidos (incluindo faturar), exclusão/ativação em lote nos Produtos, Família/Grades e ' +
+      'o histórico de E-mails Enviados — com passos e problemas comuns.',
+    data_lancamento: '2026-07-20',
+  },
+  {
+    versao: '1.1.3.74',
+    tipo: 'BUG',
+    titulo: 'Família de Produtos: erro ao salvar',
+    descricao:
+      'Corrigido o aviso «Sessão expirada ou não autenticado» ao salvar Família de Produtos — ' +
+      'as requisições passam a enviar o token de autenticação.',
+    data_lancamento: '2026-07-20',
+  },
+  {
+    versao: '1.1.3.74',
+    tipo: 'BUG',
+    titulo: 'Download de fotos de produtos (ZIP)',
+    descricao:
+      'Corrigido o erro «archiver is not a function» ao baixar fotos em lote na tela de Produtos.',
+    data_lancamento: '2026-07-20',
+  },
+  {
+    versao: '1.1.3.74',
+    tipo: 'MELHORIA',
+    titulo: 'Faturar pedidos em lote',
+    descricao:
+      'Na lista de Pedidos, selecione vários e use Mais ações → Faturar pedido(s): cada um é faturado com o valor total ' +
+      'e a data de hoje. Já faturados/cancelados são ignorados. O painel Comissão & Faturamentos continua pedido a pedido.',
+    data_lancamento: '2026-07-20',
+  },
+  {
+    versao: '1.1.3.74',
+    tipo: 'BUG',
+    titulo: 'Ações em lote nos pedidos corrigidas',
+    descricao:
+      'Aprovar/cancelar em lote falhava em várias bases (coluna status incompatível). Também: selecionar todos ' +
+      'volta a funcionar, o botão de confirmar do diálogo de exclusão/cancelamento ficou claro, e IDs da seleção ' +
+      'ficaram consistentes.',
+    data_lancamento: '2026-07-20',
+  },
+  {
+    versao: '1.1.3.74',
+    tipo: 'MELHORIA',
+    titulo: 'Exclusão em lote de produtos',
+    descricao:
+      'Na lista de Produtos, ao marcar um ou mais itens (ou Selecionar todos), aparece uma barra inferior ' +
+      'com Ativar, Inativar e Excluir em lote. A exclusão pede confirmação e respeita a permissão do perfil.',
+    data_lancamento: '2026-07-20',
+  },
+  {
+    versao: '1.1.3.74',
+    tipo: 'MELHORIA',
+    titulo: 'Cadastros Financeiros no menu Financeiro',
+    descricao:
+      'Formas de Pagamento, Bancos, Despesas, Plano de Contas e Centro de Custo saíram de Cadastros ' +
+      'e passaram para o novo grupo Cadastros Financeiros dentro do módulo Financeiro.',
+    data_lancamento: '2026-07-20',
+  },
+  {
+    versao: '1.1.3.74',
+    tipo: 'MELHORIA',
+    titulo: 'E-mails Enviados no menu Comercial',
+    descricao:
+      'A tela de histórico de E-mails Enviados saiu do Financeiro e passou para Comercial › Vendas, ' +
+      'junto das Campanhas WhatsApp.',
+    data_lancamento: '2026-07-20',
+  },
+  {
+    versao: '1.1.3.74',
+    tipo: 'BUG',
+    titulo: 'Cheques: coluna status em bases legadas',
+    descricao:
+      'Em bases que já tinham a tabela cheques sem a coluna status, a listagem falhava. ' +
+      'O sistema passa a criar automaticamente as colunas faltantes.',
+    data_lancamento: '2026-07-20',
+  },
+  {
+    versao: '1.1.3.74',
+    tipo: 'BUG',
+    titulo: 'Cheques de Terceiros: erro ao listar',
+    descricao:
+      'Corrigida a listagem que falhava com «Unknown column razaosocial» — o nome do cliente ' +
+      'passa a usar as colunas corretas (nome/apelido).',
+    data_lancamento: '2026-07-20',
+  },
+  {
+    versao: '1.1.3.74',
+    tipo: 'MELHORIA',
+    titulo: 'Confirmação visual ao gerar fatura no Contas a Pagar',
+    descricao:
+      'Em Cartões Corporativos (e Cheques), a pergunta de confirmação deixa o alerta nativo do navegador ' +
+      'e passa a usar o modal do sistema, com título claro e valor/vencimento da fatura.',
+    data_lancamento: '2026-07-20',
+  },
+  {
+    versao: '1.1.3.74',
+    tipo: 'NOVO',
+    titulo: 'Cartões, cheques, previsão de caixa e e-mails',
+    descricao:
+      'Financeiro: cadastro de Cartões Corporativos (fatura → Contas a Pagar), carteira de Cheques de Terceiros ' +
+      '(receber → pagar com rastreio), Previsão de Caixa consolidada e histórico de E-mails Enviados (SMTP, sem inbox).',
+    data_lancamento: '2026-07-20',
+  },
+  {
+    versao: '1.1.3.74',
+    tipo: 'MELHORIA',
+    titulo: 'Grade fechada: múltiplo do pack no pedido',
+    descricao:
+      'Quando a grade estiver como Fechada (ex.: múltiplo de 12), o pedido exige que o total dos tamanhos ' +
+      'seja múltiplo do pack — aviso no modal da grade e bloqueio ao incluir/salvar. Grades Abertas continuam livres.',
+    data_lancamento: '2026-07-20',
+  },
+  {
+    versao: '1.1.3.74',
+    tipo: 'NOVO',
+    titulo: 'Subfamília, linha e mark-up líquido no produto',
+    descricao:
+      'No cadastro de Produtos: Subfamília (Masculino/Feminino/Infantil), Linha de Produto, Campo Extra e Mark-up Líquido % ' +
+      '(calculado após custo e comissão). Também disponíveis na Importação de Preços. Em Grades: modo Aberta ou Fechada com múltiplo do pack.',
+    data_lancamento: '2026-07-20',
+  },
+  {
     versao: '1.1.3.74',
     tipo: 'BUG',
     titulo: 'Busca de produtos no pedido muito mais rápida',

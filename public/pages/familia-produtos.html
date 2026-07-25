@@ -374,6 +374,24 @@ let S = {
   notaFiscal: 'N',
 };
 
+/** JWT Bearer + cookie — evita 401 «Sessão expirada ou não autenticado» no save. */
+function _authHeaders(extra) {
+  const token = localStorage.getItem('token')
+    || sessionStorage.getItem('token')
+    || sessionStorage.getItem('sysrep_token')
+    || '';
+  const h = Object.assign({}, extra || {});
+  if (token) h.Authorization = 'Bearer ' + token;
+  return h;
+}
+function apiFetch(url, opts = {}) {
+  const headers = _authHeaders(opts.headers || {});
+  if (opts.body != null && !headers['Content-Type'] && !(opts.body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json';
+  }
+  return fetch(url, { ...opts, headers, credentials: 'include' });
+}
+
 /* ══════════════════════════════════
    INIT
 ══════════════════════════════════ */
@@ -389,7 +407,7 @@ document.addEventListener('cad-perm-ready', () => {
 
 async function carregarNotificacoes() {
   try {
-    const r = await fetch('/api/familia-produtos/notificacoes');
+    const r = await apiFetch('/api/familia-produtos/notificacoes');
     const d = await r.json();
     document.getElementById('val-total').textContent   = (d.ativos||0) + (d.inativos||0);
     document.getElementById('val-ativos').textContent  = d.ativos   || 0;
@@ -431,7 +449,7 @@ async function buscar() {
   const status = S.filtroStatus === 'T' ? '' : S.filtroStatus;
   const offset = (S.page - 1) * S.perPage;
   try {
-    const r = await fetch(`/api/familia-produtos?q=${encodeURIComponent(q)}&status=${status}&limit=${S.perPage}&offset=${offset}`);
+    const r = await apiFetch(`/api/familia-produtos?q=${encodeURIComponent(q)}&status=${status}&limit=${S.perPage}&offset=${offset}`);
     const d = await r.json();
     S.total = d.total;
     renderLista(d.familias || []);
@@ -501,7 +519,7 @@ function fecharDrop() { document.getElementById('dropMenu').style.display = 'non
 async function ativarInativarLinha(id, acao) {
   fecharDrop();
   const verbo = acao === 'A' ? 'ativar' : 'inativar';
-  const r = await fetch(`/api/familia-produtos/${id}/${verbo}`, { method:'PUT' });
+  const r = await apiFetch(`/api/familia-produtos/${id}/${verbo}`, { method:'PUT' });
   if (!r.ok) { toast('Erro', 'err'); return; }
   toast(acao==='A' ? 'Família ativada!' : 'Família inativada!', 'ok');
   buscar(); carregarNotificacoes();
@@ -510,7 +528,7 @@ async function excluirLinha(id) {
   if (!guardCadExcluir('Sem permissão para excluir família de produtos')) return;
   fecharDrop();
   confirmar('Excluir família?', 'Esta ação não pode ser desfeita.', async () => {
-    const r = await fetch(`/api/familia-produtos/${id}`, { method:'DELETE' });
+    const r = await apiFetch(`/api/familia-produtos/${id}`, { method:'DELETE' });
     const d = await r.json();
     if (!r.ok) { toast(d.error||'Erro ao excluir','err'); return; }
     toast('Família excluída!', 'ok'); buscar(); carregarNotificacoes();
@@ -587,7 +605,7 @@ function abrirNovo() {
 
 async function abrirEditar(id) {
   try {
-    const r = await fetch(`/api/familia-produtos/${id}`);
+    const r = await apiFetch(`/api/familia-produtos/${id}`);
     if (!r.ok) { toast('Erro ao carregar','err'); return; }
     const d = await r.json();
     S.registroId = id; S.dados = d;
@@ -640,12 +658,15 @@ async function salvar() {
   try {
     let r;
     if (S.registroId) {
-      r = await fetch(`/api/familia-produtos/${S.registroId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      r = await apiFetch(`/api/familia-produtos/${S.registroId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     } else {
-      r = await fetch('/api/familia-produtos',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      r = await apiFetch('/api/familia-produtos',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     }
-    const d = await r.json();
-    if (!r.ok) { toast(d.error||'Erro ao salvar','err'); return; }
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      toast(d.error || (r.status === 401 ? 'Sessão expirada. Faça login novamente.' : 'Erro ao salvar'), 'err');
+      return;
+    }
     if (!S.registroId) {
       S.registroId = d.id;
       document.getElementById('formTitle').textContent = nome.toUpperCase();
@@ -668,7 +689,7 @@ async function ativarInativar(acao) {
   fecharMenuMore();
   const id = S.registroId; if (!id) return;
   const verbo = acao === 'A' ? 'ativar' : 'inativar';
-  const r = await fetch(`/api/familia-produtos/${id}/${verbo}`,{method:'PUT'});
+  const r = await apiFetch(`/api/familia-produtos/${id}/${verbo}`,{method:'PUT'});
   if (!r.ok) { toast('Erro','err'); return; }
   toast(acao==='A'?'Família ativada!':'Família inativada!','ok');
   document.getElementById('f_status').value = acao === 'A' ? 'A' : 'N';
@@ -682,7 +703,7 @@ async function excluirAtual() {
   fecharMenuMore();
   if (!S.registroId) return;
   confirmar('Excluir família?', 'Esta ação não pode ser desfeita.', async () => {
-    const r = await fetch(`/api/familia-produtos/${S.registroId}`,{method:'DELETE'});
+    const r = await apiFetch(`/api/familia-produtos/${S.registroId}`,{method:'DELETE'});
     const d = await r.json();
     if (!r.ok) { toast(d.error||'Erro','err'); return; }
     toast('Família excluída!','ok'); voltarLista(); carregarNotificacoes();

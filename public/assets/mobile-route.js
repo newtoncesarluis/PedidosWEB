@@ -108,7 +108,8 @@
     '/pages/mapa-operacoes.html': 1,
     '/pages/visitas.html': 1,
     '/pages/comercial-dashboards.html': 1,
-    '/pages/comercial-relatorios-padrao.html': 1
+    '/pages/comercial-relatorios-padrao.html': 1,
+    '/pages/consulta-precos.html': 1
   };
 
   function enforceTopWindow() {

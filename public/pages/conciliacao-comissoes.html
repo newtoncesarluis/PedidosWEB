@@ -445,6 +445,21 @@ tbody td { padding:10px 12px; vertical-align:middle; }
 </div>
 
 <script>
+/** JWT Bearer — evita 401 «Sessão expirada». Só /api/ interno. */
+function _authHeaders(extra) {
+  const token = localStorage.getItem('token')
+    || sessionStorage.getItem('token')
+    || sessionStorage.getItem('sysrep_token')
+    || '';
+  const h = Object.assign({}, extra || {});
+  if (token) h.Authorization = 'Bearer ' + token;
+  return h;
+}
+function _api(url, opts) {
+  opts = opts || {};
+  const headers = _authHeaders(opts.headers || {});
+  return fetch(url, Object.assign({}, opts, { credentials: 'include', headers }));
+}
 // ─── State ────────────────────────────────────────────────────────────────────
 let _conciliacaoAtual = null;
 let _itensAtuais      = [];
@@ -460,7 +475,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // ─── Fornecedores ─────────────────────────────────────────────────────────────
 async function carregarFornecedores() {
   try {
-    const d = await fetch('/api/fornecedores?somente_fabricas=true&limit=500').then(r => r.json());
+    const d = await _api('/api/fornecedores?somente_fabricas=true&limit=500').then(r => r.json());
     const opts = (d.fornecedores || []).map(f =>
       `<option value="${f.id}" data-tipo="${f.tipo_num_pedido||'SISTEMA'}">${f.nome}</option>`
     ).join('');
@@ -486,7 +501,7 @@ async function carregarLista() {
   if (stat) params.set('status', stat);
 
   try {
-    const d = await fetch('/api/conciliacao?' + params).then(r => r.json());
+    const d = await _api('/api/conciliacao?' + params).then(r => r.json());
     const lista = d.conciliacoes || [];
     if (!lista.length) {
       el.innerHTML = `<div class="empty">
@@ -544,7 +559,7 @@ async function abrirDetalhe(id) {
   document.getElementById('itensEmpty').style.display = 'none';
 
   try {
-    const resp = await fetch(`/api/conciliacao/${id}`);
+    const resp = await _api(`/api/conciliacao/${id}`);
     const d = await resp.json();
     if (!resp.ok || !d.conciliacao) {
       alert('Erro ao carregar conciliação: ' + (d.error || 'Resposta inesperada do servidor'));
@@ -676,7 +691,7 @@ async function criarConciliacao() {
   if (!referencia)    { alert('Informe a referência.'); return; }
 
   try {
-    const r = await fetch('/api/conciliacao', {
+    const r = await _api('/api/conciliacao', {
       method: 'POST',
       headers: { 'Content-Type':'application/json' },
       body: JSON.stringify({ id_fornecedor, referencia, obs })
@@ -713,7 +728,7 @@ async function previewExcel() {
   const fd = new FormData();
   fd.append('arquivo', file);
   try {
-    const d = await fetch(`/api/conciliacao/${_conciliacaoAtual.id}/preview`, { method:'POST', body:fd }).then(r => r.json());
+    const d = await _api(`/api/conciliacao/${_conciliacaoAtual.id}/preview`, { method:'POST', body:fd }).then(r => r.json());
     _excelData = d.rows || [];
     renderPreview();
     document.getElementById('imp_preview_wrap').style.display = '';
@@ -754,7 +769,7 @@ async function executarImportar() {
 
   document.getElementById('btnImportarOk').disabled = true;
   try {
-    const d = await fetch(`/api/conciliacao/${_conciliacaoAtual.id}/importar`, { method:'POST', body:fd }).then(r => r.json());
+    const d = await _api(`/api/conciliacao/${_conciliacaoAtual.id}/importar`, { method:'POST', body:fd }).then(r => r.json());
     if (!d.ok) { alert(d.error || 'Erro na importação'); document.getElementById('btnImportarOk').disabled=false; return; }
 
     document.getElementById('impStep1').style.display = 'none';
@@ -793,7 +808,7 @@ async function salvarItem() {
   if (!_conciliacaoAtual) return;
 
   try {
-    const r = await fetch(`/api/conciliacao/${_conciliacaoAtual.id}/item/${id}`, {
+    const r = await _api(`/api/conciliacao/${_conciliacaoAtual.id}/item/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type':'application/json' },
       body: JSON.stringify({ status, obs })
@@ -835,7 +850,7 @@ async function add_buscarPedido() {
   if (oldWrap) oldWrap.remove();
 
   try {
-    const r = await fetch(`/api/conciliacao/${_conciliacaoAtual.id}/buscar-pedido?numero=${encodeURIComponent(num)}`).then(r => r.json());
+    const r = await _api(`/api/conciliacao/${_conciliacaoAtual.id}/buscar-pedido?numero=${encodeURIComponent(num)}`).then(r => r.json());
     if (!r.ok || !r.pedido) {
       info.style.background = '#fee2e2'; info.style.color = '#b91c1c';
       info.textContent = '✗ Pedido não encontrado no sistema para este fornecedor.';
@@ -913,7 +928,7 @@ async function salvarItemManual() {
   const numParc       = selParc?.value ? selParc.options[selParc.selectedIndex]?.text?.match(/^Parcela (\d+)/)?.[1] : null;
 
   try {
-    const r = await fetch(`/api/conciliacao/${_conciliacaoAtual.id}/item`, {
+    const r = await _api(`/api/conciliacao/${_conciliacaoAtual.id}/item`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -941,7 +956,7 @@ async function liberarConferidos() {
   if (!conf) { alert('Nenhum item conferido para liberar.'); return; }
   if (!confirm(`Liberar ${conf} pedido(s) conferido(s) para pagamento ao vendedor?\n\nIsso marcará as comissões como "Conferido" e ficará disponível no Baixar da Gestão de Comissões.`)) return;
   try {
-    const d = await fetch(`/api/conciliacao/${_conciliacaoAtual.id}/liberar`, { method: 'POST' }).then(r => r.json());
+    const d = await _api(`/api/conciliacao/${_conciliacaoAtual.id}/liberar`, { method: 'POST' }).then(r => r.json());
     if (!d.ok) { alert(d.error || 'Erro ao liberar'); return; }
     document.getElementById('libResultMsg').innerHTML =
       `<strong style="color:var(--text);font-size:16px">${d.parcelas} parcela(s)</strong> de <strong>${d.pedidos} pedido(s)</strong><br>marcadas como prontas para pagamento.`;
@@ -954,14 +969,14 @@ async function liberarConferidos() {
 async function fecharConciliacao() {
   if (!_conciliacaoAtual) return;
   if (!confirm('Fechar esta conciliação? Não será mais possível importar ou editar itens.')) return;
-  const r = await fetch(`/api/conciliacao/${_conciliacaoAtual.id}/fechar`, { method:'POST' }).then(r => r.json());
+  const r = await _api(`/api/conciliacao/${_conciliacaoAtual.id}/fechar`, { method:'POST' }).then(r => r.json());
   if (r.ok) await abrirDetalhe(_conciliacaoAtual.id);
   else alert(r.error);
 }
 
 async function reabrirConciliacao() {
   if (!_conciliacaoAtual) return;
-  const r = await fetch(`/api/conciliacao/${_conciliacaoAtual.id}/reabrir`, { method:'POST' }).then(r => r.json());
+  const r = await _api(`/api/conciliacao/${_conciliacaoAtual.id}/reabrir`, { method:'POST' }).then(r => r.json());
   if (r.ok) await abrirDetalhe(_conciliacaoAtual.id);
   else alert(r.error);
 }
@@ -969,7 +984,7 @@ async function reabrirConciliacao() {
 async function excluirConciliacao() {
   if (!_conciliacaoAtual) return;
   if (!confirm('Excluir esta conciliação e todos os seus itens? Essa ação é irreversível.')) return;
-  const r = await fetch(`/api/conciliacao/${_conciliacaoAtual.id}`, { method:'DELETE' }).then(r => r.json());
+  const r = await _api(`/api/conciliacao/${_conciliacaoAtual.id}`, { method:'DELETE' }).then(r => r.json());
   if (r.ok) voltarLista();
   else alert(r.error);
 }

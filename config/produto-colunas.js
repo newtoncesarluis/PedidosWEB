@@ -16,6 +16,14 @@ const COLUNAS_PADRAO = [
   { column: 'valor_puxada', type: 'DECIMAL(15,4) NULL DEFAULT 0' },
   /** Opt-in: cor/variação aponta para o produto mãe (SKU continua pedível). */
   { column: 'id_referencia', type: 'INT NULL DEFAULT NULL' },
+  /** Público-alvo: Masculino | Feminino | Infantil (ou texto livre). */
+  { column: 'subfamilia', type: 'VARCHAR(40) NULL DEFAULT NULL' },
+  /** Linha comercial (ex.: tênis jogger). */
+  { column: 'linha_produto', type: 'VARCHAR(120) NULL DEFAULT NULL' },
+  /** Campo livre para demandas específicas. */
+  { column: 'campo_extra', type: 'VARCHAR(200) NULL DEFAULT NULL' },
+  /** Mark-up líquido % após custo e comissão (calculado na tela). */
+  { column: 'margem_liquida', type: 'DECIMAL(10,2) NULL DEFAULT NULL' },
 ];
 
 async function dbKey(pool) {
@@ -39,29 +47,41 @@ async function getProdTabela(pool) {
 async function ensureProdutoColunas(pool, extras = []) {
   const key = await dbKey(pool);
   const tb = await getProdTabela(pool);
+  const needed = [...COLUNAS_PADRAO, ...extras];
+  const neededNames = needed.map(({ column }) => String(column).toLowerCase());
+
+  // Fast-path: após o 1º ensure bem-sucedido no tenant, evita DESCRIBE a cada request
+  const cached = _colunasByDb.get(key);
+  if (cached && neededNames.every((c) => cached.some((x) => String(x).toLowerCase() === c))) {
+    return { names: new Set(cached.map((c) => String(c).toLowerCase())), changed: false };
+  }
+
   const [cols] = await pool.query(`DESCRIBE ${tb}`);
-  const names = new Set(cols.map((c) => String(c.Field).toLowerCase()));
+  const fieldList = cols.map((c) => String(c.Field));
+  const names = new Set(fieldList.map((c) => c.toLowerCase()));
   let changed = false;
 
-  for (const { column, type } of [...COLUNAS_PADRAO, ...extras]) {
+  for (const { column, type } of needed) {
     const col = String(column).toLowerCase();
     if (names.has(col)) continue;
     try {
       await pool.query(`ALTER TABLE \`${tb}\` ADD COLUMN \`${column}\` ${type}`);
       names.add(col);
+      fieldList.push(column);
       changed = true;
       console.log(`[produto-colunas] + ${tb}.${column}`);
     } catch (e) {
       const msg = String(e.message || '');
       if (msg.includes('Duplicate column')) {
         names.add(col);
+        if (!fieldList.some((x) => String(x).toLowerCase() === col)) fieldList.push(column);
         continue;
       }
       throw e;
     }
   }
 
-  if (changed) _colunasByDb.delete(key);
+  _colunasByDb.set(key, fieldList);
   return { names, changed };
 }
 

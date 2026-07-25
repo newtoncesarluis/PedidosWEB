@@ -140,18 +140,21 @@ body.prod-form-open { overflow: hidden; }
   background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
   color: #fff; padding: 10px 20px; border-radius: 24px;
   display: flex; align-items: center; gap: 16px; z-index: 5000;
-  box-shadow: 0 20px 50px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.1); 
+  box-shadow: 0 20px 50px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.1);
   transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  pointer-events: none;
 }
-.bulk-bar.show { bottom: 40px; }
+.bulk-bar.show { bottom: 40px; pointer-events: auto; }
 .bulk-info { padding: 0 16px; border-right: 1px solid rgba(255,255,255,0.1); font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.bulk-info span#bulkCount { color: #5eead4; font-size: 16px; }
 .bulk-actions { display: flex; align-items: center; gap: 8px; }
 .btn-bulk { padding: 8px 16px; border-radius: 16px; border: none; font-size: 12px; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s; text-transform: uppercase; letter-spacing: 0.5px; }
 .btn-bulk-outline { background: rgba(255,255,255,0.1); color: #fff; }
 .btn-bulk-outline:hover { background: rgba(255,255,255,0.2); }
 .btn-bulk-danger { background: #ef4444; color: #fff; }
 .btn-bulk-danger:hover { background: #dc2626; transform: translateY(-2px); }
-.bulk-bar { display: none !important; }
+.bulk-close { width: 24px; height: 24px; border: none; border-radius: 50%; background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.7); font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.12s; padding: 0; }
+.bulk-close:hover { background: rgba(255,255,255,0.22); color: #fff; }
 
 /* ── CONTENT ── */
 .content { padding:16px; flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
@@ -716,7 +719,7 @@ tbody td { padding:10px 12px; vertical-align:middle; }
       </select>
     </div>
     <div class="fp-group">
-      <label>Segmento</label>
+      <label>Categoria</label>
       <select id="fa_segmento" onchange="carregar()">
         <option value="">Todos</option>
       </select>
@@ -872,10 +875,27 @@ tbody td { padding:10px 12px; vertical-align:middle; }
             </select>
           </div>
           <div class="form-group">
-            <label>Segmento</label>
+            <label>Categoria</label>
             <select id="f_segmento">
               <option value="">— Selecione —</option>
             </select>
+          </div>
+          <div class="form-group">
+            <label title="Segmentação por público-alvo">Subfamília</label>
+            <select id="f_subfamilia">
+              <option value="">— Selecione —</option>
+              <option value="MASCULINO">Masculino</option>
+              <option value="FEMININO">Feminino</option>
+              <option value="INFANTIL">Infantil</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label title="Ex.: tênis jogger, camiseta slim">Linha de Produto</label>
+            <input type="text" id="f_linha_produto" autocomplete="off" maxlength="120" placeholder="Ex.: tênis jogger">
+          </div>
+          <div class="form-group">
+            <label title="Campo livre para demandas específicas">Campo Extra</label>
+            <input type="text" id="f_campo_extra" autocomplete="off" maxlength="200" placeholder="Uso livre / personalizado">
           </div>
           <div class="form-group">
             <label>Cód. Interno</label>
@@ -934,7 +954,7 @@ tbody td { padding:10px 12px; vertical-align:middle; }
           <div class="form-group">
             <label id="lbl_f_vlr_venda">Vlr. Venda (R$)</label>
             <input type="text" inputmode="decimal" id="f_vlr_venda" data-money="1" placeholder="0,00" autocomplete="off"
-              oninput="atualizarHintPrecoPesoCadastro()">
+              oninput="atualizarHintPrecoPesoCadastro();calcMarkupLiquido()">
           </div>
           <div class="form-group">
             <label>Preço B (R$)</label>
@@ -964,7 +984,15 @@ tbody td { padding:10px 12px; vertical-align:middle; }
           </div>
           <div class="form-group">
             <label>Comissão (%)</label>
-            <input type="number" id="f_comissao" step="0.01" min="0" placeholder="0,00">
+            <input type="number" id="f_comissao" step="0.01" min="0" placeholder="0,00"
+              oninput="calcMarkupLiquido()">
+          </div>
+          <div class="form-group">
+            <label title="Após custo final e dedução da comissão do vendedor">Mark-up Líquido (%)</label>
+            <input type="number" id="f_margem_liquida" step="0.01" placeholder="—" readonly
+              style="background:var(--bg2, var(--input-bg, #f3f4f6)); cursor:default"
+              title="Calculado: (Venda − Custo − Comissão) ÷ Custo × 100">
+            <span class="calc-hint" id="hintMarkupLiquido"></span>
           </div>
         </div>
       </div>
@@ -1365,6 +1393,22 @@ tbody td { padding:10px 12px; vertical-align:middle; }
   });
 })();
 </script>
+
+<!-- Barra de ações em massa (aparece ao selecionar produtos) -->
+<div id="bulkBar" class="bulk-bar" aria-live="polite">
+  <div class="bulk-info">
+    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+    </svg>
+    <span id="bulkCount">0</span> selecionado(s)
+  </div>
+  <div class="bulk-actions">
+    <button type="button" class="btn-bulk btn-bulk-outline" onclick="bulkAtivar()">Ativar</button>
+    <button type="button" class="btn-bulk btn-bulk-outline" onclick="bulkInativar()">Inativar</button>
+    <button type="button" class="btn-bulk btn-bulk-danger" id="btnBulkExcluir" onclick="bulkExcluir()">Excluir</button>
+    <button type="button" class="bulk-close" onclick="limparSelecao()" title="Limpar seleção">✕</button>
+  </div>
+</div>
 
 <!-- ── MODAL CONFIRM ──────────────────────────────────────────────────────── -->
 <div id="modalConfirm">
@@ -2247,7 +2291,7 @@ function _fotoListaHtml(p) {
 function sincronizarChkAll() {
   const chkAll = document.getElementById('chkAll');
   if (!chkAll) return;
-  const cbs = document.querySelectorAll('#tabelaBody input[type="checkbox"]');
+  const cbs = document.querySelectorAll('#tabelaBody input.row-chk');
   chkAll.checked = cbs.length > 0 && [...cbs].every(cb => cb.checked);
 }
 
@@ -2338,9 +2382,9 @@ function renderTabela(lista) {
     const fotoIcon = !fotoCol && p.foto_principal
       ? '<svg title="Tem foto" style="width:11px;height:11px;margin-left:5px;color:var(--accent);vertical-align:middle" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>'
       : '';
-    return `<tr onclick="abrirQuickView(${p.id},event)" class="${sel?'row-selected':''}">
+    return `<tr onclick="abrirQuickView(${p.id},event)" class="${sel?'row-selected':''}" data-id="${p.id}">
       <td onclick="event.stopPropagation()">
-        <input type="checkbox" ${sel?'checked':''} onchange="toggleSelecionado(${p.id},this.checked)">
+        <input type="checkbox" class="row-chk" data-id="${p.id}" ${sel?'checked':''} onchange="toggleSelecionado(${p.id},this.checked)">
       </td>
       ${fotoCol ? _fotoListaHtml(p) : ''}
       <td style="color:var(--text2)">${_offset + i + 1}</td>
@@ -2560,6 +2604,8 @@ function aplicarPermissoes(permOverride) {
 
   atualizarBotoesQuickView();
   atualizarUiPromocoesProduto();
+  const btnBulkEx = document.getElementById('btnBulkExcluir');
+  if (btnBulkEx) btnBulkEx.style.display = _semPermExcluir ? 'none' : '';
 }
 
 async function carregarPermissoesProdutos() {
@@ -3363,10 +3409,10 @@ function atualizarPreviewFotoExterna(url) {
 
 function limparForm() {
   const ids = ['f_id','f_descricao','f_apelido','f_situacao','f_unidade','f_marca',
-    'f_id_grupo','f_nome_grupo','f_id_familiaproduto','f_segmento','f_cod_interno',
+    'f_id_grupo','f_nome_grupo','f_id_familiaproduto','f_segmento','f_subfamilia','f_linha_produto','f_campo_extra','f_cod_interno',
     'f_cod_barras','f_cod_fabricante','f_disponivel','f_kit',
     'f_vlr_custo','f_vlr_despesas','f_vlr_custofinal','f_margem','f_vlr_venda',
-    'f_precoa','f_precob','f_precoc','f_precopromo','f_desconto','f_comissao','f_cod_tabelapreco',
+    'f_precoa','f_precob','f_precoc','f_precopromo','f_desconto','f_comissao','f_margem_liquida','f_cod_tabelapreco',
     'f_estoque_atual','f_estoque_minimo','f_estoque_maximo','f_estoque_seguranca',
     'f_kilo_embalagem','f_embalagemmaster','f_multiplo_venda','f_qtd_minima_pedido','f_id_endereco',
     'f_ncm','f_cest','f_icms','f_ipi','f_vlr_pis','f_vlr_confins','f_vlr_st','f_origem',
@@ -3378,6 +3424,8 @@ function limparForm() {
   });
   const hintCf = document.getElementById('hintCustoFinal');
   if (hintCf) hintCf.textContent = '';
+  const hintMl = document.getElementById('hintMarkupLiquido');
+  if (hintMl) hintMl.textContent = '';
   const elPp = document.getElementById('f_precopeso');
   if (elPp) elPp.value = 'N';
   syncPrecoPesoProdutoForm();
@@ -3400,6 +3448,9 @@ function preencherForm(p) {
   set('f_nome_grupo',         p.nome_grupo);   // hidden field
   set('f_id_familiaproduto',  p.id_familiaproduto);
   set('f_segmento',           p.segmento);
+  set('f_subfamilia',         p.subfamilia || '');
+  set('f_linha_produto',      p.linha_produto || '');
+  set('f_campo_extra',        p.campo_extra || '');
   set('f_cod_interno',        p.cod_interno);
   set('f_cod_barras',         p.cod_barras);
   set('f_cod_fabricante',     p.cod_fabricante);
@@ -3416,6 +3467,7 @@ function preencherForm(p) {
   set('f_precopromo',         fmtMoneyInput(p.precopromo));
   set('f_desconto',           p.desconto);
   set('f_comissao',           p.comissao);
+  set('f_margem_liquida',     p.margem_liquida);
   set('f_cod_tabelapreco',    p.cod_tabelapreco);
   set('f_estoque_atual',      p.estoque_atual);
   set('f_estoque_minimo',     p.estoque_minimo);
@@ -3456,6 +3508,7 @@ function preencherForm(p) {
     set('f_id_referencia', p.id_referencia || '');
     carregarBoxCoresReferencia(p.ID ?? p.id);
   });
+  calcMarkupLiquido();
 }
 
 async function salvar() {
@@ -3496,6 +3549,9 @@ async function salvar() {
     nome_grupo:           (v('f_id_grupo') && nomeGrupo !== '— Selecione —') ? nomeGrupo : undefined,
     id_familiaproduto:    v('f_id_familiaproduto'),
     segmento:             v('f_segmento'),
+    subfamilia:           v('f_subfamilia') || '',
+    linha_produto:        v('f_linha_produto') || '',
+    campo_extra:          v('f_campo_extra') || '',
     cod_interno:          v('f_cod_interno'),
     cod_barras:           v('f_cod_barras'),
     cod_fabricante:       v('f_cod_fabricante'),
@@ -3512,6 +3568,7 @@ async function salvar() {
     precopromo:           parseBR(document.getElementById('f_precopromo')?.value),
     desconto:             v('f_desconto'),
     comissao:             v('f_comissao'),
+    margem_liquida:       v('f_margem_liquida') || '',
     cod_tabelapreco:      v('f_cod_tabelapreco'),
     estoque_atual:        v('f_estoque_atual'),
     estoque_minimo:       v('f_estoque_minimo'),
@@ -3711,6 +3768,31 @@ function calcVlrVenda() {
     const venda = custo * (1 + margem / 100);
     document.getElementById('f_vlr_venda').value = fmtMoneyInput(venda);
   }
+  calcMarkupLiquido();
+}
+
+/** Mark-up líquido % após custo e comissão do vendedor. */
+function calcMarkupLiquido() {
+  const elMl = document.getElementById('f_margem_liquida');
+  const hint = document.getElementById('hintMarkupLiquido');
+  if (!elMl) return;
+  const custo = parseFloat(document.getElementById('f_vlr_custofinal')?.value) || 0;
+  const venda = (typeof parseBR === 'function')
+    ? (parseBR(document.getElementById('f_vlr_venda')?.value) || 0)
+    : (parseFloat(String(document.getElementById('f_vlr_venda')?.value || '').replace(',', '.')) || 0);
+  const comissao = parseFloat(document.getElementById('f_comissao')?.value) || 0;
+  if (custo <= 0 || venda <= 0) {
+    elMl.value = '';
+    if (hint) hint.textContent = '';
+    return;
+  }
+  const comissaoVlr = venda * (comissao / 100);
+  const lucroLiq = venda - custo - comissaoVlr;
+  const pct = Math.round((lucroLiq / custo) * 10000) / 100;
+  elMl.value = pct.toFixed(2);
+  if (hint) {
+    hint.textContent = `Lucro líq. ${fmtMoeda(lucroLiq)} (após comissão ${comissao.toFixed(2)}%)`;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -3758,17 +3840,23 @@ document.getElementById('modalConfirm').addEventListener('click', e => {
 // SELEÇÃO / BULK
 // ═══════════════════════════════════════════════════════════
 function toggleSelecionado(id, checked) {
-  checked ? _selecionados.add(id) : _selecionados.delete(id);
+  const pid = parseInt(id, 10);
+  if (!pid) return;
+  checked ? _selecionados.add(pid) : _selecionados.delete(pid);
+  const tr = document.querySelector(`#tabelaBody tr[data-id="${pid}"]`);
+  if (tr) tr.classList.toggle('row-selected', checked);
+  sincronizarChkAll();
   atualizarBulkBar();
 }
 
 function toggleSelecionarTodos(checked) {
-  const idCol = _exibirFotos ? 3 : 2;
-  document.querySelectorAll('#tabelaBody input[type="checkbox"]').forEach((cb) => {
+  document.querySelectorAll('#tabelaBody input.row-chk').forEach((cb) => {
     cb.checked = checked;
-    const id = parseInt(cb.closest('tr').querySelectorAll('td')[idCol].textContent, 10);
-    if (id) checked ? _selecionados.add(id) : _selecionados.delete(id);
-    cb.closest('tr').classList.toggle('row-selected', checked);
+    const id = parseInt(cb.dataset.id, 10);
+    if (!id) return;
+    checked ? _selecionados.add(id) : _selecionados.delete(id);
+    const tr = cb.closest('tr');
+    if (tr) tr.classList.toggle('row-selected', checked);
   });
   atualizarBulkBar();
 }
@@ -3776,6 +3864,7 @@ function toggleSelecionarTodos(checked) {
 function atualizarBulkBar() {
   const n = _selecionados.size;
   const bar = document.getElementById('bulkBar');
+  if (!bar) return;
   bar.classList.toggle('show', n > 0);
   const countEl = document.getElementById('bulkCount');
   if (countEl) countEl.textContent = n;
@@ -3783,32 +3872,61 @@ function atualizarBulkBar() {
 
 function limparSelecao() {
   _selecionados.clear();
-  document.querySelectorAll('#tabelaBody input[type="checkbox"]').forEach(cb => cb.checked = false);
+  document.querySelectorAll('#tabelaBody input.row-chk').forEach(cb => { cb.checked = false; });
   document.querySelectorAll('#tabelaBody tr').forEach(tr => tr.classList.remove('row-selected'));
-  document.getElementById('chkAll').checked = false;
+  const chkAll = document.getElementById('chkAll');
+  if (chkAll) chkAll.checked = false;
   atualizarBulkBar();
 }
 
 async function bulkAtivar() {
-  for (const id of _selecionados) await api(`/api/produtos/${id}/ativar`, { method:'PUT' });
-  showToast(`${_selecionados.size} produto(s) ativado(s)`, 'success');
+  if (!_selecionados.size) return;
+  if (_semPermAlterar) { showToast('Sem permissão para alterar produtos', 'error'); return; }
+  const ids = [..._selecionados];
+  let ok = 0;
+  for (const id of ids) {
+    try {
+      const r = await api(`/api/produtos/${id}/ativar`, { method: 'PUT' });
+      if (r.ok) ok++;
+    } catch (_) {}
+  }
+  showToast(`${ok} produto(s) ativado(s)`, 'success');
   limparSelecao(); carregar(); carregarNotificacoes();
 }
 
 async function bulkInativar() {
-  for (const id of _selecionados) await api(`/api/produtos/${id}/inativar`, { method:'PUT' });
-  showToast(`${_selecionados.size} produto(s) inativado(s)`, 'success');
+  if (!_selecionados.size) return;
+  if (_semPermAlterar) { showToast('Sem permissão para alterar produtos', 'error'); return; }
+  const ids = [..._selecionados];
+  let ok = 0;
+  for (const id of ids) {
+    try {
+      const r = await api(`/api/produtos/${id}/inativar`, { method: 'PUT' });
+      if (r.ok) ok++;
+    } catch (_) {}
+  }
+  showToast(`${ok} produto(s) inativado(s)`, 'success');
   limparSelecao(); carregar(); carregarNotificacoes();
 }
 
 async function bulkExcluir() {
+  if (!_selecionados.size) return;
+  if (_semPermExcluir) { showToast('Sem permissão para excluir produtos', 'error'); return; }
   const n = _selecionados.size;
-  document.getElementById('modalTitle').textContent = 'Excluir Selecionados';
-  document.getElementById('modalMsg').textContent = `Excluir ${n} produto${n!==1?'s':''}? Esta ação não pode ser desfeita.`;
+  const ids = [..._selecionados];
+  document.getElementById('modalTitle').textContent = 'Excluir em lote';
+  document.getElementById('modalMsg').textContent =
+    `Excluir ${n} produto${n !== 1 ? 's' : ''} selecionado${n !== 1 ? 's' : ''}? Os registros serão marcados como excluídos.`;
   document.getElementById('modalOkBtn').onclick = async () => {
     fecharModal();
-    for (const id of _selecionados) await api(`/api/produtos/${id}`, { method:'DELETE' });
-    showToast(`${n} produto(s) excluído(s)`, 'success');
+    let ok = 0;
+    for (const id of ids) {
+      try {
+        const r = await api(`/api/produtos/${id}`, { method: 'DELETE' });
+        if (r.ok) ok++;
+      } catch (_) {}
+    }
+    showToast(`${ok} de ${n} produto(s) excluído(s)`, ok ? 'success' : 'error');
     limparSelecao(); carregar(); carregarNotificacoes();
   };
   document.getElementById('modalConfirm').classList.add('show');

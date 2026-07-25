@@ -215,6 +215,9 @@ server {
     ssl_protocols       TLSv1.2 TLSv1.3;
     ssl_session_cache   shared:SSL:10m;
     client_max_body_size 25M;
+    http2_max_field_size 32k;
+    http2_max_header_size 64k;
+    large_client_header_buffers 4 32k;
     access_log /var/log/nginx/sysrep-${SLUG}.access.log;
     error_log  /var/log/nginx/sysrep-${SLUG}.error.log;
     location / {

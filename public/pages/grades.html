@@ -100,6 +100,8 @@ tbody tr:last-child td { border-bottom:none; }
 .badge-tipo { padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700;white-space:nowrap; }
 .badge-R { background:#dbeafe;color:#1d4ed8; }
 .badge-S { background:#ede9fe;color:#6d28d9; }
+.badge-modo-A { background:var(--card, #ecfdf5); color:var(--text, #047857); border:1px solid var(--border, #a7f3d0); }
+.badge-modo-F { background:var(--card, #fff7ed); color:var(--text, #c2410c); border:1px solid var(--border, #fed7aa); }
 
 .btn-acoes { background:#f3f4f6;color:var(--text2);border:1px solid var(--border);padding:4px 7px;border-radius:6px;cursor:pointer; }
 .btn-acoes:hover { background:#e5e7eb;color:var(--text); }
@@ -288,13 +290,14 @@ input.err { border-color:var(--danger); }
               <th>Descrição</th>
               <th>Apelido</th>
               <th>Tipo</th>
+              <th>Modo</th>
               <th style="text-align:center">Qt. Máx.</th>
               <th>Status</th>
               <th style="width:60px"></th>
             </tr>
           </thead>
           <tbody id="tbody">
-            <tr><td colspan="9" class="empty"><p>Carregando…</p></td></tr>
+            <tr><td colspan="10" class="empty"><p>Carregando…</p></td></tr>
           </tbody>
         </table>
       </div>
@@ -360,6 +363,19 @@ input.err { border-color:var(--danger); }
               <option value="R">ROUPA</option>
               <option value="S">SAPATO</option>
             </select>
+          </div>
+          <div class="form-group">
+            <label title="Aberta: qtd livre por tamanho. Fechada: pack com múltiplo (ex. 12 pares)">Modo da Grade</label>
+            <select id="f_modo_grade" onchange="toggleMultiploGrade()">
+              <option value="A">Aberta (qtd livre)</option>
+              <option value="F">Fechada (pack / múltiplo)</option>
+            </select>
+          </div>
+          <div class="form-group" id="wrap_multiplo_grade" style="display:none">
+            <label title="Ex.: 12, 15 ou 18 — total de pares da grade fechada">Múltiplo do Pack</label>
+            <input type="number" id="f_multiplo_grade" min="0" max="999" value="12" autocomplete="off"
+                   placeholder="Ex: 12">
+            <span style="font-size:11px;color:var(--text2)">Padrão comum: 12 pares</span>
           </div>
           <div class="form-group">
             <label>Qtd. Máxima de Itens <span class="req">*</span></label>
@@ -446,6 +462,24 @@ let S = {
   itens: [],   // { id: number|null, nome: string, isNew: boolean }
 };
 
+/** JWT Bearer + cookie — evita 401 «Sessão expirada ou não autenticado» no save. */
+function _authHeaders(extra) {
+  const token = localStorage.getItem('token')
+    || sessionStorage.getItem('token')
+    || sessionStorage.getItem('sysrep_token')
+    || '';
+  const h = Object.assign({}, extra || {});
+  if (token) h.Authorization = 'Bearer ' + token;
+  return h;
+}
+function apiFetch(url, opts = {}) {
+  const headers = _authHeaders(opts.headers || {});
+  if (opts.body != null && !headers['Content-Type'] && !(opts.body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json';
+  }
+  return fetch(url, { ...opts, headers, credentials: 'include' });
+}
+
 /* ══════════════════════════════════
    INIT
 ══════════════════════════════════ */
@@ -461,7 +495,7 @@ document.addEventListener('cad-perm-ready', () => {
 
 async function carregarNotificacoes() {
   try {
-    const r = await fetch('/api/grades/notificacoes');
+    const r = await apiFetch('/api/grades/notificacoes');
     const d = await r.json();
     document.getElementById('val-total').textContent    = (d.ativos||0) + (d.inativos||0);
     document.getElementById('val-ativos').textContent   = d.ativos   || 0;
@@ -505,19 +539,31 @@ async function buscar() {
   const status = S.filtroStatus === 'T' ? '' : S.filtroStatus;
   const offset = (S.page - 1) * S.perPage;
   try {
-    const r = await fetch(`/api/grades?q=${encodeURIComponent(q)}&status=${status}&campo=${campo}&limit=${S.perPage}&offset=${offset}`);
+    const r = await apiFetch(`/api/grades?q=${encodeURIComponent(q)}&status=${status}&campo=${campo}&limit=${S.perPage}&offset=${offset}`);
     const d = await r.json();
+    if (r.status === 401) {
+      toast(d.error || 'Sessão expirada. Faça login novamente.', 'err');
+      return;
+    }
     S.total = d.total;
     renderLista(d.grades || []);
     renderPaginacao();
   } catch(e) {
-    document.getElementById('tbody').innerHTML = `<tr><td colspan="9" class="empty"><p>Erro ao carregar</p></td></tr>`;
+    document.getElementById('tbody').innerHTML = `<tr><td colspan="10" class="empty"><p>Erro ao carregar</p></td></tr>`;
   }
 }
 
 const _tipoLabel = t => t === 'R'
   ? '<span class="badge-tipo badge-R">Roupa</span>'
   : '<span class="badge-tipo badge-S">Sapato</span>';
+
+const _modoLabel = (m, mult) => {
+  const fechada = String(m || 'A').toUpperCase() === 'F';
+  const txt = fechada
+    ? `Fechada${mult > 0 ? ' ×' + mult : ''}`
+    : 'Aberta';
+  return `<span class="badge-tipo badge-modo-${fechada ? 'F' : 'A'}">${txt}</span>`;
+};
 
 function renderLista(rows) {
   const tbody   = document.getElementById('tbody');
@@ -540,6 +586,7 @@ function renderLista(rows) {
       <td style="font-weight:600">${g.nome}</td>
       <td style="color:var(--text2)">${g.apelido || ''}</td>
       <td>${_tipoLabel(g.tipo)}</td>
+      <td>${_modoLabel(g.modo_grade, g.multiplo_grade)}</td>
       <td style="text-align:center;font-weight:700">${g.qtnumero || 0}</td>
       <td><span class="badge badge-${sk}">${stLabel(g.status)}</span></td>
       <td onclick="event.stopPropagation()">
@@ -584,7 +631,7 @@ function fecharDrop() { document.getElementById('dropMenu').style.display = 'non
 async function ativarInativarLinha(id, acao) {
   if (!guardCadAlterar('Sem permissão para alterar grades')) return;
   const verbo = acao === 'A' ? 'ativar' : 'inativar';
-  const r = await fetch(`/api/grades/${id}/${verbo}`, { method:'PUT' });
+  const r = await apiFetch(`/api/grades/${id}/${verbo}`, { method:'PUT' });
   if (!r.ok) { toast('Erro', 'err'); return; }
   toast(acao==='A' ? 'Grade ativada!' : 'Grade inativada!', 'ok');
   buscar(); carregarNotificacoes();
@@ -593,7 +640,7 @@ async function ativarInativarLinha(id, acao) {
 async function excluirLinha(id) {
   if (!guardCadExcluir('Sem permissão para excluir grades')) return;
   confirmar('Excluir grade?', 'Esta ação não pode ser desfeita.', async () => {
-    const r = await fetch(`/api/grades/${id}`, { method:'DELETE' });
+    const r = await apiFetch(`/api/grades/${id}`, { method:'DELETE' });
     const d = await r.json();
     if (!r.ok) { toast(d.error||'Erro ao excluir','err'); return; }
     toast('Grade excluída!', 'ok'); buscar(); carregarNotificacoes();
@@ -724,6 +771,12 @@ function removerItem(idx) {
   renderItens();
 }
 
+function toggleMultiploGrade() {
+  const modo = document.getElementById('f_modo_grade')?.value || 'A';
+  const wrap = document.getElementById('wrap_multiplo_grade');
+  if (wrap) wrap.style.display = modo === 'F' ? '' : 'none';
+}
+
 /* ══════════════════════════════════
    FORM
 ══════════════════════════════════ */
@@ -733,10 +786,13 @@ function abrirNovo() {
   document.getElementById('f_nome').value      = '';
   document.getElementById('f_apelido').value   = '';
   document.getElementById('f_tipo').value      = 'R';
+  document.getElementById('f_modo_grade').value = 'A';
+  document.getElementById('f_multiplo_grade').value = '12';
   document.getElementById('f_qtnumero').value  = '';
   document.getElementById('f_status').value    = 'A';
   document.getElementById('wrapStatus').style.display = 'none';
   document.getElementById('itensInput').value  = '';
+  toggleMultiploGrade();
   renderItens();
   document.getElementById('formTitle').textContent = 'Nova Grade';
   document.getElementById('formSub').textContent   = 'Preencha os dados';
@@ -747,7 +803,7 @@ function abrirNovo() {
 
 async function abrirEditar(id) {
   try {
-    const r = await fetch(`/api/grades/${id}`);
+    const r = await apiFetch(`/api/grades/${id}`);
     if (!r.ok) { toast('Erro ao carregar', 'err'); return; }
     const d = await r.json();
     S.registroId = id; S.dados = d;
@@ -755,9 +811,12 @@ async function abrirEditar(id) {
     document.getElementById('f_nome').value     = d.nome     || '';
     document.getElementById('f_apelido').value  = d.apelido  || '';
     document.getElementById('f_tipo').value     = d.tipo === 'S' ? 'S' : 'R';
+    document.getElementById('f_modo_grade').value = (d.modo_grade === 'F') ? 'F' : 'A';
+    document.getElementById('f_multiplo_grade').value = d.multiplo_grade > 0 ? d.multiplo_grade : 12;
     document.getElementById('f_qtnumero').value = d.qtnumero || 0;
     document.getElementById('f_status').value   = (d.status === 'I' || d.status === 'S') ? 'I' : 'A';
     document.getElementById('wrapStatus').style.display = '';
+    toggleMultiploGrade();
 
     // Carregar itens existentes
     S.itens = (d.itens || []).map(i => ({ id: i.id, nome: i.nome, isNew: false, qtd_minima: i.qtd_minima || 0 }));
@@ -791,6 +850,8 @@ async function salvar() {
   const nome     = document.getElementById('f_nome').value.trim();
   const apelido  = document.getElementById('f_apelido').value.trim();
   const tipo     = document.getElementById('f_tipo').value;
+  const modo_grade = document.getElementById('f_modo_grade')?.value || 'A';
+  const multiplo_grade = parseInt(document.getElementById('f_multiplo_grade')?.value, 10) || 0;
   const qtnumero = parseInt(document.getElementById('f_qtnumero').value) || 0;
   const status   = document.getElementById('f_status').value;
 
@@ -802,8 +863,12 @@ async function salvar() {
     document.getElementById('f_qtnumero').classList.add('err');
     toast('Informe a Qtd. Máxima de Itens','warn'); return;
   }
+  if (modo_grade === 'F' && multiplo_grade < 1) {
+    document.getElementById('f_multiplo_grade')?.classList.add('err');
+    toast('Grade fechada: informe o múltiplo do pack (ex.: 12)','warn'); return;
+  }
 
-  const body = { nome, apelido, tipo, qtnumero, status, itens: S.itens };
+  const body = { nome, apelido, tipo, qtnumero, status, modo_grade, multiplo_grade, itens: S.itens };
 
   const btn = document.getElementById('btnSalvar');
   btn.disabled = true;
@@ -811,16 +876,16 @@ async function salvar() {
   try {
     let r;
     if (S.registroId) {
-      r = await fetch(`/api/grades/${S.registroId}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+      r = await apiFetch(`/api/grades/${S.registroId}`, { method:'PUT', body: JSON.stringify(body) });
     } else {
-      r = await fetch('/api/grades', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+      r = await apiFetch('/api/grades', { method:'POST', body: JSON.stringify(body) });
     }
     const d = await r.json();
     if (!r.ok) { toast(d.error||'Erro ao salvar','err'); return; }
     if (!S.registroId) {
       S.registroId = d.id;
       // Recarregar para pegar IDs dos itens inseridos
-      const r2 = await fetch(`/api/grades/${d.id}`);
+      const r2 = await apiFetch(`/api/grades/${d.id}`);
       if (r2.ok) {
         const d2 = await r2.json();
         S.dados = d2;
@@ -852,7 +917,7 @@ async function ativarInativar(acao) {
   fecharMenuMore();
   const id = S.registroId; if (!id) return;
   const verbo = acao === 'A' ? 'ativar' : 'inativar';
-  const r = await fetch(`/api/grades/${id}/${verbo}`, { method:'PUT' });
+  const r = await apiFetch(`/api/grades/${id}/${verbo}`, { method:'PUT' });
   if (!r.ok) { toast('Erro','err'); return; }
   toast(acao==='A' ? 'Grade ativada!' : 'Grade inativada!', 'ok');
   document.getElementById('f_status').value = acao === 'A' ? 'A' : 'I';
@@ -866,7 +931,7 @@ async function excluirAtual() {
   fecharMenuMore();
   if (!S.registroId) return;
   confirmar('Excluir grade?', 'Esta ação não pode ser desfeita.', async () => {
-    const r = await fetch(`/api/grades/${S.registroId}`, { method:'DELETE' });
+    const r = await apiFetch(`/api/grades/${S.registroId}`, { method:'DELETE' });
     const d = await r.json();
     if (!r.ok) { toast(d.error||'Erro','err'); return; }
     toast('Grade excluída!','ok'); voltarLista(); carregarNotificacoes();

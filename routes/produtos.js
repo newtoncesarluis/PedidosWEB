@@ -3,7 +3,13 @@ const router  = express.Router();
 const multer  = require('multer');
 const path    = require('path');
 const fs      = require('fs');
-const archiver = require('archiver');
+const archiverMod = require('archiver');
+/** archiver@8 (ESM) → ZipArchive; versões antigas CJS → archiver('zip') */
+function createZipArchive(opts = {}) {
+  if (typeof archiverMod === 'function') return archiverMod('zip', opts);
+  if (archiverMod?.ZipArchive) return new archiverMod.ZipArchive(opts);
+  throw new Error('Módulo archiver incompatível — reinstale: npm i archiver');
+}
 const { getPool } = require('../config/database');
 const {
   PROMO_SELECT_COLS,
@@ -167,19 +173,31 @@ async function aplicarIdReferenciaNoBody(pool, reqBody, body, idProduto) {
   return { ok: true, body };
 }
 
+// campos numéricos/decimais — '' deve virar NULL (senão MySQL rejeita "Incorrect decimal value")
+const CAMPOS_DECIMAIS = [
+  'vlr_custo','vlr_despesas','vlr_custofinal','margem','margem_liquida','vlr_venda',
+  'precoa','precob','precoc','precopromo','desconto','comissao','st','valor_puxada',
+  'icms','ipi','vlr_pis','vlr_confins','vlr_st','kilo_embalagem',
+];
+
 function filtrarBody(body, colunas) {
   // skip pk e campos de data/controle gerenciados pelo servidor
   const skip = ['ID','id','excluido','dt_cadastro','dt_atualizacao','user_atualizacao','status_sinc'];
   const colsLower = colunas.map(c => c.toLowerCase());
   return Object.fromEntries(
-    Object.entries(body).filter(([k, v]) => {
-      if (v === undefined || v === null) return false;
-      return colsLower.includes(k.toLowerCase()) && !skip.map(s=>s.toLowerCase()).includes(k.toLowerCase());
-    })
+    Object.entries(body)
+      .filter(([k, v]) => {
+        if (v === undefined || v === null) return false;
+        return colsLower.includes(k.toLowerCase()) && !skip.map(s=>s.toLowerCase()).includes(k.toLowerCase());
+      })
+      .map(([k, v]) => {
+        if (v === '' && CAMPOS_DECIMAIS.includes(k.toLowerCase())) return [k, null];
+        return [k, v];
+      })
   );
 }
 
-const UPPER_CAMPOS = ['descricao','apelido','segmento','unidade','marca','solado','obs','obs2','cor1','cor2','nome_grupo'];
+const UPPER_CAMPOS = ['descricao','apelido','segmento','unidade','marca','solado','obs','obs2','cor1','cor2','nome_grupo','subfamilia','linha_produto','campo_extra'];
 function aplicarUpper(body) {
   UPPER_CAMPOS.forEach(c => { if (body[c]) body[c] = String(body[c]).toUpperCase().trim(); });
   return body;
@@ -891,7 +909,7 @@ router.post('/exportar-fotos', async (req, res) => {
     res.setHeader('X-Export-Total-Lotes', String(totalLotes));
     res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, X-Fotos-Exportadas, X-Produtos-Exportados, X-Produtos-Total, X-Export-Offset, X-Export-Limit, X-Export-Has-More, X-Export-Lote, X-Export-Total-Lotes');
 
-    const archive = archiver('zip', { zlib: { level: 6 } });
+    const archive = createZipArchive({ zlib: { level: 6 } });
     archive.on('error', (err) => {
       if (!res.headersSent) res.status(500).json({ error: err.message });
       else res.end();

@@ -36,6 +36,11 @@ const CADASTROS_TELAS = [
   { col: 'tela_centro_custo', jwt: 'gtela_centro_custo', page: '/pages/centro-custo.html', label: 'Centro de Custo',
     crud: [{ col: 'incluir_centro_custo', jwt: 'incluir_centro_custo' }, { col: 'alterar_centro_custo', jwt: 'alterar_centro_custo' }, { col: 'excluir_centro_custo', jwt: 'excluir_centro_custo' }] },
   { col: 'tela_balancete', jwt: 'gtela_balancete', page: '/pages/balancete.html', label: 'Balancete Gerencial' },
+  { col: 'tela_cartoes', jwt: 'gtela_cartoes', page: '/pages/cartoes-corporativos.html', label: 'Cartões Corporativos',
+    crud: [{ col: 'incluir_cartoes', jwt: 'incluir_cartoes' }, { col: 'alterar_cartoes', jwt: 'alterar_cartoes' }, { col: 'excluir_cartoes', jwt: 'excluir_cartoes' }] },
+  { col: 'tela_cheques', jwt: 'gtela_cheques', page: '/pages/cheques.html', label: 'Cheques de Terceiros',
+    crud: [{ col: 'incluir_cheques', jwt: 'incluir_cheques' }, { col: 'alterar_cheques', jwt: 'alterar_cheques' }, { col: 'excluir_cheques', jwt: 'excluir_cheques' }] },
+  { col: 'tela_previsao_caixa', jwt: 'gtela_previsao_caixa', page: '/pages/previsao-caixa.html', label: 'Previsão de Caixa' },
   { col: 'tela_segmentos', jwt: 'gtela_segmentos', page: '/pages/segmentos.html', label: 'Segmento',
     crud: [{ col: 'incluir_segmentos', jwt: 'incluir_segmentos' }, { col: 'alterar_segmentos', jwt: 'alterar_segmentos' }, { col: 'excluir_segmentos', jwt: 'excluir_segmentos' }] },
   { col: 'tela_regiao_rota', jwt: 'gtela_regiao_rota', page: '/pages/regiao-rota.html', label: 'Regiões e Rotas',
@@ -98,6 +103,7 @@ const COMERCIAL_TELAS = [
   { col: 'tela_dash_gamificacao', jwt: 'gtela_dash_gamificacao', page: '/pages/gamificacao.html', label: 'Gamificação — Ranking & Metas' },
   { col: 'tela_dash_mapa_oportunidades', jwt: 'gtela_dash_mapa_oportunidades', page: '/pages/mapa-oportunidades.html', label: 'Mapa de Oportunidades — Cliente x Fábrica' },
   { col: 'tela_campanhas_wa', jwt: 'gtela_campanhas_wa', page: '/pages/comercial-campanhas-whatsapp.html', label: 'Campanhas WhatsApp' },
+  { col: 'tela_emails_enviados', jwt: 'gtela_emails_enviados', page: '/pages/emails-enviados.html', label: 'E-mails Enviados' },
   { col: 'tela_catalogos', jwt: 'gtela_catalogos', page: '/pages/comercial-catalogos.html', label: 'Catálogos Visuais' },
 ];
 

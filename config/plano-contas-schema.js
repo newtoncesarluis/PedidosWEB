@@ -141,8 +141,18 @@ async function ensureCentroCustoSchema(pool) {
   `).catch(() => {});
 }
 
+/** Evita INFORMATION_SCHEMA / ALTER em todo GET da listagem (multi-tenant por DATABASE()). */
+const _finContabilDone = new Set();
+
 async function ensureFinanceiroContabilCols(pool) {
   if (!pool?.query) return;
+  let dbName = '';
+  try {
+    const [[row]] = await pool.query('SELECT DATABASE() AS db');
+    dbName = row?.db || '';
+  } catch (_) {}
+  if (_finContabilDone.has(dbName)) return;
+
   await ensurePlanoContasSchema(pool);
   await ensureCentroCustoSchema(pool);
   await addColIfMissing(pool, 'despesas', 'id_planoconta', 'INT DEFAULT NULL');
@@ -151,6 +161,7 @@ async function ensureFinanceiroContabilCols(pool) {
   await addColIfMissing(pool, 'pagar', 'id_centrocusto', 'INT DEFAULT NULL');
   await addColIfMissing(pool, 'receber', 'id_planoconta', 'INT DEFAULT NULL');
   await addColIfMissing(pool, 'receber', 'id_centrocusto', 'INT DEFAULT NULL');
+  _finContabilDone.add(dbName);
 }
 
 function normalizeTipoConta(tipo) {

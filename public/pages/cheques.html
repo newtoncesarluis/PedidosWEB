@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Cheques de Terceiros | SysRepWeb</title>
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<script src="/assets/sysrep-api.js"></script>
+<style>
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);margin:0}
+.bar{padding:10px 16px;background:var(--card);border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn{padding:7px 14px;border-radius:7px;border:none;font-weight:700;font-size:12px;cursor:pointer;font-family:inherit}
+.btn-p{background:var(--accent);color:#fff}.btn-g{background:var(--card);border:1.5px solid var(--border);color:var(--text2)}
+.content{padding:14px 16px}.card{background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:12px}
+table{width:100%;border-collapse:collapse}th{font-size:10px;text-transform:uppercase;padding:8px 12px;text-align:left;color:var(--text2);border-bottom:1px solid var(--border)}
+td{padding:8px 12px;font-size:12px;border-bottom:1px solid var(--border)}
+.grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;padding:14px}
+label{font-size:11px;font-weight:700;color:var(--text2);display:block;margin-bottom:4px}
+input,select{width:100%;padding:8px;border:1.5px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);box-sizing:border-box}
+select option{background:var(--card);color:var(--text)}
+.badge{padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700}
+.toast{position:fixed;bottom:20px;right:20px;padding:10px 14px;border-radius:8px;background:#111;color:#fff;font-size:13px;display:none;z-index:99}
+.hint{font-size:12px;color:var(--text2);padding:10px 14px;border-bottom:1px solid var(--border)}
+.confirm-backdrop{position:fixed;inset:0;z-index:9500;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45);backdrop-filter:blur(4px)}
+.confirm-box{background:var(--card,#fff);color:var(--text);border:1px solid var(--border);border-radius:14px;padding:26px;max-width:400px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.18)}
+.confirm-box h3{font-size:16px;font-weight:700;margin:0 0 9px}
+.confirm-box p{font-size:13px;color:var(--text2);line-height:1.5;margin:0}
+.confirm-btns{display:flex;gap:10px;justify-content:center;margin-top:18px}
+.btn-ok{background:var(--accent);color:#fff}
+</style>
+</head>
+<body>
+<div class="bar">
+  <strong style="margin-right:auto">Cheques de Terceiros</strong>
+  <select id="filtro" onchange="carregar()" style="padding:6px 10px;border-radius:7px;border:1.5px solid var(--border);background:var(--card);color:var(--text)">
+    <option value="EM_CARTEIRA">Em carteira</option>
+    <option value="USADO_PAGAR">Usados no pagar</option>
+    <option value="DEPOSITADO">Depositados</option>
+    <option value="DEVOLVIDO">Devolvidos</option>
+    <option value="TODOS">Todos</option>
+  </select>
+  <button class="btn btn-p" onclick="toggleForm(true)">+ Entrar cheque</button>
+</div>
+<div class="content">
+  <div class="card" id="formCard" style="display:none">
+    <div class="hint">Cheque recebido de cliente entra na carteira. Depois use «Usar no pagar» para vincular ao fornecedor (rastreio cliente → fornecedor).</div>
+    <div class="grid">
+      <div><label>Número *</label><input id="f_num" autocomplete="off"></div>
+      <div><label>Valor *</label><input type="number" step="0.01" id="f_vlr"></div>
+      <div><label>Bom para *</label><input type="date" id="f_bom"></div>
+      <div><label>Banco</label><input id="f_banco" autocomplete="off"></div>
+      <div><label>Agência</label><input id="f_ag" autocomplete="off"></div>
+      <div><label>Conta</label><input id="f_cta" autocomplete="off"></div>
+      <div><label>Emitente</label><input id="f_emi" autocomplete="off"></div>
+      <div><label>CPF/CNPJ emitente</label><input id="f_doc" autocomplete="off"></div>
+      <div><label>ID Cliente (origem)</label><input type="number" id="f_cli" placeholder="opcional"></div>
+    </div>
+    <div style="padding:0 14px 14px;display:flex;gap:8px">
+      <button class="btn btn-p" onclick="salvar()">Salvar na carteira</button>
+      <button class="btn btn-g" onclick="toggleForm(false)">Cancelar</button>
+    </div>
+  </div>
+  <div class="card">
+    <table>
+      <thead><tr><th>Nº</th><th>Bom para</th><th>Valor</th><th>Emitente</th><th>Cliente</th><th>Status</th><th>Rastreio</th><th></th></tr></thead>
+      <tbody id="tb"><tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text2)">Carregando…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+const api=(u,o)=>SysRepApi.fetch(u,o);
+function toast(m,ok=true){const t=document.getElementById('toast');t.textContent=m;t.style.background=ok?'#111':'#ef4444';t.style.display='block';setTimeout(()=>t.style.display='none',3500)}
+function toggleForm(s){document.getElementById('formCard').style.display=s?'block':'none'}
+function money(v){return (parseFloat(v)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
+async function carregar(){
+  try{
+    const st=document.getElementById('filtro').value;
+    const d=await api('/api/cheques?status='+encodeURIComponent(st));
+    const rows=d.cheques||[];
+    document.getElementById('tb').innerHTML=rows.length?rows.map(c=>`<tr>
+      <td style="font-weight:700">${c.numero}</td>
+      <td>${String(c.bom_para||'').slice(0,10)}</td>
+      <td>${money(c.valor)}</td>
+      <td>${c.emitente||'—'}</td>
+      <td>${c.cliente_nome||(c.id_cliente?('#'+c.id_cliente):'—')}</td>
+      <td><span class="badge">${c.status}</span></td>
+      <td style="font-size:11px;color:var(--text2)">Rec #${c.id_receber||'—'} → Pag #${c.id_pagar||'—'} ${c.fornecedor_nome?'· '+c.fornecedor_nome:''}</td>
+      <td style="white-space:nowrap">
+        ${c.status==='EM_CARTEIRA'?`<button class="btn btn-g" onclick="usarPagar(${c.id})">Usar no pagar</button>`:''}
+        ${c.status==='EM_CARTEIRA'?`<button class="btn btn-g" onclick="setStatus(${c.id},'DEVOLVIDO')">Devolvido</button>`:''}
+      </td></tr>`).join('')
+      :'<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text2)">Nenhum cheque</td></tr>';
+  }catch(e){toast(e.message,false)}
+}
+async function salvar(){
+  try{
+    await api('/api/cheques',{method:'POST',body:JSON.stringify({
+      numero:document.getElementById('f_num').value,valor:document.getElementById('f_vlr').value,
+      bom_para:document.getElementById('f_bom').value,banco_nome:document.getElementById('f_banco').value,
+      agencia:document.getElementById('f_ag').value,conta:document.getElementById('f_cta').value,
+      emitente:document.getElementById('f_emi').value,cpf_cnpj:document.getElementById('f_doc').value,
+      id_cliente:document.getElementById('f_cli').value||null
+    })});
+    toast('Cheque na carteira');toggleForm(false);carregar();
+  }catch(e){toast(e.message,false)}
+}
+async function usarPagar(id){
+  const idPagar=prompt('Informe o ID do título em Contas a Pagar:');
+  if(!idPagar)return;
+  confirmar(
+    'Liquidar o título agora?',
+    'Se confirmar, o título será baixado com forma CHEQUE e o cheque sai da carteira.',
+    async (baixar) => {
+      try{
+        const r=await api('/api/cheques/'+id+'/usar-pagar',{method:'POST',body:JSON.stringify({id_pagar:idPagar,baixar})});
+        toast('Vinculado. Cliente→Fornecedor ok (cheque #'+r.id_cheque+')');carregar();
+      }catch(e){toast(e.message,false)}
+    },
+    { okLabel: 'Sim, liquidar', cancelLabel: 'Só vincular', onCancel: async () => {
+      try{
+        const r=await api('/api/cheques/'+id+'/usar-pagar',{method:'POST',body:JSON.stringify({id_pagar:idPagar,baixar:false})});
+        toast('Vinculado sem liquidar (cheque #'+r.id_cheque+')');carregar();
+      }catch(e){toast(e.message,false)}
+    }}
+  );
+}
+async function setStatus(id,st){
+  try{await api('/api/cheques/'+id+'/status',{method:'POST',body:JSON.stringify({status:st})});carregar()}catch(e){toast(e.message,false)}
+}
+function confirmar(titulo, msg, onOk, opts={}){
+  const bd=document.createElement('div');
+  bd.className='confirm-backdrop';
+  bd.innerHTML=`<div class="confirm-box" role="dialog" aria-modal="true">
+    <h3>${titulo}</h3><p>${msg}</p>
+    <div class="confirm-btns">
+      <button type="button" class="btn btn-g" id="_no">${opts.cancelLabel||'Cancelar'}</button>
+      <button type="button" class="btn btn-ok" id="_ok">${opts.okLabel||'Confirmar'}</button>
+    </div></div>`;
+  document.body.appendChild(bd);
+  bd.querySelector('#_no').onclick=()=>{bd.remove();opts.onCancel&&opts.onCancel();};
+  bd.querySelector('#_ok').onclick=()=>{bd.remove();onOk&&onOk(true);};
+  bd.onclick=e=>{if(e.target===bd)bd.remove();};
+}
+carregar();
+</script>
+</body>
+</html>

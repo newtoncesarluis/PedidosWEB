@@ -47,6 +47,8 @@ const {
   calcPesoTotalExibir,
 } = require('../config/preco-peso-produto');
 const { parseRegras, validarQuantidade } = require('../config/pedido-item-regras');
+const { validarTotalGradeFechada } = require('../config/grade-fechada-regras');
+const { ensureTipogradeColunas } = require('../config/tipograde-colunas');
 
 /** Bloqueia pedido para cliente fora da carteira do usuário logado. */
 async function _validarCarteiraClientePedido(req, poolOrConn, codCliente) {
@@ -475,6 +477,7 @@ async function ensureTables(pool) {
         { name: 'compartilhacomissao',    type: "VARCHAR(1) DEFAULT 'N'" },
         { name: 'comissaogerente',        type: 'DECIMAL(5,2) DEFAULT 0' },
         { name: 'vlr_comissaonormal',     type: 'DECIMAL(15,2) DEFAULT 0' },
+        { name: 'descontos_cascata',      type: 'VARCHAR(200) NULL DEFAULT NULL' },
       ];
       for (const c of colsToAdd)
         await pool.query(`ALTER TABLE pedidos ADD COLUMN ${c.name} ${c.type}`).catch(() => {});
@@ -670,32 +673,135 @@ async function _getPesoExibirFornecedor(conn, codFornecedor) {
   return rows[0]?.v || 'N';
 }
 
-/** Recalcula total e peso do item com a mesma regra do frontend (preço por peso / embalagem). */
-async function _normalizeItensPrecoPeso(conn, itens, codFornecedor) {
-  if (!Array.isArray(itens) || !itens.length) return itens;
+/** Cache por DATABASE(): tipograde.modo_grade existe? (evita SHOW COLUMNS a cada save). */
+const _tipogradeModoGradeCache = new Map(); // dbName -> boolean
+async function _tipogradeTemModoGrade(conn) {
+  let dbKey = 'default';
+  try {
+    const [[r]] = await conn.query('SELECT DATABASE() AS db');
+    dbKey = String(r?.db || 'default');
+  } catch (_) {}
+  if (_tipogradeModoGradeCache.has(dbKey)) return _tipogradeModoGradeCache.get(dbKey);
+  const [colModo] = await conn.query(`SHOW COLUMNS FROM tipograde LIKE 'modo_grade'`).catch(() => [[]]);
+  const ok = !!(colModo && colModo.length);
+  _tipogradeModoGradeCache.set(dbKey, ok);
+  return ok;
+}
 
-  const somaEmb = await _getSomaEmbalagemPedido(conn);
-  const pesoExibir = await _getPesoExibirFornecedor(conn, codFornecedor);
-  const pool = conn;
-  const tb = await _getProdTabela(pool);
+/**
+ * Uma passada de queries para validar + normalizar itens no save.
+ * Antes: 3 validadores + normalize = vários SELECT sistemas/produto/tipograde repetidos.
+ */
+async function _carregarContextoItensSave(conn, itens, codFornecedor) {
+  const vazios = {
+    somaEmb: 'N',
+    pesoExibir: 'N',
+    gradeOn: false,
+    prodMap: new Map(),
+    gradeMap: new Map(),
+  };
+  if (!Array.isArray(itens) || !itens.length) return vazios;
+
+  await _ensureProdCols(conn);
+  const tb = await _getProdTabela(conn);
   const ids = [...new Set(itens.map((i) => parseInt(i.cod_produto, 10)).filter(Boolean))];
-  if (!ids.length) return itens;
 
-  const [prods] = await conn.query(
-    `SELECT ID, IFNULL(precopeso, 'N') AS precopeso, IFNULL(kilo_embalagem, 0) AS kilo_embalagem,
-            descricao,
-            IFNULL(bloquear_desconto, 'N') AS bloquear_desconto,
-            desconto_maximo
-     FROM ${tb} WHERE ID IN (?)`,
-    [ids]
-  );
-  const prodMap = new Map(prods.map((p) => [p.ID, p]));
+  const [sisRes, fornRes, prodRes] = await Promise.all([
+    conn.query(
+      `SELECT COALESCE(habilitapedidograde, 'N') AS habilitapedidograde,
+              COALESCE(soma_embalagempedido, 'N') AS soma_embalagempedido
+         FROM sistemas ORDER BY id DESC LIMIT 1`
+    ).catch(() => [[{}]]),
+    codFornecedor
+      ? conn.query(
+          `SELECT COALESCE(peso_exibritelapedidos, 'N') AS peso_exibir
+             FROM fornecedores WHERE id = ? LIMIT 1`,
+          [codFornecedor]
+        ).catch(() => [[]])
+      : Promise.resolve([[]]),
+    ids.length
+      ? conn.query(
+          `SELECT ID, tipograde, descricao,
+                  IFNULL(precopeso, 'N') AS precopeso,
+                  IFNULL(kilo_embalagem, 0) AS kilo_embalagem,
+                  IFNULL(bloquear_desconto, 'N') AS bloquear_desconto,
+                  desconto_maximo,
+                  IFNULL(multiplo_venda, 1) AS multiplo_venda,
+                  IFNULL(qtd_minima_pedido, 0) AS qtd_minima_pedido
+             FROM ${tb} WHERE ID IN (?)`,
+          [ids]
+        ).catch(() => [[]])
+      : Promise.resolve([[]]),
+  ]);
 
+  const sis = sisRes[0]?.[0] || {};
+  const gradeOn = (sis.habilitapedidograde || 'N') === 'S';
+  const somaEmb = sis.soma_embalagempedido || 'N';
+  const pesoExibir = fornRes[0]?.[0]?.peso_exibir || 'N';
+  const prodMap = new Map((prodRes[0] || []).map((p) => [Number(p.ID), p]));
+
+  let gradeMap = new Map();
+  if (gradeOn && (await _tipogradeTemModoGrade(conn))) {
+    const gradeIds = new Set();
+    for (const item of itens) {
+      if (item._delete || !item.cod_produto) continue;
+      const prod = prodMap.get(parseInt(item.cod_produto, 10));
+      const gid = item.id_grade || prod?.tipograde;
+      if (gid) gradeIds.add(Number(gid));
+    }
+    if (gradeIds.size) {
+      const [gradeRows] = await conn.query(
+        `SELECT id,
+                COALESCE(modo_grade, 'A') AS modo_grade,
+                COALESCE(multiplo_grade, 0) AS multiplo_grade
+           FROM tipograde WHERE id IN (?)`,
+        [[...gradeIds]]
+      ).catch(() => [[]]);
+      gradeMap = new Map((gradeRows || []).map((g) => [String(g.id), g]));
+    }
+  }
+
+  return { somaEmb, pesoExibir, gradeOn, prodMap, gradeMap };
+}
+
+function _validarItensComContexto(itens, ctx) {
+  if (!Array.isArray(itens) || !itens.length) return null;
+  const erros = [];
+  const ativos = itens.filter((i) => !i._delete && i.cod_produto);
+
+  for (const item of ativos) {
+    const prod = ctx.prodMap.get(parseInt(item.cod_produto, 10));
+    if (prod) {
+      const regras = parseRegras(prod);
+      const desc = item.desc_prod || item.desc_produto || prod.descricao || 'Item';
+      erros.push(...validarQuantidade(item.quantidade, regras, desc));
+    }
+
+    if (!ctx.gradeOn) continue;
+    const exigeGrade = prod?.tipograde || item.id_grade;
+    if (!exigeGrade) continue;
+    const somaGrade = (item.grade_qtd || []).reduce((s, g) => s + (parseFloat(g.quantidade) || 0), 0);
+    const descG = item.desc_prod || item.desc_produto || prod?.descricao || 'Item';
+    if (somaGrade <= 0) {
+      erros.push(`«${descG}» exige grade. Informe os tamanhos antes de salvar.`);
+      continue;
+    }
+    const gid = item.id_grade || prod?.tipograde;
+    const g = gid ? ctx.gradeMap.get(String(gid)) : null;
+    if (!g) continue;
+    const total = somaGrade > 0 ? somaGrade : (parseFloat(item.quantidade) || 0);
+    erros.push(...validarTotalGradeFechada(total, g.modo_grade, g.multiplo_grade, descG));
+  }
+
+  return erros.length ? erros : null;
+}
+
+function _aplicarNormalizeItens(itens, ctx) {
+  const { somaEmb, pesoExibir, prodMap } = ctx;
   return itens.map((item) => {
     const prod = prodMap.get(parseInt(item.cod_produto, 10));
     const precopeso = item.precopeso || prod?.precopeso || 'N';
 
-    // Controle de desconto por produto
     let descontoPct = parseFloat(item.desconto_percentual ?? item.desconto ?? 0) || 0;
     if (prod?.bloquear_desconto === 'S') {
       descontoPct = 0;
@@ -728,7 +834,6 @@ async function _normalizeItensPrecoPeso(conn, itens, codFornecedor) {
     const vlrSt = Math.round(vlrtotal * stPct / 100 * 100) / 100;
     const vlrIpi = Math.round(vlrtotal * ipiPct / 100 * 100) / 100;
     const vlrIcms = Math.round(vlrtotal * icmsPct / 100 * 1000) / 1000;
-    // ICMS "por dentro" — não soma no total c/ imposto (apenas IPI + ST)
     const vlrComImp = Math.round((vlrtotal + vlrSt + vlrIpi) * 1000) / 1000;
 
     return {
@@ -753,6 +858,25 @@ async function _normalizeItensPrecoPeso(conn, itens, codFornecedor) {
   });
 }
 
+/** Valida grade/qtd e normaliza totais com um único carregamento de produto/sistemas. */
+async function validarENormalizarItensSave(conn, itens, codFornecedor) {
+  const sanitized = sanitizeItensObsitemForSave(itens);
+  if (!Array.isArray(sanitized) || !sanitized.length) {
+    return { erros: null, itensNorm: sanitized };
+  }
+  const ctx = await _carregarContextoItensSave(conn, sanitized, codFornecedor);
+  const erros = _validarItensComContexto(sanitized, ctx);
+  if (erros) return { erros, itensNorm: null };
+  return { erros: null, itensNorm: _aplicarNormalizeItens(sanitized, ctx) };
+}
+
+/** Recalcula total e peso do item (mantido p/ callers avulsos; save usa validarENormalizarItensSave). */
+async function _normalizeItensPrecoPeso(conn, itens, codFornecedor) {
+  if (!Array.isArray(itens) || !itens.length) return itens;
+  const ctx = await _carregarContextoItensSave(conn, itens, codFornecedor);
+  return _aplicarNormalizeItens(itens, ctx);
+}
+
 function resolveDescProdItem(item, prodDescricao) {
   const raw = item.desc_prod || item.desc_produto || item.descricao || item.descProd || prodDescricao || '';
   const s = String(raw).trim();
@@ -764,10 +888,15 @@ function buildItenspedInsertParams(item, ctx) {
     numpedido, idPedido, codFornecedor, tipoPedido, idTipoPedido, seqItem,
   } = ctx;
   const vlrUnitSemImp = Math.round(
-    (item.valor_unitario || 0) * (1 - (item.desconto_percentual || 0) / 100) * 10000
+    (item.valor_unitario || 0)
+      * (1 + (parseFloat(item.acrescimo_percentual ?? item.acrescimo) || 0) / 100)
+      * (1 - (parseFloat(item.desconto_percentual ?? item.desconto) || 0) / 100)
+      * 10000
   ) / 10000;
+  const descPctSave = parseFloat(item.desconto_percentual ?? item.desconto) || 0;
+  const acrPctSave = parseFloat(item.acrescimo_percentual ?? item.acrescimo) || 0;
   const vlrDescTotal = Math.round(
-    (item.valor_unitario || 0) * (item.quantidade || 0) * (item.desconto_percentual || 0) / 100 * 100
+    (item.valor_unitario || 0) * (item.quantidade || 0) * descPctSave / 100 * 100
   ) / 100;
   const pesoItem = item.total_peso || 0;
   const gradeResumo = (item.grade_qtd || [])
@@ -781,7 +910,7 @@ function buildItenspedInsertParams(item, ctx) {
     resolveDescProdItem(item), item.unidade || '', item.embalagem || 0,
     item.quantidade, nPedidoField(item.vlr_padrao), item.valor_unitario, item.vlrtotal_itens,
     imp.vlrTotalComImp,
-    item.desconto_percentual || 0, item.comissao_percentual || 0, item.acrescimo_percentual || 0,
+    descPctSave, item.comissao_percentual || 0, acrPctSave,
     item.st_percentual || 0, item.vlr_st || 0,
     item.ipi_percentual || 0, item.vlr_ipi || 0,
     imp.icmsPct, imp.vlrIcms,
@@ -799,8 +928,9 @@ function buildItenspedInsertParams(item, ctx) {
 
 /** Insere todos os itens em batches de até BATCH_SIZE linhas por INSERT para
  *  não estourar o max_allowed_packet do MySQL. Itens com grade_qtd buscam o
- *  id real via SELECT após o INSERT, filtrado por id_pedido (evita colisão). */
-const ITENSPED_BATCH_SIZE = 50;
+ *  id real via SELECT após o INSERT, filtrado por numpedido (evita colisão). */
+const ITENSPED_BATCH_SIZE = 100;
+const GRADE_QTD_BATCH_SIZE = 500;
 
 async function insertItenspedBatch(conn, itensNorm, ctx) {
   if (!itensNorm.length) return;
@@ -830,13 +960,32 @@ async function insertItenspedBatch(conn, itensNorm, ctx) {
       `SELECT id, sequencia FROM itensped WHERE numpedido = ? AND COALESCE(excluido,'N') = 'N' ORDER BY sequencia`,
       [String(ctx.numpedido)]
     );
+    // Map O(1) + INSERT em lote (antes: 1 round-trip SQL por item com grade).
+    const bySeq = new Map(inserted.map((r) => [Number(r.sequencia), r.id]));
+    const gradeVals = [];
     for (let i = 0; i < itensNorm.length; i++) {
       const item = itensNorm[i];
       if (!item.grade_qtd?.length) continue;
-      // Number(): blinda contra o driver retornar sequencia como string (=== falharia
-      // em silêncio e a grade do item seria perdida).
-      const row = inserted.find(r => Number(r.sequencia) === i + 1);
-      if (row) await _salvarGradeQtd(conn, row.id, item.grade_qtd);
+      const itemId = bySeq.get(i + 1);
+      if (!itemId) continue;
+      for (const g of item.grade_qtd) {
+        const qtd = parseFloat(g.quantidade) || 0;
+        if (qtd <= 0) continue;
+        gradeVals.push([
+          itemId,
+          g.id_descricao_grade,
+          g.sequencial,
+          g.nome_grade || '',
+          qtd,
+        ]);
+      }
+    }
+    for (let off = 0; off < gradeVals.length; off += GRADE_QTD_BATCH_SIZE) {
+      const chunk = gradeVals.slice(off, off + GRADE_QTD_BATCH_SIZE);
+      await conn.query(
+        `INSERT INTO itensped_grade_qtd (id_item_ped, id_descricao_grade, sequencial, nome_grade, quantidade) VALUES ?`,
+        [chunk]
+      );
     }
   }
 }
@@ -844,9 +993,17 @@ async function insertItenspedBatch(conn, itensNorm, ctx) {
 /** Exclusão lógica dos itens ativos do pedido (não usa DELETE físico em itensped). */
 async function softDeleteItenspedByNumPedido(conn, numPedido) {
   if (numPedido == null || numPedido === '') return;
+  const num = String(numPedido);
+  // Limpa grades dos itens que serão soft-deletados (evita órfãos e inchaço da tabela).
+  await conn.query(
+    `DELETE ig FROM itensped_grade_qtd ig
+     INNER JOIN itensped i ON i.id = ig.id_item_ped
+     WHERE i.numpedido = ? AND COALESCE(i.excluido, 'N') = 'N'`,
+    [num]
+  ).catch(() => {});
   await conn.query(
     `UPDATE itensped SET excluido = 'S' WHERE numpedido = ? AND COALESCE(excluido, 'N') = 'N'`,
-    [numPedido]
+    [num]
   );
 }
 
@@ -863,28 +1020,15 @@ async function _salvarGradeQtd(conn, itemId, grade_qtd) {
   );
 }
 
-// ─── Helper: bloqueia salvar pedido com item de grade sem tamanhos informados ──
-// Vale pra qualquer canal (desktop, mobile, importação) — só age quando o
-// sistema de grades está habilitado (sistemas.habilitapedidograde='S').
-// Sem isso habilitado, retorna null e não altera nada do fluxo existente.
+/** @deprecated Preferir validarENormalizarItensSave (uma passada de queries). */
 async function validarItensGradeObrigatoria(conn, itens) {
-  if (!itens || !itens.length) return null;
-  const [[cfg]] = await conn.query(
-    `SELECT habilitapedidograde FROM sistemas ORDER BY id DESC LIMIT 1`
-  ).catch(() => [[{}]]);
-  if ((cfg?.habilitapedidograde || 'N') !== 'S') return null;
-
-  const codProdutos = [...new Set(itens.map(i => i.cod_produto).filter(Boolean))];
-  if (!codProdutos.length) return null;
-  const [prodRows] = await conn.query(
-    `SELECT ID, tipograde FROM produto WHERE ID IN (?)`,
-    [codProdutos]
-  ).catch(() => [[]]);
-  const tipoGradeMap = new Map(prodRows.map(p => [String(p.ID), p.tipograde]));
-
+  const ctx = await _carregarContextoItensSave(conn, itens || [], null);
+  if (!ctx.gradeOn) return null;
   const erros = [];
-  for (const item of itens) {
-    const exigeGrade = tipoGradeMap.get(String(item.cod_produto)) || item.id_grade;
+  for (const item of itens || []) {
+    if (item._delete) continue;
+    const prod = ctx.prodMap.get(parseInt(item.cod_produto, 10));
+    const exigeGrade = prod?.tipograde || item.id_grade;
     if (!exigeGrade) continue;
     const somaGrade = (item.grade_qtd || []).reduce((s, g) => s + (parseFloat(g.quantidade) || 0), 0);
     if (somaGrade <= 0) {
@@ -894,32 +1038,35 @@ async function validarItensGradeObrigatoria(conn, itens) {
   return erros.length ? erros : null;
 }
 
-// Valida múltiplo de venda e quantidade mínima por produto (backend — espelha o front).
-async function validarItensQtdRegras(conn, itens) {
-  if (!itens || !itens.length) return null;
-  await _ensureProdCols(conn);
-  const tb = await _getProdTabela(conn);
-  const ativos = itens.filter((i) => !i._delete && i.cod_produto);
-  if (!ativos.length) return null;
-
-  const codProdutos = [...new Set(ativos.map((i) => i.cod_produto))];
-  const [prodRows] = await conn.query(
-    `SELECT ID, descricao,
-            IFNULL(multiplo_venda, 1) AS multiplo_venda,
-            IFNULL(qtd_minima_pedido, 0) AS qtd_minima_pedido
-     FROM ${tb} WHERE ID IN (?)`,
-    [codProdutos]
-  ).catch(() => [[]]);
-
-  const map = new Map(prodRows.map((p) => [String(p.ID), p]));
+/** @deprecated Preferir validarENormalizarItensSave. */
+async function validarItensGradeFechada(conn, itens) {
+  const ctx = await _carregarContextoItensSave(conn, itens || [], null);
+  if (!ctx.gradeOn || !ctx.gradeMap.size) return null;
   const erros = [];
-  for (const item of ativos) {
-    const prod = map.get(String(item.cod_produto));
+  for (const item of (itens || []).filter((i) => !i._delete && i.cod_produto)) {
+    const prod = ctx.prodMap.get(parseInt(item.cod_produto, 10));
+    const gid = item.id_grade || prod?.tipograde;
+    if (!gid) continue;
+    const g = ctx.gradeMap.get(String(gid));
+    if (!g) continue;
+    const somaGrade = (item.grade_qtd || []).reduce((s, x) => s + (parseFloat(x.quantidade) || 0), 0);
+    const total = somaGrade > 0 ? somaGrade : (parseFloat(item.quantidade) || 0);
+    const desc = item.desc_prod || item.desc_produto || 'Item';
+    erros.push(...validarTotalGradeFechada(total, g.modo_grade, g.multiplo_grade, desc));
+  }
+  return erros.length ? erros : null;
+}
+
+/** @deprecated Preferir validarENormalizarItensSave. */
+async function validarItensQtdRegras(conn, itens) {
+  const ctx = await _carregarContextoItensSave(conn, itens || [], null);
+  const erros = [];
+  for (const item of (itens || []).filter((i) => !i._delete && i.cod_produto)) {
+    const prod = ctx.prodMap.get(parseInt(item.cod_produto, 10));
     if (!prod) continue;
     const regras = parseRegras(prod);
     const desc = item.desc_prod || item.desc_produto || prod.descricao || 'Item';
-    const msgs = validarQuantidade(item.quantidade, regras, desc);
-    erros.push(...msgs);
+    erros.push(...validarQuantidade(item.quantidade, regras, desc));
   }
   return erros.length ? erros : null;
 }
@@ -1694,14 +1841,20 @@ router.get('/produtos/busca', async (req, res) => {
     const pool = getPool();
     const tb = await _getProdTabela(pool);
     await _ensureProdCols(pool);
-    const { q = '', limit = 15, offset = 0, id_fornecedor, id_tabela, catalogo, somente_promocao, somente_destaque, somente_lancamento, segmento, agrupar_referencia } = req.query;
+    const { q = '', limit = 15, offset = 0, id_fornecedor, id_tabela, catalogo, somente_promocao, somente_destaque, somente_lancamento, segmento, agrupar_referencia, showroom, lean, ids, skip_total } = req.query;
     const offsetNum = Math.max(0, parseInt(offset) || 0);
     const tabelaId = (id_tabela && id_tabela !== 'null' && id_tabela !== '0') ? parseInt(id_tabela) : null;
     const isCatalogo = catalogo === '1' || catalogo === 'true';
+    const isShowroomLean = showroom === '1' || showroom === 'true' || lean === '1' || lean === 'true';
     const agruparRef = agrupar_referencia === '1' || agrupar_referencia === 'true' || agrupar_referencia === 'S';
     const filtrarPromo = somente_promocao === '1' || somente_promocao === 'true' || somente_promocao === 'S';
     const filtrarDestaque = somente_destaque === '1' || somente_destaque === 'true' || somente_destaque === 'S';
     const filtrarLancamento = somente_lancamento === '1' || somente_lancamento === 'true' || somente_lancamento === 'S';
+    const idsBatch = String(ids || '')
+      .split(',')
+      .map((x) => parseInt(x, 10))
+      .filter((n) => Number.isFinite(n) && n > 0)
+      .slice(0, 80);
 
     const [sysRows] = await pool.query('SELECT itenspedidofornecedor FROM sistemas ORDER BY id DESC LIMIT 1').catch(() => [[]]);
     const itensForn = sysRows[0]?.itenspedidofornecedor || 'N';
@@ -1756,10 +1909,16 @@ router.get('/produtos/busca', async (req, res) => {
       }
     }
     const busca = produtoBuscaOrSql('p', q, { includeId: true });
-    const whereSearch = busca.fragment;
-    const searchParams = busca.params;
+    let whereSearch = busca.fragment;
+    let searchParams = busca.params;
     const isBarcodeLike = busca.isBarcodeLike;
     const qTrim = busca.qTrim;
+
+    // Favoritos do Showroom: 1 query com IN em vez de N buscas por ID
+    if (idsBatch.length) {
+      whereSearch = 'p.ID IN (?)';
+      searchParams = [idsBatch];
+    }
 
     if (filtrarDestaque) {
       const partesDestaque = [];
@@ -1922,13 +2081,27 @@ router.get('/produtos/busca', async (req, res) => {
     const selGrupoDesc = prodCols.has('id_grupo') ? 'g.descricao AS grupo_descricao' : 'NULL AS grupo_descricao';
     const selIdRef = prodCols.has('id_referencia') ? 'p.id_referencia' : 'NULL AS id_referencia';
     const selCor1 = prodCols.has('cor1') ? 'p.cor1' : 'NULL AS cor1';
-    const selQtdCores = prodCols.has('id_referencia')
+    // Showroom lean: só foto_principal (sem subquery em produto_imagens por linha).
+    const selFoto = isShowroomLean
+      ? `IFNULL(p.foto_principal, '') AS foto_principal`
+      : `COALESCE(p.foto_principal, (
+                SELECT CONCAT('/uploads/produtos/', p.ID, '/', pi.filename)
+                FROM produto_imagens pi
+                WHERE CAST(pi.cod_produto AS UNSIGNED) = p.ID
+                ORDER BY pi.is_principal DESC, pi.id ASC
+                LIMIT 1
+              )) AS foto_principal`;
+    // qtd_cores só quando agrupar referência (chips de cor); senão 0.
+    const selQtdCores = (agruparRef && prodCols.has('id_referencia'))
       ? `(SELECT COUNT(*) FROM ${tb} c
           WHERE c.id_referencia = p.ID
             AND (c.excluido='N' OR c.excluido IS NULL OR c.excluido='')
             AND (c.situacao='A' OR c.situacao IS NULL OR c.situacao='')) AS qtd_cores`
       : '0 AS qtd_cores';
 
+    const orderBarcode = (isBarcodeLike && !idsBatch.length)
+      ? '(p.cod_barras = ? OR p.cod_fabricante = ?) DESC,'
+      : '';
     const [rows] = await pool.query(
       `SELECT p.ID as id, p.ID as cod_produto,
               p.cod_fabricante, p.cod_barras, ${selSegmento}, ${selMarca}, ${selNomeGrupo}, ${selGrupoDesc}, ${selKit},
@@ -1945,13 +2118,7 @@ router.get('/produtos/busca', async (req, res) => {
               IFNULL(p.qtd_minima_pedido, 0) as qtd_minima_pedido,
               IFNULL(p.estoque_atual, 0) as estoque_atual,
               IFNULL(p.disponivel, 'S') as disponivel,
-              COALESCE(p.foto_principal, (
-                SELECT CONCAT('/uploads/produtos/', p.ID, '/', pi.filename)
-                FROM produto_imagens pi
-                WHERE CAST(pi.cod_produto AS UNSIGNED) = p.ID
-                ORDER BY pi.is_principal DESC, pi.id ASC
-                LIMIT 1
-              )) AS foto_principal,
+              ${selFoto},
               IFNULL(p.tipograde, 0) as tipograde,
               IFNULL(p.solado, '') as solado,
               IFNULL(p.tipoprodutograde, '') as tipoprodutograde,
@@ -1965,13 +2132,23 @@ router.get('/produtos/busca', async (req, res) => {
          AND p.situacao = 'A'
          ${whereExtra}
          AND ${whereSearch}
-       ORDER BY ${isBarcodeLike ? '(p.cod_barras = ? OR p.cod_fabricante = ?) DESC,' : ''} p.descricao
+       ORDER BY ${orderBarcode} p.descricao
        LIMIT ? OFFSET ?`,
-      [...params, ...searchParams, ...(isBarcodeLike ? [qTrim, qTrim] : []), parseInt(limit), offsetNum]
+      [
+        ...params,
+        ...searchParams,
+        ...(orderBarcode ? [qTrim, qTrim] : []),
+        parseInt(limit),
+        offsetNum,
+      ]
     );
-    // Total para paginação por scroll (mesmo WHERE/JOIN, sem ORDER BY/LIMIT)
+    // Total: pula favoritos batch / skip_total (scroll) / filtros que recontam no JS
     let total = null;
-    if (!filtrarPromo && !filtrarDestaque) {
+    const wantTotal = !(skip_total === '1' || skip_total === 'true')
+      && !idsBatch.length
+      && !filtrarPromo
+      && !filtrarDestaque;
+    if (wantTotal) {
       try {
         const [[cnt]] = await pool.query(
           `SELECT COUNT(DISTINCT p.ID) AS total
@@ -1986,19 +2163,23 @@ router.get('/produtos/busca', async (req, res) => {
         total = cnt?.total ?? null;
       } catch (_) { total = null; }
     }
-    const promoCtx = await _promoCtxFromPedidoQuery(pool, req.query);
-    const qtdPromo = parseFloat(req.query.qtd) || 1;
-    let data = await enrichProdutosComPromocao(pool, rows, { qtd: qtdPromo, ...promoCtx });
-    data = await attachDestaquesComerciais(pool, data, promoCtx);
-    if (filtrarPromo) {
-      data = data.filter((p) => p.tem_promocao || p.promocao_ativa);
-    }
-    if (filtrarDestaque) {
-      data = data.filter((p) =>
-        p.destaque_comercial
-        || p.promocao_ativa?.destaque
-        || (p.promocoes || []).some((x) => x.destaque)
-      );
+    let data = rows;
+    // Showroom não usa badges de promo/destaque na grade — pula enrich (queries extras)
+    if (!isShowroomLean) {
+      const promoCtx = await _promoCtxFromPedidoQuery(pool, req.query);
+      const qtdPromo = parseFloat(req.query.qtd) || 1;
+      data = await enrichProdutosComPromocao(pool, rows, { qtd: qtdPromo, ...promoCtx });
+      data = await attachDestaquesComerciais(pool, data, promoCtx);
+      if (filtrarPromo) {
+        data = data.filter((p) => p.tem_promocao || p.promocao_ativa);
+      }
+      if (filtrarDestaque) {
+        data = data.filter((p) =>
+          p.destaque_comercial
+          || p.promocao_ativa?.destaque
+          || (p.promocoes || []).some((x) => x.destaque)
+        );
+      }
     }
     if (isPrepostoUser(req)) {
       data = stripProdutosComissaoRep(data);
@@ -2449,16 +2630,33 @@ router.get('/grade-sugestao/:id_produto/:id_cliente', async (req, res) => {
   }
 });
 
-// GET /api/pedidos/grade/:id_grade — itens da grade (descricao_grades)
+// GET /api/pedidos/grade/:id_grade — itens da grade (descricao_grades) + modo/múltiplo
 router.get('/grade/:id_grade', async (req, res) => {
   try {
-    const [rows] = await getPool().query(
+    const pool = getPool();
+    await ensureTipogradeColunas(pool);
+    const idGrade = parseInt(req.params.id_grade, 10) || 0;
+    const [[cab]] = await pool.query(
+      `SELECT id, nome,
+              COALESCE(modo_grade, 'A') AS modo_grade,
+              COALESCE(multiplo_grade, 0) AS multiplo_grade
+         FROM tipograde
+        WHERE id = ? AND (excluido='N' OR excluido IS NULL OR excluido='')
+        LIMIT 1`,
+      [idGrade]
+    ).catch(() => [[null]]);
+    const [rows] = await pool.query(
       `SELECT id, nome, sequencial, COALESCE(qtd_minima,0) AS qtd_minima FROM descricao_grades
        WHERE id_grade = ? AND excluido = 'N'
        ORDER BY sequencial`,
-      [req.params.id_grade]
+      [idGrade]
     );
-    res.json({ itens: rows });
+    res.json({
+      itens: rows,
+      modo_grade: cab?.modo_grade || 'A',
+      multiplo_grade: cab?.multiplo_grade || 0,
+      nome: cab?.nome || '',
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -2950,7 +3148,6 @@ router.post('/:id/faturar', async (req, res) => {
     await pool.query(
       `UPDATE pedidos SET
          situacao_pedido      = 'FATURADO',
-         status               = 'FATURADO',
          informado_faturamento = 'S',
          data_faturado        = ?,
          vlr_faturado         = ?,
@@ -3740,23 +3937,24 @@ router.post('/', async (req, res) => {
       }
     }
 
-    const [errosGrade, errosQtd] = await Promise.all([
-      validarItensGradeObrigatoria(conn, itens),
-      validarItensQtdRegras(conn, itens),
-    ]);
-    if (errosGrade) {
-      await conn.rollback();
-      return res.status(400).json({ error: errosGrade.join(' ') });
+    // Uma passada: sistemas + produto + tipograde + validação + normalize
+    // (antes eram 3 validadores + normalize com SELECTs repetidos).
+    let itensNormSave = null;
+    if (itens && itens.length > 0) {
+      const prep = await validarENormalizarItensSave(conn, itens, pedido.cod_fornecedor);
+      if (prep.erros) {
+        await conn.rollback();
+        return res.status(400).json({ error: prep.erros.join(' ') });
+      }
+      itensNormSave = prep.itensNorm;
     }
-    if (errosQtd) {
-      await conn.rollback();
-      return res.status(400).json({ error: errosQtd.join(' ') });
-    }
-    _mk('validacoes (grade+qtd)');                                        // [DIAG-SAVE]
+    _mk('validacoes+normalize (1 pass)');                                 // [DIAG-SAVE]
 
     // Comissão calculada no backend — ignora valores enviados pelo frontend
     const idPreposto = nPedidoId(pedido.id_preposto);
-    const comissaoCalc = await _calcComissaoBackend(conn, pedido.cod_fornecedor, pedido.id_usuario, itens || [], idPreposto);
+    const comissaoCalc = await _calcComissaoBackend(
+      conn, pedido.cod_fornecedor, pedido.id_usuario, itensNormSave || itens || [], idPreposto
+    );
     if (comissaoCalc._nome_preposto) pedido.nome_preposto = comissaoCalc._nome_preposto;
     delete comissaoCalc._nome_preposto;
     Object.assign(pedido, comissaoCalc);
@@ -3885,12 +4083,20 @@ router.post('/', async (req, res) => {
       ).catch(() => {});
     }
 
-    if (itens && itens.length > 0) {
+    if (pedido.descontos_cascata !== undefined) {
+      const snapDesc = pedido.descontos_cascata == null || pedido.descontos_cascata === ''
+        ? null
+        : String(pedido.descontos_cascata).slice(0, 200);
+      await conn.query(
+        `UPDATE pedidos SET descontos_cascata=? WHERE id=?`,
+        [snapDesc, pedidoId]
+      ).catch(() => {});
+    }
+
+    if (itensNormSave && itensNormSave.length > 0) {
       await Promise.all([ensureItenspedPromoColumns(conn), ensureItenspedObsitemColumn(conn)]);
-      _mk(`ensure colunas itensped (${itens.length} itens)`);              // [DIAG-SAVE]
-      const itensNorm = await _normalizeItensPrecoPeso(conn, sanitizeItensObsitemForSave(itens), pedido.cod_fornecedor);
-      _mk('normalizeItensPrecoPeso');                                     // [DIAG-SAVE]
-      await insertItenspedBatch(conn, itensNorm, {
+      _mk(`ensure colunas itensped (${itensNormSave.length} itens)`);      // [DIAG-SAVE]
+      await insertItenspedBatch(conn, itensNormSave, {
         numpedido: num,
         idPedido: pedidoId,
         codFornecedor: pedido.cod_fornecedor,
@@ -3960,7 +4166,10 @@ router.post('/bulk-update', async (req, res) => {
   try {
     const { ids, update } = req.body;
     const id_usuario_log = req.user?.id || 1;
-    if (!ids || !ids.length) return res.status(400).json({ error: 'Nenhum pedido selecionado' });
+    const idList = (Array.isArray(ids) ? ids : [])
+      .map((id) => parseInt(id, 10))
+      .filter((id) => Number.isFinite(id) && id > 0);
+    if (!idList.length) return res.status(400).json({ error: 'Nenhum pedido selecionado' });
     if (!update || (!update.situacao_pedido && !update.tipo_pedido)) {
       return res.status(400).json({ error: 'Nenhum campo para atualizar' });
     }
@@ -3968,7 +4177,7 @@ router.post('/bulk-update', async (req, res) => {
     await conn.beginTransaction();
     let updated = 0;
 
-    for (const id of ids) {
+    for (const id of idList) {
       const [old] = await conn.query(
         `SELECT situacao_pedido FROM pedidos WHERE id = ? AND COALESCE(excluido,'N')='N' LIMIT 1`,
         [id]
@@ -3977,13 +4186,15 @@ router.post('/bulk-update', async (req, res) => {
 
       const sets = [];
       const vals = [];
+      // NÃO gravar coluna `status` aqui: em bases Delphi costuma ser CHAR(1)/VARCHAR(1)
+      // (ex.: 'P'). Gravar 'APROVADO'/'CANCELADO' estoura a coluna e a transação inteira falha.
       if (update.situacao_pedido) {
-        sets.push('situacao_pedido = ?', 'status = ?');
-        vals.push(update.situacao_pedido, update.situacao_pedido);
+        sets.push('situacao_pedido = ?');
+        vals.push(String(update.situacao_pedido).trim().toUpperCase());
       }
       if (update.tipo_pedido) {
         sets.push('tipo_pedido = ?');
-        vals.push(update.tipo_pedido);
+        vals.push(String(update.tipo_pedido).trim().toUpperCase());
       }
 
       if (sets.length > 0) {
@@ -3993,7 +4204,13 @@ router.post('/bulk-update', async (req, res) => {
         await conn.query(`
           INSERT INTO logs_pedidos (id_pedido, id_usuario, acao, status_antigo, status_novo, detalhes)
           VALUES (?, ?, 'ALTERACAO_MASSA', ?, ?, ?)
-        `, [id, id_usuario_log, old[0].situacao_pedido, update.situacao_pedido || old[0].situacao_pedido, 'Atualização via ação em massa']);
+        `, [
+          id,
+          id_usuario_log,
+          old[0].situacao_pedido,
+          update.situacao_pedido || old[0].situacao_pedido,
+          'Atualização via ação em massa',
+        ]).catch(() => {});
       }
     }
 
@@ -4037,20 +4254,15 @@ router.post('/:id', async (req, res) => {
       }
     }
 
-    // Comissão calculada no backend quando itens são enviados (salvamento completo)
+    // Uma passada validação+normalize (reusa resultado no reinsert dos itens)
+    let itensNormSave = null;
     if (pedido && itens && itens.length > 0) {
-      const [errosGrade, errosQtd] = await Promise.all([
-        validarItensGradeObrigatoria(conn, itens),
-        validarItensQtdRegras(conn, itens),
-      ]);
-      if (errosGrade) {
+      const prep = await validarENormalizarItensSave(conn, itens, pedido.cod_fornecedor);
+      if (prep.erros) {
         await conn.rollback();
-        return res.status(400).json({ error: errosGrade.join(' ') });
+        return res.status(400).json({ error: prep.erros.join(' ') });
       }
-      if (errosQtd) {
-        await conn.rollback();
-        return res.status(400).json({ error: errosQtd.join(' ') });
-      }
+      itensNormSave = prep.itensNorm;
       let idVend = pedido.id_usuario;
       if (!idVend) {
         const [pv] = await conn.query(`SELECT id_usuario, id_preposto FROM pedidos WHERE id = ? LIMIT 1`, [id]).catch(() => [[]]);
@@ -4058,16 +4270,22 @@ router.post('/:id', async (req, res) => {
         if (pedido.id_preposto === undefined) pedido.id_preposto = pv[0]?.id_preposto || null;
       }
       const idPrepostoUpd = nPedidoId(pedido.id_preposto);
-      const comissaoCalc = await _calcComissaoBackend(conn, pedido.cod_fornecedor, idVend, itens, idPrepostoUpd);
+      const comissaoCalc = await _calcComissaoBackend(conn, pedido.cod_fornecedor, idVend, itensNormSave, idPrepostoUpd);
       if (comissaoCalc._nome_preposto) pedido.nome_preposto = comissaoCalc._nome_preposto;
       delete comissaoCalc._nome_preposto;
       Object.assign(pedido, comissaoCalc);
     }
-    _mk('validacoes + comissao');                                        // [DIAG-SAVE]
+    _mk('validacoes+normalize+comissao');                                // [DIAG-SAVE]
 
-    // Busca o estado atual para o log
-    const [atual] = await conn.query('SELECT situacao_pedido, tipo_pedido FROM pedidos WHERE id = ?', [id]);
+    // Cabeçalho + nº do pedido numa query só (itens e parcelas reusam)
+    const [atual] = await conn.query(
+      `SELECT situacao_pedido, tipo_pedido, numero, cod_fornecedor, nome_fornecedor,
+              comissao, id_usuario, data_abertura
+         FROM pedidos WHERE id = ?`,
+      [id]
+    );
     const statusAntigo = atual[0]?.situacao_pedido;
+    const pedidoRow = atual[0] || null;
 
     // 1. Atualiza cabeçalho do pedido
     if (pedido) {
@@ -4106,6 +4324,7 @@ router.post('/:id', async (req, res) => {
         'preco_medio_feirinha', 'preco_revenda_feirinha',
         'data_retorno', 'obs_retorno',
         'obs_proximo_pedido', 'obs_proximo_consumido',
+        'descontos_cascata',
       ];
 
       for (const key of allowedFields) {
@@ -4131,53 +4350,56 @@ router.post('/:id', async (req, res) => {
       let acao = 'ALTERACAO_GERAL';
       if (pedido.situacao_pedido && pedido.situacao_pedido !== statusAntigo) acao = 'MUDANCA_STATUS';
       
+      // Detalhes enxutos: o body.pedido inteiro pode ser grande e o stringify
+      // no hot path do UPDATE atrasava o save sem ganho real de auditoria.
+      const detalhesLog = JSON.stringify({
+        situacao_pedido: pedido.situacao_pedido,
+        tipo_pedido: pedido.tipo_pedido,
+        status: pedido.status,
+        vlrtotalpedido: pedido.vlrtotalpedido,
+        vlrsubtotal: pedido.vlrsubtotal,
+        total_qt: pedido.total_qt,
+        cod_cliente: pedido.cod_cliente,
+        cod_fornecedor: pedido.cod_fornecedor,
+        id_usuario: pedido.id_usuario,
+        condicao_pagto: pedido.condicao_pagto,
+      });
       await conn.query(`
         INSERT INTO logs_pedidos (id_pedido, id_usuario, acao, status_antigo, status_novo, detalhes)
         VALUES (?, ?, ?, ?, ?, ?)
       `, [
         id, id_usuario_log, acao, statusAntigo, pedido.situacao_pedido || statusAntigo,
-        JSON.stringify(pedido) // Salva o que foi alterado nos detalhes
+        detalhesLog,
       ]);
     }
     _mk('UPDATE cabecalho + log');                                        // [DIAG-SAVE]
 
-    // 2. Atualiza Itens (somente salvamento completo com grade — array vazio não toca itensped)
-    if (itens && Array.isArray(itens) && itens.length > 0) {
-      // Busca o número do pedido para os itens
-      const [p] = await conn.query('SELECT numero FROM pedidos WHERE id = ?', [id]);
-      if (p[0]) {
-        const numPedido = p[0].numero;
-        await softDeleteItenspedByNumPedido(conn, numPedido);
-        await Promise.all([ensureItenspedPromoColumns(conn), ensureItenspedObsitemColumn(conn)]);
-        const codFornUpd = pedido?.cod_fornecedor;
-        const itensNorm = await _normalizeItensPrecoPeso(conn, sanitizeItensObsitemForSave(itens), codFornUpd);
-        await insertItenspedBatch(conn, itensNorm, {
-          numpedido: numPedido,
-          idPedido: id,
-          codFornecedor: codFornUpd,
-          tipoPedido: pedido?.tipo_pedido,
-          idTipoPedido: pedido?.id_tipopedido,
-        });
-      }
-      _mk(`itens (${itens.length}) soft-del+normalize+batch`);            // [DIAG-SAVE]
+    // 2. Atualiza Itens (somente salvamento completo — array vazio não toca itensped)
+    if (itensNormSave && itensNormSave.length > 0 && pedidoRow?.numero != null) {
+      const numPedido = pedidoRow.numero;
+      const codFornUpd = pedido?.cod_fornecedor ?? pedidoRow.cod_fornecedor;
+      await softDeleteItenspedByNumPedido(conn, numPedido);
+      await Promise.all([ensureItenspedPromoColumns(conn), ensureItenspedObsitemColumn(conn)]);
+      await insertItenspedBatch(conn, itensNormSave, {
+        numpedido: numPedido,
+        idPedido: id,
+        codFornecedor: codFornUpd,
+        tipoPedido: pedido?.tipo_pedido,
+        idTipoPedido: pedido?.id_tipopedido,
+      });
+      _mk(`itens (${itensNormSave.length}) soft-del+batch`);               // [DIAG-SAVE]
     }
 
     // 3. Parcelas (só regrava se vieram com conteúdo — preserva ao mudar só status)
-    if (parcelas && Array.isArray(parcelas) && parcelas.length > 0) {
-      const [ph] = await conn.query(
-        'SELECT numero, cod_fornecedor, nome_fornecedor, comissao, id_usuario, data_abertura FROM pedidos WHERE id = ?',
-        [id]
-      );
-      if (ph[0]) {
-        const pedidoAtual = pedido || {};
-        pedidoAtual.cod_fornecedor  = pedidoAtual.cod_fornecedor  ?? ph[0].cod_fornecedor;
-        pedidoAtual.nome_fornecedor = pedidoAtual.nome_fornecedor ?? ph[0].nome_fornecedor;
-        pedidoAtual.comissao        = pedidoAtual.comissao        ?? ph[0].comissao;
-        pedidoAtual.id_usuario      = pedidoAtual.id_usuario      ?? ph[0].id_usuario;
-        pedidoAtual.data_abertura   = pedidoAtual.data_abertura   ?? ph[0].data_abertura;
-        await conn.query(`DELETE FROM receber WHERE numero = ?`, [ph[0].numero]);
-        await salvarParcelas(conn, ph[0].numero, parseInt(id), pedidoAtual, parcelas);
-      }
+    if (parcelas && Array.isArray(parcelas) && parcelas.length > 0 && pedidoRow) {
+      const pedidoAtual = pedido || {};
+      pedidoAtual.cod_fornecedor  = pedidoAtual.cod_fornecedor  ?? pedidoRow.cod_fornecedor;
+      pedidoAtual.nome_fornecedor = pedidoAtual.nome_fornecedor ?? pedidoRow.nome_fornecedor;
+      pedidoAtual.comissao        = pedidoAtual.comissao        ?? pedidoRow.comissao;
+      pedidoAtual.id_usuario      = pedidoAtual.id_usuario      ?? pedidoRow.id_usuario;
+      pedidoAtual.data_abertura   = pedidoAtual.data_abertura   ?? pedidoRow.data_abertura;
+      // salvarParcelas já faz DELETE receber por numero+id_pedido — sem DELETE extra.
+      await salvarParcelas(conn, pedidoRow.numero, parseInt(id, 10), pedidoAtual, parcelas);
       _mk(`salvarParcelas (${parcelas.length} parc)`);                    // [DIAG-SAVE]
     }
 

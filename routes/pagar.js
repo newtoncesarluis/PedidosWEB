@@ -386,6 +386,33 @@ router.put('/:id', async (req, res) => {
         data.forma_foipagto || 'DINHEIRO',
         id,
       ]);
+
+      // Opcional: vincula cheque da carteira ao pagar (sem quebrar a baixa)
+      const idCheque = parseInt(data.id_cheque, 10);
+      if (idCheque > 0 && String(data.forma_foipagto || '').toUpperCase() === 'CHEQUE') {
+        try {
+          const { ensureChequesSchema } = require('../config/cheques-schema');
+          await ensureChequesSchema(pool);
+          const [[ch]] = await pool.query(
+            `SELECT id, status FROM cheques WHERE id=? AND excluido='N'`, [idCheque]
+          );
+          if (ch && ch.status === 'EM_CARTEIRA') {
+            const [[tit]] = await pool.query(
+              `SELECT cod_fornecedor FROM pagar WHERE id=?`, [id]
+            ).catch(() => [[null]]);
+            await pool.query(
+              `UPDATE cheques SET status='USADO_PAGAR', id_pagar=?, id_fornecedor=COALESCE(?, id_fornecedor) WHERE id=?`,
+              [id, tit?.cod_fornecedor || null, idCheque]
+            );
+            try {
+              const [cols] = await pool.query(`SHOW COLUMNS FROM pagar LIKE 'id_cheque'`);
+              if (cols.length) await pool.query(`UPDATE pagar SET id_cheque=? WHERE id=?`, [idCheque, id]);
+            } catch (_) {}
+          }
+        } catch (e) {
+          console.error('[pagar/cheque-vinculo]', e.message);
+        }
+      }
     } else {
       const sets = [];
       const vals = [];

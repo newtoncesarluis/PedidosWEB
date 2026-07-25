@@ -219,12 +219,27 @@ input:focus,select:focus,textarea:focus { border-color:var(--accent);box-shadow:
 <div id="dropMenu" class="dropdown-menu"></div>
 
 <script>
+/** JWT Bearer — evita 401 «Sessão expirada». Só /api/ interno. */
+function _authHeaders(extra) {
+  const token = localStorage.getItem('token')
+    || sessionStorage.getItem('token')
+    || sessionStorage.getItem('sysrep_token')
+    || '';
+  const h = Object.assign({}, extra || {});
+  if (token) h.Authorization = 'Bearer ' + token;
+  return h;
+}
+function _api(url, opts) {
+  opts = opts || {};
+  const headers = _authHeaders(opts.headers || {});
+  return fetch(url, Object.assign({}, opts, { credentials: 'include', headers }));
+}
 let S = { filtroStatus: 'T', registroId: null };
 const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 
 async function buscar() {
   try {
-    const r = await fetch('/api/eventos-cidades');
+    const r = await _api('/api/eventos-cidades');
     const d = await r.json();
     let lista = d.eventos_cidades || [];
     const q = document.getElementById('inputBusca').value.toLowerCase();
@@ -290,7 +305,7 @@ function abrirNovo() {
 
 async function abrirEditar(id) {
   try {
-    const r = await fetch('/api/eventos-cidades');
+    const r = await _api('/api/eventos-cidades');
     const d = await r.json(); const f = d.eventos_cidades.find(x => x.id === id);
     if (!f) return; S.registroId = id;
     
@@ -336,7 +351,7 @@ async function salvar() {
   if (!payload.descricao) return toast('Preencha a descrição','err');
 
   try {
-    const r = await fetch(S.registroId ? `/api/eventos-cidades/${S.registroId}` : '/api/eventos-cidades', {
+    const r = await _api(S.registroId ? `/api/eventos-cidades/${S.registroId}` : '/api/eventos-cidades', {
       method: S.registroId ? 'PUT' : 'POST', 
       headers: {'Content-Type':'application/json'}, 
       body: JSON.stringify(payload)
@@ -358,7 +373,7 @@ async function excluir(id) {
   if (!guardCadExcluir('Sem permissão para excluir eventos/cidades')) return;
   if (!confirm('Deseja excluir este registro?')) return;
   try {
-    const r = await fetch(`/api/eventos-cidades/${id}`, { method: 'DELETE' });
+    const r = await _api(`/api/eventos-cidades/${id}`, { method: 'DELETE' });
     if (r.ok) { toast('Excluído!','ok'); buscar(); }
   } catch(e) { toast('Erro ao excluir','err'); }
 }

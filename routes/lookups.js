@@ -30,7 +30,7 @@ router.get('/grupos', async (req, res) => {
   res.json(rows);
 });
 
-// GET /api/lookups/categorias → tabela: categoria (segmentos)
+// GET /api/lookups/categorias → tabela: categoria (categorias de produto)
 router.get('/categorias', async (req, res) => {
   const rows = await query(
     `SELECT id, descricao FROM categoria WHERE excluido='N' ORDER BY descricao`

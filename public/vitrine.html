@@ -664,10 +664,32 @@ body{background:var(--bg)}
   </div>
 </div>
 
+<script src="/assets/preco-peso-produto.js"></script>
 <script>
 (function () {
   const token = location.pathname.split('/vitrine/')[1] || '';
   let _dados        = {};
+  let _somaEmbalagem = 'N';
+
+  function lineTotalVt(p, q) {
+    const PP = window.PrecoPesoProduto;
+    const preco = parseFloat(p.preco) || 0;
+    const qtd = parseFloat(q) || 0;
+    if (!PP) return preco * qtd;
+    const emb = PP.isPrecoPorPeso(p.precopeso)
+      ? PP.embalagemInicialProduto(p)
+      : (String(_somaEmbalagem).toUpperCase() === 'S'
+          ? (parseFloat(p.kilo_embalagem) || 1)
+          : 1);
+    return PP.calcBaseItemTotal({
+      quantidade: qtd,
+      valorUnitario: preco,
+      embalagem: emb,
+      kilo_embalagem: p.kilo_embalagem,
+      precopeso: p.precopeso,
+      somaEmbalagempedido: _somaEmbalagem,
+    });
+  }
   let _produtosMaster = [];   // produtos com mapa de preços por tabela
   let _tabelas      = [];     // tabelas liberadas para o cliente escolher
   let _tabelaAtiva  = null;   // id_tabela selecionada
@@ -1016,6 +1038,7 @@ body{background:var(--bg)}
       _dados = await r.json();
       _produtosMaster = _dados.produtos || [];
       _tabelas = _dados.tabelas || [];
+      _somaEmbalagem = _dados.soma_embalagempedido || 'N';
       _tabelaAtiva = _tabelas.length ? _tabelas[0].id_tabela : null;
       aplicarTabela();
       render();
@@ -1233,7 +1256,7 @@ body{background:var(--bg)}
 
   function updateBadge() {
     const qtd = Object.values(_cart).reduce((s,i) => s + i.quantidade, 0);
-    const total = Object.values(_cart).reduce((s,i) => s + i.produto.preco * i.quantidade, 0);
+    const total = Object.values(_cart).reduce((s,i) => s + lineTotalVt(i.produto, i.quantidade), 0);
     const badge = document.getElementById('vt-badge');
     badge.textContent = qtd;
     badge.classList.toggle('show', qtd > 0);
@@ -1251,7 +1274,7 @@ body{background:var(--bg)}
       return;
     }
     el.innerHTML = items.map(({produto:p, quantidade:q}) =>
-      `<div class="vt-cart-item">${cartThumbHtml(p)}<div class="vt-ci-info"><div class="vt-ci-name">${esc(p.descricao)}</div><div class="vt-ci-price">${q}× ${fmt(p.preco)} = <strong>${fmt(p.preco*q)}</strong></div></div><button class="vt-ci-remove" data-id="${p.id}" title="Remover"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg></button></div>`
+      `<div class="vt-cart-item">${cartThumbHtml(p)}<div class="vt-ci-info"><div class="vt-ci-name">${esc(p.descricao)}</div><div class="vt-ci-price">${q}× ${fmt(p.preco)} = <strong>${fmt(lineTotalVt(p, q))}</strong></div></div><button class="vt-ci-remove" data-id="${p.id}" title="Remover"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg></button></div>`
     ).join('');
     el.querySelectorAll('.vt-ci-thumb-btn').forEach(b =>
       b.addEventListener('click', e => {
@@ -1264,14 +1287,15 @@ body{background:var(--bg)}
     el.querySelectorAll('.vt-ci-remove').forEach(b =>
       b.addEventListener('click', () => { delete _cart[Number(b.dataset.id)]; updateBadge(); renderCart(); renderGrid(); renderSugestoes(); })
     );
-    document.getElementById('vt-total-val').textContent = fmt(items.reduce((s,{produto:p,quantidade:q}) => s + p.preco*q, 0));
+    document.getElementById('vt-total-val').textContent = fmt(items.reduce((s,{produto:p,quantidade:q}) => s + lineTotalVt(p, q), 0));
   }
 
   async function enviarPedido() {
     const btn = document.getElementById('vt-send-btn');
     const errEl = document.getElementById('vt-send-err');
     const itens = Object.values(_cart).map(({produto:p, quantidade:q}) => ({
-      id:p.id, descricao:p.descricao, unidade:p.unidade||'UN', preco:p.preco, quantidade:q
+      id:p.id, descricao:p.descricao, unidade:p.unidade||'UN', preco:p.preco, quantidade:q,
+      precopeso: p.precopeso, kilo_embalagem: p.kilo_embalagem
     }));
     if (!itens.length) return;
     const aberto = _dados.link_aberto || !_dados.cliente;

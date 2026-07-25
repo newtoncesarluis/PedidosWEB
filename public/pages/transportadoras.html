@@ -676,6 +676,21 @@ textarea { resize:vertical;min-height:64px; }
 <div class="dropdown-menu" id="dropMenu" style="display:none"></div>
 
 <script>
+/** JWT Bearer — evita 401 «Sessão expirada». Só /api/ interno. */
+function _authHeaders(extra) {
+  const token = localStorage.getItem('token')
+    || sessionStorage.getItem('token')
+    || sessionStorage.getItem('sysrep_token')
+    || '';
+  const h = Object.assign({}, extra || {});
+  if (token) h.Authorization = 'Bearer ' + token;
+  return h;
+}
+function _api(url, opts) {
+  opts = opts || {};
+  const headers = _authHeaders(opts.headers || {});
+  return fetch(url, Object.assign({}, opts, { credentials: 'include', headers }));
+}
 /* ══════════════════════════════════════════════════════════
    STATE
 ══════════════════════════════════════════════════════════ */
@@ -722,7 +737,7 @@ function scrollTabs(d) { document.getElementById('tabsBar').scrollLeft += d; }
 
 async function carregarCombos() {
   try {
-    const [r1, r2] = await Promise.all([fetch('/api/categorias'), fetch('/api/vendedores')]);
+    const [r1, r2] = await Promise.all([_api('/api/categorias'), _api('/api/vendedores')]);
     const seg  = await r1.json().catch(() => []);
     const vend = await r2.json().catch(() => ({}));
     const sSel = document.getElementById('f_segmento');
@@ -736,7 +751,7 @@ async function carregarCombos() {
 
 async function carregarNotificacoes() {
   try {
-    const r = await fetch('/api/transportadoras/notificacoes');
+    const r = await _api('/api/transportadoras/notificacoes');
     const d = await r.json();
     document.getElementById('val-total').textContent   = (d.ativos || 0) + (d.inativos || 0);
     document.getElementById('val-ativos').textContent  = d.ativos   || 0;
@@ -785,7 +800,7 @@ async function buscar() {
   const status = S.filtroStatus === 'T' ? '' : S.filtroStatus;
   const offset = (S.page - 1) * S.perPage;
   try {
-    const r = await fetch(`/api/transportadoras?q=${encodeURIComponent(q)}&campo=${campo}&status=${status}&limit=${S.perPage}&offset=${offset}`);
+    const r = await _api(`/api/transportadoras?q=${encodeURIComponent(q)}&campo=${campo}&status=${status}&limit=${S.perPage}&offset=${offset}`);
     const d = await r.json();
     S.total = d.total;
     renderLista(d.transportadoras || []);
@@ -863,7 +878,7 @@ function fecharDrop() { document.getElementById('dropMenu').style.display = 'non
 async function ativarInativarLinha(id, acao) {
   fecharDrop();
   const verbo = acao === 'A' ? 'ativar' : 'inativar';
-  const r = await fetch(`/api/transportadoras/${id}/${verbo}`, { method:'PUT' });
+  const r = await _api(`/api/transportadoras/${id}/${verbo}`, { method:'PUT' });
   if (!r.ok) { toast('Erro', 'err'); return; }
   toast(acao === 'A' ? 'Ativada!' : 'Inativada!', 'ok');
   buscar(); carregarNotificacoes();
@@ -872,7 +887,7 @@ async function excluirLinha(id) {
   if (!guardCadExcluir('Sem permissão para excluir transportadoras')) return;
   fecharDrop();
   confirmar('Excluir transportadora?', 'Esta ação não pode ser desfeita.', async () => {
-    const r = await fetch(`/api/transportadoras/${id}`, { method:'DELETE' });
+    const r = await _api(`/api/transportadoras/${id}`, { method:'DELETE' });
     const d = await r.json();
     if (!r.ok) { toast(d.error || 'Erro', 'err'); return; }
     toast('Excluída!', 'ok'); buscar(); carregarNotificacoes();
@@ -957,7 +972,7 @@ function abrirNovo() {
 
 async function abrirEditar(id) {
   try {
-    const r = await fetch(`/api/transportadoras/${id}`);
+    const r = await _api(`/api/transportadoras/${id}`);
     if (!r.ok) { toast('Erro ao carregar', 'err'); return; }
     const d = await r.json();
     S.registroId = id; S.dados = d;
@@ -1043,9 +1058,9 @@ async function salvarTransportadora() {
   try {
     let r;
     if (S.registroId) {
-      r = await fetch(`/api/transportadoras/${S.registroId}`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      r = await _api(`/api/transportadoras/${S.registroId}`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     } else {
-      r = await fetch('/api/transportadoras', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      r = await _api('/api/transportadoras', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     }
     const d = await r.json();
     if (!r.ok) { toast(d.error||'Erro ao salvar','err'); return; }
@@ -1073,7 +1088,7 @@ async function ativarInativar(acao) {
   fecharMenuMore();
   const id = S.registroId; if (!id) return;
   const verbo = acao === 'A' ? 'ativar' : 'inativar';
-  const r = await fetch(`/api/transportadoras/${id}/${verbo}`, {method:'PUT'});
+  const r = await _api(`/api/transportadoras/${id}/${verbo}`, {method:'PUT'});
   const d = await r.json();
   if (!r.ok) { toast(d.error||'Erro','err'); return; }
   toast(acao==='A'?'Ativada!':'Inativada!','ok');
@@ -1088,7 +1103,7 @@ async function excluirAtual() {
   fecharMenuMore();
   const id = S.registroId; if (!id) return;
   confirmar('Excluir transportadora?', 'Esta ação não pode ser desfeita.', async () => {
-    const r = await fetch(`/api/transportadoras/${id}`,{method:'DELETE'});
+    const r = await _api(`/api/transportadoras/${id}`,{method:'DELETE'});
     const d = await r.json();
     if (!r.ok) { toast(d.error||'Erro','err'); return; }
     toast('Excluída!','ok'); voltarLista(); carregarNotificacoes();
@@ -1121,7 +1136,7 @@ function clonarRegistro() {
 async function carregarContatos() {
   if (!S.registroId) return;
   try {
-    const r = await fetch(`/api/transportadoras/${S.registroId}/contatos`);
+    const r = await _api(`/api/transportadoras/${S.registroId}/contatos`);
     const d = await r.json();
     renderContatos(d.contatos || []);
   } catch(e) {}
@@ -1166,14 +1181,14 @@ async function salvarContato() {
   };
   const url    = ctId ? `/api/transportadoras/${id}/contatos/${ctId}` : `/api/transportadoras/${id}/contatos`;
   const method = ctId ? 'PUT' : 'POST';
-  const r = await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const r = await _api(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   if (!r.ok) { const d=await r.json(); toast(d.error||'Erro','err'); return; }
   toast('Contato salvo!','ok'); fecharFormContato(); carregarContatos();
 }
 async function excluirContato(ctId) {
   if (!guardCadExcluir('Sem permissão para excluir contatos')) return;
   confirmar('Excluir contato?','O contato será removido.',async()=>{
-    const r=await fetch(`/api/transportadoras/${S.registroId}/contatos/${ctId}`,{method:'DELETE'});
+    const r=await _api(`/api/transportadoras/${S.registroId}/contatos/${ctId}`,{method:'DELETE'});
     if(!r.ok){toast('Erro','err');return;} toast('Excluído!','ok'); carregarContatos();
   });
 }
@@ -1237,7 +1252,7 @@ async function checkDupCpf() {
   if (cpf.length < 11) return;
   const excluir = S.registroId ? `&excluir_id=${S.registroId}` : '';
   try {
-    const r = await fetch(`/api/transportadoras/check-cpf?cpf=${cpf}${excluir}`);
+    const r = await _api(`/api/transportadoras/check-cpf?cpf=${cpf}${excluir}`);
     const d = await r.json();
     if (d.duplicado) {
       toast(`CPF/CNPJ já cadastrado: ${d.transportadora?.nome||''}`, 'warn');

@@ -658,14 +658,17 @@ app.get('/api/grupos-fab', authMiddleware, async (req, res) => {
   }
 });
 
-// ─── GET /api/categorias — segmentos de clientes ─────────────────────────────
+// ─── GET /api/categorias — segmentos de clientes (compat; tabela segmentos) ───
 app.get('/api/categorias', authMiddleware, async (req, res) => {
   try {
     const { getPool } = require('./config/database');
+    const { ensureSegmentosTable, migrateSegmentosClienteFromCategoria } = require('./config/segmentos-migrate');
     const pool = getPool();
+    await ensureSegmentosTable(pool);
+    await migrateSegmentosClienteFromCategoria(pool).catch(() => {});
     const [rows] = await pool.query(
-      `SELECT id, descricao FROM categoria
-       WHERE excluido = 'N' AND status = 'A'
+      `SELECT id, descricao FROM segmentos
+       WHERE COALESCE(excluido,'N') = 'N' AND COALESCE(status,'A') = 'A'
        ORDER BY descricao`
     );
     res.json(rows);
@@ -721,6 +724,9 @@ app.use('/api/pagar',     authMiddleware, require('./routes/pagar'));
 app.use('/api/receber',   authMiddleware, require('./routes/receber'));
 app.use('/api/contabil',  authMiddleware, require('./routes/contabil-gerencial'));
 app.use('/api/financeiro', authMiddleware, require('./routes/financeiro'));
+app.use('/api/cartoes',   authMiddleware, require('./routes/cartoes'));
+app.use('/api/cheques',   authMiddleware, require('./routes/cheques'));
+app.use('/api/emails-historico', authMiddleware, require('./routes/emails-historico'));
 app.use('/api/dre',       authMiddleware, require('./routes/dre'));
 app.use('/api/faturamento', authMiddleware, require('./routes/faturamento'));
 

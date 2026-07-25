@@ -4931,6 +4931,15 @@ html.sysrep-ms-embed #avisoCondMinimo {
 }
 .itens-tool-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 .itens-tool-btn.active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.itens-preview-lbl-short { display: none; }
+
+/* Mobile / app: texto curto no botão de pré-visualização */
+@media (max-width: 768px) {
+  .itens-preview-lbl-full { display: none; }
+  .itens-preview-lbl-short { display: inline; }
+}
+html.sysrep-ms-embed .itens-preview-lbl-full { display: none; }
+html.sysrep-ms-embed .itens-preview-lbl-short { display: inline; }
 
 /* Scrollbars: visíveis e alinhados ao tema (sem color-mix — evita rejeição em alguns motores) */
 #itensList {
@@ -6114,8 +6123,8 @@ html:not(.sysrep-ms-embed) #offlineQueueBadge { display: none !important; }
              Comissão &amp; Faturamentos
            </button>
            <button type="button" class="bulk-more-item" data-bulk-action="faturar" id="btnBulkFaturar" style="color:#5b21b6">
-             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V6m0 12v-2m9-4a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-             Faturar pedido
+             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+             Faturar pedido(s)
            </button>
            <div class="bulk-more-sep"></div>
            <button type="button" class="bulk-more-item" data-bulk-action="visita" style="color:#f59e0b">
@@ -6490,6 +6499,11 @@ html:not(.sysrep-ms-embed) #offlineQueueBadge { display: none !important; }
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"/></svg>
               Colunas
             </button>
+            <button type="button" id="btnPreviewImpressaoItens" class="itens-tool-btn" title="Pré-visualizar a impressão dos itens com os valores atuais (não precisa salvar)">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+              <span class="itens-preview-lbl-full">Ver impressão</span>
+              <span class="itens-preview-lbl-short">Impressão</span>
+            </button>
             <button type="button" id="btnItensSelecionar" class="itens-tool-btn" title="Selecionar vários itens para excluir em lote">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 11l3 3L22 4M4 4h7v7H4z"/></svg>
               <span class="itens-sel-lbl">Selecionar</span>
@@ -6646,6 +6660,8 @@ html:not(.sysrep-ms-embed) #offlineQueueBadge { display: none !important; }
         <div id="itensBulkBar" class="itens-bulk-bar" aria-live="polite">
           <span class="itens-bulk-bar__info"><b id="itensBulkCount">0</b> selecionado(s)</span>
           <div class="itens-bulk-bar__actions">
+            <button type="button" id="btnItensBulkZerarAcrDesc" class="itens-bulk-btn" disabled
+                    title="Zera acréscimo e desconto dos itens selecionados (mantém o preço unitário negociado)">Zerar acré/desc</button>
             <button type="button" id="btnItensBulkDelete" class="itens-bulk-btn itens-bulk-btn--danger" disabled>Excluir</button>
             <button type="button" id="btnItensBulkPage" class="itens-bulk-btn">Página</button>
             <button type="button" id="btnItensBulkAll" class="itens-bulk-btn">Todos</button>
@@ -7012,8 +7028,12 @@ let _itensColsCfg = null;
 /** Colunas opcionais da grade de itens — espelham campos de itensped (rótulo = nome legado). */
 const ITENS_COLS_META = {
   vlr_padrao:           { label: 'Vlr. Tabela',           short: 'Vlr. Tabela', fmt: 'money', align: 'right',  defaultTela: true,  defaultRel: false },
+  valor_unitario:       { label: 'Vlr Venda',             short: 'Vlr Venda',   fmt: 'money', align: 'right',  defaultTela: true,  defaultRel: true  },
   desconto:             { label: 'Desconto %',            short: 'Desc.',       fmt: 'pct',   align: 'center', defaultTela: true,  defaultRel: true  },
   acrescimo:            { label: 'Acréscimo %',           short: 'Acrésc.',     fmt: 'pctpos',align: 'center', defaultTela: true,  defaultRel: false },
+  vlr_final:            { label: 'Vlr Final',             short: 'Vlr Final',   fmt: 'money', align: 'right',  defaultTela: false, defaultRel: false },
+  vlr_descontototal:    { label: 'Vlr Desconto',          short: 'V.Desc.',     fmt: 'money', align: 'right',  defaultTela: false, defaultRel: false },
+  vlrtotal_itens:       { label: 'Vlr Total',             short: 'Vlr Total',   fmt: 'money', align: 'right',  defaultTela: true,  defaultRel: true  },
   comissao:             { label: 'Comissão',              short: 'Com.',        fmt: 'comissao', align: 'center', defaultTela: true, defaultRel: false },
   ipi:                  { label: 'IPI %',                 short: 'IPI %',       fmt: 'pct',   align: 'center', defaultTela: false, defaultRel: true  },
   vlr_ipi:              { label: 'Vlr IPI',               short: 'Vlr IPI',     fmt: 'money', align: 'right',  defaultTela: false, defaultRel: true  },
@@ -7040,8 +7060,14 @@ const ITENS_COLS_META = {
 };
 
 const ITENS_COLS_ORDER = Object.keys(ITENS_COLS_META);
+/** Colunas de preço que ficam à esquerda do Vlr Venda na grade. */
+const ITENS_COLS_ANTES_VENDA = ['vlr_padrao', 'desconto', 'acrescimo'];
 const ITENS_COLS_GROUPS = [
-  { id: 'preco', title: 'Preços e descontos', cols: ['vlr_padrao', 'desconto', 'acrescimo', 'valor_cliente', 'tipo_preco', 'promocao_descricao'] },
+  { id: 'preco', title: 'Preços e descontos', cols: [
+    'vlr_padrao', 'valor_unitario', 'desconto', 'acrescimo',
+    'vlr_final', 'vlr_descontototal', 'vlrtotal_itens',
+    'valor_cliente', 'tipo_preco', 'promocao_descricao',
+  ] },
   { id: 'imposto', title: 'Impostos', cols: ['ipi', 'vlr_ipi', 'st', 'vlr_st', 'icms', 'vlr_icms', 'vlrtotalcomimposto'] },
   { id: 'peso', title: 'Peso e embalagem', cols: ['kilo_embalagem', 'valor_kilo', 'total_peso', 'peso', 'multiplo_sigla'] },
   { id: 'comercial', title: 'Comissão e puxada', cols: ['comissao', 'vlr_comissao', 'valor_puxada', 'valor_totalpuxada'] },
@@ -7066,6 +7092,9 @@ let _gradeItensAtual = []; // [{id, nome, sequencial}] carregado ao selecionar p
 let _gradeIdAtual = null;  // id da tipograde do produto selecionado
 let _gradeSoladoAtual = '';
 let _gradeTipoAtual = '';
+/** A = aberta | F = fechada (pack) — vindo do cadastro da grade */
+let _gradeModoAtual = 'A';
+let _gradeMultiploAtual = 0;
 let _exibirCorPedido = 'N';
 let _imprimirImpostos = 'N';
 let _destacarNaoImpressos = 'N';
@@ -7087,6 +7116,8 @@ function mercosCatalogoMobileAtivo() {
 let _perm = {};
 window._perm = _perm;
 let _fornecedorConfig  = {};
+/** Snapshot DESC 01–10 aplicados no pedido ({1:5,2:3,...}) — persiste em pedidos.descontos_cascata */
+let _descontosCascataPedido = null;
 let _kitPedidoFornecedor = { itens: [], primeira_compra: null };
 let _fornecedorNomeSnapshot = '';
 let _fornecedorTrocaGuardId = null;
@@ -7439,7 +7470,8 @@ function itensColsSemObsInline(cols) {
 /** Colunas resumidas na lista densa (evita meta gigante). */
 function itensColsDenseResumo(cols) {
   const skip = new Set([
-    'vlr_padrao', 'vlr_comissao', 'vlr_ipi', 'vlr_st', 'vlr_icms', 'vlrtotalcomimposto',
+    'vlr_padrao', 'valor_unitario', 'vlr_final', 'vlrtotal_itens', 'vlr_descontototal',
+    'vlr_comissao', 'vlr_ipi', 'vlr_st', 'vlr_icms', 'vlrtotalcomimposto',
     'valor_puxada', 'valor_totalpuxada', 'valor_cliente',
     'kilo_embalagem', 'valor_kilo', 'total_peso', 'peso',
     'obsitem', 'cores', 'promocao_descricao', 'tipo_preco', 'cod_fabricante', 'multiplo_sigla', 'grade_resumo',
@@ -8203,6 +8235,14 @@ function bindListStaticControls() {
     if (bulkMoreWrap && !bulkMoreWrap.contains(e.target)) closeBulkMoreMenu();
   });
   window._closeBulkMoreMenu = closeBulkMoreMenu;
+  // Selecionar todos: #chkAll é recriado em renderHeaders — delegação no thead
+  const theader = document.getElementById('theader');
+  if (theader) {
+    theader.addEventListener('change', (e) => {
+      const chk = e.target.closest('#chkAll');
+      if (chk) selectAll(!!chk.checked);
+    });
+  }
   if (activeFilters) {
     activeFilters.addEventListener('click', (event) => {
       if (event.target.closest('[data-clear-filters]')) limparFiltrosAvancados();
@@ -8325,10 +8365,16 @@ function bindFormStaticControls() {
   if (btnToggleVlrPadrao) btnToggleVlrPadrao.addEventListener('click', toggleVlrPadraoVisibilidadePedido);
   const btnItensColunas = document.getElementById('btnItensColunas');
   if (btnItensColunas) btnItensColunas.addEventListener('click', abrirItensColunasModal);
+  const btnPreviewImpressaoItens = document.getElementById('btnPreviewImpressaoItens');
+  if (btnPreviewImpressaoItens) btnPreviewImpressaoItens.addEventListener('click', () => {
+    void previsualizarImpressaoItens();
+  });
   const btnItensSelecionar = document.getElementById('btnItensSelecionar');
   if (btnItensSelecionar) btnItensSelecionar.addEventListener('click', () => toggleItensSelMode());
   const btnItensBulkDelete = document.getElementById('btnItensBulkDelete');
   if (btnItensBulkDelete) btnItensBulkDelete.addEventListener('click', confirmarExclusaoItensLote);
+  const btnItensBulkZerarAcrDesc = document.getElementById('btnItensBulkZerarAcrDesc');
+  if (btnItensBulkZerarAcrDesc) btnItensBulkZerarAcrDesc.addEventListener('click', confirmarZerarAcrDescLote);
   const btnItensBulkPage = document.getElementById('btnItensBulkPage');
   if (btnItensBulkPage) btnItensBulkPage.addEventListener('click', selecionarItensPaginaAtual);
   const btnItensBulkAll = document.getElementById('btnItensBulkAll');
@@ -8403,7 +8449,14 @@ function bindDynamicListDelegation() {
     tbody.addEventListener('change', (event) => {
       const checkbox = event.target.closest('input[data-row-select]');
       if (!checkbox) return;
-      toggleSelect(parseInt(checkbox.dataset.id, 10), checkbox);
+      if (checkbox.id === 'chkAll') return;
+      const id = parseInt(checkbox.dataset.id, 10);
+      if (!Number.isFinite(id) || id <= 0) {
+        checkbox.checked = false;
+        toast('Pedido offline ou inválido não entra em lote', 'warn');
+        return;
+      }
+      toggleSelect(id, checkbox);
     });
 
     tbody.addEventListener('click', (event) => {
@@ -8440,7 +8493,13 @@ function bindDynamicListDelegation() {
     cardsGrid.addEventListener('change', (event) => {
       const checkbox = event.target.closest('input[data-row-select]');
       if (!checkbox) return;
-      toggleSelect(parseInt(checkbox.dataset.id, 10), checkbox);
+      const id = parseInt(checkbox.dataset.id, 10);
+      if (!Number.isFinite(id) || id <= 0) {
+        checkbox.checked = false;
+        toast('Pedido offline ou inválido não entra em lote', 'warn');
+        return;
+      }
+      toggleSelect(id, checkbox);
     });
 
     cardsGrid.addEventListener('click', (event) => {
@@ -10302,7 +10361,7 @@ function renderTabela(rows, offset) {
   toggleListResultState(true);
 
   tbody.innerHTML = rows.map(p => {
-    const sel        = _selecionados.has(p.id);
+    const sel        = _pedidoSelecionado(p.id);
     const bdCls      = getPedidoStatusBadgeClass(p.situacao_pedido);
     const statusCode = _STATUS_CODE_MAP[p.situacao_pedido] || 'P';
     const naoImpresso = _destacarNaoImpressos === 'S' && p.impresso !== 'S';
@@ -10813,6 +10872,15 @@ function validateTabItensCompleto() {
           focusTab: 'tab-itens'
         };
       }
+      const modo = item.modo_grade || prod?.modo_grade || 'A';
+      const mult = parseInt(item.multiplo_grade ?? prod?.multiplo_grade, 10) || 0;
+      if (modo === 'F' && mult > 1 && Math.abs(somaGrade % mult) > 0.0001) {
+        return {
+          ok: false,
+          message: `«${item.desc_prod || 'Item'}» usa grade fechada. O total deve ser múltiplo de ${mult} (atual: ${somaGrade}).`,
+          focusTab: 'tab-itens'
+        };
+      }
     }
   }
 
@@ -11136,6 +11204,12 @@ async function validarItemPedidoAntesIncluir(ctx = {}) {
         message: `A soma da grade (${gradeTotal}) deve ser igual à quantidade informada (${qtd}).`,
         tab: 'tab-itens'
       });
+    } else if (_gradeModoAtual === 'F' && _gradeMultiploAtual > 1
+      && Math.abs(gradeTotal % _gradeMultiploAtual) > 0.0001) {
+      erros.push({
+        message: `«${descProd}» usa grade fechada. O total deve ser múltiplo de ${_gradeMultiploAtual} (atual: ${gradeTotal}).`,
+        tab: 'tab-itens'
+      });
     }
   }
   if (_vendasDuplicarItemBloqueia() && prodId) {
@@ -11407,6 +11481,9 @@ async function aplicarPedidoDraftSnapshot(draft) {
       try {
         const rf = await api(`/api/fornecedores/${codForn}`);
         _fornecedorConfig = await rf.json();
+        if (window.VendasDuplicarItem) {
+          _fornecedorConfig.vendasduplicaritem = VendasDuplicarItem.normalize(_fornecedorConfig.vendasduplicaritem);
+        }
       } catch (_) {
         _fornecedorConfig = {};
       }
@@ -11638,32 +11715,29 @@ async function abrirEdicao(id) {
     setClientQuickActionsState(p.cod_cliente || '', p.nome_cliente || '');
 
     setFornecedorQuickActionsState(p.cod_fornecedor || '', p.nome_fornecedor || '');
+    // Aguarda config da fábrica ANTES de montar itens — senão renderSubrec
+    // assume vendasduplicaritem=S e funde linhas duplicadas (modo D).
     if (p.cod_fornecedor) {
-      api(`/api/fornecedores/${p.cod_fornecedor}`).then(r => r.json()).then(async f => {
-        _fornecedorConfig = f;
-        syncSubrecObsItemTema();
-        atualizarBadgeFatMinimo();
-        atualizarBadgeMinCx();
-        atualizarBadgeEnviaFabrica();
-        renderSubrec('itens');
-        await carregarCondsRestritasFornecedor(p.cod_fornecedor);
-        // Em modo edição, preenche o select restrito com o valor já salvo
-        if (_condsRestritasFornecedor.length) {
-          const selR = document.getElementById('sel_condicao_pagto_restrita');
-          const elIn = document.getElementById('f_condicao_pagto');
-          if (selR && elIn) {
-            const condSalva = elIn.value;
-            const match = _condsRestritasFornecedor.find(c => c.descricao === condSalva);
-            if (match) selR.value = String(match.id_condicao);
-          }
+      try {
+        const rf = await api(`/api/fornecedores/${p.cod_fornecedor}`);
+        _fornecedorConfig = await rf.json();
+        if (window.VendasDuplicarItem) {
+          _fornecedorConfig.vendasduplicaritem = VendasDuplicarItem.normalize(_fornecedorConfig.vendasduplicaritem);
         }
-        aplicarCondicaoPagtoFornecedor();
-        atualizarAvisoCondMinimo();
-        renderDescontoCascata();
-      }).catch(() => {});
+      } catch (_) {
+        _fornecedorConfig = {};
+      }
+      _descontosCascataPedido = parseDescontosCascataSnap(p.descontos_cascata);
+      syncSubrecObsItemTema();
+      atualizarBadgeFatMinimo();
+      atualizarBadgeMinCx();
+      atualizarBadgeEnviaFabrica();
+      await carregarCondsRestritasFornecedor(p.cod_fornecedor);
+      renderDescontoCascata();
     } else {
       _fornecedorConfig = {};
-      carregarCondsRestritasFornecedor(null);
+      _descontosCascataPedido = parseDescontosCascataSnap(p.descontos_cascata);
+      await carregarCondsRestritasFornecedor(null);
     }
 
     if (p.cod_cliente) {
@@ -11704,6 +11778,17 @@ async function abrirEdicao(id) {
     document.getElementById('f_tipo_documento').value = p.tipo_documento || '';
     document.getElementById('f_condicao_pagto').value = p.condicao_pagto || '';
     { const _mc = _condicoesPagto.find(c => c.descricao === (p.condicao_pagto || '')); _prazoAtual = _mc ? (_mc.prazopadrao || '') : ''; }
+    // Preenche select restrito com a condição já salva no pedido
+    if (_condsRestritasFornecedor.length) {
+      const selR = document.getElementById('sel_condicao_pagto_restrita');
+      const elIn = document.getElementById('f_condicao_pagto');
+      if (selR && elIn) {
+        const condSalva = elIn.value;
+        const match = _condsRestritasFornecedor.find(c => c.descricao === condSalva);
+        if (match) selR.value = String(match.id_condicao);
+      }
+    }
+    atualizarAvisoCondMinimo();
     document.getElementById('f_forma_pagto').value = p.forma_pagto || 'BOLETO';
     document.getElementById('f_vlrdesconto').value = p.vlrdesconto || 0;
     document.getElementById('f_obs').value = p.obs || '';
@@ -12075,6 +12160,9 @@ async function aplicarPedidoCloneConfigs(p = {}) {
     try {
       const rf = await api(`/api/fornecedores/${p.cod_fornecedor}`);
       _fornecedorConfig = await rf.json();
+      if (window.VendasDuplicarItem) {
+        _fornecedorConfig.vendasduplicaritem = VendasDuplicarItem.normalize(_fornecedorConfig.vendasduplicaritem);
+      }
     } catch (_) {
       _fornecedorConfig = {};
     }
@@ -12348,6 +12436,7 @@ function limparForm() {
   document.getElementById('_bannerPedidoEnviado')?.remove();
   _origemPedido = 'PEDIDO DE VENDA';
   _fornecedorConfig = {};
+  _descontosCascataPedido = null;
   _clienteConfig = {};
   _pedidoNumeroExibicao = '';
   limparObsProximoUi();
@@ -12417,14 +12506,29 @@ function itensColsAtivosTela() {
 
 function itensColValorRaw(item, colId) {
   switch (colId) {
-    case 'vlr_padrao': {
-      const d = parseFloat(item.desconto_percentual) || 0;
-      const a = parseFloat(item.acrescimo_percentual) || 0;
-      const acrLote = (parseFloat(item._acr_aplicado) || 0) > 0;
-      return (d > 0 || a > 0 || acrLote) ? (parseFloat(item.valor_unitario) || 0) : normalizarVlrPadraoItem(item);
-    }
+    case 'vlr_padrao':
+      return normalizarVlrPadraoItem(item);
+    case 'valor_unitario':
+      return parseFloat(item.valor_unitario) || 0;
     case 'desconto': return parseFloat(item.desconto_percentual ?? item.desconto) || 0;
     case 'acrescimo': return parseFloat(item.acrescimo_percentual ?? item.acrescimo) || 0;
+    case 'vlr_final': {
+      // Unitário líquido: v × (1+acr%) × (1-desc%). Em preço por peso mantém R$/kg.
+      const v = parseFloat(item.valor_unitario) || 0;
+      const d = parseFloat(item.desconto_percentual ?? item.desconto) || 0;
+      const a = parseFloat(item.acrescimo_percentual ?? item.acrescimo) || 0;
+      return Math.round(v * (1 + a / 100) * (1 - d / 100) * 10000) / 10000;
+    }
+    case 'vlr_descontototal': {
+      const gravado = parseFloat(item.vlr_descontototal);
+      if (Number.isFinite(gravado) && gravado > 0) return gravado;
+      const v = parseFloat(item.valor_unitario) || 0;
+      const q = parseFloat(item.quantidade) || 0;
+      const d = parseFloat(item.desconto_percentual ?? item.desconto) || 0;
+      return Math.round(v * q * d / 100 * 100) / 100;
+    }
+    case 'vlrtotal_itens':
+      return numPed(item.vlrtotal_itens);
     case 'comissao': return parseFloat(item.comissao_percentual ?? item.comissao) || 0;
     case 'ipi': return parseFloat(item.ipi_percentual ?? item.ipi) || 0;
     case 'vlr_ipi': return parseFloat(item.vlr_ipi) || 0;
@@ -12547,6 +12651,32 @@ function itensCardKvWide(colId) {
   return ['obsitem', 'grade_resumo', 'promocao_descricao', 'cores', 'cod_fabricante'].includes(colId);
 }
 
+function fmtDescCascataBadgePart(v, tipoPct) {
+  const n = parseFloat(v) || 0;
+  if (n <= 0) return '';
+  const txt = n.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+  return tipoPct ? `${txt}%` : `R$ ${txt}`;
+}
+
+/** Badge discreto sob a descrição: fatores do Desconto por Faixa (ex.: Desc. 8,95% + 80% + 30%). */
+function htmlBadgeDescontosCascata(item) {
+  const dPct = parseFloat(item?.desconto_percentual ?? item?.desconto) || 0;
+  if (dPct <= 0 || item?.bloquear_desconto) return '';
+  const snap = _descontosCascataPedido;
+  if (!snap) return '';
+  const cfg = _fornecedorConfig || {};
+  const tipoRaw = String(cfg.tipo_desconto || 'PERCENTUAL').toUpperCase();
+  const tipoPct = tipoRaw === 'PERCENTUAL' || tipoRaw === 'P' || tipoRaw === '%';
+  const parts = [];
+  for (let n = 1; n <= 10; n++) {
+    const v = parseFloat(snap[n]) || 0;
+    if (v > 0) parts.push(fmtDescCascataBadgePart(v, tipoPct));
+  }
+  if (!parts.length) return '';
+  const label = 'Desc. ' + parts.join(' + ');
+  return `<span class="it-badge" style="background:rgba(220,38,38,.08);color:#dc2626" title="Desconto por faixa">${escHtml(label)}</span>`;
+}
+
 function buildItensItemBadges(item, colsAtivos) {
   const hide = (id) => colsAtivos.includes(id);
   return [
@@ -12561,6 +12691,7 @@ function buildItensItemBadges(item, colsAtivos) {
       ? `<span class="it-badge" style="background:rgba(99,102,241,.12);color:#6366f1">IPI ${fmtPreco(item.vlr_ipi)}</span>` : '',
     item.valor_cliente > 0 && !hide('valor_cliente')
       ? `<span class="it-badge" style="background:rgba(0,0,0,.05);color:var(--text2)">Cli ${fmtCur(item.valor_cliente)}</span>` : '',
+    htmlBadgeDescontosCascata(item),
     item._acr_aplicado > 0
       ? `<span class="it-badge" style="background:rgba(234,88,12,.12);color:#ea580c">Acr. +${fmtCur(item._acr_aplicado)}</span>` : '',
   ].filter(Boolean).join('');
@@ -12597,8 +12728,8 @@ function buildItensRowCtx(item, localIdx, offset, showFoto, usarCodFab, colsAnte
   const seq = offset + localIdx + 1;
   const desc_sub = badges ? `<div class="it-sub">${badges}</div>` : '';
   const desc_obs = htmlItemObsLinha(item);
-  const _dPct = parseFloat(item.desconto_percentual) || 0;
-  const _aPct = parseFloat(item.acrescimo_percentual) || 0;
+  const _dPct = parseFloat(item.desconto_percentual ?? item.desconto) || 0;
+  const _aPct = parseFloat(item.acrescimo_percentual ?? item.acrescimo) || 0;
   const _acrLote = (parseFloat(item._acr_aplicado) || 0) > 0;
   const _vendaEf = vlrVendaEfetivoImpressao(item);
   const _lblVenda = (_dPct > 0 && (_aPct > 0 || _acrLote)) ? 'c/ desc. + acrésc.'
@@ -12723,12 +12854,15 @@ function renderItensCardHtml(ctx) {
         : `<span class="itens-card-foto-ph" aria-hidden="true">📷</span>`)
     : '';
   const temGradeCard = item.grade_qtd?.some(g => (parseFloat(g.quantidade) || 0) > 0);
-  const optCols = itensColsSemObsInline([...colsAntesVenda, ...colsDepoisVenda]);
+  const optCols = itensColsSemObsInline([...colsAntesVenda, ...colsDepoisVenda])
+    .filter((id) => id !== 'valor_unitario' && id !== 'vlrtotal_itens');
   const kvParts = [
     `<div class="itens-card-kv"><span>Un.</span><b>${escHtml((item.unidade || '').trim() || '—')}</b></div>`,
     ...(temGradeCard ? [] : [`<div class="itens-card-kv"><span>Qtd</span><b>${item.quantidade}</b></div>`]),
-    `<div class="itens-card-kv"><span>Vlr Venda</span><b>${fmtPreco(_vendaEf)}</b>${_lblVenda ? `<div style="font-size:10px;font-weight:600;color:var(--text2);margin-top:2px">${_lblVenda}</div>` : ''}</div>`,
   ];
+  if (itensMostraColTela('valor_unitario')) {
+    kvParts.push(`<div class="itens-card-kv"><span>Vlr Venda</span><b>${fmtPreco(_vendaEf)}</b>${_lblVenda ? `<div style="font-size:10px;font-weight:600;color:var(--text2);margin-top:2px">${_lblVenda}</div>` : ''}</div>`);
+  }
   for (const colId of optCols) {
     if (colId === 'vlr_padrao' && _vlrPadraoOcultoPedido) continue;
     const meta = itensColMeta(colId);
@@ -12759,8 +12893,15 @@ function renderItensCardHtml(ctx) {
 function renderItensTableRowHtml(ctx) {
   const { item, realIdx, cod, seq, desc_sub, desc_obs, _vendaEf, _lblVenda, fotoTd, colsAntesVenda, colsDepoisVenda } = ctx;
   const colsAntes = itensColsSemObsInline(colsAntesVenda);
-  const colsDepois = itensColsSemObsInline(colsDepoisVenda);
-  const _vendaCell = `<td class="td-num it-desc-cell">${fmtPreco(_vendaEf)}${_lblVenda ? `<div style="font-size:9px;color:var(--text2);font-weight:600;line-height:1.1">${_lblVenda}</div>` : ''}</td>`;
+  const colsDepois = itensColsSemObsInline(colsDepoisVenda).filter((id) => id !== 'valor_unitario' && id !== 'vlrtotal_itens');
+  const showVenda = itensMostraColTela('valor_unitario');
+  const showTotal = itensMostraColTela('vlrtotal_itens');
+  const _vendaCell = showVenda
+    ? `<td class="td-num it-desc-cell">${fmtPreco(_vendaEf)}${_lblVenda ? `<div style="font-size:9px;color:var(--text2);font-weight:600;line-height:1.1">${_lblVenda}</div>` : ''}</td>`
+    : '';
+  const _totalCell = showTotal
+    ? `<td class="td-num"><span class="it-total">${fmtPreco(item.vlrtotal_itens)}</span></td>`
+    : '';
   return `<tr>
     ${fotoTd}
     <td><span class="it-cod">${seq}</span></td>
@@ -12777,7 +12918,7 @@ function renderItensTableRowHtml(ctx) {
     ${colsAntes.map((colId) => (colId === 'vlr_padrao' && _vlrPadraoOcultoPedido ? '' : renderItensColCell(item, colId))).join('')}
     ${_vendaCell}
     ${colsDepois.map((colId) => renderItensColCell(item, colId)).join('')}
-    <td class="td-num"><span class="it-total">${fmtPreco(item.vlrtotal_itens)}</span></td>
+    ${_totalCell}
     <td class="td-center" style="white-space:nowrap">${renderItensRowActions(realIdx)}</td>
   </tr>`;
 }
@@ -12872,7 +13013,8 @@ function normalizarVlrPadraoItem(i) {
 
 // ── SUB-RECORDS (ITENS / PARCELAS) ────────────────────────────────────────────
 function renderSubrec(tipo) {
-  // Segurança: no modo Somar, nunca exibir o mesmo produto em linhas separadas
+  // Segurança: no modo Somar, nunca exibir o mesmo produto em linhas separadas.
+  // fornecedorConsolidaItemPedido() exige config carregada (não trata {} como S).
   if (tipo === 'itens' && fundirTodasDuplicatasItensPedido()) {
     atualizarTotalItens();
   }
@@ -12901,8 +13043,12 @@ function renderSubrec(tipo) {
   if (tipo === 'itens') {
     const showFoto = _fornecedorConfig.fotosprodutospedido === 'S';
     const usarCodFab = (_fornecedorConfig.pedidos_codfabricante || 'N') === 'S';
-    const colsAntesVenda = itensColsAtivosTela().filter((id) => ['vlr_padrao', 'desconto', 'acrescimo'].includes(id));
-    const colsDepoisVenda = itensColsAtivosTela().filter((id) => !['vlr_padrao', 'desconto', 'acrescimo'].includes(id));
+    const colsAntesVenda = itensColsAtivosTela().filter((id) => ITENS_COLS_ANTES_VENDA.includes(id));
+    const colsDepoisVenda = itensColsAtivosTela().filter((id) =>
+      !ITENS_COLS_ANTES_VENDA.includes(id) && id !== 'valor_unitario' && id !== 'vlrtotal_itens'
+    );
+    const showVendaCol = itensMostraColTela('valor_unitario');
+    const showTotalCol = itensMostraColTela('vlrtotal_itens');
     const totalItens = data.length;
     const totalPags  = Math.ceil(totalItens / _itensPorPagina);
     if (_itensPage > totalPags) _itensPage = Math.max(1, totalPags);
@@ -12941,9 +13087,9 @@ function renderSubrec(tipo) {
               <th style="text-align:center;width:1%">Un.</th>
               <th style="text-align:right;width:1%">Qtd</th>
               ${colsAntesVenda.map((colId) => (colId === 'vlr_padrao' && _vlrPadraoOcultoPedido ? '' : renderItensColHead(colId))).join('')}
-              <th style="text-align:right;width:1%">Vlr Venda</th>
+              ${showVendaCol ? '<th style="text-align:right;width:1%">Vlr Venda</th>' : ''}
               ${colsDepoisVenda.map((colId) => renderItensColHead(colId)).join('')}
-              <th style="text-align:right;width:1%">Vlr Total</th>
+              ${showTotalCol ? '<th style="text-align:right;width:1%">Vlr Total</th>' : ''}
               <th style="width:1%"></th>
             </tr>
           </thead>
@@ -13660,6 +13806,8 @@ async function abrirSubrecForm(tipo, preservarTabela = false, autoAbrirBusca = t
         carregarGradeProduto(prod.tipograde, prod.tipoprodutograde || '');
       } else {
         _gradeIdAtual = null;
+        _gradeModoAtual = 'A';
+        _gradeMultiploAtual = 0;
         renderGradePanel([], '');
       }
       calcSubItem();
@@ -14139,6 +14287,17 @@ function confirmarGrade() {
   document.querySelectorAll('#mgr_table_wrap input[data-mgr-id]').forEach(inp => {
     _gradeQtdTemp[parseInt(inp.dataset.mgrId)] = parseFloat(inp.value) || 0;
   });
+  const total = Object.values(_gradeQtdTemp).reduce((s, v) => s + (parseFloat(v) || 0), 0);
+  if (_gradeModoAtual === 'F' && _gradeMultiploAtual > 1) {
+    if (total <= 0 || Math.abs(total % _gradeMultiploAtual) > 0.0001) {
+      toast(
+        `Grade fechada: o total deve ser múltiplo de ${_gradeMultiploAtual} (ex.: ${_gradeMultiploAtual}, ${_gradeMultiploAtual * 2}…). Atual: ${total}.`,
+        'err'
+      );
+      _atualizarAvisoMultiploGrade(total);
+      return;
+    }
+  }
   _atualizarBotaoGrade();
   fecharModalGrade();
 }
@@ -14346,6 +14505,7 @@ function _mgrAtualizarTotal() {
       avisoEl.style.display = 'none';
     }
   }
+  _atualizarAvisoMultiploGrade(total);
 }
 
 // Preenche os inputs com o histórico. apenasBase=false → confirma direto; true → deixa editar
@@ -14395,15 +14555,39 @@ function coletarGradeQtd() {
 async function carregarGradeProduto(idGrade, nomeGrade) {
   _gradeIdAtual = idGrade || null;
   _gradeQtdTemp = {};
+  _gradeModoAtual = 'A';
+  _gradeMultiploAtual = 0;
   if (!idGrade) { renderGradePanel([], ''); return; }
   try {
     const r = await api(`/api/pedidos/grade/${idGrade}`);
     const d = await r.json();
-    renderGradePanel(d.itens || [], nomeGrade || '');
+    _gradeModoAtual = (d.modo_grade === 'F') ? 'F' : 'A';
+    _gradeMultiploAtual = parseInt(d.multiplo_grade, 10) || 0;
+    renderGradePanel(d.itens || [], nomeGrade || d.nome || '');
+    _atualizarAvisoMultiploGrade(0);
   } catch(e) {
     renderGradePanel([], '');
     toast('Não foi possível carregar a grade (tamanhos) deste produto. Verifique a conexão e tente novamente.', 'err');
   }
+}
+
+function _atualizarAvisoMultiploGrade(totalOpt) {
+  const el = document.getElementById('mgr_aviso_multiplo');
+  const elTxt = document.getElementById('mgr_aviso_multiplo_txt');
+  if (!el || !elTxt) return;
+  if (_gradeModoAtual !== 'F' || _gradeMultiploAtual < 2) {
+    el.style.display = 'none';
+    return;
+  }
+  const total = totalOpt != null
+    ? totalOpt
+    : Object.values(_gradeQtdTemp).reduce((s, v) => s + (parseFloat(v) || 0), 0);
+  const ok = total > 0 && Math.abs(total % _gradeMultiploAtual) < 0.0001;
+  el.style.display = 'flex';
+  el.style.color = ok ? 'var(--success, #16a34a)' : '#f59e0b';
+  elTxt.textContent = ok
+    ? `Grade fechada · múltiplo de ${_gradeMultiploAtual} ✓`
+    : `Grade fechada · total deve ser múltiplo de ${_gradeMultiploAtual} (atual: ${total})`;
 }
 
 function imprimirGrade() {
@@ -15492,9 +15676,13 @@ function escolherPromocaoFrontend(prod, qtd) {
   };
 }
 
-async function resolverPromocaoItem(prod, qtd) {
+async function resolverPromocaoItem(prod, qtd, localOnly) {
   const local = escolherPromocaoFrontend(prod, qtd);
   if (local) return local;
+  // No save (localOnly) não fazemos round-trip por item: a promoção já foi
+  // resolvida quando o item foi adicionado/editado. Isso evita N requisições
+  // paralelas a /promocoes/resolve antes do POST (lentidão com muitos itens).
+  if (localOnly) return null;
   const prodId = prod?.cod_produto || prod?.id;
   if (!prodId) return null;
   try {
@@ -15506,12 +15694,12 @@ async function resolverPromocaoItem(prod, qtd) {
   return null;
 }
 
-async function resolverPromocaoItemPedido(prod, qtd, vlrBaseOverride) {
+async function resolverPromocaoItemPedido(prod, qtd, vlrBaseOverride, localOnly) {
   const base = prodBasePrecoPedido(prod || {});
   if (vlrBaseOverride != null && Number.isFinite(parseFloat(vlrBaseOverride))) {
     base.vlr_venda = parseFloat(vlrBaseOverride);
   }
-  const promo = escolherPromocaoFrontend(base, qtd) || await resolverPromocaoItem(base, qtd);
+  const promo = escolherPromocaoFrontend(base, qtd) || await resolverPromocaoItem(base, qtd, localOnly);
   return { base, promo };
 }
 
@@ -15575,13 +15763,25 @@ function atualizarHintPrecoPesoSubrec(prod) {
   }
 }
 
+/** Alinha os dois nomes usados no front (`*_percentual`) e no legado (`desconto`/`acrescimo`). */
+function setItemDescontoPct(item, pct) {
+  const v = parseFloat(pct) || 0;
+  item.desconto_percentual = v;
+  item.desconto = v;
+}
+function setItemAcrescimoPct(item, pct) {
+  const v = parseFloat(pct) || 0;
+  item.acrescimo_percentual = v;
+  item.acrescimo = v;
+}
+
 function calcBaseItemPedido(item, patch = {}) {
   const i = { ...item, ...patch };
   return PrecoPesoProduto.calcBaseItemTotal({
     quantidade: i.quantidade,
     valorUnitario: i.valor_unitario,
-    descontoPct: i.desconto_percentual ?? 0,
-    acrescimoPct: i.acrescimo_percentual ?? 0,
+    descontoPct: i.desconto_percentual ?? i.desconto ?? 0,
+    acrescimoPct: i.acrescimo_percentual ?? i.acrescimo ?? 0,
     embalagem: i.embalagem,
     kilo_embalagem: i.kilo_embalagem,
     precopeso: i.precopeso,
@@ -15719,7 +15919,7 @@ function recalcItemTotaisPedido(item) {
 }
 
 /** Aplica ou remove promo campanha no item conforme qtd + contexto do pedido */
-async function sincronizarPromocaoItemPedido(item, prodOpt) {
+async function sincronizarPromocaoItemPedido(item, prodOpt, localOnly) {
   if (!item || item._precoManual) return item;
   const qtd = parseFloat(item.quantidade) || 0;
   if (qtd <= 0) return item;
@@ -15733,8 +15933,20 @@ async function sincronizarPromocaoItemPedido(item, prodOpt) {
     prod = { cod_produto: item.cod_produto, vlr_venda: vlrBaseHint, promocoes: [] };
   }
 
-  const { base, promo } = await resolverPromocaoItemPedido(prod, qtd, vlrBaseHint);
+  const { base, promo } = await resolverPromocaoItemPedido(prod, qtd, vlrBaseHint, localOnly);
   item._simPromo = simularPromocaoFrontend(base, qtd);
+
+  // Em localOnly (save) não consultamos o backend. Se também não há promoção em
+  // memória, não há base para decidir nada: o item fica exatamente como está.
+  // Sem esta guarda o ramo de reversão abaixo apagaria a promo já aplicada e
+  // devolveria o preço de tabela ao salvar (produto fora do cache de busca,
+  // caso típico ao editar um pedido existente).
+  const temPromoLocal = (Array.isArray(base?.promocoes) && base.promocoes.length > 0)
+    || !!base?.promocao_ativa;
+  if (localOnly && !promo && !temPromoLocal) {
+    recalcItemTotaisPedido(item);
+    return item;
+  }
 
   if (promo?.aplica_agora && parseFloat(promo.preco_promo) > 0) {
     item.valor_unitario = promo.preco_promo;
@@ -16419,19 +16631,28 @@ function mergeGradeQtdPedido(exist = [], inc = []) {
   return Array.from(map.values()).filter(g => (parseFloat(g.quantidade) || 0) > 0);
 }
 
+/** Config do fornecedor pronta (evita tratar {} como vendasduplicaritem=S). */
+function _fornecedorConfigCarregado() {
+  return !!( _fornecedorConfig && (_fornecedorConfig.id != null && _fornecedorConfig.id !== '') );
+}
+
 /** fornecedores.vendasduplicaritem: S = somar | N = bloquear | D = nova linha */
 function _vendasDuplicarItemModo() {
+  // Sem fábrica carregada: não soma nem bloqueia (evita fundir linhas por engano)
+  if (!_fornecedorConfigCarregado()) return 'D';
   const v = _fornecedorConfig.vendasduplicaritem;
   return window.VendasDuplicarItem
     ? VendasDuplicarItem.normalize(v)
     : (String(v || 'S').toUpperCase() === 'N' ? 'N' : (String(v || 'S').toUpperCase() === 'D' ? 'D' : 'S'));
 }
 function _vendasDuplicarItemBloqueia() {
+  if (!_fornecedorConfigCarregado()) return false;
   return window.VendasDuplicarItem
     ? VendasDuplicarItem.bloqueia(_fornecedorConfig.vendasduplicaritem)
     : _vendasDuplicarItemModo() === 'N';
 }
 function fornecedorConsolidaItemPedido() {
+  if (!_fornecedorConfigCarregado()) return false;
   return window.VendasDuplicarItem
     ? VendasDuplicarItem.consolida(_fornecedorConfig.vendasduplicaritem)
     : _vendasDuplicarItemModo() === 'S';
@@ -17182,6 +17403,8 @@ async function _confirmarSubrecAsyncBody(tipo) {
       id_grade:   _gradeIdAtual || null,
       solado:     _gradeSoladoAtual || null,
       tipo_grade: _gradeTipoAtual || null,
+      modo_grade: _gradeModoAtual || 'A',
+      multiplo_grade: _gradeMultiploAtual || 0,
       grade_qtd:  _gradeItensAtual.length > 0 ? coletarGradeQtd() : []
     };
     await sincronizarPromocaoItemPedido(item, window._prodSubrecAtual);
@@ -17328,10 +17551,12 @@ function syncItensBulkBar() {
   const bar = document.getElementById('itensBulkBar');
   const countEl = document.getElementById('itensBulkCount');
   const btnDel = document.getElementById('btnItensBulkDelete');
+  const btnZerar = document.getElementById('btnItensBulkZerarAcrDesc');
   const n = _itensSelecionados.size;
   if (bar) bar.classList.toggle('show', _itensSelMode);
   if (countEl) countEl.textContent = String(n);
   if (btnDel) btnDel.disabled = n === 0;
+  if (btnZerar) btnZerar.disabled = n === 0;
 }
 
 function toggleItensSelMode(on) {
@@ -17382,6 +17607,52 @@ function selecionarTodosItensPedido() {
   });
   syncItensBulkBar();
   renderSubrec('itens');
+}
+
+function confirmarZerarAcrDescLote() {
+  const idxs = [..._itensSelecionados].filter((i) => _subData.itens[i] && !_subData.itens[i]._delete);
+  if (!idxs.length) return;
+  confirmar(
+    'Remover acréscimo e desconto',
+    `Zerar o acréscimo e o desconto de ${idxs.length} item(ns) selecionado(s)?\n\n`
+      + 'O preço unitário negociado de cada item é mantido — só os percentuais aplicados são removidos.',
+    () => zerarAcrDescItensLote(idxs),
+    { icon: '↩️', labelOk: 'Sim, remover' }
+  );
+}
+
+/** Volta os itens selecionados ao valor sem acréscimo/desconto, preservando o
+ *  preço unitário negociado. Zera os dois percentuais (é o que o backend usa
+ *  para recalcular na gravação), então o valor volta ao original ao salvar. */
+function zerarAcrDescItensLote(idxs) {
+  let n = 0;
+  idxs.forEach((i) => {
+    const item = _subData.itens[i];
+    if (!item || item._delete) return;
+    // Modo "Unitário" embute o acréscimo no próprio preço — restaura o original
+    // enquanto ele existir em memória (não sobrevive a recarregar o pedido).
+    if (item._vunit_original !== undefined) {
+      item.valor_unitario = item._vunit_original;
+      delete item._vunit_original;
+    }
+    delete item._acr_aplicado;
+    // Zera os dois nomes: o backend lê `acrescimo_percentual ?? acrescimo`.
+    setItemAcrescimoPct(item, 0);
+    setItemDescontoPct(item, 0);
+    recalcItemTotaisPedido(item);
+    n++;
+  });
+  if (!n) return;
+
+  // Some com o aviso de acréscimo se nenhum item ficou com acréscimo aplicado.
+  const aindaTemAcr = _subData.itens.some((it) => !it._delete && it._acr_aplicado);
+  if (!aindaTemAcr) {
+    const aviso = document.getElementById('aviso_acrescimo_aplicado');
+    if (aviso) aviso.style.display = 'none';
+  }
+
+  renderSubrec('itens');
+  toast(`Acréscimo e desconto removidos de ${n} item(ns)`, 'ok');
 }
 
 function confirmarExclusaoItensLote() {
@@ -17638,6 +17909,65 @@ async function salvar() {
   }
 }
 
+/** Campos mínimos do item para o POST de salvamento — evita mandar foto,
+ *  arrays de promoção, flags de UI e demais dados só de tela (payload gigante). */
+function itemParaPayloadSalvar(i) {
+  const grade = Array.isArray(i.grade_qtd)
+    ? i.grade_qtd
+        .filter((g) => (parseFloat(g.quantidade) || 0) > 0)
+        .map((g) => ({
+          id_descricao_grade: g.id_descricao_grade,
+          sequencial: g.sequencial,
+          nome_grade: g.nome_grade || '',
+          quantidade: parseFloat(g.quantidade) || 0,
+        }))
+    : undefined;
+  return {
+    cod_produto: i.cod_produto,
+    cod_fabricante: i.cod_fabricante || '',
+    desc_prod: i.desc_prod || i.desc_produto || i.descricao || '',
+    unidade: i.unidade || '',
+    embalagem: i.embalagem,
+    kilo_embalagem: i.kilo_embalagem,
+    precopeso: i.precopeso,
+    quantidade: i.quantidade,
+    vlr_padrao: i.vlr_padrao,
+    valor_unitario: i.valor_unitario,
+    vlrtotal_itens: i.vlrtotal_itens,
+    desconto_percentual: i.desconto_percentual ?? i.desconto ?? 0,
+    desconto: i.desconto_percentual ?? i.desconto ?? 0,
+    acrescimo_percentual: i.acrescimo_percentual ?? i.acrescimo ?? 0,
+    acrescimo: i.acrescimo_percentual ?? i.acrescimo ?? 0,
+    comissao_percentual: i.comissao_percentual || 0,
+    st_percentual: i.st_percentual ?? i.st ?? 0,
+    st: i.st_percentual ?? i.st ?? 0,
+    vlr_st: i.vlr_st || 0,
+    ipi_percentual: i.ipi_percentual ?? i.ipi ?? 0,
+    ipi: i.ipi_percentual ?? i.ipi ?? 0,
+    vlr_ipi: i.vlr_ipi || 0,
+    icms_percentual: i.icms_percentual ?? i.icms ?? 0,
+    icms: i.icms_percentual ?? i.icms ?? 0,
+    vlr_icms: i.vlr_icms || 0,
+    vlrtotal_com_imposto: i.vlrtotal_com_imposto ?? i.vlrtotalcomimposto,
+    vlrtotalcomimposto: i.vlrtotal_com_imposto ?? i.vlrtotalcomimposto,
+    valor_puxada: i.valor_puxada || 0,
+    valor_cliente: i.valor_cliente,
+    total_peso: i.total_peso || 0,
+    peso: i.peso || 0,
+    cores_qt: i.cores_qt || '',
+    obsitem: String(i.obsitem ?? '').trim().slice(0, 100),
+    multiplo_sigla: i.multiplo_sigla || null,
+    multiplo_fator: i.multiplo_fator || 1,
+    id_grade: i.id_grade || null,
+    solado: i.solado || null,
+    tipo_grade: i.tipo_grade || null,
+    tipo_preco: i.tipo_preco,
+    id_promocao: i.id_promocao || null,
+    promocao_descricao: i.promocao_descricao || null,
+    ...(grade && grade.length ? { grade_qtd: grade } : {}),
+  };
+}
+
 async function _salvarPedidoImpl() {
   const _skip = { skipValidation: true };
 
@@ -17653,11 +17983,11 @@ async function _salvarPedidoImpl() {
     ...i,
     obsitem: String(i.obsitem ?? '').trim().slice(0, 100),
   }));
-  await Promise.all(itensParaSalvar.map((item) => sincronizarPromocaoItemPedido(item)));
-  if (itensParaSalvar.length) {
-    renderSubrec('itens');
-    atualizarTotalItens();
-  }
+  // localOnly=true: resolve promoção só com dados já em memória, sem 1 fetch por
+  // item a /promocoes/resolve (evitava saturar o pool e travava o save com muitos itens).
+  await Promise.all(itensParaSalvar.map((item) => sincronizarPromocaoItemPedido(item, null, true)));
+  // Totais do payload vêm de itensParaSalvar — não precisa redesenhar nem
+  // cascatear atualizarTotalItens (parcelas/avisos/feirinha) no hot path do save.
 
   const cliente = document.getElementById('f_cod_cliente').value;
   const tipoPed = (document.getElementById('f_tipo_pedido').value || '').toUpperCase();
@@ -17778,8 +18108,14 @@ async function _salvarPedidoImpl() {
       numero_off:          null,
       id_campanha_feirinha: parseInt(document.getElementById('feirinha_campanha')?.value, 10) || null,
       ...getFeirinhaSnapshotParaSalvar(),
+      descontos_cascata: (() => {
+        const snap = capturarDescontosCascataDoPainel() || _descontosCascataPedido;
+        _descontosCascataPedido = snap;
+        return serializarDescontosCascata(snap);
+      })(),
     },
-    itens:    itensAtivos,
+    // Payload enxuto: sem foto, promo em memória, flags de UI — reduz JSON e parse no servidor.
+    itens:    itensAtivos.map(itemParaPayloadSalvar),
     parcelas: _subData.parcelas.filter(p => !p._delete)
   };
 
@@ -17833,12 +18169,13 @@ async function _salvarPedidoImpl() {
     toast('Pedido salvo com sucesso!', 'ok');
     pedidoRascunhoLimpar();
 
-    // Confirmação de envio para fábrica — gera PDF enquanto form ainda está aberto
+    // Confirmação de envio para fábrica. O PDF NÃO é gerado aqui: a conversão roda
+    // no servidor (Puppeteer/Chromium) e pode levar dezenas de segundos — ou falhar
+    // por completo — travando o save inteiro com o botão em "Salvando…". Agora o
+    // PDF é gerado sob demanda, só quando o usuário confirma o envio.
     if (_fornecedorConfig.enviar_pedido_fabrica === 'S' && idPedidoSalvo) {
       const _numExib = _pedidoNumeroExibicao || data.numero || idPedidoSalvo;
-      let _pdfFabrica = null;
-      try { _pdfFabrica = await gerarPdfBase64(); } catch(_) {}
-      _confirmarEnvioFabrica(idPedidoSalvo, _numExib, _pdfFabrica);
+      _confirmarEnvioFabrica(idPedidoSalvo, _numExib, null);
     }
 
     const _msEmbed = document.documentElement.classList.contains('sysrep-ms-embed');
@@ -19061,7 +19398,7 @@ function renderCards(rows, offset) {
   const isMercos = document.documentElement.classList.contains('sysrep-ms-embed') && window.innerWidth < 900;
 
   cg.innerHTML = rows.map(p => {
-    const sel      = _selecionados.has(p.id);
+    const sel      = _pedidoSelecionado(p.id);
     const bdCls    = getPedidoStatusBadgeClass(p.situacao_pedido);
     const situacao = p.situacao_pedido || 'INDEFINIDO';
     const dataFmt  = dataAberturaListaFmt(p);
@@ -19359,7 +19696,11 @@ async function cancelarPedidoLista(id) {
 
 async function bulkUpdate(situacao) {
   if (_selecionados.size === 0) return;
-  const ids = Array.from(_selecionados);
+  const ids = Array.from(_selecionados).map(_normPedidoId).filter(Boolean);
+  if (!ids.length) {
+    toast('Nenhum pedido válido selecionado', 'warn');
+    return;
+  }
   const isCancel = situacao === 'CANCELADO';
   const label = isCancel ? 'cancelados' : situacao.toLowerCase();
   confirmar(`Alterar ${ids.length} pedido(s)?`, `Os selecionados serão marcados como ${label}.`, async () => {
@@ -19368,16 +19709,12 @@ async function bulkUpdate(situacao) {
       if (situacao === 'APROVADO') update.tipo_pedido = 'PEDIDO';
 
       const r = await apiJ('/api/pedidos/bulk-update', 'POST', { ids, update });
-      if (!r.ok) {
-        const data = await r.json().catch(() => ({}));
-        throw new Error(data.error || 'Falha na atualização em massa');
-      }
       const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error || 'Falha na atualização em massa');
       const n = data.count ?? ids.length;
       if (n === 0) throw new Error('Nenhum pedido foi atualizado');
       toast(`${n} pedido(s) atualizado(s)`, 'ok');
-      _selecionados.clear();
-      updateBulkBar();
+      bulkClear();
       carregar();
     } catch (e) {
       toast(e.message || 'Erro na atualização em massa', 'err');
@@ -19386,6 +19723,7 @@ async function bulkUpdate(situacao) {
     danger: isCancel,
     icon: isCancel ? '🚫' : '📋',
     labelOk: isCancel ? 'Sim, cancelar' : 'Confirmar alteração',
+    labelCancel: 'Voltar',
   });
 }
 
@@ -19409,20 +19747,41 @@ function abrirBuscaFornecedor() { openModal('modalBuscaFornecedor'); }
 function abrirBuscaTransportadora() { openModal('modalBuscaTransportadora'); }
 
 // ── SELEÇÃO EM MASSA ──────────────────────────────────────────────────────────
+function _normPedidoId(id) {
+  const n = parseInt(id, 10);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+function _pedidoSelecionado(id) {
+  const n = _normPedidoId(id);
+  return n != null && _selecionados.has(n);
+}
 function toggleSelect(id, chkEl) {
-  if (chkEl.checked) _selecionados.add(id);
-  else { _selecionados.delete(id); document.getElementById('chkAll').checked = false; }
-  const row = chkEl.closest('tr') || chkEl.closest('.ped-card');
+  const pid = _normPedidoId(id);
+  if (pid == null) {
+    if (chkEl) chkEl.checked = false;
+    return;
+  }
+  if (chkEl.checked) _selecionados.add(pid);
+  else {
+    _selecionados.delete(pid);
+    const ca = document.getElementById('chkAll');
+    if (ca) ca.checked = false;
+  }
+  const row = chkEl.closest('tr, .ped-card-new, .ped-card, .pm-card');
   if (row) row.classList.toggle('row-selected', chkEl.checked);
   updateBulkBar();
 }
 function selectAll(checked) {
   _selecionados.clear();
   document.querySelectorAll('.row-chk').forEach(chk => {
+    const id = _normPedidoId(chk.dataset.id);
+    if (id == null) {
+      chk.checked = false;
+      return;
+    }
     chk.checked = checked;
-    const id = parseInt(chk.dataset.id);
     if (checked) _selecionados.add(id);
-    const row = chk.closest('tr') || chk.closest('.ped-card');
+    const row = chk.closest('tr, .ped-card-new, .ped-card, .pm-card');
     if (row) row.classList.toggle('row-selected', checked);
   });
   updateBulkBar();
@@ -19434,7 +19793,7 @@ function updateBulkBar() {
   if (n > 0 && !isDrawerOpen()) {
     if (bar) bar.classList.add('show');
     const cnt = document.getElementById('bulkCount');
-    if (cnt) cnt.textContent = `${n} selecionado${n>1?'s':''}`;
+    if (cnt) cnt.textContent = String(n);
   } else {
     if (bar) bar.classList.remove('show');
   }
@@ -20635,14 +20994,15 @@ async function bulkAprovar() {
   }, { danger: false, icon: '✅', labelOk: 'Aprovar pedidos' });
 }
 async function bulkExcluir() {
-  if (!_selecionados.size) return;
-  const ids = Array.from(_selecionados);
+  const ids = _bulkIds();
+  if (!ids.length) return;
   confirmar(
     `Cancelar e excluir ${ids.length} pedido(s)?`,
     'Os pedidos serão excluídos (soft delete). Esta ação não pode ser desfeita pela lista.',
     async () => {
     let ok = 0;
     let fail = 0;
+    let bloqueios = 0;
     for (const id of ids) {
       try {
         const r = await fetch(`/api/pedidos/${id}`, {
@@ -20651,7 +21011,11 @@ async function bulkExcluir() {
           headers: { Authorization: 'Bearer ' + token() },
         });
         if (r.ok) ok++;
-        else fail++;
+        else {
+          fail++;
+          const data = await r.json().catch(() => ({}));
+          if (data.bloqueio) bloqueios++;
+        }
       } catch {
         fail++;
       }
@@ -20659,13 +21023,19 @@ async function bulkExcluir() {
     bulkClear();
     carregar();
     if (fail && ok) toast(`${ok} excluído(s), ${fail} com erro`, 'warn');
-    else if (fail) toast('Não foi possível excluir os pedidos selecionados', 'err');
-    else toast('Pedidos excluídos', 'ok');
-  }, { danger: true, icon: '🗑️', labelOk: 'Sim, excluir' });
+    else if (fail) {
+      toast(
+        bloqueios
+          ? 'Alguns pedidos exigem senha (ex.: já enviados) — exclua um a um'
+          : 'Não foi possível excluir os pedidos selecionados',
+        'err'
+      );
+    } else toast('Pedidos excluídos', 'ok');
+  }, { danger: true, icon: '🗑️', labelOk: 'Sim, excluir', labelCancel: 'Voltar' });
 }
 
 function _bulkIds() {
-  return Array.from(_selecionados).map((id) => parseInt(id, 10)).filter(Boolean);
+  return Array.from(_selecionados).map(_normPedidoId).filter(Boolean);
 }
 
 function _bulkPedidos() {
@@ -20676,10 +21046,18 @@ function bulkAcaoComissoes() {
   const ids = _bulkIds();
   if (!ids.length) return;
   if (ids.length > 1) {
-    toast('Comissão & Faturamentos abre um pedido por vez — selecione só 1', 'warn');
+    toast('Comissão & Faturamentos é pedido a pedido. Para faturar vários, use «Faturar pedido(s)»', 'warn');
     return;
   }
   abrirModalComissoesFaturamento(ids[0]);
+}
+
+function _hojeFatIsoBrasil() {
+  try {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
+  } catch (_) {
+    return new Date().toISOString().slice(0, 10);
+  }
 }
 
 function bulkAcaoFaturar() {
@@ -20689,11 +21067,64 @@ function bulkAcaoFaturar() {
     toast('Sem permissão para faturar pedidos', 'err');
     return;
   }
-  if (ids.length > 1) {
-    toast('Faturamento abre um pedido por vez — selecione só 1', 'warn');
+
+  // 1 pedido → modal completo (NF, valor, comissões)
+  if (ids.length === 1) {
+    abrirModalFaturamento(ids[0]);
     return;
   }
-  abrirModalFaturamento(ids[0]);
+
+  const peds = ids.map((id) => ({ id, ped: getPedidoCacheById(id) || { id } }));
+  const lista = [];
+  let skip = 0;
+  for (const { id, ped } of peds) {
+    const sit = String(ped.situacao_pedido || '').toUpperCase();
+    if (sit === 'FATURADO' || sit === 'CANCELADO') {
+      skip++;
+      continue;
+    }
+    lista.push({ id, vlr: parseFloat(ped.vlrtotalpedido) || 0 });
+  }
+  if (!lista.length) {
+    toast(skip ? 'Nenhum pedido elegível (já faturados ou cancelados)' : 'Nenhum pedido válido selecionado', 'warn');
+    return;
+  }
+
+  const dataFat = _hojeFatIsoBrasil();
+  const totalVlr = lista.reduce((s, x) => s + x.vlr, 0);
+  const skipTxt = skip ? ` ${skip} já faturado(s)/cancelado(s) serão ignorados.` : '';
+  confirmar(
+    `Faturar ${lista.length} pedido(s)?`,
+    `Cada um será faturado com o valor total (soma ${fmtCur(totalVlr)}) na data ${dataFat.split('-').reverse().join('/')}.${skipTxt} Para informar NF e comissão por pedido, fatura um de cada vez.`,
+    async () => {
+      let ok = 0;
+      let fail = 0;
+      for (const item of lista) {
+        try {
+          const r = await apiJ(`/api/pedidos/${item.id}/faturar`, 'POST', {
+            data_faturado: dataFat,
+            vlr_faturado: item.vlr,
+            numeronf: null,
+            serie_nf: null,
+            nf_fabrica: null,
+            notarecebida: 'N',
+            info_adicional: 'Faturamento em lote',
+            comissoes_parcelas: [],
+          });
+          if (r.ok) ok++;
+          else fail++;
+        } catch (_) {
+          fail++;
+        }
+      }
+      bulkClear();
+      carregar();
+      if (fail && ok) toast(`${ok} faturado(s), ${fail} com erro`, 'warn');
+      else if (fail) toast('Não foi possível faturar os pedidos selecionados', 'err');
+      else toast(`${ok} pedido(s) faturado(s)`, 'ok');
+    },
+    { icon: '📄', labelOk: 'Sim, faturar', labelCancel: 'Voltar' }
+  );
 }
 
 function bulkAcaoAgendarVisita() {
@@ -21364,29 +21795,47 @@ function montarTabelaGradeImpressao(its, h, fmtQtd, br, usarCodFab) {
   };
 }
 
-async function imprimirPedidoAtual() {
-  const pid = _currentQvData?.p?.id || _idEdit || (typeof _envioPedidoId !== 'undefined' ? _envioPedidoId : null);
-  if (!pid) {
+async function imprimirPedidoAtual(opts = {}) {
+  const rascunho = !!(opts && opts.rascunho);
+
+  if (rascunho) {
+    const ativos = (_subData.itens || []).filter(i => !i._delete);
+    if (!ativos.length) {
+      toast('Inclua ao menos um item para pré-visualizar a impressão.', 'warn');
+      return;
+    }
+  }
+
+  const pid = rascunho
+    ? (_idEdit || null)
+    : (_currentQvData?.p?.id || _idEdit || (typeof _envioPedidoId !== 'undefined' ? _envioPedidoId : null));
+  if (!rascunho && !pid) {
     toast('Pedido não identificado para impressão.', 'err');
     return;
   }
-  if (!_currentQvData) {
-    _currentQvData = { p: { id: pid, numero: (typeof _envioNumeroPedido !== 'undefined' && _envioNumeroPedido) ? _envioNumeroPedido : pid }, itens: [], cliente: {} };
-  } else if (!_currentQvData.p?.id) {
-    _currentQvData.p = Object.assign({}, _currentQvData.p || {}, {
-      id: pid,
-      numero: _currentQvData.p?.numero || (typeof _envioNumeroPedido !== 'undefined' ? _envioNumeroPedido : null) || pid
-    });
+  if (!rascunho) {
+    if (!_currentQvData) {
+      _currentQvData = { p: { id: pid, numero: (typeof _envioNumeroPedido !== 'undefined' && _envioNumeroPedido) ? _envioNumeroPedido : pid }, itens: [], cliente: {} };
+    } else if (!_currentQvData.p?.id) {
+      _currentQvData.p = Object.assign({}, _currentQvData.p || {}, {
+        id: pid,
+        numero: _currentQvData.p?.numero || (typeof _envioNumeroPedido !== 'undefined' ? _envioNumeroPedido : null) || pid
+      });
+    }
   }
 
   let dados;
-  try {
-    const r = await api(`/api/pedidos/${pid}`);
-    dados = await r.json();
-  } catch(e) { toast('Erro ao buscar dados para impressão', 'err'); return; }
+  if (rascunho) {
+    dados = coletarDadosImpressaoRascunho();
+  } else {
+    try {
+      const r = await api(`/api/pedidos/${pid}`);
+      dados = await r.json();
+    } catch(e) { toast('Erro ao buscar dados para impressão', 'err'); return; }
+  }
 
-  const p  = dados.pedido || _currentQvData.p;
-  const its = (dados.itens || _currentQvData.itens || []).map(mapItemPedidoFromApi);
+  const p  = dados.pedido || _currentQvData?.p || {};
+  const its = (dados.itens || []).map(mapItemPedidoFromApi);
   const cli = _mergeClienteImpressao(dados.cliente || {}, p);
   const emp = dados.empresa || {};
   const tpImp = _cfgTipoPedidoImpressao(p.tipo_pedido);
@@ -21398,7 +21847,9 @@ async function imprimirPedidoAtual() {
   // ── config do fornecedor (parcelas, cor/estilo obs) ─────────────
   let fornConf = {};
   const codForn = p.cod_fornecedor;
-  if (codForn) {
+  if (rascunho && _fornecedorConfig && String(_fornecedorConfig.id || '') === String(codForn || '')) {
+    fornConf = _fornecedorConfig;
+  } else if (codForn) {
     try {
       const rf = await api(`/api/fornecedores/${codForn}`);
       if (rf.ok) fornConf = await rf.json();
@@ -21462,6 +21913,9 @@ async function imprimirPedidoAtual() {
   // ── cabeçalho / rodapé texto livre ──────────────────────────────
   const headerTextHtml = cfg.header_text ? `<div style="font-size:10.5px;margin-bottom:12px;padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;white-space:pre-line">${h(cfg.header_text)}</div>` : '';
   const footerTxt = cfg.footer_text || h(empNome);
+  const rascunhoBanner = rascunho
+    ? `<div style="margin-bottom:10px;padding:8px 12px;background:#fff7ed;border:1px solid #fdba74;border-radius:6px;font-size:11px;font-weight:700;color:#c2410c;text-align:center">Pré-visualização — valores atuais da tela (ainda não salvos)</div>`
+    : '';
 
   // ── colunas dos itens ────────────────────────────────────────────
   const showFotoPDF = its.some(i => i.foto_principal) && !!document.getElementById('chkFotoPDF')?.checked;
@@ -21515,7 +21969,7 @@ async function imprimirPedidoAtual() {
       itensMostraColRelatorio('vlr_padrao') ? `<td class="tr">R$ ${br(normalizarVlrPadraoItem(i))}${ppItem ? '<span style="font-size:8px;color:#64748b">/kg</span>' : ''}</td>` : '',
       cfg.col_preco_unit ? `<td class="tr">R$ ${br(vlrVendaEfetivoImpressao(i))}${ppItem ? '<span style="font-size:8px;color:#64748b">/kg</span>' : ''}</td>` : '',
       (itensMostraColRelatorio('desconto') && cfg.col_desconto) ? `<td class="tc">${parseFloat(i.desconto_percentual||i.desconto)||0}%</td>` : '',
-      cfg.col_acrescimo ? `<td class="tc">${parseFloat(i.acrescimo_percentual)||0 ? `<span style="color:#16a34a;font-weight:700">+${parseFloat(i.acrescimo_percentual)}%</span>` : '—'}</td>` : '',
+      cfg.col_acrescimo ? `<td class="tc">${parseFloat(i.acrescimo_percentual||i.acrescimo)||0 ? `<span style="color:#16a34a;font-weight:700">+${parseFloat(i.acrescimo_percentual||i.acrescimo)}%</span>` : '—'}</td>` : '',
       cfg.col_vlr_desc_unit ? `<td class="tr">R$ ${br((parseFloat(i.valor_unitario)||0) * (1 - (parseFloat(i.desconto_percentual||i.desconto)||0)/100))}${ppItem ? '<span style="font-size:8px;color:#64748b">/kg</span>' : ''}</td>` : '',
       cfg.col_vlrtotal   ? `<td class="tr">R$ ${br(_base1)}</td>` : '',
       (cfg.col_ipi || cfg.col_ipi_pct) ? `<td class="tc">${_ipiPct1 || 0}%${(cfg.col_ipi && !cfg.col_ipi_pct && _ipiVal1 > 0) ? `<div style="font-size:9px;color:#6366f1;font-weight:700">R$ ${br(_ipiVal1)}</div>` : ''}</td>` : '',
@@ -21638,6 +22092,7 @@ async function imprimirPedidoAtual() {
 </head>
 <body onload="setTimeout(()=>window.print(),300)">
 
+  ${rascunhoBanner}
   ${headerTextHtml}
 
   <!-- ── CABEÇALHO ── -->
@@ -21707,8 +22162,8 @@ async function imprimirPedidoAtual() {
     </div>
     <div style="flex:1;text-align:center">
       <div style="border-top:1.5px solid #222;padding-top:6px;margin-top:40px">
-        <div style="font-weight:700;font-size:11px">${p.nome_preposto ? h(p.nome_preposto) : h(p.nome_vendedor || '')}</div>
-        <div style="font-size:10px;color:#555">${p.nome_preposto ? 'Assinatura do Preposto' : 'Assinatura do Vendedor'}</div>
+        <div style="font-weight:700;font-size:11px">${h(empNome)}</div>
+        <div style="font-size:10px;color:#555">Assinatura / Carimbo</div>
       </div>
     </div>
   </div>` : ''}
@@ -21719,18 +22174,85 @@ async function imprimirPedidoAtual() {
 </body>
 </html>`;
 
+  const abrirHtml = (htmlStr) => {
+    if (rascunho) {
+      _abrirPreviewPedidoHtml(htmlStr, {
+        title: 'Pré-visualização (não salvo)',
+        showPrint: true,
+      });
+      return;
+    }
+    _abrirJanelaImpressaoPedido(htmlStr);
+  };
+
   // ── desvio para layout customizado por fornecedor ──────────────────────
   if ((fornConf.layout_impressao || 'PADRAO') === 'DETALHADO') {
-    const htmlDetalhado = _buildHtmlPedidoDetalhado({
+    let htmlDetalhado = _buildHtmlPedidoDetalhado({
       p, its, cli, emp, fornConf, dualLogo, logoLeftHtml, logoRightHtml,
       empNome, totalItens, totalIpi, totalSt, totalPed,
       fmtData, h, br, fmtQtd, usarCodFab, obsHtml, cfg,
     });
-    _abrirJanelaImpressaoPedido(htmlDetalhado);
+    if (rascunho && rascunhoBanner) {
+      htmlDetalhado = String(htmlDetalhado).replace(
+        /<body([^>]*)>/i,
+        (m, attrs) => `<body${attrs}>${rascunhoBanner}`
+      );
+    }
+    abrirHtml(htmlDetalhado);
     return;
   }
 
-  _abrirJanelaImpressaoPedido(html);
+  abrirHtml(html);
+}
+
+/** Monta dados de impressão a partir do formulário atual (sem buscar no banco). */
+function coletarDadosImpressaoRascunho() {
+  const gv = (id) => document.getElementById(id)?.value ?? '';
+  const itens = (_subData.itens || []).filter(i => !i._delete).map(i => ({ ...i }));
+  const parcelas = (_subData.parcelas || []).filter(p => !p._delete).map(p => ({ ...p }));
+  const numExib = (typeof _pedidoNumeroExibicao !== 'undefined' && _pedidoNumeroExibicao)
+    ? _pedidoNumeroExibicao
+    : (_idEdit || 'RASCUNHO');
+  const pedido = {
+    id: _idEdit || null,
+    numero: numExib,
+    data_abertura: gv('f_data_abertura'),
+    nome_cliente: gv('f_cliente_search'),
+    cod_cliente: parseInt(gv('f_cod_cliente'), 10) || null,
+    nome_fornecedor: gv('f_fornecedor_search'),
+    cod_fornecedor: parseInt(gv('f_cod_fornecedor'), 10) || null,
+    nome_vendedor: _vendedorAtivo?.nome_vendedor || _vendedorAtivo?.nomeusu || '',
+    id_usuario: parseInt(gv('f_id_usuario'), 10) || null,
+    ped_compras: gv('f_ped_compras'),
+    comprador: gv('f_comprador'),
+    condicao_pagto: gv('f_condicao_pagto'),
+    forma_pagto: gv('f_forma_pagto'),
+    tipo_frete: gv('f_tipo_frete'),
+    nome_transportadora: gv('f_transp_search'),
+    cod_transportadora: parseInt(gv('f_cod_transportadora'), 10) || null,
+    tipo_pedido: gv('f_tipo_pedido'),
+    data_entrega: gv('f_data_entrega'),
+    obs: gv('f_obs'),
+    vlrdesconto: parseFloat(gv('f_vlrdesconto')) || 0,
+    vlrfrete: parseFloat(gv('f_vlrfrete')) || 0,
+    cnpj: _clienteConfig?.cpf_cnpj || _clienteConfig?.cnpj || '',
+    nome_empresa: _empresaAtiva?.Razao_empresa || _empresaAtiva?.nome_fantasia || '',
+    id_empresa: parseInt(gv('f_id_empresa'), 10) || null,
+    id_campanha_feirinha: parseInt(document.getElementById('feirinha_campanha')?.value, 10) || null,
+    preco_revenda_feirinha: parseFloat(document.getElementById('feirinha_preco_revenda')?.value) || null,
+    situacao_pedido: gv('f_situacao_pedido') || 'ABERTO',
+  };
+  return {
+    pedido,
+    itens,
+    parcelas,
+    cliente: { ...(_clienteConfig || {}) },
+    empresa: { ...(_empresaAtiva || {}) },
+  };
+}
+
+async function previsualizarImpressaoItens() {
+  await imprimirPedidoAtual({ rascunho: true });
 }
 
 // ── Layout Detalhado (grade cliente + IPI/Peso/Resumo por unidade) ───────────
@@ -22743,9 +23265,12 @@ function _applySysDialogButtonStyles(isDanger, btnOk, btnCancel, hideCancel) {
   if (!btnOk) return;
   btnOk.className = 'sys-dialog-btn';
   if (btnCancel) btnCancel.className = 'sys-dialog-btn';
-  if (isDanger && btnCancel && !hideCancel) {
-    btnCancel.classList.add('sys-dialog-btn--primary');
-    btnOk.classList.add('sys-dialog-btn--danger');
+  // Sempre: OK = ação principal; Cancelar = ghost.
+  // Antes, em danger o "Cancelar" virava primary — usuário clicava nele achando
+  // que confirmava o cancelamento/exclusão e nada acontecia na API.
+  if (isDanger) {
+    btnOk.classList.add('sys-dialog-btn--danger-solid');
+    if (btnCancel && !hideCancel) btnCancel.classList.add('sys-dialog-btn--ghost');
   } else {
     btnOk.classList.add('sys-dialog-btn--primary');
     if (btnCancel && !hideCancel) btnCancel.classList.add('sys-dialog-btn--ghost');
@@ -22824,11 +23349,11 @@ async function exportCSVSelecionados() {
     return;
   }
 
-  let rows = (_cacheRows || []).filter(p => _selecionados.has(p.id));
+  let rows = (_cacheRows || []).filter(p => _pedidoSelecionado(p.id));
   if (rows.length !== _selecionados.size) {
     const r = await api(`/api/pedidos?limit=10000`);
     const data = await r.json();
-    rows = (data.pedidos || []).filter(p => _selecionados.has(p.id));
+    rows = (data.pedidos || []).filter(p => _pedidoSelecionado(p.id));
   }
   baixarCsvPedidos(rows, 'pedidos_selecionados.csv');
 }
@@ -24659,6 +25184,12 @@ html.sysrep-ms-embed .pcd-repetir-btn svg { width: 16px; height: 16px; flex-shri
   color: #dc2626;
   border-color: #fca5a5;
 }
+.sys-dialog-btn--danger-solid {
+  background: #dc2626;
+  color: #fff;
+  border-color: #dc2626;
+}
+.sys-dialog-btn--danger-solid:hover { background: #b91c1c; border-color: #b91c1c; }
 .sys-dialog--danger .sys-dialog-actions { flex-direction: column-reverse; }
 
 /* Validação ao salvar pedido */
@@ -26048,6 +26579,7 @@ async function onFornecedorSelecionado(id, nome) {
   if (!id) {
     if (elCod) elCod.value = '';
     _fornecedorConfig = {};
+    if (!_carregandoPedido) _descontosCascataPedido = null;
     _fornecedorNomeSnapshot = '';
     if (box) box.style.display = 'none';
     atualizarBadgeFatMinimo();
@@ -26078,6 +26610,7 @@ async function onFornecedorSelecionado(id, nome) {
   } catch (e) {
     _fornecedorConfig = {};
   }
+  if (!_carregandoPedido) _descontosCascataPedido = null;
 
   syncSubrecObsItemTema();
   if (_subData.itens.some((i) => !i._delete)) renderSubrec('itens');
@@ -26235,6 +26768,53 @@ function atualizarAvisosPedidoRealtime() {
   verificarSomaParcelas();
 }
 
+function parseDescontosCascataSnap(raw) {
+  if (!raw) return null;
+  let obj = raw;
+  if (typeof raw === 'string') {
+    try { obj = JSON.parse(raw); } catch { return null; }
+  }
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return null;
+  const out = {};
+  let tem = false;
+  for (let n = 1; n <= 10; n++) {
+    const v = parseFloat(obj[n] ?? obj[String(n)]);
+    if (Number.isFinite(v) && v > 0) {
+      out[n] = Math.round(v * 100) / 100;
+      tem = true;
+    }
+  }
+  return tem ? out : null;
+}
+
+function capturarDescontosCascataDoPainel() {
+  const out = {};
+  let tem = false;
+  for (let n = 1; n <= 10; n++) {
+    const el = document.getElementById('desc_cascata_' + n);
+    const v = el ? (parseFloat(el.value) || 0) : (_descontosCascataPedido?.[n] || 0);
+    if (v > 0) {
+      out[n] = Math.round(v * 100) / 100;
+      tem = true;
+    }
+  }
+  return tem ? out : null;
+}
+
+function serializarDescontosCascata(snap) {
+  if (!snap || typeof snap !== 'object') return null;
+  const compact = {};
+  let tem = false;
+  for (let n = 1; n <= 10; n++) {
+    const v = parseFloat(snap[n]) || 0;
+    if (v > 0) {
+      compact[n] = Math.round(v * 100) / 100;
+      tem = true;
+    }
+  }
+  return tem ? JSON.stringify(compact) : null;
+}
+
 function renderDescontoCascata() {
   const wrap = document.getElementById('wrap_desconto_cascata');
   if (!wrap) return;
@@ -26243,12 +26823,22 @@ function renderDescontoCascata() {
   const cfg = _fornecedorConfig || {};
   const tipo = cfg.tipo_desconto || 'PERCENTUAL';
   const exibirTodos = (cfg.exibirtodosdesconto || 'N') === 'S';
+  const snap = _descontosCascataPedido;
 
-  // Monta lista de slots: se exibirTodos → todos 10; senão → só os com valor > 0
+  // Preserva valores já editados pelo usuário no grid (não reseta se já existir o input)
+  const valoresAtuais = {};
+  for (let n = 1; n <= 10; n++) {
+    const el = document.getElementById('desc_cascata_' + n);
+    if (el) valoresAtuais[n] = el.value;
+  }
+
+  // Monta lista de slots: fábrica / snapshot do pedido / digitação atual
   const descontos = [];
   for (let n = 1; n <= 10; n++) {
-    const v = parseFloat(cfg['desconto' + n]) || 0;
-    if (exibirTodos || v > 0) descontos.push({ n, v });
+    const vFab = parseFloat(cfg['desconto' + n]) || 0;
+    const vSnap = snap ? (parseFloat(snap[n]) || 0) : 0;
+    const vDom = valoresAtuais[n] !== undefined ? (parseFloat(valoresAtuais[n]) || 0) : 0;
+    if (exibirTodos || vFab > 0 || vSnap > 0 || vDom > 0) descontos.push({ n, v: vFab });
   }
 
   // Botão na toolbar
@@ -26268,21 +26858,19 @@ function renderDescontoCascata() {
   if (btnDesc) btnDesc.style.display = 'inline-flex';
 
   const lbl = document.getElementById('lbl_tipo_desc_ped');
-  if (lbl) lbl.textContent = tipo === 'MONETARIO' ? 'R$' : '%';
+  const tipoRaw = String(tipo || 'PERCENTUAL').toUpperCase();
+  const tipoPct = tipoRaw === 'PERCENTUAL' || tipoRaw === 'P' || tipoRaw === '%';
+  if (lbl) lbl.textContent = tipoPct ? '%' : 'R$';
 
-  const simbolo = tipo === 'MONETARIO' ? 'R$' : '%';
+  const simbolo = tipoPct ? '%' : 'R$';
   const grid = document.getElementById('desconto_cascata_grid');
   if (!grid) return;
 
-  // Preserva valores já editados pelo usuário no grid (não reseta se já existir o input)
-  const valoresAtuais = {};
-  for (let n = 1; n <= 10; n++) {
-    const el = document.getElementById('desc_cascata_' + n);
-    if (el) valoresAtuais[n] = el.value;
-  }
-
   grid.innerHTML = descontos.map(d => {
-    const val = valoresAtuais[d.n] !== undefined ? valoresAtuais[d.n] : d.v;
+    let val;
+    if (valoresAtuais[d.n] !== undefined) val = valoresAtuais[d.n];
+    else if (snap && snap[d.n] != null) val = snap[d.n];
+    else val = d.v;
     return `
     <div style="position:relative;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:8px 10px 7px">
       <button type="button" data-desc-clear="${d.n}" title="Zerar"
@@ -26308,9 +26896,14 @@ function removerDescCampo(n) {
 
 function removerDescontosCascata() {
   _subData.itens.filter(i => !i._delete).forEach(item => {
-    item.desconto_percentual = 0;
+    setItemDescontoPct(item, 0);
     recalcItemTotaisPedido(item);
   });
+  _descontosCascataPedido = null;
+  for (let n = 1; n <= 10; n++) {
+    const el = document.getElementById('desc_cascata_' + n);
+    if (el) el.value = '0';
+  }
   const aviso = document.getElementById('aviso_desconto_aplicado');
   if (aviso) aviso.style.display = 'none';
   renderSubrec('itens');
@@ -26319,49 +26912,54 @@ function removerDescontosCascata() {
 
 function aplicarDescontoCascata() {
   const cfg = _fornecedorConfig || {};
-  const tipo = cfg.tipo_desconto || 'PERCENTUAL';
+  // Aceita legado Delphi P/R além de PERCENTUAL/MONETARIO
+  const tipoRaw = String(cfg.tipo_desconto || 'PERCENTUAL').toUpperCase();
+  const tipoPct = tipoRaw === 'PERCENTUAL' || tipoRaw === 'P' || tipoRaw === '%';
 
   const fatores = [];
+  const snap = {};
   for (let n = 1; n <= 10; n++) {
     const el = document.getElementById('desc_cascata_' + n);
     if (!el) continue;
     const v = parseFloat(el.value) || 0;
     if (v <= 0) continue;
-    fatores.push(tipo === 'PERCENTUAL' ? (1 - v / 100) : v);
+    snap[n] = Math.round(v * 100) / 100;
+    fatores.push(tipoPct ? (1 - v / 100) : v);
   }
 
   if (!fatores.length) { toast('Nenhum desconto configurado', 'err'); return; }
+  _descontosCascataPedido = Object.keys(snap).length ? snap : null;
 
   const ativos = _subData.itens.filter(i => !i._delete);
   let totalOriginal = 0;
   let totalComDesc  = 0;
 
   ativos.forEach(item => {
-    const base = calcBaseItemPedido({ ...item, desconto_percentual: 0 });
+    const base = calcBaseItemPedido({ ...item, desconto_percentual: 0, desconto: 0 });
     totalOriginal += base;
     if (item.bloquear_desconto) {
-      totalComDesc += item.vlrtotal_itens;
+      totalComDesc += parseFloat(item.vlrtotal_itens) || base;
       return;
     }
     let vlr = base;
-    if (tipo === 'PERCENTUAL') {
+    if (tipoPct) {
       fatores.forEach(f => { vlr = vlr * f; });
     } else {
       fatores.forEach(d => { vlr = Math.max(0, vlr - d); });
     }
     const descPct = base > 0 ? Math.round((1 - vlr / base) * 10000) / 100 : 0;
-    item.desconto_percentual = descPct;
+    setItemDescontoPct(item, descPct);
     recalcItemTotaisPedido(item);
     totalComDesc += item.vlrtotal_itens;
   });
 
   const economizado = totalOriginal - totalComDesc;
+  // renderSubrec → renderDescontoCascata esconde o aviso; reexibe depois
+  renderSubrec('itens');
   const txt   = document.getElementById('txt_aviso_desconto');
   const aviso = document.getElementById('aviso_desconto_aplicado');
-  if (txt)   txt.textContent = `Desconto aplicado — economia de ${fmtCur(economizado)} (total: ${fmtCur(totalComDesc)})`;
+  if (txt)   txt.textContent = `Desconto aplicado — economia de ${fmtCur(economizado)} (total: ${fmtCur(totalComDesc)}). Salve o pedido para gravar.`;
   if (aviso) aviso.style.display = 'flex';
-
-  renderSubrec('itens');
 }
 
 function aplicarBloqueioDescontoSubItem(produtoOuItem) {
@@ -26546,66 +27144,59 @@ function aplicarAcrescimoLote() {
   let totalOriginal = 0;
   let totalComAcr   = 0;
 
+  // Sempre grava em acrescimo_percentual (e espelho `acrescimo`).
+  // O backend recalcula vlrtotal = v*(1+acr/100)*(1-desc/100) na gravação —
+  // se só alterarmos vlrtotal_itens na tela (sem o %), o valor some ao salvar.
+  // % no unitário e % no total são matematicamente iguais; R$ difere pela base.
   ativos.forEach(item => {
-    const qtd = item.quantidade || 0;
+    const baseSemAcr = Math.round(calcBaseItemPedido(item, {
+      acrescimo_percentual: 0,
+      acrescimo: 0,
+    }) * 100) / 100;
+    totalOriginal += baseSemAcr;
 
-    if (base_sel === 'UNITARIO') {
-      // Acréscimo no valor unitário — recalcula tudo a partir do novo preço
-      const vUnit = item.valor_unitario || 0;
-      if (item._vunit_original === undefined) item._vunit_original = vUnit; // guarda original
-      let novoUnit;
-      if (tipo === 'PERCENTUAL') {
-        novoUnit = Math.round(vUnit * (1 + val / 100) * 10000) / 10000;
-        item.acrescimo_percentual = val;
-      } else {
-        novoUnit = Math.round((vUnit + val) * 10000) / 10000;
-        item.acrescimo_percentual = vUnit > 0 ? Math.round(val / vUnit * 10000) / 100 : 0;
-      }
-      item.valor_unitario = novoUnit;
-      // Acréscimo já embutido em novoUnit — não reaplicar acrescimo_percentual no total
-      const vlrOrig = Math.round(calcBaseItemPedido(item, { valor_unitario: vUnit, acrescimo_percentual: 0 }) * 100) / 100;
-      const vlr = Math.round(calcBaseItemPedido(item, { acrescimo_percentual: 0 }) * 100) / 100;
-      totalOriginal += vlrOrig;
-      item._acr_aplicado        = Math.round((vlr - vlrOrig) * 100) / 100;
-      item.vlrtotal_itens       = vlr;
-      recalcItemTotaisComImposto(item);
-      totalComAcr += vlr;
+    let acrPct;
+    if (tipo === 'PERCENTUAL') {
+      acrPct = val;
+    } else if (base_sel === 'UNITARIO') {
+      const vUnit = parseFloat(item.valor_unitario) || 0;
+      acrPct = vUnit > 0 ? Math.round(val / vUnit * 1000000) / 10000 : 0;
     } else {
-      // Acréscimo no total do item (sem alterar valor_unitario)
-      const baseTotal = item.vlrtotal_itens || Math.round(calcBaseItemPedido(item) * 100) / 100;
-      totalOriginal += baseTotal;
-      let vlr;
-      if (tipo === 'PERCENTUAL') {
-        vlr = Math.round(baseTotal * (1 + val / 100) * 100) / 100;
-      } else {
-        vlr = Math.round((baseTotal + val) * 100) / 100;
-      }
-      item._acr_aplicado        = Math.round((vlr - baseTotal) * 100) / 100;
-      item.vlrtotal_itens       = vlr;
-      recalcItemTotaisComImposto(item);
-      totalComAcr += vlr;
+      acrPct = baseSemAcr > 0 ? Math.round(val / baseSemAcr * 1000000) / 10000 : 0;
     }
+
+    // Se um lote antigo embutiu o acréscimo no unitário, restaura antes de gravar o %
+    if (item._vunit_original !== undefined) {
+      item.valor_unitario = item._vunit_original;
+      delete item._vunit_original;
+    }
+
+    setItemAcrescimoPct(item, acrPct);
+    const vlr = Math.round(calcBaseItemPedido(item) * 100) / 100;
+    item._acr_aplicado  = Math.round((vlr - baseSemAcr) * 100) / 100;
+    item.vlrtotal_itens = vlr;
+    recalcItemTotaisComImposto(item);
+    totalComAcr += vlr;
   });
 
   const acrescido = totalComAcr - totalOriginal;
   const labelBase = base_sel === 'UNITARIO' ? 'no valor unitário' : 'no total';
+  renderSubrec('itens');
   const txt   = document.getElementById('txt_aviso_acrescimo');
   const aviso = document.getElementById('aviso_acrescimo_aplicado');
-  if (txt)   txt.textContent = `Acréscimo aplicado ${labelBase} — adicionado ${fmtCur(acrescido)} (total: ${fmtCur(totalComAcr)})`;
+  if (txt)   txt.textContent = `Acréscimo aplicado ${labelBase} — adicionado ${fmtCur(acrescido)} (total: ${fmtCur(totalComAcr)}). Salve o pedido para gravar.`;
   if (aviso) aviso.style.display = 'flex';
-
-  renderSubrec('itens');
 }
 
 function removerAcrescimoLote() {
   _subData.itens.filter(i => !i._delete).forEach(item => {
-    // Restaura valor unitário original se foi alterado
+    // Restaura valor unitário se um lote antigo (pré-fix) embutiu o acréscimo no preço
     if (item._vunit_original !== undefined) {
       item.valor_unitario = item._vunit_original;
       delete item._vunit_original;
     }
     delete item._acr_aplicado;
-    item.acrescimo_percentual = 0;
+    setItemAcrescimoPct(item, 0);
     recalcItemTotaisPedido(item);
   });
   const aviso = document.getElementById('aviso_acrescimo_aplicado');
@@ -28530,7 +29121,7 @@ function _confirmarEnvioFabrica(idPedido, numeroPedido, pdfBase64) {
       </svg>
       <div>
         <div style="font-size:13px;font-weight:700;color:var(--text,#0f172a)">Enviar para a fábrica?</div>
-        <div style="font-size:11px;color:var(--text2,#64748b)">Pedido Nº ${numeroPedido} ${pdfBase64 ? '· PDF gerado ✓' : '· <span style="color:#f59e0b">sem PDF</span>'}${(_fornecedorConfig?.xml_pedidovenda === 'S') ? ' · XML pedido venda ✓' : ''}</div>
+        <div style="font-size:11px;color:var(--text2,#64748b)">Pedido Nº ${numeroPedido} ${pdfBase64 ? '· PDF gerado ✓' : '· PDF gerado ao enviar'}${(_fornecedorConfig?.xml_pedidovenda === 'S') ? ' · XML pedido venda ✓' : ''}</div>
       </div>
       <button id="_btnFabricaNao" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--text2,#94a3b8);font-size:18px;line-height:1;padding:2px 4px">✕</button>
     </div>
@@ -28551,10 +29142,20 @@ function _confirmarEnvioFabrica(idPedido, numeroPedido, pdfBase64) {
   document.getElementById('_btnFabricaSim').onclick = async () => {
     const btn = document.getElementById('_btnFabricaSim');
     const mensagem = document.getElementById('_msgFabrica')?.value.trim() || '';
+    clearTimeout(_autoRemover); // não sumir com o aviso durante a geração do PDF
+
+    // PDF gerado agora (e não no save) — pode demorar ou falhar sem Chromium no servidor.
+    let pdf = pdfBase64;
+    if (!pdf) {
+      if (btn) { btn.textContent = '⏳ Gerando PDF…'; btn.disabled = true; }
+      _envioPedidoId = idPedido; // gerarPdfBase64 resolve o pedido por esta variável
+      try { pdf = await gerarPdfBase64(); } catch(_) { pdf = null; }
+    }
+
     if (btn) { btn.textContent = '⏳ Enviando…'; btn.disabled = true; }
     try {
       const r = await apiJ(`/api/pedidos/${idPedido}/enviar-fabrica`, 'POST', {
-        pdf_base64: pdfBase64 || null,
+        pdf_base64: pdf || null,
         numero_pedido: numeroPedido,
         mensagem
       });
@@ -28568,7 +29169,7 @@ function _confirmarEnvioFabrica(idPedido, numeroPedido, pdfBase64) {
     }
   };
 
-  setTimeout(remover, 30000);
+  const _autoRemover = setTimeout(remover, 30000);
 }
 
 async function gerarPdfBase64FromId(idPedido) {
@@ -30568,6 +31169,10 @@ document.addEventListener('keydown', e => {
         <div id="mgr_aviso_minimo" style="display:none;font-size:11px;font-weight:800;color:#f59e0b;align-items:center;gap:4px">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:13px;height:13px;flex-shrink:0"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
           <span id="mgr_aviso_minimo_txt"></span>
+        </div>
+        <div id="mgr_aviso_multiplo" style="display:none;font-size:11px;font-weight:800;color:#f59e0b;align-items:center;gap:4px">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:13px;height:13px;flex-shrink:0"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+          <span id="mgr_aviso_multiplo_txt"></span>
         </div>
       </div>
     </div>

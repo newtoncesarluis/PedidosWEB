@@ -263,6 +263,21 @@
 
 <script src="/assets/themes.js"></script>
 <script>
+/** JWT Bearer — evita 401 «Sessão expirada». Só /api/ interno. */
+function _authHeaders(extra) {
+  const token = localStorage.getItem('token')
+    || sessionStorage.getItem('token')
+    || sessionStorage.getItem('sysrep_token')
+    || '';
+  const h = Object.assign({}, extra || {});
+  if (token) h.Authorization = 'Bearer ' + token;
+  return h;
+}
+function _api(url, opts) {
+  opts = opts || {};
+  const headers = _authHeaders(opts.headers || {});
+  return fetch(url, Object.assign({}, opts, { credentials: 'include', headers }));
+}
 // ── Estado ──────────────────────────────────────────────────────────────────
 let _dadosRanking = null;
 let _dadosMetas   = null;
@@ -305,7 +320,7 @@ async function carregar() {
     '<div class="loading-overlay"><div class="spinner"></div><p>Carregando ranking…</p></div>';
 
   try {
-    const r = await fetch(`/api/gamificacao/ranking?dtini=${di}&dtfim=${df}`);
+    const r = await _api(`/api/gamificacao/ranking?dtini=${di}&dtfim=${df}`);
     if (!r.ok) throw new Error(await r.text());
     _dadosRanking = await r.json();
     renderKPIs(_dadosRanking);
@@ -326,7 +341,7 @@ async function carregarMetas() {
   document.getElementById('metas-grid').innerHTML =
     '<div class="loading-overlay"><div class="spinner"></div><p>Carregando metas…</p></div>';
   try {
-    const r = await fetch('/api/gamificacao/metas');
+    const r = await _api('/api/gamificacao/metas');
     if (!r.ok) throw new Error(await r.text());
     _dadosMetas = await r.json();
     _metasCarregadas = true;

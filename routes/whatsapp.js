@@ -680,16 +680,21 @@ router.post('/enviar', async (req, res) => {
   } = req.body || {};
   const pool = getPool();
   const { registrarMensagemCliente } = require('../config/cliente-mensagens');
-  const logEnvio = (extra) => registrarMensagemCliente(pool, {
-    cod_cliente: parseInt(cod_cliente, 10) || null,
-    id_pedido:   parseInt(id_pedido, 10) || null,
-    id_usuario:  req.user?.id || null,
-    canal:       'WHATSAPP',
-    destino:     numero,
-    mensagem,
-    anexo:       anexo_base64 ? (anexo_nome || 'anexo') : null,
-    ...extra,
-  });
+  const codCli = parseInt(cod_cliente, 10) || null;
+  const logEnvio = async (extra) => {
+    if (!codCli) return false;
+    await registrarMensagemCliente(pool, {
+      cod_cliente: codCli,
+      id_pedido:   parseInt(id_pedido, 10) || null,
+      id_usuario:  req.user?.id || req.user?.idusuario || null,
+      canal:       'WHATSAPP',
+      destino:     numero,
+      mensagem,
+      anexo:       anexo_base64 ? (anexo_nome || 'anexo') : null,
+      ...extra,
+    });
+    return true;
+  };
 
   try {
     if (!numero || (!mensagem && !anexo_base64)) {
@@ -716,15 +721,17 @@ router.post('/enviar', async (req, res) => {
       } else {
         await enviarTextoEuAtendo(ea, numero, mensagem);
       }
-      void logEnvio({ provedor: 'EUATENDO' });
-      return res.json({ ok: true, provedor: 'EUATENDO' });
+      // Aguarda a gravação — senão a tela de clientes recarrega antes do INSERT
+      // e o badge "enviado" / histórico ficam vazios.
+      const registrado = await logEnvio({ provedor: 'EUATENDO' });
+      return res.json({ ok: true, provedor: 'EUATENDO', registrado: !!registrado });
     }
 
     // Evolution: usa a instância do usuário logado
     const cfg = await getConfig();
     const [rows] = await pool.query(
       'SELECT instancia, chave FROM usuarios WHERE idusuario=? AND excluido=\'N\' LIMIT 1',
-      [req.user.id]
+      [req.user.id || req.user.idusuario]
     );
     const instancia = rows[0]?.instancia;
     if (!instancia) return res.status(400).json({ error: 'Usuário sem instância WhatsApp configurada' });
@@ -749,15 +756,15 @@ router.post('/enviar', async (req, res) => {
     }
 
     if (r.status === 200 || r.status === 201) {
-      void logEnvio({ provedor: 'EVOLUTION' });
-      res.json({ ok: true, provedor: 'EVOLUTION' });
+      const registrado = await logEnvio({ provedor: 'EVOLUTION' });
+      res.json({ ok: true, provedor: 'EVOLUTION', registrado: !!registrado });
     } else {
       const erro = `Erro ${r.status}: ${JSON.stringify(r.body)}`;
-      void logEnvio({ provedor: 'EVOLUTION', status: 'FALHOU', erro });
+      await logEnvio({ provedor: 'EVOLUTION', status: 'FALHOU', erro });
       res.status(500).json({ error: erro });
     }
   } catch (err) {
-    void logEnvio({ status: 'FALHOU', erro: err.message });
+    await logEnvio({ status: 'FALHOU', erro: err.message });
     logError(`${req.method} ${req.path}`, err); res.status(500).json({ error: err.message });
   }
 });

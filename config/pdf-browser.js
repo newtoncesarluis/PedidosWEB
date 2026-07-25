@@ -8,22 +8,61 @@ const pathMod = require('path');
 let _browser = null;
 let _launching = null;
 
+/**
+ * O pacote `chromium-browser` do Ubuntu 20.04+ não é o navegador: é um shell
+ * script de ~2KB que apenas redireciona para o snap. O Puppeteer precisa ler o
+ * endereço do WebSocket no stdout do processo, o que nunca acontece através
+ * desse wrapper — daí o erro "Timed out waiting for the WS endpoint URL".
+ * Preferimos sempre um binário de verdade; o wrapper só é usado se não houver
+ * outra opção (mantém o comportamento antigo em vez de quebrar quem funciona).
+ */
+function pareceBinarioReal(p) {
+  try {
+    // /snap/bin/chromium é symlink para /usr/bin/snap — um ELF real de ~21MB que
+    // passaria nas checagens abaixo, mas é só o launcher do snap: o Chromium sobe
+    // confinado, o WS endpoint não chega ao stdout e o Puppeteer estoura o timeout.
+    if (/[\\/]snap[\\/]/.test(p)) return false;
+    const st = fsSync.statSync(p);
+    if (!st.isFile() || st.size < 1024 * 1024) return false; // navegador real tem MBs
+    const fd = fsSync.openSync(p, 'r');
+    try {
+      const buf = Buffer.alloc(2);
+      fsSync.readSync(fd, buf, 0, 2, 0);
+      return !(buf[0] === 0x23 && buf[1] === 0x21); // "#!" = script, não binário
+    } finally {
+      fsSync.closeSync(fd);
+    }
+  } catch {
+    return false;
+  }
+}
+
 function findChrome() {
   const local = process.env.LOCALAPPDATA || '';
   const candidates = [
     process.env.CHROME_PATH,
+    // Google Chrome primeiro: é binário de verdade e o mais confiável com o
+    // Puppeteer. Os caminhos de chromium do Ubuntu vêm depois porque costumam
+    // ser wrapper/snap (ver pareceBinarioReal) e só servem como último recurso.
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/opt/google/chrome/chrome',
     '/usr/bin/chromium-browser',
     '/usr/bin/chromium',
     '/snap/bin/chromium',
-    '/usr/bin/google-chrome',
-    '/usr/bin/google-chrome-stable',
     'C:/Program Files/Google/Chrome/Application/chrome.exe',
     'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
     local ? pathMod.join(local, 'Google/Chrome/Application/chrome.exe') : null,
     'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
     'C:/Program Files/Microsoft/Edge/Application/msedge.exe',
   ].filter(Boolean);
-  return candidates.find(p => fsSync.existsSync(p)) || null;
+
+  // CHROME_PATH é escolha explícita do operador — vale sem validação.
+  if (process.env.CHROME_PATH && fsSync.existsSync(process.env.CHROME_PATH)) {
+    return process.env.CHROME_PATH;
+  }
+  const existentes = candidates.filter(p => fsSync.existsSync(p));
+  return existentes.find(pareceBinarioReal) || existentes[0] || null;
 }
 
 async function getBrowser() {
@@ -161,7 +200,17 @@ async function closePdfBrowser() {
   }
 }
 
+/**
+ * Warmup é OPT-IN (PDF_WARMUP=1). Cada processo Node mantém o próprio Chromium
+ * (~300MB): numa VPS multi-tenant com 12+ processos, subir todos no boot pode
+ * estourar a memória da máquina inteira. Sem warmup o navegador sobe sob demanda,
+ * no primeiro PDF do tenant — só quem realmente usa envio para fábrica paga.
+ */
 async function warmupPdfBrowser() {
+  if (String(process.env.PDF_WARMUP || '') !== '1') {
+    console.log('[PDF] Warmup desativado (defina PDF_WARMUP=1 para pré-carregar)');
+    return;
+  }
   try {
     await getBrowser();
     console.log('[PDF] Navegador Chromium pronto (pool)');

@@ -1847,7 +1847,7 @@ html.ms-embedded-tech.ms-page-clientes .cards-grid {
                oninput="debounceAplicarFiltro()" autocomplete="off">
       </div>
       <div class="form-group">
-        <label>Segmento / Categoria</label>
+        <label>Segmento</label>
         <select id="fa_cod_segmento" onchange="aplicarFiltroAvancado()" autocomplete="off">
           <option value="">Todos</option>
         </select>
@@ -2200,7 +2200,7 @@ html.ms-embedded-tech.ms-page-clientes .cards-grid {
             </select>
           </div>
           <div class="form-group">
-            <label>Segmento / Categoria</label>
+            <label>Segmento</label>
             <select id="f_cod_segmento">
               <option value="">— Selecione —</option>
             </select>
@@ -4255,6 +4255,14 @@ async function salvar() {
     if (!el) return;
     body[id] = el.value || null;
   });
+  // Espelha descrição do segmento a partir do combo
+  const segSel = document.getElementById('f_cod_segmento');
+  if (segSel) {
+    const segId = String(segSel.value || '').trim();
+    body.cod_segmento = segId || null;
+    const label = segSel.selectedOptions?.[0]?.textContent?.trim() || '';
+    body.segmento = (segId && label && label !== '— Selecione —') ? label : null;
+  }
   // Garante vendedor mesmo com select desabilitado (travado no usuário logado)
   const vendSel = document.getElementById('f_cod_vendedor');
   if (vendSel) {
@@ -4385,7 +4393,7 @@ function excluirClienteLinha(id, nome, evt) {
   );
 }
 
-// ── CATEGORIAS (segmento) ─────────────────────────────────────────────────────
+// ── SEGMENTOS (clientes) ──────────────────────────────────────────────────────
 let _categoriasFiltroCache = null;
 
 async function garantirCategoriasFiltro() {
@@ -5786,14 +5794,12 @@ function renderCards(rows, offset) {
           </svg>
           <span>Última compra: ${ultCompra}</span>
         </div>` : ''}
-        ${c.ultimo_whatsapp_envio ? `<div class="cli-card-row" style="cursor:pointer"
-             onclick="event.stopPropagation();abrirHistorico(${c.id},'${escHtml(c.nome).replace(/'/g,"\\'")}',event)"
-             title="Ver histórico de mensagens">
+        ${`<div class="cli-card-row"${c.ultimo_whatsapp_envio ? ` style="cursor:pointer" onclick="event.stopPropagation();abrirHistorico(${c.id},'${escHtml(c.nome).replace(/'/g,"\\'")}',event)" title="Ver histórico de mensagens"` : ''}>
           <svg viewBox="0 0 32 32" fill="currentColor" style="width:16px;height:16px;color:#25D366">
             <path d="M16 3C9.4 3 4 8.4 4 15c0 2.4.7 4.6 1.8 6.5L4 29l7.8-1.8A13 13 0 0016 27c6.6 0 12-5.4 12-12S22.6 3 16 3z"/>
           </svg>
           <span>WhatsApp: ${_ultimoWhatsappBadge(c)}</span>
-        </div>` : ''}
+        </div>`}
       </div>
 
       ${_cliCardSignals(c)}
@@ -6846,6 +6852,11 @@ async function _waEnviarModal() {
   const texto = document.getElementById('waenv_texto').value.trim();
   if (!texto && !_waAnexo) { toast('Digite uma mensagem ou anexe um arquivo', 'warn'); return; }
 
+  const codCli = parseInt(_waEnvioAtual.cod, 10) || null;
+  if (!codCli) {
+    toast('Cliente não identificado — o histórico de envio não poderá ser gravado.', 'warn');
+  }
+
   const btn = document.getElementById('waenv_btn_enviar');
   btn.disabled = true;
   const btnHtmlOrig = btn.innerHTML;
@@ -6856,8 +6867,8 @@ async function _waEnviarModal() {
     const body = {
       numero: _waEnvioAtual.numero,
       mensagem: texto,
-      cod_cliente: _waEnvioAtual.cod || undefined,
     };
+    if (codCli) body.cod_cliente = codCli;
     if (_waAnexo) {
       body.anexo_base64 = _waAnexo.base64;
       body.anexo_nome = _waAnexo.nome;
@@ -6871,8 +6882,16 @@ async function _waEnviarModal() {
       return;
     }
     toast(`Mensagem enviada via ${d.provedor === 'EUATENDO' ? 'EuAtendo' : (d.provedor || 'API')}`, 'ok');
+    // Atualiza badge local imediatamente (não depende só do reload)
+    if (codCli && Array.isArray(_cacheRows)) {
+      const row = _cacheRows.find(c => String(c.id) === String(codCli));
+      if (row) {
+        row.ultimo_whatsapp_envio = new Date().toISOString();
+        row.ultimo_whatsapp_status = 'ENVIADO';
+      }
+    }
     fecharModalWaEnviar();
-    if (typeof carregar === 'function') carregar(true);
+    if (typeof carregar === 'function') await carregar();
   } catch (e) {
     _waMostrarStatus(e.message || 'Erro ao enviar', 'err');
     toast(e.message || 'Erro ao enviar WhatsApp', 'err');

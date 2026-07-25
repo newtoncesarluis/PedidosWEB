@@ -49,7 +49,8 @@ function normalizarData(val) {
 const CAMPOS_NUMERICOS = new Set([
   'ipi', 'st', 'icms', 'precoa', 'precob', 'precoc', 'precod',
   'precoe', 'precof', 'precopromo', 'vlr_venda', 'vlrcustofinalVenda',
-  'kilo_embalagem', 'peso_liquido', 'comissao',
+  'kilo_embalagem', 'peso_liquido', 'comissao', 'margem', 'margem_liquida',
+  'vlr_custo', 'vlr_despesas', 'vlr_custofinal',
 ]);
 // Campos inteiros — processados separadamente com parseInt (nunca como monetário)
 const CAMPOS_INTEIROS_FIXOS = new Set(['embalagemmaster', 'multiplo_venda', 'qtd_minima_pedido']);
@@ -88,6 +89,14 @@ const DEFAULT_CAMPOS_PRODUTO = [
   { nome_campo: 'estoque_maximo',   apelido: 'Estoque Máximo',     tipo: 'decimal', ordem: 22, obrigatorio: 'N' },
   { nome_campo: 'estoque_seguranca',apelido: 'Estoque Segurança',  tipo: 'decimal', ordem: 23, obrigatorio: 'N' },
   { nome_campo: 'segmento',          apelido: 'Categoria/Segmento', tipo: 'texto',   ordem: 24, obrigatorio: 'N' },
+  { nome_campo: 'subfamilia',        apelido: 'Subfamília',         tipo: 'texto',   ordem: 24.2, obrigatorio: 'N' },
+  { nome_campo: 'linha_produto',     apelido: 'Linha de Produto',   tipo: 'texto',   ordem: 24.4, obrigatorio: 'N' },
+  { nome_campo: 'campo_extra',       apelido: 'Campo Extra',        tipo: 'texto',   ordem: 24.6, obrigatorio: 'N' },
+  { nome_campo: 'vlr_custo',         apelido: 'Custo Inicial',      tipo: 'moeda',   ordem: 24.7, obrigatorio: 'N' },
+  { nome_campo: 'vlr_despesas',      apelido: 'Despesas / Frete',   tipo: 'moeda',   ordem: 24.75, obrigatorio: 'N' },
+  { nome_campo: 'margem',            apelido: 'Margem %',           tipo: 'decimal', ordem: 24.8, obrigatorio: 'N' },
+  { nome_campo: 'comissao',          apelido: 'Comissão %',         tipo: 'decimal', ordem: 24.85, obrigatorio: 'N' },
+  { nome_campo: 'margem_liquida',    apelido: 'Mark-up Líquido %',  tipo: 'decimal', ordem: 24.9, obrigatorio: 'N' },
   // Virtual: resolve para id_referencia (não é coluna). ID numérico ou Cód. Fabricante da mãe.
   { nome_campo: 'referencia_mae',    apelido: 'Referência mãe',    tipo: 'texto',   ordem: 25, obrigatorio: 'N' },
 ];

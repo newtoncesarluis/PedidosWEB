@@ -2,6 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const { getPool } = require('../config/database');
 const { permCrud, negarCad } = require('../config/cadastros-permissoes');
+const { ensureTipogradeColunas } = require('../config/tipograde-colunas');
 
 const _permGrades = (req) => permCrud(req, {
   incluir: 'incluir_grades',
@@ -9,10 +10,20 @@ const _permGrades = (req) => permCrud(req, {
   excluir: 'excluir_grades',
 });
 
+function normalizarModoGrade(v) {
+  return String(v || 'A').toUpperCase() === 'F' ? 'F' : 'A';
+}
+
+function normalizarMultiploGrade(v) {
+  const n = parseInt(v, 10);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
 // ─── GET /api/grades ─────────────────────────────────────────────────────────
 router.get('/', async (req, res) => {
   try {
     const pool = getPool();
+    await ensureTipogradeColunas(pool);
     const { q = '', status = 'A', campo = 'nome', limit = 100, offset = 0 } = req.query;
 
     let where = [`(g.excluido = 'N' OR g.excluido IS NULL OR g.excluido = '')`];
@@ -33,7 +44,9 @@ router.get('/', async (req, res) => {
 
     const wc = where.join(' AND ');
     const [rows] = await pool.query(
-      `SELECT g.id, g.nome, g.apelido, g.tipo, g.qtnumero, g.status
+      `SELECT g.id, g.nome, g.apelido, g.tipo, g.qtnumero, g.status,
+              COALESCE(g.modo_grade, 'A') AS modo_grade,
+              COALESCE(g.multiplo_grade, 0) AS multiplo_grade
        FROM tipograde g WHERE ${wc} ORDER BY g.nome LIMIT ? OFFSET ?`,
       [...vals, parseInt(limit), parseInt(offset)]
     );
@@ -66,12 +79,15 @@ router.get('/notificacoes', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const pool = getPool();
+    await ensureTipogradeColunas(pool);
     const [rows] = await pool.query(
       `SELECT * FROM tipograde WHERE id = ? AND (excluido='N' OR excluido IS NULL OR excluido='')`,
       [req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Grade não encontrada' });
     const grade = rows[0];
+    if (grade.modo_grade == null || grade.modo_grade === '') grade.modo_grade = 'A';
+    if (grade.multiplo_grade == null) grade.multiplo_grade = 0;
     const [itens] = await pool.query(
       `SELECT id, nome, sequencial, COALESCE(qtd_minima,0) AS qtd_minima FROM descricao_grades
        WHERE id_grade = ? AND (excluido='N' OR excluido IS NULL OR excluido='')
@@ -90,17 +106,28 @@ router.post('/', async (req, res) => {
   const pc = _permGrades(req);
   if (pc.incluir !== 'S') return negarCad(res, 'Sem permissão para incluir grades');
   const pool = getPool();
+  try {
+    await ensureTipogradeColunas(pool);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+  const {
+    nome, apelido, tipo = 'R', qtnumero = 0, itens = [],
+    modo_grade = 'A', multiplo_grade = 0,
+  } = req.body;
+  if (!nome?.trim())   return res.status(400).json({ error: 'Nome é obrigatório' });
+  if (!apelido?.trim()) return res.status(400).json({ error: 'Apelido é obrigatório' });
+
+  const modo = normalizarModoGrade(modo_grade);
+  const multiplo = modo === 'F' ? normalizarMultiploGrade(multiplo_grade) : 0;
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    const { nome, apelido, tipo = 'R', qtnumero = 0, itens = [] } = req.body;
-    if (!nome?.trim())   return res.status(400).json({ error: 'Nome é obrigatório' });
-    if (!apelido?.trim()) return res.status(400).json({ error: 'Apelido é obrigatório' });
 
     const [result] = await conn.query(
-      `INSERT INTO tipograde (nome, apelido, tipo, qtnumero, status, excluido)
-       VALUES (?, ?, ?, ?, 'A', 'N')`,
-      [nome.toUpperCase().trim(), apelido.toUpperCase().trim(), tipo, parseInt(qtnumero) || 0]
+      `INSERT INTO tipograde (nome, apelido, tipo, qtnumero, status, excluido, modo_grade, multiplo_grade)
+       VALUES (?, ?, ?, ?, 'A', 'N', ?, ?)`,
+      [nome.toUpperCase().trim(), apelido.toUpperCase().trim(), tipo, parseInt(qtnumero) || 0, modo, multiplo]
     );
     const gradeId = result.insertId;
 
@@ -128,21 +155,34 @@ router.put('/:id', async (req, res) => {
   const pc = _permGrades(req);
   if (pc.alterar !== 'S') return negarCad(res, 'Sem permissão para alterar grades');
   const pool = getPool();
+  try {
+    await ensureTipogradeColunas(pool);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+  const {
+    nome, apelido, tipo, qtnumero, status, itens = [],
+    modo_grade = 'A', multiplo_grade = 0,
+  } = req.body;
+  if (!nome?.trim())   return res.status(400).json({ error: 'Nome é obrigatório' });
+  if (!apelido?.trim()) return res.status(400).json({ error: 'Apelido é obrigatório' });
+
+  const modo = normalizarModoGrade(modo_grade);
+  const multiplo = modo === 'F' ? normalizarMultiploGrade(multiplo_grade) : 0;
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    const { nome, apelido, tipo, qtnumero, status, itens = [] } = req.body;
-    if (!nome?.trim())   return res.status(400).json({ error: 'Nome é obrigatório' });
-    if (!apelido?.trim()) return res.status(400).json({ error: 'Apelido é obrigatório' });
 
     await conn.query(
-      `UPDATE tipograde SET nome=?, apelido=?, tipo=?, qtnumero=?, status=? WHERE id=?`,
+      `UPDATE tipograde SET nome=?, apelido=?, tipo=?, qtnumero=?, status=?, modo_grade=?, multiplo_grade=? WHERE id=?`,
       [
         nome.toUpperCase().trim(),
         apelido.toUpperCase().trim(),
         tipo || 'R',
         parseInt(qtnumero) || 0,
         status || 'A',
+        modo,
+        multiplo,
         req.params.id,
       ]
     );

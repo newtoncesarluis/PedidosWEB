@@ -63,6 +63,8 @@ const MIGRATIONS = [
   // ── PAGAR / PLANO DE CONTAS GERENCIAL ─────────────────────────────────────
   { table: 'pagar', column: 'id_planoconta', type: "INT DEFAULT NULL" },
   { table: 'pagar', column: 'id_centrocusto', type: "INT DEFAULT NULL" },
+  { table: 'pagar', column: 'id_cheque', type: "INT DEFAULT NULL" },
+  { table: 'receber', column: 'id_cheque', type: "INT DEFAULT NULL" },
   { table: 'plano_contas', column: 'id_pai', type: "INT DEFAULT NULL" },
   { table: 'plano_contas', column: 'nivel', type: "INT DEFAULT 1" },
   { table: 'plano_contas', column: 'tipo', type: "VARCHAR(20) DEFAULT 'ANALITICA'" },
@@ -266,6 +268,8 @@ const MIGRATIONS = [
   // ── PEDIDOS — observação encadeada para o próximo pedido (cliente + fábrica) ─
   { table: 'pedidos', column: 'obs_proximo_pedido',   type: 'VARCHAR(500) NULL DEFAULT NULL' },
   { table: 'pedidos', column: 'obs_proximo_consumido', type: "ENUM('S','N') NULL DEFAULT 'N'" },
+  // Snapshot dos fatores do painel «Desconto por Faixa» (DESC 01–10) aplicados no pedido
+  { table: 'pedidos', column: 'descontos_cascata', type: 'VARCHAR(200) NULL DEFAULT NULL' },
 
   // ── CAMPANHAS FEIRINHA — banner / tema visual ───────────────────────────────
   { table: 'campanhas_feirinha', column: 'tema_banner', type: "VARCHAR(200) NULL DEFAULT NULL" },
@@ -331,6 +335,17 @@ const MIGRATIONS = [
 
 // Tabelas novas — cria se não existir (apenas estrutura mínima)
 const CREATE_IF_NOT_EXISTS = [
+  {
+    name: 'segmentos',
+    sql: `CREATE TABLE IF NOT EXISTS segmentos (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      descricao VARCHAR(100) NOT NULL,
+      status CHAR(1) DEFAULT 'A',
+      excluido CHAR(1) DEFAULT 'N',
+      dt_cadastro DATETIME DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_seg_desc (descricao)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3`,
+  },
   {
     name: 'preferencias_grid',
     sql: `CREATE TABLE IF NOT EXISTS preferencias_grid (
@@ -1136,6 +1151,14 @@ async function runMigrations(pool) {
         console.warn(`[schema] CREATE ${t.name}:`, e.message);
       }
     }));
+
+    // 5. Segmento de cliente ≠ categoria de produto
+    try {
+      const { migrateSegmentosClienteFromCategoria } = require('./segmentos-migrate');
+      await migrateSegmentosClienteFromCategoria(pool);
+    } catch (e) {
+      console.warn('[schema] migrate segmentos:', e.message);
+    }
 
     if (adicionadas.length > 0) {
       console.log(`[schema] Migração concluída — ${adicionadas.length} coluna(s) adicionada(s).`);

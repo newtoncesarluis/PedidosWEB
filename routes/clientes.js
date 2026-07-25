@@ -116,6 +116,25 @@ async function salvarVinculosTabelas(pool, clienteId, tabelasPreco) {
   } catch(e) {}
 }
 
+/** Garante body.segmento a partir de segmentos quando vem só cod_segmento. */
+async function syncSegmentoNoBody(pool, body) {
+  if (!body || typeof body !== 'object') return;
+  const segId = parseInt(body.cod_segmento, 10);
+  if (!(segId > 0)) {
+    if (body.cod_segmento === '' || body.cod_segmento === null) {
+      body.segmento = body.segmento != null ? body.segmento : null;
+    }
+    return;
+  }
+  try {
+    const [rows] = await pool.query(
+      `SELECT descricao FROM segmentos WHERE id=? AND COALESCE(excluido,'N')='N' LIMIT 1`,
+      [segId]
+    );
+    if (rows[0]?.descricao) body.segmento = rows[0].descricao;
+  } catch { /* ok */ }
+}
+
 function appendCadastroWhereLegacy(where, vals, cadastro) {
   appendCadastroWhere(where, vals, cadastro, 'DATE(c.dtcadastro)');
 }
@@ -189,8 +208,8 @@ router.get('/', async (req, res) => {
         CAST(c.cod_segmento AS UNSIGNED) = ?
         OR TRIM(c.cod_segmento) = ?
         OR LOWER(TRIM(c.segmento)) = (
-          SELECT LOWER(TRIM(cat.descricao)) FROM categoria cat
-          WHERE cat.id = ? AND COALESCE(cat.excluido, 'N') = 'N'
+          SELECT LOWER(TRIM(seg.descricao)) FROM segmentos seg
+          WHERE seg.id = ? AND COALESCE(seg.excluido, 'N') = 'N'
           LIMIT 1
         )
       )`);
@@ -459,6 +478,7 @@ router.post('/', async (req, res) => {
 
     // Campos essenciais
     if (!body.nome?.trim()) return res.status(400).json({ error: 'Nome obrigatório' });
+    await syncSegmentoNoBody(pool, body);
 
     const campos = [
       'tipo_pessoa','tipo_cadastro','codigo_cliente',
@@ -536,6 +556,7 @@ router.put('/:id', async (req, res) => {
     if (!existing[0]) return res.status(404).json({ error: 'Cliente não encontrado' });
 
     if (!body.nome?.trim()) return res.status(400).json({ error: 'Nome obrigatório' });
+    await syncSegmentoNoBody(pool, body);
 
     const campos = [
       'tipo_pessoa','tipo_cadastro','codigo_cliente',

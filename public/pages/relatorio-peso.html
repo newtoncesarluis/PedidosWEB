@@ -9,6 +9,7 @@
 <title>Relatório de Peso (kg)</title>
 <link rel="stylesheet" href="/assets/themes.css">
 <script src="/assets/themes.js"></script>
+<script src="/assets/sysrep-api.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{--bg:var(--content-bg);--card:var(--card-bg);--border:var(--card-border);--text:var(--content-text);--text2:var(--text2);--accent:var(--accent);--accent-hover:var(--accent-hover);--input-bg:var(--card-bg)}
@@ -222,7 +223,21 @@ tfoot td{font-weight:700;font-size:12px;border-top:2px solid var(--border)!impor
 </div><!-- /content -->
 
 <script>
-const api = (path) => fetch(path, { credentials: 'same-origin' });
+/** JWT Bearer + cookie — evita 401 «Sessão expirada ou não autenticado». */
+function _authHeaders(extra) {
+  const token = (window.SysRepApi && typeof SysRepApi.authToken === 'function' && SysRepApi.authToken())
+    || localStorage.getItem('token')
+    || sessionStorage.getItem('token')
+    || sessionStorage.getItem('sysrep_token')
+    || '';
+  const h = Object.assign({}, extra || {});
+  if (token) h.Authorization = 'Bearer ' + token;
+  return h;
+}
+const api = (path, opts) => fetch(path, Object.assign({}, opts || {}, {
+  credentials: 'include',
+  headers: _authHeaders((opts && opts.headers) || {}),
+}));
 let _tabAtiva = 'vendedor';
 
 // ── Helpers ────────────────────────────────────────────────────────────────

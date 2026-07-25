@@ -486,6 +486,168 @@ router.get('/opcoes-item/:produtoId', async (req, res) => {
   }
 });
 
+// ─── GET /api/tabela-precos/consulta-rapida/:produtoId ───────────────────
+// Consulta rápida na frente do cliente: cadastro + todas as tabelas ativas
+// com preço do SKU, ranking (menor/maior) e destaque das liberadas no contexto.
+router.get('/consulta-rapida/:produtoId', async (req, res) => {
+  try {
+    const pool = getPool();
+    const produtoId = parseInt(req.params.produtoId, 10);
+    if (!Number.isFinite(produtoId) || produtoId < 1) {
+      return res.status(400).json({ error: 'Produto inválido' });
+    }
+    const { cliId = '0', forId = '0', venId = '0' } = req.query;
+
+    const [tbRows] = await pool.query(`SHOW TABLES LIKE 'produto'`);
+    const tb = tbRows.length ? 'produto' : 'produtos';
+    const [cols] = await pool.query(`SHOW COLUMNS FROM ${tb}`).catch(() => [[]]);
+    const colSet = new Set((cols || []).map((c) => String(c.Field || '').toLowerCase()));
+    const hasForn = colSet.has('cod_fornecedorpadrao');
+    const hasFoto = colSet.has('foto_principal');
+    const hasPrecoPeso = colSet.has('precopeso');
+    const hasKilo = colSet.has('kilo_embalagem');
+    const hasImgTable = await pool.query(`SHOW TABLES LIKE 'produto_imagens'`)
+      .then(([r]) => r.length > 0).catch(() => false);
+
+    const fornSel = hasForn
+      ? `, p.cod_fornecedorpadrao AS cod_fornecedor, COALESCE(f.nome,'') AS nome_fornecedor`
+      : `, NULL AS cod_fornecedor, '' AS nome_fornecedor`;
+    const fornJoin = hasForn ? `LEFT JOIN fornecedores f ON f.id = p.cod_fornecedorpadrao` : '';
+    // Foto: cadastro (foto_principal) → senão 1ª imagem de produto_imagens (mesmo padrão dos pedidos)
+    let fotoSel = `, '' AS foto_principal`;
+    if (hasFoto && hasImgTable) {
+      fotoSel = `, COALESCE(
+        NULLIF(TRIM(p.foto_principal), ''),
+        (SELECT CONCAT('/uploads/produtos/', p.ID, '/', pi.filename)
+           FROM produto_imagens pi
+          WHERE CAST(pi.cod_produto AS UNSIGNED) = p.ID
+          ORDER BY pi.is_principal DESC, pi.id ASC
+          LIMIT 1)
+      ) AS foto_principal`;
+    } else if (hasFoto) {
+      fotoSel = `, IFNULL(NULLIF(TRIM(p.foto_principal), ''), '') AS foto_principal`;
+    } else if (hasImgTable) {
+      fotoSel = `, IFNULL((
+        SELECT CONCAT('/uploads/produtos/', p.ID, '/', pi.filename)
+          FROM produto_imagens pi
+         WHERE CAST(pi.cod_produto AS UNSIGNED) = p.ID
+         ORDER BY pi.is_principal DESC, pi.id ASC
+         LIMIT 1
+      ), '') AS foto_principal`;
+    }
+    const pesoSel = hasPrecoPeso ? `, IFNULL(p.precopeso, 'N') AS precopeso` : `, 'N' AS precopeso`;
+    const kiloSel = hasKilo ? `, IFNULL(p.kilo_embalagem, 0) AS kilo_embalagem` : `, 0 AS kilo_embalagem`;
+
+    const [[prod]] = await pool.query(
+      `SELECT p.ID AS id, p.descricao, p.cod_fabricante, p.unidade,
+              COALESCE(p.vlr_venda, 0) AS vlr_venda
+              ${fotoSel}${pesoSel}${kiloSel}${fornSel}
+         FROM ${tb} p ${fornJoin}
+        WHERE p.ID = ?
+          AND (p.excluido = 'N' OR p.excluido IS NULL OR p.excluido = '')
+        LIMIT 1`,
+      [produtoId]
+    ).catch(() => [[null]]);
+
+    if (!prod) return res.status(404).json({ error: 'Produto não encontrado' });
+
+    let fotoPrincipal = String(prod.foto_principal || '').trim();
+    if (fotoPrincipal && !fotoPrincipal.startsWith('http') && !fotoPrincipal.startsWith('/')) {
+      fotoPrincipal = '/uploads/produtos/' + prod.id + '/' + fotoPrincipal.replace(/^\/+/, '');
+    }
+
+    const vlrCadastro = Math.round((parseFloat(prod.vlr_venda) || 0) * 100) / 100;
+
+    const [cabecalhos] = await pool.query(
+      `SELECT id, Descricao AS descricao, Tabela_Ativa
+         FROM tabela_preco_cabecalho
+        WHERE excluido = 'N' AND Tabela_Ativa = 'S'
+        ORDER BY Descricao`
+    ).catch(() => [[]]);
+
+    const ids = (cabecalhos || []).map((t) => t.id);
+    const precoMap = {};
+    if (ids.length) {
+      const [precos] = await pool.query(
+        `SELECT id_tabela,
+                COALESCE(valor_tabela, preco_venda, 0) AS valor
+           FROM tabela_preco_itens
+          WHERE cod_produto = ? AND id_tabela IN (?)
+            AND (excluido = 'N' OR excluido IS NULL OR excluido = '')
+            AND (ativo = 'S' OR ativo IS NULL OR ativo = '')`,
+        [produtoId, ids]
+      ).catch(() => [[]]);
+      (precos || []).forEach((p) => {
+        precoMap[String(p.id_tabela)] = Math.round((parseFloat(p.valor) || 0) * 100) / 100;
+      });
+    }
+
+    let liberadasIds = new Set();
+    let origem = null;
+    try {
+      const ctxForn = (forId && forId !== '0')
+        ? forId
+        : (prod.cod_fornecedor || '0');
+      const lib = await buscarTabelasLiberadas(pool, cliId, ctxForn, venId);
+      origem = lib.origem || null;
+      (lib.tabelas || []).forEach((t) => liberadasIds.add(String(t.id_tabela)));
+    } catch (_) { /* ok */ }
+
+    const tabelas = (cabecalhos || []).map((t) => {
+      const tem = Object.prototype.hasOwnProperty.call(precoMap, String(t.id));
+      const valor = tem ? precoMap[String(t.id)] : null;
+      const diff = tem ? Math.round((valor - vlrCadastro) * 100) / 100 : null;
+      const diffPct = (tem && vlrCadastro > 0)
+        ? Math.round(((valor - vlrCadastro) / vlrCadastro) * 10000) / 100
+        : null;
+      return {
+        id_tabela: t.id,
+        descricao: t.descricao || ('Tabela ' + t.id),
+        valor,
+        tem_preco: tem,
+        liberada: liberadasIds.has(String(t.id)),
+        diff_vs_cadastro: diff,
+        diff_pct: diffPct,
+      };
+    });
+
+    const comPreco = tabelas.filter((t) => t.tem_preco && t.valor > 0);
+    comPreco.sort((a, b) => a.valor - b.valor);
+    const menor = comPreco[0] || null;
+    const maior = comPreco.length ? comPreco[comPreco.length - 1] : null;
+    const economia = (menor && maior)
+      ? Math.round((maior.valor - menor.valor) * 100) / 100
+      : 0;
+
+    res.json({
+      produto: {
+        id: prod.id,
+        descricao: prod.descricao,
+        cod_fabricante: prod.cod_fabricante || '',
+        unidade: prod.unidade || '',
+        vlr_venda: vlrCadastro,
+        foto_principal: fotoPrincipal,
+        cod_fornecedor: prod.cod_fornecedor || null,
+        nome_fornecedor: prod.nome_fornecedor || '',
+        precopeso: prod.precopeso || 'N',
+        kilo_embalagem: parseFloat(prod.kilo_embalagem) || 0,
+      },
+      preco_cadastro: vlrCadastro,
+      tabelas,
+      confronto: {
+        menor: menor ? { id_tabela: menor.id_tabela, descricao: menor.descricao, valor: menor.valor } : null,
+        maior: maior ? { id_tabela: maior.id_tabela, descricao: maior.descricao, valor: maior.valor } : null,
+        economia_max: economia,
+        qtd_com_preco: comPreco.length,
+        origem_liberadas: origem,
+      },
+    });
+  } catch (err) {
+    console.error('[tabela-precos/consulta-rapida]', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── GET /api/tabela-precos/vlr-venda/:tabelaId/:produtoId ──────────────
 router.get('/vlr-venda/:tabelaId/:produtoId', async (req, res) => {
   try {
@@ -581,8 +743,13 @@ router.get('/produtos/busca', async (req, res) => {
     const lim = parseInt(limit);
     const off = offset;
 
+    const hasFoto = await pool.query(`SHOW COLUMNS FROM produto LIKE 'foto_principal'`)
+      .then(([c]) => c.length > 0).catch(() => false);
+    const fotoSel = hasFoto ? `IFNULL(p.foto_principal, '') AS foto_principal,` : `'' AS foto_principal,`;
+
     const [rows] = await pool.query(
       `SELECT ${selectDistinct} p.id, p.descricao, p.cod_fabricante, p.unidade, p.vlr_venda, p.segmento,
+              ${fotoSel}
               f.nome AS nome_fornecedor
        FROM produto p
        LEFT JOIN fornecedores f ON f.id = p.cod_fornecedorpadrao AND (f.excluido='N' OR f.excluido IS NULL)

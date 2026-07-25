@@ -3,17 +3,37 @@ const router = express.Router();
 const { getPool } = require('../config/database');
 const { resolveNaturezaLabelColumn, naturezaLabelExpr } = require('../config/natureza-label');
 const { ensureFinanceiroContabilCols } = require('../config/plano-contas-schema');
+const {
+  sqlAberto,
+  sqlLiquidado,
+  sqlStatusDisplay,
+  truncFormaPagto,
+} = require('../config/receber-status');
 
 const SQL_EXCLUIDO = "(p.excluido = 'N' OR p.excluido IS NULL OR p.excluido = '')";
-const SQL_ABERTO = "(p.status IN ('ABERTA','ABERTO') OR p.status IS NULL OR p.status = '')";
-const SQL_LIQUIDADO = "(p.status IN ('LIQUIDADO','RECEBIDO','PAGO','BAIXADO','QUITADO'))";
-const SQL_ABERTO_COL = "(status IN ('ABERTA','ABERTO') OR status IS NULL OR status = '')";
-const SQL_LIQUIDADO_COL = "(status IN ('LIQUIDADO','RECEBIDO','PAGO','BAIXADO','QUITADO'))";
-const SQL_STATUS_DISPLAY = `CASE
-    WHEN p.status IN ('LIQUIDADO','RECEBIDO','PAGO','BAIXADO','QUITADO') THEN 'LIQUIDADO'
-    WHEN (${SQL_ABERTO}) AND p.vencimento < CURDATE() THEN 'EM ATRASO'
-    ELSE 'ABERTA'
-  END`;
+const SQL_ABERTO = sqlAberto('p');
+const SQL_LIQUIDADO = sqlLiquidado('p');
+const SQL_ABERTO_COL = sqlAberto('');
+const SQL_LIQUIDADO_COL = sqlLiquidado('');
+const SQL_STATUS_DISPLAY = sqlStatusDisplay('p');
+
+const _idxReceberDone = new Set();
+async function ensureReceberListIndexes(pool) {
+  let dbName = '';
+  try {
+    const [[row]] = await pool.query('SELECT DATABASE() AS db');
+    dbName = row?.db || '';
+  } catch (_) {}
+  if (_idxReceberDone.has(dbName)) return;
+  // Listagem filtra excluido + ordena por vencimento — sem índice vira full scan + filesort
+  try {
+    await pool.query('CREATE INDEX idx_rec_excl_venc ON receber (excluido, vencimento)');
+  } catch (_) {}
+  try {
+    await pool.query('CREATE INDEX idx_rec_status ON receber (status)');
+  } catch (_) {}
+  _idxReceberDone.add(dbName);
+}
 
 // Middleware para validar entradas (criação; baixa/estorno não exigem vencimento no body)
 function validarEntradas(req, res, next) {
@@ -46,24 +66,26 @@ router.get('/', async (req, res) => {
   let where = SQL_EXCLUIDO;
   const params = [];
 
+  // vencimento é DATE — sem DATE() para permitir uso de índice
   if (dt_inicio && dt_fim) {
-    where += ' AND DATE(p.vencimento) BETWEEN ? AND ?';
+    where += ' AND p.vencimento BETWEEN ? AND ?';
     params.push(dt_inicio, dt_fim);
   } else if (dt_inicio) {
-    where += ' AND DATE(p.vencimento) >= ?';
+    where += ' AND p.vencimento >= ?';
     params.push(dt_inicio);
   } else if (dt_fim) {
-    where += ' AND DATE(p.vencimento) <= ?';
+    where += ' AND p.vencimento <= ?';
     params.push(dt_fim);
   }
 
-  if (status === 'ABERTA') {
+  const st = String(status || 'T').trim().toUpperCase();
+  if (st === 'ABERTA' || st === 'ABERTO' || st === 'A RECEBER') {
     where += ` AND ${SQL_ABERTO}`;
-  } else if (status === 'LIQUIDADO' || status === 'RECEBIDO') {
+  } else if (st === 'LIQUIDADO' || st === 'RECEBIDO' || st === 'RECEBIDA') {
     where += ` AND ${SQL_LIQUIDADO}`;
-  } else if (status === 'EM ATRASO') {
+  } else if (st === 'EM ATRASO' || st === 'EM_ATRASO' || st === 'ATRASO') {
     where += ` AND ${SQL_ABERTO} AND p.vencimento < CURDATE()`;
-  } else if (status && status !== 'T') {
+  } else if (st && st !== 'T' && st !== 'TODOS') {
     where += ' AND p.status = ?';
     params.push(status);
   }
@@ -93,37 +115,43 @@ router.get('/', async (req, res) => {
   }
 
   const p = parseInt(page) || 1;
-  const lim = parseInt(limit) || 50;
+  const lim = Math.min(Math.max(parseInt(limit) || 50, 1), 200);
   const offset = (p - 1) * lim;
 
   try {
-    await resolveNaturezaLabelColumn(pool);
+    await Promise.all([
+      resolveNaturezaLabelColumn(pool),
+      ensureFinanceiroContabilCols(pool).catch(() => {}),
+      ensureReceberListIndexes(pool).catch(() => {}),
+    ]);
     const natLabel = naturezaLabelExpr('n');
 
-    const [totalRows] = await pool.query(`SELECT COUNT(*) as total FROM receber p WHERE ${where}`, params);
+    const [[totalRows], [rows]] = await Promise.all([
+      pool.query(`SELECT COUNT(*) as total FROM receber p WHERE ${where}`, params),
+      pool.query(`
+        SELECT 
+          p.id, p.numero, p.doc, p.tipo, p.vencimento, p.valor, p.status, p.obs,
+          p.cod_fornecedor, p.nome_fornecedor, p.id_receitas, p.id_cliente, p.cod_vendedor,
+          p.data_pagto, p.valor_pago, p.forma_pagto, p.juros, p.vlrjuros, p.vlracressimo,
+          p.id_planoconta, p.id_centrocusto, p.excluido,
+          ${natLabel} AS nome_receita,
+          COALESCE(p.id_planoconta, n.id_planoconta) AS id_planoconta_resolvido,
+          pc.numero AS planoconta_numero,
+          pc.descricao AS planoconta_nome,
+          cc.codigo AS centrocusto_codigo,
+          cc.descricao AS centrocusto_nome,
+          ${SQL_STATUS_DISPLAY} AS status_display
+        FROM receber p
+        LEFT JOIN natureza n ON p.id_receitas = n.id
+        LEFT JOIN plano_contas pc ON pc.id = COALESCE(p.id_planoconta, n.id_planoconta)
+        LEFT JOIN centro_custo cc ON cc.id = p.id_centrocusto
+        WHERE ${where} 
+        ORDER BY p.vencimento ASC 
+        LIMIT ? OFFSET ?
+      `, [...params, lim, offset]),
+    ]);
+
     const total = totalRows[0]?.total || 0;
-
-    await ensureFinanceiroContabilCols(pool).catch(() => {});
-
-    const [rows] = await pool.query(`
-      SELECT 
-        p.*, 
-        ${natLabel} AS nome_receita,
-        COALESCE(p.id_planoconta, n.id_planoconta) AS id_planoconta_resolvido,
-        pc.numero AS planoconta_numero,
-        pc.descricao AS planoconta_nome,
-        cc.codigo AS centrocusto_codigo,
-        cc.descricao AS centrocusto_nome,
-        ${SQL_STATUS_DISPLAY} AS status_display
-      FROM receber p
-      LEFT JOIN natureza n ON p.id_receitas = n.id
-      LEFT JOIN plano_contas pc ON pc.id = COALESCE(p.id_planoconta, n.id_planoconta)
-      LEFT JOIN centro_custo cc ON cc.id = p.id_centrocusto
-      WHERE ${where} 
-      ORDER BY p.vencimento ASC 
-      LIMIT ? OFFSET ?
-    `, [...params, lim, offset]);
-
     res.json({ data: rows, total, page: p, limit: lim });
   } catch (err) {
     console.error('[receber/listar]', err.message);
@@ -135,6 +163,7 @@ router.get('/', async (req, res) => {
 router.get('/stats', async (req, res) => {
   const pool = getPool();
   try {
+    await ensureReceberListIndexes(pool).catch(() => {});
     const [rows] = await pool.query(`
       SELECT
         SUM(CASE WHEN ${SQL_ABERTO_COL} AND vencimento < CURDATE() THEN valor ELSE 0 END) as total_vencido,
@@ -167,14 +196,14 @@ router.get('/dashboard', async (req, res) => {
     const [topAbertas] = await pool.query(`
       SELECT nome_fornecedor as cliente, SUM(valor) as total 
       FROM receber 
-      WHERE ${SQL_ABERTO_COL.replace(/p\./g, '')} AND (excluido = 'N' OR excluido IS NULL OR excluido = '')
+      WHERE ${SQL_ABERTO_COL} AND (excluido = 'N' OR excluido IS NULL OR excluido = '')
       GROUP BY nome_fornecedor ORDER BY total DESC LIMIT 10
     `);
 
     const [topRecebidos] = await pool.query(`
       SELECT nome_fornecedor as cliente, SUM(COALESCE(valor_pago, valor)) as total 
       FROM receber 
-      WHERE ${SQL_LIQUIDADO_COL.replace(/p\./g, '')} AND (excluido = 'N' OR excluido IS NULL OR excluido = '')
+      WHERE ${SQL_LIQUIDADO_COL} AND (excluido = 'N' OR excluido IS NULL OR excluido = '')
       GROUP BY nome_fornecedor ORDER BY total DESC LIMIT 10
     `);
 
@@ -192,7 +221,7 @@ router.get('/dashboard', async (req, res) => {
         MIN(vencimento) as data_inicio,
         SUM(valor) as total
       FROM receber
-      WHERE ${SQL_ABERTO_COL.replace(/p\./g, '')} AND (excluido = 'N' OR excluido IS NULL OR excluido = '') AND vencimento >= CURDATE()
+      WHERE ${SQL_ABERTO_COL} AND (excluido = 'N' OR excluido IS NULL OR excluido = '') AND vencimento >= CURDATE()
       GROUP BY WEEK(vencimento)
       ORDER BY vencimento ASC
       LIMIT 4
@@ -215,7 +244,9 @@ router.get('/dashboard-financeiro', async (req, res) => {
     try {
         // KPIs principais
         const [saldoAtual] = await pool.query("SELECT SUM(valor) as saldo FROM caixa WHERE excluido = 'N'");
-        const [totalReceber] = await pool.query("SELECT SUM(valor) as total FROM receber WHERE status = 'ABERTA' AND excluido = 'N'");
+        const [totalReceber] = await pool.query(
+          `SELECT SUM(valor) as total FROM receber WHERE ${SQL_ABERTO_COL} AND (excluido = 'N' OR excluido IS NULL OR excluido = '')`
+        );
         const [totalPagar] = await pool.query("SELECT SUM(valor) as total FROM pagar WHERE status = 'ABERTA' AND excluido = 'N'");
 
         // Fluxo de caixa
@@ -330,13 +361,17 @@ router.post('/lote/baixar', async (req, res) => {
   const pool = getPool();
   const { ids, data_pagto, forma_pagto } = req.body;
 
-  if (!ids || !ids.length) return res.status(400).json({ error: 'Nenhum título selecionado' });
+  const idList = (Array.isArray(ids) ? ids : [])
+    .map((id) => parseInt(id, 10))
+    .filter((id) => id > 0);
+
+  if (!idList.length) return res.status(400).json({ error: 'Nenhum título selecionado' });
 
   try {
     const dt = data_pagto || new Date();
-    const forma = forma_pagto || 'DINHEIRO';
+    const forma = truncFormaPagto(forma_pagto || 'DINHEIRO');
 
-    await pool.query(`
+    const [result] = await pool.query(`
       UPDATE receber SET 
         status = 'RECEBIDO', 
         data_pagto = ?, 
@@ -344,10 +379,23 @@ router.post('/lote/baixar', async (req, res) => {
         forma_pagto = ?,
         obs = CONCAT(COALESCE(obs,''), '\n--- Recebimento em lote em: ', NOW())
       WHERE id IN (?) AND ${SQL_ABERTO_COL}
-    `, [dt, forma, ids]);
+        AND (excluido = 'N' OR excluido IS NULL OR excluido = '')
+    `, [dt, forma, idList]);
 
-    res.json({ ok: true, message: `${ids.length} títulos recebidos com sucesso.` });
+    const afetados = result?.affectedRows || 0;
+    if (!afetados) {
+      return res.status(400).json({
+        error: 'Nenhum título em aberto foi atualizado. Confira se os selecionados ainda estão a receber.',
+      });
+    }
+
+    res.json({
+      ok: true,
+      afetados,
+      message: `${afetados} título(s) recebidos com sucesso.`,
+    });
   } catch (err) {
+    console.error('[receber/baixa-lote]', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -360,6 +408,7 @@ router.put('/:id', validarEntradas, async (req, res) => {
 
   try {
     if (data.baixar) {
+      const forma = truncFormaPagto(data.forma_pagto || 'DINHEIRO');
       await pool.query(`
         UPDATE receber SET 
           status = 'RECEBIDO', 
@@ -368,7 +417,51 @@ router.put('/:id', validarEntradas, async (req, res) => {
           forma_pagto = ?,
           obs = CONCAT(COALESCE(obs,''), '\n--- Recebimento em: ', NOW())
         WHERE id = ?
-      `, [data.data_pagto || new Date(), data.valor_pago || data.valor, data.forma_pagto || 'DINHEIRO', id]);
+      `, [data.data_pagto || new Date(), data.valor_pago || data.valor, forma, id]);
+
+      // Opcional: entra cheque na carteira sem alterar a baixa se falhar
+      if (forma === 'CHEQUE' && data.cheque) {
+        try {
+          const { ensureChequesSchema } = require('../config/cheques-schema');
+          const { hojeIsoBrasil } = require('../config/date-brasil');
+          await ensureChequesSchema(pool);
+          const ch = data.cheque;
+          const valor = parseFloat(ch.valor || data.valor_pago || data.valor) || 0;
+          const numero = String(ch.numero || '').trim();
+          const bom = String(ch.bom_para || data.data_pagto || hojeIsoBrasil()).slice(0, 10);
+          if (numero && valor > 0) {
+            const [[tit]] = await pool.query(
+              `SELECT cod_cliente FROM receber WHERE id=? LIMIT 1`, [id]
+            ).catch(() => [[null]]);
+            const [ins] = await pool.query(
+              `INSERT INTO cheques
+                (tipo, numero, banco_nome, agencia, conta, emitente, cpf_cnpj, valor, bom_para,
+                 data_recebimento, id_receber, id_cliente, status, obs, excluido)
+               VALUES ('T',?,?,?,?,?,?,?,?,?,?,'EM_CARTEIRA',?,'N')`,
+              [
+                numero,
+                ch.banco_nome ? String(ch.banco_nome).toUpperCase() : null,
+                ch.agencia || null,
+                ch.conta || null,
+                ch.emitente ? String(ch.emitente).toUpperCase() : null,
+                ch.cpf_cnpj || null,
+                valor,
+                bom,
+                String(data.data_pagto || hojeIsoBrasil()).slice(0, 10),
+                id,
+                parseInt(ch.id_cliente || tit?.cod_cliente, 10) || null,
+                ch.obs || null,
+              ]
+            );
+            try {
+              const [cols] = await pool.query(`SHOW COLUMNS FROM receber LIKE 'id_cheque'`);
+              if (cols.length) await pool.query(`UPDATE receber SET id_cheque=? WHERE id=?`, [ins.insertId, id]);
+            } catch (_) {}
+          }
+        } catch (e) {
+          console.error('[receber/cheque-carteira]', e.message);
+        }
+      }
     } else {
       const sets = [];
       const vals = [];

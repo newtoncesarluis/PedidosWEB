@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<title>Consulta Rápida de Preços</title>
+<link rel="stylesheet" href="/assets/themes.css">
+<link rel="stylesheet" href="/assets/mobile-app.css">
+<script src="/assets/themes.js"></script>
+<script src="/assets/mobile-app.js"></script>
+<script src="/assets/sysrep-api.js"></script>
+<style>
+:root {
+  --cp-radius: 14px;
+  --cp-ease: cubic-bezier(.22, 1, .36, 1);
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; min-height: 100%;
+  font-family: var(--font, system-ui, -apple-system, 'Segoe UI', sans-serif);
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+body { background: var(--bg); }
+@media (min-width: 901px) {
+  body {
+    background:
+      radial-gradient(900px 420px at 8% -10%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 60%),
+      radial-gradient(700px 380px at 100% 0%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 55%),
+      var(--bg);
+  }
+}
+
+.cp-shell { width: 100%; max-width: none; margin: 0; padding: 18px 28px 40px; }
+.cp-top {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 12px; margin-bottom: 18px; flex-wrap: wrap;
+}
+.cp-eyebrow {
+  font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--accent); margin: 0 0 4px;
+}
+.cp-title { margin: 0; font-size: clamp(22px, 3vw, 28px); font-weight: 800; letter-spacing: -.03em; }
+.cp-sub { margin: 6px 0 0; font-size: 13px; color: var(--text2); max-width: 72ch; line-height: 1.45; }
+
+.cp-search {
+  position: relative;
+  background: var(--card, #fff);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 14px 14px 12px;
+  box-shadow: 0 10px 30px color-mix(in srgb, var(--text) 6%, transparent);
+}
+.cp-search-label {
+  display: block; font-size: 11px; font-weight: 700; color: var(--text2);
+  text-transform: uppercase; letter-spacing: .04em; margin-bottom: 8px;
+}
+.cp-search-row { display: flex; gap: 8px; align-items: center; }
+.cp-search input {
+  flex: 1; min-width: 0;
+  height: 48px; padding: 0 14px;
+  border: 1.5px solid var(--border); border-radius: 12px;
+  background: var(--bg2, var(--bg)); color: var(--text);
+  font: inherit; font-size: 16px; font-weight: 500; outline: none;
+  transition: border-color .15s var(--cp-ease), box-shadow .15s var(--cp-ease);
+}
+.cp-search input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.cp-search input::placeholder { color: var(--text2); opacity: .75; }
+.cp-btn {
+  height: 48px; padding: 0 16px; border: none; border-radius: 12px;
+  background: var(--accent); color: #fff; font: inherit; font-size: 13px; font-weight: 700;
+  cursor: pointer; white-space: nowrap;
+  transition: transform .12s var(--cp-ease), filter .12s;
+  -webkit-tap-highlight-color: transparent;
+}
+.cp-btn:hover { filter: brightness(1.05); }
+.cp-btn:active { transform: scale(.98); }
+.cp-btn:disabled { opacity: .55; cursor: wait; }
+.cp-btn-ghost {
+  background: transparent; color: var(--text2);
+  border: 1px solid var(--border);
+}
+.cp-btn-ghost:hover { color: var(--text); border-color: var(--text2); filter: none; }
+
+.cp-suggest {
+  display: none; position: absolute; left: 14px; right: 14px; top: calc(100% - 4px);
+  z-index: 30; max-height: min(320px, 50vh); overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  background: var(--card, #fff); border: 1px solid var(--border);
+  border-radius: 14px; box-shadow: 0 18px 40px color-mix(in srgb, var(--text) 14%, transparent);
+}
+.cp-suggest.open { display: block; animation: cpPop .18s var(--cp-ease); }
+.cp-sug-item {
+  display: grid; grid-template-columns: 48px 1fr auto; gap: 10px; align-items: center;
+  padding: 12px; cursor: pointer; border-bottom: 1px solid var(--border);
+  transition: background .12s; min-height: 64px;
+}
+.cp-sug-item:last-child { border-bottom: none; }
+.cp-sug-item:hover, .cp-sug-item.active { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.cp-sug-foto {
+  width: 48px; height: 48px; border-radius: 10px; object-fit: contain;
+  background: var(--bg2, var(--bg)); border: 1px solid var(--border);
+}
+.cp-sug-foto-ph {
+  width: 48px; height: 48px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg2, var(--bg)); border: 1px solid var(--border);
+  color: var(--text2); font-size: 18px;
+}
+.cp-sug-name { font-size: 13px; font-weight: 700; line-height: 1.3; }
+.cp-sug-meta { font-size: 11px; color: var(--text2); margin-top: 2px; }
+.cp-sug-price { font-size: 13px; font-weight: 800; color: var(--accent); white-space: nowrap; }
+.cp-empty-sug { padding: 18px; text-align: center; color: var(--text2); font-size: 13px; }
+
+.cp-hero {
+  display: none; margin-top: 18px;
+  background: var(--card, #fff); border: 1px solid var(--border);
+  border-radius: 18px; padding: 18px 20px;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--text) 5%, transparent);
+  animation: cpRise .28s var(--cp-ease);
+}
+.cp-hero.show {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr) auto;
+  gap: 20px;
+  align-items: center;
+}
+@media (max-width: 900px) {
+  .cp-hero.show { grid-template-columns: 72px minmax(0, 1fr); gap: 12px; padding: 14px; }
+  .cp-hero-prices { grid-column: 1 / -1; justify-content: stretch; }
+  .cp-pill { flex: 1; min-width: 0; }
+  .cp-hero-foto, .cp-hero-foto-ph { width: 72px !important; height: 72px !important; }
+}
+@media (max-width: 640px) {
+  .cp-shell { padding: 12px 12px calc(28px + env(safe-area-inset-bottom, 0px)); }
+  .cp-top { margin-bottom: 12px; }
+  .cp-sub { display: none; }
+  .cp-title { font-size: 20px; }
+  .cp-search {
+    position: sticky; top: 0; z-index: 40;
+    border-radius: 14px; padding: 10px;
+    box-shadow: 0 4px 16px color-mix(in srgb, var(--text) 8%, transparent);
+  }
+  .cp-search-row { flex-wrap: wrap; }
+  .cp-search input { width: 100%; flex: 1 1 100%; height: 46px; }
+  .cp-btn { flex: 1; min-height: 44px; }
+  .cp-btn-ghost { flex: 0 0 auto; }
+  .cp-suggest { left: 10px; right: 10px; max-height: min(280px, 45vh); }
+  .cp-sug-item { grid-template-columns: 1fr auto; }
+  .cp-sug-foto, .cp-sug-foto-ph { display: none; }
+  .cp-idle { margin-top: 18px; padding: 18px 8px; }
+  .cp-idle .ico { font-size: 28px; }
+  .cp-grid { grid-template-columns: 1fr; gap: 8px; }
+  .cp-card-val { font-size: 22px; }
+  .cp-hero-name { font-size: 16px; }
+  .cp-pill b { font-size: 18px; }
+  html.sysrep-ms-embed .cp-shell,
+  html.ms-embedded-tech .cp-shell {
+    padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  }
+}
+.cp-hero-foto {
+  width: 120px; height: 120px; border-radius: 14px; object-fit: contain;
+  background: var(--bg2, var(--bg)); border: 1px solid var(--border);
+}
+.cp-hero-foto-ph {
+  width: 120px; height: 120px; border-radius: 14px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg2, var(--bg)); border: 1px solid var(--border);
+  font-size: 36px; color: var(--text2);
+}
+.cp-hero-code { font-size: 11px; font-weight: 700; color: var(--text2); letter-spacing: .02em; }
+.cp-hero-name { margin: 4px 0 0; font-size: clamp(17px, 2vw, 22px); font-weight: 800; letter-spacing: -.02em; line-height: 1.25; }
+.cp-hero-forn { margin-top: 4px; font-size: 12px; color: var(--text2); }
+.cp-hero-prices {
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch; justify-content: flex-end;
+}
+.cp-pill {
+  min-width: 160px; padding: 12px 14px; border-radius: 12px;
+  background: var(--bg2, var(--bg)); border: 1px solid var(--border);
+}
+.cp-pill strong { display: block; font-size: 11px; color: var(--text2); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.cp-pill b { display: block; margin-top: 4px; font-size: 22px; font-weight: 800; letter-spacing: -.02em; }
+.cp-pill.best {
+  background: color-mix(in srgb, var(--accent) 14%, var(--card, #fff));
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+.cp-pill.best b { color: var(--accent); }
+.cp-pill.warn {
+  background: color-mix(in srgb, #f59e0b 12%, var(--card, #fff));
+  border-color: color-mix(in srgb, #f59e0b 35%, var(--border));
+}
+
+.cp-section { margin-top: 18px; display: none; animation: cpRise .32s var(--cp-ease) .04s both; }
+.cp-section.show { display: block; }
+.cp-section-h {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  margin-bottom: 10px; flex-wrap: wrap;
+}
+.cp-section-h h2 { margin: 0; font-size: 15px; font-weight: 800; }
+.cp-section-h span { font-size: 12px; color: var(--text2); }
+
+.cp-grid {
+  display: grid; gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+.cp-card {
+  position: relative;
+  background: var(--card, #fff); border: 1px solid var(--border);
+  border-radius: var(--cp-radius); padding: 14px;
+  transition: transform .15s var(--cp-ease), border-color .15s, box-shadow .15s;
+}
+.cp-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--text) 8%, transparent);
+}
+.cp-card.best {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.cp-card.muted { opacity: .72; }
+.cp-badge {
+  position: absolute; top: 10px; right: 10px;
+  font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em;
+  padding: 3px 8px; border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent);
+}
+.cp-badge.alt { background: color-mix(in srgb, #f59e0b 18%, transparent); color: #b45309; }
+.cp-badge.lib { background: color-mix(in srgb, #22c55e 16%, transparent); color: #15803d; }
+.cp-card-name { font-size: 13px; font-weight: 700; padding-right: 72px; line-height: 1.3; }
+.cp-card-val { margin-top: 10px; font-size: 24px; font-weight: 800; letter-spacing: -.03em; }
+.cp-card-diff { margin-top: 4px; font-size: 12px; color: var(--text2); font-weight: 600; }
+.cp-card-diff.down { color: #16a34a; }
+.cp-card-diff.up { color: #dc2626; }
+.cp-card-miss { margin-top: 10px; font-size: 12px; color: var(--text2); font-style: italic; }
+
+.cp-hint {
+  margin-top: 14px; padding: 12px 14px; border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--card, #fff));
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+  font-size: 12px; line-height: 1.45; color: var(--text);
+}
+.cp-hint strong { color: var(--accent); }
+
+.cp-idle {
+  margin-top: 28px; text-align: center; color: var(--text2); padding: 28px 12px;
+}
+.cp-idle .ico { font-size: 36px; margin-bottom: 8px; opacity: .55; }
+.cp-idle h3 { margin: 0 0 6px; font-size: 15px; color: var(--text); font-weight: 750; }
+.cp-idle p { margin: 0 auto; max-width: 42ch; font-size: 13px; line-height: 1.45; }
+
+#toast-container {
+  position: fixed; right: 16px; bottom: 16px; z-index: 100; display: flex; flex-direction: column; gap: 8px;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.toast {
+  background: var(--card, #fff); color: var(--text); border: 1px solid var(--border);
+  border-radius: 10px; padding: 10px 14px; font-size: 12px; font-weight: 600;
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--text) 12%, transparent);
+  animation: cpPop .18s var(--cp-ease);
+}
+.toast.err { border-color: #fecaca; color: #b91c1c; }
+
+@keyframes cpPop {
+  from { opacity: 0; transform: translateY(6px) scale(.98); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes cpRise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="cp-shell">
+  <div class="cp-top">
+    <div>
+      <p class="cp-eyebrow">Preços</p>
+      <h1 class="cp-title">Consulta rápida</h1>
+      <p class="cp-sub">Busque o produto e veja o preço do cadastro confrontado com todas as tabelas ativas — ideal na frente do cliente.</p>
+    </div>
+  </div>
+
+  <div class="cp-search" id="cpSearchBox">
+    <label class="cp-search-label" for="cpQ">Produto (código, fabricante ou descrição)</label>
+    <div class="cp-search-row">
+      <input id="cpQ" type="search" autocomplete="off" placeholder="Digite para buscar…" autofocus>
+      <button type="button" class="cp-btn" id="cpBtnBuscar">Buscar</button>
+      <button type="button" class="cp-btn cp-btn-ghost" id="cpBtnLimpar" title="Limpar">Limpar</button>
+    </div>
+    <div class="cp-suggest" id="cpSuggest" role="listbox" aria-label="Sugestões de produtos"></div>
+  </div>
+
+  <div class="cp-idle" id="cpIdle">
+    <div class="ico" aria-hidden="true">💰</div>
+    <h3>Pronto para consultar</h3>
+    <p>Digite o código ou nome do produto. O sistema lista o preço de cadastro e compara com as tabelas de preço ativas.</p>
+  </div>
+
+  <section class="cp-hero" id="cpHero" aria-live="polite"></section>
+
+  <section class="cp-section" id="cpTables">
+    <div class="cp-section-h">
+      <h2>Confronto entre tabelas</h2>
+      <span id="cpTablesMeta"></span>
+    </div>
+    <div class="cp-grid" id="cpGrid"></div>
+    <div class="cp-hint" id="cpHint" style="display:none"></div>
+  </section>
+</div>
+<div id="toast-container"></div>
+
+<script src="/assets/cadastros-permissao.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  const api = (url, opts) => {
+    if (window.SysRepApi?.fetch) return SysRepApi.fetch(url, opts);
+    const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+    return fetch(url, {
+      credentials: 'include',
+      ...opts,
+      headers: {
+        Authorization: 'Bearer ' + token,
+        ...(opts?.body ? { 'Content-Type': 'application/json' } : {}),
+        ...(opts?.headers || {}),
+      },
+    }).then(async (r) => {
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || d.erro || ('Erro ' + r.status));
+      return d;
+    });
+  };
+
+  const elQ = document.getElementById('cpQ');
+  const elSuggest = document.getElementById('cpSuggest');
+  const elHero = document.getElementById('cpHero');
+  const elTables = document.getElementById('cpTables');
+  const elGrid = document.getElementById('cpGrid');
+  const elHint = document.getElementById('cpHint');
+  const elIdle = document.getElementById('cpIdle');
+  const elMeta = document.getElementById('cpTablesMeta');
+
+  let _timer = null;
+  let _sugestoes = [];
+  let _sugIdx = -1;
+  let _busy = false;
+  let _buscaAbort = null;
+  const _isMobile = window.matchMedia('(max-width: 900px)').matches
+    || document.documentElement.classList.contains('sysrep-ms-embed')
+    || document.documentElement.classList.contains('ms-embedded-tech');
+  const _debounceMs = _isMobile ? 180 : 260;
+  const _limitBusca = _isMobile ? 8 : 12;
+
+  function fmt(v) {
+    const n = parseFloat(v);
+    if (!Number.isFinite(n)) return '—';
+    return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+  function esc(s) {
+    return String(s ?? '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+  function toast(msg, tipo) {
+    const box = document.getElementById('toast-container');
+    const t = document.createElement('div');
+    t.className = 'toast' + (tipo === 'err' ? ' err' : '');
+    t.textContent = msg;
+    box.appendChild(t);
+    setTimeout(() => t.remove(), 3200);
+  }
+
+  function fecharSuggest() {
+    elSuggest.classList.remove('open');
+    elSuggest.innerHTML = '';
+    _sugestoes = [];
+    _sugIdx = -1;
+  }
+
+  async function buscarSugestoes(q) {
+    const term = String(q || '').trim();
+    if (term.length < 2) { fecharSuggest(); return; }
+    if (_buscaAbort) { try { _buscaAbort.abort(); } catch (_) {} }
+    _buscaAbort = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    try {
+      const d = await api(
+        '/api/tabela-precos/produtos/busca?q=' + encodeURIComponent(term)
+          + '&page=1&limit=' + _limitBusca,
+        _buscaAbort ? { signal: _buscaAbort.signal } : undefined
+      );
+      _sugestoes = d.data || [];
+      if (!_sugestoes.length) {
+        elSuggest.innerHTML = '<div class="cp-empty-sug">Nenhum produto encontrado</div>';
+        elSuggest.classList.add('open');
+        return;
+      }
+      const lean = _isMobile;
+      elSuggest.innerHTML = _sugestoes.map((p, i) => {
+        const foto = lean
+          ? ''
+          : (p.foto_principal
+            ? `<img class="cp-sug-foto" src="${esc(p.foto_principal)}" alt="" loading="lazy" decoding="async" onerror="this.outerHTML='<div class=\\'cp-sug-foto-ph\\'>📦</div>'">`
+            : `<div class="cp-sug-foto-ph">📦</div>`);
+        const meta = [p.cod_fabricante, p.unidade, p.nome_fornecedor].filter(Boolean).join(' · ');
+        return `<div class="cp-sug-item" role="option" data-idx="${i}">
+          ${foto}
+          <div>
+            <div class="cp-sug-name">${esc(p.descricao || '')}</div>
+            <div class="cp-sug-meta">#${p.id}${meta ? ' · ' + esc(meta) : ''}</div>
+          </div>
+          <div class="cp-sug-price">${fmt(p.vlr_venda)}</div>
+        </div>`;
+      }).join('');
+      elSuggest.classList.add('open');
+      _sugIdx = -1;
+    } catch (e) {
+      if (e?.name === 'AbortError') return;
+      toast(e.message || 'Erro na busca', 'err');
+    }
+  }
+
+  async function abrirProduto(id) {
+    if (!id || _busy) return;
+    _busy = true;
+    document.getElementById('cpBtnBuscar').disabled = true;
+    fecharSuggest();
+    try {
+      const d = await api('/api/tabela-precos/consulta-rapida/' + id);
+      renderResultado(d);
+    } catch (e) {
+      toast(e.message || 'Erro ao consultar', 'err');
+    } finally {
+      _busy = false;
+      document.getElementById('cpBtnBuscar').disabled = false;
+    }
+  }
+
+  function fotoUrl(f) {
+    const s = String(f || '').trim();
+    if (!s) return '';
+    if (/^https?:\/\//i.test(s) || s.startsWith('/')) return s;
+    return '/' + s.replace(/^\/+/, '');
+  }
+
+  function renderResultado(d) {
+    const p = d.produto || {};
+    const c = d.confronto || {};
+    elIdle.style.display = 'none';
+
+    const srcFoto = fotoUrl(p.foto_principal);
+    const foto = srcFoto
+      ? `<img class="cp-hero-foto" src="${esc(srcFoto)}" alt="" loading="eager" decoding="async" onerror="this.outerHTML='<div class=\\'cp-hero-foto-ph\\'>📦</div>'">`
+      : `<div class="cp-hero-foto-ph">📦</div>`;
+
+    const menor = c.menor;
+    const maior = c.maior;
+    elHero.innerHTML = `
+      ${foto}
+      <div>
+        <div class="cp-hero-code">#${p.id}${p.cod_fabricante ? ' · Fab. ' + esc(p.cod_fabricante) : ''}${p.unidade ? ' · ' + esc(p.unidade) : ''}</div>
+        <h2 class="cp-hero-name">${esc(p.descricao || '')}</h2>
+        ${p.nome_fornecedor ? `<div class="cp-hero-forn">${esc(p.nome_fornecedor)}</div>` : ''}
+      </div>
+      <div class="cp-hero-prices">
+        <div class="cp-pill">
+          <strong>Preço cadastro</strong>
+          <b>${fmt(d.preco_cadastro)}</b>
+        </div>
+        ${menor ? `<div class="cp-pill best"><strong>Melhor p/ cliente</strong><b>${fmt(menor.valor)}</b></div>` : ''}
+        ${maior && (!menor || maior.id_tabela !== menor.id_tabela)
+          ? `<div class="cp-pill warn"><strong>Maior preço</strong><b>${fmt(maior.valor)}</b></div>` : ''}
+      </div>`;
+    elHero.classList.add('show');
+
+    // Só mostra confronto quando existe pelo menos uma tabela COM preço
+    const rows = (Array.isArray(d.tabelas) ? d.tabelas : [])
+      .filter((t) => t.tem_preco && t.valor > 0)
+      .sort((a, b) => a.valor - b.valor);
+
+    if (!rows.length) {
+      elTables.classList.remove('show');
+      elGrid.innerHTML = '';
+      elHint.style.display = 'none';
+      elMeta.textContent = '';
+      elHero.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      return;
+    }
+
+    elMeta.textContent = `${rows.length} tabela(s) com preço`;
+
+    elGrid.innerHTML = rows.map((t) => {
+      const isBest = menor && t.id_tabela === menor.id_tabela;
+      const isHigh = maior && t.id_tabela === maior.id_tabela && (!menor || maior.id_tabela !== menor.id_tabela);
+      let badge = '';
+      if (isBest) badge = '<span class="cp-badge">Melhor</span>';
+      else if (isHigh) badge = '<span class="cp-badge alt">Maior</span>';
+      else if (t.liberada) badge = '<span class="cp-badge lib">Liberada</span>';
+
+      let diffHtml = '';
+      if (t.diff_vs_cadastro != null) {
+        const cls = t.diff_vs_cadastro < -0.005 ? 'down' : (t.diff_vs_cadastro > 0.005 ? 'up' : '');
+        const sinal = t.diff_vs_cadastro > 0 ? '+' : '';
+        const pct = t.diff_pct != null ? ` (${sinal}${t.diff_pct.toLocaleString('pt-BR')}%)` : '';
+        diffHtml = `<div class="cp-card-diff ${cls}">vs cadastro: ${sinal}${fmt(t.diff_vs_cadastro)}${pct}</div>`;
+      }
+
+      return `<article class="cp-card ${isBest ? 'best' : ''}">
+        ${badge}
+        <div class="cp-card-name">${esc(t.descricao)}</div>
+        <div class="cp-card-val">${fmt(t.valor)}</div>${diffHtml}
+      </article>`;
+    }).join('');
+
+    if (menor && maior && c.economia_max > 0.009) {
+      elHint.style.display = '';
+      elHint.innerHTML = `<strong>Confronto:</strong> a tabela «${esc(menor.descricao)}» está
+        <strong>${fmt(c.economia_max)}</strong> mais barata que «${esc(maior.descricao)}».
+        ${c.origem_liberadas ? ` Contexto de liberação: <strong>${esc(c.origem_liberadas)}</strong>.` : ''}`;
+    } else if (menor) {
+      elHint.style.display = '';
+      elHint.innerHTML = `<strong>Dica:</strong> use «${esc(menor.descricao)}» — menor preço encontrado nas tabelas.`;
+    } else {
+      elHint.style.display = 'none';
+    }
+
+    elTables.classList.add('show');
+    elHero.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function limpar() {
+    elQ.value = '';
+    fecharSuggest();
+    elHero.classList.remove('show');
+    elHero.innerHTML = '';
+    elTables.classList.remove('show');
+    elGrid.innerHTML = '';
+    elHint.style.display = 'none';
+    elIdle.style.display = '';
+    elQ.focus();
+  }
+
+  elQ.addEventListener('input', () => {
+    clearTimeout(_timer);
+    _timer = setTimeout(() => buscarSugestoes(elQ.value), _debounceMs);
+  });
+  elQ.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { fecharSuggest(); return; }
+    if (e.key === 'ArrowDown' && _sugestoes.length) {
+      e.preventDefault();
+      _sugIdx = Math.min(_sugIdx + 1, _sugestoes.length - 1);
+      highlightSug();
+      return;
+    }
+    if (e.key === 'ArrowUp' && _sugestoes.length) {
+      e.preventDefault();
+      _sugIdx = Math.max(_sugIdx - 1, 0);
+      highlightSug();
+      return;
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (_sugIdx >= 0 && _sugestoes[_sugIdx]) {
+        abrirProduto(_sugestoes[_sugIdx].id);
+      } else if (_sugestoes.length === 1) {
+        abrirProduto(_sugestoes[0].id);
+      } else {
+        buscarSugestoes(elQ.value).then(() => {
+          if (_sugestoes.length === 1) abrirProduto(_sugestoes[0].id);
+        });
+      }
+    }
+  });
+
+  function highlightSug() {
+    [...elSuggest.querySelectorAll('.cp-sug-item')].forEach((n, i) => {
+      n.classList.toggle('active', i === _sugIdx);
+      if (i === _sugIdx) n.scrollIntoView({ block: 'nearest' });
+    });
+  }
+
+  function escolherSug(e) {
+    const item = e.target.closest('.cp-sug-item');
+    if (!item) return;
+    e.preventDefault();
+    const idx = parseInt(item.dataset.idx, 10);
+    if (_sugestoes[idx]) abrirProduto(_sugestoes[idx].id);
+  }
+  elSuggest.addEventListener('click', escolherSug);
+  elSuggest.addEventListener('mousedown', (e) => {
+    if (e.target.closest('.cp-sug-item')) e.preventDefault();
+  });
+
+  document.getElementById('cpBtnBuscar').addEventListener('click', () => buscarSugestoes(elQ.value));
+  document.getElementById('cpBtnLimpar').addEventListener('click', limpar);
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#cpSearchBox')) fecharSuggest();
+  });
+})();
+</script>
+</body>
+</html>

@@ -125,7 +125,39 @@
   <link rel="stylesheet" href="/assets/card-view.css">
 
   <script>
-    let tabela;
+    /** JWT Bearer p/ jQuery/DataTables + fetch /api/ */
+(function(){
+  function _tok() {
+    return localStorage.getItem('token')
+      || sessionStorage.getItem('token')
+      || sessionStorage.getItem('sysrep_token')
+      || '';
+  }
+  window._authHeaders = function(extra) {
+    const h = Object.assign({}, extra || {});
+    const t = _tok();
+    if (t) h.Authorization = 'Bearer ' + t;
+    return h;
+  };
+  window._api = function(url, opts) {
+    opts = opts || {};
+    const headers = window._authHeaders(opts.headers || {});
+    return fetch(url, Object.assign({}, opts, { credentials: 'include', headers }));
+  };
+  if (window.jQuery) {
+    jQuery.ajaxSetup({
+      beforeSend: function(xhr, settings) {
+        const u = String(settings.url || '');
+        if (u.indexOf('/api/') === 0 || u.indexOf('/api/') !== -1 && u.charAt(0) === '/') {
+          const t = _tok();
+          if (t) xhr.setRequestHeader('Authorization', 'Bearer ' + t);
+        }
+      },
+      xhrFields: { withCredentials: true }
+    });
+  }
+})();
+let tabela;
     let permissoes = {};
 
     $(document).ready(async function() {
@@ -144,7 +176,7 @@
 
     async function carregarPermissoes() {
       try {
-        const res = await fetch('/api/check-permissions?modulo=locais_armazenamento');
+        const res = await _api('/api/check-permissions?modulo=locais_armazenamento');
         permissoes = await res.json();
         if (permissoes.incluir === 'S') $('#btnNovo').show();
       } catch (err) { console.error('Erro ao carregar permissões', err); }
@@ -191,7 +223,7 @@
         const method = id ? 'PUT' : 'POST';
         const url = id ? `/api/locais-armazenamento/${id}` : '/api/locais-armazenamento';
         
-        const res = await fetch(url, {
+        const res = await _api(url, {
           method,
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(dados)
@@ -229,7 +261,7 @@
         cancelButtonText: 'Cancelar'
       }).then(async (result) => {
         if (result.isConfirmed) {
-          const res = await fetch(`/api/locais-armazenamento/${id}`, { method: 'DELETE' });
+          const res = await _api(`/api/locais-armazenamento/${id}`, { method: 'DELETE' });
           if (res.ok) {
             tabela.ajax.reload();
             Swal.fire('Excluído!', 'O registro foi removido.', 'success');

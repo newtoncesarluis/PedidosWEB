@@ -478,7 +478,7 @@ html.sysrep-ms-embed .receber-table-wrap { max-height: none; }
 }
 </style>
 </head>
-<body data-page-version="contas-receber-20260531">
+<body data-page-version="contas-receber-20260724c">
 
 <div class="toolbar">
     <div class="toolbar-title">Contas a Receber</div>
@@ -584,10 +584,10 @@ html.sysrep-ms-embed .receber-table-wrap { max-height: none; }
                 <div class="filter-group">
                     <label for="filter_status">Status</label>
                     <select class="form-control" id="filter_status" autocomplete="off">
-                        <option value="T">Todos</option>
-                        <option value="ABERTA">Aberta</option>
-                        <option value="LIQUIDADO">Recebido</option>
+                        <option value="ABERTA" selected>Aberta</option>
                         <option value="EM ATRASO">Em atraso</option>
+                        <option value="LIQUIDADO">Recebido</option>
+                        <option value="T">Todos</option>
                     </select>
                 </div>
                 <div class="filter-group">
@@ -770,8 +770,18 @@ html.sysrep-ms-embed .receber-table-wrap { max-height: none; }
                     <option value="PIX">PIX</option><option value="DINHEIRO">Dinheiro</option>
                     <option value="BOLETO">Boleto</option><option value="TRANSFERENCIA">Transferência</option>
                     <option value="CARTAO">Cartão</option>
+                    <option value="CHEQUE">Cheque</option>
                 </select>
             </div>
+        </div>
+        <div id="wrap_cheque_receber" style="display:none;margin-top:10px;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--card)">
+          <div style="font-size:11px;font-weight:800;color:var(--text2);margin-bottom:8px">Dados do cheque (entra na carteira)</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div class="form-group"><label>Nº cheque</label><input id="liq_ch_numero" class="form-control" autocomplete="off"></div>
+            <div class="form-group"><label>Bom para</label><input type="date" id="liq_ch_bom" class="form-control"></div>
+            <div class="form-group"><label>Banco</label><input id="liq_ch_banco" class="form-control" autocomplete="off"></div>
+            <div class="form-group"><label>Emitente</label><input id="liq_ch_emitente" class="form-control" autocomplete="off"></div>
+          </div>
         </div>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
             <div class="form-group"><label>Juros (%)</label><input type="number" step="0.01" id="liq_juros" class="form-control" oninput="calcReceber()"></div>
@@ -784,6 +794,44 @@ html.sysrep-ms-embed .receber-table-wrap { max-height: none; }
         <div style="display:flex; gap:12px" id="liq_actions">
             <button class="btn btn-outline" style="flex:1" onclick="fecharModalReceber()">Cancelar</button>
             <button class="btn btn-success" style="flex:1" onclick="salvarRecebimento()">Confirmar</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL RECEBIMENTO EM LOTE -->
+<div id="modal_lote" style="display:none; position:fixed; inset:0; background:rgba(15, 17, 26, 0.85); z-index:3000; align-items:center; justify-content:center; backdrop-filter:blur(15px)">
+    <div class="glass-panel" style="width:100%; max-width:460px; padding:20px; display:flex; flex-direction:column; gap:16px; position:relative;">
+        <button type="button" onclick="fecharModalLote()" style="position:absolute; top:15px; right:15px; background:none; border:none; color:var(--text2); cursor:pointer">✕</button>
+        <h2 style="font-size:18px; font-weight:800; color:#fff; margin:0">Receber em Lote</h2>
+        <p id="lote_msg" style="color:var(--text2); font-size:13px; margin:0">Títulos selecionados</p>
+
+        <div style="background:rgba(255,255,255,0.03); padding:8px 12px; border-radius:10px; border:1px solid var(--card-border); text-align:center">
+            <div style="font-size:10px; color:var(--text2); text-transform:uppercase; font-weight:800">Total dos títulos</div>
+            <div id="lote_valor_total" style="font-size:20px; font-weight:800; color:var(--text)">R$ 0,00</div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
+            <div class="form-group"><label>Data</label><input type="date" id="lote_data" class="form-control"></div>
+            <div class="form-group">
+                <label>Forma</label>
+                <select id="lote_forma" class="form-control">
+                    <option value="PIX">PIX</option>
+                    <option value="DINHEIRO">Dinheiro</option>
+                    <option value="BOLETO">Boleto</option>
+                    <option value="TRANSFERENCIA">Transferência</option>
+                    <option value="CARTAO">Cartão</option>
+                </select>
+            </div>
+        </div>
+
+        <div style="background:rgba(0, 230, 118, 0.05); padding:16px; border-radius:12px; border:1px solid rgba(0, 230, 118, 0.2); display:flex; justify-content:space-between; align-items:center">
+            <div style="font-size:13px; font-weight:700; color:var(--text)">Total a receber</div>
+            <div id="lote_total_receber" style="font-size:18px; font-weight:800; color:var(--success)">R$ 0,00</div>
+        </div>
+
+        <div style="display:flex; gap:12px">
+            <button type="button" class="btn btn-outline" style="flex:1" onclick="fecharModalLote()">Cancelar</button>
+            <button type="button" class="btn btn-success" style="flex:1" onclick="confirmarLote()">Confirmar</button>
         </div>
     </div>
 </div>
@@ -816,7 +864,7 @@ function shouldUseMobileCards() {
 }
 
 function limparFiltros() {
-    document.getElementById('filter_status').value = 'T';
+    document.getElementById('filter_status').value = 'ABERTA';
     document.getElementById('search_forn').value = '';
     document.getElementById('filter_natureza').value = '';
     const fPc = document.getElementById('filter_planoconta');
@@ -907,7 +955,7 @@ async function fetchData() {
             return;
         }
 
-        let url = `/api/receber?page=${currentPage}&limit=50&status=${status}&fornecedor=${encodeURIComponent(search)}&id_receitas=${nat}&dt_inicio=${dIni}&dt_fim=${dFim}${qsFiltroContabil()}`;
+        let url = `/api/receber?page=${currentPage}&limit=50&status=${encodeURIComponent(status)}&fornecedor=${encodeURIComponent(search)}&id_receitas=${encodeURIComponent(nat || '')}&dt_inicio=${encodeURIComponent(dIni || '')}&dt_fim=${encodeURIComponent(dFim || '')}${qsFiltroContabil()}`;
         const r = await fetch(url, { headers: authHeaders(), cache: 'no-store' });
         if (!r.ok) {
             const errBody = await r.json().catch(() => ({}));
@@ -1215,14 +1263,27 @@ function calcReceber() {
 
 async function salvarRecebimento() {
     const id = document.getElementById('liq_id').value;
+    const forma = document.getElementById('liq_forma').value;
     const body = {
         baixar: true,
         data_pagto: document.getElementById('liq_data_pagto').value,
-        forma_pagto: document.getElementById('liq_forma').value,
+        forma_pagto: forma,
         valor_pago: document.getElementById('liq_vlrpago').value,
         juros: document.getElementById('liq_juros').value || 0,
         vlracressimo: document.getElementById('liq_acrescimo').value || 0
     };
+    if (forma === 'CHEQUE') {
+      const num = (document.getElementById('liq_ch_numero')?.value || '').trim();
+      if (num) {
+        body.cheque = {
+          numero: num,
+          bom_para: document.getElementById('liq_ch_bom')?.value || body.data_pagto,
+          banco_nome: document.getElementById('liq_ch_banco')?.value || '',
+          emitente: document.getElementById('liq_ch_emitente')?.value || '',
+          valor: body.valor_pago,
+        };
+      }
+    }
     await fetch(`/api/receber/${id}`, {
         method: 'PUT', headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(body)
@@ -1230,6 +1291,69 @@ async function salvarRecebimento() {
     fecharModalReceber();
     fetchData();
 }
+
+function hojeIsoLocal() {
+    return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+}
+
+function fecharModalLote() {
+    document.getElementById('modal_lote').style.display = 'none';
+}
+
+function abrirBaixaLote() {
+    const checks = Array.from(document.querySelectorAll('.row-check:checked'));
+    if (!checks.length) {
+        alert('Selecione pelo menos um título em aberto.');
+        return;
+    }
+    const ids = checks.map(c => String(c.value));
+    const selecionados = (_globalContas || []).filter(c => ids.includes(String(c.id)));
+    const total = selecionados.reduce((s, c) => s + (parseFloat(c.valor) || 0), 0);
+    const qtd = checks.length;
+    const rotulo = qtd === 1 ? '1 título selecionado' : `${qtd} títulos selecionados`;
+
+    document.getElementById('lote_msg').textContent = rotulo;
+    document.getElementById('lote_valor_total').textContent = fmtCur(total);
+    document.getElementById('lote_total_receber').textContent = fmtCur(total);
+    document.getElementById('lote_data').value = hojeIsoLocal();
+    document.getElementById('lote_forma').value = 'PIX';
+    document.getElementById('modal_lote').style.display = 'flex';
+}
+
+async function confirmarLote() {
+    const ids = Array.from(document.querySelectorAll('.row-check:checked')).map(c => c.value);
+    if (!ids.length) {
+        alert('Selecione pelo menos um título em aberto.');
+        return;
+    }
+    try {
+        const r = await fetch('/api/receber/lote/baixar', {
+            method: 'POST',
+            headers: authHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({
+                ids,
+                data_pagto: document.getElementById('lote_data').value,
+                forma_pagto: document.getElementById('lote_forma').value
+            })
+        });
+        if (!r.ok) {
+            const err = await r.json().catch(() => ({}));
+            throw new Error(err.error || 'Falha ao receber em lote.');
+        }
+        fecharModalLote();
+        unselectAll();
+        fetchData();
+        fetchStats();
+    } catch (e) {
+        console.error('confirmarLote', e);
+        alert(e.message || 'Erro ao receber em lote.');
+    }
+}
+
+document.getElementById('liq_forma')?.addEventListener('change', function () {
+  const wrap = document.getElementById('wrap_cheque_receber');
+  if (wrap) wrap.style.display = this.value === 'CHEQUE' ? '' : 'none';
+});
 
 async function switchTab(tabId, btn) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -1551,6 +1675,8 @@ window.addEventListener('message', (ev) => {
 document.addEventListener('DOMContentLoaded', () => {
     loadLookups().then(() => buscarReceber());
     fetchStats();
+    const st = document.getElementById('filter_status');
+    if (st) st.addEventListener('change', () => buscarReceber());
 });
 </script>
 </body>

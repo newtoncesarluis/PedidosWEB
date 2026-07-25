@@ -244,10 +244,25 @@ input:focus,select:focus,textarea:focus { border-color:var(--accent);box-shadow:
 <div id="dropMenu" class="dropdown-menu"></div>
 
 <script>
+/** JWT Bearer — evita 401 «Sessão expirada». Só /api/ interno. */
+function _authHeaders(extra) {
+  const token = localStorage.getItem('token')
+    || sessionStorage.getItem('token')
+    || sessionStorage.getItem('sysrep_token')
+    || '';
+  const h = Object.assign({}, extra || {});
+  if (token) h.Authorization = 'Bearer ' + token;
+  return h;
+}
+function _api(url, opts) {
+  opts = opts || {};
+  const headers = _authHeaders(opts.headers || {});
+  return fetch(url, Object.assign({}, opts, { credentials: 'include', headers }));
+}
 let S = { filtroStatus: 'T', registroId: null };
 async function buscar() {
   try {
-    const r = await fetch('/api/hoteis');
+    const r = await _api('/api/hoteis');
     const d = await r.json();
     let lista = d.hoteis || [];
     const q = document.getElementById('inputBusca').value.toLowerCase();
@@ -290,7 +305,7 @@ function abrirNovo() {
 }
 async function abrirEditar(id) {
   try {
-    const r = await fetch('/api/hoteis');
+    const r = await _api('/api/hoteis');
     const d = await r.json(); const f = d.hoteis.find(x => x.id === id);
     if (!f) return; S.registroId = id;
     document.getElementById('f_id').value = f.id;
@@ -334,7 +349,7 @@ async function salvar() {
   };
   if (!payload.razao_social) return toast('Preencha a Razão Social','err');
   try {
-    const r = await fetch(S.registroId ? `/api/hoteis/${S.registroId}` : '/api/hoteis', {
+    const r = await _api(S.registroId ? `/api/hoteis/${S.registroId}` : '/api/hoteis', {
       method: S.registroId ? 'PUT' : 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
     });
     if (r.ok) { toast('Salvo!','ok'); voltarLista(); } else toast('Erro ao salvar','err');
@@ -371,7 +386,7 @@ function abrirDrop(e, id) {
 async function excluir(id) {
   if (!confirm('Excluir?')) return;
   try {
-    const r = await fetch(`/api/hoteis/${id}`, { method: 'DELETE' });
+    const r = await _api(`/api/hoteis/${id}`, { method: 'DELETE' });
     if (r.ok) { toast('Excluído!','ok'); buscar(); }
   } catch(e) { toast('Erro ao excluir','err'); }
 }

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Previsão de Caixa | SysRepWeb</title>
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<script src="/assets/sysrep-api.js"></script>
+<style>
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);margin:0}
+.bar{padding:10px 16px;background:var(--card);border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn{padding:7px 14px;border-radius:7px;border:none;font-weight:700;font-size:12px;cursor:pointer;background:var(--accent);color:#fff;font-family:inherit}
+.content{padding:14px 16px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+@media(max-width:900px){.kpis{grid-template-columns:1fr 1fr}}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px}
+.kpi label{font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase}
+.kpi .v{font-size:20px;font-weight:800;margin-top:4px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:12px}
+.card h3{margin:0;padding:12px 14px;font-size:13px;border-bottom:1px solid var(--border)}
+table{width:100%;border-collapse:collapse}th{font-size:10px;text-transform:uppercase;padding:7px 12px;text-align:left;color:var(--text2);border-bottom:1px solid var(--border)}
+td{padding:7px 12px;font-size:12px;border-bottom:1px solid var(--border)}
+select{padding:6px 10px;border-radius:7px;border:1.5px solid var(--border);background:var(--card);color:var(--text)}
+.neg{color:#dc2626}.pos{color:#16a34a}
+</style>
+</head>
+<body>
+<div class="bar">
+  <strong style="margin-right:auto">Previsão de Caixa</strong>
+  <label style="font-size:12px;color:var(--text2)">Período</label>
+  <select id="dias" onchange="carregar()">
+    <option value="15">15 dias</option>
+    <option value="30" selected>30 dias</option>
+    <option value="60">60 dias</option>
+    <option value="90">90 dias</option>
+  </select>
+  <button class="btn" onclick="carregar()">Atualizar</button>
+</div>
+<div class="content">
+  <div class="kpis">
+    <div class="kpi"><label>Saldo bancário atual</label><div class="v" id="kSaldo">—</div></div>
+    <div class="kpi"><label>Previsão recebimentos</label><div class="v pos" id="kRec">—</div></div>
+    <div class="kpi"><label>Despesas / compromissos</label><div class="v neg" id="kDesp">—</div></div>
+    <div class="kpi"><label>Saldo projetado</label><div class="v" id="kProj">—</div></div>
+  </div>
+  <div class="card">
+    <h3>Despesas por Plano de Contas / Centro de Custo</h3>
+    <table><thead><tr><th>Venc.</th><th>Plano de Contas</th><th>Centro de Custo</th><th>Fornecedor</th><th>Valor</th></tr></thead>
+    <tbody id="tbDesp"></tbody></table>
+  </div>
+  <div class="card">
+    <h3>Previsão de Recebimentos (+ cheques em carteira)</h3>
+    <table><thead><tr><th>Venc.</th><th>Cliente / Origem</th><th>Doc</th><th>Valor</th></tr></thead>
+    <tbody id="tbRec"></tbody></table>
+  </div>
+  <div class="card">
+    <h3>Saldo projetado dia a dia</h3>
+    <table><thead><tr><th>Data</th><th>Entradas</th><th>Saídas</th><th>Saldo projetado</th></tr></thead>
+    <tbody id="tbSerie"></tbody></table>
+  </div>
+</div>
+<script>
+const api=(u)=>SysRepApi.fetch(u);
+const money=v=>(parseFloat(v)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+async function carregar(){
+  const dias=document.getElementById('dias').value;
+  try{
+    const d=await api('/api/financeiro/previsao?dias='+dias);
+    document.getElementById('kSaldo').textContent=money(d.saldo_bancario);
+    document.getElementById('kRec').textContent=money(d.total_recebimentos);
+    document.getElementById('kDesp').textContent=money(d.total_despesas);
+    const el=document.getElementById('kProj');
+    el.textContent=money(d.saldo_projetado);
+    el.className='v '+(d.saldo_projetado<0?'neg':'pos');
+
+    const desp=[...(d.despesas||[]),...(d.faturas_cartao||[]).map(f=>({
+      vencimento:f.vencimento, plano_contas:'Cartão de Crédito', centro_custo:'—',
+      nome_fornecedor:f.nome_fornecedor, valor:f.valor
+    }))];
+    document.getElementById('tbDesp').innerHTML=desp.length?desp.map(r=>`<tr>
+      <td>${String(r.vencimento||'').slice(0,10)}</td><td>${r.plano_contas||'—'}</td>
+      <td>${r.centro_custo||'—'}</td><td>${r.nome_fornecedor||'—'}</td>
+      <td class="neg">${money(r.valor)}</td></tr>`).join('')
+      :'<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text2)">Sem despesas no período</td></tr>';
+
+    const rec=[...(d.recebimentos||[]).map(r=>({...r,origem:r.nome_cliente})),
+      ...(d.cheques_carteira||[]).map(c=>({vencimento:c.vencimento,nome_cliente:'Cheque '+c.doc+(c.nome_cliente?' · '+c.nome_cliente:''),doc:c.doc,valor:c.valor}))];
+    document.getElementById('tbRec').innerHTML=rec.length?rec.map(r=>`<tr>
+      <td>${String(r.vencimento||'').slice(0,10)}</td><td>${r.nome_cliente||r.origem||'—'}</td>
+      <td>${r.doc||'—'}</td><td class="pos">${money(r.valor)}</td></tr>`).join('')
+      :'<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text2)">Sem recebimentos no período</td></tr>';
+
+    document.getElementById('tbSerie').innerHTML=(d.serie||[]).length?(d.serie||[]).map(r=>`<tr>
+      <td>${r.data}</td><td class="pos">${money(r.entradas)}</td><td class="neg">${money(r.saidas)}</td>
+      <td class="${r.saldo_projetado<0?'neg':'pos'}">${money(r.saldo_projetado)}</td></tr>`).join('')
+      :'<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text2)">Sem movimentos projetados</td></tr>';
+  }catch(e){alert(e.message)}
+}
+carregar();
+</script>
+</body>
+</html>

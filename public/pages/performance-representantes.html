@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="/assets/themes.css">
 <script src="/assets/themes.js"></script>
+<script src="/assets/sysrep-api.js"></script>
 <script src="/assets/comissao-preposto-ui.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -477,10 +478,28 @@ function renderCharts(reps) {
   });
 }
 
+// ── Auth (JWT Bearer + cookie) ────────────────────────────────────
+function _authHeaders(extra) {
+  const token = (window.SysRepApi && typeof SysRepApi.authToken === 'function' && SysRepApi.authToken())
+    || localStorage.getItem('token')
+    || sessionStorage.getItem('token')
+    || sessionStorage.getItem('sysrep_token')
+    || '';
+  const h = Object.assign({}, extra || {});
+  if (token) h.Authorization = 'Bearer ' + token;
+  return h;
+}
+function api(path, opts) {
+  return fetch(path, Object.assign({}, opts || {}, {
+    credentials: 'include',
+    headers: _authHeaders((opts && opts.headers) || {}),
+  }));
+}
+
 // ── Carregar vendedores no select ─────────────────────────────────
 async function carregarVendedores() {
   try {
-    const r = await fetch('/api/vendedores');
+    const r = await api('/api/vendedores');
     const d = await r.json();
     const sel = document.getElementById('selVendedor');
     const list = (d.vendedores || []).map(v => ({
@@ -526,10 +545,14 @@ async function analisar() {
     <div class="empty" style="padding:24px">Gerando insights...</div>`;
 
   try {
-    const [dataRanking, dataInsights] = await Promise.all([
-      fetch('/api/performance' + qs).then(r => r.json()),
-      fetch('/api/performance/insights' + qs).then(r => r.json())
+    const [rRanking, rInsights] = await Promise.all([
+      api('/api/performance' + qs),
+      api('/api/performance/insights' + qs)
     ]);
+    const dataRanking = await rRanking.json();
+    const dataInsights = await rInsights.json();
+    if (!rRanking.ok) throw new Error(dataRanking.error || 'Erro ao carregar ranking');
+    if (!rInsights.ok) throw new Error(dataInsights.error || 'Erro ao carregar insights');
 
     renderSummary(dataRanking.representantes);
     renderRanking(dataRanking.representantes);
@@ -678,7 +701,7 @@ async function verMapa() {
   }
 
   try {
-    const data = await fetch('/api/performance/mapa' + qs).then(r => r.json());
+    const data = await api('/api/performance/mapa' + qs).then(r => r.json());
     const cores = { verde: '#059669', amarelo: '#f59e0b', vermelho: '#dc2626' };
 
     (data.cidades || []).forEach(c => {

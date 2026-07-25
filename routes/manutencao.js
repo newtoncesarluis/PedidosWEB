@@ -305,16 +305,18 @@ router.get('/reattr/lookup/regioes', checkPerm, async (_req, res) => {
 router.get('/reattr/lookup/segmentos', checkPerm, async (_req, res) => {
   try {
     const pool = getPool();
-    // Tenta tabela categoria primeiro, depois segmentos
+    const { ensureSegmentosTable, migrateSegmentosClienteFromCategoria } = require('../config/segmentos-migrate');
+    await ensureSegmentosTable(pool);
+    await migrateSegmentosClienteFromCategoria(pool).catch(() => {});
     let rows = [];
     try {
       [rows] = await pool.query(
-        `SELECT id, descricao FROM categoria WHERE COALESCE(excluido,'N')='N' ORDER BY descricao LIMIT 300`
+        `SELECT id, descricao FROM segmentos WHERE COALESCE(excluido,'N')='N' ORDER BY descricao LIMIT 300`
       );
     } catch (_) {
       try {
         [rows] = await pool.query(
-          `SELECT id, descricao FROM segmentos WHERE COALESCE(excluido,'N')='N' ORDER BY descricao LIMIT 300`
+          `SELECT id, descricao FROM categoria WHERE COALESCE(excluido,'N')='N' ORDER BY descricao LIMIT 300`
         );
       } catch (_2) {}
     }

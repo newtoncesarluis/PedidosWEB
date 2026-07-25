@@ -17,8 +17,32 @@ const { hojeIsoBrasil, horaBrasil, addDaysIsoBrasil } = require('../config/date-
 const { emitNovoPedido } = require('../config/pedido-events');
 const { acquireNumeroPedidoLock, releaseNumeroPedidoLock } = require('../config/pedido-numero-lock');
 const { ensureVitrineColumns } = require('../config/schema-migrations');
+const { calcBaseItemTotal, embalagemInicialProduto, isPrecoPorPeso } = require('../config/preco-peso-produto');
 
 const _fmtBRL = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+/** Total da linha na vitrine — mesma fórmula do pedido (precopeso / soma embalagem). */
+function _vitrineLineTotal(item, somaEmb) {
+  const q = parseFloat(item.quantidade) || 0;
+  const preco = parseFloat(item.preco) || 0;
+  const precopeso = item.precopeso || 'N';
+  let embalagem = parseFloat(item.embalagem);
+  if (!Number.isFinite(embalagem) || embalagem <= 0) {
+    embalagem = isPrecoPorPeso(precopeso)
+      ? embalagemInicialProduto(item)
+      : (String(somaEmb || 'N').toUpperCase() === 'S'
+          ? (parseFloat(item.kilo_embalagem) || 1)
+          : 1);
+  }
+  return calcBaseItemTotal({
+    quantidade: q,
+    valorUnitario: preco,
+    embalagem,
+    kilo_embalagem: item.kilo_embalagem,
+    precopeso,
+    somaEmbalagempedido: somaEmb || 'N',
+  });
+}
 
 /** IDs de tabela escolhidos pelo representante para ESTE link (vazio = todas as liberadas) */
 function _selIdsFromToken(tk) {
@@ -357,15 +381,40 @@ router.get('/:token', async (req, res) => {
       const hasForn = await detectProdFornCol(pool, prodTb);
       const fornSel  = hasForn ? `, p.cod_fornecedorpadrao AS cod_fornecedor, COALESCE(f.nome,'') AS nome_fornecedor` : `, NULL AS cod_fornecedor, '' AS nome_fornecedor`;
       const fornJoin = hasForn ? `LEFT JOIN fornecedores f ON f.id = p.cod_fornecedorpadrao` : '';
-      const [produtos] = await pool.query(`
-        SELECT p.ID AS id, p.descricao, p.apelido, p.cod_barras,
-               p.cod_fabricante, p.unidade, p.foto_principal, p.nome_grupo,
-               COALESCE(p.multiplo_venda, 1) AS multiplo_venda
-               ${fornSel}
-        FROM ${prodTb} p ${fornJoin}
-        WHERE p.excluido = 'N' AND p.situacao = 'A'
-        ORDER BY p.nome_grupo, p.descricao
-      `);
+      let produtos;
+      try {
+        const [rows] = await pool.query(`
+          SELECT p.ID AS id, p.descricao, p.apelido, p.cod_barras,
+                 p.cod_fabricante, p.unidade, p.foto_principal, p.nome_grupo,
+                 COALESCE(p.multiplo_venda, 1) AS multiplo_venda,
+                 COALESCE(p.precopeso, 'N') AS precopeso,
+                 COALESCE(p.kilo_embalagem, 0) AS kilo_embalagem
+                 ${fornSel}
+          FROM ${prodTb} p ${fornJoin}
+          WHERE p.excluido = 'N' AND p.situacao = 'A'
+          ORDER BY p.nome_grupo, p.descricao
+        `);
+        produtos = rows;
+      } catch (e) {
+        // Bases sem precopeso/kilo_embalagem — catálogo continua (sem fórmula de peso)
+        console.warn('[vitrine/get] fallback produtos sem precopeso:', e.message);
+        const [rows] = await pool.query(`
+          SELECT p.ID AS id, p.descricao, p.apelido, p.cod_barras,
+                 p.cod_fabricante, p.unidade, p.foto_principal, p.nome_grupo,
+                 COALESCE(p.multiplo_venda, 1) AS multiplo_venda,
+                 'N' AS precopeso, 0 AS kilo_embalagem
+                 ${fornSel}
+          FROM ${prodTb} p ${fornJoin}
+          WHERE p.excluido = 'N' AND p.situacao = 'A'
+          ORDER BY p.nome_grupo, p.descricao
+        `);
+        produtos = rows;
+      }
+
+      const [[sis]] = await pool.query(
+        `SELECT COALESCE(soma_embalagempedido, 'N') AS soma_embalagempedido
+           FROM sistemas ORDER BY id DESC LIMIT 1`
+      ).catch(() => [[{ soma_embalagempedido: 'N' }]]);
 
       const lista = produtos
         .map(p => ({ ...p, precos: precosPorProduto[String(p.id)] || {} }))
@@ -377,6 +426,7 @@ router.get('/:token', async (req, res) => {
         historico_disponivel: !!tk.id_cliente,
         representante: rep || null,
         tabelas: tabelas.map(t => ({ id_tabela: t.id_tabela, descricao: t.descricao })),
+        soma_embalagempedido: sis?.soma_embalagempedido || 'N',
         produtos: lista,
       });
     });
@@ -482,28 +532,76 @@ router.post('/:token/pedido', async (req, res) => {
       const mapaPrecos = {};
       precosBd.forEach(p => { mapaPrecos[String(p.cod_produto)] = parseFloat(p.preco); });
 
-      // Busca fornecedor de cada produto pelo banco (não confia no frontend)
+      // Busca fornecedor + peso/embalagem de cada produto pelo banco (não confia no frontend)
       const prodTb  = await detectProdTable(pool);
       const hasForn = await detectProdFornCol(pool, prodTb);
-      const mapaForn = {};
-      if (hasForn) {
+      const mapaProd = {};
+      {
         const prodIds = itens.map(i => i.id);
-        const [fornRows] = await pool.query(`
-          SELECT p.ID AS id, p.cod_fornecedorpadrao AS cod_fornecedor, f.nome AS nome_fornecedor
-          FROM ${prodTb} p
-          LEFT JOIN fornecedores f ON f.id = p.cod_fornecedorpadrao
-          WHERE p.ID IN (?)
-        `, [prodIds]).catch(() => [[]]);
-        fornRows.forEach(r => {
-          mapaForn[String(r.id)] = { cod_fornecedor: r.cod_fornecedor || null, nome_fornecedor: r.nome_fornecedor || '' };
+        const fornSel = hasForn
+          ? `, p.cod_fornecedorpadrao AS cod_fornecedor, f.nome AS nome_fornecedor`
+          : `, NULL AS cod_fornecedor, '' AS nome_fornecedor`;
+        const fornJoin = hasForn ? `LEFT JOIN fornecedores f ON f.id = p.cod_fornecedorpadrao` : '';
+        let prodRows = [];
+        try {
+          const [rows] = await pool.query(`
+            SELECT p.ID AS id,
+                   COALESCE(p.precopeso, 'N') AS precopeso,
+                   COALESCE(p.kilo_embalagem, 0) AS kilo_embalagem,
+                   COALESCE(p.multiplo_venda, 1) AS multiplo_venda
+                   ${fornSel}
+            FROM ${prodTb} p ${fornJoin}
+            WHERE p.ID IN (?)
+          `, [prodIds]);
+          prodRows = rows || [];
+        } catch (_) {
+          const [rows] = await pool.query(`
+            SELECT p.ID AS id,
+                   'N' AS precopeso, 0 AS kilo_embalagem,
+                   COALESCE(p.multiplo_venda, 1) AS multiplo_venda
+                   ${fornSel}
+            FROM ${prodTb} p ${fornJoin}
+            WHERE p.ID IN (?)
+          `, [prodIds]).catch(() => [[]]);
+          prodRows = rows || [];
+        }
+        prodRows.forEach(r => {
+          mapaProd[String(r.id)] = {
+            cod_fornecedor: r.cod_fornecedor || null,
+            nome_fornecedor: r.nome_fornecedor || '',
+            precopeso: r.precopeso || 'N',
+            kilo_embalagem: parseFloat(r.kilo_embalagem) || 0,
+            multiplo_venda: parseInt(r.multiplo_venda, 10) || 1,
+          };
         });
       }
+
+      const [[sisEmb]] = await pool.query(
+        `SELECT COALESCE(soma_embalagempedido, 'N') AS soma_embalagempedido
+           FROM sistemas ORDER BY id DESC LIMIT 1`
+      ).catch(() => [[{ soma_embalagempedido: 'N' }]]);
+      const somaEmb = sisEmb?.soma_embalagempedido || 'N';
 
       const itensValidados = itens.map(i => {
         const precoReal = mapaPrecos[String(i.id)];
         if (!precoReal) throw Object.assign(new Error(`Produto ${i.id} sem preço autorizado`), { status: 422 });
-        const forn = mapaForn[String(i.id)] || {};
-        return { ...i, preco: precoReal, cod_fornecedor: forn.cod_fornecedor || null, nome_fornecedor: forn.nome_fornecedor || '' };
+        const meta = mapaProd[String(i.id)] || {};
+        const enriched = {
+          ...i,
+          preco: precoReal,
+          cod_fornecedor: meta.cod_fornecedor || null,
+          nome_fornecedor: meta.nome_fornecedor || '',
+          precopeso: meta.precopeso || 'N',
+          kilo_embalagem: meta.kilo_embalagem || 0,
+          multiplo_venda: meta.multiplo_venda || 1,
+        };
+        enriched.vlrtotal = Math.round(_vitrineLineTotal(enriched, somaEmb) * 100) / 100;
+        enriched.embalagem = isPrecoPorPeso(enriched.precopeso)
+          ? embalagemInicialProduto(enriched)
+          : (String(somaEmb).toUpperCase() === 'S'
+              ? (parseFloat(enriched.kilo_embalagem) || 1)
+              : 1);
+        return enriched;
       });
 
       // Busca tipo_pedido marcado como padrão da vitrine
@@ -521,17 +619,35 @@ router.post('/:token/pedido', async (req, res) => {
         grupos.get(key).itens.push(item);
       }
 
-      // Regras do fornecedor (quando a tabela escolhida pede): mínimo de faturamento
-      // e mínimo da condição de pagamento — bloqueia o pedido antes de gravar
+      // Regras do fornecedor (quando a tabela escolhida pede): mínimo de faturamento,
+      // mínimo da condição e mínimo de caixas — bloqueia o pedido antes de gravar
       if (String(tabela.usar_regras_fornecedor).toUpperCase() === 'S') {
         const fornIds = [...grupos.keys()].filter(k => k !== '__sem_forn__');
-        const minForn = {}, minCond = {};
+        const minForn = {}, minCond = {}, minCxMap = {};
         if (fornIds.length) {
-          const [rowsF] = await pool.query(
-            `SELECT id, COALESCE(vlr_minimofaturamento, 0) AS minimo FROM fornecedores WHERE id IN (?)`,
-            [fornIds]
-          ).catch(() => [[]]);
-          rowsF.forEach(r => { minForn[String(r.id)] = parseFloat(r.minimo) || 0; });
+          // min_cx_pedido pode não existir em bases antigas — não pode derrubar o mínimo de R$
+          let rowsF = [];
+          try {
+            const [r] = await pool.query(
+              `SELECT id,
+                      COALESCE(vlr_minimofaturamento, 0) AS minimo,
+                      COALESCE(min_cx_pedido, 0) AS min_cx
+                 FROM fornecedores WHERE id IN (?)`,
+              [fornIds]
+            );
+            rowsF = r || [];
+          } catch (_) {
+            const [r] = await pool.query(
+              `SELECT id, COALESCE(vlr_minimofaturamento, 0) AS minimo
+                 FROM fornecedores WHERE id IN (?)`,
+              [fornIds]
+            ).catch(() => [[]]);
+            rowsF = (r || []).map((x) => ({ ...x, min_cx: 0 }));
+          }
+          rowsF.forEach(r => {
+            minForn[String(r.id)] = parseFloat(r.minimo) || 0;
+            minCxMap[String(r.id)] = parseInt(r.min_cx, 10) || 0;
+          });
 
           if (tabela.cond_pagamento) {
             const [rowsC] = await pool.query(
@@ -545,10 +661,22 @@ router.post('/:token/pedido', async (req, res) => {
         }
         const violacoes = [];
         for (const [key, grupo] of grupos) {
-          const total = grupo.itens.reduce((s, i) => s + i.preco * parseFloat(i.quantidade), 0);
+          const total = grupo.itens.reduce((s, i) => s + (parseFloat(i.vlrtotal) || 0), 0);
           const minimo = Math.max(minForn[key] || 0, minCond[key] || 0);
           if (minimo > 0 && total < minimo - 0.005) {
             violacoes.push(`${grupo.nome_fornecedor || 'Fornecedor'}: ${_fmtBRL(total)} (mínimo ${_fmtBRL(minimo)})`);
+          }
+          const minCx = minCxMap[key] || 0;
+          if (minCx > 0) {
+            const totalCx = grupo.itens.reduce((s, i) => {
+              const mult = parseInt(i.multiplo_venda, 10) || 1;
+              return s + ((parseFloat(i.quantidade) || 0) / mult);
+            }, 0);
+            if (totalCx < minCx) {
+              violacoes.push(
+                `${grupo.nome_fornecedor || 'Fornecedor'}: ${Math.floor(totalCx)} cx (mínimo ${minCx} cx)`
+              );
+            }
           }
         }
         if (violacoes.length) {
@@ -574,7 +702,7 @@ router.post('/:token/pedido', async (req, res) => {
             `SELECT LPAD((COALESCE(MAX(numero + 0), 0) + 1), 6, '0') AS proximo FROM pedidos`
           );
           const numero     = seq.proximo;
-          const totalGrupo = parseFloat(grupo.itens.reduce((s, i) => s + i.preco * parseFloat(i.quantidade), 0).toFixed(2));
+          const totalGrupo = parseFloat(grupo.itens.reduce((s, i) => s + (parseFloat(i.vlrtotal) || 0), 0).toFixed(2));
 
           const [pRes] = await conn.query(
             `INSERT INTO pedidos (
@@ -603,18 +731,19 @@ router.post('/:token/pedido', async (req, res) => {
 
           for (let i = 0; i < grupo.itens.length; i++) {
             const item    = grupo.itens[i];
-            const vlrItem = parseFloat((item.preco * parseFloat(item.quantidade)).toFixed(2));
+            const vlrItem = parseFloat(item.vlrtotal) || 0;
+            const emb = parseFloat(item.embalagem) || null;
             await conn.query(
               `INSERT INTO itensped (
                 numpedido, id_pedido, cod_produto, desc_prod, unidade,
-                quantidade, valor_unitario, vlrtotal_itens,
+                quantidade, valor_unitario, vlrtotal_itens, kilo_embalagem,
                 desconto, comissao, st, vlr_st, ipi, vlr_ipi, icms, vlr_icms,
                 tipo_pedido, sequencia, cod_fornecedor, data_inclusao, sincronizar, excluido
-              ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'N','N')`,
+              ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'N','N')`,
               [
                 numero, pedidoId,
                 item.id, item.descricao || '', item.unidade || 'UN',
-                item.quantidade, item.preco, vlrItem,
+                item.quantidade, item.preco, vlrItem, emb,
                 0, 0, 0, 0, 0, 0, 0, 0,
                 tipo_pedido_str, i + 1, item.cod_fornecedor || null, dataAb
               ]

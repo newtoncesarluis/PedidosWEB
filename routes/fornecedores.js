@@ -277,10 +277,36 @@ router.get('/', async (req, res) => {
 
     const whereClause = where.join(' AND ');
 
-    // Pedido (somente_fabricas): ordena por nome fantasia (apelido), com fallback na razão social
+    const leanList = req.query.lean === '1' || req.query.lean === 'true' || req.query.showroom === '1';
     const orderExpr = somente_fabricas === 'true'
       ? `LOWER(COALESCE(NULLIF(TRIM(f.apelido), ''), f.nome))`
       : `LOWER(f.nome)`;
+
+    // Showroom: só id/nome/foto — sem COUNT de pedidos nem EXISTS de tabela desatualizada
+    if (leanList && somente_fabricas === 'true') {
+      const [rows] = await pool.query(
+        `SELECT f.id, f.nome, f.apelido, COALESCE(f.tipo, 'FABRICA') AS tipo,
+                (SELECT ff.caminho
+                   FROM fornecedor_fotos ff
+                  WHERE ff.cod_fornecedor = f.id
+                    AND (ff.excluido = 'N' OR ff.excluido IS NULL OR ff.excluido = '')
+                    AND ff.caminho IS NOT NULL AND ff.caminho <> ''
+                  ORDER BY (UPPER(COALESCE(ff.tipo_imagem, '')) = 'LOGO') DESC,
+                           (ff.principal = 'S') DESC, ff.id ASC
+                  LIMIT 1) AS foto_principal
+         FROM fornecedores f
+         WHERE ${whereClause}
+         ORDER BY ${orderExpr}
+         LIMIT ? OFFSET ?`,
+        [...vals, parseInt(limit), parseInt(offset)]
+      );
+      rows.forEach(r => {
+        if (r.foto_principal && !String(r.foto_principal).startsWith('/')) {
+          r.foto_principal = '/' + r.foto_principal;
+        }
+      });
+      return res.json({ fornecedores: rows, total: rows.length });
+    }
 
     const [rows] = await pool.query(
       `SELECT f.id, f.nome, f.apelido, f.cpf, f.tipo_pessoa,

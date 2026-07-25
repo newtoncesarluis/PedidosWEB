@@ -1459,28 +1459,18 @@ router.delete('/despesas/:id', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SEGMENTOS
+// SEGMENTOS (clientes / fornecedores / transportadoras) — tabela: segmentos
+// CATEGORIAS DE PRODUTO — tabela: categoria
 // ─────────────────────────────────────────────────────────────────────────────
-async function ensureSegmentosTable(pool) {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS segmentos (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      descricao VARCHAR(100) NOT NULL,
-      status CHAR(1) DEFAULT 'A',
-      excluido CHAR(1) DEFAULT 'N',
-      dt_cadastro DATETIME DEFAULT CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3
-  `).catch(() => {});
-}
+const {
+  ensureSegmentosTable,
+  migrateSegmentosClienteFromCategoria,
+} = require('../config/segmentos-migrate');
 
-router.get('/segmentos', async (req, res) => {
-  try {
-    const pool = getPool();
-    // Segmentos agora aponta para a tabela categoria conforme solicitado
-    const [rows] = await pool.query(`SELECT id, descricao, status FROM categoria WHERE COALESCE(excluido,'N')='N' ORDER BY descricao`);
-    res.json({ segmentos: rows });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
+async function ensureSegmentosReady(pool) {
+  await ensureSegmentosTable(pool);
+  await migrateSegmentosClienteFromCategoria(pool).catch(() => {});
+}
 
 function _normStatusSegmento(st) {
   const v = String(st || 'A').trim().toUpperCase();
@@ -1488,14 +1478,29 @@ function _normStatusSegmento(st) {
   return 'I';
 }
 
+router.get('/segmentos', async (req, res) => {
+  try {
+    const pool = getPool();
+    await ensureSegmentosReady(pool);
+    const [rows] = await pool.query(
+      `SELECT id, descricao, status FROM segmentos WHERE COALESCE(excluido,'N')='N' ORDER BY descricao`
+    );
+    res.json({ segmentos: rows });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 router.post('/segmentos', async (req, res) => {
   try {
     const pc = permCrud(req, { incluir: 'incluir_segmentos', alterar: 'alterar_segmentos', excluir: 'excluir_segmentos' });
     if (pc.incluir !== 'S') return negarCad(res, 'Sem permissão para incluir segmentos');
     const pool = getPool();
+    await ensureSegmentosReady(pool);
     const { descricao, status } = req.body;
     if (!descricao) return res.status(400).json({ error: 'Descrição é obrigatória' });
-    const [r] = await pool.query(`INSERT INTO categoria (descricao, status, excluido) VALUES (?,?,'N')`, [descricao, _normStatusSegmento(status)]);
+    const [r] = await pool.query(
+      `INSERT INTO segmentos (descricao, status, excluido) VALUES (?,?,'N')`,
+      [String(descricao).trim(), _normStatusSegmento(status)]
+    );
     res.status(201).json({ ok: true, id: r.insertId });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -1505,8 +1510,19 @@ router.put('/segmentos/:id', async (req, res) => {
     const pc = permCrud(req, { incluir: 'incluir_segmentos', alterar: 'alterar_segmentos', excluir: 'excluir_segmentos' });
     if (pc.alterar !== 'S') return negarCad(res, 'Sem permissão para alterar segmentos');
     const pool = getPool();
+    await ensureSegmentosReady(pool);
     const { descricao, status } = req.body;
-    await pool.query(`UPDATE categoria SET descricao=?, status=? WHERE id=?`, [descricao, _normStatusSegmento(status), req.params.id]);
+    await pool.query(
+      `UPDATE segmentos SET descricao=?, status=? WHERE id=?`,
+      [String(descricao || '').trim(), _normStatusSegmento(status), req.params.id]
+    );
+    // Mantém texto espelhado nos clientes que usam este id
+    try {
+      await pool.query(
+        `UPDATE clientes SET segmento=? WHERE CAST(cod_segmento AS UNSIGNED)=? AND COALESCE(excluido,'N')='N'`,
+        [String(descricao || '').trim(), req.params.id]
+      );
+    } catch { /* ok */ }
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -1515,6 +1531,68 @@ router.delete('/segmentos/:id', async (req, res) => {
   try {
     const pc = permCrud(req, { incluir: 'incluir_segmentos', alterar: 'alterar_segmentos', excluir: 'excluir_segmentos' });
     if (pc.excluir !== 'S') return negarCad(res, 'Sem permissão para excluir segmentos');
+    const pool = getPool();
+    await ensureSegmentosReady(pool);
+    await pool.query(`UPDATE segmentos SET excluido='S' WHERE id=?`, [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// CRUD categorias de produto (tabela categoria) — menu Cadastros → Categorias
+router.get('/categorias-produto', async (req, res) => {
+  try {
+    const pool = getPool();
+    const [rows] = await pool.query(
+      `SELECT id, descricao, status FROM categoria WHERE COALESCE(excluido,'N')='N' ORDER BY descricao`
+    );
+    res.json({ categorias: rows });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/categorias-produto', async (req, res) => {
+  try {
+    const pc = permCrud(req, { incluir: 'incluir_segmentos', alterar: 'alterar_segmentos', excluir: 'excluir_segmentos' });
+    if (pc.incluir !== 'S') return negarCad(res, 'Sem permissão para incluir categorias');
+    const pool = getPool();
+    const { descricao, status } = req.body;
+    if (!descricao) return res.status(400).json({ error: 'Descrição é obrigatória' });
+    const [r] = await pool.query(
+      `INSERT INTO categoria (descricao, status, excluido) VALUES (?,?,'N')`,
+      [String(descricao).trim(), _normStatusSegmento(status)]
+    );
+    res.status(201).json({ ok: true, id: r.insertId });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.put('/categorias-produto/:id', async (req, res) => {
+  try {
+    const pc = permCrud(req, { incluir: 'incluir_segmentos', alterar: 'alterar_segmentos', excluir: 'excluir_segmentos' });
+    if (pc.alterar !== 'S') return negarCad(res, 'Sem permissão para alterar categorias');
+    const pool = getPool();
+    const { descricao, status } = req.body;
+    const desc = String(descricao || '').trim();
+    const [[old]] = await pool.query(`SELECT descricao FROM categoria WHERE id=?`, [req.params.id]);
+    const oldDesc = String(old?.descricao || '').trim();
+    await pool.query(
+      `UPDATE categoria SET descricao=?, status=? WHERE id=?`,
+      [desc, _normStatusSegmento(status), req.params.id]
+    );
+    // Produtos gravam categoria como texto em produto.segmento
+    if (oldDesc && desc && oldDesc !== desc) {
+      try {
+        const [prodTbl] = await pool.query(`SHOW TABLES LIKE 'produto'`);
+        const tb = prodTbl.length ? 'produto' : 'produtos';
+        await pool.query(`UPDATE \`${tb}\` SET segmento=? WHERE segmento=?`, [desc, oldDesc]);
+      } catch { /* ok */ }
+    }
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.delete('/categorias-produto/:id', async (req, res) => {
+  try {
+    const pc = permCrud(req, { incluir: 'incluir_segmentos', alterar: 'alterar_segmentos', excluir: 'excluir_segmentos' });
+    if (pc.excluir !== 'S') return negarCad(res, 'Sem permissão para excluir categorias');
     const pool = getPool();
     await pool.query(`UPDATE categoria SET excluido='S' WHERE id=?`, [req.params.id]);
     res.json({ ok: true });

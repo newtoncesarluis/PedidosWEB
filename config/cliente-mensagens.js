@@ -61,7 +61,7 @@ async function ensureClienteMensagensTable(pool) {
  */
 async function registrarMensagemCliente(pool, m) {
   try {
-    if (!m || !m.cod_cliente) return;
+    if (!m || !m.cod_cliente) return false;
     await ensureClienteMensagensTable(pool);
     await pool.query(
       `INSERT INTO cliente_mensagens
@@ -81,8 +81,10 @@ async function registrarMensagemCliente(pool, m) {
         m.erro     ? String(m.erro).slice(0, 300) : null,
       ]
     );
+    return true;
   } catch (e) {
     console.warn('[cliente-mensagens] falha ao registrar:', e.message);
+    return false;
   }
 }
 

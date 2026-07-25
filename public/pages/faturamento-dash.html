@@ -282,6 +282,21 @@
 </div><!-- /content -->
 
 <script>
+/** JWT Bearer — evita 401 «Sessão expirada». Só /api/ interno. */
+function _authHeaders(extra) {
+  const token = localStorage.getItem('token')
+    || sessionStorage.getItem('token')
+    || sessionStorage.getItem('sysrep_token')
+    || '';
+  const h = Object.assign({}, extra || {});
+  if (token) h.Authorization = 'Bearer ' + token;
+  return h;
+}
+function _api(url, opts) {
+  opts = opts || {};
+  const headers = _authHeaders(opts.headers || {});
+  return fetch(url, Object.assign({}, opts, { credentials: 'include', headers }));
+}
 const fmt = v => v == null ? '—' : 'R$ ' + Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtN = v => v == null ? '—' : Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtDt = s => s ? s.slice(0,10).split('-').reverse().join('/') : '—';
@@ -323,7 +338,7 @@ async function carregar() {
 async function carregarKpis(f) {
   document.getElementById('kpis').innerHTML = '<div class="loading">Carregando...</div>';
   try {
-    const r = await fetch(`/api/faturamento/resumo?${qs(f)}`).then(x => x.json());
+    const r = await _api(`/api/faturamento/resumo?${qs(f)}`).then(x => x.json());
     const fat = r.fat || {};
     const pend = r.pend || {};
     const diff = parseFloat(fat.diferenca) || 0;
@@ -372,7 +387,7 @@ async function carregarKpis(f) {
 
 async function carregarEvolucao() {
   try {
-    const r = await fetch('/api/faturamento/evolucao?meses=12').then(x => x.json());
+    const r = await _api('/api/faturamento/evolucao?meses=12').then(x => x.json());
     const rows = r.rows || [];
     const labels = rows.map(x => x.mes);
     const dataFat = rows.map(x => parseFloat(x.total_faturado) || 0);
@@ -435,7 +450,7 @@ async function carregarFornecedores(f) {
   el.innerHTML = '<div class="loading">...</div>';
   try {
     const p = { dt_ini: f.dt_ini, dt_fim: f.dt_fim, id_vendedor: f.id_vendedor };
-    const r = await fetch(`/api/faturamento/por-fornecedor?${qs(p)}`).then(x => x.json());
+    const r = await _api(`/api/faturamento/por-fornecedor?${qs(p)}`).then(x => x.json());
     const rows = r.rows || [];
     if (!rows.length) { el.innerHTML = '<div class="empty">Sem dados</div>'; return; }
     const max = Math.max(...rows.map(x => parseFloat(x.total_faturado)||0)) || 1;
@@ -460,7 +475,7 @@ async function carregarVendedores(f) {
   elT.innerHTML = '<div class="loading">...</div>';
   try {
     const p = { dt_ini: f.dt_ini, dt_fim: f.dt_fim };
-    const r = await fetch(`/api/faturamento/por-vendedor?${qs(p)}`).then(x => x.json());
+    const r = await _api(`/api/faturamento/por-vendedor?${qs(p)}`).then(x => x.json());
     const rows = r.rows || [];
     if (!rows.length) { el.innerHTML = '<div class="empty">Sem dados</div>'; elT.innerHTML = ''; return; }
 
@@ -496,7 +511,7 @@ async function carregarVendedores(f) {
 async function carregarAlertas(f) {
   try {
     const p = { dias_sem_faturar: f.dias_sem_faturar, dias_sem_nota: f.dias_sem_nota, id_vendedor: f.id_vendedor };
-    const r = await fetch(`/api/faturamento/alertas?${qs(p)}`).then(x => x.json());
+    const r = await _api(`/api/faturamento/alertas?${qs(p)}`).then(x => x.json());
 
     const semFat = r.sem_faturar || [];
     document.getElementById('cnt_sem_fat').textContent = `${semFat.length} pedido(s) sem faturamento`;
@@ -529,7 +544,7 @@ async function carregarLista(f, page) {
   tbody.innerHTML = '<tr><td colspan="12" class="loading">Carregando...</td></tr>';
   try {
     const p = { ...f, page, limit: PER_PAGE };
-    const r = await fetch(`/api/faturamento/lista?${qs(p)}`).then(x => x.json());
+    const r = await _api(`/api/faturamento/lista?${qs(p)}`).then(x => x.json());
     const rows = r.rows || [];
     const total = r.total || 0;
     const pages = r.pages || 1;
@@ -579,7 +594,7 @@ async function mudarPag(delta) {
 
 async function carregarVendedoresLookup() {
   try {
-    const r = await fetch('/api/faturamento/lookup/vendedores').then(x => x.json());
+    const r = await _api('/api/faturamento/lookup/vendedores').then(x => x.json());
     const sel = document.getElementById('f_vendedor');
     const wrap = document.getElementById('wrap_vendedor');
     const list = r.rows || [];

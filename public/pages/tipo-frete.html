@@ -220,12 +220,27 @@ input:focus,select:focus { border-color:var(--accent);box-shadow:0 0 0 3px rgba(
 <div class="dropdown-menu" id="dropMenu" style="display:none"></div>
 
 <script>
+/** JWT Bearer — evita 401 «Sessão expirada». Só /api/ interno. */
+function _authHeaders(extra) {
+  const token = localStorage.getItem('token')
+    || sessionStorage.getItem('token')
+    || sessionStorage.getItem('sysrep_token')
+    || '';
+  const h = Object.assign({}, extra || {});
+  if (token) h.Authorization = 'Bearer ' + token;
+  return h;
+}
+function _api(url, opts) {
+  opts = opts || {};
+  const headers = _authHeaders(opts.headers || {});
+  return fetch(url, Object.assign({}, opts, { credentials: 'include', headers }));
+}
 let S = { filtroStatus: 'T', registroId: null, dados: [] };
 
 async function buscar() {
   const q = document.getElementById('inputBusca').value.trim().toLowerCase();
   try {
-    const r = await fetch('/api/tipo-frete');
+    const r = await _api('/api/tipo-frete');
     const d = await r.json();
     S.dados = d.tipo_frete || [];
     let lista = S.dados;
@@ -305,7 +320,7 @@ async function salvar() {
   if (!payload.nome) return toast('Preencha o nome','warn');
   try {
     const id = S.registroId;
-    const r = await fetch(id ? `/api/tipo-frete/${id}` : '/api/tipo-frete', {
+    const r = await _api(id ? `/api/tipo-frete/${id}` : '/api/tipo-frete', {
       method: id ? 'PUT' : 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify(payload)
@@ -331,7 +346,7 @@ async function excluir(id) {
   if (!guardCadExcluir('Sem permissão para excluir tipos de frete')) return;
   if (!confirm('Excluir este tipo de frete?')) return;
   try {
-    const r = await fetch(`/api/tipo-frete/${id}`, {method:'DELETE'});
+    const r = await _api(`/api/tipo-frete/${id}`, {method:'DELETE'});
     if (r.ok) { toast('Excluído!','ok'); buscar(); }
   } catch(e) { toast('Erro ao excluir','err'); }
 }

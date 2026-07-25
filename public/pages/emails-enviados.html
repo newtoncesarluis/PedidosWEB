@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>E-mails Enviados | SysRepWeb</title>
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<script src="/assets/sysrep-api.js"></script>
+<style>
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);margin:0}
+.bar{padding:10px 16px;background:var(--card);border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn{padding:7px 14px;border-radius:7px;border:none;font-weight:700;font-size:12px;cursor:pointer;background:var(--accent);color:#fff;font-family:inherit}
+.content{padding:14px 16px}
+.info{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px;font-size:13px;line-height:1.5;color:var(--text)}
+.info strong{display:block;margin-bottom:6px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+table{width:100%;border-collapse:collapse}th{font-size:10px;text-transform:uppercase;padding:8px 12px;text-align:left;color:var(--text2);border-bottom:1px solid var(--border)}
+td{padding:8px 12px;font-size:12px;border-bottom:1px solid var(--border);vertical-align:top}
+input{padding:7px 10px;border:1.5px solid var(--border);border-radius:7px;background:var(--card);color:var(--text);min-width:220px}
+.ok{color:#16a34a}.err{color:#dc2626}
+.msg{max-width:360px;white-space:pre-wrap;word-break:break-word;color:var(--text2);font-size:11px}
+</style>
+</head>
+<body>
+<div class="bar">
+  <strong style="margin-right:auto">E-mails Enviados</strong>
+  <input id="q" placeholder="Buscar destino / cliente…" onkeydown="if(event.key==='Enter')carregar()">
+  <button class="btn" onclick="carregar()">Buscar</button>
+</div>
+<div class="content">
+  <div class="info">
+    <strong>Como funciona o e-mail no SysRepWeb</strong>
+    O sistema <u>envia</u> e-mails via SMTP (configurado no usuário ou na empresa) — por exemplo PDF de pedido.
+    Cada envio fica vinculado ao cadastro do cliente neste histórico.<br>
+    <b>Não há webmail/inbox interno</b> (IMAP). Mensagens <i>recebidas</i> continuam no Outlook/Gmail/etc. do seu provedor.
+  </div>
+  <div class="card">
+    <table>
+      <thead><tr><th>Data</th><th>Cliente</th><th>Destino</th><th>Pedido</th><th>Status</th><th>Mensagem</th></tr></thead>
+      <tbody id="tb"><tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text2)">Carregando…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+<script>
+const api=(u)=>SysRepApi.fetch(u);
+async function carregar(){
+  const q=document.getElementById('q').value.trim();
+  try{
+    const d=await api('/api/emails-historico?limit=100&q='+encodeURIComponent(q));
+    const rows=d.emails||[];
+    document.getElementById('tb').innerHTML=rows.length?rows.map(e=>`<tr>
+      <td>${e.data_envio?new Date(e.data_envio).toLocaleString('pt-BR'):'—'}</td>
+      <td style="font-weight:700">${e.cliente_nome||('#'+e.cod_cliente)}</td>
+      <td>${e.destino||'—'}</td>
+      <td>${e.id_pedido||'—'}</td>
+      <td class="${e.status==='ENVIADO'?'ok':'err'}">${e.status}${e.erro?' · '+e.erro:''}</td>
+      <td class="msg">${(e.mensagem||'').slice(0,280)}</td></tr>`).join('')
+      :'<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text2)">Nenhum e-mail enviado registrado</td></tr>';
+  }catch(e){alert(e.message)}
+}
+carregar();
+</script>
+</body>
+</html>
