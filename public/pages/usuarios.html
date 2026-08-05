@@ -586,11 +586,12 @@ select { cursor:pointer; }
 @keyframes fadeIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:none} }
 
 /* ── QUICK VIEW PANEL ─────────────────────────────────────────────────────── */
-#quickViewPanel { position:fixed;top:0;right:-420px;width:400px;height:100vh;
+/* display:none quando fechado — no iframe da home, position:fixed pode
+   cair no fluxo do documento e o painel aparece ao rolar (scrollbar extra). */
+#quickViewPanel { display:none;position:fixed;top:0;right:0;width:400px;height:100vh;
   background:var(--card);border-left:1px solid var(--border);z-index:8000;
-  transition:right .28s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;
-  box-shadow:-12px 0 40px rgba(0,0,0,.3); }
-#quickViewPanel.open { right:0; }
+  flex-direction:column;box-shadow:-12px 0 40px rgba(0,0,0,.3);overflow:hidden; }
+#quickViewPanel.open { display:flex; }
 #qvOverlay { display:none;position:fixed;inset:0;z-index:7999;background:rgba(0,0,0,.22); }
 #qvOverlay.show { display:block; }
 .qv-head { padding:16px 18px;display:flex;align-items:flex-start;gap:12px;flex-shrink:0;
@@ -612,9 +613,9 @@ select { cursor:pointer; }
 .qv-row svg { width:13px;height:13px;flex-shrink:0;margin-top:1px; }
 .qv-row span { color:var(--text);font-weight:500;word-break:break-word; }
 .qv-foot { padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;
-  flex-shrink:0;background:var(--bg); }
-.qv-foot .btn { flex:1;justify-content:center;font-size:11px;padding:6px 10px; }
-@media(max-width:480px) { #quickViewPanel { width:100%;right:-100%; } }
+  flex-shrink:0;background:var(--bg);flex-wrap:wrap; }
+.qv-foot .btn { flex:1;justify-content:center;font-size:11px;padding:6px 10px;min-width:90px; }
+@media(max-width:480px) { #quickViewPanel { width:100%; } }
 </style>
 <link rel="stylesheet" href="/assets/themes.css">
 <script src="/assets/themes.js"></script>
@@ -987,6 +988,13 @@ select { cursor:pointer; }
   </section>
   <div class="form-footer" id="formFooter">
     <button class="btn btn-ghost" onclick="exibirLista()">Cancelar</button>
+    <button type="button" class="btn btn-outline" id="btnAgendarUsr" onclick="agendarUsuarioForm()"
+            style="display:none;color:#d97706;border-color:#f59e0b">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="14" height="14">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+      </svg>
+      Agendar
+    </button>
     <button class="btn btn-primary btn-save" id="btn-salvar" onclick="salvar()">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="14" height="14"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
       Salvar Usuário
@@ -1581,9 +1589,16 @@ function renderTabela(lista) {
         })()}
       </td>
       <td style="text-align:center" onclick="event.stopPropagation()">
-        <button class="btn-acoes" onclick="toggleDropdown(event, ${u.idusuario}, '${escHtml(u.nomeusu).replace(/'/g,"\\'")}')">
-          <svg fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"/></svg>
-        </button>
+        <div style="display:flex;align-items:center;gap:4px;justify-content:center">
+          <button type="button" class="btn-visita-inline" title="Agendar"
+                  onclick="agendarUsuario(${u.idusuario},'${escHtml(u.nomeusu||'').replace(/'/g,"\\'")}',event)">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+            <span class="btn-visita-text">Agendar</span>
+          </button>
+          <button class="btn-acoes" onclick="toggleDropdown(event, ${u.idusuario}, '${escHtml(u.nomeusu).replace(/'/g,"\\'")}')">
+            <svg fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"/></svg>
+          </button>
+        </div>
       </td>
     </tr>
   `).join('');
@@ -1629,6 +1644,10 @@ function toggleDropdown(e, id, nome) {
     <button class="dropdown-item" onclick="abrirQuickView(${id}); document.getElementById('dropdown-menu').style.display='none'">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
       Ver Detalhes
+    </button>
+    <button class="dropdown-item" onclick="document.getElementById('dropdown-menu').style.display='none';agendarUsuario(${id},'${String(nome||'').replace(/'/g,"\\'")}')">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+      Agendar
     </button>
     <button class="dropdown-item" onclick="exibirForm(${id}); document.getElementById('dropdown-menu').style.display='none'" ${_isAdmin ? '' : 'style="display:none"'}>
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
@@ -1736,6 +1755,7 @@ function exibirLista() {
   document.getElementById('toolbar').style.display = 'flex';
   document.getElementById('subbar').style.display = 'flex';
   _editId = null;
+  _syncBtnAgendarUsr();
 }
 
 async function exibirForm(id = null) {
@@ -1750,6 +1770,7 @@ async function exibirForm(id = null) {
   document.getElementById('formFooter').style.display = 'flex';
   toolbar.style.display  = 'none';
   subbar.style.display   = 'none';
+  _syncBtnAgendarUsr();
 
   _setElText('form-title', id ? 'Editar Usuário' : 'Novo Usuário');
   const senhaReq = document.getElementById('f-senhausu-req');
@@ -2075,6 +2096,50 @@ async function excluir(id, nome) {
   }
 }
 
+/** Local para Google Agenda: form aberto ou cache da lista. */
+function _locationUsuarioAgenda(id) {
+  if (_editId && String(_editId) === String(id)) {
+    const parts = [
+      document.getElementById('f-endereco')?.value,
+      document.getElementById('f-bairro')?.value,
+      [document.getElementById('f-cidade')?.value, document.getElementById('f-uf')?.value].filter(Boolean).join(' / '),
+      document.getElementById('f-cep')?.value ? 'CEP ' + document.getElementById('f-cep').value : '',
+    ].filter(Boolean);
+    if (parts.length) return parts.join(' - ');
+  }
+  const row = Array.isArray(_usuarios) ? _usuarios.find(u => String(u.idusuario) === String(id)) : null;
+  if (!row) return '';
+  return [
+    row.endereco,
+    row.bairro,
+    [row.cidade, row.uf].filter(Boolean).join(' / '),
+  ].filter(Boolean).join(' - ');
+}
+
+function agendarUsuario(id, nome, ev) {
+  if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+  if (typeof SysRepAgenda === 'undefined' || !SysRepAgenda.abrir) {
+    toast('Módulo de agenda não carregou. Dê Ctrl+F5.', 'error');
+    return;
+  }
+  SysRepAgenda.abrir({
+    prefixo: 'Usuário',
+    nome: nome || ('#' + id),
+    location: _locationUsuarioAgenda(id),
+  });
+}
+
+function agendarUsuarioForm() {
+  if (!_editId) return;
+  const nome = document.getElementById('f-nomeusu')?.value || '';
+  agendarUsuario(_editId, nome);
+}
+
+function _syncBtnAgendarUsr() {
+  const btn = document.getElementById('btnAgendarUsr');
+  if (btn) btn.style.display = _editId ? '' : 'none';
+}
+
 // Atalhos de teclado
 window.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
@@ -2136,6 +2201,11 @@ CardView.attach({
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
       Excluir
     </button>
+    <button type="button" class="btn btn-outline" style="color:#d97706;border-color:#f59e0b"
+            onclick="const id=_qvIdAtual; const nome=document.getElementById('qvNome').textContent; agendarUsuario(id, nome === '—' ? '' : nome)">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="13" height="13"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+      Agendar
+    </button>
     <button class="btn btn-primary" onclick="const id=_qvIdAtual; fecharQuickView(); exibirForm(id)" id="qv-btn-edit">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
       Editar
@@ -2147,5 +2217,6 @@ CardView.attach({
 <!-- ── DROPDOWN MENU ── -->
 <div id="dropdown-menu" class="dropdown-menu"></div>
 
+<script src="/assets/agenda-compromisso-ui.js"></script>
 </body>
 </html>

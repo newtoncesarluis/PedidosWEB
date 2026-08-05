@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Relatórios Região / Carteira</title>
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<script src="/assets/sysrep-api.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:var(--content-bg);
+  --card:var(--card-bg);
+  --border:var(--card-border);
+  --text:var(--content-text);
+  --text2:var(--text2);
+  --accent:var(--accent);
+  --accent-hover:var(--accent-hover);
+  --accent-soft:var(--accent-soft);
+  --input-bg:var(--card-bg);
+  --success:#059669;
+  --warn:#d97706;
+  --shadow:0 8px 24px rgba(0,0,0,.06);
+}
+body{font-family:var(--font,'Inter',sans-serif);background:var(--bg);color:var(--text);min-height:100vh}
+.page{min-height:100vh;display:flex;flex-direction:column}
+
+/* ── Toolbar ── */
+.toolbar{
+  position:sticky;top:0;z-index:100;
+  background:var(--card);border-bottom:1px solid var(--border);
+  padding:12px 20px;display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;
+  box-shadow:0 2px 8px rgba(0,0,0,.04);
+}
+.title-wrap{min-width:200px;margin-right:auto}
+.eyebrow{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--text2);font-weight:800}
+.toolbar h1{margin:2px 0 0;font-size:18px;line-height:1.2;font-weight:800;display:flex;align-items:center;gap:8px}
+.toolbar h1 svg{width:18px;height:18px;flex-shrink:0;color:var(--accent)}
+.toolbar-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+
+.btn{
+  display:inline-flex;align-items:center;gap:6px;
+  height:36px;padding:0 14px;border:none;border-radius:10px;
+  font-size:12px;font-weight:700;cursor:pointer;transition:.15s;font-family:inherit;white-space:nowrap;
+}
+.btn svg{width:14px;height:14px;flex-shrink:0}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-primary{background:var(--accent);color:var(--btn-text,#fff)}
+.btn-primary:hover:not(:disabled){background:var(--accent-hover)}
+.btn-ghost{background:transparent;color:var(--text2);border:1.5px solid var(--border)}
+.btn-ghost:hover{border-color:var(--accent);color:var(--accent)}
+
+/* ── Content full-width ── */
+.content{
+  width:100%;
+  max-width:none;
+  margin:0;
+  padding:16px 20px 28px;
+  display:grid;
+  gap:14px;
+}
+
+/* ── Tabs ── */
+.tabs{
+  display:flex;gap:4px;flex-wrap:wrap;
+  background:var(--card);border:1px solid var(--border);border-radius:12px;
+  padding:6px;box-shadow:var(--shadow);
+}
+.tab-btn{
+  flex:1 1 auto;min-width:140px;
+  padding:10px 14px;cursor:pointer;border:none;border-radius:8px;
+  background:transparent;font-size:12px;font-weight:700;color:var(--text2);
+  font-family:inherit;transition:.15s;text-align:center;
+}
+.tab-btn:hover{background:color-mix(in oklab, var(--accent-soft) 70%, transparent);color:var(--accent)}
+.tab-btn.active{background:var(--accent-soft);color:var(--accent);box-shadow:inset 0 0 0 1.5px var(--accent)}
+.tab-btn .tab-num{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:18px;height:18px;border-radius:6px;font-size:10px;font-weight:800;
+  background:color-mix(in oklab, var(--border) 80%, transparent);margin-right:6px;vertical-align:middle;
+}
+.tab-btn.active .tab-num{background:var(--accent);color:var(--btn-text,#fff)}
+
+/* ── Tab intro ── */
+.tab-intro{
+  background:var(--card);border:1px solid var(--border);border-radius:12px;
+  padding:12px 16px;display:flex;flex-wrap:wrap;gap:8px 16px;
+  align-items:flex-start;justify-content:space-between;box-shadow:var(--shadow);
+}
+.tab-intro h2{font-size:14px;font-weight:800;margin:0;color:var(--text)}
+.tab-intro p{font-size:12.5px;color:var(--text2);line-height:1.45;margin:4px 0 0;max-width:720px}
+
+/* ── Filters ── */
+.filters{
+  background:var(--card);border:1px solid var(--border);border-radius:12px;
+  padding:14px 16px;box-shadow:var(--shadow);
+  display:grid;gap:12px;
+}
+.filters-head{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+}
+.filters-head .fh-title{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:var(--text2)}
+.filters-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(150px,1fr));
+  gap:10px 12px;
+  align-items:end;
+}
+.filters label{
+  font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;
+  display:flex;flex-direction:column;gap:5px;min-width:0;
+}
+.filters-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+input,select{
+  font-family:inherit;font-size:12px;background:var(--bg);color:var(--text);
+  border:1.5px solid var(--border);border-radius:10px;padding:0 10px;outline:none;
+  transition:.15s;height:36px;width:100%;
+}
+input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+select option{background:var(--card);color:var(--text)}
+
+/* ── KPIs ── */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+.stat-card{
+  background:var(--card);border:1px solid var(--border);border-radius:12px;
+  padding:14px 16px;box-shadow:var(--shadow);border-left:4px solid var(--accent);
+}
+.stat-card[data-tone="pedidos"]{border-left-color:var(--success)}
+.stat-card[data-tone="orcamentos"]{border-left-color:var(--warn)}
+.stat-card[data-tone="total"]{border-left-color:var(--accent)}
+.stat-card .label{font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;letter-spacing:.6px}
+.stat-card .value{font-size:22px;font-weight:800;margin-top:6px;font-variant-numeric:tabular-nums;color:var(--text);line-height:1.15}
+.stat-card .sub{font-size:11px;color:var(--text2);margin-top:4px}
+
+/* ── Callout ── */
+.callout{
+  display:flex;gap:10px;align-items:flex-start;
+  background:color-mix(in oklab, var(--accent-soft) 55%, var(--card));
+  border:1px solid color-mix(in oklab, var(--accent) 25%, var(--border));
+  border-radius:10px;padding:10px 14px;font-size:12px;color:var(--text2);line-height:1.45;
+}
+.callout svg{width:16px;height:16px;flex-shrink:0;color:var(--accent);margin-top:1px}
+.callout strong{color:var(--text);font-weight:700}
+.callout-legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.legend-pill{
+  display:inline-flex;align-items:center;gap:5px;
+  font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;
+  background:var(--card);border:1px solid var(--border);color:var(--text);
+}
+.legend-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.legend-dot.ped{background:var(--success)}
+.legend-dot.orc{background:var(--warn)}
+
+/* ── Table ── */
+.table-wrap{
+  background:var(--card);border:1px solid var(--border);border-radius:12px;
+  overflow:hidden;box-shadow:var(--shadow);
+}
+.table-header{
+  padding:12px 16px;display:flex;align-items:center;justify-content:space-between;
+  border-bottom:1px solid var(--border);flex-wrap:wrap;gap:8px;
+}
+.table-header h3{font-size:13px;font-weight:800;margin:0}
+.table-header .meta{font-size:11px;color:var(--text2);font-weight:600}
+.table-scroll{overflow:auto;max-height:min(70vh,720px)}
+table{width:100%;border-collapse:collapse}
+thead th{
+  position:sticky;top:0;z-index:2;
+  font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;
+  padding:10px 12px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;
+  background:color-mix(in oklab, var(--card) 88%, var(--bg));
+}
+td{font-size:13px;padding:9px 12px;border-bottom:1px solid var(--border);vertical-align:middle;color:var(--text)}
+tbody tr:nth-child(even) td{background:color-mix(in oklab, var(--bg) 55%, transparent)}
+tbody tr:hover td{background:var(--accent-soft)}
+tr:last-child td{border-bottom:none}
+.text-right{text-align:right}
+.num{font-variant-numeric:tabular-nums;font-weight:600}
+.col-ped{color:var(--success)}
+.col-orc{color:var(--warn)}
+tfoot td{
+  font-weight:800;font-size:12px;
+  border-top:2px solid var(--border)!important;
+  background:color-mix(in oklab, var(--bg) 70%, var(--card));
+  border-bottom:none!important;
+  position:sticky;bottom:0;
+}
+.group-head td{
+  background:color-mix(in oklab, var(--bg) 80%, var(--card))!important;
+  font-weight:800;font-size:12px;border-bottom:1px solid var(--border);
+}
+
+/* ── Pagination (padrão fornecedores) ── */
+.pagination{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 16px;border-top:1px solid var(--border);
+  font-size:12px;color:var(--text2);flex-wrap:wrap;gap:8px;
+  background:var(--card);
+}
+.pag-info{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-weight:600;color:var(--text)}
+.pag-size{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.3px}
+.pag-size select{
+  width:auto;min-width:64px;height:30px;padding:0 8px;
+  font-size:12px;font-weight:600;text-transform:none;letter-spacing:0;
+}
+.pag-btns{display:flex;gap:6px}
+.pag-btn{
+  padding:5px 12px;border:1.5px solid var(--border);border-radius:8px;
+  background:var(--card);font-size:12px;font-family:inherit;font-weight:700;
+  cursor:pointer;color:var(--text);transition:.12s;
+}
+.pag-btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.pag-btn:disabled{opacity:.4;cursor:not-allowed}
+
+/* ── Badges / states ── */
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700}
+.badge-green{background:color-mix(in oklab, var(--success) 16%, transparent);color:var(--success)}
+.badge-amber{background:color-mix(in oklab, var(--warn) 18%, transparent);color:var(--warn)}
+.badge-gray{background:color-mix(in oklab, var(--border) 70%, transparent);color:var(--text2)}
+.badge-blue{background:var(--accent-soft);color:var(--accent)}
+
+.empty-state{
+  text-align:center;padding:48px 24px;
+  background:var(--card);border:1.5px dashed var(--border);border-radius:12px;
+  color:var(--text2);font-size:13px;line-height:1.5;
+}
+.empty-state .es-icon{
+  width:44px;height:44px;margin:0 auto 12px;border-radius:12px;
+  display:grid;place-items:center;
+  background:var(--accent-soft);color:var(--accent);
+}
+.empty-state .es-icon svg{width:22px;height:22px}
+.empty-state strong{display:block;color:var(--text);font-size:14px;font-weight:800;margin-bottom:4px}
+.empty-state .es-hint{margin-top:8px;font-size:12px}
+
+.loader-wrap{display:flex;align-items:center;justify-content:center;padding:48px;gap:10px;color:var(--text2);font-size:13px}
+.spin{width:22px;height:22px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+@media print{
+  .toolbar,.tabs,.filters,.tab-intro,.no-print,.pagination{display:none!important}
+  .tab-panel{display:block!important}
+  .content{padding:8px}
+  .table-wrap{border:none;box-shadow:none;overflow:visible}
+  .table-scroll{max-height:none;overflow:visible}
+  thead th{position:static}
+}
+@media(max-width:720px){
+  .toolbar{padding:10px 12px}
+  .content{padding:12px 12px 24px}
+  .tab-btn{min-width:calc(50% - 4px);font-size:11px;padding:8px 10px}
+  th.hide-m,td.hide-m{display:none}
+  .filters-grid{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+<div class="toolbar">
+  <div class="title-wrap">
+    <div class="eyebrow">Comercial · Relatórios</div>
+    <h1>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
+      </svg>
+      Relatórios Região / Carteira
+    </h1>
+  </div>
+  <div class="toolbar-actions no-print">
+    <button class="btn btn-primary" id="btnBuscar" onclick="carregar()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path stroke-linecap="round" d="M21 21l-4.35-4.35"/></svg>
+      Buscar
+    </button>
+    <button class="btn btn-ghost" onclick="exportCSV()" title="Exportar CSV">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg>
+      CSV
+    </button>
+    <button class="btn btn-ghost" onclick="window.print()" title="Imprimir / PDF">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6z"/></svg>
+      Imprimir
+    </button>
+    <button class="btn btn-ghost" onclick="window.open('/pages/ajuda-relatorios-regiao.html','_blank')" title="Ajuda">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3M12 17h.01"/></svg>
+      Ajuda
+    </button>
+  </div>
+</div>
+
+<div class="content">
+  <div class="tabs" id="tabs-bar" role="tablist">
+    <button class="tab-btn active" role="tab" data-tab="clientes" onclick="switchTab('clientes', this)"><span class="tab-num">1</span>Clientes geral</button>
+    <button class="tab-btn" role="tab" data-tab="reg-vend" onclick="switchTab('reg-vend', this)"><span class="tab-num">2</span>Região por vendedor</button>
+    <button class="tab-btn" role="tab" data-tab="reg-cli" onclick="switchTab('reg-cli', this)"><span class="tab-num">3</span>Região por clientes</button>
+    <button class="tab-btn" role="tab" data-tab="valores" onclick="switchTab('valores', this)"><span class="tab-num">4</span>Valores por região</button>
+  </div>
+
+  <div class="tab-intro" id="tab-intro">
+    <div>
+      <h2 id="intro-title">Clientes geral</h2>
+      <p id="intro-desc">Lista a carteira de clientes com região, vendedor, cidade e status.</p>
+    </div>
+  </div>
+
+  <div class="filters no-print" id="filtros">
+    <div class="filters-head">
+      <span class="fh-title">Filtros</span>
+      <div class="filters-actions">
+        <button class="btn btn-primary" onclick="carregar()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path stroke-linecap="round" d="M21 21l-4.35-4.35"/></svg>
+          Buscar
+        </button>
+      </div>
+    </div>
+    <div class="filters-grid">
+      <label id="wrap_q">Nome / busca
+        <input type="text" id="f_q" placeholder="Nome, apelido, CPF/CNPJ" autoComplete="off">
+      </label>
+      <label id="wrap_cidade">Cidade
+        <input type="text" id="f_cidade" placeholder="Cidade" autoComplete="off">
+      </label>
+      <label id="wrap_uf">UF
+        <input type="text" id="f_uf" placeholder="UF" maxlength="2" style="text-transform:uppercase" autoComplete="off">
+      </label>
+      <label id="wrap_regiao">Região
+        <select id="f_regiao"><option value="">Todas</option></select>
+      </label>
+      <label id="wrap_vendedor">Vendedor
+        <select id="f_vendedor"><option value="">Todos</option></select>
+      </label>
+      <label id="wrap_status">Status
+        <select id="f_status">
+          <option value="TODOS">Todos</option>
+          <option value="A" selected>Ativo</option>
+          <option value="I">Inativo</option>
+          <option value="E">Encerrado</option>
+        </select>
+      </label>
+      <label id="wrap_ordenar">Ordenar
+        <select id="f_ordenar">
+          <option value="nome">Nome A–Z</option>
+          <option value="cidade">Cidade</option>
+          <option value="uf">UF</option>
+          <option value="regiao">Região</option>
+        </select>
+      </label>
+      <label id="wrap_de" style="display:none">Período — de
+        <input type="date" id="f_de" autoComplete="off">
+      </label>
+      <label id="wrap_ate" style="display:none">Período — até
+        <input type="date" id="f_ate" autoComplete="off">
+      </label>
+      <label id="wrap_situacao" style="display:none">Situação do pedido
+        <select id="f_situacao">
+          <option value="TODOS">Todas</option>
+          <option value="PENDENTE">Pendente</option>
+          <option value="APROVADO">Aprovado</option>
+          <option value="FATURADO">Faturado</option>
+          <option value="CANCELADO">Cancelado</option>
+        </select>
+      </label>
+    </div>
+  </div>
+
+  <div id="stats" class="stats-grid" style="display:none"></div>
+  <div id="loader" class="loader-wrap" style="display:none"><div class="spin"></div><span>Carregando relatório…</span></div>
+  <div id="estado-inicial" class="empty-state">
+    <div class="es-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path stroke-linecap="round" d="M21 21l-4.35-4.35"/></svg>
+    </div>
+    <strong>Pronto para consultar</strong>
+    Ajuste os filtros e clique em <strong>Buscar</strong> para gerar o relatório.
+    <div class="es-hint">CSV e Imprimir ficam disponíveis após a consulta.</div>
+  </div>
+
+  <div id="panel-clientes" class="tab-panel"></div>
+  <div id="panel-reg-vend" class="tab-panel" style="display:none"></div>
+  <div id="panel-reg-cli" class="tab-panel" style="display:none"></div>
+  <div id="panel-valores" class="tab-panel" style="display:none"></div>
+</div>
+
+</div>
+
+<script>
+function _authHeaders(extra) {
+  const token = (window.SysRepApi && typeof SysRepApi.authToken === 'function' && SysRepApi.authToken())
+    || localStorage.getItem('token')
+    || sessionStorage.getItem('token')
+    || sessionStorage.getItem('sysrep_token')
+    || '';
+  const h = Object.assign({}, extra || {});
+  if (token) h.Authorization = 'Bearer ' + token;
+  return h;
+}
+async function api(path) {
+  const r = await fetch(path, { credentials: 'include', headers: _authHeaders() });
+  if (!r.ok) {
+    let msg = 'Erro ' + r.status;
+    try { const j = await r.json(); msg = j.error || msg; } catch (_) {}
+    throw new Error(msg);
+  }
+  return r.json();
+}
+
+let _tab = 'clientes';
+let _lastRows = [];
+let _lastMeta = {};
+let _canPickOthers = true;
+let _page = 1;
+let _pageSize = 50;
+let _printAll = false;
+
+const TAB_INTRO = {
+  clientes: {
+    title: 'Clientes geral',
+    desc: 'Quem está na carteira? Lista clientes com região, vendedor, cidade e status — ideal para conferir cobertura.',
+  },
+  'reg-vend': {
+    title: 'Região por vendedor',
+    desc: 'Quais regiões cada vendedor atende? Mostra vínculo por região padrão e/ou clientes da carteira.',
+  },
+  'reg-cli': {
+    title: 'Região por clientes',
+    desc: 'Quem é de cada região? Clientes agrupados por região, com cidade e vendedor.',
+  },
+  valores: {
+    title: 'Valores por região',
+    desc: 'Quanto cada região faturou no período? Compara pedidos fechados versus orçamentos.',
+  },
+};
+
+function fmtMoeda(v) {
+  return Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+function fmtNum(v) {
+  return Number(v || 0).toLocaleString('pt-BR');
+}
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function emptyHtml(title, hint) {
+  return `<div class="empty-state">
+    <div class="es-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h18M5 7v12a2 2 0 002 2h10a2 2 0 002-2V7M9 7V5a2 2 0 012-2h2a2 2 0 012 2v2"/></svg>
+    </div>
+    <strong>${esc(title)}</strong>
+    ${hint ? `<div class="es-hint">${esc(hint)}</div>` : ''}
+  </div>`;
+}
+
+(function initDatas() {
+  const now = new Date();
+  const y = now.getFullYear(), m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  document.getElementById('f_de').value = `${y}-${m}-01`;
+  document.getElementById('f_ate').value = `${y}-${m}-${d}`;
+})();
+
+async function carregarLookups() {
+  try {
+    const lista = await api('/api/lookups/vendedores');
+    const sel = document.getElementById('f_vendedor');
+    (lista || []).forEach((v) => {
+      const o = document.createElement('option');
+      o.value = v.id || v.idusuario;
+      o.textContent = v.nome || v.nomeusu;
+      sel.appendChild(o);
+    });
+  } catch (_) {}
+  try {
+    const lista = await api('/api/lookups/regioes');
+    const sel = document.getElementById('f_regiao');
+    (lista || []).forEach((rt) => {
+      const o = document.createElement('option');
+      o.value = rt.id;
+      o.textContent = rt.descricao || rt.nome;
+      sel.appendChild(o);
+    });
+  } catch (_) {}
+}
+
+function atualizarIntro() {
+  const info = TAB_INTRO[_tab] || TAB_INTRO.clientes;
+  document.getElementById('intro-title').textContent = info.title;
+  document.getElementById('intro-desc').textContent = info.desc;
+}
+
+function switchTab(tab, btnEl) {
+  _tab = tab;
+  _page = 1;
+  document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
+  if (btnEl) btnEl.classList.add('active');
+  ['clientes', 'reg-vend', 'reg-cli', 'valores'].forEach((t) => {
+    const el = document.getElementById('panel-' + t);
+    if (el) el.style.display = t === tab ? '' : 'none';
+  });
+  atualizarIntro();
+  atualizarFiltrosVisiveis();
+  _lastRows = [];
+  _lastMeta = {};
+  document.getElementById('stats').style.display = 'none';
+  document.getElementById('estado-inicial').style.display = '';
+  document.getElementById('panel-' + tab).innerHTML = '';
+}
+
+function atualizarFiltrosVisiveis() {
+  const show = (id, on) => { document.getElementById(id).style.display = on ? '' : 'none'; };
+  const t = _tab;
+  show('wrap_q', t === 'clientes');
+  show('wrap_cidade', t === 'clientes' || t === 'reg-cli');
+  show('wrap_uf', t === 'clientes' || t === 'reg-cli');
+  show('wrap_regiao', t === 'clientes' || t === 'reg-cli' || t === 'valores');
+  show('wrap_vendedor', true);
+  show('wrap_status', t === 'clientes');
+  show('wrap_ordenar', t === 'clientes');
+  show('wrap_de', t === 'valores');
+  show('wrap_ate', t === 'valores');
+  show('wrap_situacao', t === 'valores');
+}
+
+function qs(params) {
+  const p = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => {
+    if (v != null && v !== '' && v !== 'TODOS') p.set(k, v);
+  });
+  return p.toString();
+}
+
+function setStats(items) {
+  const box = document.getElementById('stats');
+  if (!items || !items.length) { box.style.display = 'none'; return; }
+  box.style.display = 'grid';
+  box.innerHTML = items.map((it) =>
+    `<div class="stat-card"${it.tone ? ` data-tone="${esc(it.tone)}"` : ''}>
+      <div class="label">${esc(it.label)}</div>
+      <div class="value">${esc(it.value)}</div>
+      ${it.sub ? `<div class="sub">${esc(it.sub)}</div>` : ''}
+    </div>`
+  ).join('');
+}
+
+function setLoading(on) {
+  document.getElementById('loader').style.display = on ? 'flex' : 'none';
+  if (on) document.getElementById('estado-inicial').style.display = 'none';
+}
+
+async function carregar() {
+  setLoading(true);
+  _page = 1;
+  try {
+    if (_tab === 'clientes') await loadClientes();
+    else if (_tab === 'reg-vend') await loadRegVend();
+    else if (_tab === 'reg-cli') await loadRegCli();
+    else await loadValores();
+    document.getElementById('estado-inicial').style.display = 'none';
+  } catch (e) {
+    document.getElementById('panel-' + _tab).innerHTML =
+      emptyHtml(e.message || 'Falha ao carregar', 'Verifique os filtros e tente novamente.');
+    setStats([]);
+    _lastRows = [];
+    _lastMeta = {};
+    document.getElementById('estado-inicial').style.display = 'none';
+  } finally {
+    setLoading(false);
+  }
+}
+
+/** Total de linhas para paginação (reg-cli conta clientes, não grupos). */
+function totalPaginacao() {
+  if (_lastMeta.tipo === 'reg-cli') {
+    return _lastRows.reduce((s, g) => s + ((g.clientes && g.clientes.length) || 0), 0);
+  }
+  return (_lastRows && _lastRows.length) || 0;
+}
+
+function slicePage(arr) {
+  if (_printAll || !arr || !arr.length) return arr || [];
+  const start = (_page - 1) * _pageSize;
+  return arr.slice(start, start + _pageSize);
+}
+
+function pagerHtml(total) {
+  if (_printAll || total <= _pageSize) return '';
+  const totalPag = Math.max(1, Math.ceil(total / _pageSize));
+  if (_page > totalPag) _page = totalPag;
+  if (_page < 1) _page = 1;
+  const from = (_page - 1) * _pageSize + 1;
+  const to = Math.min(_page * _pageSize, total);
+  return `<div class="pagination no-print">
+    <div class="pag-info">
+      <span>${fmtNum(from)}–${fmtNum(to)} de ${fmtNum(total)}</span>
+      <label class="pag-size">Por página
+        <select onchange="changePageSize(this.value)" aria-label="Registros por página">
+          <option value="25"${_pageSize === 25 ? ' selected' : ''}>25</option>
+          <option value="50"${_pageSize === 50 ? ' selected' : ''}>50</option>
+          <option value="100"${_pageSize === 100 ? ' selected' : ''}>100</option>
+        </select>
+      </label>
+    </div>
+    <div class="pag-btns">
+      <button type="button" class="pag-btn" onclick="irPag(${_page - 1})" ${_page <= 1 ? 'disabled' : ''}>← Anterior</button>
+      <button type="button" class="pag-btn" onclick="irPag(${_page + 1})" ${_page >= totalPag ? 'disabled' : ''}>Próxima →</button>
+    </div>
+  </div>`;
+}
+
+function irPag(p) {
+  const total = totalPaginacao();
+  const totalPag = Math.max(1, Math.ceil(total / _pageSize));
+  _page = Math.max(1, Math.min(Number(p) || 1, totalPag));
+  renderCurrentPanel();
+  const scroll = document.querySelector('#panel-' + _tab + ' .table-scroll');
+  if (scroll) scroll.scrollTop = 0;
+}
+
+function changePageSize(n) {
+  const v = Number(n);
+  _pageSize = (v === 25 || v === 50 || v === 100) ? v : 50;
+  _page = 1;
+  renderCurrentPanel();
+}
+
+function renderCurrentPanel() {
+  if (!_lastMeta.tipo || !_lastRows.length) return;
+  if (_lastMeta.tipo === 'clientes') renderClientes();
+  else if (_lastMeta.tipo === 'reg-vend') renderRegVend();
+  else if (_lastMeta.tipo === 'reg-cli') renderRegCli();
+  else if (_lastMeta.tipo === 'valores') renderValores();
+}
+
+async function loadClientes() {
+  const query = qs({
+    q: document.getElementById('f_q').value.trim(),
+    cidade: document.getElementById('f_cidade').value.trim(),
+    uf: document.getElementById('f_uf').value.trim(),
+    regiao: document.getElementById('f_regiao').value,
+    vendedor: document.getElementById('f_vendedor').value,
+    status: document.getElementById('f_status').value,
+    ordenar: document.getElementById('f_ordenar').value,
+  });
+  const j = await api('/api/comercial/relatorios/clientes-geral?' + query);
+  _canPickOthers = !!j.canPickOthers;
+  aplicarLockVendedor();
+  _lastRows = j.data || [];
+  _lastMeta = { tipo: 'clientes' };
+  setStats([
+    { label: 'Clientes', value: fmtNum(j.total), tone: 'total' },
+    { label: 'Regiões distintas', value: fmtNum(new Set(_lastRows.map((r) => r.id_regiao || 'x')).size) },
+  ]);
+  renderClientes();
+}
+
+function renderClientes() {
+  const cont = document.getElementById('panel-clientes');
+  if (!_lastRows.length) {
+    cont.innerHTML = emptyHtml('Nenhum cliente encontrado', 'Altere os filtros ou o status e busque de novo.');
+    return;
+  }
+  const pageRows = slicePage(_lastRows);
+  cont.innerHTML = `<div class="table-wrap">
+    <div class="table-header">
+      <h3>Relatório geral de clientes</h3>
+      <span class="meta">${fmtNum(_lastRows.length)} registro(s)</span>
+    </div>
+    <div class="table-scroll"><table>
+      <thead><tr>
+        <th>Nome</th><th class="hide-m">Cidade</th><th>UF</th><th>Região</th>
+        <th class="hide-m">Vendedor</th><th>Status</th><th class="hide-m">Telefone</th>
+      </tr></thead>
+      <tbody>${pageRows.map((r) => `<tr>
+        <td>${esc(r.nome)}</td>
+        <td class="hide-m">${esc(r.cidade)}</td>
+        <td>${esc(r.uf)}</td>
+        <td>${esc(r.nome_regiao)}</td>
+        <td class="hide-m">${esc(r.nome_vendedor)}</td>
+        <td><span class="badge ${r.status === 'A' ? 'badge-green' : r.status === 'I' ? 'badge-amber' : 'badge-gray'}">${esc(r.status_label)}</span></td>
+        <td class="hide-m">${esc(r.fone)}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+    ${pagerHtml(_lastRows.length)}
+  </div>`;
+}
+
+async function loadRegVend() {
+  const query = qs({ vendedor: document.getElementById('f_vendedor').value });
+  const j = await api('/api/comercial/relatorios/regiao-por-vendedor?' + query);
+  _canPickOthers = !!j.canPickOthers;
+  aplicarLockVendedor();
+  _lastRows = j.data || [];
+  _lastMeta = { tipo: 'reg-vend' };
+  setStats([
+    { label: 'Regiões', value: fmtNum(j.total), tone: 'total' },
+    { label: 'Clientes (soma)', value: fmtNum(_lastRows.reduce((s, r) => s + (r.qtd_clientes || 0), 0)) },
+  ]);
+  renderRegVend();
+}
+
+function renderRegVend() {
+  const cont = document.getElementById('panel-reg-vend');
+  if (!_lastRows.length) {
+    cont.innerHTML = emptyHtml('Nenhuma região no filtro', 'Escolha outro vendedor ou remova o filtro.');
+    return;
+  }
+  const pageRows = slicePage(_lastRows);
+  cont.innerHTML = `<div class="callout">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+    <div>Inclui regiões com <strong>vendedor padrão</strong> em Regiões e Rotas e/ou com clientes da carteira do vendedor.</div>
+  </div>
+  <div class="table-wrap" style="margin-top:12px">
+    <div class="table-header"><h3>Região por vendedor</h3><span class="meta">${fmtNum(_lastRows.length)} região(ões)</span></div>
+    <div class="table-scroll"><table>
+      <thead><tr>
+        <th>Região</th><th>Vendedor padrão</th><th class="text-right">Clientes</th><th>Vínculo</th>
+      </tr></thead>
+      <tbody>${pageRows.map((r) => `<tr>
+        <td>${esc(r.nome_regiao)}</td>
+        <td>${esc(r.nome_vendedor_padrao || '—')}</td>
+        <td class="text-right num">${fmtNum(r.qtd_clientes)}</td>
+        <td>${r.vinculo_padrao ? '<span class="badge badge-blue">Padrão</span> ' : ''}${r.vinculo_clientes ? '<span class="badge badge-green">Clientes</span>' : ''}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+    ${pagerHtml(_lastRows.length)}
+  </div>`;
+}
+
+async function loadRegCli() {
+  const query = qs({
+    regiao: document.getElementById('f_regiao').value,
+    vendedor: document.getElementById('f_vendedor').value,
+    cidade: document.getElementById('f_cidade').value.trim(),
+    uf: document.getElementById('f_uf').value.trim(),
+  });
+  const j = await api('/api/comercial/relatorios/regiao-por-clientes?' + query);
+  _canPickOthers = !!j.canPickOthers;
+  aplicarLockVendedor();
+  _lastRows = j.grupos || [];
+  _lastMeta = { tipo: 'reg-cli', total_clientes: j.total_clientes, total_regioes: j.total_regioes };
+  setStats([
+    { label: 'Regiões', value: fmtNum(j.total_regioes), tone: 'total' },
+    { label: 'Clientes', value: fmtNum(j.total_clientes) },
+  ]);
+  renderRegCli();
+}
+
+function flattenRegCli(grupos) {
+  const flat = [];
+  (grupos || []).forEach((g) => {
+    (g.clientes || []).forEach((c) => flat.push({ grupo: g, cliente: c }));
+  });
+  return flat;
+}
+
+function renderRegCli() {
+  const cont = document.getElementById('panel-reg-cli');
+  if (!_lastRows.length) {
+    cont.innerHTML = emptyHtml('Nenhum cliente encontrado', 'Ajuste região, cidade ou vendedor.');
+    return;
+  }
+  const flat = flattenRegCli(_lastRows);
+  const pageRows = slicePage(flat);
+  let body = '';
+  let lastKey = null;
+  pageRows.forEach((item) => {
+    const g = item.grupo;
+    const c = item.cliente;
+    const key = g.id_regiao != null ? String(g.id_regiao) : ('n:' + (g.nome_regiao || ''));
+    if (key !== lastKey) {
+      lastKey = key;
+      body += `<tr class="group-head"><td colspan="5">${esc(g.nome_regiao)} <span style="color:var(--text2);font-weight:600">(${fmtNum(g.qtd_clientes)})</span></td></tr>`;
+    }
+    body += `<tr>
+      <td style="padding-left:24px">${esc(c.nome)}</td>
+      <td class="hide-m">${esc(c.cidade)}</td>
+      <td>${esc(c.uf)}</td>
+      <td class="hide-m">${esc(c.nome_vendedor)}</td>
+      <td><span class="badge ${c.status === 'A' ? 'badge-green' : 'badge-gray'}">${esc(c.status_label)}</span></td>
+    </tr>`;
+  });
+  const totalCli = _lastMeta.total_clientes != null ? _lastMeta.total_clientes : flat.length;
+  const totalReg = _lastMeta.total_regioes != null ? _lastMeta.total_regioes : _lastRows.length;
+  cont.innerHTML = `<div class="table-wrap">
+    <div class="table-header"><h3>Clientes por região</h3><span class="meta">${fmtNum(totalCli)} cliente(s) · ${fmtNum(totalReg)} região(ões)</span></div>
+    <div class="table-scroll"><table>
+      <thead><tr><th>Cliente</th><th class="hide-m">Cidade</th><th>UF</th><th class="hide-m">Vendedor</th><th>Status</th></tr></thead>
+      <tbody>${body}</tbody>
+    </table></div>
+    ${pagerHtml(flat.length)}
+  </div>`;
+}
+
+/** Une linhas "Sem região" duplicadas (NULL vs FK inválida no GROUP BY). */
+function mergeSemRegiao(rows) {
+  const map = new Map();
+  (rows || []).forEach((r) => {
+    const id = r.id_regiao != null && r.id_regiao !== '' ? String(r.id_regiao) : 'null';
+    const key = id === 'null' ? 'null' : id;
+    if (!map.has(key)) {
+      map.set(key, {
+        id_regiao: id === 'null' ? null : r.id_regiao,
+        nome_regiao: r.nome_regiao || 'Sem região',
+        qtd_pedidos: 0,
+        vlr_pedidos: 0,
+        qtd_orcamentos: 0,
+        vlr_orcamentos: 0,
+        qtd_total: 0,
+        total: 0,
+      });
+    }
+    const g = map.get(key);
+    g.qtd_pedidos += Number(r.qtd_pedidos || 0);
+    g.vlr_pedidos += Number(r.vlr_pedidos || 0);
+    g.qtd_orcamentos += Number(r.qtd_orcamentos || 0);
+    g.vlr_orcamentos += Number(r.vlr_orcamentos || 0);
+    g.qtd_total += Number(r.qtd_total || 0);
+    g.total += Number(r.total || 0);
+  });
+  return Array.from(map.values())
+    .map((r) => ({
+      ...r,
+      vlr_pedidos: Number(r.vlr_pedidos.toFixed(2)),
+      vlr_orcamentos: Number(r.vlr_orcamentos.toFixed(2)),
+      total: Number(r.total.toFixed(2)),
+    }))
+    .sort((a, b) => b.total - a.total || String(a.nome_regiao).localeCompare(String(b.nome_regiao), 'pt-BR'));
+}
+
+async function loadValores() {
+  const query = qs({
+    de: document.getElementById('f_de').value,
+    ate: document.getElementById('f_ate').value,
+    vendedor: document.getElementById('f_vendedor').value,
+    regiao: document.getElementById('f_regiao').value,
+    situacao: document.getElementById('f_situacao').value,
+  });
+  const j = await api('/api/comercial/relatorios/valores-por-regiao?' + query);
+  _canPickOthers = !!j.canPickOthers;
+  aplicarLockVendedor();
+  _lastRows = mergeSemRegiao(j.data || []);
+  const t = _lastRows.reduce(
+    (acc, r) => {
+      acc.qtd_pedidos += r.qtd_pedidos;
+      acc.vlr_pedidos += r.vlr_pedidos;
+      acc.qtd_orcamentos += r.qtd_orcamentos;
+      acc.vlr_orcamentos += r.vlr_orcamentos;
+      acc.total += r.total;
+      return acc;
+    },
+    { qtd_pedidos: 0, vlr_pedidos: 0, qtd_orcamentos: 0, vlr_orcamentos: 0, total: 0 }
+  );
+  t.vlr_pedidos = Number(t.vlr_pedidos.toFixed(2));
+  t.vlr_orcamentos = Number(t.vlr_orcamentos.toFixed(2));
+  t.total = Number(t.total.toFixed(2));
+  _lastMeta = { tipo: 'valores', totais: t };
+  setStats([
+    { label: 'Pedidos (R$)', value: fmtMoeda(t.vlr_pedidos), tone: 'pedidos', sub: fmtNum(t.qtd_pedidos) + ' doc(s)' },
+    { label: 'Orçamentos (R$)', value: fmtMoeda(t.vlr_orcamentos), tone: 'orcamentos', sub: fmtNum(t.qtd_orcamentos) + ' doc(s)' },
+    { label: 'Total (R$)', value: fmtMoeda(t.total), tone: 'total' },
+    { label: 'Regiões', value: fmtNum(_lastRows.length) },
+  ]);
+  renderValores();
+}
+
+function renderValores() {
+  const cont = document.getElementById('panel-valores');
+  if (!_lastRows.length) {
+    cont.innerHTML = emptyHtml('Nenhum pedido/orçamento no período', 'Amplie as datas ou remova o filtro de situação.');
+    return;
+  }
+  const t = _lastMeta.totais || {};
+  const de = document.getElementById('f_de').value;
+  const ate = document.getElementById('f_ate').value;
+  const pageRows = slicePage(_lastRows);
+  cont.innerHTML = `<div class="callout">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+    <div>
+      <strong>Pedidos</strong> = tipo que não é orçamento.
+      <strong>Orçamentos</strong> = tipo contendo ORÇAMENTO/ORCAMENTO.
+      Cliente sem região aparece em <strong>Sem região</strong>.
+      <div class="callout-legend">
+        <span class="legend-pill"><span class="legend-dot ped"></span> Pedidos</span>
+        <span class="legend-pill"><span class="legend-dot orc"></span> Orçamentos</span>
+      </div>
+    </div>
+  </div>
+  <div class="table-wrap" style="margin-top:12px">
+    <div class="table-header">
+      <h3>Valores por região</h3>
+      <span class="meta">${esc(de)} → ${esc(ate)}</span>
+    </div>
+    <div class="table-scroll"><table>
+      <thead><tr>
+        <th>Região</th>
+        <th class="text-right">Qtd pedidos</th><th class="text-right">R$ pedidos</th>
+        <th class="text-right">Qtd orç.</th><th class="text-right">R$ orçamentos</th>
+        <th class="text-right">Total R$</th>
+      </tr></thead>
+      <tbody>${pageRows.map((r) => `<tr>
+        <td>${esc(r.nome_regiao)}</td>
+        <td class="text-right num col-ped">${fmtNum(r.qtd_pedidos)}</td>
+        <td class="text-right num col-ped">${fmtMoeda(r.vlr_pedidos)}</td>
+        <td class="text-right num col-orc">${fmtNum(r.qtd_orcamentos)}</td>
+        <td class="text-right num col-orc">${fmtMoeda(r.vlr_orcamentos)}</td>
+        <td class="text-right num">${fmtMoeda(r.total)}</td>
+      </tr>`).join('')}</tbody>
+      <tfoot><tr>
+        <td>Total</td>
+        <td class="text-right col-ped">${fmtNum(t.qtd_pedidos)}</td>
+        <td class="text-right col-ped">${fmtMoeda(t.vlr_pedidos)}</td>
+        <td class="text-right col-orc">${fmtNum(t.qtd_orcamentos)}</td>
+        <td class="text-right col-orc">${fmtMoeda(t.vlr_orcamentos)}</td>
+        <td class="text-right">${fmtMoeda(t.total)}</td>
+      </tr></tfoot>
+    </table></div>
+    ${pagerHtml(_lastRows.length)}
+  </div>`;
+}
+
+function aplicarLockVendedor() {
+  const sel = document.getElementById('f_vendedor');
+  if (!_canPickOthers) {
+    sel.disabled = true;
+  }
+}
+
+function _downloadCSV(conteudo, nome) {
+  const blob = new Blob(['\uFEFF' + conteudo], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = nome; a.click();
+  URL.revokeObjectURL(url);
+}
+function _csvLine(cols) {
+  return cols.map((c) => {
+    const s = String(c == null ? '' : c);
+    return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }).join(';');
+}
+
+function exportCSV() {
+  if (!_lastRows.length) {
+    alert('Busque antes de exportar.');
+    return;
+  }
+  const hoje = new Date().toISOString().slice(0, 10);
+  let lines = [];
+  if (_lastMeta.tipo === 'clientes') {
+    lines.push(_csvLine(['ID', 'Nome', 'Cidade', 'UF', 'Região', 'Vendedor', 'Status', 'Telefone']));
+    _lastRows.forEach((r) => lines.push(_csvLine([r.id, r.nome, r.cidade, r.uf, r.nome_regiao, r.nome_vendedor, r.status_label, r.fone])));
+    _downloadCSV(lines.join('\n'), `clientes_geral_${hoje}.csv`);
+  } else if (_lastMeta.tipo === 'reg-vend') {
+    lines.push(_csvLine(['Região', 'Vendedor padrão', 'Qtd clientes', 'Vínculo']));
+    _lastRows.forEach((r) => lines.push(_csvLine([r.nome_regiao, r.nome_vendedor_padrao, r.qtd_clientes, r.origem])));
+    _downloadCSV(lines.join('\n'), `regiao_por_vendedor_${hoje}.csv`);
+  } else if (_lastMeta.tipo === 'reg-cli') {
+    lines.push(_csvLine(['Região', 'Cliente', 'Cidade', 'UF', 'Vendedor', 'Status']));
+    _lastRows.forEach((g) => (g.clientes || []).forEach((c) =>
+      lines.push(_csvLine([g.nome_regiao, c.nome, c.cidade, c.uf, c.nome_vendedor, c.status_label]))
+    ));
+    _downloadCSV(lines.join('\n'), `regiao_por_clientes_${hoje}.csv`);
+  } else {
+    lines.push(_csvLine(['Região', 'Qtd pedidos', 'R$ pedidos', 'Qtd orçamentos', 'R$ orçamentos', 'Total R$']));
+    _lastRows.forEach((r) => lines.push(_csvLine([r.nome_regiao, r.qtd_pedidos, r.vlr_pedidos, r.qtd_orcamentos, r.vlr_orcamentos, r.total])));
+    const t = _lastMeta.totais || {};
+    lines.push(_csvLine(['TOTAL', t.qtd_pedidos, t.vlr_pedidos, t.qtd_orcamentos, t.vlr_orcamentos, t.total]));
+    _downloadCSV(lines.join('\n'), `valores_por_regiao_${hoje}.csv`);
+  }
+}
+
+/* Imprimir: expandir todas as linhas; CSV já usa _lastRows completo. */
+window.addEventListener('beforeprint', () => {
+  if (!_lastRows.length || !_lastMeta.tipo) return;
+  _printAll = true;
+  renderCurrentPanel();
+});
+window.addEventListener('afterprint', () => {
+  if (!_printAll) return;
+  _printAll = false;
+  renderCurrentPanel();
+});
+
+// Deep-link ?tab=
+(function () {
+  const t = new URLSearchParams(location.search).get('tab');
+  const map = { clientes: 'clientes', 'reg-vend': 'reg-vend', 'regiao-vendedor': 'reg-vend', 'reg-cli': 'reg-cli', 'regiao-clientes': 'reg-cli', valores: 'valores' };
+  if (t && map[t]) {
+    const btn = document.querySelector(`.tab-btn[data-tab="${map[t]}"]`);
+    if (btn) switchTab(map[t], btn);
+  } else {
+    atualizarIntro();
+    atualizarFiltrosVisiveis();
+  }
+})();
+
+carregarLookups();
+</script>
+</body>
+</html>

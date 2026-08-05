@@ -2,7 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const { getPool } = require('../config/database');
 const { permCrud, negarCad } = require('../config/cadastros-permissoes');
-const { ensureTipogradeColunas } = require('../config/tipograde-colunas');
+const { ensureTipogradeColunas, msgErroGradeSql } = require('../config/tipograde-colunas');
 
 const _permGrades = (req) => permCrud(req, {
   incluir: 'incluir_grades',
@@ -144,7 +144,7 @@ router.post('/', async (req, res) => {
     res.json({ id: gradeId, ok: true });
   } catch (err) {
     await conn.rollback();
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: msgErroGradeSql(err) });
   } finally {
     conn.release();
   }
@@ -232,7 +232,7 @@ router.put('/:id', async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     await conn.rollback();
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: msgErroGradeSql(err) });
   } finally {
     conn.release();
   }

@@ -6732,11 +6732,14 @@ html:not(.sysrep-ms-embed) #offlineQueueBadge { display: none !important; }
         <div class="form-group col2">
           <label>Transportadora</label>
           <div class="autocomplete-wrap">
-            <div class="input-with-action">
-              <input type="text" id="f_transp_search" class="input-field" placeholder="Buscar transportadora..." autocomplete="off">
-              <button class="btn-input-action" id="btnBuscaCadastroTransportadoras" type="button" title="Buscar Transportadora" onclick="abrirBuscaCadastro('transportadoras')">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-              </button>
+            <div class="iwa-row">
+              <div class="input-with-action">
+                <input type="text" id="f_transp_search" class="input-field" placeholder="Buscar transportadora..." autocomplete="off">
+                <button class="btn-input-action" id="btnBuscaCadastroTransportadoras" type="button" title="Buscar Transportadora" onclick="abrirBuscaCadastro('transportadoras')">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                </button>
+              </div>
+              <button type="button" class="btn-novo-rapido" id="btnQrTransportadora" title="Nova Transportadora rápida" onclick="abrirQrTransportadora()">+</button>
             </div>
             <input type="hidden" id="f_cod_transportadora">
             <div id="results_transportadora" class="autocomplete-results"></div>
@@ -6748,7 +6751,10 @@ html:not(.sysrep-ms-embed) #offlineQueueBadge { display: none !important; }
         </div>
         <div class="form-group">
           <label>Tipo de Frete</label>
-          <select id="f_tipo_frete" class="input-field"></select>
+          <div class="iwa-row">
+            <select id="f_tipo_frete" class="input-field" style="flex:1;min-width:0"></select>
+            <button type="button" class="btn-novo-rapido" id="btnQrTipoFrete" title="Novo Tipo de Frete rápido" onclick="abrirQrTipoFrete()">+</button>
+          </div>
         </div>
         <div class="form-group">
           <label>Valor do Frete (R$)</label>
@@ -7096,6 +7102,16 @@ let _gradeTipoAtual = '';
 let _gradeModoAtual = 'A';
 let _gradeMultiploAtual = 0;
 let _exibirCorPedido = 'N';
+/** sistemas.exibecorpedgrades — coluna Cor na impressão por grade */
+let _exibeCorPedGrades = 'S';
+/** sistemas.tiporelgrade — SIMPLES | COMPLETO */
+let _tipoRelGrade = 'SIMPLES';
+/** sistemas.exibir_codfabricante — preferir cód. fabricante na impressão quando o fornecedor não fixar */
+let _exibirCodFabricante = 'N';
+/** sistemas.layoutimpressaograde — CORES | NEUTRO | SECOES | HIBRIDO */
+let _layoutImpressaoGrade = 'CORES';
+/** sistemas.cabecalhoimpressaograde — UNICO | DUPLA */
+let _cabecalhoImpressaoGrade = 'UNICO';
 let _imprimirImpostos = 'N';
 let _destacarNaoImpressos = 'N';
 let _itensPedidoFornecedor = 'N';
@@ -7150,8 +7166,21 @@ function fmtPrecoDense(v) {
 }
 
 /** Fornecedor: Pedidos — usar Cód. Fabricante (`pedidos_codfabricante`). */
-function pedidoUsaCodFabricante() {
-  return (_fornecedorConfig.pedidos_codfabricante || 'N') === 'S';
+function pedidoUsaCodFabricante(fornConf) {
+  const f = fornConf || _fornecedorConfig || {};
+  return (f.pedidos_codfabricante || 'N') === 'S';
+}
+
+/**
+ * Impressão/PDF: cód. fabricante se o fornecedor pedir,
+ * senão se o sistema (exibir_codfabricante) estiver Sim.
+ * Fornecedor 'N' explícito prevalece sobre o sistema.
+ */
+function impressaoUsaCodFabricante(fornConf) {
+  const f = fornConf || _fornecedorConfig || {};
+  const flagForn = f.pedidos_codfabricante;
+  if (flagForn === 'S' || flagForn === 'N') return flagForn === 'S';
+  return (_exibirCodFabricante || 'N') === 'S';
 }
 
 /** Código exibido na busca de produtos — mesma regra da aba Itens do pedido. */
@@ -7420,6 +7449,20 @@ function itemDescricaoExib(item) {
 function itemObsTexto(item) {
   if (!item) return '';
   return String(item.obsitem ?? '').trim();
+}
+
+/** Campo Cores do item (sem fallback). */
+function corDedicadaItem(item) {
+  if (!item) return '';
+  return String(item.cores_qt ?? item.cores ?? item.cor1 ?? item.cor ?? '').trim();
+}
+
+/**
+ * Cor na impressão por grade: campo Cores do item, senão obsitem.
+ * Aceita várias cores no mesmo texto (ex.: "azul/verde/rosa") — não divide em linhas.
+ */
+function corItemImpressaoGrade(item) {
+  return corDedicadaItem(item) || itemObsTexto(item);
 }
 
 function readSubObsitemFromForm(editIdx) {
@@ -11668,6 +11711,107 @@ function abrirNovo() {
   syncFornecedorPedidoUi();
   initSysRepPedidoRascunho();
   setTimeout(() => { void oferecerRestaurarPedidoRascunho({ mode: 'new' }); }, 520);
+}
+
+// Overlay de carregamento da recompra — feedback imediato para não parecer travado.
+function _recompraLoading(show, msg) {
+  let el = document.getElementById('recompraLoadingOv');
+  if (show) {
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'recompraLoadingOv';
+      el.style.cssText = 'position:fixed;inset:0;z-index:2147483000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(15,23,42,.55);color:#fff;font:600 14px/1.4 var(--font,Segoe UI,sans-serif);text-align:center;padding:20px';
+      el.innerHTML = '<div style="width:42px;height:42px;border:4px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:recSpin .8s linear infinite"></div><div id="recompraLoadingMsg"></div><style>@keyframes recSpin{to{transform:rotate(360deg)}}</style>';
+      document.body.appendChild(el);
+    }
+    const m = document.getElementById('recompraLoadingMsg');
+    if (m) m.textContent = msg || 'Montando pedido de recompra…';
+    el.style.display = 'flex';
+  } else if (el) {
+    el.remove();
+  }
+}
+
+/**
+ * Carteira de Recompra → botão "Gerar pedido".
+ * REPETE o último pedido do cliente com aquela fábrica: clonarPedido traz cliente + fábrica
+ * + ITENS automaticamente (sem redigitar). Se o cliente não tiver pedido anterior com a
+ * fábrica, abre um pedido novo já com o cliente e a fábrica selecionados. NUNCA salva
+ * sozinho — o vendedor revisa e salva. Defensivo: falhas são engolidas para não quebrar a tela.
+ */
+async function iniciarPedidoRecompra(codClienteRaw, codFornecedorRaw) {
+  const cod = parseInt(codClienteRaw, 10);
+  if (!cod) return;
+  const codForn = parseInt(codFornecedorRaw, 10) || 0;
+  const _sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  _recompraLoading(true, 'Montando pedido de recompra…');
+  try {
+    // Espera os lookups essenciais (vendedores + empresas) ficarem prontos
+    const t0 = Date.now();
+    while (Date.now() - t0 < 5000) {
+      const pronto = Array.isArray(_vendedores) && _vendedores.length > 0
+        && Array.isArray(_empresas) && _empresas.length > 0;
+      if (pronto) break;
+      await _sleep(120);
+    }
+
+    // 1) Busca o ÚLTIMO pedido real do cliente COM aquela fábrica
+    let ultimo = null;
+    try {
+      const fq = codForn ? `?fornecedor=${codForn}` : '';
+      const ru = await api(`/api/pedidos/ultimo-por-cliente/${cod}${fq}`);
+      const du = (ru && ru.ok) ? await ru.json() : {};
+      ultimo = du.pedido || null;
+    } catch (_) { ultimo = null; }
+
+    // 2) Havendo pedido anterior → repete (clonarPedido traz cliente + fábrica + itens)
+    if (ultimo && ultimo.id) {
+      _recompraLoading(true, 'Trazendo os itens do último pedido…');
+      await clonarPedido(ultimo.id, { skipConfirmParcelas: true });
+      return;
+    }
+
+    // 3) Sem pedido anterior com essa fábrica → abre pedido novo com cliente + fábrica
+    let cfg = {};
+    try {
+      const rc = await api(`/api/clientes/${cod}`);
+      cfg = (rc && rc.ok) ? await rc.json() : {};
+    } catch (_) { cfg = {}; }
+    const nomeCli = (cfg && (cfg.nome || cfg.apelido)) || '';
+
+    try { abrirNovo(); } catch (e) { console.error('[recompra] abrirNovo falhou:', e); }
+    await _sleep(300); // deixa o abrirNovo (limparForm/render/defaults) assentar
+
+    _clienteConfig = cfg || {};
+    try { aplicarRegraCliente(); } catch (_) {}
+    setClientQuickActionsState(String(cod), nomeCli);
+    try { await checkPriceRule({ silent: true }); } catch (_) {}
+    try { _mostrarHistoricoOffline(cod, _clienteConfig); } catch (_) {}
+    try { reaplicarPromocoesAposMudancaCliente()?.catch?.(() => {}); } catch (_) {}
+
+    if (!document.getElementById('f_cod_cliente')?.value) {
+      _clienteConfig = cfg || {};
+      setClientQuickActionsState(String(cod), nomeCli);
+      try { aplicarRegraCliente(); } catch (_) {}
+    }
+
+    let nomeForn = '';
+    if (codForn) {
+      try {
+        await onFornecedorSelecionado(codForn);
+        nomeForn = (_fornecedorConfig && (_fornecedorConfig.nome || _fornecedorConfig.apelido)) || '';
+        if (nomeForn) setFornecedorQuickActionsState(String(codForn), nomeForn);
+      } catch (e) { console.error('[recompra] fornecedor falhou:', e); }
+    }
+
+    const alvo = `${nomeCli || ('#' + cod)}${nomeForn ? ' · ' + nomeForn : ''}`;
+    toast(`Pedido aberto para ${alvo}. Sem pedido anterior com esta fábrica — adicione os itens em «Adicionar produto».`, 'ok');
+  } catch (err) {
+    console.error('[recompra] falha ao iniciar pedido:', err);
+    try { toast('Não consegui montar a recompra automaticamente — selecione o cliente manualmente.', 'warn'); } catch (_) {}
+  } finally {
+    _recompraLoading(false);
+  }
 }
 
 async function aplicarFornecedorPadrao() {
@@ -20431,7 +20575,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }, () => {
     const _prepId = parseInt(document.getElementById('f_id_preposto')?.value) || 0;
-    return '&somente_fabricas=true' + (_prepId ? `&preposto_id=${_prepId}` : '');
+    const _cliId = parseInt(document.getElementById('f_cod_cliente')?.value) || 0;
+    return '&somente_fabricas=true'
+      + (_prepId ? `&preposto_id=${_prepId}` : '')
+      + (_cliId ? `&cod_cliente=${_cliId}` : '');
   });
 
   const fornSearchEl = document.getElementById('f_fornecedor_search');
@@ -20450,6 +20597,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         confirmarTrocaFornecedorPedido(null, '');
       }
     });
+  }
+
+  // Recompra (Carteira de Recompra → "Gerar pedido"): abre pedido novo já com o cliente
+  // e a fábrica. Param separado de ?cliente= (que só filtra a lista); aqui abrimos o form.
+  const _recompraCodUrl = _urlSearch.get('recompra');
+  if (_recompraCodUrl && /^\d+$/.test(_recompraCodUrl)) {
+    iniciarPedidoRecompra(_recompraCodUrl, _urlSearch.get('fornecedor'));
   }
 });
 
@@ -20577,12 +20731,7 @@ async function loadLookups() {
   }
 
   // Tipos de Frete
-  api('/api/pedidos/lookup/tiposfrete').then(r => r.json()).then(d => {
-    const s = document.getElementById('f_tipo_frete');
-    if(s) {
-      s.innerHTML = '<option value="">Selecione...</option>' + (d.tiposfrete || []).map(t=>`<option value="${t.nome}" data-id="${t.id}">${t.nome}</option>`).join('');
-    }
-  });
+  carregarTiposFreteLookup();
 
   // Tipos de Pedido
   api('/api/pedidos/lookup/tipos').then(r => r.json()).then(d => {
@@ -21467,6 +21616,89 @@ function _mergeClienteImpressao(cliRaw, pedido) {
   return cli;
 }
 
+/** Cache sessão: marca própria por cliente|fornecedor (opt-in). */
+const _marcaPropriaPedidoCache = new Map();
+
+function _marcaPropriaFromClienteHint(cli) {
+  if (!cli || String(cli.marca_propria_pedido || '').toUpperCase() !== 'S') return null;
+  const nome = String(cli.nome_marca || '').trim();
+  if (!nome) return null;
+  return {
+    nome_marca: nome,
+    logo_caminho: cli.logo_marca || null,
+    codigo_na_fabrica: cli.codigo_na_fabrica_marca || null,
+  };
+}
+
+/**
+ * Marca própria do cliente na fábrica do pedido — só se marca_propria='S'.
+ * Preferência: dados já vindos do GET /api/pedidos/:id; senão busca cliente.
+ */
+async function buscarMarcaPropriaPedido(codCliente, codFornecedor, cliHint) {
+  const idCli = parseInt(codCliente, 10);
+  const idForn = parseInt(codFornecedor, 10);
+  if (!(idCli > 0) || !(idForn > 0)) return null;
+
+  const fromHint = _marcaPropriaFromClienteHint(cliHint);
+  if (fromHint) {
+    _marcaPropriaPedidoCache.set(`${idCli}|${idForn}`, fromHint);
+    return fromHint;
+  }
+
+  const cacheKey = `${idCli}|${idForn}`;
+  if (_marcaPropriaPedidoCache.has(cacheKey)) {
+    return _marcaPropriaPedidoCache.get(cacheKey);
+  }
+
+  try {
+    const r = await api(`/api/clientes/${idCli}`);
+    if (!r.ok) {
+      _marcaPropriaPedidoCache.set(cacheKey, null);
+      return null;
+    }
+    const c = await r.json();
+    const lista = Array.isArray(c.representadas) ? c.representadas : [];
+    const row = lista.find((x) =>
+      parseInt(x.cod_fornecedor, 10) === idForn
+      && String(x.marca_propria || 'N').toUpperCase() === 'S'
+    );
+    if (!row) {
+      _marcaPropriaPedidoCache.set(cacheKey, null);
+      return null;
+    }
+    const result = {
+      nome_marca: String(row.nome_marca || '').trim() || null,
+      logo_caminho: row.logo_caminho || null,
+      codigo_na_fabrica: row.codigo_na_fabrica || null,
+    };
+    if (!result.nome_marca) {
+      _marcaPropriaPedidoCache.set(cacheKey, null);
+      return null;
+    }
+    _marcaPropriaPedidoCache.set(cacheKey, result);
+    return result;
+  } catch (_) {
+    _marcaPropriaPedidoCache.set(cacheKey, null);
+    return null;
+  }
+}
+
+function _htmlMarcaPropriaCliBox(marca, h) {
+  if (!marca || !marca.nome_marca) return '';
+  const origin = (typeof window !== 'undefined' && window.location && window.location.origin)
+    ? window.location.origin
+    : '';
+  let logoImg = '';
+  const caminho = String(marca.logo_caminho || '').trim();
+  if (caminho) {
+    const src = /^https?:\/\//i.test(caminho)
+      ? caminho
+      : (origin + (caminho.startsWith('/') ? caminho : '/' + caminho));
+    logoImg = `<img src="${h(src)}" alt="" style="height:36px;width:auto;max-width:90px;object-fit:contain;vertical-align:middle;margin-left:8px">`;
+  }
+  return `<div class="cli-row" style="display:flex;align-items:center;flex-wrap:wrap;gap:4px"><span>Marca própria: </span><b>${h(marca.nome_marca)}</b>${logoImg}</div>`;
+}
+
 function _resolveSuframaImpressao(cli, p) {
   const num = String(cli?.numerosulframa || cli?.numero_suframa || p?.numerosulframa || p?.numero_suframa || '').trim();
   const imprimirFlag = (cli?.imprimirsuframaped || p?.imprimirsuframaped) === 'S';
@@ -21716,84 +21948,279 @@ function _abrirJanelaImpressaoPedido(html) {
 }
 
 /**
- * Monta a tabela de itens no formato "mapa de grade" (estilo Mercos): colunas
- * dinâmicas por tamanho, agrupadas por grade no cabeçalho. Retorna null se o
- * pedido não tem nenhum item com grade (mantém a tabela padrão nesse caso).
+ * Monta a tabela de itens no formato "mapa de grade" (estilo confecção).
+ * Layouts (sistemas.layoutimpressaograde): CORES | NEUTRO | SECOES | HIBRIDO.
+ * Respeita modelo de impressão, tiporelgrade, exibecorpedgrades e fornecedor.
  */
-function montarTabelaGradeImpressao(its, h, fmtQtd, br, usarCodFab) {
+function montarTabelaGradeImpressao(its, h, fmtQtd, br, optsOrFab) {
   const comGrade = its.filter(i => (i.grade_qtd || []).some(g => (parseFloat(g.quantidade) || 0) > 0));
   if (!comGrade.length) return null;
-  const semGrade = its.filter(i => !comGrade.includes(i));
-  const temSemGrade = semGrade.length > 0;
-  const fmtInt = v => Math.round(parseFloat(v) || 0).toLocaleString('pt-BR');
 
-  // Agrupa itens que usam o mesmo conjunto de tamanhos (mesma grade) num bloco de colunas
+  const opts = (optsOrFab && typeof optsOrFab === 'object' && !Array.isArray(optsOrFab))
+    ? optsOrFab
+    : { usarCodFab: !!optsOrFab };
+  const cfg = opts.cfg || _cmpLoad() || {};
+  const fornConf = opts.fornConf || {};
+  const showCod = !!cfg.col_cod;
+  const usarCodFab = impressaoUsaCodFabricante(fornConf);
+  const exibeCor = (opts.exibeCor != null ? opts.exibeCor : (_exibeCorPedGrades || 'S')) === 'S';
+  const completo = String(opts.tipoRel != null ? opts.tipoRel : (_tipoRelGrade || 'SIMPLES')).toUpperCase() === 'COMPLETO';
+  const showFoto = !!opts.showFoto;
+  const fmtTam = typeof fmtQtd === 'function'
+    ? fmtQtd
+    : (v => Math.round(parseFloat(v) || 0).toLocaleString('pt-BR'));
+
+  const gradeKeyItem = (i) => (i.grade_qtd || []).filter(g => g.nome_grade).map(g => g.nome_grade).join('|');
+
+  const showSeq = completo && cfg.col_seq !== false;
+  const showUnid = completo && cfg.col_unidade === true;
+  const showQtdeLinha = cfg.col_quantidade !== false;
+  const showVlrPadrao = completo && typeof itensMostraColRelatorio === 'function' && itensMostraColRelatorio('vlr_padrao');
+  const showPreco = cfg.col_preco_unit !== false;
+  const showDesc = completo && cfg.col_desconto === true && (typeof itensMostraColRelatorio !== 'function' || itensMostraColRelatorio('desconto'));
+  const showAcr = completo && cfg.col_acrescimo === true;
+  const showVlrFinal = completo && cfg.col_vlr_desc_unit === true;
+  const showVlrTotal = cfg.col_vlrtotal !== false;
+  const showIpi = completo && (cfg.col_ipi === true || cfg.col_ipi_pct === true);
+  const showSt = completo && (cfg.col_st === true || cfg.col_st_pct === true);
+  const showSubtotal = completo && cfg.col_subtotal === true;
+
   const CORES_BLOCO = [
     { txt: '#4338ca', bg: '#eef2ff', tint: '#e0e7ff' },
     { txt: '#0d9488', bg: '#ecfdf5', tint: '#ccfbf1' },
     { txt: '#c2410c', bg: '#fff7ed', tint: '#fed7aa' },
     { txt: '#be185d', bg: '#fdf2f8', tint: '#fbcfe8' },
   ];
-  const blocos = [];
+  const COR_NEUTRA = { txt: '#334155', bg: '#f1f5f9', tint: '#e2e8f0' };
+
+  const blocosAll = [];
   comGrade.forEach(i => {
     const tamanhos = (i.grade_qtd || []).filter(g => g.nome_grade).map(g => g.nome_grade);
     const key = tamanhos.join('|');
-    if (!blocos.find(b => b.key === key)) {
-      blocos.push({ key, tamanhos, label: tamanhos.join('/'), cor: CORES_BLOCO[blocos.length % CORES_BLOCO.length] });
+    if (!blocosAll.find(b => b.key === key)) {
+      blocosAll.push({ key, tamanhos, label: tamanhos.join('/'), cor: CORES_BLOCO[blocosAll.length % CORES_BLOCO.length] });
     }
   });
 
-  const SBASE = 'padding:8px 9px;border-bottom:2px solid #e2e8f0;background:#f8fafc;color:#334155;font-weight:700;text-transform:uppercase;letter-spacing:.3px;font-size:9px';
-  const thFixo = (txt, align = 'center') => `<th rowspan="2" style="${SBASE};text-align:${align};vertical-align:middle">${txt}</th>`;
-  const headGrupos = [
-    thFixo('Ref.'), thFixo('Descrição', 'left'), thFixo('Cor'),
-    temSemGrade ? thFixo('Qtd.') : '',
-    ...blocos.map(b => `<th colspan="${b.tamanhos.length}" style="padding:6px 8px 3px;border-bottom:1px solid ${b.cor.tint};background:${b.cor.bg};color:${b.cor.txt};font-size:9px;font-weight:800;letter-spacing:.3px;border-radius:6px 6px 0 0">${h(b.label)}</th>`),
-    thFixo('Qtde.'), thFixo('Valor', 'right'), thFixo('Preço Total', 'right')
-  ].join('');
+  let layout = String(opts.layoutGrade != null ? opts.layoutGrade : (_layoutImpressaoGrade || 'CORES')).toUpperCase();
+  if (!['CORES', 'NEUTRO', 'SECOES', 'HIBRIDO'].includes(layout)) layout = 'CORES';
+  if (layout === 'HIBRIDO') layout = blocosAll.length >= 3 ? 'SECOES' : 'CORES';
 
-  const headTamanhos = blocos.flatMap((b) =>
-    b.tamanhos.map(t => `<th style="padding:3px 8px 7px;border-bottom:2px solid #e2e8f0;background:${b.cor.bg};color:${b.cor.txt};font-size:9.5px;font-weight:800;text-align:center">${h(t)}</th>`)
-  ).join('');
+  // UNICO = uma sequência só de tamanhos (estilo Jardim). DUPLA = tipogrades lado a lado / seções.
+  const cabUnico = String(opts.cabecalhoGrade != null ? opts.cabecalhoGrade : (_cabecalhoImpressaoGrade || 'UNICO')).toUpperCase() !== 'DUPLA';
 
-  let totalPares = 0;
-  const rows = its.map((i, idx) => {
-    const qtd = parseFloat(i.quantidade) || 0;
-    totalPares += qtd;
-    const valorUnit = vlrVendaEfetivoImpressao(i);
-    const total = baseTotalItemImpressao(i);
-    const gradeMap = {};
-    (i.grade_qtd || []).forEach(g => { gradeMap[g.nome_grade] = parseFloat(g.quantidade) || 0; });
-    const temGrade = Object.keys(gradeMap).length > 0;
-    const rowBg = idx % 2 === 1 ? 'background:#fafbfc' : '';
-    const td = (content, style = '') => `<td style="padding:7px 9px;border-bottom:1px solid #f1f5f9;${rowBg};${style}">${content}</td>`;
-    const semGradeCell = temSemGrade ? td(!temGrade ? `<b>${fmtInt(qtd)}</b>` : '', 'text-align:center') : '';
-    const blocoCells = blocos.flatMap(b => b.tamanhos.map(t => {
-      const v = gradeMap[t];
-      return td(v ? `<b style="color:${b.cor.txt}">${fmtInt(v)}</b>` : '<span style="color:#cbd5e1">—</span>', `text-align:center;${v ? `background:${b.cor.tint}55` : rowBg}`);
-    })).join('');
-    return `<tr>
-      ${td(h(usarCodFab ? (i.cod_fabricante || i.cod_produto || '') : (i.cod_produto || '')), 'text-align:center;font-weight:700;color:#0f172a')}
-      ${td(h(i.desc_prod))}
-      ${td(h(i.cor1 || i.cor || ''), 'text-align:center;color:#64748b')}
+  /** Une todos os tamanhos das grades num único conjunto (sem repetir 48 em vários blocos). */
+  const unionTamanhosOrdenados = (listaBlocos) => {
+    const seen = new Set();
+    const list = [];
+    const push = (t) => {
+      const k = String(t == null ? '' : t).trim();
+      if (!k || seen.has(k)) return;
+      seen.add(k);
+      list.push(k);
+    };
+    (listaBlocos || []).forEach((b) => (b.tamanhos || []).forEach(push));
+    // também varre os itens (grade_qtd pode vir só com tamanhos preenchidos)
+    comGrade.forEach((i) => (i.grade_qtd || []).forEach((g) => push(g.nome_grade)));
+    return list.sort((a, b) => {
+      const na = parseFloat(String(a).replace(',', '.'));
+      const nb = parseFloat(String(b).replace(',', '.'));
+      if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
+      return String(a).localeCompare(String(b), 'pt-BR', { numeric: true });
+    });
+  };
+
+  const usarCores = layout === 'CORES';
+  const aplicarEstiloBlocos = (lista) => lista.map((b, i) => ({
+    ...b,
+    cor: usarCores ? b.cor : COR_NEUTRA,
+    sep: !usarCores && i > 0,
+  }));
+
+  const fmtTamGrade = (v) => {
+    const n = parseFloat(v) || 0;
+    if (Math.abs(n - Math.round(n)) < 1e-9) return Math.round(n).toLocaleString('pt-BR');
+    return fmtTam(n);
+  };
+
+  function renderTabela(blocosIn, itemsIn) {
+    const blocos = aplicarEstiloBlocos(blocosIn);
+    const comG = itemsIn.filter(i => (i.grade_qtd || []).some(g => (parseFloat(g.quantidade) || 0) > 0));
+    const semG = itemsIn.filter(i => !comG.includes(i));
+    const temSemGrade = semG.length > 0;
+    const showQtdSemGrade = temSemGrade && showQtdeLinha;
+    const nTamCols = blocos.reduce((s, b) => s + b.tamanhos.length, 0);
+    const corSobDesc = exibeCor && nTamCols >= 8;
+    const COL_FIT = 'width:1%;white-space:nowrap';
+    const cabDupla = String(opts.cabecalhoGrade != null ? opts.cabecalhoGrade : (_cabecalhoImpressaoGrade || 'UNICO')).toUpperCase() === 'DUPLA';
+    const rs = cabDupla ? 'rowspan="2"' : '';
+    const SBASE = `padding:6px 4px;border-bottom:2px solid #e2e8f0;background:#f8fafc;color:#334155;font-weight:700;text-transform:uppercase;letter-spacing:.15px;font-size:8px;${COL_FIT}`;
+    const thFixo = (txt, align = 'center', extra = '') =>
+      `<th ${rs} style="${SBASE};text-align:${align};vertical-align:middle;${extra}">${txt}</th>`;
+    const thDesc = `<th ${rs} style="padding:6px 8px;border-bottom:2px solid #e2e8f0;background:#f8fafc;color:#334155;font-weight:700;text-transform:uppercase;letter-spacing:.15px;font-size:8px;text-align:left;vertical-align:middle;${COL_FIT}">${corSobDesc ? 'Descrição / Cor' : 'Descrição'}</th>`;
+    const thCor = thFixo('Cor', 'left');
+    const thFoto = showFoto
+      ? `<th ${rs} style="padding:4px;border-bottom:2px solid #e2e8f0;background:#f8fafc;color:#334155;font-weight:700;text-transform:uppercase;font-size:8px;text-align:center;vertical-align:middle;width:54px;min-width:54px;max-width:54px;white-space:nowrap">Foto</th>`
+      : '';
+    const tamPct = nTamCols > 0 ? Math.max(2.2, Math.min(12, 70 / nTamCols)) : 4;
+    const tamW = `${tamPct.toFixed(2)}%`;
+    const sepCss = (b) => (b.sep ? 'border-left:2px solid #94a3b8;' : '');
+
+    const headTamanhos = blocos.flatMap((b) =>
+      b.tamanhos.map((t, ti) => `<th style="padding:6px 3px;border-bottom:2px solid #e2e8f0;background:${b.cor.bg};color:${b.cor.txt};font-size:9px;font-weight:800;text-align:center;width:${tamW};${ti === 0 ? sepCss(b) : ''}">${h(t)}</th>`)
+    ).join('');
+
+    const headFixosEsq = [
+      thFoto,
+      showSeq ? thFixo('Item') : '',
+      showCod ? thFixo(usarCodFab ? 'COD. FAB.' : 'COD.') : '',
+      thDesc,
+      (exibeCor && !corSobDesc) ? thCor : '',
+      showUnid ? thFixo('Unid.') : '',
+      showQtdSemGrade ? thFixo('Qtd.') : '',
+    ].join('');
+    const headFixosDir = [
+      showQtdeLinha ? thFixo('Qtde.') : '',
+      showVlrPadrao ? thFixo('Vlr. Tab.', 'right') : '',
+      showPreco ? thFixo('Valor', 'right') : '',
+      showDesc ? thFixo('Desc.%') : '',
+      showAcr ? thFixo('Acr.%') : '',
+      showVlrFinal ? thFixo('Vlr Final', 'right') : '',
+      showVlrTotal ? thFixo('Total', 'right') : '',
+      showIpi ? thFixo('IPI') : '',
+      showSt ? thFixo('ST') : '',
+      showSubtotal ? thFixo('c/ Imp.', 'right') : '',
+    ].join('');
+
+    // UNICO (Jardim): uma linha com 42 44 46… | DUPLA: linha do bloco (48/50/52) + linha dos tamanhos
+    const theadHtml = cabDupla
+      ? `<tr>${headFixosEsq}${blocos.map(b => `<th colspan="${b.tamanhos.length}" style="padding:4px 2px 2px;border-bottom:1px solid ${b.cor.tint};background:${b.cor.bg};color:${b.cor.txt};font-size:8px;font-weight:800;letter-spacing:.15px;text-align:center;${sepCss(b)}">${h(b.label)}</th>`).join('')}${headFixosDir}</tr>
+        <tr>${headTamanhos}</tr>`
+      : `<tr>${headFixosEsq}${headTamanhos}${headFixosDir}</tr>`;
+
+    let totalPares = 0;
+    const rows = itemsIn.map((i, idx) => {
+      const qtd = parseFloat(i.quantidade) || 0;
+      totalPares += qtd;
+      const valorUnit = vlrVendaEfetivoImpressao(i);
+      const total = baseTotalItemImpressao(i);
+      const gradeMap = {};
+      (i.grade_qtd || []).forEach((g) => {
+        const n = String(g.nome_grade || '').trim();
+        if (!n) return;
+        gradeMap[n] = (gradeMap[n] || 0) + (parseFloat(g.quantidade) || 0);
+      });
+      const temGrade = Object.keys(gradeMap).length > 0;
+      const rowBg = idx % 2 === 1 ? 'background:#fafbfc' : '';
+      const td = (content, style = '') => `<td style="padding:4px 5px;border-bottom:1px solid #f1f5f9;vertical-align:middle;${rowBg};${style}">${content}</td>`;
+      const tdFit = (content, style = '') => td(content, `${COL_FIT};${style}`);
+      const semGradeCell = showQtdSemGrade ? tdFit(!temGrade ? `<b>${fmtTamGrade(qtd)}</b>` : '', 'text-align:center') : '';
+      const blocoCells = blocos.flatMap(b => b.tamanhos.map((t, ti) => {
+        const v = gradeMap[String(t).trim()];
+        return td(
+          v ? `<b style="color:${b.cor.txt};font-size:10px">${fmtTamGrade(v)}</b>` : '<span style="color:#cbd5e1">·</span>',
+          `text-align:center;padding:5px 3px;width:${tamW};${ti === 0 ? sepCss(b) : ''}${v ? `background:${b.cor.tint}55` : ''}`
+        );
+      })).join('');
+
+      const corDed = corDedicadaItem(i);
+      const corTxt = exibeCor ? (corDed || itemObsTexto(i)) : '';
+      const obsUsadaComoCor = exibeCor && !corDed && !!itemObsTexto(i);
+      const descBase = h(i.desc_prod || '');
+      let obsHtml = '';
+      if (!obsUsadaComoCor) obsHtml = htmlItemObsPrintLinha(i, fornConf, h);
+      const descHtml = obsHtml ? `${descBase}${obsHtml}` : descBase;
+      const _ipiPct = parseFloat(i.ipi_percentual ?? i.ipi) || 0;
+      const _stPct = parseFloat(i.st_percentual ?? i.st) || 0;
+      const _ipiVal = parseFloat(i.vlr_ipi) || (_ipiPct > 0 ? total * _ipiPct / 100 : 0);
+      const _stVal = parseFloat(i.vlr_st) || (_stPct > 0 ? total * _stPct / 100 : 0);
+      const _totImp = total + _ipiVal + _stVal;
+      const descPct = parseFloat(i.desconto_percentual ?? i.desconto) || 0;
+      const acrPct = parseFloat(i.acrescimo_percentual ?? i.acrescimo) || 0;
+      const fotoCell = showFoto
+        ? td(
+            i.foto_principal
+              ? `<img src="${h(i.foto_principal)}" alt="" style="width:48px;height:48px;object-fit:contain;object-position:center;border-radius:4px;display:block;margin:0 auto;background:#fff" onerror="this.style.display='none'">`
+              : '<span style="display:inline-block;width:48px;height:48px;background:#f1f5f9;border-radius:4px"></span>',
+            'text-align:center;padding:3px;width:54px;min-width:54px;max-width:54px'
+          )
+        : '';
+      const descComCor = (corSobDesc && corTxt)
+        ? `${descHtml}<div style="margin-top:2px;font-size:9px;font-weight:700;color:#475569;line-height:1.25">${h(corTxt)}</div>`
+        : descHtml;
+
+      return `<tr>
+      ${fotoCell}
+      ${showSeq ? tdFit(String(idx + 1), 'text-align:center;color:#64748b') : ''}
+      ${showCod ? tdFit(h(usarCodFab ? (i.cod_fabricante || i.cod_produto || '') : (i.cod_produto || '')), 'text-align:center;font-weight:700;color:#0f172a') : ''}
+      ${td(descComCor, `text-align:left;padding:5px 8px;line-height:1.3;${COL_FIT}`)}
+      ${exibeCor && !corSobDesc ? tdFit(h(corTxt), 'text-align:left;color:#334155;font-weight:700') : ''}
+      ${showUnid ? tdFit(h(i.unidade || ''), 'text-align:center') : ''}
       ${semGradeCell}${blocoCells}
-      ${td(`<b>${fmtInt(qtd)}</b>`, 'text-align:center')}
-      ${td('R$ ' + br(valorUnit), 'text-align:right')}
-      ${td('R$ ' + br(total), 'text-align:right;font-weight:700;color:#0f172a')}
+      ${showQtdeLinha ? tdFit(`<b>${fmtTamGrade(qtd)}</b>`, 'text-align:center') : ''}
+      ${showVlrPadrao ? tdFit('R$ ' + br(typeof normalizarVlrPadraoItem === 'function' ? normalizarVlrPadraoItem(i) : (i.vlr_padrao || 0)), 'text-align:right') : ''}
+      ${showPreco ? tdFit('R$ ' + br(valorUnit), 'text-align:right') : ''}
+      ${showDesc ? tdFit(descPct ? `${descPct}%` : '—', 'text-align:center') : ''}
+      ${showAcr ? tdFit(acrPct ? `<span style="color:#16a34a;font-weight:700">+${acrPct}%</span>` : '—', 'text-align:center') : ''}
+      ${showVlrFinal ? tdFit('R$ ' + br(valorUnit), 'text-align:right') : ''}
+      ${showVlrTotal ? tdFit('R$ ' + br(total), 'text-align:right;font-weight:700;color:#0f172a') : ''}
+      ${showIpi ? tdFit(`${_ipiPct || 0}%${(cfg.col_ipi && !cfg.col_ipi_pct && _ipiVal > 0) ? `<div style="font-size:8px;color:#6366f1;font-weight:700">R$ ${br(_ipiVal)}</div>` : ''}`, 'text-align:center') : ''}
+      ${showSt ? tdFit(`${_stPct || 0}%${(cfg.col_st && !cfg.col_st_pct && _stVal > 0) ? `<div style="font-size:8px;color:#d97706;font-weight:700">R$ ${br(_stVal)}</div>` : ''}`, 'text-align:center') : ''}
+      ${showSubtotal ? tdFit(`<b>R$ ${br(_totImp)}</b>`, 'text-align:right') : ''}
     </tr>`;
-  }).join('');
+    }).join('');
 
-  return {
-    html: `<table style="width:100%;border-collapse:collapse;font-size:10px;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0">
+    return {
+      html: `<table style="width:100%;border-collapse:collapse;font-size:9.5px;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0;table-layout:auto">
       <thead>
-        <tr>${headGrupos}</tr>
-        <tr>${headTamanhos}</tr>
+        ${theadHtml}
       </thead>
       <tbody>${rows}</tbody>
     </table>`,
-    totalPares
-  };
+      totalPares
+    };
+  }
+
+  // Cabeçalho Único: sempre uma tabela com tamanhos unidos (prioridade sobre seções / blocos lado a lado)
+  if (cabUnico) {
+    const tams = unionTamanhosOrdenados(blocosAll);
+    if (!tams.length) return null;
+    return renderTabela([{
+      key: tams.join('|'),
+      tamanhos: tams,
+      label: tams.join('/'),
+      cor: CORES_BLOCO[0],
+    }], its);
+  }
+
+  if (layout === 'SECOES') {
+    let html = '';
+    let totalPares = 0;
+    blocosAll.forEach((b) => {
+      const itemsB = its.filter(i => gradeKeyItem(i) === b.key);
+      if (!itemsB.length) return;
+      const r = renderTabela([b], itemsB);
+      html += `<div style="margin:0 0 12px 0">
+        <div style="font-size:10px;font-weight:800;color:#334155;margin:0 0 5px;letter-spacing:.3px;text-transform:uppercase;border-bottom:1px solid #e2e8f0;padding-bottom:3px">Grade ${h(b.label)}</div>
+        ${r.html}
+      </div>`;
+      totalPares += r.totalPares;
+    });
+    const semGrade = its.filter(i => !gradeKeyItem(i) || !(i.grade_qtd || []).some(g => (parseFloat(g.quantidade) || 0) > 0));
+    if (semGrade.length) {
+      const r = renderTabela([], semGrade);
+      html += `<div style="margin:0 0 8px 0">
+        <div style="font-size:10px;font-weight:800;color:#334155;margin:0 0 5px;letter-spacing:.3px;text-transform:uppercase;border-bottom:1px solid #e2e8f0;padding-bottom:3px">Itens sem grade</div>
+        ${r.html}
+      </div>`;
+      totalPares += r.totalPares;
+    }
+    return { html, totalPares };
+  }
+
+  return renderTabela(blocosAll, its);
 }
+
 
 async function imprimirPedidoAtual(opts = {}) {
   const rascunho = !!(opts && opts.rascunho);
@@ -21856,7 +22283,7 @@ async function imprimirPedidoAtual(opts = {}) {
     } catch(_) {}
   }
   const imprimirParc  = (fornConf.imprimirparcelaspedido || 'N') === 'S';
-  const usarCodFab    = (fornConf.pedidos_codfabricante || 'N') === 'S';
+  const usarCodFab    = impressaoUsaCodFabricante(fornConf);
   const corObs        = fornConf.cor_obspedido  || '#c0392b';
   const estilosObs    = (fornConf.estilo_obspedido || '').split(',');
   const obsCSS = [
@@ -21884,6 +22311,8 @@ async function imprimirPedidoAtual(opts = {}) {
   const cliIE    = cli.inscricao_estadual || cli.ie || cli.insc_estadual || (cli.tipo_pessoa !== 'FISICA' ? cli.rg : '') || '';
   const cliCnpj  = p.cnpj || cli.cpf || '';
   const suframaHtml = _buildSuframaImpressaoHtml(cli, p, h);
+  const marcaPropPed = await buscarMarcaPropriaPedido(p.cod_cliente, p.cod_fornecedor, cli);
+  const marcaPropriaHtml = _htmlMarcaPropriaCliBox(marcaPropPed, h);
 
   // ── empresa emissora ────────────────────────────────────────────
   const empNome = emp.Razao_empresa || emp.nome_fantasia || p.nome_empresa || 'EMPRESA PADRÃO';
@@ -21980,7 +22409,12 @@ async function imprimirPedidoAtual(opts = {}) {
   }).join('');
 
   // ── tabela de grade (substitui a tabela padrão quando o pedido tem itens com grade) ──
-  const tabelaGrade = (_habilitaGrades === 'S') ? montarTabelaGradeImpressao(its, h, fmtQtd, br, usarCodFab) : null;
+  const tabelaGrade = (_habilitaGrades === 'S') ? montarTabelaGradeImpressao(its, h, fmtQtd, br, {
+    cfg, fornConf, usarCodFab,
+    exibeCor: _exibeCorPedGrades || 'S',
+    tipoRel: _tipoRelGrade || 'SIMPLES',
+    showFoto: showFotoPDF,
+  }) : null;
   const itensTableHtml = tabelaGrade
     ? tabelaGrade.html
     : `<table><thead><tr>${theadCells}</tr></thead><tbody>${itensTr}</tbody></table>`;
@@ -22128,6 +22562,7 @@ async function imprimirPedidoAtual(opts = {}) {
       ${cfg.cli_ie   && cliIE   ? `<span><span>Inscr. Estadual: </span><b>${h(cliIE)}</b></span>` : ''}
     </div>
     ${cfg.cli_transportadora ? `<div class="cli-row"><span>Transportadora: </span><b>${h(p.nome_transportadora||'')} ${h(p.nome_transportadora?'- Frete: ':'')}${h(p.tipo_frete||'')}</b></div>` : ''}
+    ${marcaPropriaHtml}
     ${suframaHtml}
   </div>
 
@@ -24506,6 +24941,8 @@ async function carregarDadosModal() {
       url += '&somente_fabricas=true';
       const _idPrepForn = parseInt(document.getElementById('f_id_preposto')?.value) || 0;
       if (_idPrepForn) url += `&preposto_id=${_idPrepForn}`;
+      const _idCliForn = parseInt(document.getElementById('f_cod_cliente')?.value) || 0;
+      if (_idCliForn) url += `&cod_cliente=${_idCliForn}`;
     }
 
     const [, r] = await Promise.all([
@@ -24812,6 +25249,8 @@ async function _loadMoreModalItems() {
       url += '&somente_fabricas=true';
       const prepId = parseInt(document.getElementById('f_id_preposto')?.value) || 0;
       if (prepId) url += `&preposto_id=${prepId}`;
+      const cliId = parseInt(document.getElementById('f_cod_cliente')?.value) || 0;
+      if (cliId) url += `&cod_cliente=${cliId}`;
     }
     const r = await api(url);
     const data = await r.json();
@@ -27225,6 +27664,12 @@ window.addEventListener('load', async () => {
     _habilitaTipoDoc     = cfg.habilita_tipodoc           || 'N';
     _habilitaGrades      = cfg.habilitapedidograde       || 'N';
     _exibirCorPedido     = cfg.exibircorpedido           || 'N';
+    _exibeCorPedGrades   = cfg.exibecorpedgrades         || 'S';
+    _tipoRelGrade        = String(cfg.tiporelgrade || 'SIMPLES').toUpperCase() === 'COMPLETO' ? 'COMPLETO' : 'SIMPLES';
+    _exibirCodFabricante = cfg.exibir_codfabricante      || 'N';
+    _layoutImpressaoGrade = String(cfg.layoutimpressaograde || 'CORES').toUpperCase();
+    if (!['CORES', 'NEUTRO', 'SECOES', 'HIBRIDO'].includes(_layoutImpressaoGrade)) _layoutImpressaoGrade = 'CORES';
+    _cabecalhoImpressaoGrade = String(cfg.cabecalhoimpressaograde || 'UNICO').toUpperCase() === 'DUPLA' ? 'DUPLA' : 'UNICO';
     _imprimirImpostos    = cfg.imprimirpedidosimpostos   || 'N';
     _destacarNaoImpressos = cfg.destacarpedidosnaoimpressos || 'N';
     _itensPedidoFornecedor = cfg.itenspedidofornecedor || 'N';
@@ -28574,7 +29019,7 @@ async function gerarHtmlImpressao() {
     } catch (_) {}
   }
   const imprimirParc = (fornConf.imprimirparcelaspedido || 'N') === 'S';
-  const usarCodFab   = (fornConf.pedidos_codfabricante || 'N') === 'S';
+  const usarCodFab   = impressaoUsaCodFabricante(fornConf);
   const corObs       = fornConf.cor_obspedido  || '#c0392b';
   const estilosObs   = (fornConf.estilo_obspedido || '').split(',');
   const obsCSS = [
@@ -28600,6 +29045,8 @@ async function gerarHtmlImpressao() {
   const cliIE    = cli.inscricao_estadual || cli.ie || cli.insc_estadual || (cli.tipo_pessoa !== 'FISICA' ? cli.rg : '') || '';
   const cliCnpj  = p.cnpj || cli.cpf || '';
   const suframaHtml2 = _buildSuframaImpressaoHtml(cli, p, h);
+  const marcaPropPed2 = await buscarMarcaPropriaPedido(p.cod_cliente, p.cod_fornecedor, cli);
+  const marcaPropriaHtml2 = _htmlMarcaPropriaCliBox(marcaPropPed2, h);
   const empNome = emp.Razao_empresa || emp.nome_fantasia || p.nome_empresa || '';
   const { dual: dualLogo2, leftHtml: logoLeftHtml2, rightHtml: logoRightHtml2, dims: logoDims } = await buildPedidoRelatorioLogosLayout({
     fornConf, emp, codForn: p.cod_fornecedor, forPdf: true,
@@ -28694,7 +29141,12 @@ async function gerarHtmlImpressao() {
   }).join('');
 
   // ── tabela de grade (substitui a tabela padrão quando o pedido tem itens com grade) ──
-  const tabelaGrade2 = (_habilitaGrades === 'S') ? montarTabelaGradeImpressao(its, h, fmtQtd2, br, usarCodFab) : null;
+  const tabelaGrade2 = (_habilitaGrades === 'S') ? montarTabelaGradeImpressao(its, h, fmtQtd2, br, {
+    cfg: cfg2, fornConf, usarCodFab,
+    exibeCor: _exibeCorPedGrades || 'S',
+    tipoRel: _tipoRelGrade || 'SIMPLES',
+    showFoto: showFotosPDF,
+  }) : null;
   const itensTableHtml2 = tabelaGrade2
     ? tabelaGrade2.html
     : `<table><thead><tr>${theadCells2}</tr></thead><tbody>${itensTr}</tbody></table>`;
@@ -28796,6 +29248,7 @@ ${headerTextHtml2}
     ${cfg2.cli_ie   && cliIE   ? `<span><span>Inscr. Estadual: </span><b>${h(cliIE)}</b></span>` : ''}
   </div>
   ${cfg2.cli_transportadora ? `<div class="cli-row"><span>Transportadora: </span><b>${h(p.nome_transportadora||'')} ${h(p.tipo_frete?'- Frete: '+p.tipo_frete:'')}</b></div>` : ''}
+  ${marcaPropriaHtml2}
   ${suframaHtml2}
 </div>
 <div class="section-title">${tpImp2.itens}</div>
@@ -30550,6 +31003,58 @@ if (document.documentElement.classList.contains('sysrep-ms-embed')) {
   </div>
 </div>
 
+<!-- Novo Tipo de Frete Rápido -->
+<div class="qr-overlay" id="qrTipoFreteOverlay">
+  <div class="qr-box">
+    <div class="qr-head">
+      <span>+ Novo Tipo de Frete</span>
+      <button class="btn btn-ghost" style="padding:3px 9px;font-size:12px" onclick="fecharQrTipoFrete()">✕</button>
+    </div>
+    <div class="qr-body">
+      <div class="qr-group">
+        <label>Nome <span style="color:var(--danger)">*</span></label>
+        <input type="text" id="qr_frete_nome" class="input-field" autocomplete="off" placeholder="Ex: CIF, FOB, Entrega Própria" maxlength="100">
+      </div>
+      <div class="qr-group">
+        <label>Valor padrão (R$)</label>
+        <input type="number" id="qr_frete_valor" class="input-field" step="0.01" min="0" placeholder="0,00" value="0">
+      </div>
+    </div>
+    <div class="qr-foot">
+      <button class="btn btn-ghost" onclick="fecharQrTipoFrete()">Cancelar</button>
+      <button class="btn btn-primary" id="qrFreteBtnSalvar" onclick="salvarQrTipoFrete()">Salvar e selecionar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Nova Transportadora Rápida -->
+<div class="qr-overlay" id="qrTransportadoraOverlay">
+  <div class="qr-box">
+    <div class="qr-head">
+      <span>+ Nova Transportadora</span>
+      <button class="btn btn-ghost" style="padding:3px 9px;font-size:12px" onclick="fecharQrTransportadora()">✕</button>
+    </div>
+    <div class="qr-body">
+      <div class="qr-group">
+        <label>Nome <span style="color:var(--danger)">*</span></label>
+        <input type="text" id="qr_transp_nome" class="input-field" autocomplete="off" placeholder="Nome da transportadora">
+      </div>
+      <div class="qr-group">
+        <label>CPF / CNPJ</label>
+        <input type="text" id="qr_transp_cpf" class="input-field" autocomplete="off" placeholder="Opcional">
+      </div>
+      <div class="qr-group">
+        <label>Telefone</label>
+        <input type="text" id="qr_transp_fone" class="input-field" autocomplete="off" placeholder="Opcional">
+      </div>
+    </div>
+    <div class="qr-foot">
+      <button class="btn btn-ghost" onclick="fecharQrTransportadora()">Cancelar</button>
+      <button class="btn btn-primary" id="qrTranspBtnSalvar" onclick="salvarQrTransportadora()">Salvar e selecionar</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ── QUICK-ADD CLIENTE ─────────────────────────────────────────────────────────
 function abrirQrCliente() {
@@ -30656,6 +31161,95 @@ async function salvarQrProduto() {
     if (vlrEl) { setSubVlrInput(vlr); calcSubItem && calcSubItem(); }
     showToast(`Produto "${descricao}" criado e selecionado!`, 'success');
   } catch(err) { showToast(err.message, 'error'); }
+  finally { btn.disabled = false; btn.textContent = 'Salvar e selecionar'; }
+}
+
+// ── QUICK-ADD TIPO DE FRETE ────────────────────────────────────────────────────
+async function carregarTiposFreteLookup(selecionarNome) {
+  try {
+    const r = await api('/api/pedidos/lookup/tiposfrete');
+    const d = await r.json();
+    const s = document.getElementById('f_tipo_frete');
+    if (!s) return;
+    const atual = selecionarNome != null ? String(selecionarNome) : s.value;
+    const esc = (v) => String(v ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+    s.innerHTML = '<option value="">Selecione...</option>' + (d.tiposfrete || []).map(t => {
+      const nome = t.nome || t.descricao || '';
+      return `<option value="${esc(nome)}" data-id="${t.id}" data-valor="${parseFloat(t.valor) || 0}">${esc(nome)}</option>`;
+    }).join('');
+    if (atual) s.value = atual;
+  } catch (_) { /* lookup opcional */ }
+}
+
+function abrirQrTipoFrete() {
+  if (typeof permPedido === 'function' && permPedido('incluir_tipo_frete') === 'N') {
+    showToast('Sem permissão para incluir tipos de frete', 'error');
+    return;
+  }
+  document.getElementById('qr_frete_nome').value = '';
+  document.getElementById('qr_frete_valor').value = '0';
+  document.getElementById('qrTipoFreteOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('qr_frete_nome').focus(), 80);
+}
+function fecharQrTipoFrete() { document.getElementById('qrTipoFreteOverlay').classList.remove('open'); }
+document.getElementById('qrTipoFreteOverlay').addEventListener('click', e => { if (e.target === e.currentTarget) fecharQrTipoFrete(); });
+
+async function salvarQrTipoFrete() {
+  const nome = document.getElementById('qr_frete_nome').value.trim();
+  if (!nome) { document.getElementById('qr_frete_nome').focus(); return; }
+  const valor = parseFloat(document.getElementById('qr_frete_valor').value) || 0;
+  const btn = document.getElementById('qrFreteBtnSalvar');
+  btn.disabled = true; btn.textContent = 'Salvando…';
+  try {
+    const r = await apiJ('/api/tipo-frete', 'POST', { nome, valor, status: 'A' });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || 'Erro ao salvar');
+    fecharQrTipoFrete();
+    await carregarTiposFreteLookup(nome);
+    const sel = document.getElementById('f_tipo_frete');
+    if (sel) sel.value = nome;
+    const vf = document.getElementById('f_vlrfrete');
+    if (vf && valor > 0 && !(parseFloat(vf.value) > 0)) vf.value = valor;
+    showToast(`Tipo de frete "${nome}" criado e selecionado!`, 'success');
+  } catch (err) { showToast(err.message || 'Erro ao salvar', 'error'); }
+  finally { btn.disabled = false; btn.textContent = 'Salvar e selecionar'; }
+}
+
+// ── QUICK-ADD TRANSPORTADORA ──────────────────────────────────────────────────
+function abrirQrTransportadora() {
+  if (typeof permPedido === 'function' && permPedido('transportadora_incluir') === 'N') {
+    showToast('Sem permissão para incluir transportadoras', 'error');
+    return;
+  }
+  document.getElementById('qr_transp_nome').value = '';
+  document.getElementById('qr_transp_cpf').value = '';
+  document.getElementById('qr_transp_fone').value = '';
+  document.getElementById('qrTransportadoraOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('qr_transp_nome').focus(), 80);
+}
+function fecharQrTransportadora() { document.getElementById('qrTransportadoraOverlay').classList.remove('open'); }
+document.getElementById('qrTransportadoraOverlay').addEventListener('click', e => { if (e.target === e.currentTarget) fecharQrTransportadora(); });
+
+async function salvarQrTransportadora() {
+  const nome = document.getElementById('qr_transp_nome').value.trim();
+  if (!nome) { document.getElementById('qr_transp_nome').focus(); return; }
+  const cpf = document.getElementById('qr_transp_cpf').value.trim();
+  const fone = document.getElementById('qr_transp_fone').value.trim();
+  const btn = document.getElementById('qrTranspBtnSalvar');
+  btn.disabled = true; btn.textContent = 'Salvando…';
+  try {
+    const body = { nome, status: 'A', excluido: 'N' };
+    if (cpf) body.cpf = cpf;
+    if (fone) body.foneprincipal = fone;
+    const r = await apiJ('/api/transportadoras', 'POST', body);
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || 'Erro ao salvar');
+    fecharQrTransportadora();
+    const nomeSel = (nome || '').toUpperCase();
+    document.getElementById('f_transp_search').value = nomeSel;
+    document.getElementById('f_cod_transportadora').value = j.id;
+    showToast(`Transportadora "${nomeSel}" criada e selecionada!`, 'success');
+  } catch (err) { showToast(err.message || 'Erro ao salvar', 'error'); }
   finally { btn.disabled = false; btn.textContent = 'Salvar e selecionar'; }
 }
 
@@ -30913,6 +31507,8 @@ document.addEventListener('keydown', e => {
   if (document.getElementById('qrClienteOverlay').classList.contains('open'))   { fecharQrCliente();    return; }
   if (document.getElementById('qrFornecedorOverlay').classList.contains('open')){ fecharQrFornecedor(); return; }
   if (document.getElementById('qrProdutoOverlay').classList.contains('open'))   { fecharQrProduto();    return; }
+  if (document.getElementById('qrTipoFreteOverlay')?.classList.contains('open')){ fecharQrTipoFrete();  return; }
+  if (document.getElementById('qrTransportadoraOverlay')?.classList.contains('open')){ fecharQrTransportadora(); return; }
 });
 </script>
 

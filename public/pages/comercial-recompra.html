@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Carteira de Recompra</title>
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<style>
+  :root {
+    --bg: var(--content-bg);
+    --card: var(--card-bg);
+    --border: var(--card-border);
+    --text: var(--content-text);
+    --text2: var(--text2);
+    --accent: var(--accent);
+    --accent-soft: var(--accent-soft);
+    --success: #059669;
+    --warn: #d97706;
+    --danger: #dc2626;
+    --shadow: 0 10px 30px rgba(0,0,0,.08);
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:var(--font); background:var(--bg); color:var(--text); }
+  .page { min-height:100vh; display:flex; flex-direction:column; }
+  .toolbar { position:sticky; top:0; z-index:20; background:var(--card); border-bottom:1px solid var(--border); padding:14px 18px; display:flex; flex-wrap:wrap; align-items:end; gap:12px; }
+  .title-wrap { min-width:240px; margin-right:auto; }
+  .eyebrow { font-size:11px; text-transform:uppercase; letter-spacing:.8px; color:var(--text2); font-weight:800; }
+  h1 { margin:3px 0 0; font-size:22px; line-height:1.1; }
+  .subtitle { margin-top:6px; font-size:12px; color:var(--text2); max-width:520px; }
+  .filter { display:flex; flex-direction:column; gap:5px; min-width:130px; }
+  .filter label { font-size:10px; text-transform:uppercase; color:var(--text2); font-weight:800; letter-spacing:.7px; }
+  .filter input, .filter select { height:36px; border:1.5px solid var(--border); border-radius:10px; padding:0 10px; background:var(--bg); color:var(--text); font:inherit; outline:none; }
+  .filter input:focus, .filter select:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+  .filter select option { color:var(--text); background:var(--card); }
+  .btn { height:36px; border:none; border-radius:10px; padding:0 14px; font:inherit; font-weight:700; cursor:pointer; }
+  .btn-primary { background:var(--accent); color:var(--btn-text,#fff); }
+  .btn-secondary { background:var(--bg); color:var(--text); border:1.5px solid var(--border); }
+  .btn-sm { height:32px; padding:0 12px; border-radius:8px; font-size:12px; }
+  .content { padding:18px; display:grid; gap:16px; }
+  .intro { background:var(--card); border:1px solid var(--border); border-left:4px solid var(--accent); border-radius:10px; padding:12px 16px; display:flex; flex-wrap:wrap; gap:10px 20px; align-items:center; justify-content:space-between; box-shadow:var(--shadow); }
+  .intro-text { font-size:13px; line-height:1.55; color:var(--text2); max-width:760px; }
+  .intro-text strong { color:var(--text); }
+  .intro-text a { color:var(--accent); font-weight:700; text-decoration:none; cursor:pointer; white-space:nowrap; }
+  .intro-text a:hover { text-decoration:underline; }
+  .intro-legend { display:flex; flex-wrap:wrap; gap:6px; }
+  .intro-legend span { font-size:11.5px; font-weight:700; padding:4px 10px; border-radius:999px; background:var(--bg); border:1px solid var(--border); color:var(--text); white-space:nowrap; }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px; }
+  .kpi { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:14px 16px; box-shadow:var(--shadow); border-left-width:4px; }
+  .kpi[data-sem="vermelho"] { border-left-color:var(--danger); }
+  .kpi[data-sem="amarelo"] { border-left-color:var(--warn); }
+  .kpi[data-sem="verde"] { border-left-color:var(--success); }
+  .kpi[data-sem="total"] { border-left-color:var(--accent); }
+  .kpi-label { font-size:10px; text-transform:uppercase; letter-spacing:.7px; color:var(--text2); font-weight:800; }
+  .kpi-value { font-size:26px; font-weight:800; margin-top:8px; }
+  .kpi-sub { margin-top:6px; font-size:12px; color:var(--text2); }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; }
+  .chip { border:1.5px solid var(--border); background:var(--card); color:var(--text); border-radius:999px; padding:6px 14px; font-size:12px; font-weight:700; cursor:pointer; }
+  .chip[aria-pressed="true"] { background:var(--accent-soft); border-color:var(--accent); color:var(--accent); }
+  .list { display:grid; gap:10px; }
+  .cli { background:var(--card); border:1px solid var(--border); border-left-width:5px; border-radius:10px; padding:12px 14px; display:grid; grid-template-columns:1fr auto; gap:12px; align-items:center; box-shadow:var(--shadow); }
+  .cli[data-sem="vermelho"] { border-left-color:var(--danger); }
+  .cli[data-sem="amarelo"] { border-left-color:var(--warn); }
+  .cli[data-sem="verde"] { border-left-color:var(--success); }
+  .cli-main { min-width:0; }
+  .cli-nome { font-size:14px; font-weight:800; display:flex; align-items:center; gap:8px; }
+  .cli-nome .em { font-size:16px; }
+  .cli-nome .txt { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cli-fab { margin-top:4px; font-size:12.5px; color:var(--text); }
+  .cli-fab b { font-weight:800; }
+  .cli-tag { font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.5px; padding:2px 8px; border-radius:999px; }
+  .cli-tag[data-sem="vermelho"] { background:rgba(220,38,38,.12); color:var(--danger); }
+  .cli-tag[data-sem="amarelo"] { background:rgba(217,119,6,.14); color:var(--warn); }
+  .cli-tag[data-sem="verde"] { background:rgba(5,150,105,.12); color:var(--success); }
+  .cli-meta { margin-top:6px; display:flex; flex-wrap:wrap; gap:6px 16px; font-size:12px; color:var(--text2); }
+  .cli-meta b { color:var(--text); font-weight:700; }
+  .cli-side { text-align:right; display:grid; gap:8px; justify-items:end; }
+  .cli-pot { font-size:15px; font-weight:800; }
+  .cli-pot small { display:block; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:var(--text2); }
+  .state { padding:16px; border-radius:8px; background:var(--card); border:1px solid var(--border); font-size:13px; }
+  .state.error { color:var(--danger); }
+  .state.empty { background:rgba(148,163,184,.05); border-style:dashed; color:var(--text2); text-align:center; }
+  @media (max-width:640px) {
+    .cli { grid-template-columns:1fr; }
+    .cli-side { text-align:left; justify-items:start; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="toolbar">
+    <div class="title-wrap">
+      <div class="eyebrow">Comercial · Vendas</div>
+      <h1>Carteira de Recompra</h1>
+      <div class="subtitle">Cliente × fábrica na hora de recomprar — pelo ciclo próprio de cada dupla. Priorize os 🔴 atrasados.</div>
+    </div>
+    <div class="filter" id="vendorFilter" style="display:none"><label for="idVendedor">Vendedor</label><select id="idVendedor"><option value="">Todos</option></select></div>
+    <div class="filter"><label for="fabricaFiltro">Fábrica</label><select id="fabricaFiltro"><option value="">Todas</option></select></div>
+    <div class="filter"><label for="cidade">Cidade</label><input id="cidade" type="text" placeholder="Todas" autocomplete="off"></div>
+    <div class="filter"><label for="uf">UF</label><input id="uf" type="text" maxlength="2" placeholder="Todas" autocomplete="off"></div>
+    <div class="filter"><label for="busca">Buscar cliente</label><input id="busca" type="text" placeholder="Nome / apelido" autocomplete="off"></div>
+    <button class="btn btn-primary" id="btnAplicar">Atualizar</button>
+    <button class="btn btn-secondary" id="btnResetar">Limpar</button>
+    <button class="btn btn-secondary" id="btnAjuda" title="Como funciona a Carteira de Recompra">❔ Ajuda</button>
+  </div>
+
+  <div class="content">
+    <div class="intro">
+      <div class="intro-text">
+        <strong>O que é:</strong> lista quem está na hora de <strong>recomprar de cada fábrica</strong>, pelo ritmo de compra de cada cliente. Comece pelos 🔴 atrasados e clique em <strong>Gerar pedido</strong> — o pedido abre já com o cliente e a fábrica certos.
+        <a onclick="abrirAjuda()">Saiba mais →</a>
+      </div>
+      <div class="intro-legend">
+        <span>🟢 Em dia</span>
+        <span>🟡 Chegando a hora</span>
+        <span>🔴 Atrasado — prioridade</span>
+      </div>
+    </div>
+    <div id="stateBox" class="state">Carregando carteira...</div>
+    <div id="dashboard" style="display:none">
+      <div class="kpis" id="kpiGrid"></div>
+      <div class="chips" id="semChips" style="margin-top:2px"></div>
+      <div class="list" id="cliList"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const money = v => Number(v || 0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
+const integer = v => Number(v || 0).toLocaleString('pt-BR');
+function token(){ return localStorage.getItem('token') || sessionStorage.getItem('token') || ''; }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmtData(iso){ if(!iso) return '—'; const [y,m,d] = String(iso).slice(0,10).split('-'); return (y&&m&&d) ? `${d}/${m}/${y}` : '—'; }
+async function api(url){ const r = await fetch(url, { headers:{ Authorization:'Bearer ' + token() } }); if(!r.ok) throw new Error('Falha ao carregar dados'); return r.json(); }
+
+let _rows = [];       // carteira completa carregada
+let _resumo = null;
+let _semFiltro = '';  // '', 'vermelho', 'amarelo', 'verde'
+let _fabFiltro = '';  // cod_fornecedor selecionado no filtro de fábrica ('' = todas)
+
+const SEM = {
+  vermelho: { emoji:'🔴', label:'Atrasado' },
+  amarelo:  { emoji:'🟡', label:'Na janela' },
+  verde:    { emoji:'🟢', label:'Em dia' },
+};
+
+function buildQuery(){
+  const qs = new URLSearchParams();
+  const v = document.getElementById('idVendedor')?.value?.trim();
+  const cidade = document.getElementById('cidade')?.value?.trim();
+  const uf = document.getElementById('uf')?.value?.trim();
+  const busca = document.getElementById('busca')?.value?.trim();
+  if (v) qs.set('id_vendedor', v);
+  if (cidade) qs.set('cidade', cidade);
+  if (uf) qs.set('uf', uf);
+  if (busca) qs.set('q', busca);
+  return qs.toString();
+}
+
+function renderKpis(r){
+  const box = document.getElementById('kpiGrid');
+  if (!r){ box.innerHTML = ''; return; }
+  const items = [
+    ['total',    'Clientes na carteira', integer(r.total_clientes),        `Potencial ${money(r.valor_potencial_total)}`],
+    ['vermelho', '🔴 Atrasados',         integer(r.vermelho?.qtd || 0),    `Potencial ${money(r.vermelho?.valor_potencial || 0)}`],
+    ['amarelo',  '🟡 Na janela',         integer(r.amarelo?.qtd || 0),     `Potencial ${money(r.amarelo?.valor_potencial || 0)}`],
+    ['verde',    '🟢 Em dia',            integer(r.verde?.qtd || 0),       `Potencial ${money(r.verde?.valor_potencial || 0)}`],
+  ];
+  box.innerHTML = items.map(([sem,l,v,s]) =>
+    `<div class="kpi" data-sem="${sem}"><div class="kpi-label">${l}</div><div class="kpi-value">${v}</div><div class="kpi-sub">${s}</div></div>`
+  ).join('');
+}
+
+function renderChips(r){
+  const box = document.getElementById('semChips');
+  const defs = [
+    ['',         'Todos',        r ? r.total_clientes : 0],
+    ['vermelho', '🔴 Atrasados', r ? (r.vermelho?.qtd || 0) : 0],
+    ['amarelo',  '🟡 Na janela', r ? (r.amarelo?.qtd || 0) : 0],
+    ['verde',    '🟢 Em dia',    r ? (r.verde?.qtd || 0) : 0],
+  ];
+  box.innerHTML = defs.map(([val,label,qtd]) =>
+    `<button class="chip" data-sem="${val}" aria-pressed="${_semFiltro === val}">${label} · ${integer(qtd)}</button>`
+  ).join('');
+  box.querySelectorAll('.chip').forEach(ch => ch.addEventListener('click', () => {
+    _semFiltro = ch.getAttribute('data-sem') || '';
+    renderChips(_resumo);
+    renderList();
+  }));
+}
+
+function _linhasFiltradas(){
+  return _rows.filter(r =>
+    (!_semFiltro || r.semaforo === _semFiltro) &&
+    (!_fabFiltro || String(r.cod_fornecedor) === String(_fabFiltro))
+  );
+}
+
+function renderList(){
+  const box = document.getElementById('cliList');
+  const rows = _linhasFiltradas();
+  if (!rows.length){
+    box.innerHTML = `<div class="state empty">Nenhum cliente com histórico de compra para o filtro atual.</div>`;
+    return;
+  }
+  box.innerHTML = rows.map(r => {
+    const s = SEM[r.semaforo] || SEM.verde;
+    const nome = esc(r.nome || r.apelido || ('Cliente ' + r.cod_cliente));
+    const fab = esc(r.nome_fornecedor || ('Fábrica ' + r.cod_fornecedor));
+    const local = [r.cidade, r.uf].filter(Boolean).map(esc).join(' / ') || 'Sem cidade';
+    const atrasoTxt = r.dias_atraso > 0
+      ? `<b style="color:var(--danger)">${integer(r.dias_atraso)} d atrasado</b>`
+      : `faltam <b>${integer(Math.abs(r.dias_atraso))} d</b>`;
+    return `
+      <div class="cli" data-sem="${r.semaforo}">
+        <div class="cli-main">
+          <div class="cli-nome">
+            <span class="em">${s.emoji}</span>
+            <span class="txt">${nome}</span>
+            <span class="cli-tag" data-sem="${r.semaforo}">${s.label}</span>
+          </div>
+          <div class="cli-fab">🏭 <b>${fab}</b></div>
+          <div class="cli-meta">
+            <span>${local}</span>
+            <span>Última: <b>${fmtData(r.ultima_compra)}</b> (${integer(r.dias_desde_ultima)} d)</span>
+            <span>Ciclo médio: <b>${integer(r.ciclo_medio)} d</b></span>
+            <span>Próxima prevista: <b>${fmtData(r.previsao_proxima)}</b> · ${atrasoTxt}</span>
+            <span>${integer(r.total_pedidos)} pedidos</span>
+          </div>
+        </div>
+        <div class="cli-side">
+          <div class="cli-pot"><small>Potencial</small>${money(r.valor_potencial)}</div>
+          <button class="btn btn-primary btn-sm" onclick="gerarPedido(${r.cod_cliente}, '${esc(String(r.cod_fornecedor))}')">Gerar pedido</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function gerarPedido(codCliente, codFornecedor){
+  const qs = new URLSearchParams();
+  qs.set('recompra', codCliente);
+  if (codFornecedor) qs.set('fornecedor', codFornecedor);
+  const url = `/pages/pedidos.html?${qs.toString()}`;
+  // Dentro do shell (home.html) → abre aba; standalone → navega direto.
+  if (window.parent && window.parent !== window){
+    window.parent.postMessage({ type:'navigate', url, label:'Pedidos' }, '*');
+  } else {
+    window.location.href = url;
+  }
+}
+
+function abrirAjuda(){
+  const url = '/pages/ajuda-recompra.html';
+  if (window.parent && window.parent !== window){
+    window.parent.postMessage({ type:'navigate', url, label:'Ajuda' }, '*');
+  } else {
+    window.location.href = url;
+  }
+}
+
+function applyFabricaCombo(){
+  const sel = document.getElementById('fabricaFiltro');
+  if (!sel) return;
+  const mapa = new Map();
+  _rows.forEach(r => {
+    const id = String(r.cod_fornecedor);
+    if (!mapa.has(id)) mapa.set(id, r.nome_fornecedor || ('Fábrica ' + id));
+  });
+  const fabs = [...mapa.entries()].sort((a, b) => a[1].localeCompare(b[1], 'pt-BR'));
+  const atual = _fabFiltro;
+  sel.innerHTML = '<option value="">Todas</option>' +
+    fabs.map(([id, nome]) => `<option value="${esc(id)}">${esc(nome)}</option>`).join('');
+  // Mantém a seleção se a fábrica ainda existir; senão volta para "Todas"
+  sel.value = mapa.has(String(atual)) ? String(atual) : '';
+  _fabFiltro = sel.value;
+}
+
+function applyVendorCombo(vendedores, canPickOthers){
+  const sel = document.getElementById('idVendedor');
+  const wrap = document.getElementById('vendorFilter');
+  if (!sel || !wrap) return;
+  const list = vendedores || [];
+  if (!canPickOthers && list.length <= 1){
+    wrap.style.display = 'none';
+    return;
+  }
+  const atual = sel.value;
+  sel.innerHTML = '<option value="">Todos</option>' +
+    list.map(v => `<option value="${v.id}">${esc(v.nome || v.nome_vendedor)}</option>`).join('');
+  sel.value = atual;
+  wrap.style.display = '';
+}
+
+async function carregar(){
+  const state = document.getElementById('stateBox');
+  const dash = document.getElementById('dashboard');
+  state.className = 'state';
+  state.textContent = 'Atualizando carteira...';
+  state.style.display = '';
+  dash.style.display = 'none';
+  try {
+    const data = await api('/api/recompra/carteira?' + buildQuery());
+    _rows = data.data || [];
+    _resumo = data.resumo || null;
+    applyVendorCombo(data.vendedores, data.filtros?.canPickOthers);
+    applyFabricaCombo();
+    renderKpis(_resumo);
+    renderChips(_resumo);
+    renderList();
+    dash.style.display = '';
+    state.style.display = 'none';
+  } catch (err){
+    state.className = 'state error';
+    state.textContent = err.message || 'Erro ao carregar a carteira de recompra.';
+  }
+}
+
+document.getElementById('btnAplicar').addEventListener('click', carregar);
+document.getElementById('btnAjuda')?.addEventListener('click', abrirAjuda);
+document.getElementById('fabricaFiltro')?.addEventListener('change', (e) => {
+  _fabFiltro = e.target.value || '';
+  renderList();
+});
+document.getElementById('btnResetar').addEventListener('click', () => {
+  ['idVendedor','fabricaFiltro','cidade','uf','busca'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  _semFiltro = '';
+  _fabFiltro = '';
+  carregar();
+});
+['cidade','uf','busca'].forEach(id => {
+  document.getElementById(id)?.addEventListener('keydown', e => { if (e.key === 'Enter') carregar(); });
+});
+
+carregar();
+
+// Tema / fonte vindos do shell
+window.addEventListener('message', (ev) => {
+  if (!ev.data) return;
+  if (ev.data.type === 'theme-changed') document.documentElement.setAttribute('data-theme', ev.data.theme);
+  if (ev.data.type === 'font-pref-changed'){
+    window.SysFont?.apply(ev.data.familyId, ev.data.sizeId);
+    window.SysVisual?.apply(ev.data.accentId, ev.data.compact);
+  }
+});
+</script>
+</body>
+</html>

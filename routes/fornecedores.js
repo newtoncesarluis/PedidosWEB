@@ -239,7 +239,7 @@ router.get('/', async (req, res) => {
   try {
     const pool = getPool();
     await ensureColumns(pool);
-    const { q = '', status = 'A', limit = 100, offset = 0, cidade = '', segmento = '', padrao = '', somente_fabricas = '', preposto_id = '' } = req.query;
+    const { q = '', status = 'A', limit = 100, offset = 0, cidade = '', segmento = '', padrao = '', somente_fabricas = '', preposto_id = '', cod_cliente = '', id_cliente = '' } = req.query;
 
     let where = [`(f.excluido = 'N' OR f.excluido IS NULL OR f.excluido = '')`];
     const vals = [];
@@ -273,6 +273,23 @@ router.get('/', async (req, res) => {
     if (preposto_id && parseInt(preposto_id)) {
       where.push(`NOT EXISTS (SELECT 1 FROM preposto_comissao_fornecedor pcf WHERE pcf.id_usuario = ? AND pcf.id_fornecedor = f.id AND pcf.oculta = 'S')`);
       vals.push(parseInt(preposto_id));
+    }
+
+    // Cliente com trava «restringe_representadas» = S → só fábricas vinculadas
+    const idCliFiltro = parseInt(cod_cliente || id_cliente, 10);
+    if (somente_fabricas === 'true' && idCliFiltro > 0) {
+      try {
+        const { clienteRestringeRepresentadas } = require('../modules/clientes/sub/representadas.service');
+        if (await clienteRestringeRepresentadas(idCliFiltro, pool)) {
+          where.push(`f.id IN (
+            SELECT cr.cod_fornecedor FROM cliente_representadas cr
+            WHERE cr.cod_cliente = ?
+              AND COALESCE(cr.excluido, 'N') = 'N'
+              AND COALESCE(cr.ativo, 'S') = 'S'
+          )`);
+          vals.push(idCliFiltro);
+        }
+      } catch (_) { /* tabela ainda não migrada — não filtra */ }
     }
 
     const whereClause = where.join(' AND ');

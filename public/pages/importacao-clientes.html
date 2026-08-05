@@ -292,6 +292,13 @@
     <p class="imp-crumb">Cadastros › Ferramentas · importação em lote via planilha Excel</p>
   </header>
 
+  <div class="quick-guide">
+    Por padrão grava <strong>só o que veio na planilha</strong> (IE, data de fundação e situação CNPJ se mapeadas).
+    Após validar, use a opção <strong>Consultar CNPJ</strong> para preencher IE / fundação / situação quando estiverem vazios
+    (mais lento — rate-limit). CNPJ baixado/inapto <strong>não bloqueia</strong> a importação; o resumo informa quantos.
+    <a href="/pages/ajuda-clientes.html?sec=importacao-excel" style="color:var(--accent2);margin-left:4px;">Ajuda</a>
+  </div>
+
   <div class="steps-bar" id="stepsBar">
     <div class="step-item active" id="step1"><span class="step-num">1</span><span class="step-text">Arquivo</span></div>
     <div class="step-conn" id="conn1"></div>
@@ -397,6 +404,10 @@
           <input type="checkbox" id="skipSemCadastro" autocomplete="off"/>
           Não gravar clientes novos
         </label>
+        <label class="skip-new-label" style="margin-left:10px;" title="Preenche só campos vazios (IE, data de fundação, situação CNPJ). Usa BrasilAPI + CNPJ.ws com intervalo entre consultas.">
+          <input type="checkbox" id="consultarCnpjImport" autocomplete="off"/>
+          Consultar CNPJ e preencher IE / fundação / situação (mais lento)
+        </label>
         <label class="skip-new-label" style="margin-left:10px;">
           Tipo Cadastro padrão:
           <select id="defTipoCadastro" autocomplete="off" style="margin-left:6px; padding:3px 7px; border-radius:5px; border:1px solid var(--border); background:var(--surface); color:var(--text); font-size:12px; font-family:var(--font-body);">
@@ -436,7 +447,9 @@
       <div class="import-stat"><div class="val" id="statOk"  style="color:var(--green)">0</div><div class="lbl">INSERIDOS</div></div>
       <div class="import-stat"><div class="val" id="statUpd" style="color:var(--accent2)">0</div><div class="lbl">ATUALIZADOS</div></div>
       <div class="import-stat"><div class="val" id="statErr" style="color:var(--red)">0</div><div class="lbl">ERROS</div></div>
+      <div class="import-stat" id="statBaixWrap" style="display:none;"><div class="val" id="statBaix" style="color:var(--yellow)">0</div><div class="lbl">CNPJ NÃO ATIVO</div></div>
     </div>
+    <div id="importCnpjAviso" style="display:none;margin-top:.75rem;font-size:.78rem;color:var(--yellow);font-family:var(--font-body);line-height:1.4;"></div>
     <div id="importErrosPainel" class="import-erros-painel" style="display:none;" role="region" aria-label="Detalhes dos erros na importação">
       <div class="import-erros-tit">Detalhes dos erros (linha da planilha)</div>
       <ul id="importErrosLista" class="import-erros-lista"></ul>
@@ -802,7 +815,12 @@
   }
 
   function renderStatusBadge(s) {
-    if (s.status_importacao === 'ok')   return '<span class="badge badge-ok"><span class="dot dot-green"></span> Salvo</span>';
+    if (s.status_importacao === 'ok') {
+      const aviso = s.cnpj_nao_ativa
+        ? `<div class="cell-err-detail" style="color:var(--yellow);">CNPJ ${escHtml(s.cnpj_situacao || 'não ativo')}</div>`
+        : '';
+      return '<span class="badge badge-ok"><span class="dot dot-green"></span> Salvo</span>' + aviso;
+    }
     if (s.status_importacao === 'erro') {
       const m = s.msg || 'Erro desconhecido';
       return '<span class="badge badge-erro"><span class="dot" style="background:var(--red)"></span> Erro</span>' +
@@ -967,6 +985,124 @@
     renderCards();
   }
 
+  // ── Consulta CNPJ (opcional na importação) ───────────────────────────────────
+  const _cnpjCacheImp = {};
+  const CNPJ_THROTTLE_MS = 1100;
+
+  function _sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  function _isSituacaoCnpjNaoAtiva(sit) {
+    const s = String(sit || '').trim().toUpperCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (!s) return false;
+    if (s === 'ATIVA' || s === 'ATIVO' || s.startsWith('ATIVA ')) return false;
+    return true;
+  }
+
+  function _pickInscricaoEstadual(inscricoes, ufEstab) {
+    if (!Array.isArray(inscricoes) || !inscricoes.length) return '';
+    const uf = String(ufEstab || '').toUpperCase();
+    const ativas = inscricoes.filter(ie => ie && (ie.ativo === true || ie.ativo === 'S' || ie.ativo === 1));
+    const pool = ativas.length ? ativas : inscricoes;
+    const sameUf = uf
+      ? pool.find(ie => String(ie.estado?.sigla || ie.uf || '').toUpperCase() === uf)
+      : null;
+    const escolhida = sameUf || pool[0];
+    return String(escolhida?.inscricao_estadual || escolhida?.inscricao || '').trim();
+  }
+
+  function _normalizeCnpjWs(raw) {
+    const end = raw.estabelecimento || {};
+    const uf = end.estado?.sigla || '';
+    return {
+      inscricao_estadual: _pickInscricaoEstadual(end.inscricoes_estaduais, uf),
+      descricao_situacao_cadastral: end.situacao_cadastral || raw.situacao_cadastral || '',
+      data_situacao_cadastral: end.data_situacao_cadastral || '',
+      data_inicio_atividade: end.data_inicio_atividade || '',
+      uf,
+    };
+  }
+
+  async function _fetchCnpjWsRaw(cnpj) {
+    const rw = await fetch(`https://publica.cnpj.ws/cnpj/${cnpj}`).catch(() => null);
+    if (!rw || !rw.ok) return null;
+    try { return await rw.json(); } catch (_) { return null; }
+  }
+
+  async function _fetchCnpjImport(cnpj) {
+    if (_cnpjCacheImp[cnpj]) return { data: _cnpjCacheImp[cnpj], fromCache: true };
+    const rb = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`).catch(() => null);
+    let d = null;
+    if (rb && rb.ok) {
+      try { d = await rb.json(); } catch (_) { d = null; }
+    }
+    const raw = await _fetchCnpjWsRaw(cnpj);
+    if (d) {
+      if (raw) {
+        const ws = _normalizeCnpjWs(raw);
+        if (ws.inscricao_estadual) d.inscricao_estadual = ws.inscricao_estadual;
+        if (!d.data_inicio_atividade && ws.data_inicio_atividade)
+          d.data_inicio_atividade = ws.data_inicio_atividade;
+        if (!d.data_situacao_cadastral && ws.data_situacao_cadastral)
+          d.data_situacao_cadastral = ws.data_situacao_cadastral;
+        if (!d.descricao_situacao_cadastral && ws.descricao_situacao_cadastral)
+          d.descricao_situacao_cadastral = ws.descricao_situacao_cadastral;
+      }
+      _cnpjCacheImp[cnpj] = d;
+      return { data: d, fromCache: false };
+    }
+    if (raw) {
+      d = _normalizeCnpjWs(raw);
+      _cnpjCacheImp[cnpj] = d;
+      return { data: d, fromCache: false };
+    }
+    return { data: null, fromCache: false };
+  }
+
+  function _campoVazio(v) {
+    return v == null || String(v).trim() === '';
+  }
+
+  /**
+   * Preenche só rg / data_abertura / situacaocnpj / data_situacaocnpj se vazios.
+   * Não inventa IE — só grava se a fonte retornar.
+   */
+  async function enriquecerCamposCnpj(campos) {
+    const doc = String(campos.cpf || '').replace(/\D/g, '');
+    if (doc.length !== 14) return { enrichido: false, naoAtiva: false, situacao: '' };
+
+    const precisa =
+      _campoVazio(campos.rg) ||
+      _campoVazio(campos.data_abertura) ||
+      _campoVazio(campos.situacaocnpj) ||
+      _campoVazio(campos.data_situacaocnpj);
+    if (!precisa) {
+      const sit = String(campos.situacaocnpj || '');
+      return { enrichido: false, naoAtiva: _isSituacaoCnpjNaoAtiva(sit), situacao: sit };
+    }
+
+    const { data: d, fromCache } = await _fetchCnpjImport(doc);
+    if (!fromCache) await _sleep(CNPJ_THROTTLE_MS);
+    if (!d) return { enrichido: false, naoAtiva: false, situacao: '' };
+
+    if (_campoVazio(campos.rg) && d.inscricao_estadual)
+      campos.rg = String(d.inscricao_estadual).trim();
+    if (_campoVazio(campos.data_abertura) && d.data_inicio_atividade)
+      campos.data_abertura = String(d.data_inicio_atividade).slice(0, 10);
+    const situacao = d.descricao_situacao_cadastral || d.situacao || '';
+    if (_campoVazio(campos.situacaocnpj) && situacao)
+      campos.situacaocnpj = String(situacao).trim();
+    if (_campoVazio(campos.data_situacaocnpj) && d.data_situacao_cadastral)
+      campos.data_situacaocnpj = String(d.data_situacao_cadastral).slice(0, 10);
+
+    const sitFinal = String(campos.situacaocnpj || situacao || '');
+    return {
+      enrichido: true,
+      naoAtiva: _isSituacaoCnpjNaoAtiva(sitFinal),
+      situacao: sitFinal,
+    };
+  }
+
   // ── Importar lote ─────────────────────────────────────────────────────────────
   function confirmar(dados) {
     return new Promise(resolve => {
@@ -989,6 +1125,7 @@
     if (!verificado) { showToast('Execute a validação antes de salvar.', 'warn'); return; }
 
     const skipNovos = document.getElementById('skipSemCadastro').checked;
+    const consultarCnpj = document.getElementById('consultarCnpjImport')?.checked === true;
     let paraGravar = allRows.map((_, i) => i).filter(i => {
       const s = statusRows[i];
       if (!s) return false;
@@ -999,11 +1136,15 @@
 
     if (!paraGravar.length) { showToast('Nenhum registro para salvar.', 'warn'); return; }
 
-    const confirmou = await confirmar({
+    const confirmPayload = {
       'Total para salvar': paraGravar.length,
       'Novos': paraGravar.filter(i => statusRows[i]?.status === 'SC').length,
       'Atualizações': paraGravar.filter(i => statusRows[i]?.status === 'A').length,
-    });
+    };
+    if (consultarCnpj) {
+      confirmPayload['Consulta CNPJ'] = 'Sim — preenche IE/fundação/situação vazios (mais lento)';
+    }
+    const confirmou = await confirmar(confirmPayload);
     if (!confirmou) return;
 
     isImportando = true;
@@ -1019,10 +1160,15 @@
     document.getElementById('statOk').textContent  = '0';
     document.getElementById('statUpd').textContent = '0';
     document.getElementById('statErr').textContent = '0';
+    document.getElementById('statBaix').textContent = '0';
+    document.getElementById('statBaixWrap').style.display = consultarCnpj ? '' : 'none';
+    document.getElementById('importCnpjAviso').style.display = 'none';
+    document.getElementById('importCnpjAviso').textContent = '';
     document.getElementById('importErrosPainel').style.display = 'none';
     document.getElementById('importErrosLista').innerHTML = '';
 
-    let ok = 0, upd = 0, err = 0;
+    let ok = 0, upd = 0, err = 0, baix = 0;
+    const baixExemplos = [];
     const total = paraGravar.length;
 
     for (let idx = 0; idx < total; idx++) {
@@ -1033,7 +1179,9 @@
       fill.style.width = pct + '%';
       document.getElementById('overlayPct').textContent = pct + '%';
       document.getElementById('overlayLinhas').textContent = `${idx + 1} de ${total}`;
-      document.getElementById('overlayTituloSpan').textContent = ` ${idx + 1}/${total}`;
+      document.getElementById('overlayTituloSpan').textContent = consultarCnpj
+        ? ` ${idx + 1}/${total} (CNPJ…)`
+        : ` ${idx + 1}/${total}`;
 
       const campos = {};
       Object.entries(colMapping).forEach(([colIdx, map]) => {
@@ -1041,6 +1189,20 @@
       });
       if (!campos.tipo_cadastro || campos.tipo_cadastro === '') {
         campos.tipo_cadastro = document.getElementById('defTipoCadastro').value || 'JURIDICA';
+      }
+
+      if (consultarCnpj) {
+        try {
+          const enr = await enriquecerCamposCnpj(campos);
+          if (enr.naoAtiva) {
+            baix++;
+            document.getElementById('statBaix').textContent = baix;
+            if (baixExemplos.length < 8) {
+              baixExemplos.push(`Linha ${rowIdx + 1}: ${enr.situacao || 'NÃO ATIVA'}`);
+            }
+            statusRows[rowIdx] = { ...s, cnpj_situacao: enr.situacao, cnpj_nao_ativa: true };
+          }
+        } catch (_) { /* falha na consulta não bloqueia gravação */ }
       }
 
       try {
@@ -1059,14 +1221,14 @@
         if (d.ok) {
           if (d.operacao === 'INSERT') ok++;
           else upd++;
-          statusRows[rowIdx] = { ...s, status_importacao: 'ok' };
+          statusRows[rowIdx] = { ...s, ...statusRows[rowIdx], status_importacao: 'ok' };
         } else {
           err++;
-          statusRows[rowIdx] = { ...s, status_importacao: 'erro', msg: d.msg || 'Erro desconhecido' };
+          statusRows[rowIdx] = { ...s, ...statusRows[rowIdx], status_importacao: 'erro', msg: d.msg || 'Erro desconhecido' };
         }
       } catch(e) {
         err++;
-        statusRows[rowIdx] = { ...s, status_importacao: 'erro', msg: e.message };
+        statusRows[rowIdx] = { ...s, ...statusRows[rowIdx], status_importacao: 'erro', msg: e.message };
       }
 
       document.getElementById('statOk').textContent  = ok;
@@ -1093,9 +1255,23 @@
       painel.style.display = 'block';
     }
 
+    if (consultarCnpj && baix > 0) {
+      const aviso = document.getElementById('importCnpjAviso');
+      aviso.style.display = 'block';
+      aviso.innerHTML =
+        `<strong>${baix} CNPJ(s) com situação diferente de ATIVA</strong> (baixada, inapta, suspensa etc.). ` +
+        `A importação <em>não</em> foi bloqueada.` +
+        (baixExemplos.length
+          ? `<br>${baixExemplos.map(escHtml).join(' · ')}${baix > baixExemplos.length ? '…' : ''}`
+          : '');
+      document.getElementById('statBaixWrap').style.display = '';
+    }
+
     renderTable();
     isImportando = false;
-    showToast(`Concluído: ${ok} inseridos, ${upd} atualizados, ${err} erros.`, err ? 'warn' : 'ok', 5000);
+    let toastMsg = `Concluído: ${ok} inseridos, ${upd} atualizados, ${err} erros.`;
+    if (consultarCnpj && baix > 0) toastMsg += ` ${baix} CNPJ(s) não ativos.`;
+    showToast(toastMsg, err || baix ? 'warn' : 'ok', 6000);
   }
 
   function novaImportacao() {

@@ -193,8 +193,8 @@ router.get('/', async (req, res) => {
     }
 
     if (tipo_cliente.trim()) {
-      where.push(`LOWER(c.tipo_cliente) LIKE ?`);
-      vals.push(`%${tipo_cliente.trim().toLowerCase()}%`);
+      where.push(`UPPER(TRIM(c.tipo_cliente)) = UPPER(?)`);
+      vals.push(tipo_cliente.trim());
     }
 
     if (cidade.trim()) {

@@ -11,12 +11,21 @@ async function ensureSegmentosTable(pool) {
     CREATE TABLE IF NOT EXISTS segmentos (
       id INT AUTO_INCREMENT PRIMARY KEY,
       descricao VARCHAR(100) NOT NULL,
+      uso VARCHAR(20) NOT NULL DEFAULT 'AMBOS',
       status CHAR(1) DEFAULT 'A',
       excluido CHAR(1) DEFAULT 'N',
       dt_cadastro DATETIME DEFAULT CURRENT_TIMESTAMP,
       INDEX idx_seg_desc (descricao)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3
   `).catch(() => {});
+  try {
+    const [cols] = await pool.query(`SHOW COLUMNS FROM segmentos LIKE 'uso'`);
+    if (!cols.length) {
+      await pool.query(
+        `ALTER TABLE segmentos ADD COLUMN uso VARCHAR(20) NOT NULL DEFAULT 'AMBOS' AFTER descricao`
+      );
+    }
+  } catch { /* ok */ }
 }
 
 async function _fixAutoIncrement(pool) {

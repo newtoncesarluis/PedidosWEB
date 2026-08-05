@@ -28,6 +28,7 @@
   </style>
 <link rel="stylesheet" href="/assets/themes.css">
 <script src="/assets/themes.js"></script>
+<script src="/assets/cadastros-permissao.js"></script>
 </head>
 <body>
   <div class="container-fluid py-4">
@@ -122,6 +123,12 @@
     /** JWT Bearer p/ jQuery/DataTables + fetch /api/ */
 (function(){
   function _tok() {
+    try {
+      if (window.parent && window.parent !== window) {
+        const pt = window.parent.sessionStorage?.getItem('token') || window.parent.localStorage?.getItem('token');
+        if (pt) return pt;
+      }
+    } catch (_) {}
     return localStorage.getItem('token')
       || sessionStorage.getItem('token')
       || sessionStorage.getItem('sysrep_token')
@@ -142,7 +149,7 @@
     jQuery.ajaxSetup({
       beforeSend: function(xhr, settings) {
         const u = String(settings.url || '');
-        if (u.indexOf('/api/') === 0 || u.indexOf('/api/') !== -1 && u.charAt(0) === '/') {
+        if (u.indexOf('/api/') === 0 || (u.indexOf('/api/') !== -1 && u.charAt(0) === '/')) {
           const t = _tok();
           if (t) xhr.setRequestHeader('Authorization', 'Bearer ' + t);
         }
@@ -152,13 +159,18 @@
   }
 })();
 let tabela;
-    let permissoes = {};
+    let permissoes = { incluir: 'N', alterar: 'N', excluir: 'N' };
 
     $(document).ready(async function() {
-      await carregarPermissoes();
+      if (typeof guardCadastroTela === 'function') {
+        const ok = await guardCadastroTela();
+        if (ok === false) return;
+      }
+      carregarPermissoes();
       inicializarTabela();
       
       $('#btnNovo').click(() => {
+        if (typeof guardCadIncluir === 'function' && !guardCadIncluir()) return;
         $('#formRegiao')[0].reset();
         $('#idRegiao').val('');
         $('#modalTitulo').text('Nova Região');
@@ -168,27 +180,43 @@ let tabela;
       $('#formRegiao').submit(salvarRegiao);
     });
 
-    async function carregarPermissoes() {
-      try {
-        const res = await _api('/api/check-permissions?modulo=regioes');
-        permissoes = await res.json();
-        if (permissoes.incluir === 'S') $('#btnNovo').show();
-      } catch (err) { console.error('Erro ao carregar permissões', err); }
+    function carregarPermissoes() {
+      const incluir = (typeof podeIncluirCad === 'function' && podeIncluirCad()) || (typeof permCadastro === 'function' && permCadastro('incluir_regioes') === 'S');
+      const alterar = (typeof podeAlterarCad === 'function' && podeAlterarCad()) || (typeof permCadastro === 'function' && permCadastro('alterar_regioes') === 'S');
+      const excluir = (typeof podeExcluirCad === 'function' && podeExcluirCad()) || (typeof permCadastro === 'function' && permCadastro('excluir_regioes') === 'S');
+      const admin = !!window._cadIsAdmin;
+      permissoes = {
+        incluir: (admin || incluir) ? 'S' : 'N',
+        alterar: (admin || alterar) ? 'S' : 'N',
+        excluir: (admin || excluir) ? 'S' : 'N',
+      };
+      if (permissoes.incluir === 'S') $('#btnNovo').show();
     }
 
     function inicializarTabela() {
       tabela = $('#tabelaRegioes').DataTable({
-        ajax: { url: '/api/regioes', dataSrc: 'regioes' },
+        ajax: {
+          url: '/api/regioes',
+          dataSrc: function (json) {
+            if (!json || !Array.isArray(json.regioes)) return [];
+            return json.regioes;
+          },
+          error: function (xhr) {
+            const msg = (xhr.responseJSON && xhr.responseJSON.error) || xhr.statusText || 'Falha ao carregar';
+            Swal.fire('Erro', 'Não foi possível carregar as regiões: ' + msg, 'error');
+          }
+        },
         columns: [
           { data: 'id' },
-          { data: 'cod_auxiliar' },
+          { data: 'cod_auxiliar', defaultContent: '' },
           { data: 'descricao' },
-          { data: 'sigla' },
+          { data: 'sigla', defaultContent: '' },
           { data: 'distancia', render: v => v ? parseFloat(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '0,00' },
           { data: 'status', render: v => `<span class="badge ${v === 'A' ? 'badge-active' : 'badge-inactive'}">${v === 'A' ? 'ATIVO' : 'INATIVO'}</span>` },
           { 
             data: null, 
             className: 'text-center',
+            orderable: false,
             render: row => {
               let btns = '';
               if (permissoes.alterar === 'S') {
@@ -201,7 +229,18 @@ let tabela;
             }
           }
         ],
-        language: { url: 'https://cdn.datatables.net/plug-ins/1.13.4/i18n/pt-BR.json' },
+        language: {
+          emptyTable: 'Nenhuma região cadastrada',
+          zeroRecords: 'Nenhum registro encontrado',
+          info: 'Mostrando _START_ a _END_ de _TOTAL_ regiões',
+          infoEmpty: 'Nenhuma região',
+          infoFiltered: '(filtrado de _MAX_ no total)',
+          search: 'Buscar:',
+          lengthMenu: 'Exibir _MENU_',
+          paginate: { first: 'Primeira', last: 'Última', next: 'Próxima', previous: 'Anterior' },
+          processing: 'Carregando…',
+          loadingRecords: 'Carregando…'
+        },
         order: [[2, 'asc']]
       });
     }
@@ -209,6 +248,11 @@ let tabela;
     async function salvarRegiao(e) {
       e.preventDefault();
       const id = $('#idRegiao').val();
+      if (id) {
+        if (typeof guardCadAlterar === 'function' && !guardCadAlterar()) return;
+      } else if (typeof guardCadIncluir === 'function' && !guardCadIncluir()) {
+        return;
+      }
       const dados = {
         descricao: $('#descricao').val(),
         cod_auxiliar: $('#cod_auxiliar').val(),
@@ -231,21 +275,24 @@ let tabela;
           bootstrap.Modal.getInstance('#modalRegiao').hide();
           tabela.ajax.reload();
           Swal.fire('Sucesso!', `Região ${id ? 'atualizada' : 'cadastrada'} com sucesso.`, 'success');
+        } else {
+          const err = await res.json().catch(() => ({}));
+          Swal.fire('Erro', err.error || 'Não foi possível salvar os dados.', 'error');
         }
       } catch (err) { Swal.fire('Erro', 'Não foi possível salvar os dados.', 'error'); }
     }
 
     async function editarRegiao(id) {
       try {
-        // Como o DataTable já tem os dados, podemos buscar no cache ou via API
+        if (typeof guardCadAlterar === 'function' && !guardCadAlterar()) return;
         const regiao = tabela.rows().data().toArray().find(r => r.id === id);
         if (regiao) {
           $('#idRegiao').val(regiao.id);
           $('#descricao').val(regiao.descricao);
-          $('#cod_auxiliar').val(regiao.cod_auxiliar);
-          $('#sigla').val(regiao.sigla);
-          $('#distancia').val(regiao.distancia);
-          $('#status').val(regiao.status);
+          $('#cod_auxiliar').val(regiao.cod_auxiliar || '');
+          $('#sigla').val(regiao.sigla || '');
+          $('#distancia').val(regiao.distancia || 0);
+          $('#status').val(regiao.status || 'A');
           $('#modalTitulo').text('Editar Região');
           new bootstrap.Modal('#modalRegiao').show();
         }
@@ -253,6 +300,7 @@ let tabela;
     }
 
     function excluirRegiao(id) {
+      if (typeof guardCadExcluir === 'function' && !guardCadExcluir()) return;
       Swal.fire({
         title: 'Tem certeza?',
         text: "A região será marcada como excluída!",
@@ -268,6 +316,9 @@ let tabela;
           if (res.ok) {
             tabela.ajax.reload();
             Swal.fire('Excluído!', 'A região foi removida.', 'success');
+          } else {
+            const err = await res.json().catch(() => ({}));
+            Swal.fire('Erro', err.error || 'Não foi possível excluir.', 'error');
           }
         }
       });

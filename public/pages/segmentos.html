@@ -66,6 +66,9 @@ tbody td { padding:7px 12px;border-bottom:1px solid var(--border);font-size:12px
 .badge { display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap; }
 .badge-A { background:#dcfce7;color:#15803d; }
 .badge-I { background:#f3f4f6;color:#6b7280; }
+.badge-uso-AMBOS { background:#ede9fe;color:#6d28d9; }
+.badge-uso-CLIENTE { background:#dbeafe;color:#1d4ed8; }
+.badge-uso-FORNECEDOR { background:#ffedd5;color:#c2410c; }
 
 .btn-acoes { background:#f3f4f6;color:var(--text2);border:1px solid var(--border);padding:4px 7px;border-radius:6px;cursor:pointer; }
 .dropdown-menu { position:fixed;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.14);z-index:6500;min-width:160px;animation:fadeIn .12s ease;padding:4px;display:none; }
@@ -150,12 +153,13 @@ input:focus,select:focus { border-color:var(--accent);box-shadow:0 0 0 3px rgba(
             <tr>
               <th style="width:50px">ID</th>
               <th>Nome / Descrição</th>
+              <th>Usado em</th>
               <th>Status</th>
               <th style="width:60px"></th>
             </tr>
           </thead>
           <tbody id="tbody">
-            <tr><td colspan="4" style="text-align:center;padding:40px;color:var(--text2)">Carregando…</td></tr>
+            <tr><td colspan="5" style="text-align:center;padding:40px;color:var(--text2)">Carregando…</td></tr>
           </tbody>
         </table>
       </div>
@@ -176,7 +180,15 @@ input:focus,select:focus { border-color:var(--accent);box-shadow:0 0 0 3px rgba(
           <div class="form-grid">
             <div class="form-group full">
               <label>Descrição do Segmento <span style="color:var(--danger)">*</span></label>
-              <input type="text" id="f_descricao" placeholder="Ex: Varejo, Atacado, Farmácia, Hospital" required>
+              <input type="text" id="f_descricao" placeholder="Ex: VAREJO, ATACADO, FARMÁCIA, HOSPITAL" required autocomplete="off" style="text-transform:uppercase" oninput="forcarMaiusculaDesc()">
+            </div>
+            <div class="form-group">
+              <label>Usado em <span style="color:var(--danger)">*</span></label>
+              <select id="f_uso">
+                <option value="AMBOS">Cliente e Fornecedor</option>
+                <option value="CLIENTE">Somente Cliente</option>
+                <option value="FORNECEDOR">Somente Fornecedor</option>
+              </select>
             </div>
             <div class="form-group">
               <label>Status</label>
@@ -219,6 +231,28 @@ function _tratarErroApi(r, d) {
   return false;
 }
 
+
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function forcarMaiusculaDesc() {
+  const el = document.getElementById('f_descricao');
+  if (!el) return;
+  const pos = el.selectionStart;
+  el.value = el.value.toUpperCase();
+  try { el.setSelectionRange(pos, pos); } catch (_) {}
+}
+function _normUso(u) {
+  const v = String(u || 'AMBOS').toUpperCase();
+  if (v === 'CLIENTE' || v === 'FORNECEDOR') return v;
+  return 'AMBOS';
+}
+function _labelUso(u) {
+  const v = _normUso(u);
+  if (v === 'CLIENTE') return 'Cliente';
+  if (v === 'FORNECEDOR') return 'Fornecedor';
+  return 'Ambos';
+}
 async function buscar() {
   try {
     const r = await fetch('/api/segmentos', { headers: _apiHeaders() });
@@ -248,17 +282,23 @@ async function buscar() {
 
 function renderLista(rows) {
   const tbody = document.getElementById('tbody');
-  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:40px;color:var(--text2)">Nenhum segmento encontrado</td></tr>'; return; }
-  tbody.innerHTML = rows.map(f => `
-    <tr onclick="abrirEditar(${f.id})">
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--text2)">Nenhum segmento encontrado</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(f => {
+    const uso = _normUso(f.uso);
+    const st = f.status === 'A' ? 'A' : 'I';
+    return `<tr onclick="abrirEditar(${f.id})">
       <td>${f.id}</td>
-      <td style="font-weight:600">${f.descricao}</td>
-      <td><span class="badge badge-${f.status === 'A' ? 'A' : 'I'}">${f.status === 'A' ? 'Ativo' : 'Inativo'}</span></td>
+      <td style="font-weight:600">${esc(String(f.descricao || '').toUpperCase())}</td>
+      <td><span class="badge badge-uso-${uso}">${_labelUso(uso)}</span></td>
+      <td><span class="badge badge-${st}">${st === 'A' ? 'Ativo' : 'Inativo'}</span></td>
       <td onclick="event.stopPropagation()">
-        <button class="btn-acoes" onclick="abrirDrop(event, ${f.id})">⋮</button>
+        <button class="btn-acoes" onclick="abrirDrop(event, ${f.id})">&#8942;</button>
       </td>
-    </tr>
-  `).join('');
+    </tr>`;
+  }).join('');
 }
 
 function toggleFiltroStatus(st) {
@@ -271,6 +311,7 @@ function abrirNovo() {
   if (!guardCadIncluir('Sem permissão para incluir segmentos')) return;
   S.registroId = null;
   document.getElementById('mainForm').reset();
+  document.getElementById('f_uso').value = 'AMBOS';
   document.getElementById('formSub').textContent = 'Novo Registro';
   document.getElementById('listSection').style.display = 'none';
   document.getElementById('formSection').style.display = 'block';
@@ -290,7 +331,8 @@ async function abrirEditar(id) {
     if (!f) return;
     S.registroId = id;
     document.getElementById('f_id').value = f.id;
-    document.getElementById('f_descricao').value = f.descricao;
+    document.getElementById('f_descricao').value = String(f.descricao || '').toUpperCase();
+    document.getElementById('f_uso').value = _normUso(f.uso);
     document.getElementById('f_status').value = (f.status === 'A' ? 'A' : 'I');
     document.getElementById('formSub').textContent = `Editando ID: ${f.id}`;
     document.getElementById('listSection').style.display = 'none';
@@ -308,7 +350,8 @@ function voltarLista() {
 async function salvar() {
   if (!guardCadSalvar(!!S.registroId, 'Sem permissão para incluir segmentos', 'Sem permissão para alterar segmentos')) return;
   const payload = {
-    descricao: document.getElementById('f_descricao').value.trim(),
+    descricao: document.getElementById('f_descricao').value.trim().toUpperCase(),
+    uso: document.getElementById('f_uso').value,
     status: document.getElementById('f_status').value
   };
   if (!payload.descricao) return toast('Preencha a descrição','err');
@@ -345,7 +388,14 @@ function abrirDrop(e, id) {
 
 async function excluir(id) {
   if (!guardCadExcluir('Sem permissão para excluir segmentos')) return;
-  if (!confirm('Deseja excluir este segmento?')) return;
+  const ok = await SysRepConfirm.ask({
+    titulo: 'Excluir segmento?',
+    mensagem: 'O registro será inativado (não apaga do banco).',
+    okTexto: 'Excluir',
+    cancelTexto: 'Cancelar',
+    perigo: true
+  });
+  if (!ok) return;
   try {
     const r = await fetch(`/api/segmentos/${id}`, { method: 'DELETE', headers: _apiHeaders() });
     const d = await r.json().catch(() => ({}));
@@ -364,6 +414,7 @@ function toast(msg, tipo='ok') {
 
 document.addEventListener('cad-perm-ready', () => { if (typeof aplicarUiPermissoesCad === 'function') aplicarUiPermissoesCad(); });
 </script>
+<script src="/assets/confirm-dialog.js"></script>
 <script src="/assets/cadastros-permissao.js"></script>
 </body>
 </html>

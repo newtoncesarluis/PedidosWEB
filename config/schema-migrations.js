@@ -106,6 +106,11 @@ const MIGRATIONS = [
   { table: 'sistemas', column: 'habilitarestoque',               type: "VARCHAR(1) DEFAULT 'N'" },
   { table: 'sistemas', column: 'tipo_pedido_padrao',             type: "VARCHAR(50) DEFAULT NULL" },
   { table: 'sistemas', column: 'habilita_tipodoc',               type: "VARCHAR(255) DEFAULT NULL" },
+  { table: 'sistemas', column: 'exibecorpedgrades',              type: "VARCHAR(1) DEFAULT 'S'" },
+  { table: 'sistemas', column: 'tiporelgrade',                   type: "VARCHAR(20) DEFAULT 'SIMPLES'" },
+  { table: 'sistemas', column: 'layoutimpressaograde',           type: "VARCHAR(20) DEFAULT 'CORES'" },
+  { table: 'sistemas', column: 'cabecalhoimpressaograde',        type: "VARCHAR(20) DEFAULT 'UNICO'" },
+  { table: 'sistemas', column: 'exibir_codfabricante',           type: "VARCHAR(1) DEFAULT 'N'" },
   { table: 'sistemas', column: 'modelo_impress_editar_texto',    type: "VARCHAR(255) DEFAULT NULL" },
   { table: 'sistemas', column: 'modelo_impress_replicar_todos',  type: "VARCHAR(255) DEFAULT NULL" },
   { table: 'sistemas', column: 'modelo_impress_texto_cabecalho', type: "TEXT NULL" },
@@ -178,6 +183,25 @@ const MIGRATIONS = [
   { table: 'clientes', column: 'facebook',       type: "VARCHAR(255) DEFAULT NULL" },
   { table: 'clientes', column: 'linkedin',       type: "VARCHAR(255) DEFAULT NULL" },
   { table: 'clientes', column: 'dnd',           type: "CHAR(1) DEFAULT 'N'" },
+  // Trava opcional: no pedido só libera fábricas vinculadas (default N = fluxo atual)
+  { table: 'clientes', column: 'restringe_representadas', type: "CHAR(1) DEFAULT 'N'" },
+  // Marca própria do cliente por fábrica (aba Representadas)
+  { table: 'cliente_representadas', column: 'marca_propria', type: "CHAR(1) DEFAULT 'N'" },
+  { table: 'cliente_representadas', column: 'nome_marca',    type: "VARCHAR(100) DEFAULT NULL" },
+  { table: 'cliente_representadas', column: 'logo_caminho',  type: "VARCHAR(255) DEFAULT NULL" },
+  // Cadastro web / ficha PDF — bases Delphi antigas não têm complemento
+  { table: 'clientes', column: 'complemento',    type: "VARCHAR(100) DEFAULT NULL" },
+
+  // Resultado da visita (diário comercial do cliente)
+  { table: 'visitas', column: 'resultado',         type: "VARCHAR(30) NULL" },
+  { table: 'visitas', column: 'motivo_resultado',  type: "VARCHAR(200) NULL" },
+  { table: 'visitas', column: 'conversa',          type: "TEXT NULL" },
+  // Compromissos sem cliente (agenda livre / prospect)
+  { table: 'visitas', column: 'titulo',            type: "VARCHAR(150) NULL" },
+  { table: 'visitas', column: 'contato_nome',      type: "VARCHAR(150) NULL" },
+  { table: 'visitas', column: 'contato_fone',      type: "VARCHAR(30) NULL" },
+  // Segmento: Cliente / Fornecedor / Ambos (produto usa tabela categoria)
+  { table: 'segmentos', column: 'uso', type: "VARCHAR(20) NOT NULL DEFAULT 'AMBOS'" },
 
   // ── LEADS ─────────────────────────────────────────────────────────────────
   { table: 'leads', column: 'whatsapp',            type: "VARCHAR(30) NOT NULL DEFAULT ''" },
@@ -340,10 +364,25 @@ const CREATE_IF_NOT_EXISTS = [
     sql: `CREATE TABLE IF NOT EXISTS segmentos (
       id INT AUTO_INCREMENT PRIMARY KEY,
       descricao VARCHAR(100) NOT NULL,
+      uso VARCHAR(20) NOT NULL DEFAULT 'AMBOS',
       status CHAR(1) DEFAULT 'A',
       excluido CHAR(1) DEFAULT 'N',
       dt_cadastro DATETIME DEFAULT CURRENT_TIMESTAMP,
       INDEX idx_seg_desc (descricao)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3`,
+  },
+  {
+    name: 'tipo_cliente',
+    sql: `CREATE TABLE IF NOT EXISTS tipo_cliente (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      codigo VARCHAR(50) NOT NULL,
+      descricao VARCHAR(100) NOT NULL,
+      ordem INT NOT NULL DEFAULT 0,
+      status CHAR(1) DEFAULT 'A',
+      excluido CHAR(1) DEFAULT 'N',
+      dt_cadastro DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY unq_tipo_cli_codigo (codigo),
+      INDEX idx_tipo_cli_desc (descricao)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3`,
   },
   {
@@ -407,6 +446,47 @@ const CREATE_IF_NOT_EXISTS = [
       excluido CHAR(1) NOT NULL DEFAULT 'N',
       INDEX idx_fv_fornecedor (cod_fornecedor),
       INDEX idx_fv_vendedor (cod_vendedor)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  },
+  {
+    name: 'cliente_representadas',
+    sql: `CREATE TABLE IF NOT EXISTS cliente_representadas (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      cod_cliente INT NOT NULL,
+      cod_fornecedor INT NOT NULL,
+      codigo_na_fabrica VARCHAR(60) DEFAULT NULL,
+      ativo CHAR(1) NOT NULL DEFAULT 'S',
+      obs VARCHAR(200) DEFAULT NULL,
+      marca_propria CHAR(1) NOT NULL DEFAULT 'N',
+      nome_marca VARCHAR(100) DEFAULT NULL,
+      logo_caminho VARCHAR(255) DEFAULT NULL,
+      excluido CHAR(1) NOT NULL DEFAULT 'N',
+      dtcadastro DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY unq_cli_repr (cod_cliente, cod_fornecedor),
+      INDEX idx_cr_cliente (cod_cliente),
+      INDEX idx_cr_fornecedor (cod_fornecedor)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  },
+  {
+    name: 'cliente_diario',
+    sql: `CREATE TABLE IF NOT EXISTS cliente_diario (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      cod_cliente INT NOT NULL,
+      id_vendedor INT NULL,
+      data_evento DATE NOT NULL,
+      hora_evento TIME NULL,
+      tipo VARCHAR(30) NOT NULL DEFAULT 'CONTATO',
+      resultado VARCHAR(30) NULL,
+      motivo_nao_compra VARCHAR(200) NULL,
+      assunto VARCHAR(200) NULL,
+      conversa TEXT NULL,
+      id_visita INT NULL,
+      id_pedido INT NULL,
+      excluido CHAR(1) NOT NULL DEFAULT 'N',
+      dtcadastro DATETIME DEFAULT CURRENT_TIMESTAMP,
+      id_usuario INT NULL,
+      INDEX idx_cd_cliente (cod_cliente),
+      INDEX idx_cd_data (data_evento)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   },
   {
@@ -1082,6 +1162,13 @@ async function runMigrations(pool) {
       }
     }
 
+    if (adicionadas.some((c) => c.startsWith('clientes.'))) {
+      try {
+        const { clearColunasClientesCache } = require('../modules/clientes/clientes.repository');
+        clearColunasClientesCache();
+      } catch { /* ok */ }
+    }
+
     // 2b/2c/3. Checagens independentes (tabelas diferentes) — em paralelo,
     // cada round trip sequencial aqui custava ~1s via túnel SSH em dev local.
     await Promise.all([
@@ -1158,6 +1245,14 @@ async function runMigrations(pool) {
       await migrateSegmentosClienteFromCategoria(pool);
     } catch (e) {
       console.warn('[schema] migrate segmentos:', e.message);
+    }
+
+    // 6. Tipo de cliente (combo comercial — seed Consumidor/Revendedor/Especial/Indústria)
+    try {
+      const { seedTipoCliente } = require('./tipo-cliente-migrate');
+      await seedTipoCliente(pool);
+    } catch (e) {
+      console.warn('[schema] seed tipo_cliente:', e.message);
     }
 
     if (adicionadas.length > 0) {

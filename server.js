@@ -620,6 +620,7 @@ app.use('/api/clientes',     authMiddleware, require('./modules/clientes/cliente
 app.use('/api/fornecedores',     authMiddleware, require('./routes/fornecedores'));
 app.use('/api/transportadoras',   authMiddleware, require('./routes/transportadoras'));
 app.use('/api/familia-produtos',  authMiddleware, require('./routes/familia-produtos'));
+app.use('/api/produto-auxiliares', authMiddleware, require('./routes/produto-auxiliares'));
 app.use('/api/grades',            authMiddleware, require('./routes/grades'));
 app.use('/api/cores',             authMiddleware, require('./routes/cores'));
 app.use('/api/produtos',     authMiddleware, require('./routes/produtos'));
@@ -641,6 +642,7 @@ app.use('/api/lgpd',           authMiddleware, require('./routes/lgpd'));
 app.use('/api/user-prefs',    authMiddleware, require('./routes/user-prefs'));
 app.use('/api/mobile',        authMiddleware, require('./routes/mobile'));
 app.use('/api/metas-vendas',  authMiddleware, require('./routes/metas-vendas'));
+app.use('/api/recompra',      authMiddleware, require('./routes/recompra'));
 
 // ─── GET /api/grupos-fab — grupos de fornecedores (tabela: grupos) ──────────
 app.get('/api/grupos-fab', authMiddleware, async (req, res) => {
@@ -658,18 +660,22 @@ app.get('/api/grupos-fab', authMiddleware, async (req, res) => {
   }
 });
 
-// ─── GET /api/categorias — segmentos de clientes (compat; tabela segmentos) ───
+// ─── GET /api/categorias — segmentos (compat; tabela segmentos). ?uso=CLIENTE|FORNECEDOR ───
 app.get('/api/categorias', authMiddleware, async (req, res) => {
   try {
     const { getPool } = require('./config/database');
     const { ensureSegmentosTable, migrateSegmentosClienteFromCategoria } = require('./config/segmentos-migrate');
+    const { sqlFiltroUsoSegmento } = require('./config/segmentos-uso');
     const pool = getPool();
     await ensureSegmentosTable(pool);
     await migrateSegmentosClienteFromCategoria(pool).catch(() => {});
+    const filtro = sqlFiltroUsoSegmento(req.query.uso);
     const [rows] = await pool.query(
-      `SELECT id, descricao FROM segmentos
+      `SELECT id, descricao, COALESCE(uso,'AMBOS') AS uso FROM segmentos
        WHERE COALESCE(excluido,'N') = 'N' AND COALESCE(status,'A') = 'A'
-       ORDER BY descricao`
+         AND ${filtro.sql}
+       ORDER BY descricao`,
+      filtro.params
     );
     res.json(rows);
   } catch (err) {
@@ -718,6 +724,7 @@ app.use('/api/catalogos', authMiddleware, require('./routes/catalogos'));
 app.use('/api/xml',       authMiddleware, require('./routes/xml'));
 app.use('/api/excel',     authMiddleware, require('./routes/excel'));
 app.use('/api/analytics', authMiddleware, require('./routes/analytics'));
+app.use('/api/comercial/relatorios', authMiddleware, require('./routes/relatorios-regiao'));
 app.use('/api/comissoes',     authMiddleware, require('./routes/comissoes'));
 app.use('/api/conciliacao',  authMiddleware, require('./routes/conciliacao'));
 app.use('/api/pagar',     authMiddleware, require('./routes/pagar'));

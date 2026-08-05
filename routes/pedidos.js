@@ -3296,6 +3296,17 @@ router.get('/ultimo-por-cliente/:id_cliente', async (req, res) => {
     const idCliente = parseInt(req.params.id_cliente, 10);
     if (!idCliente) return res.status(400).json({ error: 'Cliente inválido' });
 
+    // Recompra: filtra pelo último pedido REAL do cliente COM aquela fábrica
+    const idFornecedor = parseInt(req.query.fornecedor || req.query.cod_fornecedor, 10) || 0;
+    let fornWhere = '';
+    const fornParams = [];
+    if (idFornecedor) {
+      fornWhere = ` AND CAST(p.cod_fornecedor AS UNSIGNED) = ?
+                    AND p.tipo_pedido = 'PEDIDO'
+                    AND p.situacao_pedido NOT IN ('CANCELADO','RECUSADO')`;
+      fornParams.push(idFornecedor);
+    }
+
     const _userId = req.user?.id || 0;
     const _isAdmin = req.user?.perfil == 1;
     const _perm = req.user?.permissoes || {};
@@ -3325,18 +3336,25 @@ router.get('/ultimo-por-cliente/:id_cliente', async (req, res) => {
       }
     }
 
+    // Recompra (fornecedor informado) não usa qt_itens — pula a subconsulta em itensped
+    // que faz FULL SCAN por id_pedido (varchar) em bases legadas e trava a consulta.
+    const qtItensExpr = idFornecedor
+      ? '0'
+      : `(SELECT COUNT(*) FROM itensped i
+          WHERE i.id_pedido = p.id AND (i.excluido = 'N' OR i.excluido IS NULL OR i.excluido = ''))`;
+
     const [rows] = await pool.query(
       `SELECT p.id, p.numero, p.data_abertura, p.tipo_pedido, p.nome_fornecedor, p.vlrtotalpedido,
               p.cod_fornecedor, p.nome_cliente, p.total_qt, p.condicao_pagto, p.forma_pagto,
-              (SELECT COUNT(*) FROM itensped i
-               WHERE i.id_pedido = p.id AND (i.excluido = 'N' OR i.excluido IS NULL OR i.excluido = '')) AS qt_itens
+              ${qtItensExpr} AS qt_itens
        FROM pedidos p
        WHERE p.cod_cliente = ?
          AND (p.excluido = 'N' OR p.excluido IS NULL OR p.excluido = '')
+         ${fornWhere}
          ${visWhere}
        ORDER BY p.data_abertura DESC, p.id DESC
        LIMIT 1`,
-      [idCliente, ...visParams]
+      [idCliente, ...fornParams, ...visParams]
     );
 
     res.json({ pedido: rows[0] || null });
@@ -3874,6 +3892,21 @@ router.get('/:id', async (req, res) => {
     const cliente = cliRows[0] || {};
     if (cliente.numerosulframa && !cliente.numero_suframa) cliente.numero_suframa = cliente.numerosulframa;
     if (cliente.numero_suframa && !cliente.numerosulframa) cliente.numerosulframa = cliente.numero_suframa;
+
+    // Marca própria do cliente nesta fábrica (opt-in — só quando cadastrada)
+    const codFornPed = header[0].cod_fornecedor;
+    if (codCli && codFornPed) {
+      try {
+        const representadasSvc = require('../modules/clientes/sub/representadas.service');
+        const marcaProp = await representadasSvc.buscarMarcaPropriaClienteFabrica(codCli, codFornPed, pool);
+        if (marcaProp) {
+          cliente.marca_propria_pedido = 'S';
+          cliente.nome_marca = marcaProp.nome_marca;
+          cliente.logo_marca = marcaProp.logo_caminho;
+          cliente.codigo_na_fabrica_marca = marcaProp.codigo_na_fabrica;
+        }
+      } catch (_) { /* opt-in: falha silenciosa */ }
+    }
 
     const empresa = empRows[0] ? await sanitizeEmpresaRow(pool, empRows[0]) : {};
 

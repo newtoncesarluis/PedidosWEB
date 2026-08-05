@@ -3,8 +3,23 @@
  */
 const { getProdTabela, listProdutoColunas } = require('./produto-colunas');
 
+/**
+ * Normaliza código (trim). Códigos só numéricos perdem zeros à esquerda
+ * ("0002" → "2") — Excel manda número sem padding; planilha texto pode ter zeros.
+ */
 function normalizarCodFabricante(cod) {
-  return String(cod ?? '').trim();
+  let s = String(cod ?? '').trim();
+  if (!s) return '';
+  if (/^\d+$/.test(s)) {
+    const n = parseInt(s, 10);
+    s = Number.isFinite(n) ? String(n) : s;
+  }
+  return s;
+}
+
+/** Chave de comparação (normalizado + upper). */
+function chaveCodFabricante(cod) {
+  return normalizarCodFabricante(cod).toUpperCase();
 }
 
 function parseIdFornecedor(v) {
@@ -33,22 +48,39 @@ async function buscarDuplicataCodFabricanteFornecedor(pool, opts = {}) {
 
   const tb = await getProdTabela(pool);
   const pk = colsLower.has('id') ? 'id' : 'ID';
-  const params = [cod, idForn];
+  const chave = chaveCodFabricante(cod);
+
+  // Match exato (case-insensitive) OU mesmo valor numérico (0002 = 2)
+  const params = [idForn, chave];
   let sql = `
     SELECT \`${pk}\` AS id, descricao, cod_fabricante
     FROM \`${tb}\`
-    WHERE UPPER(TRIM(IFNULL(cod_fabricante, ''))) = UPPER(?)
-      AND cod_fornecedorpadrao = ?
-      AND (excluido = 'N' OR excluido IS NULL OR excluido = '')`;
+    WHERE cod_fornecedorpadrao = ?
+      AND (excluido = 'N' OR excluido IS NULL OR excluido = '')
+      AND (
+        UPPER(TRIM(IFNULL(cod_fabricante, ''))) = ?
+        OR (
+          TRIM(IFNULL(cod_fabricante, '')) REGEXP '^[0-9]+$'
+          AND ? REGEXP '^[0-9]+$'
+          AND CAST(TRIM(cod_fabricante) AS UNSIGNED) = CAST(? AS UNSIGNED)
+        )
+      )`;
+  params.push(chave, chave);
 
   const excludeId = parseInt(opts.excludeId, 10);
   if (excludeId > 0) {
     sql += ` AND \`${pk}\` <> ?`;
     params.push(excludeId);
   }
-  sql += ' LIMIT 1';
+  sql += ` ORDER BY \`${pk}\` ASC LIMIT 1`;
 
-  const [rows] = await pool.query(sql, params).catch(() => [[]]);
+  let rows;
+  try {
+    [rows] = await pool.query(sql, params);
+  } catch (e) {
+    console.error('[produto-cod-fabricante] buscarDuplicata:', e.message);
+    return null;
+  }
   return rows[0] || null;
 }
 
@@ -77,6 +109,7 @@ async function validarCodFabricanteFornecedor(pool, opts = {}) {
 
 module.exports = {
   normalizarCodFabricante,
+  chaveCodFabricante,
   parseIdFornecedor,
   mensagemDuplicataCodFabricante,
   buscarDuplicataCodFabricanteFornecedor,

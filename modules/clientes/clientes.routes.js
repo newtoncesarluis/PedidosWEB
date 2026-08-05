@@ -73,6 +73,10 @@ router.get('/:id/historico/:numpedido', ctrl.historicoDetalhe);
 router.get('/:id/financeiro',           ctrl.financeiro);
 router.get('/:id/ligacoes',             ctrl.ligacoes);
 router.get('/:id/mensagens',            ctrl.mensagensLista);
+router.get('/:id/diario',               ctrl.diarioLista);
+router.post('/:id/diario',              ctrl.diarioCriar);
+router.put('/:id/diario/:diarioId',     ctrl.diarioAtualizar);
+router.delete('/:id/diario/:diarioId',  ctrl.diarioExcluir);
 
 // ─── CRUD principal ───────────────────────────────────────────────────────────
 router.get('/', ctrl.listar);
@@ -152,6 +156,48 @@ router.delete('/:id/fotos/:fotoId', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// Logo de marca própria por representada (fábrica)
+const _uploadMarca = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      const dir = path.join(_uploadsBase, String(req.params.id), 'marcas');
+      fs.mkdirSync(dir, { recursive: true });
+      cb(null, dir);
+    },
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname) || '.png';
+      const base = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40);
+      cb(null, `${Date.now()}_${base}${ext}`);
+    },
+  }),
+  limits: { fileSize: 8 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ok = /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(file.originalname);
+    cb(ok ? null : new Error('Envie uma imagem (JPG, PNG, WEBP…)'), ok);
+  },
+});
+
+router.post('/:id/representadas/logo', _uploadMarca.single('arquivo'), async (req, res) => {
+  const handler = async () => {
+    try {
+      if (_permCli(req).alterar !== 'S') return res.status(403).json({ error: 'Sem permissão para alterar clientes' });
+      if (!req.file) return res.status(400).json({ error: 'Arquivo não enviado' });
+      const pool = getPool();
+      const id = req.params.id;
+      const codForn = parseInt(req.body?.cod_fornecedor, 10);
+      const caminho = `uploads/clientes/${id}/marcas/${req.file.filename}`;
+      if (codForn > 0) {
+        const representadasSvc = require('./sub/representadas.service');
+        await representadasSvc.atualizarLogo(id, codForn, caminho, pool);
+      }
+      res.status(201).json({ ok: true, caminho: '/' + caminho });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  };
+  try { return runWithRequestPool(req, handler); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 module.exports = router;

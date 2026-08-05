@@ -13,6 +13,7 @@ const {
 } = require('../config/despesas-label');
 const { listarTabelasVinculadas } = require('../config/tabela-preco-vinculo');
 const { listVendedoresVisiveis } = require('../config/vendedor-visibilidade');
+const { ensureProdutoAuxiliares } = require('../config/produto-auxiliares-schema');
 
 async function query(sql, params = []) {
   try {
@@ -24,8 +25,12 @@ async function query(sql, params = []) {
 
 // GET /api/lookups/grupos → tabela: grupos
 router.get('/grupos', async (req, res) => {
+  try { await ensureProdutoAuxiliares(getPool()); } catch (_) {}
   const rows = await query(
-    `SELECT id, descricao FROM grupos WHERE excluido='N' AND ativo='SIM' ORDER BY descricao`
+    `SELECT id, descricao FROM grupos
+     WHERE COALESCE(excluido,'N')='N'
+       AND UPPER(TRIM(IFNULL(ativo,'SIM'))) IN ('SIM','S','A','1')
+     ORDER BY descricao`
   );
   res.json(rows);
 });
@@ -48,8 +53,45 @@ router.get('/familia', async (req, res) => {
 
 // GET /api/lookups/local-arm → tabela: local_armazenamento
 router.get('/local-arm', async (req, res) => {
+  try { await ensureProdutoAuxiliares(getPool()); } catch (_) {}
   const rows = await query(
-    `SELECT id, nome_local FROM local_armazenamento WHERE excluido='N' ORDER BY nome_local`
+    `SELECT id, nome_local FROM local_armazenamento
+     WHERE COALESCE(excluido,'N')='N'
+       AND COALESCE(status,'A') IN ('A','','S')
+     ORDER BY nome_local`
+  );
+  res.json(rows);
+});
+
+// GET /api/lookups/subfamilias → subfamilia_produto
+router.get('/subfamilias', async (req, res) => {
+  try { await ensureProdutoAuxiliares(getPool()); } catch (_) {}
+  const rows = await query(
+    `SELECT id, codigo, descricao FROM subfamilia_produto
+     WHERE COALESCE(excluido,'N')='N' AND COALESCE(status,'A')='A'
+     ORDER BY ordem, descricao`
+  );
+  res.json(rows);
+});
+
+// GET /api/lookups/unidades → unidade_produto
+router.get('/unidades', async (req, res) => {
+  try { await ensureProdutoAuxiliares(getPool()); } catch (_) {}
+  const rows = await query(
+    `SELECT id, codigo, descricao FROM unidade_produto
+     WHERE COALESCE(excluido,'N')='N' AND COALESCE(status,'A')='A'
+     ORDER BY ordem, descricao`
+  );
+  res.json(rows);
+});
+
+// GET /api/lookups/tipos-grade-produto → tipo_produto_grade (ROUPA/SAPATO)
+router.get('/tipos-grade-produto', async (req, res) => {
+  try { await ensureProdutoAuxiliares(getPool()); } catch (_) {}
+  const rows = await query(
+    `SELECT id, codigo, descricao FROM tipo_produto_grade
+     WHERE COALESCE(excluido,'N')='N' AND COALESCE(status,'A')='A'
+     ORDER BY ordem, descricao`
   );
   res.json(rows);
 });
@@ -186,6 +228,24 @@ router.get('/condicoes-pagamento', async (req, res) => {
     rows = await query(`SELECT id, descricao, prazopadrao FROM forma_pagto ORDER BY descricao`);
   }
   res.json(rows);
+});
+
+// GET /api/lookups/tipo-cliente → tabela tipo_cliente (ativos)
+router.get('/tipo-cliente', async (req, res) => {
+  try {
+    const pool = getPool();
+    const { ensureTipoClienteReady } = require('../config/tipo-cliente-migrate');
+    await ensureTipoClienteReady(pool);
+    const [rows] = await pool.query(
+      `SELECT id, codigo, descricao
+       FROM tipo_cliente
+       WHERE COALESCE(excluido,'N')='N' AND COALESCE(status,'A')='A'
+       ORDER BY ordem, descricao`
+    );
+    res.json(rows);
+  } catch (_) {
+    res.json([]);
+  }
 });
 
 module.exports = router;

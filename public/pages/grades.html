@@ -201,15 +201,6 @@ input.err { border-color:var(--danger); }
 .toast-err  { background:#ef4444;color:#fff; }
 .toast-warn { background:#f59e0b;color:#fff; }
 .toast svg  { width:15px;height:15px;flex-shrink:0; }
-
-/* CONFIRM */
-.confirm-backdrop { position:fixed;inset:0;z-index:9500;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);animation:fadeIn .18s; }
-@keyframes fadeIn { from{opacity:0}to{opacity:1} }
-.confirm-box { background:#fff;border-radius:14px;padding:26px;max-width:400px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.18);animation:slideUp .18s ease-out; }
-@keyframes slideUp { from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)} }
-.confirm-box h3 { font-size:16px;font-weight:700;margin-bottom:9px; }
-.confirm-box p  { font-size:13px;color:var(--text2);line-height:1.5; }
-.confirm-btns   { display:flex;gap:10px;justify-content:center;margin-top:18px; }
 </style>
 <link rel="stylesheet" href="/assets/themes.css">
 <script src="/assets/themes.js"></script>
@@ -349,13 +340,15 @@ input.err { border-color:var(--danger); }
         <div class="form-grid">
           <div class="form-group col2">
             <label>Descrição <span class="req">*</span></label>
-            <input type="text" id="f_nome" autocomplete="off" oninput="this.classList.remove('err')"
-                   placeholder="Nome / descrição da grade" onkeydown="if(event.key==='Enter')document.getElementById('f_apelido').focus()">
+            <input type="text" id="f_nome" autocomplete="off" style="text-transform:uppercase" maxlength="100"
+                   oninput="this.classList.remove('err');this.value=this.value.toUpperCase()"
+                   placeholder="NOME / DESCRIÇÃO DA GRADE" onkeydown="if(event.key==='Enter')document.getElementById('f_apelido').focus()">
           </div>
           <div class="form-group">
             <label>Apelido <span class="req">*</span></label>
-            <input type="text" id="f_apelido" autocomplete="off" oninput="this.classList.remove('err')"
-                   placeholder="Apelido curto" onkeydown="if(event.key==='Enter')document.getElementById('f_tipo').focus()">
+            <input type="text" id="f_apelido" autocomplete="off" style="text-transform:uppercase" maxlength="50"
+                   oninput="this.classList.remove('err');this.value=this.value.toUpperCase()"
+                   placeholder="APELIDO CURTO" onkeydown="if(event.key==='Enter')document.getElementById('f_tipo').focus()">
           </div>
           <div class="form-group">
             <label>Tipo <span class="req">*</span></label>
@@ -533,7 +526,9 @@ function toggleFiltroStatus(st) {
   buscar();
 }
 
-async function buscar() {
+async function buscar(opts = {}) {
+  const keepScroll = !!opts.keepScroll;
+  const scrollY = keepScroll ? (window.scrollY || document.documentElement.scrollTop || 0) : 0;
   const q      = document.getElementById('inputBusca').value.trim();
   const campo  = document.getElementById('selectCampo').value;
   const status = S.filtroStatus === 'T' ? '' : S.filtroStatus;
@@ -548,6 +543,13 @@ async function buscar() {
     S.total = d.total;
     renderLista(d.grades || []);
     renderPaginacao();
+    if (keepScroll) {
+      requestAnimationFrame(() => {
+        window.scrollTo(0, scrollY);
+        document.documentElement.scrollTop = scrollY;
+        document.body.scrollTop = scrollY;
+      });
+    }
   } catch(e) {
     document.getElementById('tbody').innerHTML = `<tr><td colspan="10" class="empty"><p>Erro ao carregar</p></td></tr>`;
   }
@@ -634,7 +636,7 @@ async function ativarInativarLinha(id, acao) {
   const r = await apiFetch(`/api/grades/${id}/${verbo}`, { method:'PUT' });
   if (!r.ok) { toast('Erro', 'err'); return; }
   toast(acao==='A' ? 'Grade ativada!' : 'Grade inativada!', 'ok');
-  buscar(); carregarNotificacoes();
+  buscar({ keepScroll: true }); carregarNotificacoes();
 }
 
 async function excluirLinha(id) {
@@ -643,7 +645,22 @@ async function excluirLinha(id) {
     const r = await apiFetch(`/api/grades/${id}`, { method:'DELETE' });
     const d = await r.json();
     if (!r.ok) { toast(d.error||'Erro ao excluir','err'); return; }
-    toast('Grade excluída!', 'ok'); buscar(); carregarNotificacoes();
+    toast('Grade excluída!', 'ok');
+    // Remove a linha na hora e mantém a posição da lista (sem pular pro meio)
+    document.getElementById('tr-' + id)?.remove();
+    S.total = Math.max(0, (S.total || 1) - 1);
+    renderPaginacao();
+    const tbody = document.getElementById('tbody');
+    const rows = tbody ? [...tbody.querySelectorAll('tr')] : [];
+    if (!rows.length) {
+      buscar({ keepScroll: true });
+    } else {
+      rows.forEach((row, i) => {
+        const cells = row.querySelectorAll('.td-num');
+        if (cells[0]) cells[0].textContent = String((S.page - 1) * S.perPage + i + 1);
+      });
+    }
+    carregarNotificacoes();
   });
 }
 
@@ -808,8 +825,8 @@ async function abrirEditar(id) {
     const d = await r.json();
     S.registroId = id; S.dados = d;
 
-    document.getElementById('f_nome').value     = d.nome     || '';
-    document.getElementById('f_apelido').value  = d.apelido  || '';
+    document.getElementById('f_nome').value     = String(d.nome || '').toUpperCase();
+    document.getElementById('f_apelido').value  = String(d.apelido || '').toUpperCase();
     document.getElementById('f_tipo').value     = d.tipo === 'S' ? 'S' : 'R';
     document.getElementById('f_modo_grade').value = (d.modo_grade === 'F') ? 'F' : 'A';
     document.getElementById('f_multiplo_grade').value = d.multiplo_grade > 0 ? d.multiplo_grade : 12;
@@ -847,8 +864,8 @@ function voltarLista() {
 
 async function salvar() {
   if (!guardCadSalvar(!!S.registroId, 'Sem permissão para incluir grades', 'Sem permissão para alterar grades')) return;
-  const nome     = document.getElementById('f_nome').value.trim();
-  const apelido  = document.getElementById('f_apelido').value.trim();
+  const nome     = document.getElementById('f_nome').value.trim().toUpperCase();
+  const apelido  = document.getElementById('f_apelido').value.trim().toUpperCase();
   const tipo     = document.getElementById('f_tipo').value;
   const modo_grade = document.getElementById('f_modo_grade')?.value || 'A';
   const multiplo_grade = parseInt(document.getElementById('f_multiplo_grade')?.value, 10) || 0;
@@ -978,20 +995,8 @@ function toast(msg, tipo='ok', dur=3500) {
   document.getElementById('toast-container').appendChild(t);
   setTimeout(()=>t.remove(), dur);
 }
-function confirmar(titulo, msg, onOk) {
-  const bd = document.createElement('div');
-  bd.className = 'confirm-backdrop';
-  bd.innerHTML = `<div class="confirm-box"><h3>${titulo}</h3><p>${msg}</p>
-    <div class="confirm-btns">
-      <button class="btn btn-ghost" id="_no">Cancelar</button>
-      <button class="btn btn-danger" id="_ok">Confirmar</button>
-    </div></div>`;
-  document.body.appendChild(bd);
-  bd.querySelector('#_no').onclick = ()=>bd.remove();
-  bd.querySelector('#_ok').onclick = ()=>{bd.remove();onOk();};
-  bd.onclick = e=>{if(e.target===bd)bd.remove();};
-}
 </script>
+<script src="/assets/confirm-dialog.js"></script>
 <script src="/assets/cadastros-permissao.js"></script>
 </body>
 </html>

@@ -31,6 +31,7 @@
           <a class="nav-link" href="?sec=clientes">Importação de Clientes</a>
           <a class="nav-link" href="?sec=fornecedores">Importação de Fornecedores</a>
           <a class="nav-link" href="?sec=precos">Importação de Preços</a>
+          <a class="nav-link" href="?sec=auxiliares-importacao">Grupo, Subfamília, Grade e outros</a>
           <a class="nav-link" href="?sec=precos-tabela-vinculada">Importar para Tabela de Preços</a>
           <a class="nav-link" href="?sec=campos">Campos de Importação</a>
           <a class="nav-link" href="?sec=categoria-importacao">Coluna Categoria</a>
@@ -64,11 +65,15 @@
           <h3>Importação de Clientes</h3>
           <ol class="steps">
             <li>Cadastros → <strong>Importação de Clientes</strong>.</li>
-            <li>Campos típicos: nome/razão social, CNPJ/CPF, endereço, cidade, UF, CEP, telefone, e-mail, vendedor, região, segmento.</li>
-            <li>CNPJ duplicado gera alerta — escolha atualizar existente ou pular linha.</li>
-            <li>Após importar, rode <strong>Geocodificação</strong> em Manutenção de Cadastros para clientes aparecerem no mapa.</li>
+            <li>Carregue a planilha e mapeie as colunas (CPF/CNPJ é a chave).</li>
+            <li>Valide os dados — CPF/CNPJ já cadastrado <strong>atualiza</strong> (não duplica).</li>
+            <li>Opcional: <strong>Não gravar clientes novos</strong> e/ou <strong>Consultar CNPJ…</strong> (preenche vazios, mais lento).</li>
+            <li>Salve e confira o resumo. Depois, se precisar de mapa, rode <strong>Geocodificação</strong> em Manutenção.</li>
           </ol>
-          <div class="callout">Veja também <a href="/pages/ajuda-clientes.html?sec=cadastro">Ajuda: Cadastrar Clientes</a> para regras de campos obrigatórios.</div>
+          <div class="callout">
+            Guia completo (Situação CNPJ, IE, fundação, CNPJ baixado sem bloqueio):
+            <a href="/pages/ajuda-clientes.html?sec=importacao-excel">Ajuda Clientes › Importação via Excel</a>.
+          </div>
         </section>
 
         <section class="section help-section" id="fornecedores">
@@ -88,9 +93,11 @@
             <li><strong>Selecione o fornecedor primeiro</strong> — o upload do arquivo fica bloqueado até escolher um fornecedor no combo.</li>
             <li>Arraste o Excel/CSV na faixa tracejada ou clique em <strong>Selecionar arquivo</strong> (.xlsx, .xls, .csv).</li>
             <li>Use <strong>⬇ Modelo Excel</strong> para baixar uma planilha de exemplo já com os cabeçalhos = campos configurados para a tabela <code>produto</code> (útil para preparar a planilha da fábrica no formato certo).</li>
-            <li>Mapeie cada coluna da planilha para um campo do sistema (dropdown por coluna) — botão <strong>⚡ Essenciais</strong> tenta mapear automaticamente os campos obrigatórios.</li>
+            <li>Mapeie cada coluna da planilha para um campo do sistema (dropdown por coluna) — o auto-mapeamento e o botão <strong>⚡ Essenciais</strong> reconhecem cabeçalhos comuns de fábrica (ex.: <strong>Valor</strong>, <strong>Valor de Venda</strong>, <strong>Cod. Fabricante</strong> sem acento) e ligam ao Preço Venda / Cód. Fabricante.</li>
+            <li>A coluna <strong>Grade</strong> e as colunas auxiliares (Grupo, Subfamília, Unidade, etc.) criam o cadastro automaticamente se ainda não existirem — veja o detalhe em <a href="?sec=auxiliares-importacao">Grupo, Subfamília, Grade e outros</a>.</li>
             <li>Clique em <strong>🔍 Validar Dados</strong> — cada linha recebe um status: <strong>Atualizar</strong> (produto já existe pelo código de fabricante), <strong>Sem Alteração</strong>, ou <strong>Sem Cadastro</strong> (produto novo, será inserido). Cards de contagem aparecem no topo da tabela e funcionam como filtro.</li>
             <li>Marque <strong>"Não gravar itens sem cadastro"</strong> se quiser importar só atualizações, ignorando produtos novos.</li>
+            <li>Opcional: marque <strong>"Inativar produtos deste fornecedor que não estão na planilha"</strong> — após salvar, o sistema pergunta quantos ativos ficaram de fora e, se confirmar, coloca <code>situacao=I</code> (não exclui). Use só quando a planilha for a lista completa da fábrica.</li>
             <li>Clique em <strong>💾 Salvar Produtos</strong> — uma tela de progresso mostra inseridos/atualizados/erros em tempo real; é possível abrir o detalhamento de cada grupo ou exportar a lista de erros em CSV.</li>
           </ol>
           <div class="callout">
@@ -99,6 +106,89 @@
           <div class="callout">
             <strong>Referência mãe (cores):</strong> mapeie a coluna <strong>Referência mãe</strong> com o ID ou o Cód. Fabricante do produto mãe.
             Importe primeiro as referências principais e depois as cores. Célula vazia desvincula. O campo não é auto-mapeado (efeito de vínculo).
+          </div>
+        </section>
+
+        <section class="section help-section" id="auxiliares-importacao">
+          <h3>Grupo, Subfamília, Grade e outros — o que a importação cria sozinha</h3>
+          <p>
+            Em resumo: se a coluna estiver <strong>mapeada</strong> e o texto da planilha <strong>ainda não existir</strong>
+            no cadastro, ao clicar em <strong>Salvar Produtos</strong> o sistema <strong>cadastra e já vincula</strong>
+            no produto. Célula vazia não altera o campo.
+          </p>
+          <p>
+            Você <strong>não precisa</strong> cadastrar antes na mão — a menos que queira organizar nomes e códigos
+            com calma. Os textos são gravados em <strong>MAIÚSCULAS</strong>.
+          </p>
+
+          <h4 style="margin:16px 0 8px;font-size:13px;font-weight:700;color:var(--text)">O que cada coluna faz</h4>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Coluna na planilha (apelido)</th>
+                  <th>Se não existir no sistema</th>
+                  <th>Onde cadastrar na mão (opcional)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Grade</strong> (ex.: P/M/G/GG ou 46/48/50)</td>
+                  <td>Na validação aparece o badge <strong>📏 Nova</strong>. Ao salvar, cria a grade com esses tamanhos e vincula no produto.</td>
+                  <td>Cadastros → Tabelas de Apoio → <strong>Grades</strong></td>
+                </tr>
+                <tr>
+                  <td><strong>Grupo</strong></td>
+                  <td>Cria o grupo e grava no produto.</td>
+                  <td>Cadastros → Tabelas de Apoio → <strong>Grupo de Produto</strong></td>
+                </tr>
+                <tr>
+                  <td><strong>Subfamília</strong> (ex.: MASCULINO, FEMININO)</td>
+                  <td>Cria a subfamília e vincula.</td>
+                  <td>Cadastros → Tabelas de Apoio → <strong>Subfamília de Produto</strong></td>
+                </tr>
+                <tr>
+                  <td><strong>Unidade</strong> (ex.: UN, CX, KG)</td>
+                  <td>Cria a unidade e vincula.</td>
+                  <td>Cadastros → Tabelas de Apoio → <strong>Unidade de Produto</strong></td>
+                </tr>
+                <tr>
+                  <td><strong>Tipo de Grade</strong> (ex.: ROUPA, SAPATO)</td>
+                  <td>Cria o tipo e vincula.</td>
+                  <td>Cadastros → Tabelas de Apoio → <strong>Tipo de Grade</strong></td>
+                </tr>
+                <tr>
+                  <td><strong>Local Armazenamento</strong></td>
+                  <td>Cria o local e vincula.</td>
+                  <td>Cadastros → Tabelas de Apoio → <strong>Locais de Armazenamento</strong></td>
+                </tr>
+                <tr>
+                  <td><strong>Família</strong></td>
+                  <td>Cria a família e vincula.</td>
+                  <td>Cadastros → Tabelas de Apoio → <strong>Família de Produtos</strong></td>
+                </tr>
+                <tr>
+                  <td><strong>Categoria</strong> (ou Segmento do produto)</td>
+                  <td>Cria a categoria de produto e vincula.</td>
+                  <td>Cadastros → Tabelas de Apoio → <strong>Categoria de Produto</strong></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h4 style="margin:16px 0 8px;font-size:13px;font-weight:700;color:var(--text)">Passo a passo simples</h4>
+          <ol class="steps">
+            <li>Baixe o <strong>Modelo Excel</strong> (ou use a planilha da fábrica).</li>
+            <li>Na etapa de mapeamento, ligue cada coluna da planilha ao campo correspondente (Grupo, Subfamília, Grade…).</li>
+            <li>Clique em <strong>Validar Dados</strong> — confira se a Grade e os auxiliares novos (Subfamília, Grupo…) aparecem com o badge <strong>✨ Nova</strong> / <strong>📏 Nova</strong>.</li>
+            <li>Clique em <strong>Salvar Produtos</strong> — o sistema cria o que faltar e atualiza/insere os produtos.</li>
+            <li>Se quiser revisar o que foi criado, abra as telas em <strong>Cadastros → Tabelas de Apoio</strong>.</li>
+          </ol>
+
+          <div class="callout">
+            Se a coluna <strong>não estiver mapeada</strong>, o valor da planilha é ignorado (não cria nada).
+            Guia dos cadastros manuais:
+            <a href="/pages/ajuda-cadastros-complementares.html?sec=produtos-apoio">Ajuda Cadastros Complementares › Produtos — tabelas de apoio</a>.
           </div>
         </section>
 
@@ -192,6 +282,8 @@
                 <tr><td>CNPJ inválido em massa</td><td>Formato com pontuação ou zeros à esquerda</td><td>Padronizar coluna como texto na planilha</td></tr>
                 <tr><td>Preço não aplicou</td><td>Produto não encontrado</td><td>Conferir cod_fabricante / ID na planilha</td></tr>
                 <tr><td>Importação lenta</td><td>Milhares de linhas</td><td>Dividir em lotes de 500–1000 linhas</td></tr>
+                <tr><td>Grupo/Subfamília/Grade não entrou</td><td>Coluna não mapeada ou célula vazia</td><td>Mapear a coluna e salvar de novo — veja <a href="?sec=auxiliares-importacao">Grupo, Subfamília, Grade…</a></td></tr>
+                <tr><td>Não consigo escolher outro arquivo após salvar</td><td>Overlay antigo travando a tela</td><td>Use <strong>Nova Importação</strong> ou atualize a página (Ctrl+F5)</td></tr>
               </tbody>
             </table>
           </div>

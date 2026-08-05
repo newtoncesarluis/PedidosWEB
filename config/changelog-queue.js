@@ -10,6 +10,464 @@
  */
 module.exports = [
   {
+    versao: '1.1.3.99',
+    tipo: 'MELHORIA',
+    titulo: 'Importação: validação com tela de espera e botões bloqueados',
+    descricao:
+      'Ao clicar em Validar Dados, aparece um aviso grande no centro da tela com progresso. ' +
+      'Enquanto valida, os botões de ação ficam bloqueados. A leitura da planilha também voltou a ser rápida.',
+    data_lancamento: '2026-08-01',
+  },
+  {
+    versao: '1.1.3.99',
+    tipo: 'BUG',
+    titulo: 'Importação: campos de vínculo na 1ª carga e badge Nova nos auxiliares',
+    descricao:
+      'Corrigido: na primeira vez que a planilha era carregada, os combos de vínculo às vezes vinham vazios (era preciso subir o arquivo de novo). ' +
+      'Agora os campos do sistema são carregados antes do mapeamento. Também reforçado o aviso ✨ Nova em Subfamília, Grupo, Unidade etc. ao Validar Dados.',
+    data_lancamento: '2026-08-01',
+  },
+  {
+    versao: '1.1.3.98',
+    tipo: 'BUG',
+    titulo: 'Importação: aviso de Subfamília/Grupo novos na validação',
+    descricao:
+      'Ao Validar Dados na Importação de Preços, Subfamília, Grupo, Unidade e demais auxiliares que ainda não existem ' +
+      'passam a mostrar o badge Nova (como a Grade) e o toast resume quantas linhas vão criar cadastro ao salvar.',
+    data_lancamento: '2026-08-01',
+  },
+  {
+    versao: '1.1.3.98',
+    tipo: 'MELHORIA',
+    titulo: 'Ajuda: cadastros auxiliares e importação de preços',
+    descricao:
+      'A Central de Ajuda explica, em linguagem simples, onde cadastrar Grupo, Subfamília, Unidade, Tipo de Grade e Grades ' +
+      '(Tabelas de Apoio) e que a Importação de Preços cria esses valores automaticamente se não existirem.',
+    data_lancamento: '2026-08-01',
+  },
+  {
+    versao: '1.1.3.98',
+    tipo: 'BUG',
+    titulo: 'Cadastro de Grades: erro «Data too long»',
+    descricao:
+      'Ao salvar Grades em bases antigas, a coluna nome/apelido era curta demais e gerava erro. ' +
+      'O sistema amplia automaticamente essas colunas e passa a aceitar descrições maiores.',
+    data_lancamento: '2026-08-01',
+  },
+  {
+    versao: '1.1.3.98',
+    tipo: 'MELHORIA',
+    titulo: 'Cadastros de apoio em maiúsculas',
+    descricao:
+      'Descrições de Subfamília, Unidade, Tipo de Grade, Grupo, Locais, Tipo de Cliente, Segmento e Categoria ' +
+      'passam a ser gravadas e exibidas sempre em MAIÚSCULAS (incluindo registros antigos do seed).',
+    data_lancamento: '2026-08-01',
+  },
+  {
+    versao: '1.1.3.98',
+    tipo: 'NOVO',
+    titulo: 'Telas de Grupo, Subfamília, Unidade e Tipo de Grade',
+    descricao:
+      'Em Cadastros há telas separadas (padrão do sistema) para Grupo de Produto, Subfamília, Unidade e Tipo de Grade. ' +
+      'Locais de Armazenamento foi refeito no mesmo padrão. Os combos do Produto usam esses cadastros; na Importação de Preços o sistema pode criar e vincular automaticamente.',
+    data_lancamento: '2026-08-01',
+  },
+  {
+    versao: '1.1.3.98',
+    tipo: 'BUG',
+    titulo: 'Importação: escolher outra planilha após salvar',
+    descricao:
+      'Depois de salvar na Importação de Preços, o botão Selecionar arquivo e o arrastar de uma nova planilha voltam a funcionar ' +
+      '(o overlay de conclusão não trava mais a tela). Nova Importação também limpa o estado por completo.',
+    data_lancamento: '2026-08-01',
+  },
+  {
+    versao: '1.1.3.98',
+    tipo: 'MELHORIA',
+    titulo: 'Importação avisa Grade nova na linha',
+    descricao:
+      'Ao Validar Dados na Importação de Preços, se a Grade da planilha ainda não existir no cadastro, a própria célula fica destacada com o aviso «📏 Nova» ' +
+      '(será criada ao salvar). Id numérico inexistente aparece em vermelho.',
+    data_lancamento: '2026-08-01',
+  },
+  {
+    versao: '1.1.3.98',
+    tipo: 'MELHORIA',
+    titulo: 'Importação cria Grade se não existir',
+    descricao:
+      'Na Importação de Preços, a coluna Grade continua buscando a grade já cadastrada (nome ou tamanhos). ' +
+      'Se não existir (ex.: P/M/G/GG), o sistema cadastra a grade com esses tamanhos e vincula ao produto automaticamente.',
+    data_lancamento: '2026-08-01',
+  },
+  {
+    versao: '1.1.3.98',
+    tipo: 'MELHORIA',
+    titulo: 'Confirmação moderna ao inativar fora da planilha',
+    descricao:
+      'Na Importação de Preços, a confirmação de inativar produtos que não estão na planilha deixou o alerta padrão do navegador ' +
+      'e passou a usar o mesmo modal visual do salvamento, com resumo e aviso quando mais da metade seria inativada.',
+    data_lancamento: '2026-08-01',
+  },
+  {
+    versao: '1.1.3.98',
+    tipo: 'BUG',
+    titulo: 'Importação atualiza produto já cadastrado (código 0002 vs 2)',
+    descricao:
+      'Na Importação de Preços, códigos como 0002 e 2 passam a ser tratados como o mesmo. ' +
+      'Se o produto já existe no fornecedor, a linha atualiza em vez de mostrar erro «Já existe o produto».',
+    data_lancamento: '2026-08-01',
+  },
+  {
+    versao: '1.1.3.98',
+    tipo: 'MELHORIA',
+    titulo: 'Importação: inativar fora da planilha + mais espaço na lista',
+    descricao:
+      'Na Importação de Preços há a opção de inativar produtos ativos do fornecedor que não vieram na planilha (com confirmação; não exclui). ' +
+      'A tela também ficou mais compacta: com o Excel aberto, a lista de itens ganha altura e as colunas de status ficam menores.',
+    data_lancamento: '2026-08-01',
+  },
+  {
+    versao: '1.1.3.98',
+    tipo: 'NOVO',
+    titulo: 'Importação de preços vincula a Grade da planilha',
+    descricao:
+      'Na Importação de Preços, a coluna Grade (ex.: P/M/G/GG) mapeia sozinha e associa o produto à grade já cadastrada ' +
+      '(mesmo nome ou mesmos tamanhos). Se a grade não existir no cadastro, a linha avisa o erro — não cria grade automaticamente.',
+    data_lancamento: '2026-08-01',
+  },
+  {
+    versao: '1.1.3.98',
+    tipo: 'MELHORIA',
+    titulo: 'Importação reconhece coluna Valor como preço',
+    descricao:
+      'Na Importação de Preços, cabeçalhos como Valor, Valor de Venda ou Preço passam a mapear sozinhos para Preço Venda. ' +
+      'Cod. Fabricante (sem acento) também casa com Cód. Fabricante.',
+    data_lancamento: '2026-08-01',
+  },
+  {
+    versao: '1.1.3.98',
+    tipo: 'MELHORIA',
+    titulo: 'Cadastrar transportadora sem sair do pedido',
+    descricao:
+      'Na aba Logística do pedido, ao lado de Transportadora há o botão +. Você cadastra nome (e opcionalmente CPF/CNPJ e telefone) na hora, ' +
+      'e a transportadora fica selecionada — sem fechar o pedido nem perder o que já digitou.',
+    data_lancamento: '2026-08-01',
+  },
+  {
+    versao: '1.1.3.98',
+    tipo: 'MELHORIA',
+    titulo: 'Cadastrar tipo de frete sem sair do pedido',
+    descricao:
+      'No pedido, ao lado de Tipo de Frete há o botão +. Você cadastra o frete (nome e valor opcional) na hora, ' +
+      'ele entra no combo e fica selecionado — sem fechar o pedido nem perder o que já digitou.',
+    data_lancamento: '2026-08-01',
+  },
+  {
+    versao: '1.1.3.98',
+    tipo: 'NOVO',
+    titulo: 'Grupo Grades na configuração + cabeçalho na impressão',
+    descricao:
+      'Em Sistema → Configuração há a seção «Grades (Pedido e Impressão)». Com Pedido por Grade ligado, você escolhe layout (cores, neutro, seções, híbrido) ' +
+      'e o cabeçalho dos tamanhos: Único (só 42 44 46…, estilo Jardim) ou Duplo (rótulo do bloco + tamanhos).',
+    data_lancamento: '2026-08-01',
+  },
+  {
+    versao: '1.1.3.98',
+    tipo: 'NOVO',
+    titulo: 'Escolher layout da grade na impressão',
+    descricao:
+      'Em Sistema → Configuração, com Pedido por Grade ligado, você escolhe como as grades aparecem no PDF/impressão: ' +
+      'Cores por bloco, Neutro (cinza + borda), Seções separadas por grade, ou Híbrido (seções quando houver 3 ou mais grades).',
+    data_lancamento: '2026-08-01',
+  },
+  {
+    versao: '1.1.3.98',
+    tipo: 'MELHORIA',
+    titulo: 'Impressão por grade com Cor e configs do relatório',
+    descricao:
+      'Na impressão/PDF do pedido com grades, a coluna Cor mostra o campo Cores ou, se vazio, a Obs. do item (ex.: AZUL CLARO ou azul/verde/rosa). ' +
+      'A tabela respeita o modelo de impressão (código do produto ligado/desligado, qtde, preços, impostos no modo Completo), ' +
+      'os parâmetros Exibir Cor nos Pedidos por Grade, Tipo de Relatório por Grade e Exibir Código do Fabricante, ' +
+      'e as preferências do fornecedor (cód. fabricante no pedido e Obs. do item).',
+    data_lancamento: '2026-07-31',
+  },
+  {
+    versao: '1.1.3.97',
+    tipo: 'BUG',
+    titulo: 'Agendar visita no cliente sem erro de assunto',
+    descricao:
+      'Ao agendar visita pela tela de Clientes, o sistema grava corretamente como visita (não exige mais assunto/contato como se fosse compromisso). ' +
+      'O modal agora mostra Assunto e Nome do contato, já preenchido com o nome do cliente.',
+    data_lancamento: '2026-07-31',
+  },
+  {
+    versao: '1.1.3.95',
+    tipo: 'NOVO',
+    titulo: 'Colar imagens com Ctrl+V (produtos e logos)',
+    descricao:
+      'Nas abas de fotos de Produtos, Fornecedores e Clientes você pode colar imagens da área de transferência (Ctrl+V), ' +
+      'incluindo fotos copiadas do Google Drive (abra a imagem → Copiar imagem → cole no SysRep). ' +
+      'Também funciona no importador de fotos em lote dos produtos.',
+    data_lancamento: '2026-07-30',
+  },
+  {
+    versao: '1.1.3.94',
+    tipo: 'BUG',
+    titulo: 'Busca de clientes por cidade não mistura com rua',
+    descricao:
+      'Ao buscar ou filtrar por cidade (ex.: José Bonifácio), a lista deixa de trazer clientes só porque o nome da rua contém o mesmo texto. ' +
+      'A busca geral e o filtro avançado de Cidade usam apenas o campo cidade.',
+    data_lancamento: '2026-07-30',
+  },
+  {
+    versao: '1.1.3.94',
+    tipo: 'NOVO',
+    titulo: 'Agendar + Google Agenda em Fornecedores e Usuários',
+    descricao:
+      'Nas telas de Fornecedores e Usuários você pode agendar um compromisso (botão Agendar na lista, no menu ⋮, no painel rápido ou no formulário) ' +
+      'e, se quiser, abrir o Google Agenda ao salvar — igual ao que já existia em Clientes.',
+    data_lancamento: '2026-07-30',
+  },
+  {
+    versao: '1.1.3.93',
+    tipo: 'BUG',
+    titulo: 'Confirmação de exclusão centralizada nas Grades',
+    descricao:
+      'Ao excluir uma grade, a caixa «Excluir grade?» aparece centralizada sem alargar a tela, ' +
+      'e a lista permanece no mesmo ponto em que você estava (não pula para o meio dos registros).',
+    data_lancamento: '2026-07-30',
+  },
+  {
+    versao: '1.1.3.93',
+    tipo: 'NOVO',
+    titulo: 'Cadastro de Tipo de Cliente',
+    descricao:
+      'O campo Tipo de Cliente (Consumidor, Revendedor, Especial, Indústria) deixa de ser lista fixa e passa a vir da tabela Tipo de Cliente. ' +
+      'Cadastre novos tipos em Cadastros → Tabelas de Apoio → Tipo de Cliente. ' +
+      'Na tela de Clientes o filtro avançado também usa esse cadastro — ideal para relatórios.',
+    data_lancamento: '2026-07-30',
+  },
+  {
+    versao: '1.1.3.92',
+    tipo: 'MELHORIA',
+    titulo: 'Segmento: Cliente, Fornecedor ou Ambos',
+    descricao:
+      'No cadastro de Segmentos (Cadastros → Segmentos) você define se o item vale para Cliente, Fornecedor ou Ambos. ' +
+      'O combo do cliente mostra só segmentos de Cliente/Ambos; o do fornecedor, só Fornecedor/Ambos. ' +
+      'Categoria de produto continua no menu separado «Categoria de Produto».',
+    data_lancamento: '2026-07-27',
+  },
+  {
+    versao: '1.1.3.92',
+    tipo: 'MELHORIA',
+    titulo: 'Agenda: Compromisso ou Pendência + Google Agenda',
+    descricao:
+      'Na Agenda e no Calendário você escolhe o tipo: Compromisso, Pendência, Prospect ou Visita (cliente só aparece em Visita). ' +
+      'A opção «Abrir Google Agenda ao salvar» vem marcada e, ao gravar, abre o Google Calendar com o evento preenchido.',
+    data_lancamento: '2026-07-27',
+  },
+  {
+    versao: '1.1.3.91',
+    tipo: 'NOVO',
+    titulo: 'Agenda com compromissos sem cliente',
+    descricao:
+      'Na Agenda e no Calendário de Visitas você pode agendar não só visita a cliente cadastrado, ' +
+      'mas também Prospect (futuro cliente, com nome/telefone) e Compromisso/pendência do dia (assunto livre). ' +
+      'Escolha o Tipo no formulário — visita com cliente continua igual.',
+    data_lancamento: '2026-07-27',
+  },
+  {
+    versao: '1.1.3.91',
+    tipo: 'BUG',
+    titulo: 'Cadastro de Motivo de Visita volta a salvar',
+    descricao:
+      'Ao salvar um Motivo de Visita aparecia o erro «Unknown column excluido». ' +
+      'Em bases legadas a coluna se chama «exluido» (como no Delphi). O cadastro agora detecta o nome certo e grava normalmente.',
+    data_lancamento: '2026-07-27',
+  },
+  {
+    versao: '1.1.3.91',
+    tipo: 'MELHORIA',
+    titulo: 'Ajuda atualizada: clientes, região e catálogos',
+    descricao:
+      'A Central de Ajuda documenta PDF Fábrica, Diário comercial (modal ao finalizar visita), representadas com marca própria, consulta/importação CNPJ, Relatórios Região/Carteira (paginação e tela larga) e como inativar/excluir catálogo visual.',
+    data_lancamento: '2026-07-25',
+  },
+  {
+    versao: '1.1.3.90',
+    tipo: 'MELHORIA',
+    titulo: 'Importação de clientes: consulta CNPJ opcional',
+    descricao:
+      'Na Importação de Clientes (Excel), após validar os dados você pode marcar «Consultar CNPJ e preencher IE / fundação / situação (mais lento)». ' +
+      'O sistema preenche só o que estiver vazio na planilha (Inscrição Estadual, data de fundação e situação cadastral), com intervalo entre consultas para não sobrecarregar as APIs. ' +
+      'CNPJ baixado ou inapto não bloqueia — o resumo informa quantos. Sem a opção marcada, continua gravando apenas o que veio no Excel.',
+    data_lancamento: '2026-07-25',
+  },
+  {
+    versao: '1.1.3.90',
+    tipo: 'MELHORIA',
+    titulo: 'Paginação nos Relatórios Região',
+    descricao:
+      'Nas quatro abas de Comercial → Relatórios Região / Carteira, listas longas passam a ter paginação (25/50/100 por página) com Anterior/Próxima e contador X–Y de Z. ' +
+      'Os controles só aparecem quando há mais registros que o tamanho da página. CSV e Imprimir continuam exportando todos os dados filtrados.',
+    data_lancamento: '2026-07-25',
+  },
+  {
+    versao: '1.1.3.90',
+    tipo: 'MELHORIA',
+    titulo: 'Relatórios Região — tela mais larga e clara',
+    descricao:
+      'A tela Comercial → Relatórios Região / Carteira passou a usar a largura toda da área de conteúdo, com abas, filtros e KPIs no padrão das outras telas comerciais. ' +
+      'Cada aba traz um subtítulo do que o relatório responde; na aba Valores, pedidos e orçamentos ficam destacados por cores.',
+    data_lancamento: '2026-07-25',
+  },
+  {
+    versao: '1.1.3.90',
+    tipo: 'MELHORIA',
+    titulo: 'Consulta CNPJ avisa se a empresa foi baixada',
+    descricao:
+      'Ao consultar o CNPJ no cadastro de cliente ou fornecedor, o sistema destaca quando a situação na Receita não é ATIVA (ex.: BAIXADA, INAPTA, SUSPENSA ou NULA): toast de aviso, faixa amarela no formulário e, no cliente, preenchimento da aba Info CNPJ. O cadastro não é bloqueado — só informa.',
+    data_lancamento: '2026-07-25',
+  },
+  {
+    versao: '1.1.3.90',
+    tipo: 'MELHORIA',
+    titulo: 'Consulta CNPJ traz IE e data de fundação',
+    descricao:
+      'Ao consultar o CNPJ no cadastro de cliente (e fornecedor), a Inscrição Estadual e a Data de Fundação/Abertura passam a ser preenchidas automaticamente quando a fonte pública informar. ' +
+      'A IE só aparece se existir cadastro estadual ativo — não é inventada.',
+    data_lancamento: '2026-07-25',
+  },
+  {
+    versao: '1.1.3.90',
+    tipo: 'BUG',
+    titulo: 'Diário — Registrar contato e finalizar visita',
+    descricao:
+      'O botão «+ Registrar contato» na aba Diário voltou a abrir o formulário. ' +
+      'Ao finalizar uma visita da agenda, o sistema usa um modal com resultado, motivo e conversa — sem o prompt feio do navegador.',
+    data_lancamento: '2026-07-25',
+  },
+  {
+    versao: '1.1.3.90',
+    tipo: 'BUG',
+    titulo: 'Diário do cliente — pedidos sem erro de coluna',
+    descricao:
+      'A aba Diário do cliente voltou a listar as compras (pedidos): o sistema usava a coluna errada do vendedor em pedidos e a timeline de compras falhava em silêncio.',
+    data_lancamento: '2026-07-25',
+  },
+  {
+    versao: '1.1.3.90',
+    tipo: 'NOVO',
+    titulo: 'Relatórios Região / Carteira',
+    descricao:
+      'Nova tela em Comercial → Relatórios Padrão com quatro abas: relatório geral de clientes (filtros e CSV/impressão), ' +
+      'região por vendedor, clientes agrupados por região e valores de pedidos vs orçamentos por região no período. ' +
+      'Ajuda disponível pelo botão na própria tela.',
+    data_lancamento: '2026-07-25',
+  },
+  {
+    versao: '1.1.3.89',
+    tipo: 'MELHORIA',
+    titulo: 'Marca própria na ficha PDF e no pedido',
+    descricao:
+      'Quando o cliente tem marca própria cadastrada em uma fábrica (aba Representadas), o nome e o logo passam a aparecer no PDF Fábrica da ficha e na impressão/envio do pedido daquela fábrica. ' +
+      'Quem não usa marca própria continua sem nenhuma alteração nos documentos.',
+    data_lancamento: '2026-07-25',
+  },
+  {
+    versao: '1.1.3.89',
+    tipo: 'NOVO',
+    titulo: 'Marca própria e logo na representada do cliente',
+    descricao:
+      'Na aba Representadas do cliente, ao vincular uma fábrica você pode marcar se o cliente tem marca própria, ' +
+      'informar o nome da marca e enviar o logo — tudo por fábrica.',
+    data_lancamento: '2026-07-25',
+  },
+  {
+    versao: '1.1.3.89',
+    tipo: 'NOVO',
+    titulo: 'Diário comercial na ficha do cliente',
+    descricao:
+      'Nova aba Diário no cadastro do cliente: registre visitas e o que foi conversado na venda, informe o motivo quando não comprou, ' +
+      'e veja as compras (pedidos) automaticamente na mesma linha do tempo. Também disponível no painel de detalhes.',
+    data_lancamento: '2026-07-25',
+  },
+{
+    versao: '1.1.3.87',
+    tipo: 'NOVO',
+    titulo: 'Cliente vinculado às representadas (fábricas)',
+    descricao:
+      'No cadastro do cliente, a aba Representadas permite vincular as fábricas com as quais ele trabalha e gravar o código do cliente em cada fábrica. ' +
+      'Há uma opção «Restringir pedido às representadas vinculadas» (desligada por padrão): com ela ligada, o pedido só libera as fábricas da lista.',
+    data_lancamento: '2026-07-25',
+  },
+  {
+    versao: '1.1.3.87',
+    tipo: 'BUG',
+    titulo: 'Salvar cliente com segmento voltou a funcionar',
+    descricao:
+      'Ao salvar o cliente com um Segmento selecionado, o sistema acusava «Categoria (segmento) informada não existe ou está inativa». ' +
+      'A validação lia a tabela errada; agora usa a mesma lista de segmentos do cadastro.',
+    data_lancamento: '2026-07-25',
+  },
+  {
+    versao: '1.1.3.87',
+    tipo: 'BUG',
+    titulo: 'Agendar visita envia o endereço para a Google Agenda',
+    descricao:
+      'Ao marcar «Abrir Google Agenda ao salvar» no cadastro do cliente, o evento passa a preencher o campo Local ' +
+      'com o endereço completo do cliente (rua, número, bairro, cidade/UF e CEP), para abrir o mapa direto no evento.',
+    data_lancamento: '2026-07-25',
+  },
+  {
+    versao: '1.1.3.87',
+    tipo: 'MELHORIA',
+    titulo: 'Ajuda: PDF Fábrica e região/rota do cliente',
+    descricao:
+      'A Central de Ajuda agora explica passo a passo o botão «PDF Fábrica» e como vincular o cliente na Região (aba Comercial) — ' +
+      'incluindo a diferença para as Rotas de Vendedores do CRM.',
+    data_lancamento: '2026-07-25',
+  },
+  {
+    versao: '1.1.3.87',
+    tipo: 'BUG',
+    titulo: 'Lista de clientes abre sem erro de complemento',
+    descricao:
+      'A tela de Clientes falhava ao carregar em bases antigas («Unknown column complemento»). ' +
+      'A listagem voltou a abrir normalmente e a coluna é criada automaticamente quando necessário.',
+    data_lancamento: '2026-07-25',
+  },
+  {
+    versao: '1.1.3.87',
+    tipo: 'NOVO',
+    titulo: 'PDF da ficha do cliente para a fábrica',
+    descricao:
+      'Gere a ficha rápida do cliente para a fábrica pelo menu ⋮ da lista, pelo painel de detalhes ou pelo botão «PDF Fábrica» no cadastro aberto ' +
+      '(topo e rodapé). Inclui identificação, endereço, contato e dados fiscais — pronta para imprimir ou salvar em PDF.',
+    data_lancamento: '2026-07-25',
+  },
+  {
+    versao: '1.1.3.87',
+    tipo: 'BUG',
+    titulo: 'Gestão de Regiões volta a listar as regiões',
+    descricao:
+      'A tela Gestão de Regiões aparecia vazia («No data available») porque lia uma tabela antiga inexistente. ' +
+      'Agora lista as mesmas regiões de Cadastros › Regiões e Rotas.',
+    data_lancamento: '2026-07-25',
+  },
+  {
+    versao: '1.1.3.87',
+    tipo: 'NOVO',
+    titulo: 'Carteira de Recompra',
+    descricao:
+      'Nova tela em Comercial → Vendas que mostra, por semáforo 🟢🟡🔴, quais clientes estão na hora de recomprar — ' +
+      'por fábrica: cada linha é «cliente + fábrica», com ciclo de compra e semáforo próprios daquela dupla (o mesmo cliente ' +
+      'pode estar em dia numa fábrica e atrasado noutra). Traz última compra, ciclo médio, previsão da próxima e valor potencial, ' +
+      'com filtro por fábrica. O botão «Gerar pedido» repete o último pedido daquele cliente com a fábrica — ' +
+      'traz cliente, fábrica e os itens já carregados; o vendedor confere, ajusta e salva.',
+    data_lancamento: '2026-07-25',
+  },
+  {
     versao: '1.1.3.86',
     tipo: 'MELHORIA',
     titulo: 'Desconto por Faixa visível sob o produto no pedido',

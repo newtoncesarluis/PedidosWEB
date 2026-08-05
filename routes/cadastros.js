@@ -1466,6 +1466,7 @@ const {
   ensureSegmentosTable,
   migrateSegmentosClienteFromCategoria,
 } = require('../config/segmentos-migrate');
+const { normalizeSegmentoUso, sqlFiltroUsoSegmento } = require('../config/segmentos-uso');
 
 async function ensureSegmentosReady(pool) {
   await ensureSegmentosTable(pool);
@@ -1482,8 +1483,13 @@ router.get('/segmentos', async (req, res) => {
   try {
     const pool = getPool();
     await ensureSegmentosReady(pool);
+    const filtro = sqlFiltroUsoSegmento(req.query.uso);
     const [rows] = await pool.query(
-      `SELECT id, descricao, status FROM segmentos WHERE COALESCE(excluido,'N')='N' ORDER BY descricao`
+      `SELECT id, descricao, COALESCE(uso,'AMBOS') AS uso, status
+       FROM segmentos
+       WHERE COALESCE(excluido,'N')='N' AND ${filtro.sql}
+       ORDER BY descricao`,
+      filtro.params
     );
     res.json({ segmentos: rows });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -1495,11 +1501,12 @@ router.post('/segmentos', async (req, res) => {
     if (pc.incluir !== 'S') return negarCad(res, 'Sem permissão para incluir segmentos');
     const pool = getPool();
     await ensureSegmentosReady(pool);
-    const { descricao, status } = req.body;
+    const { descricao, status, uso } = req.body;
     if (!descricao) return res.status(400).json({ error: 'Descrição é obrigatória' });
+    const desc = String(descricao).trim().toUpperCase();
     const [r] = await pool.query(
-      `INSERT INTO segmentos (descricao, status, excluido) VALUES (?,?,'N')`,
-      [String(descricao).trim(), _normStatusSegmento(status)]
+      `INSERT INTO segmentos (descricao, uso, status, excluido) VALUES (?,?,?,'N')`,
+      [desc, normalizeSegmentoUso(uso), _normStatusSegmento(status)]
     );
     res.status(201).json({ ok: true, id: r.insertId });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -1511,16 +1518,17 @@ router.put('/segmentos/:id', async (req, res) => {
     if (pc.alterar !== 'S') return negarCad(res, 'Sem permissão para alterar segmentos');
     const pool = getPool();
     await ensureSegmentosReady(pool);
-    const { descricao, status } = req.body;
+    const { descricao, status, uso } = req.body;
+    const desc = String(descricao || '').trim().toUpperCase();
     await pool.query(
-      `UPDATE segmentos SET descricao=?, status=? WHERE id=?`,
-      [String(descricao || '').trim(), _normStatusSegmento(status), req.params.id]
+      `UPDATE segmentos SET descricao=?, uso=?, status=? WHERE id=?`,
+      [desc, normalizeSegmentoUso(uso), _normStatusSegmento(status), req.params.id]
     );
     // Mantém texto espelhado nos clientes que usam este id
     try {
       await pool.query(
         `UPDATE clientes SET segmento=? WHERE CAST(cod_segmento AS UNSIGNED)=? AND COALESCE(excluido,'N')='N'`,
-        [String(descricao || '').trim(), req.params.id]
+        [desc, req.params.id]
       );
     } catch { /* ok */ }
     res.json({ ok: true });
@@ -1558,7 +1566,7 @@ router.post('/categorias-produto', async (req, res) => {
     if (!descricao) return res.status(400).json({ error: 'Descrição é obrigatória' });
     const [r] = await pool.query(
       `INSERT INTO categoria (descricao, status, excluido) VALUES (?,?,'N')`,
-      [String(descricao).trim(), _normStatusSegmento(status)]
+      [String(descricao).trim().toUpperCase(), _normStatusSegmento(status)]
     );
     res.status(201).json({ ok: true, id: r.insertId });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -1570,7 +1578,7 @@ router.put('/categorias-produto/:id', async (req, res) => {
     if (pc.alterar !== 'S') return negarCad(res, 'Sem permissão para alterar categorias');
     const pool = getPool();
     const { descricao, status } = req.body;
-    const desc = String(descricao || '').trim();
+    const desc = String(descricao || '').trim().toUpperCase();
     const [[old]] = await pool.query(`SELECT descricao FROM categoria WHERE id=?`, [req.params.id]);
     const oldDesc = String(old?.descricao || '').trim();
     await pool.query(
@@ -1600,55 +1608,212 @@ router.delete('/categorias-produto/:id', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// REGIOES
+// TIPO DE CLIENTE — tabela: tipo_cliente (combo comercial + filtros/relatórios)
+// clientes.tipo_cliente grava o **codigo** (ex.: CONSUMIDOR)
 // ─────────────────────────────────────────────────────────────────────────────
-async function ensureRegioesTable(pool) {
+const {
+  ensureTipoClienteReady,
+  codigoFromDescricao,
+} = require('../config/tipo-cliente-migrate');
+
+router.get('/tipo-cliente', async (req, res) => {
+  try {
+    const pool = getPool();
+    await ensureTipoClienteReady(pool);
+    const [rows] = await pool.query(
+      `SELECT id, codigo, descricao, ordem, status
+       FROM tipo_cliente
+       WHERE COALESCE(excluido,'N')='N'
+       ORDER BY ordem, descricao`
+    );
+    res.json({ tipos: rows });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/tipo-cliente', async (req, res) => {
+  try {
+    const pc = permCrud(req, { incluir: 'incluir_tipo_cliente', alterar: 'alterar_tipo_cliente', excluir: 'excluir_tipo_cliente' });
+    if (pc.incluir !== 'S') return negarCad(res, 'Sem permissão para incluir tipo de cliente');
+    const pool = getPool();
+    await ensureTipoClienteReady(pool);
+    const descricao = String(req.body.descricao || '').trim().toUpperCase();
+    if (!descricao) return res.status(400).json({ error: 'Descrição é obrigatória' });
+    let codigo = String(req.body.codigo || '').trim().toUpperCase();
+    if (!codigo) codigo = codigoFromDescricao(descricao);
+    if (!codigo) return res.status(400).json({ error: 'Código inválido' });
+    const ordem = Number(req.body.ordem) || 0;
+    const status = _normStatusSegmento(req.body.status);
+    const [dup] = await pool.query(
+      `SELECT id FROM tipo_cliente WHERE UPPER(TRIM(codigo))=? AND COALESCE(excluido,'N')='N' LIMIT 1`,
+      [codigo]
+    );
+    if (dup.length) return res.status(400).json({ error: 'Já existe um tipo com este código' });
+    const [r] = await pool.query(
+      `INSERT INTO tipo_cliente (codigo, descricao, ordem, status, excluido) VALUES (?,?,?,?,'N')`,
+      [codigo, descricao, ordem, status]
+    );
+    res.status(201).json({ ok: true, id: r.insertId, codigo });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.put('/tipo-cliente/:id', async (req, res) => {
+  try {
+    const pc = permCrud(req, { incluir: 'incluir_tipo_cliente', alterar: 'alterar_tipo_cliente', excluir: 'excluir_tipo_cliente' });
+    if (pc.alterar !== 'S') return negarCad(res, 'Sem permissão para alterar tipo de cliente');
+    const pool = getPool();
+    await ensureTipoClienteReady(pool);
+    const [[old]] = await pool.query(
+      `SELECT codigo FROM tipo_cliente WHERE id=? AND COALESCE(excluido,'N')='N'`,
+      [req.params.id]
+    );
+    if (!old) return res.status(404).json({ error: 'Tipo não encontrado' });
+    const descricao = String(req.body.descricao || '').trim().toUpperCase();
+    if (!descricao) return res.status(400).json({ error: 'Descrição é obrigatória' });
+    let codigo = String(req.body.codigo || '').trim().toUpperCase();
+    if (!codigo) codigo = codigoFromDescricao(descricao);
+    const ordem = Number(req.body.ordem) || 0;
+    const status = _normStatusSegmento(req.body.status);
+    const [dup] = await pool.query(
+      `SELECT id FROM tipo_cliente
+       WHERE UPPER(TRIM(codigo))=? AND id<>? AND COALESCE(excluido,'N')='N' LIMIT 1`,
+      [codigo, req.params.id]
+    );
+    if (dup.length) return res.status(400).json({ error: 'Já existe um tipo com este código' });
+    await pool.query(
+      `UPDATE tipo_cliente SET codigo=?, descricao=?, ordem=?, status=? WHERE id=?`,
+      [codigo, descricao, ordem, status, req.params.id]
+    );
+    // Espelha código nos clientes se mudou
+    const oldCod = String(old.codigo || '').trim();
+    if (oldCod && codigo && oldCod.toUpperCase() !== codigo) {
+      try {
+        await pool.query(
+          `UPDATE clientes SET tipo_cliente=?
+           WHERE UPPER(TRIM(tipo_cliente))=UPPER(?) AND COALESCE(excluido,'N')='N'`,
+          [codigo, oldCod]
+        );
+      } catch { /* ok */ }
+    }
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.delete('/tipo-cliente/:id', async (req, res) => {
+  try {
+    const pc = permCrud(req, { incluir: 'incluir_tipo_cliente', alterar: 'alterar_tipo_cliente', excluir: 'excluir_tipo_cliente' });
+    if (pc.excluir !== 'S') return negarCad(res, 'Sem permissão para excluir tipo de cliente');
+    const pool = getPool();
+    await ensureTipoClienteReady(pool);
+    await pool.query(`UPDATE tipo_cliente SET excluido='S' WHERE id=?`, [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// REGIOES — usa tabela real `regiao_rota` (legado Delphi / clientes.regiao)
+// A tabela órfã `regioes` não é usada pelo sistema.
+// ─────────────────────────────────────────────────────────────────────────────
+async function ensureRegiaoRotaForCadastros(pool) {
   await pool.query(`
-    CREATE TABLE IF NOT EXISTS regioes (
+    CREATE TABLE IF NOT EXISTS regiao_rota (
       id INT AUTO_INCREMENT PRIMARY KEY,
       descricao VARCHAR(100) NOT NULL,
-      cod_auxiliar VARCHAR(20) DEFAULT NULL,
       distancia DECIMAL(10,2) DEFAULT 0.00,
       sigla VARCHAR(10) DEFAULT NULL,
       status CHAR(1) DEFAULT 'A',
-      excluido CHAR(1) DEFAULT 'N',
-      dt_cadastro DATETIME DEFAULT CURRENT_TIMESTAMP
+      excluido CHAR(1) DEFAULT 'N'
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3
   `).catch(() => {});
+  for (const sql of [
+    `ALTER TABLE regiao_rota ADD COLUMN cor VARCHAR(7) NOT NULL DEFAULT '#3b82f6'`,
+    `ALTER TABLE regiao_rota ADD COLUMN observacao TEXT NULL`,
+    `ALTER TABLE regiao_rota ADD COLUMN id_vendedor_padrao INT NULL DEFAULT NULL`,
+    `ALTER TABLE regiao_rota ADD COLUMN cod_auxiliar VARCHAR(20) DEFAULT NULL`,
+  ]) await pool.query(sql).catch(() => {});
 }
+
+const _SQL_REGIAO_ATIVA = `(excluido='N' OR excluido IS NULL OR excluido='')`;
 
 router.get('/regioes', async (req, res) => {
   try {
     const pool = getPool();
-    await ensureRegioesTable(pool);
-    const [rows] = await pool.query(`SELECT * FROM regioes WHERE excluido='N' ORDER BY descricao`);
+    await ensureRegiaoRotaForCadastros(pool);
+    const [rows] = await pool.query(`
+      SELECT id, descricao, sigla, distancia, status,
+             COALESCE(cod_auxiliar, '') AS cod_auxiliar
+      FROM regiao_rota
+      WHERE ${_SQL_REGIAO_ATIVA}
+      ORDER BY descricao
+    `);
     res.json({ regioes: rows });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 router.post('/regioes', async (req, res) => {
   try {
+    const pc = permCrud(req, {
+      incluir: 'incluir_regioes',
+      alterar: 'alterar_regioes',
+      excluir: 'excluir_regioes',
+    });
+    if (pc.incluir !== 'S') return negarCad(res, 'Sem permissão para incluir regiões');
     const pool = getPool();
+    await ensureRegiaoRotaForCadastros(pool);
     const { descricao, cod_auxiliar, distancia, sigla, status } = req.body;
     if (!descricao) return res.status(400).json({ error: 'Descrição é obrigatória' });
-    const [r] = await pool.query(`INSERT INTO regioes (descricao, cod_auxiliar, distancia, sigla, status, excluido) VALUES (?,?,?,?,?,'N')`, [descricao, cod_auxiliar || null, distancia || 0, sigla || null, status || 'A']);
+    const [r] = await pool.query(
+      `INSERT INTO regiao_rota (descricao, cod_auxiliar, distancia, sigla, status, excluido)
+       VALUES (?,?,?,?,?,'N')`,
+      [
+        String(descricao).trim(),
+        cod_auxiliar || null,
+        parseFloat(distancia) || 0,
+        sigla || null,
+        status || 'A',
+      ]
+    );
     res.status(201).json({ ok: true, id: r.insertId });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 router.put('/regioes/:id', async (req, res) => {
   try {
+    const pc = permCrud(req, {
+      incluir: 'incluir_regioes',
+      alterar: 'alterar_regioes',
+      excluir: 'excluir_regioes',
+    });
+    if (pc.alterar !== 'S') return negarCad(res, 'Sem permissão para alterar regiões');
     const pool = getPool();
+    await ensureRegiaoRotaForCadastros(pool);
     const { descricao, cod_auxiliar, distancia, sigla, status } = req.body;
-    await pool.query(`UPDATE regioes SET descricao=?, cod_auxiliar=?, distancia=?, sigla=?, status=? WHERE id=?`, [descricao, cod_auxiliar || null, distancia || 0, sigla || null, status || 'A', req.params.id]);
+    await pool.query(
+      `UPDATE regiao_rota
+       SET descricao=?, cod_auxiliar=?, distancia=?, sigla=?, status=?
+       WHERE id=? AND ${_SQL_REGIAO_ATIVA}`,
+      [
+        descricao,
+        cod_auxiliar || null,
+        parseFloat(distancia) || 0,
+        sigla || null,
+        status || 'A',
+        req.params.id,
+      ]
+    );
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 router.delete('/regioes/:id', async (req, res) => {
   try {
+    const pc = permCrud(req, {
+      incluir: 'incluir_regioes',
+      alterar: 'alterar_regioes',
+      excluir: 'excluir_regioes',
+    });
+    if (pc.excluir !== 'S') return negarCad(res, 'Sem permissão para excluir regiões');
     const pool = getPool();
-    await pool.query(`UPDATE regioes SET excluido='S' WHERE id=?`, [req.params.id]);
+    await pool.query(`UPDATE regiao_rota SET excluido='S' WHERE id=?`, [req.params.id]);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -2248,11 +2413,17 @@ async function ensureLocaisArmazenamentoTable(pool) {
   `).catch(() => {});
 }
 
+// Locais: grava em local_armazenamento (mesma tabela do lookup do produto).
+// Mantém resposta com "descricao" p/ a tela antiga locais-armazenamento.html.
 router.get('/locais-armazenamento', async (req, res) => {
   try {
     const pool = getPool();
-    await ensureLocaisArmazenamentoTable(pool);
-    const [rows] = await pool.query(`SELECT * FROM locais_armazenamento WHERE excluido='N' ORDER BY descricao`);
+    const { ensureLocalArmazenamentoTable } = require('../config/produto-auxiliares-schema');
+    await ensureLocalArmazenamentoTable(pool);
+    const [rows] = await pool.query(
+      `SELECT id, nome_local AS descricao, nome_local, status, excluido
+       FROM local_armazenamento WHERE COALESCE(excluido,'N')='N' ORDER BY nome_local`
+    );
     res.json({ locais: rows });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -2260,9 +2431,14 @@ router.get('/locais-armazenamento', async (req, res) => {
 router.post('/locais-armazenamento', async (req, res) => {
   try {
     const pool = getPool();
-    const { descricao, tipo, status } = req.body;
+    const { ensureLocalArmazenamentoTable } = require('../config/produto-auxiliares-schema');
+    await ensureLocalArmazenamentoTable(pool);
+    const { descricao, status } = req.body;
     if (!descricao) return res.status(400).json({ error: 'Descrição é obrigatória' });
-    const [r] = await pool.query(`INSERT INTO locais_armazenamento (descricao, tipo, status, excluido) VALUES (?,?,?,'N')`, [descricao, tipo || null, status || 'A']);
+    const [r] = await pool.query(
+      `INSERT INTO local_armazenamento (nome_local, status, excluido) VALUES (?,?, 'N')`,
+      [String(descricao).trim().toUpperCase(), status || 'A']
+    );
     res.status(201).json({ ok: true, id: r.insertId });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -2270,8 +2446,11 @@ router.post('/locais-armazenamento', async (req, res) => {
 router.put('/locais-armazenamento/:id', async (req, res) => {
   try {
     const pool = getPool();
-    const { descricao, tipo, status } = req.body;
-    await pool.query(`UPDATE locais_armazenamento SET descricao=?, tipo=?, status=? WHERE id=?`, [descricao, tipo || null, status || 'A', req.params.id]);
+    const { descricao, status } = req.body;
+    await pool.query(
+      `UPDATE local_armazenamento SET nome_local=?, status=? WHERE id=?`,
+      [String(descricao || '').trim().toUpperCase(), status || 'A', req.params.id]
+    );
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -2279,14 +2458,17 @@ router.put('/locais-armazenamento/:id', async (req, res) => {
 router.delete('/locais-armazenamento/:id', async (req, res) => {
   try {
     const pool = getPool();
-    await pool.query(`UPDATE locais_armazenamento SET excluido='S' WHERE id=?`, [req.params.id]);
+    await pool.query(`UPDATE local_armazenamento SET excluido='S' WHERE id=?`, [req.params.id]);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MOTIVO DE VISITAS
+// Delphi legado usa a coluna tipada «exluido» (sem o C); bases novas usam «excluido».
 // ─────────────────────────────────────────────────────────────────────────────
+let _motivoVisitasSoftCol = null; // cache por processo; limpo se ADD COLUMN
+
 async function ensureMotivoVisitasTable(pool) {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS motivo_visitas (
@@ -2299,11 +2481,42 @@ async function ensureMotivoVisitasTable(pool) {
   `).catch(() => {});
 }
 
+/** Resolve coluna de soft-delete: excluido | exluido (legado). */
+async function resolveMotivoVisitasSoftCol(pool) {
+  if (_motivoVisitasSoftCol) return _motivoVisitasSoftCol;
+  await ensureMotivoVisitasTable(pool);
+  try {
+    const [cols] = await pool.query('SHOW COLUMNS FROM motivo_visitas');
+    const names = new Set(cols.map((c) => String(c.Field || '').toLowerCase()));
+    if (names.has('excluido')) {
+      _motivoVisitasSoftCol = 'excluido';
+      return _motivoVisitasSoftCol;
+    }
+    if (names.has('exluido')) {
+      _motivoVisitasSoftCol = 'exluido';
+      return _motivoVisitasSoftCol;
+    }
+  } catch (_) { /* segue para criar */ }
+  // Tabela sem soft-delete: cria o nome padrão da web
+  await pool.query(
+    `ALTER TABLE motivo_visitas ADD COLUMN excluido CHAR(1) DEFAULT 'N'`
+  ).catch(() => {});
+  _motivoVisitasSoftCol = 'excluido';
+  return _motivoVisitasSoftCol;
+}
+
+function sqlMotivoVisitasAtivo(softCol, alias = '') {
+  const c = alias ? `${alias}.${softCol}` : softCol;
+  return `(${c} = 'N' OR ${c} IS NULL OR TRIM(COALESCE(${c}, '')) = '')`;
+}
+
 router.get('/motivo-visitas', async (req, res) => {
   try {
     const pool = getPool();
-    await ensureMotivoVisitasTable(pool);
-    const [rows] = await pool.query(`SELECT * FROM motivo_visitas WHERE excluido='N' ORDER BY descricao`);
+    const soft = await resolveMotivoVisitasSoftCol(pool);
+    const [rows] = await pool.query(
+      `SELECT * FROM motivo_visitas WHERE ${sqlMotivoVisitasAtivo(soft)} ORDER BY descricao`
+    );
     res.json({ motivo_visitas: rows });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -2311,9 +2524,13 @@ router.get('/motivo-visitas', async (req, res) => {
 router.post('/motivo-visitas', async (req, res) => {
   try {
     const pool = getPool();
+    const soft = await resolveMotivoVisitasSoftCol(pool);
     const { descricao, status } = req.body;
     if (!descricao) return res.status(400).json({ error: 'Descrição é obrigatória' });
-    const [r] = await pool.query(`INSERT INTO motivo_visitas (descricao, status, excluido) VALUES (?,?,'N')`, [descricao, status || 'A']);
+    const [r] = await pool.query(
+      `INSERT INTO motivo_visitas (descricao, status, \`${soft}\`) VALUES (?, ?, 'N')`,
+      [descricao, status || 'A']
+    );
     res.status(201).json({ ok: true, id: r.insertId });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -2322,7 +2539,10 @@ router.put('/motivo-visitas/:id', async (req, res) => {
   try {
     const pool = getPool();
     const { descricao, status } = req.body;
-    await pool.query(`UPDATE motivo_visitas SET descricao=?, status=? WHERE id=?`, [descricao, status || 'A', req.params.id]);
+    await pool.query(
+      `UPDATE motivo_visitas SET descricao=?, status=? WHERE id=?`,
+      [descricao, status || 'A', req.params.id]
+    );
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -2330,7 +2550,11 @@ router.put('/motivo-visitas/:id', async (req, res) => {
 router.delete('/motivo-visitas/:id', async (req, res) => {
   try {
     const pool = getPool();
-    await pool.query(`UPDATE motivo_visitas SET excluido='S' WHERE id=?`, [req.params.id]);
+    const soft = await resolveMotivoVisitasSoftCol(pool);
+    await pool.query(
+      `UPDATE motivo_visitas SET \`${soft}\`='S' WHERE id=?`,
+      [req.params.id]
+    );
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

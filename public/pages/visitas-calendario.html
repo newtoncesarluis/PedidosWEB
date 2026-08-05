@@ -234,11 +234,28 @@ html[data-theme="dark"] .status-badge.cancelada{background:rgba(239,68,68,.2);co
     </div>
     <div class="modal-body">
       <input type="hidden" id="mId">
-      <div class="field cliente-search-wrap">
-        <label>Cliente</label>
+      <div class="field">
+        <label>Tipo</label>
+        <select id="mTipo" onchange="onTipoCalChange()">
+          <option value="COMPROMISSO">Compromisso</option>
+          <option value="PENDENCIA">Pendência</option>
+          <option value="PROSPECT">Prospect / futuro cliente</option>
+          <option value="VISITA">Visita (cliente)</option>
+        </select>
+      </div>
+      <div class="field" id="mWrapTitulo">
+        <label id="mLblTitulo">Assunto / título</label>
+        <input id="mTitulo" type="text" maxlength="150" placeholder="Ex.: Ligar banco, Reunião…" autocomplete="off">
+      </div>
+      <div class="field cliente-search-wrap" id="mWrapCliente" style="display:none">
+        <label>Cliente <span id="mReqCliente">*</span></label>
         <input id="mClienteSearch" type="text" placeholder="Digite o nome do cliente..." autocomplete="off">
         <input type="hidden" id="mClienteId">
         <div class="cliente-results" id="clienteResults"></div>
+      </div>
+      <div class="form-grid" id="mWrapContato" style="display:none">
+        <div class="field"><label>Nome do contato</label><input id="mContatoNome" type="text" maxlength="150" autocomplete="off"></div>
+        <div class="field"><label>Telefone</label><input id="mContatoFone" type="text" maxlength="30" autocomplete="off"></div>
       </div>
       <div class="form-grid">
         <div class="field"><label>Data</label><input id="mData" type="date"></div>
@@ -253,11 +270,15 @@ html[data-theme="dark"] .status-badge.cancelada{background:rgba(239,68,68,.2);co
           </select>
         </div>
       </div>
-      <div class="field"><label>Observação</label><textarea id="mObs" placeholder="Observações da visita..."></textarea></div>
+      <div class="field"><label>Observação</label><textarea id="mObs" placeholder="Observações..."></textarea></div>
+      <div class="field" style="flex-direction:row;align-items:center;gap:10px;margin-top:4px">
+        <input type="checkbox" id="mChkGoogle" checked style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer;margin:0;flex-shrink:0">
+        <label for="mChkGoogle" style="margin:0;cursor:pointer;font-size:13px;font-weight:600;color:var(--text)">Abrir Google Agenda ao salvar</label>
+      </div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
-      <button class="btn btn-primary" id="btnSalvarVisita">Salvar Visita</button>
+      <button class="btn btn-primary" id="btnSalvarVisita">Salvar</button>
     </div>
   </div>
 </div>
@@ -506,8 +527,8 @@ function renderSemanaEvents(visits){
     ev.className = `week-ev ${st}`;
     ev.style.top  = top + 'px';
     ev.style.height = '40px';
-    ev.innerHTML = `<div style="font-size:10px;opacity:.75">${hora}</div><div>${esc((v.nome_cliente||'').slice(0,22))}</div>`;
-    ev.title = `${v.nome_cliente||''} — ${v.motivo_desc||''}`;
+    ev.innerHTML = `<div style="font-size:10px;opacity:.75">${hora}</div><div>${esc(tituloCal(v).slice(0,22))}</div>`;
+    ev.title = `${tituloCal(v)}${badgeTipoCal(v.tipo)} — ${v.motivo_desc||''}`;
     ev.onclick = (e) => { e.stopPropagation(); openEditModal(v); };
     col.style.position = 'relative';
     col.appendChild(ev);
@@ -545,14 +566,87 @@ async function selectDay(dateStr){
   }
 }
 
+function tituloCal(v){
+  return v.nome_cliente || v.titulo || v.contato_nome || '(sem título)';
+}
+function badgeTipoCal(tipo){
+  const t = String(tipo||'VISITA').toUpperCase();
+  if(t==='PROSPECT') return ' · Prospect';
+  if(t==='PENDENCIA') return ' · Pendência';
+  if(t==='COMPROMISSO') return ' · Compromisso';
+  return '';
+}
+function _normTipoCal(t){
+  const u = String(t||'COMPROMISSO').toUpperCase();
+  if(u==='PENDENCIA'||u==='PROSPECT'||u==='VISITA'||u==='COMPROMISSO') return u;
+  return 'COMPROMISSO';
+}
+
+function onTipoCalChange(){
+  const tipo = document.getElementById('mTipo')?.value || 'COMPROMISSO';
+  const isVisita = tipo === 'VISITA';
+  const isProspect = tipo === 'PROSPECT';
+  document.getElementById('mWrapCliente').style.display = isVisita ? '' : 'none';
+  document.getElementById('mReqCliente').style.display = isVisita ? 'inline' : 'none';
+  document.getElementById('mWrapContato').style.display = isProspect ? '' : 'none';
+  const lbl = document.getElementById('mLblTitulo');
+  const tit = document.getElementById('mTitulo');
+  if(lbl){
+    if(isVisita){ lbl.textContent = 'Assunto (opcional)'; if(tit) tit.placeholder = 'Ex.: Entregar catálogo…'; }
+    else if(isProspect){ lbl.innerHTML = 'Assunto / empresa *'; if(tit) tit.placeholder = 'Ex.: Visitar potencial cliente…'; }
+    else if(tipo==='PENDENCIA'){ lbl.innerHTML = 'Pendência *'; if(tit) tit.placeholder = 'Ex.: Ligar no banco…'; }
+    else { lbl.innerHTML = 'Compromisso *'; if(tit) tit.placeholder = 'Ex.: Reunião, Dentista…'; }
+  }
+  if(!isVisita){
+    document.getElementById('mClienteId').value = '';
+    document.getElementById('mClienteSearch').value = '';
+  }
+  if(!isProspect){
+    document.getElementById('mContatoNome').value = '';
+    document.getElementById('mContatoFone').value = '';
+  }
+}
+
+function _fmtDataGoogleCal(ymd, hm){
+  const [Y,M,D] = String(ymd).split('-');
+  const parts = String(hm||'08:00').split(':');
+  const pad = n => String(n).padStart(2,'0');
+  return `${Y}${pad(M)}${pad(D)}T${pad(parts[0]||'8')}${pad(parts[1]||'0')}00`;
+}
+
+function abrirGoogleAgendaCal(p){
+  const tipo = String(p.tipo||'').toUpperCase();
+  let titulo = (p.titulo||'').trim();
+  if(!titulo){
+    if(tipo==='VISITA') titulo = (document.getElementById('mClienteSearch')?.value||'Visita').trim();
+    else if(tipo==='PROSPECT') titulo = (p.contato_nome||'Prospect').trim();
+    else titulo = tipo==='PENDENCIA' ? 'Pendência' : 'Compromisso';
+  }
+  const prefix = tipo==='PENDENCIA'?'📌 ':tipo==='COMPROMISSO'?'📅 ':tipo==='PROSPECT'?'👋 ':'🚗 ';
+  const details = [
+    tipo==='PENDENCIA'?'Pendência SysRep':tipo==='COMPROMISSO'?'Compromisso SysRep':tipo==='PROSPECT'?'Prospect SysRep':'Visita SysRep',
+    p.contato_nome?`Contato: ${p.contato_nome}`:'',
+    p.contato_fone?`Tel: ${p.contato_fone}`:'',
+    p.obs||'',
+  ].filter(Boolean).join('\n');
+  const hora = String(p.hora_visita||'08:00').substring(0,5);
+  const inicio = _fmtDataGoogleCal(p.data_visita, hora);
+  const [Y,M,D] = String(p.data_visita).split('-').map(Number);
+  const [h,m] = hora.split(':').map(Number);
+  const fimDate = new Date(Y, M-1, D, h||8, (m||0)+60);
+  const fim = `${fimDate.getFullYear()}${String(fimDate.getMonth()+1).padStart(2,'0')}${String(fimDate.getDate()).padStart(2,'0')}T${String(fimDate.getHours()).padStart(2,'0')}${String(fimDate.getMinutes()).padStart(2,'0')}00`;
+  const params = new URLSearchParams({ action:'TEMPLATE', text:prefix+titulo, dates:`${inicio}/${fim}`, details });
+  window.open('https://calendar.google.com/calendar/render?'+params.toString(), '_blank');
+}
+
 function renderPanelVisits(visits, dateStr){
   const body = document.getElementById('panelBody');
   document.getElementById('panelSub').textContent = visits.length
-    ? `${visits.length} visita${visits.length>1?'s':''}`
-    : 'Nenhuma visita';
+    ? `${visits.length} item${visits.length>1?'s':''}`
+    : 'Nada agendado';
 
   if(!visits.length){
-    body.innerHTML = `<div class="panel-empty">Nenhuma visita neste dia.<br><small>Clique em <strong>+ Visita</strong> para agendar.</small></div>`;
+    body.innerHTML = `<div class="panel-empty">Nada neste dia.<br><small>Clique em <strong>+</strong> para agendar visita, prospect ou pendência.</small></div>`;
     return;
   }
 
@@ -563,7 +657,7 @@ function renderPanelVisits(visits, dateStr){
     return `<div class="visit-card ${st}" id="vc-${v.id}">
       <div class="vc-top">
         <div>
-          <div class="vc-name">${hora ? `<span style="font-size:11px;color:var(--text2);font-weight:600">${hora}</span> ` : ''}${esc(v.nome_cliente||'(sem cliente)')}</div>
+          <div class="vc-name">${hora ? `<span style="font-size:11px;color:var(--text2);font-weight:600">${hora}</span> ` : ''}${esc(tituloCal(v))}<span style="font-size:10px;color:var(--text2)">${badgeTipoCal(v.tipo)}</span></div>
           <div class="vc-meta">${esc(v.motivo_desc||'—')} ${v.nome_vendedor?`• ${esc(v.nome_vendedor)}`:''}</div>
         </div>
         <span class="status-badge ${st}">${v.status||'ABERTA'}</span>
@@ -600,6 +694,10 @@ async function excluirVisita(id, dateStr){
 // ── Modal ─────────────────────────────────────────────────────────────────────
 function openNovaModal(dateStr, hora){
   document.getElementById('mId').value = '';
+  document.getElementById('mTipo').value = 'COMPROMISSO';
+  document.getElementById('mTitulo').value = '';
+  document.getElementById('mContatoNome').value = '';
+  document.getElementById('mContatoFone').value = '';
   document.getElementById('mClienteSearch').value = '';
   document.getElementById('mClienteId').value = '';
   document.getElementById('mData').value = dateStr || isoDate(new Date());
@@ -608,15 +706,22 @@ function openNovaModal(dateStr, hora){
   document.getElementById('mObs').value = '';
   document.getElementById('mVendedor').value = '';
   document.getElementById('mMotivo').value = '';
-  document.getElementById('modalTitle').textContent = 'Nova Visita';
+  const chkG = document.getElementById('mChkGoogle');
+  if(chkG) chkG.checked = true;
+  document.getElementById('modalTitle').textContent = 'Novo compromisso';
+  onTipoCalChange();
   document.getElementById('modalBack').classList.add('open');
-  setTimeout(()=>document.getElementById('mClienteSearch').focus(), 80);
+  setTimeout(()=>document.getElementById('mTitulo').focus(), 80);
 }
 
 function openEditModal(v){
   if(typeof v === 'string') v = JSON.parse(v);
   document.getElementById('mId').value = v.id || '';
-  document.getElementById('mClienteSearch').value = v.nome_cliente || '';
+  document.getElementById('mTipo').value = _normTipoCal(v.tipo);
+  document.getElementById('mTitulo').value = v.titulo || '';
+  document.getElementById('mContatoNome').value = v.contato_nome || '';
+  document.getElementById('mContatoFone').value = v.contato_fone || '';
+  document.getElementById('mClienteSearch').value = v.id_cliente ? (v.nome_cliente || '') : '';
   document.getElementById('mClienteId').value = v.id_cliente || '';
   document.getElementById('mData').value = (v.data_visita||'').slice(0,10);
   document.getElementById('mHora').value = (v.hora_visita||'08:00').slice(0,5);
@@ -624,7 +729,10 @@ function openEditModal(v){
   document.getElementById('mObs').value = v.obs || '';
   document.getElementById('mVendedor').value = v.id_vendedor || '';
   document.getElementById('mMotivo').value = v.id_motivo || '';
-  document.getElementById('modalTitle').textContent = 'Editar Visita';
+  const chkG = document.getElementById('mChkGoogle');
+  if(chkG) chkG.checked = true;
+  document.getElementById('modalTitle').textContent = 'Editar';
+  onTipoCalChange();
   document.getElementById('modalBack').classList.add('open');
 }
 
@@ -636,7 +744,11 @@ function closeModal(){
 async function salvarVisita(){
   const btn = document.getElementById('btnSalvarVisita');
   const id     = document.getElementById('mId').value;
-  const idCli  = document.getElementById('mClienteId').value;
+  const tipo   = document.getElementById('mTipo').value || 'COMPROMISSO';
+  const idCli  = document.getElementById('mClienteId').value || null;
+  const titulo = document.getElementById('mTitulo').value.trim();
+  const contatoNome = document.getElementById('mContatoNome').value.trim();
+  const contatoFone = document.getElementById('mContatoFone').value.trim();
   const data   = document.getElementById('mData').value;
   const hora   = document.getElementById('mHora').value || '08:00';
   const status = document.getElementById('mStatus').value;
@@ -644,16 +756,33 @@ async function salvarVisita(){
   const idVend = document.getElementById('mVendedor').value || null;
   const idMot  = document.getElementById('mMotivo').value || null;
 
-  if(!idCli){ document.getElementById('mClienteSearch').focus(); return alert('Selecione o cliente.'); }
   if(!data)  return alert('Informe a data.');
-  if(!idMot) return alert('Selecione o motivo.');
+  if(tipo === 'VISITA' && !idCli){
+    document.getElementById('mClienteSearch').focus();
+    return alert('Selecione o cliente.');
+  }
+  if((tipo === 'PROSPECT' || tipo === 'COMPROMISSO' || tipo === 'PENDENCIA') && !titulo && !contatoNome){
+    document.getElementById('mTitulo').focus();
+    return alert(tipo === 'PENDENCIA' ? 'Informe a pendência.' : 'Informe o assunto.');
+  }
 
   btn.disabled = true;
-  const body = { id_cliente:idCli, data_visita:data, hora_visita:hora.length===5?hora+':00':hora, status, obs, id_vendedor:idVend, id_motivo:idMot, origem:'WEB' };
+  const body = {
+    tipo,
+    id_cliente: tipo === 'VISITA' ? (idCli || null) : null,
+    titulo: titulo || null,
+    contato_nome: tipo === 'PROSPECT' ? (contatoNome || null) : null,
+    contato_fone: tipo === 'PROSPECT' ? (contatoFone || null) : null,
+    data_visita: data,
+    hora_visita: hora.length===5?hora+':00':hora,
+    status, obs, id_vendedor:idVend, id_motivo:idMot || null, origem:'WEB'
+  };
   try{
     if(id) await apiFetch(`/api/visitas/${id}`,{method:'PUT', body:JSON.stringify(body)});
     else   await apiFetch('/api/visitas',      {method:'POST',body:JSON.stringify(body)});
+    const abrirGoogle = document.getElementById('mChkGoogle')?.checked;
     closeModal();
+    if(abrirGoogle) abrirGoogleAgendaCal(body);
     await loadCalendario();
     if(_selectedDate === data) await selectDay(data);
     if(_view==='semana') await loadWeekVisits();

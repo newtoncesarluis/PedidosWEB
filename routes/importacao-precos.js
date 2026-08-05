@@ -5,7 +5,6 @@ const express = require('express');
 const router = express.Router();
 const { getPool } = require('../config/database');
 const { ensureTabelaPrecoItensDecimal } = require('../config/schema-migrations');
-const { validarCodFabricanteFornecedor } = require('../config/produto-cod-fabricante');
 const { getProdTabela } = require('../config/produto-colunas');
 
 const CAMPOS_DATA = new Set([
@@ -89,7 +88,6 @@ const DEFAULT_CAMPOS_PRODUTO = [
   { nome_campo: 'estoque_maximo',   apelido: 'Estoque Máximo',     tipo: 'decimal', ordem: 22, obrigatorio: 'N' },
   { nome_campo: 'estoque_seguranca',apelido: 'Estoque Segurança',  tipo: 'decimal', ordem: 23, obrigatorio: 'N' },
   { nome_campo: 'segmento',          apelido: 'Categoria/Segmento', tipo: 'texto',   ordem: 24, obrigatorio: 'N' },
-  { nome_campo: 'subfamilia',        apelido: 'Subfamília',         tipo: 'texto',   ordem: 24.2, obrigatorio: 'N' },
   { nome_campo: 'linha_produto',     apelido: 'Linha de Produto',   tipo: 'texto',   ordem: 24.4, obrigatorio: 'N' },
   { nome_campo: 'campo_extra',       apelido: 'Campo Extra',        tipo: 'texto',   ordem: 24.6, obrigatorio: 'N' },
   { nome_campo: 'vlr_custo',         apelido: 'Custo Inicial',      tipo: 'moeda',   ordem: 24.7, obrigatorio: 'N' },
@@ -97,24 +95,54 @@ const DEFAULT_CAMPOS_PRODUTO = [
   { nome_campo: 'margem',            apelido: 'Margem %',           tipo: 'decimal', ordem: 24.8, obrigatorio: 'N' },
   { nome_campo: 'comissao',          apelido: 'Comissão %',         tipo: 'decimal', ordem: 24.85, obrigatorio: 'N' },
   { nome_campo: 'margem_liquida',    apelido: 'Mark-up Líquido %',  tipo: 'decimal', ordem: 24.9, obrigatorio: 'N' },
-  // Virtual: resolve para id_referencia (não é coluna). ID numérico ou Cód. Fabricante da mãe.
-  { nome_campo: 'referencia_mae',    apelido: 'Referência mãe',    tipo: 'texto',   ordem: 25, obrigatorio: 'N' },
+  // Virtual: resolve para tipograde (id). Texto da planilha (P/M/G/GG) ou id numérico.
+  // Busca grade existente; se não achar, cria tipograde + tamanhos e vincula.
+  { nome_campo: 'grade',             apelido: 'Grade',             tipo: 'texto',   ordem: 26, obrigatorio: 'N' },
+  // Auxiliares (auto-cria se não existir — Tabelas de Apoio)
+  { nome_campo: 'grupo',             apelido: 'Grupo',             tipo: 'texto',   ordem: 27, obrigatorio: 'N' },
+  { nome_campo: 'subfamilia',        apelido: 'Subfamília',        tipo: 'texto',   ordem: 28, obrigatorio: 'N' },
+  { nome_campo: 'unidade',           apelido: 'Unidade',           tipo: 'texto',   ordem: 29, obrigatorio: 'N' },
+  { nome_campo: 'tipoprodutograde',  apelido: 'Tipo de Grade',     tipo: 'texto',   ordem: 30, obrigatorio: 'N' },
+  { nome_campo: 'local',             apelido: 'Local Armazenamento', tipo: 'texto', ordem: 31, obrigatorio: 'N' },
+  { nome_campo: 'familia',           apelido: 'Família',           tipo: 'texto',   ordem: 32, obrigatorio: 'N' },
+  { nome_campo: 'categoria',         apelido: 'Categoria',         tipo: 'texto',   ordem: 33, obrigatorio: 'N' },
 ];
 
-let _defaultCamposProdutoSeeded = false;
+/** Campos auxiliares que devem permanecer ativos no mapeamento (mesmo se alguém excluiu). */
+const CAMPOS_AUX_REATIVAR = [
+  'grade', 'grupo', 'subfamilia', 'unidade', 'tipoprodutograde',
+  'local', 'familia', 'categoria', 'segmento',
+];
+
+/** Cache por DATABASE() — multi-tenant: não pular seed do 2º tenant. */
+const _defaultCamposProdutoSeededDbs = new Set();
 async function ensureDefaultCamposProduto(pool) {
-  if (_defaultCamposProdutoSeeded) return;
   try {
+    let dbName = '';
+    try {
+      const [[r]] = await pool.query('SELECT DATABASE() AS db');
+      dbName = String(r?.db || '');
+    } catch (_) { /* ignore */ }
+    // Já seedou neste processo p/ esta base → NÃO reexecutar dezenas de INSERT
+    // (isso deixava a leitura da planilha em ~1 min na 1ª carga).
+    if (dbName && _defaultCamposProdutoSeededDbs.has(dbName)) return;
+
+    // 1 query: quais campos já existem
+    const [existRows] = await pool.query(
+      `SELECT nome_campo FROM campos_importacao WHERE tabela='produto'`
+    ).catch(() => [[]]);
+    const exist = new Set((existRows || []).map((r) => String(r.nome_campo || '')));
+
     for (const c of DEFAULT_CAMPOS_PRODUTO) {
+      if (exist.has(c.nome_campo)) continue;
       await pool.query(
         `INSERT INTO campos_importacao (tabela, nome_campo, apelido, tipo, ordem, obrigatorio, excluido)
-         SELECT 'produto', ?, ?, ?, ?, ?, 'N'
-         WHERE NOT EXISTS (
-           SELECT 1 FROM campos_importacao WHERE tabela='produto' AND nome_campo=?
-         )`,
-        [c.nome_campo, c.apelido, c.tipo, c.ordem, c.obrigatorio, c.nome_campo]
-      );
+         VALUES ('produto', ?, ?, ?, ?, ?, 'N')`,
+        [c.nome_campo, c.apelido, c.tipo, c.ordem, c.obrigatorio]
+      ).catch(() => {});
+      exist.add(c.nome_campo);
     }
+
     // Garante tipo correto para campos inteiros (bases antigas podem ter 'decimal')
     const inteiros = ['multiplo_venda', 'embalagemmaster', 'qtd_minima_pedido'];
     for (const nc of inteiros) {
@@ -123,7 +151,18 @@ async function ensureDefaultCamposProduto(pool) {
         [nc]
       ).catch(() => {});
     }
-    _defaultCamposProdutoSeeded = true;
+    // Bases antigas: reativa Grade/auxiliares se alguém excluiu o campo
+    await pool.query(
+      `UPDATE campos_importacao SET excluido='N'
+       WHERE tabela='produto' AND excluido='S' AND nome_campo IN (${CAMPOS_AUX_REATIVAR.map(() => '?').join(',')})`,
+      CAMPOS_AUX_REATIVAR
+    ).catch(() => {});
+    await pool.query(
+      `UPDATE campos_importacao SET apelido='Grade', tipo='texto'
+       WHERE tabela='produto' AND nome_campo='grade'`
+    ).catch(() => {});
+    if (dbName) _defaultCamposProdutoSeededDbs.add(dbName);
+    else _defaultCamposProdutoSeededDbs.add('_');
   } catch (_) { /* tabela pode não existir ainda — ignora */ }
 }
 
@@ -418,55 +457,115 @@ router.post('/verificar-lote', async (req, res) => {
 
   try {
     const pool = getPool();
+    const { chaveCodFabricante, normalizarCodFabricante } = require('../config/produto-cod-fabricante');
     const resultado = [];
 
-    const codsNoExcel = [];
-    for (const r of rows) {
-      const cf = String(r.cod_fabricante ?? '').trim();
-      if (cf !== '') codsNoExcel.push(cf);
-    }
-    const uniq = [...new Set(codsNoExcel)];
-
-    if (uniq.length === 0) {
+    const temCodigo = rows.some((r) => normalizarCodFabricante(r.cod_fabricante) !== '');
+    if (!temCodigo) {
       for (let idx = 0; idx < rows.length; idx++) {
         resultado.push({ idx, status_cadastro: 'N', status: 'SC', cod_produto: '', msg: 'cod_fabricante vazio' });
       }
       return res.json({ ok: true, resultado });
     }
 
-    const placeholders = uniq.map(() => '?').join(',');
-    const params = [...uniq];
+    // Indexa produtos do fornecedor pela chave normalizada (0002 = 2; excluido NULL ok).
+    const { getProdTabela } = require('../config/produto-colunas');
+    const tbProd = await getProdTabela(pool);
     let sql = `SELECT p.id, p.cod_fabricante, p.cod_fornecedorpadrao
-               FROM produto p
-               WHERE p.excluido = 'N'
-               AND p.cod_fabricante IN (${placeholders})`;
+               FROM \`${tbProd}\` p
+               WHERE (p.excluido = 'N' OR p.excluido IS NULL OR p.excluido = '')
+               AND TRIM(IFNULL(p.cod_fabricante,'')) <> ''`;
+    const params = [];
     if (cod_fornecedor !== '') {
       sql += ' AND p.cod_fornecedorpadrao = ?';
       params.push(cod_fornecedor);
     }
-
     const [prodRows] = await pool.query(sql, params);
     const produtosBanco = {};
     for (const row of prodRows) {
-      produtosBanco[String(row.cod_fabricante).trim()] = row;
+      const k = chaveCodFabricante(row.cod_fabricante);
+      if (k && !produtosBanco[k]) produtosBanco[k] = row;
+    }
+
+    const { checarGradeImport } = require('../config/produto-grade-import');
+    const { checarLookupsImportLinha } = require('../config/produto-lookup-import');
+    // Cache interno de checarGradeImport (1 load de tipograde por lote)
+    const gradeCache = new Map();
+    async function statusGradeLinha(valor) {
+      const key = String(valor ?? '').trim();
+      if (!key) return { grade_status: '', grade_nova: false };
+      if (gradeCache.has(key)) return gradeCache.get(key);
+      const gCheck = await checarGradeImport(pool, key);
+      let out = { grade_status: '', grade_nova: false };
+      if (!gCheck.vazia) {
+        if (gCheck.existe) out = { grade_status: 'ok', grade_nova: false };
+        else if (gCheck.idInexistente) out = { grade_status: 'id_invalido', grade_nova: true };
+        else out = { grade_status: 'nova', grade_nova: true };
+      }
+      gradeCache.set(key, out);
+      return out;
+    }
+
+    // Cache de checagem de auxiliares (mesmo texto = mesmo status)
+    const auxCache = new Map();
+    async function statusAuxLinha(row) {
+      const payload = {
+        subfamilia: row.subfamilia,
+        unidade: row.unidade,
+        tipoprodutograde: row.tipoprodutograde || row.tipo_grade,
+        tipo_grade: row.tipo_grade || row.tipoprodutograde,
+        grupo: row.grupo || row.nome_grupo,
+        nome_grupo: row.nome_grupo || row.grupo,
+        local: row.local || row.local_armazenamento,
+        local_armazenamento: row.local_armazenamento || row.local,
+        segmento: row.segmento || row.categoria,
+        categoria: row.categoria || row.segmento,
+        familia: row.familia,
+      };
+      const cacheKey = JSON.stringify(payload);
+      if (auxCache.has(cacheKey)) return auxCache.get(cacheKey);
+      let aux = {};
+      try {
+        aux = await checarLookupsImportLinha(pool, payload);
+      } catch (e) {
+        console.warn('[verificar-lote] auxiliares:', e.message);
+        aux = {};
+      }
+      auxCache.set(cacheKey, aux);
+      return aux;
     }
 
     for (const row of rows) {
       const idx = row.idx;
-      const cf = String(row.cod_fabricante ?? '').trim();
+      const cf = normalizarCodFabricante(row.cod_fabricante);
       if (cf === '') {
-        resultado.push({ idx, status_cadastro: 'N', status: 'SC', cod_produto: '', msg: 'cod_fabricante vazio' });
+        const auxiliaresVazio = await statusAuxLinha(row);
+        resultado.push({
+          idx,
+          status_cadastro: 'N',
+          status: 'SC',
+          cod_produto: '',
+          msg: 'cod_fabricante vazio',
+          grade_status: '',
+          grade_nova: false,
+          auxiliares: auxiliaresVazio,
+        });
         continue;
       }
-      const existeNoBanco = Object.prototype.hasOwnProperty.call(produtosBanco, cf);
-      const status_cadastro = existeNoBanco ? 'S' : 'N';
-      const status = existeNoBanco ? 'A' : 'SC';
+      const hit = produtosBanco[chaveCodFabricante(cf)];
+      const existeNoBanco = !!hit;
+      const gSt = await statusGradeLinha(row.grade);
+      const auxiliares = await statusAuxLinha(row);
+
       resultado.push({
         idx,
-        status_cadastro,
-        status,
-        cod_produto: existeNoBanco ? String(produtosBanco[cf].id) : '',
-        msg: ''
+        status_cadastro: existeNoBanco ? 'S' : 'N',
+        status: existeNoBanco ? 'A' : 'SC',
+        cod_produto: existeNoBanco ? String(hit.id) : '',
+        msg: '',
+        grade_status: gSt.grade_status,
+        grade_nova: gSt.grade_nova,
+        auxiliares,
       });
     }
 
@@ -618,12 +717,17 @@ router.post('/importar-linha', async (req, res) => {
     for (const r of validRows) _tipoMap[r.nome_campo] = r.tipo;
 
     const dadosParaSalvar = {};
+    const { normalizarCodFabricante: _normCfSave, buscarDuplicataCodFabricanteFornecedor } = require('../config/produto-cod-fabricante');
     for (const [campo, valor] of Object.entries(campos)) {
       if (camposValidos.includes(campo)) {
-        const strVal = valor == null ? '' : String(valor);
+        let strVal = valor == null ? '' : String(valor);
+        if (campo === 'cod_fabricante') strVal = _normCfSave(strVal) || strVal;
         dadosParaSalvar[campo] = /^https?:\/\//i.test(strVal.trim()) ? strVal.trim() : strVal.toUpperCase();
       }
     }
+
+    let statusCadastroEfetivo = status_cadastro;
+    let codProdutoEfetivo = cod_produto;
 
     if (modo_tabela) {
       stripPrecosProduto(dadosParaSalvar);
@@ -724,6 +828,30 @@ router.post('/importar-linha', async (req, res) => {
       return { ok: true };
     }
 
+    /**
+     * Campo virtual "Grade" → tipograde (id).
+     * Aceita nome/apelido (P/M/G/GG), tamanhos iguais aos da grade, ou id numérico.
+     * Célula vazia: não altera. Se não existir, cria a grade + tamanhos e vincula.
+     */
+    async function aplicarGradeImport() {
+      if (!Object.prototype.hasOwnProperty.call(dadosParaSalvar, 'grade')) {
+        return { ok: true };
+      }
+      const rawGrade = dadosParaSalvar.grade;
+      delete dadosParaSalvar.grade;
+      const { resolverGradeImport } = require('../config/produto-grade-import');
+      const r = await resolverGradeImport(conn, rawGrade);
+      if (!r.ok) return r;
+      if (r.id !== undefined) dadosParaSalvar.tipograde = String(r.id);
+      return { ok: true };
+    }
+
+    /** Grupo, subfamília, unidade, tipo grade, local, categoria, família — cria se não existir. */
+    async function aplicarLookupsAuxImport() {
+      const { aplicarLookupsImportProduto } = require('../config/produto-lookup-import');
+      return aplicarLookupsImportProduto(conn, dadosParaSalvar);
+    }
+
     // Auto-cria categoria se o segmento importado não existir na tabela categoria
     if (dadosParaSalvar.segmento && dadosParaSalvar.segmento.trim()) {
       const segVal = dadosParaSalvar.segmento.trim();
@@ -740,31 +868,99 @@ router.post('/importar-linha', async (req, res) => {
     const metaTabela = getMetaProdutoTabela(campos);
     const idTabelaPadrao = modo_tabela ? await obterIdTabelaPadraoAuto(conn) : null;
 
-    async function validarCodFabImportacao(excludeId) {
-      const tb = await getProdTabela(conn);
-      let codFab = dadosParaSalvar.cod_fabricante;
-      let idForn = dadosParaSalvar.cod_fornecedorpadrao ?? cod_fornecedor;
-      if (excludeId && (codFab === undefined || idForn === undefined || idForn === '')) {
-        const [[cur]] = await conn.query(
-          `SELECT cod_fabricante, cod_fornecedorpadrao FROM \`${tb}\` WHERE id = ? LIMIT 1`,
-          [excludeId]
-        ).catch(() => [[null]]);
-        if (codFab === undefined) codFab = cur?.cod_fabricante;
-        if (idForn === undefined || idForn === '') idForn = cur?.cod_fornecedorpadrao;
+    // Fornecedor padrão + resolve produto existente ANTES de decidir INSERT/UPDATE.
+    // Importação NÃO bloqueia por unicidade: se o código já existe, atualiza.
+    // Bases com duplicata legada (2 IDs, mesmo cód.) atualizam o alvo resolvido.
+    if (cod_fornecedor && !Object.prototype.hasOwnProperty.call(dadosParaSalvar, 'cod_fornecedorpadrao')) {
+      dadosParaSalvar.cod_fornecedorpadrao = cod_fornecedor;
+    }
+    // Garante cód. fabricante mesmo se o campo não estiver em campos_importacao
+    if (!dadosParaSalvar.cod_fabricante && campos.cod_fabricante != null && String(campos.cod_fabricante).trim() !== '') {
+      dadosParaSalvar.cod_fabricante = _normCfSave(campos.cod_fabricante) || String(campos.cod_fabricante).trim();
+      if (!/^https?:\/\//i.test(String(dadosParaSalvar.cod_fabricante))) {
+        dadosParaSalvar.cod_fabricante = String(dadosParaSalvar.cod_fabricante).toUpperCase();
       }
-      return validarCodFabricanteFornecedor(conn, {
-        codFabricante: codFab,
-        idFornecedor: idForn,
-        excludeId,
-      });
+    }
+    {
+      const { chaveCodFabricante, parseIdFornecedor } = require('../config/produto-cod-fabricante');
+      const { listProdutoColunas } = require('../config/produto-colunas');
+      const cfBusca = dadosParaSalvar.cod_fabricante || campos.cod_fabricante;
+      const idFornBusca = dadosParaSalvar.cod_fornecedorpadrao || cod_fornecedor;
+      const tbResolve = await getProdTabela(conn);
+      let resolvido = null;
+
+      // Prefere o id da validação se ainda bate código+fornecedor
+      const idPref = parseInt(codProdutoEfetivo || cod_produto, 10);
+      if (idPref > 0 && cfBusca) {
+        const [[cur]] = await conn.query(
+          `SELECT id, cod_fabricante, cod_fornecedorpadrao FROM \`${tbResolve}\` WHERE id = ? LIMIT 1`,
+          [idPref]
+        ).catch(() => [[null]]);
+        if (
+          cur &&
+          chaveCodFabricante(cur.cod_fabricante) === chaveCodFabricante(cfBusca) &&
+          parseIdFornecedor(cur.cod_fornecedorpadrao) === parseIdFornecedor(idFornBusca)
+        ) {
+          resolvido = String(cur.id);
+        }
+      }
+      if (!resolvido) {
+        const dup = await buscarDuplicataCodFabricanteFornecedor(conn, {
+          codFabricante: cfBusca,
+          idFornecedor: idFornBusca,
+        });
+        if (dup && dup.id) resolvido = String(dup.id);
+      }
+      if (resolvido) {
+        statusCadastroEfetivo = 'S';
+        codProdutoEfetivo = resolvido;
+      }
+
+      // Só colunas reais — mantém virtuais até aplicarLookups/grade/ref
+      const VIRTUAIS_IMPORT = new Set([
+        'grade', 'referencia_mae', 'grupo', 'familia', 'categoria',
+        'local', 'local_armazenamento', 'tipo_grade', 'nome_grupo',
+      ]);
+      const colsReais = new Set((await listProdutoColunas(conn)).map((c) => String(c).toLowerCase()));
+      for (const k of Object.keys(dadosParaSalvar)) {
+        if (VIRTUAIS_IMPORT.has(k)) continue;
+        if (!colsReais.has(String(k).toLowerCase())) delete dadosParaSalvar[k];
+      }
     }
 
-    if (status_cadastro === 'S' && cod_produto) {
+    if (statusCadastroEfetivo === 'S' && codProdutoEfetivo) {
+      const cod_produto = codProdutoEfetivo;
+      const tbProd = await getProdTabela(conn);
       const refMaeUp = await aplicarReferenciaMaeImport(cod_produto);
       if (!refMaeUp.ok) {
         await conn.rollback();
         conn.release();
         return res.json({ ok: false, msg: refMaeUp.error });
+      }
+
+      const gradeUp = await aplicarGradeImport();
+      if (!gradeUp.ok) {
+        await conn.rollback();
+        conn.release();
+        return res.json({ ok: false, msg: gradeUp.error });
+      }
+
+      const auxUp = await aplicarLookupsAuxImport();
+      if (!auxUp.ok) {
+        await conn.rollback();
+        conn.release();
+        return res.json({ ok: false, msg: auxUp.error });
+      }
+
+      // Re-filtra após grade/ref (tipograde/id_referencia entram; virtuais saem)
+      {
+        const { listProdutoColunas } = require('../config/produto-colunas');
+        const colsReais = new Set((await listProdutoColunas(conn)).map((c) => String(c).toLowerCase()));
+        delete dadosParaSalvar.grade;
+        delete dadosParaSalvar.referencia_mae;
+        for (const k of Object.keys(dadosParaSalvar)) {
+          if (!colsReais.has(String(k).toLowerCase())) delete dadosParaSalvar[k];
+        }
       }
 
       if (Object.keys(dadosParaSalvar).length === 0 && (!modo_tabela || tabelaUpdatesRaw.length === 0)) {
@@ -775,19 +971,12 @@ router.post('/importar-linha', async (req, res) => {
 
       const cols = Object.keys(dadosParaSalvar).filter((c) => c !== 'id');
 
-      const valCod = await validarCodFabImportacao(cod_produto);
-      if (!valCod.ok) {
-        await conn.rollback();
-        conn.release();
-        return res.json({ ok: false, msg: valCod.error });
-      }
-
       // Captura saldo anterior ANTES de atualizar (para o movimento_estoque)
       let saldoAnterior = null;
       const atualizaEstoque = Object.prototype.hasOwnProperty.call(dadosParaSalvar, 'estoque_atual');
       if (atualizaEstoque) {
         const [[prodAtual]] = await conn.query(
-          `SELECT IFNULL(estoque_atual,0) AS estoque_atual, descricao FROM produto WHERE id = ? LIMIT 1`,
+          `SELECT IFNULL(estoque_atual,0) AS estoque_atual, descricao FROM \`${tbProd}\` WHERE id = ? LIMIT 1`,
           [cod_produto]
         ).catch(() => [[null]]);
         saldoAnterior = prodAtual ? parseFloat(prodAtual.estoque_atual) : 0;
@@ -798,7 +987,7 @@ router.post('/importar-linha', async (req, res) => {
         const vals = cols.map((c) => dadosParaSalvar[c]);
         vals.push(cod_produto);
         await conn.query(
-          `UPDATE produto SET ${setParts.join(', ')},
+          `UPDATE \`${tbProd}\` SET ${setParts.join(', ')},
          dt_atualizacao = NOW(), situacao = 'A', excluido = 'N'
          WHERE id = ?`,
           vals
@@ -853,12 +1042,70 @@ router.post('/importar-linha', async (req, res) => {
       return res.json({ ok: true, operacao: 'UPDATE', msg: 'Produto atualizado.' });
     }
 
-    if (modo_tabela) {
-      zerarPrecosProdutoInsert(dadosParaSalvar);
+    // Última chance: código apareceu entre a resolução e aqui → UPDATE, nunca erro «Já existe»
+    {
+      const dupLate = await buscarDuplicataCodFabricanteFornecedor(conn, {
+        codFabricante: dadosParaSalvar.cod_fabricante || campos.cod_fabricante,
+        idFornecedor: dadosParaSalvar.cod_fornecedorpadrao || cod_fornecedor,
+      });
+      if (dupLate && dupLate.id) {
+        statusCadastroEfetivo = 'S';
+        codProdutoEfetivo = String(dupLate.id);
+        // Reentra no fluxo de UPDATE via redirect interno
+        const tbProd = await getProdTabela(conn);
+        const refMaeUp = await aplicarReferenciaMaeImport(codProdutoEfetivo);
+        if (!refMaeUp.ok) {
+          await conn.rollback();
+          conn.release();
+          return res.json({ ok: false, msg: refMaeUp.error });
+        }
+        const gradeUp = await aplicarGradeImport();
+        if (!gradeUp.ok) {
+          await conn.rollback();
+          conn.release();
+          return res.json({ ok: false, msg: gradeUp.error });
+        }
+        const auxLate = await aplicarLookupsAuxImport();
+        if (!auxLate.ok) {
+          await conn.rollback();
+          conn.release();
+          return res.json({ ok: false, msg: auxLate.error });
+        }
+        delete dadosParaSalvar.grade;
+        delete dadosParaSalvar.referencia_mae;
+        delete dadosParaSalvar.grupo;
+        delete dadosParaSalvar.familia;
+        delete dadosParaSalvar.categoria;
+        delete dadosParaSalvar.local;
+        delete dadosParaSalvar.local_armazenamento;
+        delete dadosParaSalvar.tipo_grade;
+        const { listProdutoColunas } = require('../config/produto-colunas');
+        const colsReais = new Set((await listProdutoColunas(conn)).map((c) => String(c).toLowerCase()));
+        for (const k of Object.keys(dadosParaSalvar)) {
+          if (!colsReais.has(String(k).toLowerCase())) delete dadosParaSalvar[k];
+        }
+        const cols = Object.keys(dadosParaSalvar).filter((c) => c !== 'id');
+        if (cols.length > 0) {
+          const setParts = cols.map((c) => `\`${c}\` = ?`);
+          const vals = cols.map((c) => dadosParaSalvar[c]);
+          vals.push(codProdutoEfetivo);
+          await conn.query(
+            `UPDATE \`${tbProd}\` SET ${setParts.join(', ')}, dt_atualizacao = NOW(), situacao = 'A', excluido = 'N' WHERE id = ?`,
+            vals
+          );
+        }
+        let ups = tabelaUpdatesRaw;
+        if (modo_tabela && ups.length) {
+          await aplicarTabelaPrecoUpserts(conn, String(codProdutoEfetivo), metaTabela, ups);
+        }
+        await conn.commit();
+        conn.release();
+        return res.json({ ok: true, operacao: 'UPDATE', msg: 'Produto atualizado (código já existia).', id: codProdutoEfetivo });
+      }
     }
 
-    if (cod_fornecedor && !Object.prototype.hasOwnProperty.call(dadosParaSalvar, 'cod_fornecedorpadrao')) {
-      dadosParaSalvar.cod_fornecedorpadrao = cod_fornecedor;
+    if (modo_tabela) {
+      zerarPrecosProdutoInsert(dadosParaSalvar);
     }
 
     const refMaeIns = await aplicarReferenciaMaeImport(null);
@@ -866,6 +1113,36 @@ router.post('/importar-linha', async (req, res) => {
       await conn.rollback();
       conn.release();
       return res.json({ ok: false, msg: refMaeIns.error });
+    }
+
+    const gradeIns = await aplicarGradeImport();
+    if (!gradeIns.ok) {
+      await conn.rollback();
+      conn.release();
+      return res.json({ ok: false, msg: gradeIns.error });
+    }
+
+    const auxIns = await aplicarLookupsAuxImport();
+    if (!auxIns.ok) {
+      await conn.rollback();
+      conn.release();
+      return res.json({ ok: false, msg: auxIns.error });
+    }
+
+    delete dadosParaSalvar.grade;
+    delete dadosParaSalvar.referencia_mae;
+    delete dadosParaSalvar.grupo;
+    delete dadosParaSalvar.familia;
+    delete dadosParaSalvar.categoria;
+    delete dadosParaSalvar.local;
+    delete dadosParaSalvar.local_armazenamento;
+    delete dadosParaSalvar.tipo_grade;
+    {
+      const { listProdutoColunas } = require('../config/produto-colunas');
+      const colsReais = new Set((await listProdutoColunas(conn)).map((c) => String(c).toLowerCase()));
+      for (const k of Object.keys(dadosParaSalvar)) {
+        if (!colsReais.has(String(k).toLowerCase())) delete dadosParaSalvar[k];
+      }
     }
 
     if (Object.keys(dadosParaSalvar).length === 0) {
@@ -882,23 +1159,17 @@ router.post('/importar-linha', async (req, res) => {
     }
     dadosParaSalvar.excluido = 'N';
 
-    const valCodNovo = await validarCodFabImportacao(null);
-    if (!valCodNovo.ok) {
-      await conn.rollback();
-      conn.release();
-      return res.json({ ok: false, msg: valCodNovo.error });
-    }
-
+    const tbProdIns = await getProdTabela(conn);
     const insertCols = Object.keys(dadosParaSalvar);
     const placeholders = insertCols.map(() => '?').join(',');
     const insertVals = insertCols.map((c) => dadosParaSalvar[c]);
     const colList = insertCols.map((c) => `\`${c}\``).join(', ');
     const [ins] = await conn.query(
-      `INSERT INTO produto (${colList}) VALUES (${placeholders})`,
+      `INSERT INTO \`${tbProdIns}\` (${colList}) VALUES (${placeholders})`,
       insertVals
     );
     const novoId = ins.insertId;
-    await conn.query('UPDATE produto SET cod_interno = ? WHERE id = ?', [String(novoId), novoId]);
+    await conn.query(`UPDATE \`${tbProdIns}\` SET cod_interno = ? WHERE id = ?`, [String(novoId), novoId]);
 
     if (modo_tabela) {
       let ups = tabelaUpdatesRaw;
@@ -920,6 +1191,98 @@ router.post('/importar-linha', async (req, res) => {
     }
     console.error('[importacao-precos/importar-linha]', err);
     res.json({ ok: false, msg: err.message });
+  }
+});
+
+/**
+ * Inativa produtos ativos do fornecedor cujo cod_fabricante NÃO está na planilha.
+ * dry_run (confirmar=false): só conta. confirmar=true: grava situacao='I'.
+ * Segurança: planilha sem códigos → bloqueia; não faz soft-delete (excluido).
+ */
+router.post('/inativar-fora-planilha', async (req, res) => {
+  const cod_fornecedor = String(req.body.cod_fornecedor ?? '').trim();
+  const confirmar = req.body.confirmar === true || req.body.confirmar === 1 || req.body.confirmar === '1';
+  let codigos = req.body.codigos_planilha;
+  if (typeof codigos === 'string') {
+    try { codigos = JSON.parse(codigos); } catch { codigos = []; }
+  }
+  if (!Array.isArray(codigos)) codigos = [];
+
+  if (!cod_fornecedor) {
+    return res.json({ ok: false, msg: 'Fornecedor obrigatório.' });
+  }
+
+  const uniq = [...new Set(
+    codigos
+      .map((c) => String(c ?? '').trim().toUpperCase())
+      .filter((c) => c !== '')
+  )];
+  if (uniq.length === 0) {
+    return res.json({
+      ok: false,
+      msg: 'Planilha sem códigos de fabricante — inativação cancelada por segurança.',
+    });
+  }
+
+  try {
+    const pool = getPool();
+    const sqlAtivos = `
+      SELECT COUNT(*) AS n FROM produto
+      WHERE cod_fornecedorpadrao = ?
+        AND (excluido = 'N' OR excluido IS NULL OR excluido = '')
+        AND (situacao = 'A' OR situacao IS NULL OR situacao = '')
+    `;
+    const [[totRow]] = await pool.query(sqlAtivos, [cod_fornecedor]);
+    const totalAtivos = parseInt(String(totRow?.n ?? 0), 10) || 0;
+
+    const placeholders = uniq.map(() => '?').join(',');
+    const sqlCandidatos = `
+      SELECT COUNT(*) AS n FROM produto
+      WHERE cod_fornecedorpadrao = ?
+        AND (excluido = 'N' OR excluido IS NULL OR excluido = '')
+        AND (situacao = 'A' OR situacao IS NULL OR situacao = '')
+        AND TRIM(IFNULL(cod_fabricante,'')) <> ''
+        AND UPPER(TRIM(cod_fabricante)) NOT IN (${placeholders})
+    `;
+    const [[candRow]] = await pool.query(sqlCandidatos, [cod_fornecedor, ...uniq]);
+    const qtd = parseInt(String(candRow?.n ?? 0), 10) || 0;
+    const riscoAlto = totalAtivos > 0 && qtd > Math.max(10, Math.floor(totalAtivos * 0.5));
+
+    if (!confirmar) {
+      return res.json({
+        ok: true,
+        dry_run: true,
+        qtd,
+        total_ativos: totalAtivos,
+        codigos_planilha: uniq.length,
+        risco_alto: riscoAlto,
+      });
+    }
+
+    if (qtd === 0) {
+      return res.json({ ok: true, inativados: 0, qtd: 0, total_ativos: totalAtivos });
+    }
+
+    const [upd] = await pool.query(
+      `UPDATE produto SET situacao = 'I', dt_atualizacao = NOW()
+       WHERE cod_fornecedorpadrao = ?
+         AND (excluido = 'N' OR excluido IS NULL OR excluido = '')
+         AND (situacao = 'A' OR situacao IS NULL OR situacao = '')
+         AND TRIM(IFNULL(cod_fabricante,'')) <> ''
+         AND UPPER(TRIM(cod_fabricante)) NOT IN (${placeholders})`,
+      [cod_fornecedor, ...uniq]
+    );
+
+    res.json({
+      ok: true,
+      inativados: upd.affectedRows || 0,
+      qtd,
+      total_ativos: totalAtivos,
+      risco_alto: riscoAlto,
+    });
+  } catch (err) {
+    console.error('[importacao-precos/inativar-fora-planilha]', err);
+    res.status(500).json({ ok: false, msg: err.message });
   }
 });
 

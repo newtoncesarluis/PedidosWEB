@@ -176,7 +176,7 @@ input:focus,select:focus { border-color:var(--accent);box-shadow:0 0 0 3px rgba(
           <div class="form-grid">
             <div class="form-group full">
               <label>Descrição da Categoria <span style="color:var(--danger)">*</span></label>
-              <input type="text" id="f_descricao" placeholder="Ex: Bebidas, Linha Premium, Higiene" required>
+              <input type="text" id="f_descricao" placeholder="Ex: BEBIDAS, LINHA PREMIUM, HIGIENE" required style="text-transform:uppercase" oninput="forcarMaiusculaDesc()">
             </div>
             <div class="form-group">
               <label>Status</label>
@@ -219,6 +219,18 @@ function _tratarErroApi(r, d) {
   return false;
 }
 
+
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function forcarMaiusculaDesc() {
+  const el = document.getElementById('f_descricao');
+  if (!el) return;
+  const pos = el.selectionStart;
+  el.value = el.value.toUpperCase();
+  try { el.setSelectionRange(pos, pos); } catch (_) {}
+  if (typeof sugerirCodigo === 'function') sugerirCodigo();
+}
 async function buscar() {
   try {
     const r = await fetch('/api/categorias-produto', { headers: _apiHeaders() });
@@ -252,7 +264,7 @@ function renderLista(rows) {
   tbody.innerHTML = rows.map(f => `
     <tr onclick="abrirEditar(${f.id})">
       <td>${f.id}</td>
-      <td style="font-weight:600">${f.descricao}</td>
+      <td style="font-weight:600">${String(f.descricao||'').toUpperCase()}</td>
       <td><span class="badge badge-${f.status === 'A' ? 'A' : 'I'}">${f.status === 'A' ? 'Ativo' : 'Inativo'}</span></td>
       <td onclick="event.stopPropagation()">
         <button class="btn-acoes" onclick="abrirDrop(event, ${f.id})">⋮</button>
@@ -290,7 +302,7 @@ async function abrirEditar(id) {
     if (!f) return;
     S.registroId = id;
     document.getElementById('f_id').value = f.id;
-    document.getElementById('f_descricao').value = f.descricao;
+    document.getElementById('f_descricao').value = String(f.descricao || '').toUpperCase();
     document.getElementById('f_status').value = (f.status === 'A' ? 'A' : 'I');
     document.getElementById('formSub').textContent = `Editando ID: ${f.id}`;
     document.getElementById('listSection').style.display = 'none';
@@ -308,7 +320,7 @@ function voltarLista() {
 async function salvar() {
   if (!guardCadSalvar(!!S.registroId, 'Sem permissão para incluir categorias', 'Sem permissão para alterar categorias')) return;
   const payload = {
-    descricao: document.getElementById('f_descricao').value.trim(),
+    descricao: document.getElementById('f_descricao').value.trim().toUpperCase(),
     status: document.getElementById('f_status').value
   };
   if (!payload.descricao) return toast('Preencha a descrição','err');

@@ -7,6 +7,7 @@ const sociosSvc      = require('./sub/socios.service');
 const faturamentoSvc = require('./sub/faturamento.service');
 const refSvc         = require('./sub/referencias.service');
 const historicSvc    = require('./sub/historico.service');
+const diarioSvc      = require('./sub/diario.service');
 const { getPool }    = require('../../config/database');
 const { assertUsuarioPodeAcessarCliente } = require('../../config/carteira-politica');
 const { getPrepostoContext } = require('../../config/vendedor-visibilidade');
@@ -223,6 +224,71 @@ const historicoLista = async (req, res) => {
     res.json(dados); // Array de { pedido, itens, parcelas }
   } catch (e) {
     res.status(500).json({ erro: e.message });
+  }
+};
+
+// ─── DIÁRIO COMERCIAL (timeline unificada) ───────────────────────────────────
+const diarioLista = async (req, res) => {
+  try {
+    const pool = getPool();
+    const prepCtx = await getPrepostoContext(pool, req);
+    const check = await assertUsuarioPodeAcessarCliente(pool, req.params.id, req.user, prepCtx);
+    if (!check.ok) return res.status(check.status || 403).json({ error: check.error });
+    const data = await diarioSvc.listarTimeline(req.params.id, pool, { limit: req.query.limit });
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+};
+
+const diarioCriar = async (req, res) => {
+  try {
+    const pool = getPool();
+    const prepCtx = await getPrepostoContext(pool, req);
+    const check = await assertUsuarioPodeAcessarCliente(pool, req.params.id, req.user, prepCtx);
+    if (!check.ok) return res.status(check.status || 403).json({ error: check.error });
+    const isAdmin = req.user?.perfil == 1;
+    const alterar = isAdmin || (req.user?.permissoes?.alterar_clientes || 'N') === 'S';
+    if (!alterar) return res.status(403).json({ error: 'Sem permissão para alterar clientes' });
+    if (!(req.body?.conversa || req.body?.assunto || req.body?.motivo_nao_compra || req.body?.resultado)) {
+      return res.status(400).json({ error: 'Informe o que foi conversado, o assunto ou o resultado' });
+    }
+    const r = await diarioSvc.criarEntrada(req.params.id, req.body, req.user, pool);
+    res.status(201).json({ ok: true, id: r.id });
+  } catch (e) {
+    res.status(httpStatus(e)).json({ error: e.message });
+  }
+};
+
+const diarioAtualizar = async (req, res) => {
+  try {
+    const pool = getPool();
+    const prepCtx = await getPrepostoContext(pool, req);
+    const check = await assertUsuarioPodeAcessarCliente(pool, req.params.id, req.user, prepCtx);
+    if (!check.ok) return res.status(check.status || 403).json({ error: check.error });
+    const isAdmin = req.user?.perfil == 1;
+    const alterar = isAdmin || (req.user?.permissoes?.alterar_clientes || 'N') === 'S';
+    if (!alterar) return res.status(403).json({ error: 'Sem permissão para alterar clientes' });
+    await diarioSvc.atualizarEntrada(req.params.id, req.params.diarioId, req.body, pool);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(httpStatus(e)).json({ error: e.message });
+  }
+};
+
+const diarioExcluir = async (req, res) => {
+  try {
+    const pool = getPool();
+    const prepCtx = await getPrepostoContext(pool, req);
+    const check = await assertUsuarioPodeAcessarCliente(pool, req.params.id, req.user, prepCtx);
+    if (!check.ok) return res.status(check.status || 403).json({ error: check.error });
+    const isAdmin = req.user?.perfil == 1;
+    const alterar = isAdmin || (req.user?.permissoes?.alterar_clientes || 'N') === 'S';
+    if (!alterar) return res.status(403).json({ error: 'Sem permissão para alterar clientes' });
+    await diarioSvc.excluirEntrada(req.params.id, req.params.diarioId, pool);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(httpStatus(e)).json({ error: e.message });
   }
 };
 
@@ -464,6 +530,10 @@ module.exports = {
   excluirRefComercial,
   historicoLista,
   mensagensLista,
+  diarioLista,
+  diarioCriar,
+  diarioAtualizar,
+  diarioExcluir,
   historicoDetalhe,
   financeiro,
   ligacoes,

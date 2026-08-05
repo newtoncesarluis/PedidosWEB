@@ -16,6 +16,7 @@
 <script src="/assets/ajuda-tour.js"></script>
 <script src="/assets/ajuda-tours.js"></script>
 <script src="/assets/preco-peso-produto.js"></script>
+<script src="/assets/clipboard-image-paste.js"></script>
 <style>
 * { margin:0;padding:0;box-sizing:border-box; }
 :root {
@@ -844,17 +845,6 @@ tbody td { padding:10px 12px; vertical-align:middle; }
             <label>Unidade</label>
             <select id="f_unidade" onchange="atualizarHintPrecoPesoCadastro()">
               <option value="">—</option>
-              <option value="UN">UN — Unidade</option>
-              <option value="CX">CX — Caixa</option>
-              <option value="KG">KG — Quilograma</option>
-              <option value="LT">LT — Litro</option>
-              <option value="MT">MT — Metro</option>
-              <option value="PC">PC — Peça</option>
-              <option value="PCT">PCT — Pacote</option>
-              <option value="RL">RL — Rolo</option>
-              <option value="DZ">DZ — Dúzia</option>
-              <option value="GL">GL — Galão</option>
-              <option value="PR">PR — Par</option>
             </select>
           </div>
           <div class="form-group">
@@ -884,9 +874,6 @@ tbody td { padding:10px 12px; vertical-align:middle; }
             <label title="Segmentação por público-alvo">Subfamília</label>
             <select id="f_subfamilia">
               <option value="">— Selecione —</option>
-              <option value="MASCULINO">Masculino</option>
-              <option value="FEMININO">Feminino</option>
-              <option value="INFANTIL">Infantil</option>
             </select>
           </div>
           <div class="form-group">
@@ -1189,8 +1176,6 @@ tbody td { padding:10px 12px; vertical-align:middle; }
             <label>Tipo de Grade</label>
             <select id="f_tipograde">
               <option value="">— Selecione —</option>
-              <option value="ROUPA">ROUPA</option>
-              <option value="SAPATO">SAPATO</option>
             </select>
           </div>
           <div class="form-group">
@@ -1330,6 +1315,9 @@ tbody td { padding:10px 12px; vertical-align:middle; }
             </div>
             <input type="file" id="inputFotos" accept="image/jpeg,image/png,image/webp,image/gif" multiple style="display:none" onchange="uploadFotos(this)">
           </div>
+          <p style="margin:0 0 10px;font-size:11px;color:var(--text2);line-height:1.45">
+            Dica: com a aba Fotos aberta, use <strong>Ctrl+V</strong> para colar imagens copiadas (ex.: Google Drive → abrir foto → Copiar imagem).
+          </p>
           <div id="galeriaGrid" class="galeria-grid"></div>
         </div>
       </div>
@@ -1491,18 +1479,20 @@ function carregarGaleria(prodId) {
     .catch(() => { grid.innerHTML = '<p style="font-size:13px;color:#dc2626">Erro ao carregar fotos.</p>'; });
 }
 
-async function uploadFotos(input) {
+async function uploadFotos(inputOrFiles) {
   const prodId = _editandoId;
-  if (!prodId || !input.files.length) return;
+  const files = inputOrFiles && inputOrFiles.files
+    ? Array.from(inputOrFiles.files)
+    : Array.from(inputOrFiles || []);
+  if (!prodId || !files.length) return;
 
   const btn = document.getElementById('btnAddFoto');
-  const textoOrig = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = 'Enviando…';
+  const textoOrig = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Enviando…'; }
 
   const fd = new FormData();
-  Array.from(input.files).forEach(f => fd.append('files', f));
-  input.value = '';
+  files.forEach(f => fd.append('files', f));
+  if (inputOrFiles && inputOrFiles.value !== undefined) inputOrFiles.value = '';
 
   try {
     const r = await fetch(`/api/produtos/${prodId}/imagens`, {
@@ -1513,11 +1503,11 @@ async function uploadFotos(input) {
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || 'Erro no upload');
     showToast(`${j.enviadas} foto(s) adicionada(s)`, 'success');
+    if (btn) btn.textContent = textoOrig;
     carregarGaleria(prodId);
   } catch(err) {
     showToast(err.message, 'error');
-    btn.disabled = false;
-    btn.textContent = textoOrig;
+    if (btn) { btn.disabled = false; btn.textContent = textoOrig; }
   }
 }
 
@@ -2753,19 +2743,30 @@ let _semPermPromoExcluir = false;
 let _semPermPromoAcesso = false;
 
 // ── Lookups ───────────────────────────────────────────────────────────────────
-function _populaSelect(selId, itens, valField, txtField, placeholder = '— Selecione —') {
+function _populaSelect(selId, itens, valField, txtField, placeholder = '— Selecione —', labelFmt) {
   const sel = document.getElementById(selId);
   if (!sel) return;
   // preserva o valor selecionado (pode ter sido setado por preencherForm antes do lookup chegar)
   const valorAtual = sel.value;
   sel.innerHTML = `<option value="">${placeholder}</option>`;
-  itens.forEach(item => {
+  (itens || []).forEach(item => {
     const opt = document.createElement('option');
     opt.value = item[valField];
-    opt.textContent = item[txtField];
+    opt.textContent = typeof labelFmt === 'function' ? labelFmt(item) : item[txtField];
     sel.appendChild(opt);
   });
   if (valorAtual) sel.value = valorAtual;
+}
+
+/** Fallback se o lookup falhar (não deixa combo vazio). */
+function _fallbackSelectSeVazio(selId, opts) {
+  const sel = document.getElementById(selId);
+  if (!sel || sel.options.length > 1) return;
+  opts.forEach(([v, t]) => {
+    const opt = document.createElement('option');
+    opt.value = v; opt.textContent = t;
+    sel.appendChild(opt);
+  });
 }
 
 async function carregarLookups() {
@@ -2781,6 +2782,9 @@ async function carregarLookups() {
     { url:'/api/lookups/regioes',     sel:'pm_id_regiao',          v:'id', t:'descricao' },
     { url:'/api/lookups/fornecedores',sel:'pm_cod_fornecedor',     v:'id', t:'nome' },
     { url:'/api/lookups/tabela-preco',sel:'pm_id_tabela_preco',    v:'id', t:'descricao' },
+    { url:'/api/lookups/subfamilias', sel:'f_subfamilia',         v:'codigo', t:'descricao' },
+    { url:'/api/lookups/unidades',    sel:'f_unidade',            v:'codigo', t:'descricao', labelFmt: (it) => `${it.codigo} — ${it.descricao}` },
+    { url:'/api/lookups/tipos-grade-produto', sel:'f_tipograde',  v:'codigo', t:'codigo' },
   ];
   // carregar grupos também no filtro da subbar
   try {
@@ -2822,14 +2826,26 @@ async function carregarLookups() {
     }
   } catch(_) {}
 
-  await Promise.allSettled(endpoints.map(async ({ url, sel, v, t }) => {
+  await Promise.allSettled(endpoints.map(async ({ url, sel, v, t, labelFmt }) => {
     try {
       const r = await api(url);
       if (!r.ok) return;
       const data = await r.json();
-      _populaSelect(sel, data, v, t);
+      _populaSelect(sel, data, v, t, '— Selecione —', labelFmt);
     } catch(_) {}
   }));
+  // Fallbacks seguros (mesmo conteúdo antigo hardcoded)
+  _fallbackSelectSeVazio('f_unidade', [
+    ['UN','UN — Unidade'],['CX','CX — Caixa'],['KG','KG — Quilograma'],['LT','LT — Litro'],
+    ['MT','MT — Metro'],['PC','PC — Peça'],['PCT','PCT — Pacote'],['RL','RL — Rolo'],
+    ['DZ','DZ — Dúzia'],['GL','GL — Galão'],['PR','PR — Par'],
+  ]);
+  _fallbackSelectSeVazio('f_subfamilia', [
+    ['MASCULINO','Masculino'],['FEMININO','Feminino'],['INFANTIL','Infantil'],
+  ]);
+  _fallbackSelectSeVazio('f_tipograde', [
+    ['ROUPA','ROUPA'],['SAPATO','SAPATO'],
+  ]);
 }
 
 async function carregarHabilitaGrades() {
@@ -4103,8 +4119,11 @@ function _ifRemover(i) {
 
 function _ifAddFiles(files) {
   const permitidos = /\.(jpg|jpeg|png|gif)$/i;
+  const mimeOk = /^(image\/jpeg|image\/png|image\/gif)$/i;
   for (const file of files) {
-    if (!permitidos.test(file.name)) continue;
+    const nomeOk = permitidos.test(file.name || '');
+    const tipoOk = mimeOk.test(file.type || '');
+    if (!nomeOk && !tipoOk) continue;
     if (file.size > 5 * 1024 * 1024) { showToast(`${file.name}: máx 5MB`, 'error'); continue; }
     const { code, ordem } = _ifParseNome(file.name);
     _ifFiles.push({ file, objectUrl: URL.createObjectURL(file), code, ordem });
@@ -4163,6 +4182,24 @@ function _ifBindModalEvents() {
 // Drop zone — bind inicial (iframe); reforço após teleport em abrirImportFotos
 document.addEventListener('DOMContentLoaded', () => {
   _ifBindModalEvents();
+  if (typeof SysRepClipboard === 'undefined') return;
+  SysRepClipboard.bindPaste(document, (files) => {
+    const modal = typeof _ifModalEl === 'function' ? _ifModalEl() : null;
+    if (modal && modal.classList.contains('open')) {
+      _ifAddFiles(files);
+      showToast(files.length + ' imagem(ns) colada(s)', 'success');
+      return;
+    }
+    uploadFotos(files);
+  }, {
+    ignoreTyping: true,
+    when: () => {
+      const modal = typeof _ifModalEl === 'function' ? _ifModalEl() : null;
+      if (modal && modal.classList.contains('open')) return true;
+      const tab = document.getElementById('tab-fotos');
+      return !!(tab && tab.classList.contains('active') && _editandoId);
+    },
+  });
 });
 
 async function enviarImportFotos() {
@@ -4245,8 +4282,8 @@ fecharQuickView();
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
             d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
         </svg>
-        <strong>Arraste as fotos aqui ou clique para selecionar</strong>
-        <small>Selecione quantas quiser de uma vez</small>
+        <strong>Arraste as fotos aqui, clique para selecionar ou cole com Ctrl+V</strong>
+        <small>Selecione quantas quiser de uma vez · Colar imagem do Google Drive também funciona</small>
       </div>
       <input type="file" id="ifInput" accept=".jpg,.jpeg,.png,.gif" multiple style="display:none">
       <div class="if-file-list" id="ifList"></div>

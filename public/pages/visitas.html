@@ -253,7 +253,7 @@ html.sysrep-ms-embed #visitas-cards-mobile { padding:0; }
             <tr>
               <th style="width:90px">Data</th>
               <th style="width:60px">Hora</th>
-              <th>Cliente</th>
+              <th>Cliente / Assunto</th>
               <th>Cidade</th>
               <th>Motivo</th>
               <th>Observação</th>
@@ -298,7 +298,16 @@ html.sysrep-ms-embed #visitas-cards-mobile { padding:0; }
         <div class="form-grid">
           <!-- Data e Hora -->
           <div class="form-group">
-            <label class="lbl">Data da Visita <span>*</span></label>
+            <label class="lbl">Tipo <span>*</span></label>
+            <select class="finput" id="f_tipo" onchange="onTipoAgendaChange()">
+              <option value="COMPROMISSO">Compromisso</option>
+              <option value="PENDENCIA">Pendência</option>
+              <option value="PROSPECT">Prospect / futuro cliente</option>
+              <option value="VISITA">Visita (cliente)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="lbl">Data <span>*</span></label>
             <input type="date" class="finput" id="f_data_visita">
           </div>
           <div class="form-group">
@@ -313,14 +322,29 @@ html.sysrep-ms-embed #visitas-cards-mobile { padding:0; }
             </select>
           </div>
 
-          <!-- Cliente -->
-          <div class="form-group col2">
-            <label class="lbl">Cliente <span>*</span></label>
+          <!-- Assunto (obrigatório se não for visita com cliente) -->
+          <div class="form-group col2" id="wrap_titulo">
+            <label class="lbl" id="lbl_titulo">Assunto / título</label>
+            <input type="text" class="finput" id="f_titulo" maxlength="150" placeholder="Ex.: Ligar banco, Reunião, Visitar João…" autocomplete="off">
+          </div>
+
+          <!-- Cliente (só em VISITA) -->
+          <div class="form-group col2" id="wrap_cliente" style="display:none">
+            <label class="lbl">Cliente <span id="req_cliente">*</span></label>
             <div class="ac-wrap">
               <input type="text" class="finput" id="f_cliente_nome" placeholder="Buscar cliente por nome…" autocomplete="off"
                      oninput="buscarCliente(this.value)" onfocus="buscarCliente(this.value)">
               <div class="ac-results" id="ac_cliente"></div>
             </div>
+          </div>
+
+          <div class="form-group" id="wrap_contato_nome" style="display:none">
+            <label class="lbl">Nome do contato</label>
+            <input type="text" class="finput" id="f_contato_nome" maxlength="150" placeholder="Nome da pessoa" autocomplete="off">
+          </div>
+          <div class="form-group" id="wrap_contato_fone" style="display:none">
+            <label class="lbl">Telefone</label>
+            <input type="text" class="finput" id="f_contato_fone" maxlength="30" placeholder="WhatsApp / telefone" autocomplete="off">
           </div>
 
           <!-- Vendedor -->
@@ -346,7 +370,15 @@ html.sysrep-ms-embed #visitas-cards-mobile { padding:0; }
                 📍 Minha localização
               </button>
             </label>
-            <textarea class="finput" id="f_obs" rows="3" placeholder="Anotações sobre a visita…"></textarea>
+            <textarea class="finput" id="f_obs" rows="3" placeholder="Anotações…"></textarea>
+          </div>
+
+          <div class="form-group full" style="flex-direction:row;align-items:center;gap:10px;padding-top:4px">
+            <input type="checkbox" id="chk_google" checked
+                   style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer;flex-shrink:0;margin:0">
+            <label for="chk_google" style="margin:0;cursor:pointer;font-size:13px;font-weight:600;color:var(--text)">
+              Abrir Google Agenda ao salvar
+            </label>
           </div>
         </div>
 
@@ -452,8 +484,13 @@ function aplicarPrefillUrl() {
   abrirNovo();
   const clienteId = params.get('cliente_id');
   const clienteNome = params.get('cliente_nome');
-  if (clienteId) document.getElementById('f_id_cliente').value = clienteId;
-  if (clienteNome) document.getElementById('f_cliente_nome').value = clienteNome;
+  if (clienteId) {
+    document.getElementById('f_tipo').value = 'VISITA';
+    document.getElementById('f_id_cliente').value = clienteId;
+    if (clienteNome) document.getElementById('f_cliente_nome').value = clienteNome;
+    onTipoAgendaChange();
+    document.getElementById('formTitulo').textContent = 'Nova visita';
+  }
 }
 
 function registrarLocalizacao() {
@@ -614,7 +651,7 @@ function renderLista(rows) {
                 <div style="font-size:9px;color:var(--text2);margin-top:3px">${dt}</div>
               </div>
               <div style="flex:1;min-width:0">
-                <div style="font-weight:700;font-size:13px;color:var(--text,#0f172a);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(v.nome_cliente || '—')}</div>
+                <div style="font-weight:700;font-size:13px;color:var(--text,#0f172a);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(tituloAgendaRow(v))}${badgeTipoAgenda(v.tipo)}</div>
                 <div style="font-size:11px;color:var(--text2);margin-top:2px">${escHtml(v.motivo_desc || '')}${v.cidade ? ' · ' + escHtml(v.cidade + (v.uf ? '/'+v.uf : '')) : ''}</div>
                 ${obs ? `<div style="font-size:10px;color:var(--text2);margin-top:3px;font-style:italic">${escHtml(obs)}</div>` : ''}
               </div>
@@ -649,7 +686,7 @@ function renderLista(rows) {
       <td style="font-weight:700;color:var(--text)">${dt}</td>
       <td style="color:var(--text2)">${hr}</td>
       <td>
-        <div style="font-weight:700">${escHtml(v.nome_cliente || '—')}</div>
+        <div style="font-weight:700">${escHtml(tituloAgendaRow(v))}${badgeTipoAgenda(v.tipo)}</div>
         ${v.nome_vendedor ? `<div style="font-size:10px;color:var(--text2)">${escHtml(v.nome_vendedor)}</div>` : ''}
       </td>
       <td style="color:var(--text2);font-size:11px">${v.cidade ? escHtml(v.cidade + (v.uf ? ' - '+v.uf : '')) : '—'}</td>
@@ -773,12 +810,113 @@ function toggleProxVisita() {
   wrap.classList.toggle('show', chk.checked);
 }
 
+// ─── Tipo da agenda ───────────────────────────────────────────────────────────
+function onTipoAgendaChange() {
+  const tipo = document.getElementById('f_tipo')?.value || 'COMPROMISSO';
+  const isVisita = tipo === 'VISITA';
+  const isProspect = tipo === 'PROSPECT';
+  const wrapCli = document.getElementById('wrap_cliente');
+  const reqCli = document.getElementById('req_cliente');
+  const wrapTitulo = document.getElementById('wrap_titulo');
+  const wrapNome = document.getElementById('wrap_contato_nome');
+  const wrapFone = document.getElementById('wrap_contato_fone');
+  if (wrapCli) wrapCli.style.display = isVisita ? '' : 'none';
+  if (reqCli) reqCli.style.display = isVisita ? 'inline' : 'none';
+  if (wrapTitulo) wrapTitulo.style.display = '';
+  if (wrapNome) wrapNome.style.display = isProspect ? '' : 'none';
+  if (wrapFone) wrapFone.style.display = isProspect ? '' : 'none';
+  const lbl = document.getElementById('lbl_titulo');
+  const tit = document.getElementById('f_titulo');
+  if (lbl) {
+    if (isVisita) {
+      lbl.innerHTML = 'Assunto <span style="font-weight:500;color:var(--text2)">(opcional)</span>';
+      if (tit) tit.placeholder = 'Ex.: Entregar catálogo, Renegociar…';
+    } else if (isProspect) {
+      lbl.innerHTML = 'Assunto / empresa <span style="color:var(--danger)">*</span>';
+      if (tit) tit.placeholder = 'Ex.: Visitar João — potencial cliente';
+    } else if (tipo === 'PENDENCIA') {
+      lbl.innerHTML = 'Pendência <span style="color:var(--danger)">*</span>';
+      if (tit) tit.placeholder = 'Ex.: Ligar no banco, Enviar proposta…';
+    } else {
+      lbl.innerHTML = 'Compromisso <span style="color:var(--danger)">*</span>';
+      if (tit) tit.placeholder = 'Ex.: Reunião, Dentista, Viagem…';
+    }
+  }
+  if (!isVisita) {
+    document.getElementById('f_id_cliente').value = '';
+    document.getElementById('f_cliente_nome').value = '';
+  }
+  if (!isProspect) {
+    document.getElementById('f_contato_nome').value = '';
+    document.getElementById('f_contato_fone').value = '';
+  }
+}
+
+function badgeTipoAgenda(tipo) {
+  const t = String(tipo || 'VISITA').toUpperCase();
+  if (t === 'PROSPECT') return '<span style="font-size:9px;font-weight:800;padding:2px 6px;border-radius:999px;background:#fef3c7;color:#b45309;margin-left:6px">PROSPECT</span>';
+  if (t === 'PENDENCIA') return '<span style="font-size:9px;font-weight:800;padding:2px 6px;border-radius:999px;background:#fee2e2;color:#b91c1c;margin-left:6px">PENDÊNCIA</span>';
+  if (t === 'COMPROMISSO') return '<span style="font-size:9px;font-weight:800;padding:2px 6px;border-radius:999px;background:#e2e8f0;color:#475569;margin-left:6px">COMPROMISSO</span>';
+  return '';
+}
+
+function _normTipoAgenda(t) {
+  const u = String(t || 'COMPROMISSO').toUpperCase();
+  if (u === 'PENDENCIA' || u === 'PROSPECT' || u === 'VISITA' || u === 'COMPROMISSO') return u;
+  return 'COMPROMISSO';
+}
+
+function _fmtDataGoogle(ymd, hm) {
+  const [Y, M, D] = String(ymd).split('-');
+  const parts = String(hm || '08:00').split(':');
+  const pad = n => String(n).padStart(2, '0');
+  return `${Y}${pad(M)}${pad(D)}T${pad(parts[0] || '8')}${pad(parts[1] || '0')}00`;
+}
+
+function abrirGoogleAgendaVisita(p) {
+  const tipo = String(p.tipo || '').toUpperCase();
+  let titulo = (p.titulo || '').trim();
+  if (!titulo) {
+    if (tipo === 'VISITA') titulo = (document.getElementById('f_cliente_nome')?.value || 'Visita').trim();
+    else if (tipo === 'PROSPECT') titulo = (p.contato_nome || 'Prospect').trim();
+    else titulo = tipo === 'PENDENCIA' ? 'Pendência' : 'Compromisso';
+  }
+  const prefix = tipo === 'PENDENCIA' ? '📌 ' : tipo === 'COMPROMISSO' ? '📅 ' : tipo === 'PROSPECT' ? '👋 ' : '🚗 ';
+  const details = [
+    tipo === 'PENDENCIA' ? 'Pendência SysRep' : tipo === 'COMPROMISSO' ? 'Compromisso SysRep' : tipo === 'PROSPECT' ? 'Prospect SysRep' : 'Visita SysRep',
+    p.contato_nome ? `Contato: ${p.contato_nome}` : '',
+    p.contato_fone ? `Tel: ${p.contato_fone}` : '',
+    p.obs || '',
+  ].filter(Boolean).join('\n');
+  const hora = String(p.hora_visita || '08:00').substring(0, 5);
+  const inicio = _fmtDataGoogle(p.data_visita, hora);
+  const [Y, M, D] = String(p.data_visita).split('-').map(Number);
+  const [h, m] = hora.split(':').map(Number);
+  const fimDate = new Date(Y, M - 1, D, h || 8, (m || 0) + 60);
+  const fim = `${fimDate.getFullYear()}${String(fimDate.getMonth() + 1).padStart(2, '0')}${String(fimDate.getDate()).padStart(2, '0')}T${String(fimDate.getHours()).padStart(2, '0')}${String(fimDate.getMinutes()).padStart(2, '0')}00`;
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: prefix + titulo,
+    dates: `${inicio}/${fim}`,
+    details,
+  });
+  window.open('https://calendar.google.com/calendar/render?' + params.toString(), '_blank');
+}
+
+function tituloAgendaRow(v) {
+  return v.nome_cliente || v.titulo || v.contato_nome || '—';
+}
+
 // ─── Formulário ──────────────────────────────────────────────────────────────
 function abrirNovo() {
   S.registroId = null;
   document.getElementById('f_id').value = '';
   document.getElementById('f_id_cliente').value = '';
   document.getElementById('f_cliente_nome').value = '';
+  document.getElementById('f_tipo').value = 'COMPROMISSO';
+  document.getElementById('f_titulo').value = '';
+  document.getElementById('f_contato_nome').value = '';
+  document.getElementById('f_contato_fone').value = '';
   document.getElementById('f_data_visita').value = fmtDate(new Date());
   document.getElementById('f_hora_visita').value = '08:00';
   document.getElementById('f_status').value = 'ABERTA';
@@ -791,11 +929,14 @@ function abrirNovo() {
   document.getElementById('f_nova_data').value = '';
   document.getElementById('f_nova_hora').value = '08:00';
   document.getElementById('f_obs_nova').value = '';
-  document.getElementById('formTitulo').textContent = 'Nova Visita';
+  const chkG = document.getElementById('chk_google');
+  if (chkG) chkG.checked = true;
+  document.getElementById('formTitulo').textContent = 'Novo compromisso';
+  onTipoAgendaChange();
 
   document.getElementById('listSection').style.display = 'none';
   document.getElementById('formSection').style.display = 'block';
-  document.getElementById('f_cliente_nome').focus();
+  setTimeout(() => document.getElementById('f_titulo').focus(), 50);
 }
 
 async function abrirEditar(id) {
@@ -805,7 +946,11 @@ async function abrirEditar(id) {
     S.registroId = id;
     document.getElementById('f_id').value = id;
     document.getElementById('f_id_cliente').value = v.id_cliente || '';
-    document.getElementById('f_cliente_nome').value = v.nome_cliente || '';
+    document.getElementById('f_cliente_nome').value = v.id_cliente ? (v.nome_cliente || '') : '';
+    document.getElementById('f_tipo').value = _normTipoAgenda(v.tipo);
+    document.getElementById('f_titulo').value = v.titulo || '';
+    document.getElementById('f_contato_nome').value = v.contato_nome || '';
+    document.getElementById('f_contato_fone').value = v.contato_fone || '';
     document.getElementById('f_data_visita').value = v.data_visita ? v.data_visita.substring(0,10) : '';
     document.getElementById('f_hora_visita').value = v.hora_visita ? v.hora_visita.substring(0,5) : '08:00';
     document.getElementById('f_status').value = v.status || 'ABERTA';
@@ -818,7 +963,10 @@ async function abrirEditar(id) {
     document.getElementById('f_nova_data').value = '';
     document.getElementById('f_nova_hora').value = '08:00';
     document.getElementById('f_obs_nova').value = '';
-    document.getElementById('formTitulo').textContent = `Editando Visita #${id}`;
+    const chkG = document.getElementById('chk_google');
+    if (chkG) chkG.checked = true;
+    document.getElementById('formTitulo').textContent = `Editando #${id}`;
+    onTipoAgendaChange();
 
     document.getElementById('listSection').style.display = 'none';
     document.getElementById('formSection').style.display = 'block';
@@ -832,13 +980,24 @@ function voltarLista() {
 }
 
 async function salvar() {
-  const idCliente = document.getElementById('f_id_cliente').value;
+  const tipo = document.getElementById('f_tipo').value || 'COMPROMISSO';
+  const idCliente = document.getElementById('f_id_cliente').value || null;
+  const titulo = document.getElementById('f_titulo').value.trim();
+  const contatoNome = document.getElementById('f_contato_nome').value.trim();
+  const contatoFone = document.getElementById('f_contato_fone').value.trim();
   const dataVisita = document.getElementById('f_data_visita').value;
-  if (!idCliente) return toast('Selecione um cliente','err');
-  if (!dataVisita) return toast('Informe a data da visita','err');
+  if (!dataVisita) return toast('Informe a data','err');
+  if (tipo === 'VISITA' && !idCliente) return toast('Selecione um cliente','err');
+  if ((tipo === 'PROSPECT' || tipo === 'COMPROMISSO' || tipo === 'PENDENCIA') && !titulo && !contatoNome) {
+    return toast(tipo === 'PENDENCIA' ? 'Informe a pendência' : 'Informe o assunto', 'err');
+  }
 
   const payload = {
-    id_cliente: idCliente,
+    tipo,
+    id_cliente: tipo === 'VISITA' ? idCliente : null,
+    titulo: titulo || null,
+    contato_nome: tipo === 'PROSPECT' ? (contatoNome || null) : null,
+    contato_fone: tipo === 'PROSPECT' ? (contatoFone || null) : null,
     id_vendedor: document.getElementById('f_id_vendedor').value || null,
     id_motivo: document.getElementById('f_id_motivo').value || null,
     data_visita: dataVisita,
@@ -859,7 +1018,9 @@ async function salvar() {
     const method = S.registroId ? 'PUT' : 'POST';
     const d = await api(url, { method, body: JSON.stringify(payload) });
     if (d.ok !== false) {
-      toast(S.registroId ? 'Visita atualizada!' : 'Visita registrada!', 'ok');
+      const abrirGoogle = document.getElementById('chk_google')?.checked;
+      toast(S.registroId ? 'Atualizado!' : 'Registrado na agenda!', 'ok');
+      if (abrirGoogle) abrirGoogleAgendaVisita(payload);
       voltarLista();
     } else {
       toast(d.error || 'Erro ao salvar', 'err');

@@ -205,6 +205,18 @@ tbody td { padding:10px 12px; vertical-align:middle; }
   color:var(--text2); padding:3px 7px; font-size:16px; cursor:pointer; transition:.12s;
   font-family:inherit; line-height:1; }
 .btn-acoes:hover { background:var(--accent-soft); border-color:var(--accent); color:var(--accent); }
+.btn-visita-inline {
+  background: var(--warn, #f59e0b); color: var(--btn-text, #fff); border: none; border-radius: 6px;
+  padding: 4px 10px; font-size: 11px; font-weight: 700; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 4px; transition: 0.2s;
+  box-shadow: 0 2px 4px rgba(245, 158, 11, 0.2); font-family: inherit;
+}
+.btn-visita-inline:hover { background: #d97706; transform: translateY(-1px); }
+.btn-visita-inline svg { width: 13px; height: 13px; stroke-width: 2.5px; flex-shrink: 0; }
+@media (max-width: 1200px) {
+  .btn-visita-text { display: none; }
+  .btn-visita-inline { padding: 5px; }
+}
 .dropdown-menu { position:fixed; background:var(--card); border:1px solid var(--border); border-radius:9px;
   box-shadow:0 8px 24px rgba(0,0,0,.3); padding:4px; min-width:160px; z-index:9900; animation:fadeIn .12s; }
 .dropdown-item { display:flex; align-items:center; gap:8px; padding:7px 10px;
@@ -463,6 +475,23 @@ html.sysrep-home-embed #formSection .form-footer { flex-shrink:0 !important; }
 .toast.show { display:block; }
 .toast.success { background:#065f46; }
 .toast.error   { background:#991b1b; }
+.toast.warning { background:#b45309; }
+/* Alerta situação cadastral CNPJ (≠ ATIVA) */
+.alerta-situacao-cnpj {
+  display: none;
+  grid-column: 1 / -1;
+  margin: 2px 0 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--yellow, #f59e0b);
+  background: color-mix(in srgb, var(--yellow, #f59e0b) 14%, var(--card, #fff));
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.alerta-situacao-cnpj.show { display: flex; align-items: flex-start; gap: 10px; }
+.alerta-situacao-cnpj .asc-icon { flex-shrink: 0; color: var(--yellow, #f59e0b); }
+.alerta-situacao-cnpj .asc-hint { display: block; margin-top: 2px; font-size: 12px; color: var(--text2); }
 /* FAB & BULK BAR DIAMOND FLOW */
 .btn-new-float {
   position: fixed; bottom: 30px; right: 30px; 
@@ -511,6 +540,7 @@ html.sysrep-home-embed #formSection .form-footer { flex-shrink:0 !important; }
 <script src="/assets/ajuda-tour.js"></script>
 <script src="/assets/ajuda-tours.js"></script>
 <script src="/assets/vendas-duplicar-item.js"></script>
+<script src="/assets/clipboard-image-paste.js"></script>
 </head>
 <body data-tour-default="fornecedores-cadastro">
 
@@ -750,6 +780,7 @@ html.sysrep-home-embed #formSection .form-footer { flex-shrink:0 !important; }
               </button>
             </div>
           </div>
+          <div id="alertaSituacaoCnpj" class="alerta-situacao-cnpj" role="status" aria-live="polite"></div>
           <div class="form-group">
             <label>RG</label>
             <input type="text" id="f_rg" autocomplete="off" placeholder="RG" class="upper">
@@ -1548,7 +1579,7 @@ html.sysrep-home-embed #formSection .form-footer { flex-shrink:0 !important; }
             </div>
           </div>
           <p style="margin:0 0 12px;font-size:11px;color:var(--text2);line-height:1.45">
-            1) Buscar imagem → 2) Tipo <strong>LOGO</strong> → 3) <strong>Incluir na lista</strong> → 4) <strong>Salvar</strong> o fornecedor (envia ao servidor).
+            1) Buscar imagem <em>ou Ctrl+V para colar</em> → 2) Tipo <strong>LOGO</strong> → 3) <strong>Incluir na lista</strong> → 4) <strong>Salvar</strong> o fornecedor (envia ao servidor).
           </p>
         </div>
         <table class="img-table">
@@ -1659,6 +1690,13 @@ html.sysrep-home-embed #formSection .form-footer { flex-shrink:0 !important; }
 
     <div class="form-footer">
       <button class="btn btn-ghost" onclick="fecharFormulario()">Cancelar</button>
+      <button type="button" class="btn btn-outline" id="btnAgendarForn" onclick="agendarFornecedorForm()"
+              style="display:none;color:#d97706;border-color:#f59e0b">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+        </svg>
+        Agendar
+      </button>
       <button class="btn btn-primary" id="btnSalvar" onclick="salvar()">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -1690,6 +1728,12 @@ html.sysrep-home-embed #formSection .form-footer { flex-shrink:0 !important; }
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
       </svg>
       Fechar
+    </button>
+    <button type="button" class="btn btn-outline" data-qv-action="agendar" style="color:#d97706;border-color:#f59e0b">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:13px;height:13px">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+      </svg>
+      Agendar
     </button>
     <button type="button" class="btn btn-outline" data-qv-action="editar">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:13px;height:13px">
@@ -1755,7 +1799,7 @@ function showToast(msg, tipo = '') {
   t.textContent = msg;
   t.className = 'toast show' + (tipo ? ' ' + tipo : '');
   clearTimeout(t._timer);
-  t._timer = setTimeout(() => t.classList.remove('show'), 3000);
+  t._timer = setTimeout(() => t.classList.remove('show'), tipo === 'warning' ? 6000 : 3000);
 }
 
 function fmtData(d) {
@@ -2307,7 +2351,14 @@ function renderTabela(rows) {
         </span>
       </td>
       <td onclick="event.stopPropagation()">
-        <button class="btn-acoes" onclick="abrirMenuAcoes(${f.id},'${escHtml(f.nome||'')}','${f.status||'A'}',event)">⋮</button>
+        <div style="display:flex;align-items:center;gap:4px;justify-content:flex-end">
+          <button type="button" class="btn-visita-inline" title="Agendar"
+                  onclick="agendarFornecedor(${f.id},'${escHtml(f.nome||'').replace(/'/g,"\\'")}',event)">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+            <span class="btn-visita-text">Agendar</span>
+          </button>
+          <button class="btn-acoes" onclick="abrirMenuAcoes(${f.id},'${escHtml(f.nome||'')}','${f.status||'A'}',event)">⋮</button>
+        </div>
       </td>
     </tr>`;
   }).join('');
@@ -2478,6 +2529,12 @@ function abrirMenuAcoes(id, nome, status, event) {
   const semAlt = window._semPermAlterarForn;
   const semExc = window._semPermExcluirForn;
   menu.innerHTML = `
+    <button class="dropdown-item" onclick="fecharDropdown();agendarFornecedor(${id},'${escHtml(nome||'').replace(/'/g,"\\'")}')">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+      </svg> Agendar
+    </button>
     <button class="dropdown-item" onclick="fecharDropdown();clonarRegistro(${id})">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -2583,6 +2640,9 @@ function _qvHandleAction(action) {
   } else if (action === 'clonar') {
     fecharQuickView();
     clonarRegistro(id);
+  } else if (action === 'agendar') {
+    const nome = document.getElementById('qvNome')?.textContent || '';
+    agendarFornecedor(id, nome === '—' ? '' : nome);
   }
 }
 
@@ -2765,6 +2825,7 @@ function novoRegistro() {
     '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text2)">Salve o fornecedor primeiro para vincular produtos.</td></tr>';
   abrirAba('geral', document.querySelector('.form-tab'));
   mostrarFormSection();
+  _syncBtnAgendarForn();
   document.getElementById('f_nome').focus();
 }
 
@@ -2792,6 +2853,7 @@ async function abrirEdicao(id) {
     carregarEmailsFabrica(id);
     abrirAba('geral', document.querySelector('.form-tab'));
     mostrarFormSection();
+    _syncBtnAgendarForn();
   } catch { showToast('Erro ao carregar fornecedor', 'error'); }
 }
 
@@ -2908,6 +2970,7 @@ function limparForm() {
   const rdTNPS = document.getElementById('tnp_sistema'); if (rdTNPS) rdTNPS.checked = true;
   const rdBCP = document.getElementById('bc_parcela'); if (rdBCP) rdBCP.checked = true;
   setCheckSN('f_recalc_comissao_fatur', 'N');
+  _limparAlertaSituacaoCnpj();
 }
 
 function preencherForm(f) {
@@ -3362,7 +3425,60 @@ async function onBlurCnpj() {
   const doc = document.getElementById('f_cpf').value.replace(/\D/g, '');
   if (doc.length === 14) await consultarCNPJ();
   else if (doc.length > 0) await verificarCnpjDuplicado(doc);
-  else _cnpjDuplicadoBloqueado = false;
+  else { _cnpjDuplicadoBloqueado = false; _limparAlertaSituacaoCnpj(); }
+}
+
+function _pickIeFornecedor(inscricoes, ufEstab) {
+  if (!Array.isArray(inscricoes) || !inscricoes.length) return '';
+  const uf = String(ufEstab || '').toUpperCase();
+  const ativas = inscricoes.filter(ie => ie && (ie.ativo === true || ie.ativo === 'S' || ie.ativo === 1));
+  const pool = ativas.length ? ativas : inscricoes;
+  const sameUf = uf
+    ? pool.find(ie => String(ie.estado?.sigla || ie.uf || '').toUpperCase() === uf)
+    : null;
+  const escolhida = sameUf || pool[0];
+  return String(escolhida?.inscricao_estadual || escolhida?.inscricao || '').trim();
+}
+
+function _isSituacaoCnpjNaoAtiva(sit) {
+  const s = String(sit || '').trim().toUpperCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (!s) return false;
+  if (s === 'ATIVA' || s === 'ATIVO' || s.startsWith('ATIVA ')) return false;
+  return true;
+}
+
+function _fmtDataSitCnpj(iso) {
+  const s = String(iso || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return '';
+  const [y, m, d] = s.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+function _limparAlertaSituacaoCnpj() {
+  const el = document.getElementById('alertaSituacaoCnpj');
+  if (!el) return;
+  el.innerHTML = '';
+  el.classList.remove('show');
+}
+
+function _mostrarAlertaSituacaoCnpj(sit, dataSit, motivo) {
+  const el = document.getElementById('alertaSituacaoCnpj');
+  if (!el) return false;
+  const naoAtiva = _isSituacaoCnpjNaoAtiva(sit);
+  if (!naoAtiva) { _limparAlertaSituacaoCnpj(); return false; }
+  const motivoTxt = motivo && !/^SEM MOTIVO$/i.test(String(motivo).trim())
+    ? `<span class="asc-hint">Motivo: ${escHtml(motivo)}</span>` : '';
+  el.innerHTML =
+    `<span class="asc-icon" aria-hidden="true">⚠</span>
+     <div>
+       <strong>Situação cadastral na Receita: ${escHtml(String(sit).toUpperCase())}</strong>
+       ${dataSit ? ` · desde ${_fmtDataSitCnpj(dataSit)}` : ''}
+       ${motivoTxt}
+       <span class="asc-hint">O cadastro não é bloqueado — revise antes de gravar.</span>
+     </div>`;
+  el.classList.add('show');
+  return true;
 }
 
 async function consultarCNPJ() {
@@ -3373,11 +3489,49 @@ async function consultarCNPJ() {
   if (btn) { btn.disabled = true; btn.textContent = '…'; }
 
   try {
-    let d;
+    let d = null;
+    let ie = '';
+    let situacao = '';
+    let dataSit = '';
+    let motivo = '';
     const rb = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`).catch(() => null);
     if (rb && rb.ok) {
       d = await rb.json();
-    } else {
+      situacao = d.descricao_situacao_cadastral || '';
+      dataSit = d.data_situacao_cadastral ? String(d.data_situacao_cadastral).slice(0, 10) : '';
+      motivo = d.descricao_motivo_situacao_cadastral || '';
+    }
+
+    // CNPJ.ws: IE (BrasilAPI/Receita não traz) + fallback se BrasilAPI falhar
+    const rw = await fetch(`https://publica.cnpj.ws/cnpj/${cnpj}`).catch(() => null);
+    if (rw && rw.ok) {
+      const raw = await rw.json();
+      const end = raw.estabelecimento || {};
+      ie = _pickIeFornecedor(end.inscricoes_estaduais, end.estado?.sigla);
+      if (!situacao) situacao = end.situacao_cadastral || raw.situacao_cadastral || '';
+      if (!dataSit && end.data_situacao_cadastral)
+        dataSit = String(end.data_situacao_cadastral).slice(0, 10);
+      if (!motivo) {
+        const m = end.motivo_situacao_cadastral || raw.motivo_situacao_cadastral;
+        motivo = typeof m === 'string' ? m : (m?.descricao || m?.nome || '');
+      }
+      if (!d) {
+        d = {
+          razao_social: raw.razao_social,
+          nome_fantasia: end.nome_fantasia,
+          email: end.email,
+          ddd_telefone_1: end.ddd1 && end.telefone1 ? `${end.ddd1}${end.telefone1}` : null,
+          cep: end.cep,
+          descricao_tipo_de_logradouro: end.tipo_logradouro,
+          logradouro: end.logradouro,
+          bairro: end.bairro,
+          municipio: end.cidade?.ibge_nome || end.cidade?.nome,
+          uf: end.estado?.sigla,
+        };
+      }
+    }
+
+    if (!d) {
       showToast('Não foi possível consultar o CNPJ', 'error');
       return;
     }
@@ -3390,6 +3544,7 @@ async function consultarCNPJ() {
     set('f_nome',   d.razao_social);
     set('f_apelido', d.nome_fantasia);
     set('f_email',   d.email);
+    if (ie) set('f_rg', ie);
     if (!document.getElementById('f_foneprincipal').value && d.ddd_telefone_1)
       document.getElementById('f_foneprincipal').value =
         d.ddd_telefone_1.replace(/\D/g,'').replace(/^(\d{2})(\d+)$/,'($1) $2');
@@ -3408,7 +3563,17 @@ async function consultarCNPJ() {
       if (el && !el.value) el.value = d.uf;
     }
 
-    showToast('CNPJ consultado com sucesso!', 'success');
+    const naoAtiva = _mostrarAlertaSituacaoCnpj(situacao, dataSit, motivo);
+    if (naoAtiva) {
+      showToast(
+        `Atenção: CNPJ com situação ${String(situacao).toUpperCase()}` +
+          (dataSit ? ` desde ${_fmtDataSitCnpj(dataSit)}` : '') +
+          ' — o cadastro não foi bloqueado.',
+        'warning'
+      );
+    } else {
+      showToast('CNPJ consultado com sucesso!', 'success');
+    }
     await verificarCnpjDuplicado(cnpj);
 
   } catch(e) {
@@ -3516,6 +3681,23 @@ function onImgFileSelect(input) {
   if (tipoEl && !tipoEl.value && document.getElementById('f_logopedido')?.checked) {
     tipoEl.value = 'LOGO';
   }
+}
+
+/** Aplica arquivo colado (Ctrl+V) no preview da aba Imagens. */
+function onImgFileFromPaste(file) {
+  if (!file) return;
+  _imgFileAtual = file;
+  const url = URL.createObjectURL(_imgFileAtual);
+  _atualizarPreview(url, _imgFileAtual);
+  const descEl = document.getElementById('img_descricao');
+  if (descEl && !descEl.value.trim()) {
+    descEl.value = (_imgFileAtual.name || 'imagem').replace(/\.[^.]+$/, '');
+  }
+  const tipoEl = document.getElementById('img_tipo');
+  if (tipoEl && !tipoEl.value && document.getElementById('f_logopedido')?.checked) {
+    tipoEl.value = 'LOGO';
+  }
+  showToast('Imagem colada — escolha o tipo e clique em Incluir na lista', 'success');
 }
 
 function _atualizarPreview(url, file) {
@@ -3949,7 +4131,7 @@ async function verificarPermissoes() {
 // ═══════════════════════════════════════════════════════════
 async function carregarCategorias() {
   try {
-    const r = await api('/api/categorias');
+    const r = await api('/api/categorias?uso=FORNECEDOR');
     if (!r.ok) return;
     const rows = await r.json();
     const sel = document.getElementById('f_segmento');
@@ -4058,6 +4240,62 @@ function exportarCSV() {
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
   a.download = 'fornecedores.csv'; a.click();
 }
+
+/** Local para Google Agenda: form aberto ou cache da lista. */
+function _locationFornecedorAgenda(id) {
+  if (_editandoId && String(_editandoId) === String(id)) {
+    const parts = [
+      document.getElementById('f_endereco')?.value,
+      document.getElementById('f_bairro')?.value,
+      [document.getElementById('f_cidade')?.value, document.getElementById('f_uf')?.value].filter(Boolean).join(' / '),
+      document.getElementById('f_cep')?.value ? 'CEP ' + document.getElementById('f_cep').value : '',
+    ].filter(Boolean);
+    if (parts.length) return parts.join(' - ');
+  }
+  const row = Array.isArray(_cacheRows) ? _cacheRows.find(f => String(f.id) === String(id)) : null;
+  if (!row) return '';
+  return [row.cidade, row.uf].filter(Boolean).join(' / ');
+}
+
+function agendarFornecedor(id, nome, ev) {
+  if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+  if (typeof SysRepAgenda === 'undefined' || !SysRepAgenda.abrir) {
+    showToast('Módulo de agenda não carregou. Dê Ctrl+F5.', 'error');
+    return;
+  }
+  SysRepAgenda.abrir({
+    prefixo: 'Fornecedor',
+    nome: nome || ('#' + id),
+    location: _locationFornecedorAgenda(id),
+  });
+}
+
+function agendarFornecedorForm() {
+  if (!_editandoId) return;
+  const nome = document.getElementById('f_nome')?.value || '';
+  agendarFornecedor(_editandoId, nome);
+}
+
+function _syncBtnAgendarForn() {
+  const btn = document.getElementById('btnAgendarForn');
+  if (btn) btn.style.display = _editandoId ? '' : 'none';
+}
+</script>
+<script src="/assets/agenda-compromisso-ui.js"></script>
+<script>
+(function () {
+  if (typeof SysRepClipboard === 'undefined') return;
+  SysRepClipboard.bindPaste(document, (files) => {
+    onImgFileFromPaste(files[0]);
+  }, {
+    ignoreTyping: true,
+    when: () => {
+      const tab = document.getElementById('tab-imagens');
+      const form = document.getElementById('formSection');
+      return !!(tab && tab.classList.contains('active') && form && form.classList.contains('form-open'));
+    },
+  });
+})();
 </script>
 </body>
 </html>

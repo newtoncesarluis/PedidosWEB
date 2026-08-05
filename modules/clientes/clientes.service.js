@@ -18,6 +18,38 @@ const {
   codVendedorInformado,
 } = require('../../config/carteira-politica');
 const { validarCliente, validarCpfCnpj } = require('./clientes.validator');
+const representadasSvc = require('./sub/representadas.service');
+const {
+  ensureSegmentosTable,
+  migrateSegmentosClienteFromCategoria,
+} = require('../../config/segmentos-migrate');
+
+/**
+ * Resolve cod_segmento → descrição na tabela segmentos (não categoria de produto).
+ * Combo do front (/api/categorias) já lê segmentos; validação precisa da mesma fonte.
+ */
+async function resolveSegmentoCliente(pool, codSegmento, segmentoTexto) {
+  let descricao = segmentoTexto || null;
+  const raw = String(codSegmento ?? '').trim();
+  const id = parseInt(raw, 10);
+  if (!raw || !(id > 0)) {
+    return { cod_segmento: null, segmento: descricao || null };
+  }
+  await ensureSegmentosTable(pool);
+  await migrateSegmentosClienteFromCategoria(pool).catch(() => {});
+  const [segRows] = await pool.query(
+    `SELECT id, descricao FROM segmentos
+     WHERE id = ? AND COALESCE(excluido,'N') = 'N' AND COALESCE(status,'A') = 'A'
+     LIMIT 1`,
+    [id]
+  ).catch(() => [[]]);
+  if (!segRows[0]) {
+    const err = new Error('Segmento informado não existe ou está inativo');
+    err.statusCode = 400;
+    throw err;
+  }
+  return { cod_segmento: id, segmento: segRows[0].descricao };
+}
 
 // ─── LISTAR ───────────────────────────────────────────────────────────────────
 
@@ -46,6 +78,7 @@ async function buscarCliente(id, user) {
     lembretesSvc.buscarLembretesCliente(id, pool),
     lembretesSvc.buscarCamposCadastro(pool),
     tabelaSvc.buscarTabelasCliente(id, pool),
+    representadasSvc.buscarRepresentadas(id, pool),
   ]);
 
   const val = (i, fallback = []) => settled[i].status === 'fulfilled' ? settled[i].value : fallback;
@@ -59,6 +92,7 @@ async function buscarCliente(id, user) {
   const marcados     = val(6);
   const campos       = val(7);
   const tabelasPreco = val(8);
+  const representadas = val(9);
 
   return {
     ...cliente,
@@ -70,6 +104,7 @@ async function buscarCliente(id, user) {
     dependentes,
     lembretes: { campos, marcados },
     tabelasPreco,
+    representadas,
   };
 }
 
@@ -101,27 +136,18 @@ async function criarCliente(body, user) {
     }
   }
 
-  // Validar cod_segmento e buscar texto descritivo (igual ao Delphi: salva id + texto)
-  let segmentoDescricao = body.segmento || null;
-  if (body.cod_segmento) {
-    const [segRows] = await pool.query(
-      `SELECT id, descricao FROM categoria WHERE id = ? AND excluido = 'N' AND status = 'A' LIMIT 1`,
-      [body.cod_segmento]
-    ).catch(() => [[]]);
-    if (!segRows[0]) {
-      const err = new Error('Categoria (segmento) informada não existe ou está inativa');
-      err.statusCode = 400;
-      throw err;
-    }
-    // Delphi salva tanto o ID (cod_segmento) quanto o texto descritivo (segmento)
-    segmentoDescricao = segRows[0].descricao;
-  }
+  // Validar cod_segmento na tabela segmentos (cliente) — não em categoria (produto)
+  const segNovo = await resolveSegmentoCliente(pool, body.cod_segmento, body.segmento);
 
   // ── Montar dados base ────────────────────────────────────────────────────────
   const dados = { ...body };
+  dados.cod_segmento = segNovo.cod_segmento;
+  if (segNovo.segmento) dados.segmento = segNovo.segmento;
+  else if (!segNovo.cod_segmento) dados.segmento = null;
 
-  // Delphi salva o texto descritivo do segmento além do código
-  if (segmentoDescricao) dados.segmento = segmentoDescricao;
+  // Flag trava de representadas — default N (não altera fluxo atual)
+  const restNovo = String(body.restringe_representadas || 'N').toUpperCase();
+  dados.restringe_representadas = restNovo === 'S' ? 'S' : 'N';
 
   // id_empresa: só isola se gcompartilhaCliente='N'; caso contrário fica vazio
   dados.id_empresa = config.gcompartilhaCliente === 'N' ? (user.id_empresa || '') : '';
@@ -190,6 +216,7 @@ async function criarCliente(body, user) {
     if (Array.isArray(body.refComerciais)) await refSvc.salvarRefComerciais(novoId, body.refComerciais, conn);
     if (Array.isArray(body.dependentes)) await dependentesSvc.salvarDependentes(novoId, body.dependentes, conn);
     if (Array.isArray(body.tabelasPreco)) await tabelaSvc.salvarTabelasPreco(novoId, body.tabelasPreco, conn);
+    if (Array.isArray(body.representadas)) await representadasSvc.salvarRepresentadas(novoId, body.representadas, conn);
     // Lembretes: só se o módulo estiver habilitado na configuração do sistema
     if (config.gcampos_cadastrocliente === 'S' && Array.isArray(body.lembretes)) {
       await lembretesSvc.salvarLembretes(novoId, body.lembretes, conn);
@@ -233,26 +260,17 @@ async function atualizarCliente(id, body, user) {
     }
   }
 
-  // Validar cod_segmento e buscar texto descritivo (igual ao Delphi: salva id + texto)
-  let segmentoDescricaoAtualizar = body.segmento || null;
-  if (body.cod_segmento) {
-    const [segRows] = await pool.query(
-      `SELECT id, descricao FROM categoria WHERE id = ? AND excluido = 'N' AND status = 'A' LIMIT 1`,
-      [body.cod_segmento]
-    ).catch(() => [[]]);
-    if (!segRows[0]) {
-      const err = new Error('Categoria (segmento) informada não existe ou está inativa');
-      err.statusCode = 400;
-      throw err;
-    }
-    segmentoDescricaoAtualizar = segRows[0].descricao;
-  }
+  // Validar cod_segmento na tabela segmentos (cliente) — não em categoria (produto)
+  const segUpd = await resolveSegmentoCliente(pool, body.cod_segmento, body.segmento);
 
   // ── Montar dados base ────────────────────────────────────────────────────────
   const dadosAtualizar = { ...body };
+  dadosAtualizar.cod_segmento = segUpd.cod_segmento;
+  if (segUpd.segmento) dadosAtualizar.segmento = segUpd.segmento;
+  else if (!segUpd.cod_segmento) dadosAtualizar.segmento = null;
 
-  // Delphi salva o texto descritivo do segmento além do código
-  if (segmentoDescricaoAtualizar) dadosAtualizar.segmento = segmentoDescricaoAtualizar;
+  const restUpd = String(body.restringe_representadas || 'N').toUpperCase();
+  dadosAtualizar.restringe_representadas = restUpd === 'S' ? 'S' : 'N';
 
   // ── Garantir aliases de campos com nomes duplos (Delphi vs normalizado) ──────
   dadosAtualizar.instragam     = body.instragam    || body.instagram    || null;
@@ -307,6 +325,9 @@ async function atualizarCliente(id, body, user) {
     if (Array.isArray(dadosAtualizar.refComerciais)) await refSvc.salvarRefComerciais(id, dadosAtualizar.refComerciais, conn);
     if (Array.isArray(dadosAtualizar.dependentes)) await dependentesSvc.salvarDependentes(id, dadosAtualizar.dependentes, conn);
     if (Array.isArray(dadosAtualizar.tabelasPreco)) await tabelaSvc.salvarTabelasPreco(id, dadosAtualizar.tabelasPreco, conn);
+    if (Array.isArray(dadosAtualizar.representadas)) {
+      await representadasSvc.salvarRepresentadas(id, dadosAtualizar.representadas, conn);
+    }
     // Lembretes: só se o módulo estiver habilitado
     if (config.gcampos_cadastrocliente === 'S' && Array.isArray(dadosAtualizar.lembretes)) {
       await lembretesSvc.salvarLembretes(id, dadosAtualizar.lembretes, conn);
@@ -440,7 +461,17 @@ async function consultarCNPJ(cnpj) {
             return reject(err);
           }
 
-          // Mapear campos da ReceitaWS para campos do cliente
+          // Mapear campos da ReceitaWS para campos do cliente.
+          // ReceitaWS (Receita Federal) NÃO retorna inscrição estadual — IE vem de SEFAZ/SINTEGRA.
+          // abertura = data de fundação / início de atividade (DD/MM/YYYY no provedor).
+          const aberturaRaw = String(json.abertura || '').trim();
+          let data_abertura = '';
+          if (/^\d{2}\/\d{2}\/\d{4}$/.test(aberturaRaw)) {
+            const [dd, mm, yyyy] = aberturaRaw.split('/');
+            data_abertura = `${yyyy}-${mm}-${dd}`;
+          } else if (/^\d{4}-\d{2}-\d{2}/.test(aberturaRaw)) {
+            data_abertura = aberturaRaw.slice(0, 10);
+          }
           const result = {
             nome: json.nome || '',
             apelido: json.fantasia || '',
@@ -456,10 +487,13 @@ async function consultarCNPJ(cnpj) {
             foneprincipal: json.telefone || '',
             email: json.email || '',
             status_receita: json.situacao || '',
-            abertura: json.abertura || '',
+            abertura: aberturaRaw,
+            data_abertura,
             capital_social: json.capital_social || '',
             atividade_principal: json.atividade_principal?.[0]?.text || '',
             natureza_juridica: json.natureza_juridica || '',
+            // Explícito: este provedor não entrega IE
+            inscricao_estadual: null,
             socios: (json.qsa || []).map(s => ({
               nome: s.nome || '',
               cargo: s.qual || '',
@@ -516,7 +550,7 @@ async function listarAuxiliares(tipo, user, query = {}) {
 
   const queries = {
     'regioes':         `SELECT id, CONCAT(descricao, IF(sigla IS NOT NULL AND sigla != '', CONCAT(' (', sigla, ')'), '')) AS nome FROM regiao_rota WHERE (status='A' OR status IS NULL) AND (excluido='N' OR excluido IS NULL) ORDER BY descricao`,
-    'segmentos':       `SELECT id, descricao AS nome FROM categoria WHERE status='A' AND excluido='N' ORDER BY descricao`,
+    'segmentos':       null, // tratado abaixo (tabela segmentos)
     'formas-pagto':    `SELECT id, descricao AS nome FROM forma_pagto WHERE status='S' AND excluido='N' ORDER BY descricao`,
     'tabelas-preco':   `SELECT id, descricao AS nome FROM tabela_preco WHERE status='N' AND excluido='N' ORDER BY descricao`,
     'campos-cadastro':  `SELECT id, nome FROM campos_cadastros WHERE excluido='N' ORDER BY nome`,
@@ -524,6 +558,18 @@ async function listarAuxiliares(tipo, user, query = {}) {
     'cores':            `SELECT id, descricao AS nome FROM cores WHERE status='A' AND excluido='N' ORDER BY descricao`,
     'racas':            `SELECT id, descricao AS nome FROM raca WHERE status='A' AND excluido='N' ORDER BY descricao`,
   };
+
+  if (tipo === 'segmentos') {
+    await ensureSegmentosTable(pool);
+    await migrateSegmentosClienteFromCategoria(pool).catch(() => {});
+    const [rows] = await pool.query(
+      `SELECT id, descricao AS nome FROM segmentos
+       WHERE COALESCE(status,'A')='A' AND COALESCE(excluido,'N')='N'
+         AND (UPPER(COALESCE(uso,'AMBOS')) = 'AMBOS' OR UPPER(COALESCE(uso,'AMBOS')) = 'CLIENTE')
+       ORDER BY descricao`
+    ).catch(() => [[]]);
+    return rows;
+  }
 
   const sql = queries[tipo];
   if (!sql) {

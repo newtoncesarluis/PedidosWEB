@@ -42,6 +42,17 @@ async function getColunasClientes(pool) {
   return _colunasClientes;
 }
 
+/** Invalida cache após migration ADD COLUMN no mesmo processo. */
+function clearColunasClientesCache() {
+  _colunasClientes = null;
+}
+
+/** Expressão SELECT segura p/ coluna opcional (bases Delphi sem o campo). */
+function colClienteOuNull(cols, nome) {
+  if (!cols || cols.size === 0 || cols.has(nome)) return `c.\`${nome}\``;
+  return `NULL AS \`${nome}\``;
+}
+
 /**
  * Busca configuração do sistema na tabela `sistemas`
  */
@@ -134,8 +145,8 @@ async function listar(filters, config, user) {
       CAST(c.cod_segmento AS UNSIGNED) = ?
       OR TRIM(c.cod_segmento) = ?
       OR LOWER(TRIM(c.segmento)) = (
-        SELECT LOWER(TRIM(cat.descricao)) FROM categoria cat
-        WHERE cat.id = ? AND COALESCE(cat.excluido, 'N') = 'N'
+        SELECT LOWER(TRIM(seg.descricao)) FROM segmentos seg
+        WHERE seg.id = ? AND COALESCE(seg.excluido, 'N') = 'N'
         LIMIT 1
       )
     )`);
@@ -146,12 +157,17 @@ async function listar(filters, config, user) {
   }
 
   if (tipo_cliente && String(tipo_cliente).trim()) {
-    where.push(`LOWER(c.tipo_cliente) LIKE ?`);
-    vals.push(`%${String(tipo_cliente).trim().toLowerCase()}%`);
+    where.push(`UPPER(TRIM(c.tipo_cliente)) = UPPER(?)`);
+    vals.push(String(tipo_cliente).trim());
   }
   if (regiao) { where.push(`c.regiao = ?`); vals.push(regiao); }
   if (tipo_pessoa) { where.push(`c.tipo_pessoa = ?`); vals.push(tipo_pessoa); }
-  if (cidade) { where.push(`LOWER(c.cidade) LIKE ?`); vals.push(`%${cidade.toLowerCase()}%`); }
+  // Filtro avançado de cidade: só coluna cidade (nunca endereco/bairro)
+  if (cidade) {
+    const cNorm = String(cidade).toLowerCase().trim();
+    where.push(`LOWER(TRIM(c.cidade)) LIKE ?`);
+    vals.push(`%${cNorm}%`);
+  }
   if (uf) { where.push(`c.uf = ?`); vals.push(uf.toUpperCase()); }
 
   if (sem_compra_dias && parseInt(sem_compra_dias, 10) > 0) {
@@ -182,7 +198,9 @@ async function listar(filters, config, user) {
     vals.push(...vendFiltro.params);
   }
 
-  // Busca textual — inclui código do cliente (id)
+  // Busca textual — NÃO inclui endereco/bairro: digitar "JOSE BONIFACIO"
+  // casava rua com o mesmo nome além da cidade. Cidade fica só em c.cidade
+  // (e no filtro avançado ?cidade=). CEP continua na busca geral.
   if (q && q.trim()) {
     where.push(`(
       CAST(c.id AS CHAR) LIKE ? OR
@@ -191,8 +209,6 @@ async function listar(filters, config, user) {
       c.foneprincipal LIKE ? OR
       c.fonesecundario LIKE ? OR
       c.cep LIKE ? OR
-      LOWER(c.endereco) LIKE ? OR
-      LOWER(c.bairro) LIKE ? OR
       LOWER(c.cidade) LIKE ? OR
       c.cpf LIKE ? OR
       c.rg LIKE ? OR
@@ -203,7 +219,7 @@ async function listar(filters, config, user) {
       LOWER(u.nomeusu) LIKE ?
     )`);
     const like = `%${q.trim().toLowerCase()}%`;
-    vals.push(like, like, like, like, like, like, like, like, like, like, like, like, like, like, like, like);
+    vals.push(like, like, like, like, like, like, like, like, like, like, like, like, like, like);
   }
 
   let distanceCol = "";
@@ -231,6 +247,16 @@ async function listar(filters, config, user) {
   } catch {
     temClienteMensagens = false;
   }
+
+  // Garante coluna complemento (form/ficha PDF) em bases Delphi sem reiniciar
+  try {
+    const colsAntes = await getColunasClientes(pool);
+    if (!colsAntes.has('complemento')) {
+      const { ensureTableColumns } = require('../../config/schema-migrations');
+      await ensureTableColumns(pool, 'clientes', ['complemento']);
+      clearColunasClientesCache();
+    }
+  } catch { /* ok */ }
   const waCols = temClienteMensagens
     ? `,
       (SELECT cm.data_envio FROM cliente_mensagens cm
@@ -241,13 +267,17 @@ async function listar(filters, config, user) {
        ORDER BY cm.data_envio DESC LIMIT 1) AS ultimo_whatsapp_status`
     : `, NULL AS ultimo_whatsapp_envio, NULL AS ultimo_whatsapp_status`;
 
+  // Bases Delphi antigas podem não ter complemento (form web / ficha PDF)
+  const colsCli = await getColunasClientes(pool);
+  const colComplemento = colClienteOuNull(colsCli, 'complemento');
+
   const mainSql = `
     SELECT
       c.id,
       LPAD(c.id, 7, '0') AS codigo_auxiliar,
       c.nome, c.apelido, c.tipo_pessoa, c.cpf,
       c.foneprincipal, c.fonesecundario, c.email,
-      c.cidade, c.uf, c.bairro, c.status, c.endereco,
+      c.cidade, c.uf, c.bairro, c.status, c.endereco, c.numero_end, ${colComplemento}, c.cep,
       c.dtultimacompra, c.dtcadastro,
       c.tipo_cliente, c.segmento, c.cod_vendedor,
       c.credito, c.desconto, c.conceitocliente,
@@ -271,7 +301,7 @@ async function listar(filters, config, user) {
       LPAD(c.id, 7, '0') AS codigo_auxiliar,
       c.nome, c.apelido, c.tipo_pessoa, c.cpf,
       c.foneprincipal, c.fonesecundario, c.email,
-      c.cidade, c.uf, c.bairro, c.status, c.endereco,
+      c.cidade, c.uf, c.bairro, c.status, c.endereco, c.numero_end, ${colComplemento}, c.cep,
       c.dtultimacompra, c.dtcadastro,
       c.tipo_cliente, c.segmento, c.cod_vendedor,
       c.credito, c.desconto, c.conceitocliente,
@@ -416,6 +446,7 @@ async function inserirCliente(dados, pool, conn) {
     'rj_comercial',           // registro na junta comercial — Delphi: rj_comercial
     'numero_off', 'sincronizar', 'status_sinc',
     'latitude', 'longitude',
+    'restringe_representadas',
     'excluido',
   ];
 
@@ -480,6 +511,7 @@ async function atualizarCliente(id, dados, pool, conn) {
     'tipodocumento', 'id_empresa',
     'numsocios', 'numalteracoes', 'dt_ultialteracoes', 'rj_comercial',
     'latitude', 'longitude',
+    'restringe_representadas',
     'sincronizar', 'status_sinc',
   ];
 
@@ -606,6 +638,8 @@ async function atualizarUltimaCompra(pool) {
 
 module.exports = {
   getSistemaConfig,
+  getColunasClientes,
+  clearColunasClientesCache,
   listar,
   usuarioPodeVerCliente,
   buscarPorId,

@@ -1,0 +1,46 @@
+---
+description: Confirm/exclusão em páginas no iframe da home — usar confirm-dialog.js
+globs: public/pages/**/*.html
+alwaysApply: false
+---
+
+# Diálogo de confirmação (iframe da home)
+
+## Problema real (Grades, 2026-07-30)
+
+Em páginas abertas como **iframe** na `home.html`, `position:fixed` no overlay/card do confirm **pode não grudar na viewport**. O diálogo entra no fluxo do documento e só aparece depois que o usuário rola até o **fim da lista** (ou some do centro da tela).
+
+## Obrigatório em telas novas / ao criar confirm de exclusão
+
+1. Incluir o helper:
+```html
+<script src="/assets/confirm-dialog.js"></script>
+```
+
+2. Usar a API (não reinventar com CSS `.confirm-backdrop`):
+```javascript
+confirmar('Excluir item?', 'Esta ação não pode ser desfeita.', async () => {
+  // exclusão...
+});
+
+// ou Promise:
+const ok = await SysRepConfirm.ask({
+  titulo: 'Excluir item?',
+  mensagem: 'Esta ação não pode ser desfeita.',
+});
+if (!ok) return;
+```
+
+## Proibido
+
+- `position:fixed` + `top:50%; left:50%; transform:translate(-50%,-50%)` no card do confirm
+- Overlay só com `position:fixed; inset:0` sem fallback (quebra em várias telas no iframe)
+- Expandir o iframe da home (`sysrep-home-embed-modal`) só para um confirm simples (alarga a tela e perde o scroll)
+- Depender de classes `.confirm-box` / `.confirm-backdrop` + `themes.css` para layout do diálogo
+
+## Padrão interno do helper
+
+- Overlay `position:absolute` com `top = scrollY`, `height = innerHeight`
+- Card como filho flex centralizado (sem `position:fixed`)
+- Estilos de layout via `element.style` (não CSS de tema)
+- Preservar `scrollY` ao fechar
