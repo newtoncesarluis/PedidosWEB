@@ -85,7 +85,7 @@ tbody tr:last-child td { border-bottom:none; }
 .empty { text-align:center;padding:56px 24px;color:var(--text2); }
 
 #formSection { display:none; }
-.form-card { background:#fff;border:1px solid var(--border);border-radius:10px;overflow:hidden; }
+.form-card { background:var(--card, #fff);border:1px solid var(--card-border, var(--border));border-radius:10px;overflow:visible; }
 .form-card-head { padding:12px 18px;border-bottom:1px solid var(--border);background:#fff;display:flex;align-items:center;justify-content:space-between; }
 .form-card-head-title { font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.7px; }
 .form-card-head-sub   { font-size:11px;color:var(--text2);margin-top:2px; }
@@ -99,10 +99,11 @@ tbody tr:last-child td { border-bottom:none; }
 label { font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.3px; }
 .req { color:var(--danger); }
 input[type="text"], select {
-  padding:8px 10px;border:1.5px solid #d1d5db;border-radius:6px;
-  font-size:13px;color:var(--text);background:#fff;
+  padding:8px 10px;border:1.5px solid var(--card-border, #d1d5db);border-radius:6px;
+  font-size:13px;color:var(--text);background:var(--card, #fff);
   transition:.12s;outline:none;font-family:inherit;width:100%;
 }
+select option { color: var(--text); background: var(--card, #fff); }
 input:focus,select:focus { border-color:var(--accent);box-shadow:0 0 0 3px rgba(13,148,136,.08); }
 
 .toggle-row { display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px solid #d1d5db;border-radius:6px;cursor:pointer;user-select:none; }
@@ -124,6 +125,7 @@ input:focus,select:focus { border-color:var(--accent);box-shadow:0 0 0 3px rgba(
 @keyframes fadeIn { from{opacity:0}to{opacity:1} }
 </style>
 <link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/confirm-dialog.js"></script>
 <script src="/assets/themes.js"></script>
 <link rel="stylesheet" href="/assets/card-view.css">
 <script src="/assets/card-view.js"></script>
@@ -235,6 +237,9 @@ input:focus,select:focus { border-color:var(--accent);box-shadow:0 0 0 3px rgba(
               <select id="f_id_planoconta">
                 <option value="">Nenhum</option>
               </select>
+              <div id="hint_planoconta" style="display:none;font-size:11px;color:var(--text2);margin-top:4px">
+                Nenhuma conta analítica encontrada. Cadastre em Financeiro → Plano de Contas.
+              </div>
             </div>
           </div>
         </form>
@@ -278,8 +283,9 @@ async function buscar() {
   const q = document.getElementById('inputBusca').value.trim().toLowerCase();
   try {
     const r = await fetch('/api/natureza', { headers: authHeaders(), credentials: 'include', cache: 'no-store' });
-    const d = await r.json();
-    S.dados = d.natureza || [];
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || 'Falha ao carregar naturezas');
+    S.dados = Array.isArray(d.natureza) ? d.natureza : [];
     let lista = S.dados;
     if (S.filtroStatus !== 'T') lista = lista.filter(x => x.status === S.filtroStatus);
     if (q) lista = lista.filter(x => (x.descricao||'').toLowerCase().includes(q));
@@ -287,7 +293,7 @@ async function buscar() {
     document.getElementById('val-ativos').textContent = S.dados.filter(x=>x.status==='A').length;
     document.getElementById('val-inativos').textContent = S.dados.filter(x=>x.status!=='A').length;
     renderLista(lista);
-  } catch(e) { toast('Erro ao carregar','err'); }
+  } catch(e) { toast((e && e.message) || 'Erro ao carregar','err'); }
 }
 
 function renderLista(rows) {
@@ -311,13 +317,21 @@ function renderLista(rows) {
 async function loadPlanoContas() {
   try {
     const r = await fetch('/api/plano-contas?analiticas=1', { headers: authHeaders(), credentials: 'include' });
-    const d = await r.json();
+    const d = await r.json().catch(() => ({}));
+    const lista = Array.isArray(d.plano_contas) ? d.plano_contas : [];
     const sel = document.getElementById('f_id_planoconta');
     if (!sel) return;
-    sel.innerHTML = '<option value="">Nenhum</option>' + (d.plano_contas || []).map(p =>
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">Nenhum</option>' + lista.map(p =>
       `<option value="${p.id}">${p.numero ? p.numero + ' — ' : ''}${p.descricao}</option>`
     ).join('');
-  } catch (_) {}
+    if (cur) sel.value = cur;
+    const hint = document.getElementById('hint_planoconta');
+    if (hint) hint.style.display = lista.length ? 'none' : 'block';
+  } catch (_) {
+    const hint = document.getElementById('hint_planoconta');
+    if (hint) hint.style.display = 'block';
+  }
 }
 
 function toggleFiltroStatus(st) {
@@ -383,9 +397,10 @@ async function salvar() {
       credentials: 'include',
       body: JSON.stringify(payload)
     });
+    const d = await r.json().catch(() => ({}));
     if (r.ok) { toast('Salvo com sucesso!','ok'); voltarLista(); }
-    else { const d = await r.json(); toast(d.error||'Erro ao salvar','err'); }
-  } catch(e) { toast('Erro na comunicação','err'); }
+    else { toast(d.error || 'Erro ao salvar','err'); }
+  } catch(e) { toast((e && e.message) || 'Erro na comunicação','err'); }
 }
 
 function abrirDrop(e, id) {
@@ -402,7 +417,10 @@ function abrirDrop(e, id) {
 
 async function excluir(id) {
   if (!guardCadExcluir('Sem permissão para excluir naturezas')) return;
-  if (!confirm('Excluir esta natureza de operação?')) return;
+  const ok = (typeof SysRepConfirm !== 'undefined' && SysRepConfirm.ask)
+    ? await SysRepConfirm.ask({ titulo: 'Excluir natureza?', mensagem: 'Excluir esta natureza de operação?', okTexto: 'Excluir', cancelTexto: 'Cancelar', perigo: true })
+    : false;
+  if (!ok) return;
   try {
     const r = await fetch(`/api/natureza/${id}`, { method: 'DELETE', headers: authHeaders(), credentials: 'include' });
     if (r.ok) { toast('Excluído!','ok'); buscar(); }
@@ -440,6 +458,7 @@ CardView.attach({
   })
 });
 
+loadPlanoContas();
 buscar();
 </script>
 <script src="/assets/cadastros-permissao.js"></script>

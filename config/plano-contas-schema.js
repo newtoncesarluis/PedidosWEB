@@ -133,12 +133,22 @@ async function ensureCentroCustoSchema(pool) {
       descricao VARCHAR(150) NOT NULL,
       id_pai INT DEFAULT NULL,
       tipo VARCHAR(20) DEFAULT 'ANALITICA',
+      uso VARCHAR(20) DEFAULT 'AMBOS',
       status CHAR(1) DEFAULT 'A',
       excluido CHAR(1) DEFAULT 'N',
       INDEX idx_cc_codigo (codigo),
       INDEX idx_cc_pai (id_pai)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `).catch(() => {});
+  await addColIfMissing(pool, 'centro_custo', 'uso', "VARCHAR(20) DEFAULT 'AMBOS'");
+}
+
+/** Uso do centro de custo: PAGAR | RECEBER | AMBOS */
+function normalizeUsoCentro(uso) {
+  const u = String(uso || 'AMBOS').toUpperCase().trim();
+  if (u === 'PAGAR' || u === 'DESPESA') return 'PAGAR';
+  if (u === 'RECEBER' || u === 'RECEITA') return 'RECEBER';
+  return 'AMBOS';
 }
 
 /** Evita INFORMATION_SCHEMA / ALTER em todo GET da listagem (multi-tenant por DATABASE()). */
@@ -159,8 +169,10 @@ async function ensureFinanceiroContabilCols(pool) {
   await addColIfMissing(pool, 'natureza', 'id_planoconta', 'INT DEFAULT NULL');
   await addColIfMissing(pool, 'pagar', 'id_planoconta', 'INT DEFAULT NULL');
   await addColIfMissing(pool, 'pagar', 'id_centrocusto', 'INT DEFAULT NULL');
+  await addColIfMissing(pool, 'pagar', 'id_banco', 'INT DEFAULT NULL');
   await addColIfMissing(pool, 'receber', 'id_planoconta', 'INT DEFAULT NULL');
   await addColIfMissing(pool, 'receber', 'id_centrocusto', 'INT DEFAULT NULL');
+  await addColIfMissing(pool, 'receber', 'id_banco', 'INT DEFAULT NULL');
   _finContabilDone.add(dbName);
 }
 
@@ -199,6 +211,7 @@ module.exports = {
   ensureFinanceiroContabilCols,
   normalizeTipoConta,
   normalizeGrupoConta,
+  normalizeUsoCentro,
   calcNivelPai,
   calcNivelPaiCc,
   addColIfMissing,

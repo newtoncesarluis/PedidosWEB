@@ -16,6 +16,8 @@ const COLUNAS_PADRAO = [
   { column: 'valor_puxada', type: 'DECIMAL(15,4) NULL DEFAULT 0' },
   /** Opt-in: cor/variação aponta para o produto mãe (SKU continua pedível). */
   { column: 'id_referencia', type: 'INT NULL DEFAULT NULL' },
+  /** Marca referência principal (agrupa cores) mesmo antes de cadastrar o 1º filho. */
+  { column: 'agrupa_cores', type: "ENUM('S','N') NOT NULL DEFAULT 'N'" },
   /** Público-alvo: Masculino | Feminino | Infantil (ou texto livre). */
   { column: 'subfamilia', type: 'VARCHAR(40) NULL DEFAULT NULL' },
   /** Linha comercial (ex.: tênis jogger). */

@@ -332,11 +332,90 @@ function initHelpNavAutoHide() {
   setVisible(true);
 }
 
+function initHelpWizard(root) {
+  if (!root) return;
+  var storageKey = root.getAttribute('data-storage-key') || ('help-wizard:' + (root.id || 'default'));
+  var steps = Array.from(root.querySelectorAll('.help-wizard-step'));
+  if (!steps.length) return;
+
+  var progressFill = root.querySelector('.help-wizard-progress-fill');
+  var progressText = root.querySelector('.help-wizard-progress-text');
+  var btnReset = root.querySelector('[data-wizard-reset]');
+  var btnAll = root.querySelector('[data-wizard-all]');
+
+  function loadDone() {
+    try {
+      var raw = localStorage.getItem(storageKey);
+      return raw ? JSON.parse(raw) : [];
+    } catch (_) { return []; }
+  }
+
+  function saveDone(doneIds) {
+    try { localStorage.setItem(storageKey, JSON.stringify(doneIds)); } catch (_) {}
+  }
+
+  function syncUi() {
+    var doneIds = loadDone();
+    var doneCount = 0;
+    var firstActive = null;
+
+    steps.forEach(function (step) {
+      var id = step.getAttribute('data-step');
+      var isDone = doneIds.indexOf(id) !== -1;
+      step.classList.toggle('is-done', isDone);
+      step.classList.remove('is-active');
+      if (isDone) doneCount += 1;
+      else if (!firstActive) firstActive = step;
+    });
+
+    if (firstActive) firstActive.classList.add('is-active');
+
+    var pct = Math.round((doneCount / steps.length) * 100);
+    if (progressFill) progressFill.style.width = pct + '%';
+    if (progressText) progressText.textContent = doneCount + ' de ' + steps.length;
+    root.classList.toggle('is-complete', doneCount === steps.length);
+  }
+
+  function toggleStep(step) {
+    var id = step.getAttribute('data-step');
+    if (!id) return;
+    var doneIds = loadDone();
+    var idx = doneIds.indexOf(id);
+    if (idx === -1) doneIds.push(id);
+    else doneIds.splice(idx, 1);
+    saveDone(doneIds);
+    syncUi();
+  }
+
+  steps.forEach(function (step) {
+    var btn = step.querySelector('.help-wizard-step-btn');
+    var check = step.querySelector('.help-wizard-check');
+    if (btn) btn.addEventListener('click', function () { toggleStep(step); });
+    if (check) check.addEventListener('click', function (e) {
+      e.stopPropagation();
+      toggleStep(step);
+    });
+  });
+
+  if (btnReset) btnReset.addEventListener('click', function () {
+    saveDone([]);
+    syncUi();
+  });
+
+  if (btnAll) btnAll.addEventListener('click', function () {
+    saveDone(steps.map(function (s) { return s.getAttribute('data-step'); }).filter(Boolean));
+    syncUi();
+  });
+
+  syncUi();
+}
+
 document.addEventListener('DOMContentLoaded', function () {
   if (document.body.classList.contains('help-page')) {
     initAjudaPage();
     if (document.body.classList.contains('help-page--topic-search')) {
       initHelpTopicSearch();
     }
+    document.querySelectorAll('.help-wizard').forEach(initHelpWizard);
   }
 });

@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<title>Integração Bling | SysRepWeb</title>
+<style>
+* { margin:0;padding:0;box-sizing:border-box; }
+:root {
+  --bg:#f1f5f9; --bg2:#f8fafc; --card:#ffffff; --border:#e2e8f0; --input-bg:#ffffff;
+  --text:#1e293b; --text2:#64748b; --accent:#0ea5e9;
+  --on-accent:#ffffff;
+  --ok:#16a34a; --ok-bg:rgba(22,163,74,.12);
+  --warn:#d97706; --warn-bg:rgba(217,119,6,.12);
+  --danger:#ef4444; --danger-bg:rgba(239,68,68,.12);
+  --info-bg:rgba(14,165,233,.10);
+  --bling:#3fae2a;
+}
+body { font-family:'Inter','Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:20px 16px 40px; }
+.wrap { max-width:1100px;margin:0 auto; }
+
+.page-header { display:flex;align-items:center;gap:14px;margin-bottom:18px;flex-wrap:wrap; }
+.page-icon { width:44px;height:44px;border-radius:12px;background:var(--bling);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--on-accent);font-weight:800;font-size:20px; }
+.page-title h1 { font-size:20px;font-weight:700; }
+.page-title p { font-size:13px;color:var(--text2);margin-top:2px; }
+.status-pill { margin-left:auto;display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:20px;font-size:12px;font-weight:700; }
+.status-pill .dot { width:8px;height:8px;border-radius:50%;background:currentColor; }
+.st-on { background:var(--ok-bg);color:var(--ok); }
+.st-off { background:var(--danger-bg);color:var(--danger); }
+
+.tabs { display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:16px;overflow-x:auto; }
+.tab { padding:10px 14px;font-size:13px;font-weight:600;color:var(--text2);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;font-family:inherit; }
+.tab.active { color:var(--accent);border-bottom-color:var(--accent); }
+.tab-panel { display:none; }
+.tab-panel.active { display:block; }
+
+.card { background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px; }
+.card h2 { font-size:15px;font-weight:700;margin-bottom:4px; }
+.card h2 + .grid, .card h2 + .switch-row { margin-top:12px; }
+.card .sub { font-size:12.5px;color:var(--text2);margin-bottom:16px;line-height:1.5; }
+
+.grid { display:grid;grid-template-columns:1fr 1fr;gap:14px; }
+.grid .full { grid-column:1/-1; }
+@media (max-width:720px) { .grid { grid-template-columns:1fr; } }
+.field { display:flex;flex-direction:column;gap:5px;min-width:0; }
+label { font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.3px; }
+input[type=text], input[type=password], input[type=date], input[type=number], select {
+  width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;
+  background:var(--input-bg);color:var(--text);font-family:inherit;outline:none;
+}
+input:focus, select:focus { border-color:var(--accent); }
+input[readonly] { background:var(--bg2);color:var(--text2); }
+.hint { font-size:11.5px;color:var(--text2);line-height:1.45; }
+.copy-row { display:flex;gap:6px; }
+.copy-row input { flex:1; }
+
+.btn { display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 14px;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer;border:1.5px solid var(--border);background:var(--card);color:var(--text);font-family:inherit;white-space:nowrap; }
+.btn:hover { border-color:var(--accent);color:var(--accent); }
+.btn:disabled { opacity:.5;cursor:not-allowed; }
+.btn-primary { background:var(--accent);border-color:var(--accent);color:var(--on-accent); }
+.btn-primary:hover { color:var(--on-accent);filter:brightness(1.07); }
+.btn-bling { background:var(--bling);border-color:var(--bling);color:var(--on-accent); }
+.btn-bling:hover { color:var(--on-accent);filter:brightness(1.07); }
+.btn-danger { color:var(--danger); }
+.btn-danger:hover { border-color:var(--danger);color:var(--danger); }
+.btn-sm { padding:5px 9px;font-size:11.5px; }
+.actions { display:flex;gap:8px;flex-wrap:wrap;margin-top:16px; }
+
+.steps { counter-reset:s;list-style:none;display:flex;flex-direction:column;gap:8px;margin-bottom:16px; }
+.steps li { counter-increment:s;font-size:13px;line-height:1.5;padding-left:30px;position:relative;color:var(--text); }
+.steps li::before { content:counter(s);position:absolute;left:0;top:0;width:21px;height:21px;border-radius:50%;background:var(--info-bg);color:var(--accent);font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center; }
+.steps a { color:var(--accent); }
+
+.switch-row { display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-top:1px solid var(--border); }
+.switch-row:first-of-type { border-top:none; }
+.switch-row .txt { flex:1;min-width:0; }
+.switch-row .t { font-size:13.5px;font-weight:600; }
+.switch-row .d { font-size:12px;color:var(--text2);margin-top:2px;line-height:1.45; }
+.sw { position:relative;width:40px;height:22px;flex-shrink:0;margin-top:2px; }
+.sw input { opacity:0;width:0;height:0; }
+.sw span { position:absolute;inset:0;border-radius:22px;background:var(--border);cursor:pointer;transition:.15s; }
+.sw span::before { content:'';position:absolute;width:16px;height:16px;left:3px;top:3px;border-radius:50%;background:var(--card);transition:.15s; }
+.sw input:checked + span { background:var(--bling); }
+.sw input:checked + span::before { transform:translateX(18px); }
+.inline-extra { margin-top:8px;max-width:220px; }
+
+.alert { padding:11px 14px;border-radius:9px;font-size:12.5px;line-height:1.5;margin-bottom:14px; }
+.alert-warn { background:var(--warn-bg);color:var(--warn); }
+.alert-err { background:var(--danger-bg);color:var(--danger); }
+.alert-info { background:var(--info-bg);color:var(--text); }
+
+.kpis { display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px; }
+.kpi { background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 14px;min-width:120px; }
+.kpi .l { font-size:10.5px;font-weight:700;text-transform:uppercase;color:var(--text2);letter-spacing:.4px; }
+.kpi .v { font-size:20px;font-weight:800;margin-top:2px; }
+.bl-filtros { display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px; }
+.bl-filtros input[type=text] { max-width:260px; }
+.bl-filtros select { width:auto; }
+.table-wrap { overflow-x:auto;border:1px solid var(--border);border-radius:10px;background:var(--card); }
+table { width:100%;border-collapse:collapse;font-size:12.5px; }
+th { text-align:left;padding:8px 10px;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text2);background:var(--bg2);border-bottom:1px solid var(--border);white-space:nowrap; }
+td { padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:middle; }
+tr:last-child td { border-bottom:none; }
+td.num { text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums; }
+td.acoes { white-space:nowrap;text-align:right; }
+.badge { display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap; }
+.b-ok { background:var(--ok-bg);color:var(--ok); }
+.b-warn { background:var(--warn-bg);color:var(--warn); }
+.b-err { background:var(--danger-bg);color:var(--danger); }
+.b-muted { background:var(--bg2);color:var(--text2);border:1px solid var(--border); }
+.err-txt { font-size:11px;color:var(--danger);margin-top:3px;max-width:340px;white-space:normal; }
+.vazio { padding:30px;text-align:center;color:var(--text2);font-size:13px; }
+
+.prog { height:8px;background:var(--bg2);border-radius:8px;overflow:hidden;margin:10px 0 8px;border:1px solid var(--border); }
+.prog > div { height:100%;width:0;background:var(--bling);transition:width .3s; }
+.prog.indet > div { width:35%;animation:indet 1.2s infinite ease-in-out; }
+@keyframes indet { 0%{margin-left:-35%} 100%{margin-left:100%} }
+.job-num { display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--text2); }
+.job-num b { color:var(--text); }
+.job-err { font-size:11.5px;color:var(--danger);margin-top:8px;line-height:1.5; }
+
+.log-item { display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);font-size:12.5px; }
+.log-item:last-child { border-bottom:none; }
+.log-item .when { color:var(--text2);white-space:nowrap;font-size:11.5px;min-width:112px; }
+.log-item .msg { flex:1;min-width:0;word-break:break-word; }
+
+.drawer-bg { position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:900;display:none; }
+.drawer { position:fixed;top:0;right:0;bottom:0;width:min(560px,100%);background:var(--card);border-left:1px solid var(--border);z-index:901;display:none;flex-direction:column; }
+.drawer.open, .drawer-bg.open { display:flex; }
+.drawer-head { padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px; }
+.drawer-head h3 { font-size:14px;flex:1; }
+.drawer-body { padding:14px 16px;overflow:auto;flex:1; }
+.drawer pre { background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:11.5px;overflow:auto;white-space:pre-wrap;word-break:break-word;color:var(--text); }
+
+#toast { position:fixed;bottom:20px;right:16px;left:16px;display:flex;flex-direction:column;align-items:flex-end;gap:8px;z-index:9999;pointer-events:none; }
+.toast { background:var(--text);color:var(--card);padding:10px 14px;border-radius:9px;font-size:13px;font-weight:600;max-width:420px;pointer-events:auto;box-shadow:0 8px 24px rgba(0,0,0,.18); }
+.toast.err { background:var(--danger);color:var(--on-accent); }
+</style>
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="page-header">
+    <div class="page-icon">b</div>
+    <div class="page-title">
+      <h1>Integração Bling</h1>
+      <p>Produtos e preços vêm do Bling; clientes e pedidos da equipe de campo vão para o Bling, que emite a nota.</p>
+    </div>
+    <span class="status-pill st-off" id="pill"><span class="dot"></span><span id="pillTxt">Não conectado</span></span>
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button class="tab active" data-tab="conexao">Conexão</button>
+    <button class="tab" data-tab="regras">Regras de envio</button>
+    <button class="tab" data-tab="pedidos">Pedidos</button>
+    <button class="tab" data-tab="importar">Importar do Bling</button>
+    <button class="tab" data-tab="historico">Histórico</button>
+  </div>
+
+  <!-- ─── CONEXÃO ─── -->
+  <section class="tab-panel active" id="tab-conexao">
+    <div class="alert alert-err" id="ultimoErro" style="display:none"></div>
+    <div class="card">
+      <h2>1. Crie o aplicativo no Bling</h2>
+      <p class="sub">Feito uma vez, na conta Bling do cliente, por um usuário administrador de lá.</p>
+      <ol class="steps">
+        <li>No Bling, abra <b>Preferências → Todas as preferências → Integrações → Área do integrador</b> (ou a Central de Extensões) e crie um <b>aplicativo</b>.</li>
+        <li>No campo <b>Link de redirecionamento</b>, cole a URL abaixo.</li>
+        <li>Marque os escopos: <b>Contatos</b>, <b>Produtos</b>, <b>Pedidos de venda</b>, <b>Notas fiscais</b>, <b>Formas de pagamento</b> e <b>Dados básicos da empresa</b>.</li>
+        <li>Salve e copie o <b>Client ID</b> e o <b>Client Secret</b> para os campos abaixo.</li>
+      </ol>
+      <div class="field">
+        <label for="redirectUri">Link de redirecionamento (cole no Bling)</label>
+        <div class="copy-row">
+          <input type="text" id="redirectUri" readonly autocomplete="off">
+          <button class="btn" type="button" id="btnCopiar">Copiar</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>2. Credenciais e conexão</h2>
+      <p class="sub" id="contaInfo">Depois de salvar, clique em <b>Conectar ao Bling</b> e autorize na janela que abrir.</p>
+      <div class="grid">
+        <div class="field">
+          <label for="clientId">Client ID</label>
+          <input type="text" id="clientId" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="field">
+          <label for="clientSecret">Client Secret</label>
+          <input type="password" id="clientSecret" autocomplete="off" placeholder="">
+          <span class="hint" id="secretHint"></span>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn btn-primary" id="btnSalvarCred">Salvar credenciais</button>
+        <button class="btn btn-bling" id="btnConectar">Conectar ao Bling</button>
+        <button class="btn" id="btnTestar">Testar conexão</button>
+        <button class="btn btn-danger" id="btnDesconectar">Desconectar</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── REGRAS ─── -->
+  <section class="tab-panel" id="tab-regras">
+    <div class="card">
+      <h2>Envio de pedidos</h2>
+      <p class="sub">Orçamentos nunca são enviados. Pedido cancelado também não. Um pedido enviado não é enviado de novo.</p>
+
+      <div class="switch-row">
+        <div class="txt">
+          <div class="t">Enviar pedidos automaticamente</div>
+          <div class="d">A cada 2 minutos, os pedidos novos (digitados há mais de 10 minutos) vão para o Bling com o cliente. Se der erro, tenta de novo depois de 1 hora.</div>
+          <div class="field inline-extra">
+            <label for="envioDesde">Enviar pedidos a partir de</label>
+            <input type="date" id="envioDesde" autocomplete="off">
+          </div>
+        </div>
+        <label class="sw"><input type="checkbox" id="envioAuto"><span></span></label>
+      </div>
+
+      <div class="switch-row">
+        <div class="txt">
+          <div class="t">Gerar a NF-e no Bling logo após enviar</div>
+          <div class="d">Cria a nota (em digitação) a partir do pedido, usando a natureza de operação e os impostos configurados no Bling.</div>
+        </div>
+        <label class="sw"><input type="checkbox" id="gerarNfe"><span></span></label>
+      </div>
+
+      <div class="switch-row">
+        <div class="txt">
+          <div class="t">Transmitir a NF-e para a SEFAZ</div>
+          <div class="d">Autoriza a nota direto, sem conferência no Bling. Só ligue depois de testar alguns pedidos com a nota em digitação.</div>
+        </div>
+        <label class="sw"><input type="checkbox" id="enviarSefaz"><span></span></label>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Dados do pedido no Bling</h2>
+      <div class="grid">
+        <div class="field">
+          <label for="formaPagto">Forma de pagamento das parcelas</label>
+          <select id="formaPagto"><option value="">Não gerar parcelas (definir no Bling)</option></select>
+          <span class="hint">Com uma forma escolhida, as parcelas saem do prazo do pedido (ex.: 30/60/90).</span>
+        </div>
+        <div class="field">
+          <label for="idLoja">ID da loja / canal de venda no Bling (opcional)</label>
+          <input type="text" id="idLoja" autocomplete="off" inputmode="numeric">
+          <span class="hint">Deixe vazio para usar o padrão da conta.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Produtos vindos do Bling</h2>
+      <div class="switch-row">
+        <div class="txt">
+          <div class="t">Atualizar preço de venda ao importar</div>
+          <div class="d">O preço do cadastro do Bling substitui o preço de venda do produto no SysRepWeb.</div>
+        </div>
+        <label class="sw"><input type="checkbox" id="atualizarPrecos"><span></span></label>
+      </div>
+      <div class="switch-row">
+        <div class="txt">
+          <div class="t">Trazer o saldo de estoque</div>
+          <div class="d">Grava o saldo do Bling no estoque atual do produto. Deixe desligado se o estoque é controlado no SysRepWeb.</div>
+        </div>
+        <label class="sw"><input type="checkbox" id="importarEstoque"><span></span></label>
+      </div>
+      <div class="field" style="margin-top:10px;max-width:420px">
+        <label for="fornPadrao">Fornecedor dos produtos novos</label>
+        <select id="fornPadrao"><option value="">Nenhum</option></select>
+        <span class="hint">O pedido no SysRepWeb é por fornecedor: os produtos criados pela importação ficam neste fornecedor.</span>
+      </div>
+    </div>
+    <div class="actions" style="margin-top:0">
+      <button class="btn btn-primary" id="btnSalvarRegras">Salvar regras</button>
+    </div>
+  </section>
+
+  <!-- ─── PEDIDOS ─── -->
+  <section class="tab-panel" id="tab-pedidos">
+    <div class="kpis">
+      <div class="kpi"><div class="l">Pedidos no período</div><div class="v" id="kTotal">—</div></div>
+      <div class="kpi"><div class="l">Enviados ao Bling</div><div class="v" id="kEnv">—</div></div>
+      <div class="kpi"><div class="l">Pendentes</div><div class="v" id="kPend">—</div></div>
+      <div class="kpi"><div class="l">Com NF-e</div><div class="v" id="kNfe">—</div></div>
+    </div>
+    <div class="bl-filtros">
+      <select id="fFiltro">
+        <option value="todos">Todos</option>
+        <option value="pendentes">Não enviados</option>
+        <option value="erros">Com erro</option>
+        <option value="enviados">Enviados</option>
+      </select>
+      <select id="fDias">
+        <option value="7">Últimos 7 dias</option>
+        <option value="30" selected>Últimos 30 dias</option>
+        <option value="90">Últimos 90 dias</option>
+      </select>
+      <input type="text" id="fBusca" placeholder="Nº do pedido ou cliente" autocomplete="off">
+      <button class="btn" id="btnAtualizarLista">Atualizar</button>
+      <button class="btn btn-bling" id="btnEnviarSel" disabled>Enviar selecionados</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th style="width:28px"><input type="checkbox" id="selTodos" aria-label="Selecionar todos"></th>
+          <th>Pedido</th><th>Data</th><th>Cliente</th><th>Vendedor</th><th style="text-align:right">Total</th>
+          <th>Bling</th><th>NF-e</th><th style="text-align:right">Ações</th>
+        </tr></thead>
+        <tbody id="tbPedidos"><tr><td colspan="9" class="vazio">Carregando…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ─── IMPORTAR ─── -->
+  <section class="tab-panel" id="tab-importar">
+    <div class="card">
+      <h2>Produtos e preços</h2>
+      <p class="sub">Lê os produtos <b>ativos</b> do Bling. Quem já existe no SysRepWeb com o mesmo código (código interno = código/SKU do Bling) é atualizado; os demais são criados. Pode rodar sempre que mudar preço no Bling.</p>
+      <button class="btn btn-bling" id="btnImpProd">Importar produtos</button>
+    </div>
+    <div class="card">
+      <h2>Base inicial de clientes</h2>
+      <p class="sub">Traz os contatos do Bling que ainda não existem aqui (comparação pelo CPF/CNPJ). Clientes que já existem só são vinculados, sem alterar nada. Use uma vez, na implantação.</p>
+      <button class="btn" id="btnImpCli">Importar clientes</button>
+    </div>
+    <div class="card" id="jobCard" style="display:none">
+      <h2 id="jobTitulo">Importação</h2>
+      <div class="prog indet" id="jobProg"><div></div></div>
+      <div class="hint" id="jobMsg"></div>
+      <div class="job-num" id="jobNum" style="margin-top:8px"></div>
+      <div class="job-err" id="jobErr"></div>
+    </div>
+  </section>
+
+  <!-- ─── HISTÓRICO ─── -->
+  <section class="tab-panel" id="tab-historico">
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <h2 style="flex:1">Últimas operações</h2>
+        <button class="btn btn-sm" id="btnLog">Atualizar</button>
+      </div>
+      <div id="logList"><div class="vazio">Carregando…</div></div>
+    </div>
+  </section>
+</div>
+
+<div class="drawer-bg" id="drawerBg"></div>
+<aside class="drawer" id="drawer" aria-label="Prévia do envio">
+  <div class="drawer-head"><h3 id="drawerTit">Prévia</h3><button class="btn btn-sm" id="drawerFechar">Fechar</button></div>
+  <div class="drawer-body" id="drawerBody"></div>
+</aside>
+<div id="toast"></div>
+
+<script src="/assets/confirm-dialog.js"></script>
+<script>
+(function () {
+  const API = '/api/bling';
+  const $ = (id) => document.getElementById(id);
+  let CFG = {};
+  let jobTimer = null;
+
+  function token() { return sessionStorage.getItem('token') || localStorage.getItem('token') || ''; }
+  async function api(method, path, body) {
+    const h = { Authorization: 'Bearer ' + token() };
+    if (body !== undefined) h['Content-Type'] = 'application/json';
+    const r = await fetch(API + path, { method, headers: h, body: body !== undefined ? JSON.stringify(body) : undefined, credentials: 'same-origin' });
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 401) { toast('Sessão expirada — entre de novo no sistema.', true); throw new Error('Sessão expirada'); }
+    if (!r.ok || j.ok === false) throw new Error(j.error || ('Erro ' + r.status));
+    return j;
+  }
+  function toast(msg, err) {
+    const d = document.createElement('div');
+    d.className = 'toast' + (err ? ' err' : '');
+    d.textContent = msg;
+    $('toast').appendChild(d);
+    setTimeout(() => d.remove(), err ? 7000 : 3500);
+  }
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const brl = (v) => (Number(v) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const dataBR = (v) => { if (!v) return ''; const m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}/${m[1]}` : ''; };
+  const dataHoraBR = (v) => { if (!v) return ''; const d = new Date(v); return isNaN(d) ? '' : d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }); };
+  async function comBotao(btn, fn) {
+    const t = btn.textContent; btn.disabled = true; btn.textContent = 'Aguarde…';
+    try { return await fn(); } finally { btn.disabled = false; btn.textContent = t; }
+  }
+
+  // ── Abas
+  document.querySelectorAll('.tab').forEach((b) => b.addEventListener('click', () => abrirAba(b.dataset.tab)));
+  function abrirAba(nome) {
+    document.querySelectorAll('.tab').forEach((x) => x.classList.toggle('active', x.dataset.tab === nome));
+    document.querySelectorAll('.tab-panel').forEach((x) => x.classList.toggle('active', x.id === 'tab-' + nome));
+    try { localStorage.setItem('bling_aba', nome); } catch (_) {}
+    if (nome === 'pedidos') carregarPedidos();
+    if (nome === 'historico') carregarLog();
+    if (nome === 'importar') verJob();
+    if (nome === 'regras') carregarFormas();
+  }
+
+  // ── Config
+  function pintarConfig() {
+    const c = CFG;
+    $('pill').className = 'status-pill ' + (c.conectado ? 'st-on' : 'st-off');
+    $('pillTxt').textContent = c.conectado ? ('Conectado' + (c.conta_nome ? ' · ' + c.conta_nome : '')) : 'Não conectado';
+    $('clientId').value = c.client_id || '';
+    $('clientSecret').value = '';
+    $('clientSecret').placeholder = c.client_secret_configurado ? '•••••••• (salvo — preencha só para trocar)' : '';
+    $('secretHint').textContent = c.client_secret_configurado ? 'O secret fica guardado no servidor e não é exibido.' : '';
+    $('contaInfo').innerHTML = c.conectado
+      ? `Conectado${c.conta_nome ? ' à conta <b>' + esc(c.conta_nome) + '</b>' : ''}${c.conta_cnpj ? ' (' + esc(c.conta_cnpj) + ')' : ''}${c.conectado_em ? ' desde ' + esc(dataHoraBR(c.conectado_em)) : ''}.`
+      : 'Depois de salvar, clique em <b>Conectar ao Bling</b> e autorize na janela que abrir.';
+    $('btnDesconectar').style.display = c.conectado ? '' : 'none';
+    $('btnTestar').style.display = c.conectado ? '' : 'none';
+    $('ultimoErro').style.display = c.ultimo_erro ? '' : 'none';
+    $('ultimoErro').textContent = c.ultimo_erro || '';
+
+    $('envioAuto').checked = !!c.envio_auto;
+    $('envioDesde').value = c.envio_auto_desde ? String(c.envio_auto_desde).slice(0, 10) : '';
+    $('gerarNfe').checked = !!c.gerar_nfe_auto;
+    $('enviarSefaz').checked = !!c.enviar_nfe_sefaz;
+    $('idLoja').value = c.id_loja || '';
+    $('atualizarPrecos').checked = !!c.atualizar_precos;
+    $('importarEstoque').checked = !!c.importar_estoque;
+    if (c.fornecedor_padrao) $('fornPadrao').value = String(c.fornecedor_padrao);
+    if (c.id_forma_pagamento) garantirOpcao($('formaPagto'), c.id_forma_pagamento, 'Forma ' + c.id_forma_pagamento);
+  }
+  function garantirOpcao(sel, val, rotulo) {
+    val = String(val);
+    if (![...sel.options].some((o) => o.value === val)) sel.add(new Option(rotulo, val));
+    sel.value = val;
+  }
+  async function carregarConfig() {
+    try { CFG = (await api('GET', '/config')).config; pintarConfig(); }
+    catch (e) { toast(e.message, true); }
+  }
+  let formasCarregadas = false;
+  async function carregarFormas() {
+    if (formasCarregadas || !CFG.conectado) return;
+    try {
+      const r = await api('GET', '/formas-pagamento');
+      const sel = $('formaPagto'); const atual = String(CFG.id_forma_pagamento || '');
+      sel.length = 1;
+      r.formas.forEach((f) => sel.add(new Option(f.descricao, String(f.id))));
+      if (atual) garantirOpcao(sel, atual, 'Forma ' + atual);
+      formasCarregadas = true;
+    } catch (e) { toast('Formas de pagamento do Bling: ' + e.message, true); }
+  }
+  async function carregarFornecedores() {
+    try {
+      const r = await fetch('/api/lookups/fornecedores', { headers: { Authorization: 'Bearer ' + token() } });
+      const lista = await r.json().catch(() => []);
+      const sel = $('fornPadrao');
+      (Array.isArray(lista) ? lista : []).forEach((f) => sel.add(new Option(f.nome, String(f.id))));
+      if (CFG.fornecedor_padrao) sel.value = String(CFG.fornecedor_padrao);
+    } catch (_) {}
+  }
+
+  $('redirectUri').value = location.origin + '/api/bling/callback';
+  $('btnCopiar').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText($('redirectUri').value); toast('Link copiado'); }
+    catch (_) { $('redirectUri').select(); toast('Selecione e copie com Ctrl+C', true); }
+  });
+
+  $('btnSalvarCred').addEventListener('click', (ev) => comBotao(ev.currentTarget, async () => {
+    const body = { client_id: $('clientId').value.trim() };
+    if ($('clientSecret').value.trim()) body.client_secret = $('clientSecret').value.trim();
+    if (!body.client_id) return toast('Informe o Client ID', true);
+    if (!body.client_secret && !CFG.client_secret_configurado) return toast('Informe o Client Secret', true);
+    if (CFG.conectado && body.client_id !== CFG.client_id) {
+      const ok = await SysRepConfirm.ask({ titulo: 'Trocar aplicativo', mensagem: 'Com outro Client ID a conexão atual é removida e será preciso conectar de novo. Continuar?' });
+      if (!ok) return;
+    }
+    try { CFG = (await api('PUT', '/config', body)).config; pintarConfig(); toast('Credenciais salvas'); }
+    catch (e) { toast(e.message, true); }
+  }));
+
+  $('btnConectar').addEventListener('click', (ev) => comBotao(ev.currentTarget, async () => {
+    if (!CFG.client_id || !CFG.client_secret_configurado) return toast('Salve o Client ID e o Client Secret primeiro', true);
+    try {
+      const { url } = await api('POST', '/autorizar');
+      const w = window.open(url, 'bling_oauth', 'width=620,height=760');
+      if (!w) { location.href = url; return; }
+      toast('Autorize o acesso na janela do Bling');
+      const t = setInterval(async () => { if (w.closed) { clearInterval(t); await carregarConfig(); } }, 1200);
+    } catch (e) { toast(e.message, true); }
+  }));
+  window.addEventListener('message', async (ev) => {
+    if (ev.origin !== location.origin || !ev.data || !ev.data.bling) return;
+    await carregarConfig();
+    if (ev.data.bling === 'ok') { toast('Bling conectado'); formasCarregadas = false; }
+    else toast('Não foi possível conectar — veja o Histórico', true);
+  });
+
+  $('btnTestar').addEventListener('click', (ev) => comBotao(ev.currentTarget, async () => {
+    try { const r = await api('POST', '/testar'); toast('Conexão OK' + (r.conta?.nome ? ' — ' + r.conta.nome : '')); await carregarConfig(); }
+    catch (e) { toast(e.message, true); carregarConfig(); }
+  }));
+
+  $('btnDesconectar').addEventListener('click', async (ev) => {
+    const ok = await SysRepConfirm.ask({ titulo: 'Desconectar do Bling', mensagem: 'O envio automático será desligado. Os vínculos de pedidos, clientes e produtos continuam guardados. Desconectar?' });
+    if (!ok) return;
+    comBotao(ev.currentTarget, async () => {
+      try { await api('POST', '/desconectar'); await carregarConfig(); toast('Desconectado'); }
+      catch (e) { toast(e.message, true); }
+    });
+  });
+
+  $('enviarSefaz').addEventListener('change', async (ev) => {
+    if (!ev.target.checked) return;
+    if (!$('gerarNfe').checked) { ev.target.checked = false; return toast('Ligue antes "Gerar a NF-e no Bling"', true); }
+    const ok = await SysRepConfirm.ask({ titulo: 'Transmitir NF-e automaticamente', mensagem: 'Cada pedido enviado terá a nota fiscal autorizada na SEFAZ sem conferência. Confirma?' });
+    if (!ok) ev.target.checked = false;
+  });
+  $('gerarNfe').addEventListener('change', (ev) => { if (!ev.target.checked) $('enviarSefaz').checked = false; });
+
+  $('btnSalvarRegras').addEventListener('click', (ev) => comBotao(ev.currentTarget, async () => {
+    const body = {
+      envio_auto: $('envioAuto').checked,
+      envio_auto_desde: $('envioDesde').value || null,
+      gerar_nfe_auto: $('gerarNfe').checked,
+      enviar_nfe_sefaz: $('enviarSefaz').checked,
+      id_loja: $('idLoja').value.trim(),
+      id_forma_pagamento: $('formaPagto').value,
+      atualizar_precos: $('atualizarPrecos').checked,
+      importar_estoque: $('importarEstoque').checked,
+      fornecedor_padrao: $('fornPadrao').value,
+    };
+    try { CFG = (await api('PUT', '/config', body)).config; pintarConfig(); toast('Regras salvas'); }
+    catch (e) { toast(e.message, true); }
+  }));
+
+  // ── Pedidos
+  let PEDIDOS = [];
+  async function carregarPedidos() {
+    const qs = new URLSearchParams({ filtro: $('fFiltro').value, dias: $('fDias').value, q: $('fBusca').value.trim() });
+    $('tbPedidos').innerHTML = '<tr><td colspan="9" class="vazio">Carregando…</td></tr>';
+    try {
+      const r = await api('GET', '/pedidos?' + qs);
+      PEDIDOS = r.pedidos;
+      $('kTotal').textContent = r.totais.total;
+      $('kEnv').textContent = r.totais.enviados;
+      $('kPend').textContent = r.totais.total - r.totais.enviados;
+      $('kNfe').textContent = r.totais.com_nfe;
+      pintarPedidos();
+    } catch (e) {
+      $('tbPedidos').innerHTML = `<tr><td colspan="9" class="vazio">${esc(e.message)}</td></tr>`;
+    }
+  }
+  function badgeNfe(p) {
+    if (!p.id_nfe) return '<span class="badge b-muted">—</span>';
+    const s = p.situacao_nfe || 'Gerada';
+    const cls = /Autorizada|DANFE/.test(s) ? 'b-ok' : /Rejeitada|Denegada|Cancelada|Bloqueada/.test(s) ? 'b-err' : 'b-warn';
+    return `<span class="badge ${cls}">${esc(s)}${p.numero_nfe ? ' · nº ' + esc(p.numero_nfe) : ''}</span>`;
+  }
+  function pintarPedidos() {
+    if (!PEDIDOS.length) { $('tbPedidos').innerHTML = '<tr><td colspan="9" class="vazio">Nenhum pedido neste filtro.</td></tr>'; atualizarSel(); return; }
+    $('tbPedidos').innerHTML = PEDIDOS.map((p) => {
+      const env = !!p.id_bling;
+      const bling = env
+        ? `<span class="badge b-ok">Enviado · ${esc(p.id_bling)}</span>`
+        : (p.ultimo_erro ? '<span class="badge b-err">Erro</span>' : '<span class="badge b-muted">Não enviado</span>');
+      const err = !env && p.ultimo_erro ? `<div class="err-txt">${esc(p.ultimo_erro)}</div>` : '';
+      const acoes = env
+        ? `${p.id_nfe ? '' : `<button class="btn btn-sm" data-a="nfe" data-id="${p.id}">Gerar NF-e</button>`}
+           <button class="btn btn-sm" data-a="sit" data-id="${p.id}">Atualizar</button>`
+        : `<button class="btn btn-sm" data-a="previa" data-id="${p.id}">Prévia</button>
+           <button class="btn btn-sm btn-bling" data-a="enviar" data-id="${p.id}">Enviar</button>`;
+      return `<tr>
+        <td>${env ? '' : `<input type="checkbox" class="sel" value="${p.id}" aria-label="Selecionar pedido ${esc(p.numero)}">`}</td>
+        <td><b>${esc(p.numero || p.id)}</b></td>
+        <td>${esc(dataBR(p.data_abertura))}</td>
+        <td>${esc(p.nome_cliente)}${err}</td>
+        <td>${esc(p.nome_vendedor || '')}</td>
+        <td class="num">${brl(p.vlrtotalpedido)}</td>
+        <td>${bling}</td>
+        <td>${badgeNfe(p)}</td>
+        <td class="acoes">${acoes}</td>
+      </tr>`;
+    }).join('');
+    $('selTodos').checked = false;
+    atualizarSel();
+  }
+  function selecionados() { return [...document.querySelectorAll('.sel:checked')].map((x) => Number(x.value)); }
+  function atualizarSel() { const n = selecionados().length; $('btnEnviarSel').disabled = !n; $('btnEnviarSel').textContent = n ? `Enviar selecionados (${n})` : 'Enviar selecionados'; }
+  $('tbPedidos').addEventListener('change', (ev) => { if (ev.target.classList.contains('sel')) atualizarSel(); });
+  $('selTodos').addEventListener('change', (ev) => { document.querySelectorAll('.sel').forEach((x) => { x.checked = ev.target.checked; }); atualizarSel(); });
+  $('fFiltro').addEventListener('change', carregarPedidos);
+  $('fDias').addEventListener('change', carregarPedidos);
+  $('btnAtualizarLista').addEventListener('click', carregarPedidos);
+  let buscaT; $('fBusca').addEventListener('input', () => { clearTimeout(buscaT); buscaT = setTimeout(carregarPedidos, 400); });
+
+  $('tbPedidos').addEventListener('click', async (ev) => {
+    const b = ev.target.closest('button[data-a]');
+    if (!b) return;
+    const id = b.dataset.id; const a = b.dataset.a;
+    if (a === 'previa') return previa(id);
+    if (a === 'nfe') {
+      const msg = CFG.enviar_nfe_sefaz ? 'A nota será gerada e transmitida à SEFAZ. Confirma?' : 'A nota será criada no Bling (em digitação, sem transmitir). Confirma?';
+      if (!(await SysRepConfirm.ask({ titulo: 'Gerar NF-e', mensagem: msg }))) return;
+    }
+    comBotao(b, async () => {
+      try {
+        if (a === 'enviar') { const r = await api('POST', `/pedidos/${id}/enviar`); toast(r.jaEnviado ? 'Pedido já estava no Bling' : `Pedido enviado ao Bling (${r.id})` + (r.nfe?.erro ? ' — NF-e: ' + r.nfe.erro : '')); }
+        if (a === 'nfe') { const r = await api('POST', `/pedidos/${id}/nfe`); toast(`NF-e ${r.idNfe} ${r.transmitida ? 'transmitida' : 'gerada no Bling'}`); }
+        if (a === 'sit') { const r = await api('POST', `/pedidos/${id}/situacao`); toast(r.situacao?.situacao_nfe ? 'NF-e: ' + r.situacao.situacao_nfe : 'Situação atualizada'); }
+      } catch (e) { toast(e.message, true); }
+      await carregarPedidos();
+    });
+  });
+
+  $('btnEnviarSel').addEventListener('click', (ev) => {
+    const ids = selecionados();
+    if (!ids.length) return;
+    comBotao(ev.currentTarget, async () => {
+      try {
+        const r = await api('POST', '/pedidos/enviar-lote', { ids });
+        toast(`${r.enviados} enviado(s)` + (r.falhas ? `, ${r.falhas} com erro` : ''), r.falhas > 0);
+      } catch (e) { toast(e.message, true); }
+      await carregarPedidos();
+    });
+  });
+
+  async function previa(id) {
+    abrirDrawer('Prévia do pedido ' + id, '<div class="vazio">Montando…</div>');
+    try {
+      const r = await api('GET', `/pedidos/${id}/previa`);
+      $('drawerBody').innerHTML =
+        '<div class="alert alert-info">É exatamente isto que será enviado. Nada foi enviado ainda.</div>' +
+        '<h4 style="font-size:12px;margin:4px 0 6px;color:var(--text2)">CLIENTE (contato)</h4><pre>' + esc(JSON.stringify(r.contato, null, 2)) + '</pre>' +
+        '<h4 style="font-size:12px;margin:14px 0 6px;color:var(--text2)">PEDIDO DE VENDA</h4><pre>' + esc(JSON.stringify(r.pedido, null, 2)) + '</pre>';
+    } catch (e) { $('drawerBody').innerHTML = `<div class="alert alert-err">${esc(e.message)}</div>`; }
+  }
+  function abrirDrawer(tit, html) { $('drawerTit').textContent = tit; $('drawerBody').innerHTML = html; $('drawer').classList.add('open'); $('drawerBg').classList.add('open'); }
+  function fecharDrawer() { $('drawer').classList.remove('open'); $('drawerBg').classList.remove('open'); }
+  $('drawerFechar').addEventListener('click', fecharDrawer);
+  $('drawerBg').addEventListener('click', fecharDrawer);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') fecharDrawer(); });
+
+  // ── Importações
+  async function iniciarImportacao(tipo, btn) {
+    const rot = tipo === 'produtos' ? 'produtos' : 'clientes';
+    if (!(await SysRepConfirm.ask({ titulo: 'Importar ' + rot, mensagem: `Ler os ${rot} do Bling agora? Pode levar alguns minutos (limite de 3 consultas por segundo do Bling).` }))) return;
+    comBotao(btn, async () => {
+      try { await api('POST', '/importar/' + tipo); verJob(); }
+      catch (e) { toast(e.message, true); }
+    });
+  }
+  $('btnImpProd').addEventListener('click', (ev) => iniciarImportacao('produtos', ev.currentTarget));
+  $('btnImpCli').addEventListener('click', (ev) => iniciarImportacao('clientes', ev.currentTarget));
+  async function verJob() {
+    clearTimeout(jobTimer);
+    try {
+      const { job } = await api('GET', '/importacao');
+      if (!job) { $('jobCard').style.display = 'none'; return; }
+      $('jobCard').style.display = '';
+      $('jobTitulo').textContent = 'Importação de ' + job.tipo + (job.fim ? ' — ' + (job.erro ? 'interrompida' : 'concluída') : ' — em andamento');
+      $('jobProg').classList.toggle('indet', !job.fim);
+      $('jobProg').firstElementChild.style.width = job.fim ? '100%' : '';
+      $('jobMsg').textContent = job.mensagem || '';
+      $('jobNum').innerHTML = `<span>Lidos <b>${job.lidos}</b></span><span>Novos <b>${job.criados}</b></span><span>Atualizados <b>${job.atualizados}</b></span><span>Já existiam <b>${job.vinculados}</b></span><span>Ignorados <b>${job.ignorados}</b></span><span>Erros <b>${job.erros}</b></span>`;
+      $('jobErr').innerHTML = (job.ultimosErros || []).map(esc).join('<br>');
+      if (!job.fim) jobTimer = setTimeout(verJob, 2000);
+    } catch (e) { toast(e.message, true); }
+  }
+
+  // ── Histórico
+  const ACAO = { conectar: 'Conexão', desconectar: 'Desconexão', config: 'Configuração', criar: 'Cliente enviado', vincular: 'Cliente vinculado',
+    enviar: 'Pedido enviado', 'enviar-auto': 'Pedido (automático)', 'gerar-nfe': 'NF-e gerada', 'enviar-sefaz': 'NF-e transmitida', importar: 'Importação' };
+  async function carregarLog() {
+    try {
+      const { log } = await api('GET', '/log?limite=80');
+      $('logList').innerHTML = log.length ? log.map((l) => `<div class="log-item">
+        <span class="when">${esc(dataHoraBR(l.criado_em))}</span>
+        <span class="badge ${l.ok === 'S' ? 'b-ok' : 'b-err'}" style="align-self:flex-start">${esc(ACAO[l.acao] || l.acao || '')}</span>
+        <span class="msg">${l.tipo === 'pedido' && l.id_local ? 'Pedido id ' + esc(l.id_local) + ' — ' : ''}${esc(l.mensagem)}${l.usuario ? ' <span class="hint">(' + esc(l.usuario) + ')</span>' : ''}</span>
+      </div>`).join('') : '<div class="vazio">Nenhuma operação ainda.</div>';
+    } catch (e) { $('logList').innerHTML = `<div class="vazio">${esc(e.message)}</div>`; }
+  }
+  $('btnLog').addEventListener('click', carregarLog);
+
+  // ── Início
+  (async () => {
+    await carregarConfig();
+    carregarFornecedores();
+    let aba = 'conexao';
+    try { aba = localStorage.getItem('bling_aba') || (CFG.conectado ? 'pedidos' : 'conexao'); } catch (_) {}
+    if (!CFG.conectado && aba !== 'conexao') aba = 'conexao';
+    abrirAba(aba);
+  })();
+})();
+</script>
+</body>
+</html>

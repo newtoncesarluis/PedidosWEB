@@ -11,6 +11,7 @@ function createZipArchive(opts = {}) {
   throw new Error('Módulo archiver incompatível — reinstale: npm i archiver');
 }
 const { getPool } = require('../config/database');
+const { resolveProdImagens, buildProdutoFotoSql, detectProdCols, detectProdImagensTb, fotoExisteNoDisco } = require('../config/produto-foto-resolve');
 const {
   PROMO_SELECT_COLS,
   tabelaPromocoesExiste,
@@ -57,6 +58,23 @@ const {
   obterGrupoReferencia,
   parseIdReferenciaBody,
 } = require('../config/produto-referencia');
+const {
+  listarGradesProduto,
+  sincronizarGradesProduto,
+  ensureProdutoTipogradeTable,
+} = require('../config/produto-grades');
+
+/** grades_extras no body: array de ids (opcional). Se ausente, não mexe na tabela N:N além do espelho do padrão. */
+async function syncGradesFromReq(pool, idProduto, reqBody, tipogradeSalvo) {
+  const padrao = parseInt(tipogradeSalvo, 10) || 0;
+  if (Object.prototype.hasOwnProperty.call(reqBody || {}, 'grades_extras')) {
+    const raw = reqBody.grades_extras;
+    const extras = Array.isArray(raw) ? raw : String(raw || '').split(',').map((x) => x.trim()).filter(Boolean);
+    await sincronizarGradesProduto(pool, idProduto, { tipogradePadrao: padrao, extrasIds: extras });
+  } else if (padrao > 0) {
+    await sincronizarGradesProduto(pool, idProduto, { tipogradePadrao: padrao });
+  }
+}
 
 function _parseCodCliente(v) {
   return parseOptInt(v);
@@ -155,6 +173,38 @@ async function getColunasReais(pool) {
   return listProdutoColunas(pool);
 }
 
+/** Campos extras da listagem (cadastro) — só entram no SELECT se a coluna existir. */
+const LISTA_CAMPOS_EXTRA = [
+  'marca', 'id_familiaproduto', 'segmento', 'subfamilia', 'linha_produto', 'campo_extra',
+  'cod_interno', 'cor1', 'cor2', 'kit', 'agrupa_cores',
+  'vlr_custo', 'vlr_despesas', 'vlr_custofinal', 'margem', 'precoa', 'precob', 'precoc',
+  'precopromo', 'desconto', 'comissao', 'margem_liquida', 'cod_tabelapreco',
+  'estoque_maximo', 'estoque_seguranca', 'precopeso', 'embalagemmaster',
+  'multiplo_venda', 'qtd_minima_pedido', 'desconto_maximo', 'bloquear_desconto',
+  'id_endereco', 'ncm', 'cest', 'origem', 'icms', 'ipi', 'vlr_pis', 'vlr_confins',
+  'vlr_st', 'peso_liquido', 'cod_fornecedorcusto', 'tipograde', 'tipoprodutograde',
+  'solado', 'obs', 'obs2',
+];
+
+const _listaJoinCache = new Map();
+async function detectListaJoins(pool) {
+  const [[r]] = await pool.query('SELECT DATABASE() AS db');
+  const key = String(r?.db || 'default');
+  if (_listaJoinCache.has(key)) return _listaJoinCache.get(key);
+  const has = async (name) => {
+    const [rows] = await pool.query('SHOW TABLES LIKE ?', [name]);
+    return rows.length > 0;
+  };
+  const out = {
+    familia: await has('familia_produtos'),
+    local: await has('local_armazenamento'),
+    subfam: await has('subfamilia_produto'),
+    grade: await has('tipograde'),
+  };
+  _listaJoinCache.set(key, out);
+  return out;
+}
+
 async function ensureColunasExtras(pool) {
   await ensureProdutoColunas(pool);
   await ensureProdutoReferenciaCol(pool);
@@ -191,7 +241,7 @@ function filtrarBody(body, colunas) {
         return colsLower.includes(k.toLowerCase()) && !skip.map(s=>s.toLowerCase()).includes(k.toLowerCase());
       })
       .map(([k, v]) => {
-        if (v === '' && CAMPOS_DECIMAIS.includes(k.toLowerCase())) return [k, null];
+        if (v === '' && (CAMPOS_DECIMAIS.includes(k.toLowerCase()) || k.toLowerCase() === 'foto_principal')) return [k, null];
         return [k, v];
       })
   );
@@ -265,27 +315,85 @@ router.get('/', async (req, res) => {
 
     const wc = where.join(' AND ');
 
+    const temIdRef = cols.some((c) => String(c).toLowerCase() === 'id_referencia');
+    const temAgrupa = cols.some((c) => String(c).toLowerCase() === 'agrupa_cores');
+    const prodCols = await detectProdCols(pool, tb);
+    const hasImgTb = await detectProdImagensTb(pool);
+    const maeWhere = `(mae.excluido='N' OR mae.excluido IS NULL OR mae.excluido='')`;
+
     const selectExtras = [
       temSegmento   ? 'p.segmento'    : null,
-      temFotoPrinc  ? 'p.foto_principal' : null,
+      temFotoPrinc  ? buildProdutoFotoSql(tb, prodCols, hasImgTb, { maeWhere }) : null,
+      temIdRef      ? 'p.id_referencia' : null,
+      temAgrupa     ? 'p.agrupa_cores' : null,
     ].filter(Boolean).join(', ');
+    const temDispList = cols.some((c) => String(c).toLowerCase() === 'disponivel');
+    const temCor1List = cols.some((c) => String(c).toLowerCase() === 'cor1');
+    const qtdCoresSelect = temIdRef
+      ? `, ((SELECT COUNT(*) FROM ${tb} c WHERE c.id_referencia = p.ID AND (c.excluido='N' OR c.excluido IS NULL OR c.excluido=''))
+          + CASE
+              WHEN (p.id_referencia IS NULL OR p.id_referencia = 0)
+               AND ${temCor1List ? "TRIM(IFNULL(p.cor1,'')) <> ''" : '0'}
+               AND ${temDispList ? "IFNULL(p.disponivel,'S') <> 'N'" : '1'}
+              THEN 1 ELSE 0
+            END) AS qtd_cores`
+      : ', 0 AS qtd_cores';
 
     const joinForn = temFornPadrao
       ? `LEFT JOIN fornecedores f ON f.id = p.cod_fornecedorpadrao`
       : '';
     const nomeFabSelect = temFornPadrao ? ', f.nome AS nome_fabricante' : '';
 
+    const hasCol = (c) => cols.some((x) => String(x).toLowerCase() === c.toLowerCase());
+    const jaNoSelect = new Set(['kit', 'segmento', 'agrupa_cores']);
+    const extraColsSql = LISTA_CAMPOS_EXTRA
+      .filter((c) => hasCol(c) && !jaNoSelect.has(c))
+      .map((c) => `p.\`${c}\``)
+      .join(', ');
+
+    const joins = await detectListaJoins(pool);
+    let joinAux = '';
+    let selAux = '';
+    if (joins.familia && hasCol('id_familiaproduto')) {
+      joinAux += ' LEFT JOIN familia_produtos fam ON fam.id = p.id_familiaproduto';
+      selAux += ', fam.nome AS nome_familia';
+    }
+    if (joins.local && hasCol('id_endereco')) {
+      joinAux += ' LEFT JOIN local_armazenamento la ON la.id = p.id_endereco';
+      selAux += ', la.nome_local';
+    }
+    if (joins.subfam && hasCol('subfamilia')) {
+      joinAux += ' LEFT JOIN subfamilia_produto sf ON sf.codigo = p.subfamilia';
+      selAux += ', sf.descricao AS nome_subfamilia';
+    }
+    if (joins.grade && hasCol('tipograde')) {
+      joinAux += ' LEFT JOIN tipograde tg ON tg.id = p.tipograde';
+      selAux += ', tg.nome AS nome_grade';
+    }
+    const temFornCusto = hasCol('cod_fornecedorcusto');
+    if (temFornCusto) {
+      joinAux += ' LEFT JOIN fornecedores fc ON fc.id = p.cod_fornecedorcusto';
+      selAux += ', fc.nome AS nome_fornecedor_custo';
+    }
+
     const [rows] = await pool.query(
       `SELECT p.ID AS id, p.descricao, p.apelido, p.cod_barras, p.cod_fabricante,
               p.unidade, p.kilo_embalagem, p.vlr_venda, p.estoque_atual,
               p.estoque_minimo, p.situacao, p.disponivel, p.kit,
-              p.nome_grupo, p.dt_cadastro${nomeFabSelect}${selectExtras ? ', '+selectExtras : ''}
-       FROM ${tb} p ${joinForn}
+              p.nome_grupo, p.dt_cadastro${nomeFabSelect}${selectExtras ? ', '+selectExtras : ''}${qtdCoresSelect}${extraColsSql ? ', '+extraColsSql : ''}${selAux}
+       FROM ${tb} p ${joinForn}${joinAux}
        WHERE ${wc}
        ORDER BY p.descricao
        LIMIT ? OFFSET ?`,
       [...vals, parseInt(limit), parseInt(offset)]
     );
+
+    for (const p of rows) {
+      if (!p.id_referencia) continue;
+      if (p.foto_principal && fotoExisteNoDisco(p.foto_principal)) continue;
+      const imgs = await resolveProdImagens(pool, p.id);
+      if (imgs[0]?.url) p.foto_principal = imgs[0].url;
+    }
 
     const [[{total}]] = await pool.query(
       `SELECT COUNT(*) AS total FROM ${tb} p WHERE ${wc}`, vals
@@ -403,6 +511,10 @@ router.put('/config/lista', async (req, res) => {
       [id_usuario]
     );
     const cfg = { ...parseListaConfig(rows[0]?.config_json), ...req.body };
+    if (Array.isArray(req.body?.colunas)) {
+      cfg.colunas = req.body.colunas.map((c) => String(c || '').trim()).filter(Boolean).slice(0, 80);
+    }
+    if (typeof req.body?.exibir_fotos === 'boolean') cfg.exibir_fotos = req.body.exibir_fotos;
     const json = JSON.stringify(cfg);
     await pool.query(
       `INSERT INTO preferencias_grid (id_usuario, nome_grid, config_json, dt_alterado)
@@ -467,6 +579,13 @@ router.post('/manutencao/sync-imagens', async (_req, res) => {
 });
 
 // ─── GET /api/produtos/:id/imagens ───────────────────────────────────────────
+// Tenant (cwd) + pasta compartilhada do código: no DNS as fotos antigas ficam
+// em /root/pedidosweb/public/uploads enquanto o processo roda no client dir.
+const _prodImgDirs = [
+  path.join(process.cwd(), 'public', 'uploads', 'produtos'),
+  path.join(__dirname, '..', 'public', 'uploads', 'produtos'),
+];
+
 function _prodImgDiskPath(prodId, filename) {
   return path.join(_uploadsBase, String(prodId), filename);
 }
@@ -475,25 +594,275 @@ function _prodImgPublicUrl(prodId, filename) {
   return `/uploads/produtos/${prodId}/${filename}`;
 }
 
+function _codProdutoParams(prodId) {
+  const idStr = String(prodId);
+  const idNum = parseInt(prodId, 10);
+  if (Number.isFinite(idNum) && String(idNum) === idStr) return [idStr, idNum];
+  return [idStr];
+}
+
+function _fotoBasename(u) {
+  const s = String(u || '').trim();
+  if (!s) return '';
+  try {
+    if (/^https?:\/\//i.test(s)) return path.basename(new URL(s).pathname || '');
+  } catch (_) {}
+  return path.basename(s.split('?')[0].split('#')[0]);
+}
+
+function _fotoApontaPara(fp, filename, prodId) {
+  const fn = String(filename || '').trim();
+  const s = String(fp || '').trim();
+  if (!s) return false;
+  const fpB = _fotoBasename(s).toLowerCase();
+  if (fn && fpB && fpB === fn.toLowerCase()) return true;
+  if (fn && s.includes(`/uploads/produtos/${prodId}/${fn}`)) return true;
+  return false;
+}
+
+function _arquivoImagemExiste(prodId, filename) {
+  const fn = path.basename(String(filename || '').split('?')[0]);
+  if (!fn || fn === '.' || fn === '..') return false;
+  const seen = new Set();
+  for (const base of _prodImgDirs) {
+    const abs = path.resolve(path.join(base, String(prodId), fn));
+    if (seen.has(abs)) continue;
+    seen.add(abs);
+    if (fs.existsSync(abs)) return true;
+  }
+  return false;
+}
+
+function _apagarArquivoImagem(prodId, filename) {
+  const fn = path.basename(String(filename || '').split('?')[0]);
+  if (!fn || fn === '.' || fn === '..') return;
+  const seen = new Set();
+  for (const base of _prodImgDirs) {
+    const abs = path.resolve(path.join(base, String(prodId), fn));
+    if (seen.has(abs)) continue;
+    seen.add(abs);
+    try { fs.rmSync(abs, { force: true }); } catch (_) {}
+  }
+}
+
+async function _setFotoPrincipal(pool, tb, prodId, value) {
+  try {
+    await pool.query(
+      `UPDATE \`${tb}\` SET foto_principal=?, dt_atualizacao=NOW() WHERE ID=?`,
+      [value, prodId]
+    );
+  } catch (e) {
+    if (!String(e.message || '').includes('dt_atualizacao')) throw e;
+    await pool.query(
+      `UPDATE \`${tb}\` SET foto_principal=? WHERE ID=?`,
+      [value, prodId]
+    );
+  }
+}
+
+/** Lista a galeria do cadastro (IDs reais). Não mistura com foto do produto pai. */
+async function _listarImagensCadastro(pool, prodId) {
+  const tb = await getTabela(pool);
+  const idStr = String(prodId);
+  const codParams = _codProdutoParams(prodId);
+
+  const [rows] = await pool.query(
+    `SELECT id, filename, is_principal, ordem FROM produto_imagens
+     WHERE cod_produto IN (${codParams.map(() => '?').join(',')})
+     ORDER BY (is_principal = 1 OR is_principal = 'S') DESC, ordem, id`,
+    codParams
+  ).catch(() => [[]]);
+
+  const imgs = [];
+  const seen = new Set();
+  for (const r of rows) {
+    const fn = String(r.filename || '').trim();
+    if (!fn) continue;
+    const key = fn.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    imgs.push({
+      id: r.id,
+      filename: fn,
+      is_principal: r.is_principal,
+      ordem: imgs.length,
+      url: _prodImgPublicUrl(idStr, fn),
+      origem: 'galeria',
+      heredada: false,
+      arquivo_ok: _arquivoImagemExiste(idStr, fn),
+    });
+  }
+
+  // foto_principal própria (URL absoluta do DNS, relativa ou arquivo)
+  const [[prod]] = await pool.query(
+    `SELECT foto_principal FROM \`${tb}\` WHERE ID = ? LIMIT 1`,
+    [prodId]
+  ).catch(() => [[null]]);
+  const fp = String(prod?.foto_principal || '').trim();
+  if (fp) {
+    const base = _fotoBasename(fp);
+    const jaTem = base && seen.has(base.toLowerCase());
+    const urlNorm = fp.startsWith('http') || fp.startsWith('/') ? fp : `/${fp.replace(/^\/+/, '')}`;
+    const cobre = jaTem || imgs.some((i) => i.url === urlNorm || urlNorm.endsWith(`/${i.filename}`));
+    if (!cobre) {
+      imgs.unshift({
+        id: 'fp',
+        filename: base || 'foto',
+        is_principal: 1,
+        ordem: 0,
+        url: urlNorm,
+        origem: 'foto_principal',
+        heredada: false,
+        arquivo_ok: true,
+      });
+    }
+  }
+
+  // Sem foto própria: mostra a do pai só como referência (sem exclusão)
+  if (!imgs.length) {
+    const herdadas = await resolveProdImagens(pool, prodId);
+    for (const r of herdadas) {
+      if (!r.heredada && r.origem !== 'referencia') continue;
+      imgs.push({
+        id: r.id != null ? r.id : 'fp',
+        filename: _fotoBasename(r.url) || 'foto',
+        is_principal: r.is_principal,
+        ordem: imgs.length,
+        url: r.url,
+        origem: 'referencia',
+        heredada: true,
+        arquivo_ok: true,
+      });
+    }
+  }
+
+  return imgs;
+}
+
+async function _syncFotoPrincipalAposExclusao(pool, tb, prodId, removedFilename) {
+  const idStr = String(prodId);
+  const codParams = _codProdutoParams(prodId);
+  const [[prod]] = await pool.query(
+    `SELECT foto_principal FROM \`${tb}\` WHERE ID = ? LIMIT 1`,
+    [prodId]
+  ).catch(() => [[null]]);
+  const fp = String(prod?.foto_principal || '').trim();
+  const apontavaRemovida = !fp || _fotoApontaPara(fp, removedFilename, idStr);
+
+  const [[next]] = await pool.query(
+    `SELECT id, filename FROM produto_imagens
+     WHERE cod_produto IN (${codParams.map(() => '?').join(',')})
+       AND filename IS NOT NULL AND filename <> ''
+     ORDER BY (is_principal = 1 OR is_principal = 'S') DESC, ordem, id LIMIT 1`,
+    codParams
+  ).catch(() => [[null]]);
+
+  if (next?.filename) {
+    await pool.query(
+      `UPDATE produto_imagens SET is_principal = 0 WHERE cod_produto IN (${codParams.map(() => '?').join(',')})`,
+      codParams
+    ).catch(() => {});
+    await pool.query(`UPDATE produto_imagens SET is_principal = 1 WHERE id = ?`, [next.id]).catch(() => {});
+    if (apontavaRemovida) {
+      await _setFotoPrincipal(pool, tb, prodId, _prodImgPublicUrl(idStr, next.filename));
+    }
+    return;
+  }
+
+  await _setFotoPrincipal(pool, tb, prodId, null);
+}
+
+async function _limparFotoPrincipalProduto(pool, tb, prodId, filenameHint) {
+  const idStr = String(prodId);
+  const codParams = _codProdutoParams(prodId);
+  const [[prod]] = await pool.query(
+    `SELECT foto_principal FROM \`${tb}\` WHERE ID=? LIMIT 1`, [prodId]
+  ).catch(() => [[null]]);
+  const url = String(prod?.foto_principal || '').trim();
+  const fn = filenameHint || _fotoBasename(url);
+  if (fn) {
+    _apagarArquivoImagem(idStr, fn);
+    const [orfaos] = await pool.query(
+      `SELECT id, filename FROM produto_imagens
+       WHERE cod_produto IN (${codParams.map(() => '?').join(',')}) AND filename = ?`,
+      [...codParams, fn]
+    ).catch(() => [[]]);
+    for (const o of orfaos) {
+      _apagarArquivoImagem(idStr, o.filename);
+      await pool.query(`DELETE FROM produto_imagens WHERE id = ?`, [o.id]);
+    }
+  } else if (url) {
+    const base = _fotoBasename(url);
+    if (base) _apagarArquivoImagem(idStr, base);
+  }
+  await _setFotoPrincipal(pool, tb, prodId, null);
+}
+
+async function _removerImagemProduto(req, res) {
+  try {
+    const pool = getPool();
+    const tb = await getTabela(pool);
+    const id = req.params.id;
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const imgId = String(req.params.imgId || body.id || body.imgId || '').trim();
+    const filenameHint = String(req.query.filename || body.filename || _fotoBasename(body.url) || '').trim();
+    const idStr = String(id);
+    const codParams = _codProdutoParams(id);
+    const inSql = `cod_produto IN (${codParams.map(() => '?').join(',')})`;
+
+    const [all] = await pool.query(
+      `SELECT * FROM produto_imagens WHERE ${inSql} ORDER BY (is_principal = 1 OR is_principal = 'S') DESC, ordem, id`,
+      codParams
+    ).catch(() => [[]]);
+
+    async function findImg() {
+      if (!imgId || imgId === 'fp') return null;
+      let found = all.find((r) => String(r.id) === imgId);
+      if (found) return found;
+      if (filenameHint) {
+        found = all.find((r) => String(r.filename || '').toLowerCase() === filenameHint.toLowerCase());
+        if (found) return found;
+      }
+      if (all.length === 1) return all[0];
+      const idx = parseInt(imgId, 10);
+      if (Number.isFinite(idx) && idx >= 1 && idx <= all.length) return all[idx - 1];
+      return null;
+    }
+
+    // Sem linha na galeria (foto só no campo / URL do DNS) ou id explícito "fp"
+    if (imgId === 'fp' || imgId === '' || (!all.length && imgId)) {
+      await _limparFotoPrincipalProduto(pool, tb, id, filenameHint);
+      return res.json({ ok: true });
+    }
+
+    const img = await findImg();
+    if (!img) {
+      if (!all.length) {
+        await _limparFotoPrincipalProduto(pool, tb, id, filenameHint);
+        return res.json({ ok: true });
+      }
+      return res.status(404).json({ error: 'Imagem não encontrada' });
+    }
+
+    _apagarArquivoImagem(idStr, img.filename);
+    await pool.query(`DELETE FROM produto_imagens WHERE id=?`, [img.id]);
+    await _syncFotoPrincipalAposExclusao(pool, tb, id, img.filename);
+    return res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
 router.get('/:id/imagens', async (req, res) => {
   try {
     const pool = getPool();
-    const prodId = String(req.params.id);
-    const [rows] = await pool.query(
-      `SELECT id, filename, is_principal, ordem, dt_upload
-       FROM produto_imagens WHERE cod_produto=?
-       ORDER BY is_principal DESC, ordem, id`,
-      [prodId]
-    );
-    const imgs = rows
-      .filter(r => r.filename && fs.existsSync(_prodImgDiskPath(prodId, r.filename)))
-      .map(r => ({
-        ...r,
-        url: _prodImgPublicUrl(prodId, r.filename)
-      }));
+    const imgs = await _listarImagensCadastro(pool, req.params.id);
     res.json(imgs);
-  } catch(err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
+// POST (não DELETE): no DNS/nginx o DELETE às vezes não chega; body leva id+arquivo
+router.post('/:id/imagens/remover', _removerImagemProduto);
 
 // ─── POST /api/produtos/:id/imagens (upload, máx 8) ──────────────────────────
 router.post('/:id/imagens', _upload.array('files', 8), async (req, res) => {
@@ -530,10 +899,7 @@ router.post('/:id/imagens', _upload.array('files', 8), async (req, res) => {
         [id, file.filename, isPrincipal]
       );
       if (isPrincipal) {
-        await pool.query(
-          `UPDATE ${tb} SET foto_principal=?, dt_atualizacao=NOW() WHERE ID=?`,
-          [`/uploads/produtos/${id}/${file.filename}`, id]
-        );
+        await _setFotoPrincipal(pool, tb, id, `/uploads/produtos/${id}/${file.filename}`);
         setPrincipalNext = false;
       }
     }
@@ -549,57 +915,26 @@ router.put('/:id/imagens/:imgId/principal', async (req, res) => {
     const tb   = await getTabela(pool);
     const { id, imgId } = req.params;
 
-    const [[img]] = await pool.query(
-      `SELECT * FROM produto_imagens WHERE id=? AND cod_produto=?`, [imgId, id]
-    );
-    if (!img) return res.status(404).json({ error: 'Imagem não encontrada' });
-
-    await pool.query(`UPDATE produto_imagens SET is_principal=0 WHERE cod_produto=?`, [id]);
-    await pool.query(`UPDATE produto_imagens SET is_principal=1 WHERE id=?`, [imgId]);
-    await pool.query(
-      `UPDATE ${tb} SET foto_principal=?, dt_atualizacao=NOW() WHERE ID=?`,
-      [`/uploads/produtos/${id}/${img.filename}`, id]
-    );
-
-    res.json({ ok: true });
-  } catch(err) { res.status(500).json({ error: err.message }); }
-});
-
-// ─── DELETE /api/produtos/:id/imagens/:imgId ─────────────────────────────────
-router.delete('/:id/imagens/:imgId', async (req, res) => {
-  try {
-    const pool = getPool();
-    const tb   = await getTabela(pool);
-    const { id, imgId } = req.params;
-
-    const [[img]] = await pool.query(
-      `SELECT * FROM produto_imagens WHERE id=? AND cod_produto=?`, [imgId, id]
-    );
-    if (!img) return res.status(404).json({ error: 'Imagem não encontrada' });
-
-    fs.rmSync(path.join(_uploadsBase, String(id), img.filename), { force: true });
-    await pool.query(`DELETE FROM produto_imagens WHERE id=?`, [imgId]);
-
-    if (img.is_principal) {
-      const [[next]] = await pool.query(
-        `SELECT * FROM produto_imagens WHERE cod_produto=? ORDER BY id LIMIT 1`, [id]
-      );
-      if (next) {
-        await pool.query(`UPDATE produto_imagens SET is_principal=1 WHERE id=?`, [next.id]);
-        await pool.query(
-          `UPDATE ${tb} SET foto_principal=?, dt_atualizacao=NOW() WHERE ID=?`,
-          [`/uploads/produtos/${id}/${next.filename}`, id]
-        );
-      } else {
-        await pool.query(
-          `UPDATE ${tb} SET foto_principal=NULL, dt_atualizacao=NOW() WHERE ID=?`, [id]
-        );
-      }
+    // Foto só no campo foto_principal (sem linha em produto_imagens) — já é a principal
+    if (String(imgId) === 'fp') {
+      return res.json({ ok: true });
     }
 
+    const [[img]] = await pool.query(
+      `SELECT * FROM produto_imagens WHERE id=? AND cod_produto IN (?, ?)`,
+      [imgId, id, parseInt(id, 10) || id]
+    );
+    if (!img) return res.status(404).json({ error: 'Imagem não encontrada' });
+
+    await pool.query(`UPDATE produto_imagens SET is_principal=0 WHERE cod_produto IN (?, ?)`, [id, parseInt(id, 10) || id]);
+    await pool.query(`UPDATE produto_imagens SET is_principal=1 WHERE id=?`, [imgId]);
+    await _setFotoPrincipal(pool, tb, id, `/uploads/produtos/${id}/${img.filename}`);
+
     res.json({ ok: true });
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
+
+router.delete('/:id/imagens/:imgId', _removerImagemProduto);
 
 // ─── POST /api/produtos/importar-fotos (lote por nome de arquivo) ─────────────
 const _tmpDir = path.join(__dirname, '..', 'public', 'uploads', 'produtos', '_tmp');
@@ -1365,17 +1700,59 @@ router.get('/:id/variacoes', async (req, res) => {
   }
 });
 
+/** Grades disponíveis do produto (padrão + extras). Sempre seguro se não houver extras. */
+router.get('/:id/grades', async (req, res) => {
+  try {
+    const pool = getPool();
+    await ensureProdutoTipogradeTable(pool);
+    const grades = await listarGradesProduto(pool, req.params.id);
+    res.json({ grades });
+  } catch (err) {
+    console.error('[produtos/grades]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── GET /api/produtos/:id ────────────────────────────────────────────────────
 router.get('/:id', async (req, res) => {
   try {
     const pool = getPool();
     await ensureColunasExtras(pool);
     const tb = await getTabela(pool);
+    const cols = await getColunasReais(pool);
+    const temIdRef = cols.some((c) => String(c).toLowerCase() === 'id_referencia');
+    const temCor1 = cols.some((c) => String(c).toLowerCase() === 'cor1');
+    const temDisp = cols.some((c) => String(c).toLowerCase() === 'disponivel');
+    const qtdCoresSql = temIdRef
+      ? `, ((SELECT COUNT(*) FROM ${tb} c WHERE c.id_referencia = p.ID AND (c.excluido='N' OR c.excluido IS NULL OR c.excluido=''))
+          + CASE
+              WHEN (p.id_referencia IS NULL OR p.id_referencia = 0)
+               AND ${temCor1 ? "TRIM(IFNULL(p.cor1,'')) <> ''" : '0'}
+               AND ${temDisp ? "IFNULL(p.disponivel,'S') <> 'N'" : '1'}
+              THEN 1 ELSE 0
+            END) AS qtd_cores`
+      : ', 0 AS qtd_cores';
+    const maeNomeSql = temIdRef
+      ? `, (SELECT mae.descricao FROM ${tb} mae WHERE mae.ID = p.id_referencia LIMIT 1) AS nome_referencia
+         , (SELECT mae.cod_fabricante FROM ${tb} mae WHERE mae.ID = p.id_referencia LIMIT 1) AS cod_fabricante_referencia`
+      : ', NULL AS nome_referencia, NULL AS cod_fabricante_referencia';
     const [rows] = await pool.query(
-      `SELECT * FROM ${tb} WHERE ID=? AND (excluido='N' OR excluido IS NULL OR excluido='') LIMIT 1`,
+      `SELECT p.*${qtdCoresSql}${maeNomeSql}
+       FROM ${tb} p
+       WHERE p.ID=? AND (p.excluido='N' OR p.excluido IS NULL OR p.excluido='')
+       LIMIT 1`,
       [req.params.id]
     );
     if (!rows[0]) return res.status(404).json({ error: 'Não encontrado' });
+    try {
+      rows[0].grades = await listarGradesProduto(pool, req.params.id);
+      rows[0].grades_extras = (rows[0].grades || [])
+        .filter((g) => !g.padrao)
+        .map((g) => g.id);
+    } catch (_) {
+      rows[0].grades = [];
+      rows[0].grades_extras = [];
+    }
     res.json(rows[0]);
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
@@ -1409,6 +1786,7 @@ router.post('/', async (req, res) => {
        VALUES (${keys.map(()=>'?').join(',')}, CURDATE())`,
       keys.map(k => body[k] ?? null)
     );
+    await syncGradesFromReq(pool, r.insertId, req.body, body.tipograde).catch(() => {});
     res.status(201).json({ ok: true, id: r.insertId });
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
@@ -1453,6 +1831,17 @@ router.put('/:id', async (req, res) => {
       `UPDATE ${tb} SET ${keys.map(k=>`\`${k}\`=?`).join(',')}, dt_atualizacao=NOW() WHERE ID=?`,
       [...keys.map(k => body[k] ?? null), req.params.id]
     );
+
+    let tipogradeSalvo = body.tipograde;
+    if (tipogradeSalvo === undefined) {
+      const [[curTg]] = await pool.query(
+        `SELECT tipograde FROM ${tb} WHERE ID=? LIMIT 1`,
+        [req.params.id]
+      ).catch(() => [[null]]);
+      tipogradeSalvo = curTg?.tipograde;
+    }
+    await syncGradesFromReq(pool, req.params.id, req.body, tipogradeSalvo).catch(() => {});
+
     res.json({ ok: true, id: parseInt(req.params.id) });
   } catch(err) { res.status(500).json({ error: err.message }); }
 });

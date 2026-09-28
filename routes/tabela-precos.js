@@ -9,6 +9,31 @@ const { ensureTabelaPrecoCondPagamentoNullable, ensureVitrineColumns } = require
 /** Normaliza flag S/N (default 'N') */
 const _sn = (v) => (String(v).toUpperCase() === 'S' ? 'S' : 'N');
 
+function _numItemPreco(val, fallback = 0) {
+  const n = parseFloat(val);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function _calcValorTabelaItem(precoVenda, tipoDesconto, vlrDesconto) {
+  const pv = _numItemPreco(precoVenda, 0);
+  const desc = _numItemPreco(vlrDesconto, 0);
+  let vt = tipoDesconto === 'P' ? pv - (pv * desc / 100) : pv - desc;
+  return vt < 0 ? 0 : Math.round(vt * 100) / 100;
+}
+
+/** Campos de custo/margem do produto p/ análise na tela de tabela de preços. */
+async function _produtoCustoMargemSelect(pool, tb = 'produto', alias = 'p') {
+  const cols = await pool.query(`SHOW COLUMNS FROM ${tb}`)
+    .then(([c]) => new Set((c || []).map((r) => String(r.Field || '').toLowerCase())))
+    .catch(() => new Set());
+  const a = alias;
+  const parts = [];
+  parts.push(cols.has('vlr_custo') ? `IFNULL(${a}.vlr_custo, 0) AS vlr_custo` : `0 AS vlr_custo`);
+  parts.push(cols.has('vlr_custofinal') ? `IFNULL(${a}.vlr_custofinal, 0) AS vlr_custofinal` : `0 AS vlr_custofinal`);
+  parts.push(cols.has('margem') ? `IFNULL(${a}.margem, 0) AS margem` : `0 AS margem`);
+  return parts.join(', ');
+}
+
 /**
  * Insere os itens da tabela em lotes de 500 (poucas queries em vez de N) —
  * rápido em banco remoto e seguro contra max_allowed_packet em tabelas grandes.
@@ -19,11 +44,20 @@ async function _insertItensTabela(conn, idTabela, itens) {
   for (let start = 0; start < itens.length; start += CHUNK) {
     const rows = itens.slice(start, start + CHUNK).map((item, j) => {
       const i = start + j;
+      const precoVenda = _numItemPreco(item.preco_venda, 0);
+      const tipoDesc = item.tipo_desconto === 'P' ? 'P' : 'R';
+      const vlrDesc = _numItemPreco(item.vlr_desconto, 0);
+      const precoBase = item.preco_base == null || item.preco_base === ''
+        ? precoVenda
+        : _numItemPreco(item.preco_base, precoVenda);
+      const valorTabela = Number.isFinite(parseFloat(item.valor_tabela))
+        ? _numItemPreco(item.valor_tabela, 0)
+        : _calcValorTabelaItem(precoVenda, tipoDesc, vlrDesc);
       return [
         idTabela, i + 1, item.cod_produto, item.descricao,
         item.cod_fabricante ?? null, item.unidade ?? null,
-        item.preco_base ?? null, item.preco_venda,
-        item.tipo_desconto || 'R', item.vlr_desconto ?? 0, item.valor_tabela,
+        precoBase, precoVenda,
+        tipoDesc, vlrDesc, valorTabela,
         item.ativo || 'S', item.vigencia || null, 'N',
       ];
     });
@@ -746,9 +780,11 @@ router.get('/produtos/busca', async (req, res) => {
     const hasFoto = await pool.query(`SHOW COLUMNS FROM produto LIKE 'foto_principal'`)
       .then(([c]) => c.length > 0).catch(() => false);
     const fotoSel = hasFoto ? `IFNULL(p.foto_principal, '') AS foto_principal,` : `'' AS foto_principal,`;
+    const custoMargemSel = await _produtoCustoMargemSelect(pool, 'produto', 'p');
 
     const [rows] = await pool.query(
       `SELECT ${selectDistinct} p.id, p.descricao, p.cod_fabricante, p.unidade, p.vlr_venda, p.segmento,
+              ${custoMargemSel},
               ${fotoSel}
               f.nome AS nome_fornecedor
        FROM produto p
@@ -819,8 +855,16 @@ router.get('/:id', async (req, res) => {
 
     if (!cab[0]) return res.status(404).json({ error: 'Tabela não encontrada' });
 
+    const [tbRows] = await pool.query(`SHOW TABLES LIKE 'produto'`);
+    const tbProd = tbRows.length ? 'produto' : 'produtos';
+    const custoMargemSel = await _produtoCustoMargemSelect(pool, tbProd, 'p');
+
     const [itens] = await pool.query(
-      `SELECT i.* FROM tabela_preco_itens i WHERE i.id_tabela = ? AND COALESCE(i.excluido,'N') = 'N' ORDER BY i.item`,
+      `SELECT i.*, ${custoMargemSel}
+       FROM tabela_preco_itens i
+       LEFT JOIN ${tbProd} p ON p.id = i.cod_produto
+       WHERE i.id_tabela = ? AND COALESCE(i.excluido,'N') = 'N'
+       ORDER BY i.item`,
       [req.params.id]
     );
 

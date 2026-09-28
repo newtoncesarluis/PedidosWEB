@@ -17,6 +17,8 @@ async function ensureTipoPedidosColumns(pool) {
     ['faturado',         "CHAR(1) NOT NULL DEFAULT 'N'"],
     ['importacao',       "CHAR(1) NOT NULL DEFAULT 'N'"],
     ['padrao_vitrine',   "CHAR(1) NOT NULL DEFAULT 'N'"],
+    /** Pedido só com totais (sem itens) — comissão/relatórios no cabeçalho */
+    ['so_totais',        "CHAR(1) NOT NULL DEFAULT 'N'"],
     ['cod_planoconta',   'INT DEFAULT NULL'],
     ['tratamento',       'VARCHAR(50) DEFAULT NULL'],
     ['id_receitas',      'INT DEFAULT NULL'],

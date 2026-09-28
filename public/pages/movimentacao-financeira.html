@@ -126,10 +126,16 @@
         .badge-in { background: var(--badge-success-bg, #d1fae5); color: var(--badge-success-text, #065f46); }
         .badge-out { background: var(--badge-danger-bg, #fee2e2); color: var(--badge-danger-text, #991b1b); }
         .badge-status { background: var(--badge-info-bg, #e0f2fe); color: var(--badge-info-text, #0369a1); }
+        .badge-estorno { background: #f3f4f6; color: #6b7280; border: 1px solid #d1d5db; }
+        .badge-pago-hist { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
 
         /* Utilitários de Valor */
         .val-in { color: #10b981; font-weight: 700; }
         .val-out { color: #ef4444; font-weight: 700; }
+        .val-estorno { color: var(--text-secondary, #94a3b8); font-weight: 600; text-decoration: line-through; }
+        .val-pago-hist { color: var(--text-secondary, #64748b); font-weight: 600; }
+        tr.row-estorno td { opacity: 0.85; }
+        tr.row-pago-hist td { opacity: 0.92; }
 
         @media (max-width: 768px) {
             .header { flex-direction: column; align-items: flex-start; gap: 15px; }
@@ -236,20 +242,49 @@
                 let totalOut = 0;
 
                 const tbody = document.getElementById('tbody-movs');
+                if (!Array.isArray(data) || !data.length) {
+                    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--text-secondary)">Nenhuma movimentação no período. Pagamentos, recebimentos e estornos aparecem aqui; títulos só em aberto (nunca liquidados) não.</td></tr>';
+                    document.getElementById('kpi-entradas').textContent = 'R$ 0,00';
+                    document.getElementById('kpi-saidas').textContent = 'R$ 0,00';
+                    document.getElementById('kpi-saldo').textContent = 'R$ 0,00';
+                    return;
+                }
+
                 tbody.innerHTML = data.map(m => {
                     const valor = parseFloat(m.valor) || 0;
-                    if(m.tipo_mov === 'ENTRADA') totalIn += valor; else totalOut += valor;
+                    const st = String(m.status || '').toUpperCase();
+                    const contaKpi = Number(m.conta_kpi);
+                    const historico = st === 'ESTORNADO' || st === 'PAGO' || contaKpi === 0;
+                    if (!historico) {
+                        if (m.tipo_mov === 'ENTRADA') totalIn += valor;
+                        else totalOut += valor;
+                    }
+                    const dataRef = m.data_ref
+                        ? String(m.data_ref).slice(0, 10).split('-').reverse().join('/')
+                        : '—';
+                    let valCls = m.tipo_mov === 'ENTRADA' ? 'val-in' : 'val-out';
+                    let stCls = 'badge badge-status';
+                    let rowCls = '';
+                    if (st === 'ESTORNADO') {
+                        valCls = 'val-estorno';
+                        stCls = 'badge badge-estorno';
+                        rowCls = 'row-estorno';
+                    } else if (st === 'PAGO') {
+                        valCls = 'val-pago-hist';
+                        stCls = 'badge badge-pago-hist';
+                        rowCls = 'row-pago-hist';
+                    }
 
                     return `
-                        <tr>
-                            <td><strong>${new Date(m.data_ref).toLocaleDateString('pt-BR')}</strong></td>
+                        <tr class="${rowCls}">
+                            <td><strong>${dataRef}</strong></td>
                             <td><strong>${m.pessoa || '---'}</strong></td>
                             <td><span style="font-size: 11px; color: var(--text-secondary)">${m.origem}</span></td>
                             <td>${m.doc || '---'}</td>
-                            <td class="${m.tipo_mov === 'ENTRADA' ? 'val-in' : 'val-out'}">
+                            <td class="${valCls}">
                                 ${new Intl.NumberFormat('pt-BR', {style:'currency', currency:'BRL'}).format(m.valor)}
                             </td>
-                            <td><span class="badge badge-status">${m.status}</span></td>
+                            <td><span class="${stCls}">${m.status}</span></td>
                             <td><span class="badge ${m.tipo_mov === 'ENTRADA' ? 'badge-in' : 'badge-out'}">${m.tipo_mov}</span></td>
                         </tr>
                     `;

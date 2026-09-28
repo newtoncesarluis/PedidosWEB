@@ -4,11 +4,47 @@ const { getPool } = require('../config/database');
 const { resolveNaturezaLabelColumn, naturezaLabelExpr } = require('../config/natureza-label');
 const { ensureFinanceiroContabilCols } = require('../config/plano-contas-schema');
 const {
+  ensureBancoMovimentoSchema,
+  movimentarBanco,
+  estornarMovimentoTitulo,
+  parseIdBanco,
+} = require('../config/banco-movimento');
+const {
   sqlAberto,
   sqlLiquidado,
   sqlStatusDisplay,
   truncFormaPagto,
 } = require('../config/receber-status');
+const { extrairDataIso, vencimentoComRecorrencia } = require('../config/pagar-dates');
+
+function mensagemErroReceber(err) {
+  const msg = String(err?.message || err || '');
+  if (/doesn't have a default value/i.test(msg)) {
+    return 'Não foi possível gravar o título (campo obrigatório no banco). Tente de novo; se persistir, contate o suporte.';
+  }
+  if (/truncated/i.test(msg)) {
+    return 'Não foi possível gravar: algum campo passou do tamanho permitido. Encurte o Nº do documento ou as observações.';
+  }
+  if (/unknown column/i.test(msg)) {
+    return 'Não foi possível gravar: estrutura da tabela receber desatualizada. Reinicie o servidor para aplicar as colunas.';
+  }
+  return msg || 'Não foi possível gravar o título a receber.';
+}
+
+/** Delphi legado grava "A RECEBER"; a tela envia ABERTA. */
+function statusReceberGravacao(status) {
+  const s = String(status || '').trim().toUpperCase();
+  if (!s || s === 'ABERTA' || s === 'ABERTO') return 'A RECEBER';
+  if (s === 'RECEBIDA' || s === 'LIQUIDADO') return 'RECEBIDO';
+  return s.slice(0, 15);
+}
+
+async function proximoNumeroReceber(pool) {
+  const [rows] = await pool.query(
+    `SELECT COALESCE(MAX(numero + 0), 0) + 1 AS proximo FROM receber`
+  );
+  return parseInt(rows[0]?.proximo, 10) || 1;
+}
 
 const SQL_EXCLUIDO = "(p.excluido = 'N' OR p.excluido IS NULL OR p.excluido = '')";
 const SQL_ABERTO = sqlAberto('p');
@@ -37,7 +73,7 @@ async function ensureReceberListIndexes(pool) {
 
 // Middleware para validar entradas (criação; baixa/estorno não exigem vencimento no body)
 function validarEntradas(req, res, next) {
-    if (req.body.baixar) return next();
+    if (req.body.baixar || req.body.estornar) return next();
     if (req.method === 'PUT' && !req.body.valor && !req.body.vencimento) return next();
 
     const valor = parseFloat(req.body.valor);
@@ -45,7 +81,7 @@ function validarEntradas(req, res, next) {
         return res.status(400).json({ error: 'O valor deve ser maior que zero.' });
     }
     if (req.method === 'POST') {
-        if (!req.body.vencimento || Number.isNaN(Date.parse(req.body.vencimento))) {
+        if (!extrairDataIso(req.body.vencimento)) {
             return res.status(400).json({ error: 'Data de vencimento inválida.' });
         }
         if (Number.isNaN(valor) || valor <= 0) {
@@ -293,7 +329,11 @@ router.post('/', validarEntradas, async (req, res) => {
   const pool = getPool();
   const data = req.body;
   const numRecorrencias = parseInt(data.recorrencia) || 1;
-  
+  const vencBase = extrairDataIso(data.vencimento);
+  if (!vencBase) {
+    return res.status(400).json({ error: 'Informe a data de vencimento válida' });
+  }
+
   try {
     await ensureFinanceiroContabilCols(pool);
     const idPlano = data.id_planoconta !== undefined && data.id_planoconta !== ''
@@ -302,12 +342,14 @@ router.post('/', validarEntradas, async (req, res) => {
     const idCentro = data.id_centrocusto !== undefined && data.id_centrocusto !== ''
       ? (parseInt(data.id_centrocusto, 10) || null)
       : null;
+    const idReceitas = parseInt(data.id_receitas, 10) || null;
+    const nf = String(data.doc || data.numero || '').trim().slice(0, 25);
     // Auto-cadastra o cliente/pagador caso seja novo
     let finalCodFornecedor = data.cod_fornecedor || null;
     if (!finalCodFornecedor && data.nome_fornecedor) {
       const nomeTrim = data.nome_fornecedor.trim().toUpperCase();
       const [existing] = await pool.query(
-        `SELECT id FROM fornecedores WHERE UPPER(nome) = ? AND (excluido='N' OR excluido IS NULL OR excluido='') LIMIT 1`, 
+        `SELECT id FROM fornecedores WHERE UPPER(nome) = ? AND (excluido='N' OR excluido IS NULL OR excluido='') LIMIT 1`,
         [nomeTrim]
       );
       if (existing.length > 0) {
@@ -323,27 +365,39 @@ router.post('/', validarEntradas, async (req, res) => {
 
     const results = [];
     for (let i = 0; i < numRecorrencias; i++) {
-      const dataVenc = new Date(data.vencimento);
-      dataVenc.setMonth(dataVenc.getMonth() + i);
-      
-      const status = data.status || 'ABERTA';
-      const vlrPago = (status === 'LIQUIDADO' || status === 'RECEBIDO') ? (data.valor_pago || data.valor) : 0;
-      const dataPagto = (status === 'LIQUIDADO' || status === 'RECEBIDO') ? (data.data_pagto || new Date()) : null;
+      const vencimento = vencimentoComRecorrencia(vencBase, i);
+      const status = statusReceberGravacao(data.status);
+      const vlr = parseFloat(data.valor) || 0;
+      const liquidado = status === 'RECEBIDO' || status === 'LIQUIDADO';
+      const vlrPago = liquidado ? (parseFloat(data.valor_pago || data.valor) || vlr) : 0;
+      const dataPagto = liquidado ? (extrairDataIso(data.data_pagto) || vencimento) : null;
+
+      let numero = nf && /^\d+$/.test(nf) ? parseInt(nf, 10) : 0;
+      if (!numero) numero = await proximoNumeroReceber(pool);
+      const doc = (nf || ('R' + String(numero).padStart(6, '0'))).slice(0, 15);
 
       const [result] = await pool.query(`
         INSERT INTO receber (
-          numero, tipo, vencimento, valor, status, obs, doc, 
-          cod_fornecedor, nome_fornecedor, id_receitas, 
-          id_cliente, cod_vendedor, data_pagto, valor_pago, 
-          forma_pagto, juros, vlrjuros, vlracressimo,
+          numero, tipo, prazo, vencimento, valor, parcela, status, obs, doc,
+          qt_parcelas, tipo_lancamento, vlrreceber,
+          cod_fornecedor, nome_fornecedor, id_receitas,
+          id_cliente, cod_vendedor, data_pagto, valor_pago,
+          forma_pagto, juros, vlrjuros, vlracressimo, comissao,
           id_planoconta, id_centrocusto, excluido
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'N')
+        ) VALUES (
+          ?, 'VENDA', 0, STR_TO_DATE(?, '%Y-%m-%d'), ?, 1, ?, ?, ?,
+          1, '', ?,
+          ?, ?, ?,
+          ?, ?, ?, ?,
+          ?, ?, ?, ?, 0,
+          ?, ?, 'N'
+        )
       `, [
-        data.numero || null, data.tipo || 'MANUAL', dataVenc, parseFloat(data.valor) || 0, 
-        status, data.obs || null, data.doc || null,
-        finalCodFornecedor, data.nome_fornecedor || null,
-        data.id_receitas || null, data.id_cliente || null, data.cod_vendedor || null,
-        dataPagto, vlrPago, data.forma_pagto || null,
+        numero, vencimento, vlr, status, data.obs || null, doc,
+        vlr,
+        finalCodFornecedor, data.nome_fornecedor || null, idReceitas,
+        data.id_cliente || null, data.cod_vendedor || null, dataPagto, vlrPago,
+        data.forma_pagto ? truncFormaPagto(data.forma_pagto) : null,
         parseFloat(data.juros) || 0, parseFloat(data.vlrjuros) || 0, parseFloat(data.vlracressimo) || 0,
         idPlano, idCentro
       ]);
@@ -352,14 +406,14 @@ router.post('/', validarEntradas, async (req, res) => {
     res.status(201).json({ ok: true, ids: results });
   } catch (err) {
     console.error('[receber/criar]', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: mensagemErroReceber(err) });
   }
 });
 
 // ─── BAIXAR EM LOTE ──────────────────────────────────────────────────────────
 router.post('/lote/baixar', async (req, res) => {
   const pool = getPool();
-  const { ids, data_pagto, forma_pagto } = req.body;
+  const { ids, data_pagto, forma_pagto, id_banco } = req.body;
 
   const idList = (Array.isArray(ids) ? ids : [])
     .map((id) => parseInt(id, 10))
@@ -367,36 +421,72 @@ router.post('/lote/baixar', async (req, res) => {
 
   if (!idList.length) return res.status(400).json({ error: 'Nenhum título selecionado' });
 
+  const idBanco = parseIdBanco(id_banco);
+  if (!idBanco) {
+    return res.status(400).json({ error: 'Informe o banco/caixa para onde entra o recebimento.' });
+  }
+
+  const conn = await pool.getConnection();
   try {
+    await conn.beginTransaction();
+    await ensureBancoMovimentoSchema(conn);
+    await ensureFinanceiroContabilCols(conn).catch(() => {});
+
     const dt = data_pagto || new Date();
+    const dtStr = typeof dt === 'string' ? String(dt).slice(0, 10) : new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
     const forma = truncFormaPagto(forma_pagto || 'DINHEIRO');
 
-    const [result] = await pool.query(`
-      UPDATE receber SET 
-        status = 'RECEBIDO', 
-        data_pagto = ?, 
-        valor_pago = valor, 
-        forma_pagto = ?,
-        obs = CONCAT(COALESCE(obs,''), '\n--- Recebimento em lote em: ', NOW())
+    const [abertos] = await conn.query(`
+      SELECT id, valor
+      FROM receber
       WHERE id IN (?) AND ${SQL_ABERTO_COL}
         AND (excluido = 'N' OR excluido IS NULL OR excluido = '')
-    `, [dt, forma, idList]);
+      FOR UPDATE
+    `, [idList]);
 
-    const afetados = result?.affectedRows || 0;
-    if (!afetados) {
+    if (!abertos.length) {
+      await conn.rollback();
       return res.status(400).json({
         error: 'Nenhum título em aberto foi atualizado. Confira se os selecionados ainda estão a receber.',
       });
     }
 
+    for (const t of abertos) {
+      const vlr = parseFloat(t.valor) || 0;
+      await movimentarBanco(conn, {
+        id_banco: idBanco,
+        valor: vlr,
+        tipo: 'ENTRADA',
+        origem: 'RECEBER',
+        id_origem: t.id,
+        historico: `Recebimento título #${t.id}`,
+        data_mov: dtStr,
+      });
+      await conn.query(`
+        UPDATE receber SET
+          status = 'RECEBIDO',
+          data_pagto = ?,
+          valor_pago = valor,
+          forma_pagto = ?,
+          id_banco = ?,
+          obs = CONCAT(COALESCE(obs,''), '\\n--- Recebimento em lote em: ', NOW())
+        WHERE id = ?
+      `, [dt, forma, idBanco, t.id]);
+    }
+
+    await conn.commit();
     res.json({
       ok: true,
-      afetados,
-      message: `${afetados} título(s) recebidos com sucesso.`,
+      afetados: abertos.length,
+      message: `${abertos.length} título(s) recebidos com sucesso.`,
     });
   } catch (err) {
+    try { await conn.rollback(); } catch (_) {}
     console.error('[receber/baixa-lote]', err.message);
-    res.status(500).json({ error: err.message });
+    const code = err.code === 'BANCO_OBRIGATORIO' || err.code === 'BANCO_NAO_ENCONTRADO' ? 400 : 500;
+    res.status(code).json({ error: err.message || 'Erro ao receber em lote' });
+  } finally {
+    conn.release();
   }
 });
 
@@ -407,60 +497,138 @@ router.put('/:id', validarEntradas, async (req, res) => {
   const { id } = req.params;
 
   try {
+    if (data.estornar) {
+      const sqlExcluidoTitulo = "(excluido = 'N' OR excluido IS NULL OR excluido = '')";
+      const conn = await pool.getConnection();
+      try {
+        await conn.beginTransaction();
+        await ensureBancoMovimentoSchema(conn);
+        await estornarMovimentoTitulo(conn, {
+          origem: 'RECEBER',
+          id_origem: id,
+          data_mov: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }),
+        });
+        await conn.query(`
+          UPDATE receber SET
+            status = 'A RECEBER',
+            data_pagto = NULL,
+            valor_pago = 0,
+            forma_pagto = NULL,
+            id_banco = NULL,
+            juros = 0,
+            vlrjuros = 0,
+            vlracressimo = 0
+          WHERE id = ? AND ${sqlExcluidoTitulo}
+        `, [id]);
+        await conn.commit();
+        return res.json({ ok: true, estornado: true });
+      } catch (e) {
+        try { await conn.rollback(); } catch (_) {}
+        throw e;
+      } finally {
+        conn.release();
+      }
+    }
     if (data.baixar) {
       const forma = truncFormaPagto(data.forma_pagto || 'DINHEIRO');
-      await pool.query(`
-        UPDATE receber SET 
-          status = 'RECEBIDO', 
-          data_pagto = ?, 
-          valor_pago = ?, 
-          forma_pagto = ?,
-          obs = CONCAT(COALESCE(obs,''), '\n--- Recebimento em: ', NOW())
-        WHERE id = ?
-      `, [data.data_pagto || new Date(), data.valor_pago || data.valor, forma, id]);
+      const idBanco = parseIdBanco(data.id_banco);
+      if (!idBanco) {
+        return res.status(400).json({ error: 'Informe o banco/caixa para onde entra o recebimento.' });
+      }
+      const dtPagto = data.data_pagto || new Date();
+      const dtStr = typeof dtPagto === 'string'
+        ? String(dtPagto).slice(0, 10)
+        : new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+      const vlrPago = parseFloat(data.valor_pago || data.valor) || 0;
 
-      // Opcional: entra cheque na carteira sem alterar a baixa se falhar
-      if (forma === 'CHEQUE' && data.cheque) {
-        try {
-          const { ensureChequesSchema } = require('../config/cheques-schema');
-          const { hojeIsoBrasil } = require('../config/date-brasil');
-          await ensureChequesSchema(pool);
-          const ch = data.cheque;
-          const valor = parseFloat(ch.valor || data.valor_pago || data.valor) || 0;
-          const numero = String(ch.numero || '').trim();
-          const bom = String(ch.bom_para || data.data_pagto || hojeIsoBrasil()).slice(0, 10);
-          if (numero && valor > 0) {
-            const [[tit]] = await pool.query(
-              `SELECT cod_cliente FROM receber WHERE id=? LIMIT 1`, [id]
-            ).catch(() => [[null]]);
-            const [ins] = await pool.query(
-              `INSERT INTO cheques
-                (tipo, numero, banco_nome, agencia, conta, emitente, cpf_cnpj, valor, bom_para,
-                 data_recebimento, id_receber, id_cliente, status, obs, excluido)
-               VALUES ('T',?,?,?,?,?,?,?,?,?,?,'EM_CARTEIRA',?,'N')`,
-              [
-                numero,
-                ch.banco_nome ? String(ch.banco_nome).toUpperCase() : null,
-                ch.agencia || null,
-                ch.conta || null,
-                ch.emitente ? String(ch.emitente).toUpperCase() : null,
-                ch.cpf_cnpj || null,
-                valor,
-                bom,
-                String(data.data_pagto || hojeIsoBrasil()).slice(0, 10),
-                id,
-                parseInt(ch.id_cliente || tit?.cod_cliente, 10) || null,
-                ch.obs || null,
-              ]
-            );
-            try {
-              const [cols] = await pool.query(`SHOW COLUMNS FROM receber LIKE 'id_cheque'`);
-              if (cols.length) await pool.query(`UPDATE receber SET id_cheque=? WHERE id=?`, [ins.insertId, id]);
-            } catch (_) {}
-          }
-        } catch (e) {
-          console.error('[receber/cheque-carteira]', e.message);
+      const conn = await pool.getConnection();
+      try {
+        await conn.beginTransaction();
+        await ensureBancoMovimentoSchema(conn);
+        await ensureFinanceiroContabilCols(conn).catch(() => {});
+
+        const [[tit]] = await conn.query(
+          `SELECT id, status, valor FROM receber
+           WHERE id = ? AND (excluido = 'N' OR excluido IS NULL OR excluido = '')
+           LIMIT 1 FOR UPDATE`,
+          [id]
+        );
+        if (!tit) {
+          await conn.rollback();
+          return res.status(404).json({ error: 'Título não encontrado.' });
         }
+
+        await movimentarBanco(conn, {
+          id_banco: idBanco,
+          valor: vlrPago,
+          tipo: 'ENTRADA',
+          origem: 'RECEBER',
+          id_origem: id,
+          historico: `Recebimento título #${id}`,
+          data_mov: dtStr,
+        });
+
+        await conn.query(`
+          UPDATE receber SET
+            status = 'RECEBIDO',
+            data_pagto = ?,
+            valor_pago = ?,
+            forma_pagto = ?,
+            id_banco = ?,
+            obs = CONCAT(COALESCE(obs,''), '\\n--- Recebimento em: ', NOW())
+          WHERE id = ?
+        `, [dtPagto, vlrPago, forma, idBanco, id]);
+
+        // Opcional: entra cheque na carteira sem alterar a baixa se falhar
+        if (forma === 'CHEQUE' && data.cheque) {
+          try {
+            const { ensureChequesSchema } = require('../config/cheques-schema');
+            const { hojeIsoBrasil } = require('../config/date-brasil');
+            await ensureChequesSchema(conn);
+            const ch = data.cheque;
+            const valor = parseFloat(ch.valor || data.valor_pago || data.valor) || 0;
+            const numero = String(ch.numero || '').trim();
+            const bom = String(ch.bom_para || data.data_pagto || hojeIsoBrasil()).slice(0, 10);
+            if (numero && valor > 0) {
+              const [[titC]] = await conn.query(
+                `SELECT cod_cliente FROM receber WHERE id=? LIMIT 1`, [id]
+              ).catch(() => [[null]]);
+              const [ins] = await conn.query(
+                `INSERT INTO cheques
+                  (tipo, numero, banco_nome, agencia, conta, emitente, cpf_cnpj, valor, bom_para,
+                   data_recebimento, id_receber, id_cliente, status, obs, excluido)
+                 VALUES ('T',?,?,?,?,?,?,?,?,?,?,?,'EM_CARTEIRA',?,'N')`,
+                [
+                  numero,
+                  ch.banco_nome ? String(ch.banco_nome).toUpperCase() : null,
+                  ch.agencia || null,
+                  ch.conta || null,
+                  ch.emitente ? String(ch.emitente).toUpperCase() : null,
+                  ch.cpf_cnpj || null,
+                  valor,
+                  bom,
+                  dtStr,
+                  id,
+                  parseInt(ch.id_cliente || titC?.cod_cliente, 10) || null,
+                  ch.obs || null,
+                ]
+              );
+              try {
+                const [cols] = await conn.query(`SHOW COLUMNS FROM receber LIKE 'id_cheque'`);
+                if (cols.length) await conn.query(`UPDATE receber SET id_cheque=? WHERE id=?`, [ins.insertId, id]);
+              } catch (_) {}
+            }
+          } catch (e) {
+            console.error('[receber/cheque-carteira]', e.message);
+          }
+        }
+
+        await conn.commit();
+      } catch (e) {
+        try { await conn.rollback(); } catch (_) {}
+        throw e;
+      } finally {
+        conn.release();
       }
     } else {
       const sets = [];
@@ -490,6 +658,18 @@ router.put('/:id', validarEntradas, async (req, res) => {
       if (data.id_centrocusto !== undefined) {
         data.id_centrocusto = parseInt(data.id_centrocusto, 10) || null;
       }
+      if (data.id_receitas !== undefined) {
+        data.id_receitas = parseInt(data.id_receitas, 10) || null;
+      }
+      if (data.vencimento !== undefined) {
+        data.vencimento = extrairDataIso(data.vencimento) || data.vencimento;
+      }
+      if (data.status !== undefined) {
+        data.status = statusReceberGravacao(data.status);
+      }
+      if (data.numero !== undefined && data.doc === undefined) {
+        data.doc = String(data.numero || '').trim().slice(0, 15) || data.doc;
+      }
 
       const allowed = [
         'numero', 'vencimento', 'valor', 'status', 'obs', 'doc', 
@@ -513,7 +693,10 @@ router.put('/:id', validarEntradas, async (req, res) => {
     }
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    const code = err.code === 'BANCO_OBRIGATORIO' || err.code === 'BANCO_NAO_ENCONTRADO' || err.code === 'SALDO_INSUFICIENTE'
+      ? 400
+      : 500;
+    res.status(code).json({ error: mensagemErroReceber(err) });
   }
 });
 

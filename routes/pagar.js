@@ -10,6 +10,13 @@ const {
   despesasLabelExpr,
 } = require('../config/despesas-label');
 const { ensureFinanceiroContabilCols } = require('../config/plano-contas-schema');
+const {
+  ensureBancoMovimentoSchema,
+  movimentarBanco,
+  estornarMovimentoTitulo,
+  baixaChequeCarteiraSemDebitoBanco,
+  parseIdBanco,
+} = require('../config/banco-movimento');
 
 function hojeIsoBrasil() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
@@ -322,28 +329,73 @@ router.post('/', async (req, res) => {
 // ─── BAIXAR EM LOTE ──────────────────────────────────────────────────────────
 router.post('/lote/baixar', async (req, res) => {
   const pool = getPool();
-  const { ids, data_pagto, forma_foipagto } = req.body;
+  const { ids, data_pagto, forma_foipagto, id_banco } = req.body;
 
   if (!ids || !ids.length) return res.status(400).json({ error: 'Nenhum título selecionado' });
 
+  const idBanco = parseIdBanco(id_banco);
+  if (!idBanco) {
+    return res.status(400).json({ error: 'Informe o banco/caixa de onde sai o pagamento.' });
+  }
+
+  const conn = await pool.getConnection();
   try {
-    const dt = data_pagto || new Date();
+    await conn.beginTransaction();
+    await ensureBancoMovimentoSchema(conn);
+    await ensureFinanceiroContabilCols(conn).catch(() => {});
+
+    const dt = extrairDataIso(data_pagto) || hojeIsoBrasil();
     const forma = forma_foipagto || 'DINHEIRO';
+    const idList = (Array.isArray(ids) ? ids : [])
+      .map((id) => parseInt(id, 10))
+      .filter((id) => id > 0);
 
-    await pool.query(`
-      UPDATE pagar SET 
-        status = 'LIQUIDADO', 
-        data_pagto = ?, 
-        vlrpago = valor, 
-        forma_foipagto = ?,
-        obs = CONCAT(COALESCE(obs,''), '\n--- Baixa em lote em: ', NOW())
-      WHERE id IN (?) AND ${SQL_ABERTO_COL}
-    `, [dt, forma, ids]);
+    const [abertos] = await conn.query(
+      `SELECT id, valor, COALESCE(vlrpago, valor) AS vlr
+       FROM pagar
+       WHERE id IN (?) AND ${SQL_ABERTO_COL}
+         AND (excluido = 'N' OR excluido IS NULL OR excluido = '')
+       FOR UPDATE`,
+      [idList]
+    );
 
-    res.json({ ok: true, message: `${ids.length} títulos baixados com sucesso.` });
+    if (!abertos.length) {
+      await conn.rollback();
+      return res.status(400).json({ error: 'Nenhum título em aberto para baixar.' });
+    }
+
+    for (const t of abertos) {
+      const vlr = parseFloat(t.vlr || t.valor) || 0;
+      await movimentarBanco(conn, {
+        id_banco: idBanco,
+        valor: vlr,
+        tipo: 'SAIDA',
+        origem: 'PAGAR',
+        id_origem: t.id,
+        historico: `Pagamento título #${t.id}`,
+        data_mov: dt,
+      });
+      await conn.query(`
+        UPDATE pagar SET
+          status = 'LIQUIDADO',
+          data_pagto = ?,
+          vlrpago = valor,
+          forma_foipagto = ?,
+          id_banco = ?,
+          obs = CONCAT(COALESCE(obs,''), '\\n--- Baixa em lote em: ', NOW())
+        WHERE id = ?
+      `, [dt, forma, idBanco, t.id]);
+    }
+
+    await conn.commit();
+    res.json({ ok: true, message: `${abertos.length} títulos baixados com sucesso.`, afetados: abertos.length });
   } catch (err) {
+    try { await conn.rollback(); } catch (_) {}
     console.error('[pagar/baixa-lote]', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(err.code === 'SALDO_INSUFICIENTE' || err.code === 'BANCO_OBRIGATORIO' ? 400 : 500)
+      .json({ error: err.message || 'Erro ao baixar em lote' });
+  } finally {
+    conn.release();
   }
 });
 
@@ -356,62 +408,127 @@ router.put('/:id', async (req, res) => {
   try {
     if (data.estornar) {
       const sqlExcluidoTitulo = "(excluido = 'N' OR excluido IS NULL OR excluido = '')";
-      await pool.query(`
-        UPDATE pagar SET
-          status = 'ABERTA',
-          data_pagto = NULL,
-          vlrpago = 0,
-          forma_foipagto = NULL,
-          juros = 0,
-          vlrjuros = 0,
-          vlracressimo = 0,
-          valor_pagar = COALESCE(valor, 0),
-          vlrcomjuros = COALESCE(valor, 0)
-        WHERE id = ? AND ${sqlExcluidoTitulo}
-      `, [id]);
-      return res.json({ ok: true, estornado: true });
+      const conn = await pool.getConnection();
+      try {
+        await conn.beginTransaction();
+        await ensureBancoMovimentoSchema(conn);
+        await estornarMovimentoTitulo(conn, {
+          origem: 'PAGAR',
+          id_origem: id,
+          data_mov: hojeIsoBrasil(),
+        });
+        await conn.query(`
+          UPDATE pagar SET
+            status = 'ABERTA',
+            data_pagto = NULL,
+            vlrpago = 0,
+            forma_foipagto = NULL,
+            id_banco = NULL,
+            juros = 0,
+            vlrjuros = 0,
+            vlracressimo = 0,
+            valor_pagar = COALESCE(valor, 0),
+            vlrcomjuros = COALESCE(valor, 0)
+          WHERE id = ? AND ${sqlExcluidoTitulo}
+        `, [id]);
+        await conn.commit();
+        return res.json({ ok: true, estornado: true });
+      } catch (e) {
+        try { await conn.rollback(); } catch (_) {}
+        throw e;
+      } finally {
+        conn.release();
+      }
     }
     if (data.baixar) {
-      await pool.query(`
-        UPDATE pagar SET 
-          status = 'LIQUIDADO', 
-          data_pagto = ?, 
-          vlrpago = ?, 
-          forma_foipagto = ?,
-          obs = CONCAT(COALESCE(obs,''), '\n--- Baixa em: ', NOW())
-        WHERE id = ?
-      `, [
-        extrairDataIso(data.data_pagto) || hojeIsoBrasil(),
-        data.vlrpago || data.valor,
-        data.forma_foipagto || 'DINHEIRO',
-        id,
-      ]);
-
-      // Opcional: vincula cheque da carteira ao pagar (sem quebrar a baixa)
       const idCheque = parseInt(data.id_cheque, 10);
-      if (idCheque > 0 && String(data.forma_foipagto || '').toUpperCase() === 'CHEQUE') {
-        try {
-          const { ensureChequesSchema } = require('../config/cheques-schema');
-          await ensureChequesSchema(pool);
-          const [[ch]] = await pool.query(
-            `SELECT id, status FROM cheques WHERE id=? AND excluido='N'`, [idCheque]
-          );
-          if (ch && ch.status === 'EM_CARTEIRA') {
-            const [[tit]] = await pool.query(
-              `SELECT cod_fornecedor FROM pagar WHERE id=?`, [id]
-            ).catch(() => [[null]]);
-            await pool.query(
-              `UPDATE cheques SET status='USADO_PAGAR', id_pagar=?, id_fornecedor=COALESCE(?, id_fornecedor) WHERE id=?`,
-              [id, tit?.cod_fornecedor || null, idCheque]
-            );
-            try {
-              const [cols] = await pool.query(`SHOW COLUMNS FROM pagar LIKE 'id_cheque'`);
-              if (cols.length) await pool.query(`UPDATE pagar SET id_cheque=? WHERE id=?`, [idCheque, id]);
-            } catch (_) {}
-          }
-        } catch (e) {
-          console.error('[pagar/cheque-vinculo]', e.message);
+      const forma = data.forma_foipagto || 'DINHEIRO';
+      const skipBanco = baixaChequeCarteiraSemDebitoBanco(forma, idCheque);
+      const idBanco = parseIdBanco(data.id_banco);
+      if (!skipBanco && !idBanco) {
+        return res.status(400).json({ error: 'Informe o banco/caixa de onde sai o pagamento.' });
+      }
+
+      const dtPagto = extrairDataIso(data.data_pagto) || hojeIsoBrasil();
+      const vlrPago = parseFloat(data.vlrpago || data.valor) || 0;
+
+      const conn = await pool.getConnection();
+      try {
+        await conn.beginTransaction();
+        await ensureBancoMovimentoSchema(conn);
+        await ensureFinanceiroContabilCols(conn).catch(() => {});
+
+        const [[tit]] = await conn.query(
+          `SELECT id, status, valor FROM pagar
+           WHERE id = ? AND (excluido = 'N' OR excluido IS NULL OR excluido = '')
+           LIMIT 1 FOR UPDATE`,
+          [id]
+        );
+        if (!tit) {
+          await conn.rollback();
+          return res.status(404).json({ error: 'Título não encontrado.' });
         }
+        const st = String(tit.status || '').toUpperCase();
+        const jaLiquidado = ['LIQUIDADO', 'PAGO', 'BAIXADO', 'QUITADO'].includes(st);
+        if (jaLiquidado) {
+          await conn.rollback();
+          return res.status(400).json({ error: 'Título já está liquidado. Estorne antes de baixar novamente.' });
+        }
+
+        if (!skipBanco) {
+          await movimentarBanco(conn, {
+            id_banco: idBanco,
+            valor: vlrPago,
+            tipo: 'SAIDA',
+            origem: 'PAGAR',
+            id_origem: id,
+            historico: `Pagamento título #${id}`,
+            data_mov: dtPagto,
+          });
+        }
+
+        await conn.query(`
+          UPDATE pagar SET
+            status = 'LIQUIDADO',
+            data_pagto = ?,
+            vlrpago = ?,
+            forma_foipagto = ?,
+            id_banco = ?,
+            obs = CONCAT(COALESCE(obs,''), '\\n--- Baixa em: ', NOW())
+          WHERE id = ?
+        `, [dtPagto, vlrPago, forma, skipBanco ? null : idBanco, id]);
+
+        if (idCheque > 0 && String(forma).toUpperCase() === 'CHEQUE') {
+          try {
+            const { ensureChequesSchema } = require('../config/cheques-schema');
+            await ensureChequesSchema(conn);
+            const [[ch]] = await conn.query(
+              `SELECT id, status FROM cheques WHERE id=? AND excluido='N'`, [idCheque]
+            );
+            if (ch && ch.status === 'EM_CARTEIRA') {
+              const [[titF]] = await conn.query(
+                `SELECT cod_fornecedor FROM pagar WHERE id=?`, [id]
+              ).catch(() => [[null]]);
+              await conn.query(
+                `UPDATE cheques SET status='USADO_PAGAR', id_pagar=?, id_fornecedor=COALESCE(?, id_fornecedor) WHERE id=?`,
+                [id, titF?.cod_fornecedor || null, idCheque]
+              );
+              try {
+                const [cols] = await conn.query(`SHOW COLUMNS FROM pagar LIKE 'id_cheque'`);
+                if (cols.length) await conn.query(`UPDATE pagar SET id_cheque=? WHERE id=?`, [idCheque, id]);
+              } catch (_) {}
+            }
+          } catch (e) {
+            console.error('[pagar/cheque-vinculo]', e.message);
+          }
+        }
+
+        await conn.commit();
+      } catch (e) {
+        try { await conn.rollback(); } catch (_) {}
+        throw e;
+      } finally {
+        conn.release();
       }
     } else {
       const sets = [];
@@ -491,7 +608,10 @@ router.put('/:id', async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     console.error('[pagar/atualizar]', err.message);
-    res.status(500).json({ error: mensagemErroPagar(err) });
+    const code = err.code === 'SALDO_INSUFICIENTE' || err.code === 'BANCO_OBRIGATORIO' || err.code === 'BANCO_NAO_ENCONTRADO'
+      ? 400
+      : 500;
+    res.status(code).json({ error: mensagemErroPagar(err) });
   }
 });
 

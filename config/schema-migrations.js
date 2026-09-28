@@ -32,6 +32,9 @@ const MIGRATIONS = [
   { table: 'pedidos', column: 'status_nfe',          type: "VARCHAR(20) NULL DEFAULT NULL" },
   { table: 'pedidos', column: 'num_nf',              type: "VARCHAR(30) NULL DEFAULT NULL" },
   { table: 'pedidos', column: 'num_ped_fabrica',     type: "VARCHAR(60) NULL DEFAULT NULL" },
+  // Marketplace — origem já existe acima e recebe TRAY|BLING|MERCADO_LIVRE|SHOPEE|...
+  { table: 'pedidos', column: 'id_canal_venda',      type: "INT NULL DEFAULT NULL" },
+  { table: 'pedidos', column: 'pedido_externo',      type: "VARCHAR(120) NULL DEFAULT NULL" },
 
   // ── ITENSPED ─────────────────────────────────────────────────────────────
   { table: 'itensped', column: 'sequencia',              type: "INT DEFAULT 0" },
@@ -64,7 +67,9 @@ const MIGRATIONS = [
   { table: 'pagar', column: 'id_planoconta', type: "INT DEFAULT NULL" },
   { table: 'pagar', column: 'id_centrocusto', type: "INT DEFAULT NULL" },
   { table: 'pagar', column: 'id_cheque', type: "INT DEFAULT NULL" },
+  { table: 'pagar', column: 'id_banco', type: "INT NULL DEFAULT NULL" },
   { table: 'receber', column: 'id_cheque', type: "INT DEFAULT NULL" },
+  { table: 'receber', column: 'id_banco', type: "INT NULL DEFAULT NULL" },
   { table: 'plano_contas', column: 'id_pai', type: "INT DEFAULT NULL" },
   { table: 'plano_contas', column: 'nivel', type: "INT DEFAULT 1" },
   { table: 'plano_contas', column: 'tipo', type: "VARCHAR(20) DEFAULT 'ANALITICA'" },
@@ -72,6 +77,12 @@ const MIGRATIONS = [
   { table: 'plano_contas', column: 'aceita_lancamento', type: "CHAR(1) DEFAULT 'S'" },
   { table: 'plano_contas', column: 'status', type: "CHAR(1) DEFAULT 'A'" },
   { table: 'natureza', column: 'id_planoconta', type: "INT DEFAULT NULL" },
+  { table: 'natureza', column: 'nome', type: "VARCHAR(100) DEFAULT NULL" },
+  { table: 'natureza', column: 'descricao', type: "VARCHAR(100) DEFAULT NULL" },
+  { table: 'natureza', column: 'tipo', type: "VARCHAR(50) DEFAULT NULL" },
+  { table: 'natureza', column: 'movimenta_estoque', type: "CHAR(1) DEFAULT 'N'" },
+  { table: 'natureza', column: 'status', type: "CHAR(1) DEFAULT 'A'" },
+  { table: 'natureza', column: 'excluido', type: "CHAR(1) DEFAULT 'N'" },
 
   // ── DESPESAS (Delphi: nome; cadastro web antigo: descricao) ───────────────
   { table: 'despesas', column: 'nome', type: "VARCHAR(100) DEFAULT NULL" },
@@ -153,6 +164,8 @@ const MIGRATIONS = [
   { table: 'itensped', column: 'tipo_grade',   type: 'VARCHAR(200) NULL DEFAULT NULL' },
   { table: 'itensped', column: 'grade_resumo', type: 'VARCHAR(300) NULL DEFAULT NULL' },
   { table: 'fornecedores', column: 'pedidos_codfabricante',  type: "VARCHAR(1) DEFAULT 'N'" },
+  { table: 'fornecedores', column: 'pedidos_ref_mae',        type: "VARCHAR(1) DEFAULT 'N'" },
+
   { table: 'fornecedores', column: 'tipo',                   type: "VARCHAR(20) DEFAULT 'FABRICA'" },
   { table: 'fornecedores', column: 'url_logo',               type: 'VARCHAR(500) NULL DEFAULT NULL' },
   { table: 'fornecedores', column: 'produtofornecedor',      type: "VARCHAR(1) DEFAULT 'N'" },
@@ -171,6 +184,10 @@ const MIGRATIONS = [
   { table: 'fornecedores', column: 'tipo_num_pedido',        type: "VARCHAR(20) DEFAULT 'SISTEMA'" },
   { table: 'fornecedores', column: 'base_conciliacao',       type: "VARCHAR(10) DEFAULT 'PARCELA'" },
   { table: 'fornecedores', column: 'enviar_pedido_fabrica',  type: "CHAR(1) DEFAULT 'N'" },
+  // Anexo estruturado no e-mail Enviar para Fábrica: N=só PDF | XML | XLS
+  { table: 'fornecedores', column: 'formato_anexo_fabrica',  type: "VARCHAR(3) DEFAULT 'N'" },
+  { table: 'fornecedores', column: 'copia_email_cliente',    type: "CHAR(1) DEFAULT 'N'" },
+  { table: 'fornecedores', column: 'copia_email_vendedor',   type: "CHAR(1) DEFAULT 'N'" },
   { table: 'fornecedores', column: 'layout_impressao',       type: "VARCHAR(20) DEFAULT 'PADRAO'" },
 
   // ── CLIENTES ──────────────────────────────────────────────────────────────
@@ -294,6 +311,8 @@ const MIGRATIONS = [
   { table: 'pedidos', column: 'obs_proximo_consumido', type: "ENUM('S','N') NULL DEFAULT 'N'" },
   // Snapshot dos fatores do painel «Desconto por Faixa» (DESC 01–10) aplicados no pedido
   { table: 'pedidos', column: 'descontos_cascata', type: 'VARCHAR(200) NULL DEFAULT NULL' },
+  // Texto livre «Previsão» (aba Entrega) — aparece no cabeçalho da impressão se preenchido
+  { table: 'pedidos', column: 'previsao', type: 'VARCHAR(255) NULL DEFAULT NULL' },
 
   // ── CAMPANHAS FEIRINHA — banner / tema visual ───────────────────────────────
   { table: 'campanhas_feirinha', column: 'tema_banner', type: "VARCHAR(200) NULL DEFAULT NULL" },
@@ -343,6 +362,7 @@ const MIGRATIONS = [
   { table: 'fornecedores', column: 'promo_primeira_compra_exige_kit', type: "CHAR(1) NOT NULL DEFAULT 'N'" },
   { table: 'fornecedores', column: 'promo_condicao_pagto',          type: "VARCHAR(50) NULL DEFAULT NULL" },
   { table: 'fornecedores', column: 'promo_texto_banner',            type: "VARCHAR(200) NULL DEFAULT NULL" },
+  { table: 'fornecedores', column: 'aparece_showroom',              type: "CHAR(1) NOT NULL DEFAULT 'N'" },
 
   // ── CONTROLE DE ACESSOS — localização (Geo-IP + GPS) ─────────────────────────
   { table: 'acessos_dispositivos', column: 'cidade',    type: "VARCHAR(80) NULL DEFAULT NULL" },

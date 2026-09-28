@@ -24,6 +24,9 @@
 <script src="/assets/ajuda-tours.js"></script>
 <script src="/assets/comissao-preposto-ui.js"></script>
 <script src="/assets/vendas-duplicar-item.js"></script>
+<script src="/assets/produto-cores-picker.js?v=20260924a"></script>
+<script src="/assets/grade-tamanho-ordem.js?v=20260922a"></script>
+<script src="/assets/grade-fechada-pack.js?v=20260917a"></script>
 <script src="/assets/catalogo-pedido-ui.js?v=20260716a"></script>
 
 <!-- Leaflet Map -->
@@ -5802,7 +5805,7 @@ html:not(.sysrep-ms-embed) #offlineQueueBadge { display: none !important; }
       <!-- Busca -->
       <div class="search-box">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-        <input type="text" id="inputBusca" class="input-search" placeholder="Buscar pedido, cliente..." autocomplete="off" autocorrect="off" spellcheck="false">
+        <input type="text" id="inputBusca" class="input-search" placeholder="Buscar pedido, cliente, cidade, UF, CNPJ..." autocomplete="off" autocorrect="off" spellcheck="false">
       </div>
       <div class="tb-sep"></div>
       <!-- View toggle -->
@@ -6768,6 +6771,10 @@ html:not(.sysrep-ms-embed) #offlineQueueBadge { display: none !important; }
           <label>Nome Comprador</label>
           <input type="text" id="f_comprador" class="input-field" placeholder="Nome do comprador ou contato" autocomplete="off">
         </div>
+        <div class="form-group col2">
+          <label>Previsão</label>
+          <input type="text" id="f_previsao" class="input-field" placeholder="Texto livre (aparece no cabeçalho da impressão)" maxlength="255" autocomplete="off">
+        </div>
       </div>
     </div>
 
@@ -7171,6 +7178,23 @@ function pedidoUsaCodFabricante(fornConf) {
   return (f.pedidos_codfabricante || 'N') === 'S';
 }
 
+/** Fornecedor: cores (filhos) exibem Cód. Fabricante da referência mãe. */
+function pedidoUsaRefMae(fornConf) {
+  const f = fornConf || _fornecedorConfig || {};
+  return String(f.pedidos_ref_mae || 'N').toUpperCase() === 'S';
+}
+
+/**
+ * Cód. fabricante para tela/PDF. Com `pedidos_ref_mae`, filho herda a ref da mãe.
+ * Não altera `itensped.cod_fabricante` nem XML (continuam com o SKU da cor).
+ */
+function codFabricanteExibicaoItem(item, fornConf) {
+  const raw = String(item?.cod_fabricante || '').trim();
+  if (!pedidoUsaRefMae(fornConf)) return raw;
+  const mae = String(item?.cod_fabricante_mae || item?.cod_fabricante_referencia || '').trim();
+  return mae || raw;
+}
+
 /**
  * Impressão/PDF: cód. fabricante se o fornecedor pedir,
  * senão se o sistema (exibir_codfabricante) estiver Sim.
@@ -7183,10 +7207,32 @@ function impressaoUsaCodFabricante(fornConf) {
   return (_exibirCodFabricante || 'N') === 'S';
 }
 
+/** Código exibido na grade/lista do pedido (aba Itens). */
+function codExibicaoItemNaGrade(item) {
+  if (pedidoUsaCodFabricante()) {
+    return codFabricanteExibicaoItem(item) || String(item?.cod_produto || '');
+  }
+  return String(item?.cod_produto || '');
+}
+
+/** Código exibido na impressão/PDF. */
+function codExibicaoItemNaImpressao(item, fornConf) {
+  if (impressaoUsaCodFabricante(fornConf)) {
+    return codFabricanteExibicaoItem(item, fornConf) || String(item?.cod_produto || '');
+  }
+  return String(item?.cod_produto || '');
+}
+
 /** Código exibido na busca de produtos — mesma regra da aba Itens do pedido. */
 function codExibicaoProdutoPedido(p) {
   const id = p?.cod_produto ?? p?.id ?? '';
-  if (pedidoUsaCodFabricante()) return String(p?.cod_fabricante || id || '');
+  if (pedidoUsaCodFabricante()) {
+    if (pedidoUsaRefMae()) {
+      const mae = String(p?.cod_fabricante_mae || p?.cod_fabricante_referencia || '').trim();
+      if (mae) return mae;
+    }
+    return String(p?.cod_fabricante || id || '');
+  }
   return String(id || '');
 }
 function stepDecimais() {
@@ -7289,6 +7335,8 @@ const PEDIDOS_GRID_COL_DEFAULTS = [
   { id: 2,  label: 'DATA',            field: 'data',      visible: true },
   { id: 30, label: 'HORA',            field: 'hora',      visible: false, width: 70, align: 'center' },
   { id: 3,  label: 'CLIENTE / CNPJ',  field: 'cliente',   visible: true },
+  { id: 31, label: 'CIDADE',          field: 'cidade',    visible: true },
+  { id: 32, label: 'ESTADO',          field: 'uf',        visible: true,  width: 70, align: 'center' },
   { id: 4,  label: 'FÁBRICA',         field: 'fabrica',   visible: true },
   { id: 5,  label: 'VENDEDOR',        field: 'vendedor',  visible: true },
   { id: 6,  label: 'TIPO PED.',       field: 'tipo',      visible: true,  width: 100 },
@@ -10432,6 +10480,8 @@ function renderTabela(rows, offset) {
             </div></div>`;
           break;
         }
+        case 31: val = escHtml(p.cidade_cliente || p.cidade || '—'); break;
+        case 32: val = escHtml(p.uf_cliente || '—'); break;
         case 4: val = escHtml(p.nome_fornecedor || '—'); break;
         case 5: {
           const vend = escHtml(p.nomeusu || p.nome_vendedor || '—');
@@ -11341,6 +11391,7 @@ function serializePedidoFormSnapshot() {
     data_entrega: _pedidoFieldVal('f_data_entrega'),
     ped_compras: _pedidoFieldVal('f_ped_compras'),
     comprador: _pedidoFieldVal('f_comprador'),
+    previsao: _pedidoFieldVal('f_previsao'),
     puxada: _pedidoFieldVal('f_puxada'),
     desconto: _pedidoFieldVal('f_vlrdesconto'),
     frete: _pedidoFieldVal('f_vlrfrete'),
@@ -11364,7 +11415,7 @@ const PEDIDO_DRAFT_FIELD_IDS = [
   'f_data_abertura', 'f_cod_cliente', 'f_cliente_search', 'f_cod_fornecedor', 'f_fornecedor_search',
   'f_id_usuario', 'f_id_empresa', 'f_situacao_pedido', 'f_tipo_pedido', 'f_tipo_documento',
   'f_condicao_pagto', 'f_forma_pagto', 'f_tipo_frete', 'f_cod_transportadora', 'f_transp_search',
-  'f_data_entrega', 'f_ped_compras', 'f_comprador', 'f_puxada', 'f_vlrdesconto', 'f_vlrfrete', 'f_obs',
+  'f_data_entrega', 'f_ped_compras', 'f_comprador', 'f_previsao', 'f_puxada', 'f_vlrdesconto', 'f_vlrfrete', 'f_obs',
   'f_obs_proximo_registrar',
   'f_id_preposto', 'f_id_tabela_preco', 'feirinha_campanha', 'feirinha_preco_revenda',
 ];
@@ -11424,6 +11475,7 @@ function draftToPedidoSnapshotString(draft) {
     data_entrega: String(f.f_data_entrega || '').trim(),
     ped_compras: String(f.f_ped_compras || '').trim(),
     comprador: String(f.f_comprador || '').trim(),
+    previsao: String(f.f_previsao || '').trim(),
     puxada: String(f.f_puxada || '').trim(),
     desconto: String(f.f_vlrdesconto || '').trim(),
     frete: String(f.f_vlrfrete || '').trim(),
@@ -11918,6 +11970,8 @@ async function abrirEdicao(id) {
     document.getElementById('f_data_entrega').value = p.data_entrega ? p.data_entrega.slice(0,10) : '';
     _origemPedido = (p.origem && String(p.origem).trim()) ? String(p.origem).trim() : 'PEDIDO DE VENDA';
     document.getElementById('f_comprador').value = p.comprador || '';
+    const elPrevLoad = document.getElementById('f_previsao');
+    if (elPrevLoad) elPrevLoad.value = p.previsao || '';
     document.getElementById('f_puxada').value = p.puxada || 'N';
     document.getElementById('f_tipo_documento').value = p.tipo_documento || '';
     document.getElementById('f_condicao_pagto').value = p.condicao_pagto || '';
@@ -12224,6 +12278,8 @@ function applyPedidoLogisticaData(p = {}) {
   document.getElementById('f_vlrfrete').value = p.vlrfrete || 0;
   document.getElementById('f_data_entrega').value = p.data_entrega ? p.data_entrega.slice(0,10) : '';
   document.getElementById('f_comprador').value = p.comprador || '';
+  const elPrev = document.getElementById('f_previsao');
+  if (elPrev) elPrev.value = p.previsao || '';
   document.getElementById('f_puxada').value = p.puxada || 'N';
 }
 
@@ -12585,7 +12641,7 @@ function limparForm() {
   _pedidoNumeroExibicao = '';
   limparObsProximoUi();
   syncPedidoNumeroDisplay();
-  const fields = ['f_data_abertura','f_cod_cliente','f_cod_fornecedor','f_id_usuario','f_ped_compras','f_vlrfrete','f_data_entrega','f_comprador','f_vlrdesconto','f_obs','f_obs_proximo_registrar','f_cliente_search','f_fornecedor_search'];
+  const fields = ['f_data_abertura','f_cod_cliente','f_cod_fornecedor','f_id_usuario','f_ped_compras','f_vlrfrete','f_data_entrega','f_comprador','f_previsao','f_vlrdesconto','f_obs','f_obs_proximo_registrar','f_cliente_search','f_fornecedor_search'];
   _tabelaPrecoAtual = '';
   fields.forEach(f => {
     const el = document.getElementById(f);
@@ -12707,7 +12763,7 @@ function itensColValorRaw(item, colId) {
     case 'cores': return String(item.cores_qt ?? item.cores ?? '').trim();
     case 'promocao_descricao': return String(item.promocao_descricao || '').trim();
     case 'tipo_preco': return String(item.tipo_preco || 'venda').trim();
-    case 'cod_fabricante': return String(item.cod_fabricante || '').trim();
+    case 'cod_fabricante': return codFabricanteExibicaoItem(item);
     case 'multiplo_sigla': return String(item.multiplo_sigla || '').trim();
     case 'grade_resumo':
       return String(item.grade_resumo || resumoGradeBadge(item.grade_qtd) || '').trim();
@@ -12866,9 +12922,7 @@ function buildItensRowCtx(item, localIdx, offset, showFoto, usarCodFab, colsAnte
   const realIdx = _subData.itens.indexOf(item);
   const colsAtivos = [...colsAntesVenda, ...colsDepoisVenda];
   const badges = buildItensItemBadges(item, colsAtivos);
-  const cod = usarCodFab
-    ? escHtml(item.cod_fabricante || String(item.cod_produto || ''))
-    : escHtml(String(item.cod_produto || ''));
+  const cod = escHtml(codExibicaoItemNaGrade(item));
   const seq = offset + localIdx + 1;
   const desc_sub = badges ? `<div class="it-sub">${badges}</div>` : '';
   const desc_obs = htmlItemObsLinha(item);
@@ -15974,17 +16028,36 @@ function mapItemPedidoFromApi(i) {
     peso:                 parseFloat(i.peso ?? 0),
     total_peso:           parseFloat(i.total_peso ?? 0),
     cod_fabricante:       String(i.cod_fabricante ?? '').trim(),
+    cod_fabricante_mae:   String(i.cod_fabricante_mae ?? i.cod_fabricante_referencia ?? '').trim(),
+    id_referencia:        parseInt(i.id_referencia, 10) || null,
     multiplo_venda_produto: parseInt(i.multiplo_venda_produto ?? i.multiplo_venda, 10) || 1,
     qtd_minima_pedido_produto: parseInt(i.qtd_minima_pedido_produto ?? i.qtd_minima_pedido, 10) || 0,
     multiplo_sigla:       String(i.multiplo_sigla ?? '').trim(),
     grade_resumo:         String(i.grade_resumo ?? '').trim(),
     obsitem:              String(i.obsitem ?? '').trim().slice(0, 100),
+    vlr_custo_produto:    parseFloat(i.vlr_custo_produto ?? i.vlr_custo ?? 0) || 0,
     vlrtotal_com_imposto: parseFloat(i.vlrtotal_com_imposto ?? i.vlrtotalcomimposto ?? i.vlrtotal_itens ?? 0),
   };
   delete item.obsitemitenspedido;
   delete item.obs_item;
   if (!item.total_peso) item.total_peso = calcPesoItemPedido(item);
   return item;
+}
+
+/** Custo unitário do item na impressão (cadastro produto.vlr_custo). */
+function vlrCustoItemImpressao(i) {
+  return parseFloat(i?.vlr_custo_produto ?? i?.vlr_custo ?? 0) || 0;
+}
+
+/** Total da linha na impressão «só custo» = custo unitário × quantidade. */
+function baseTotalCustoItemImpressao(i) {
+  const qtd = parseFloat(i?.quantidade) || 0;
+  return Math.round(vlrCustoItemImpressao(i) * qtd * 100) / 100;
+}
+
+/** Checkbox «Pedido para fábrica (só custo)» no modal Imprimir / Enviar (default desligado). */
+function impressaoIncluirCusto() {
+  return !!document.getElementById('chkCustoPDF')?.checked;
 }
 
 /** Impressão/PDF: pedido tem item com precopeso=S (coluna Peso só nesse caso). */
@@ -16877,6 +16950,8 @@ async function buildMercosItemFromProd(prod, qtd) {
   const item = {
     cod_produto: prodId,
     cod_fabricante: prod.cod_fabricante || '',
+    cod_fabricante_mae: String(prod.cod_fabricante_mae || prod.cod_fabricante_referencia || '').trim(),
+    id_referencia: parseInt(prod.id_referencia, 10) || null,
     unidade: prod.unidade || '',
     desc_prod: resolveProdDescricao(prod) || ('Produto ' + (prod.cod_fabricante || prodId || '')).trim(),
     quantidade: qtd,
@@ -17330,7 +17405,120 @@ function renderMobileCatalogGrid(items, filtro = '', novos = null) {
   }
 }
 
+
+async function fetchGrupoVariacoesPedido(prodId) {
+  const id = parseInt(prodId, 10);
+  if (!(id > 0)) return null;
+  const r = await api(`/api/produtos/${id}/variacoes`);
+  if (!r.ok) return null;
+  const d = await r.json().catch(() => null);
+  if (!d || !d.mae) return null;
+  const mapSku = (c) => ({
+    ...c,
+    cod_produto: parseInt(c.id || c.cod_produto, 10),
+    desc_produto: c.descricao || c.desc_produto || '',
+    descricao: c.descricao || c.desc_produto || '',
+  });
+  if (Array.isArray(d.cores)) d.cores = d.cores.map(mapSku);
+  if (d.mae) d.mae = mapSku(d.mae);
+  if (d.eu) d.eu = mapSku(d.eu);
+  return d;
+}
+
+async function confirmarCoresNoPedido(selecoes) {
+  if (!selecoes || !selecoes.length) return;
+  if (typeof fecharModalHist === 'function') fecharModalHist();
+  let okCount = 0;
+  for (const s of selecoes) {
+    const prod = {
+      ...(s.prod || {}),
+      cod_produto: s.cod_produto,
+      id: s.cod_produto,
+      desc_produto: (s.prod && (s.prod.descricao || s.prod.desc_produto)) || '',
+      descricao: (s.prod && (s.prod.descricao || s.prod.desc_produto)) || '',
+      cor1: s.cor1 || s.cor || '',
+      foto_principal: s.prod?.foto_principal || '',
+      cod_fabricante: s.prod?.cod_fabricante || '',
+      cod_fabricante_mae: String(s.cod_fabricante_mae || s.prod?.cod_fabricante_mae || s.prod?.cod_fabricante_referencia || '').trim(),
+      id_referencia: parseInt(s.prod?.id_referencia, 10) || null,
+      unidade: s.prod?.unidade || '',
+      vlr_venda: s.prod?.vlr_venda,
+      tipograde: s.prod?.tipograde || s.id_grade || null,
+      tipoprodutograde: s.prod?.tipoprodutograde,
+      multiplo_venda: s.prod?.multiplo_venda,
+      qtd_minima_pedido: s.prod?.qtd_minima_pedido,
+      precopeso: s.prod?.precopeso,
+      kilo_embalagem: s.prod?.kilo_embalagem,
+      comissao: s.prod?.comissao,
+      st: s.prod?.st,
+      ipi: s.prod?.ipi,
+      icms: s.prod?.icms,
+      valor_puxada: s.prod?.valor_puxada,
+      bloquear_desconto: s.prod?.bloquear_desconto,
+      desconto_maximo: s.prod?.desconto_maximo,
+      disponivel: s.prod?.disponivel,
+    };
+    const temGrade = Array.isArray(s.grade_qtd) && s.grade_qtd.length > 0;
+    let qtd = parseFloat(s.qtd) || 0;
+    if (!temGrade) {
+      const mv = parseInt(prod.multiplo_venda, 10) || 1;
+      if (mv > 1 && qtd > 0) qtd = Math.ceil(qtd / mv) * mv;
+    }
+    const mesmaCorVarias = selecoes.filter((x) => parseInt(x.cod_produto, 10) === parseInt(s.cod_produto, 10)).length > 1;
+    const ok = await incluirOuAtualizarMercosItem(prod, qtd, {
+      atualizarExistente: false,
+      silent: true,
+      forcarNovaLinha: mesmaCorVarias || !!s.id_grade,
+      ...(temGrade ? {
+        grade_qtd: s.grade_qtd,
+        id_grade: s.id_grade || prod.tipograde || null,
+        tipo_grade: s.tipo_grade || (s.id_grade ? String(s.id_grade) : (prod.tipograde != null ? String(prod.tipograde) : null)),
+        modo_grade: s.modo_grade,
+        multiplo_grade: s.multiplo_grade,
+      } : {}),
+    });
+    if (ok) okCount++;
+  }
+  if (okCount > 0) {
+    const msg = okCount === 1 ? '1 item adicionado ao pedido' : `${okCount} itens adicionados ao pedido`;
+    if (typeof toast === 'function') toast(msg, 'ok');
+    else if (typeof showToast === 'function') showToast(msg, 'success');
+  }
+}
+
+/** Se o produto for PAI com cores, abre o seletor e retorna true. */
+async function tentarPickerCoresPedido(prodOrId) {
+  if (typeof ProdutoCoresPicker === 'undefined') return false;
+  const id = typeof prodOrId === 'object'
+    ? parseInt(prodOrId?.cod_produto || prodOrId?.id, 10)
+    : parseInt(prodOrId, 10);
+  if (!(id > 0)) return false;
+  if (typeof prodOrId === 'object' && prodOrId && Number(prodOrId.qtd_cores) === 0
+      && String(prodOrId.agrupa_cores || '').toUpperCase() !== 'S'
+      && !(parseInt(prodOrId.id_referencia, 10) > 0)) {
+    // ainda consulta API (pode ser pai sem contagem em cache)
+  }
+  return ProdutoCoresPicker.tryFromProdutoId(id, {
+    fetchGrupo: fetchGrupoVariacoesPedido,
+    formatPreco: (typeof fmtPreco === 'function') ? fmtPreco : undefined,
+    okTexto: 'Adicionar ao pedido',
+    onConfirm: confirmarCoresNoPedido,
+    habilitaGrade: _habilitaGrades,
+    fetchGrade: async (idGrade) => {
+      const r = await api(`/api/pedidos/grade/${idGrade}`);
+      if (!r.ok) throw new Error('grade');
+      return r.json();
+    },
+    fetchGradesProduto: async (prodId) => {
+      const r = await api(`/api/produtos/${prodId}/grades`);
+      if (!r.ok) return { grades: [] };
+      return r.json();
+    },
+  });
+}
+
 async function adicionarProdutoCatalogoRapido(prod) {
+  if (await tentarPickerCoresPedido(prod)) return;
   if (_habilitaGrades === 'S' && prod.tipograde) {
     await mostrarModalValidacaoPedido([{
       message: `«${prod.descricao || prod.desc_prod || 'Produto'}» exige grade. Use «+ Item» para informar os tamanhos.`,
@@ -18224,6 +18412,7 @@ async function _salvarPedidoImpl() {
       prazo_pagto:         _prazoAtual,
       ped_compras:         document.getElementById('f_ped_compras').value,
       comprador:           document.getElementById('f_comprador').value,
+      previsao:            (document.getElementById('f_previsao')?.value || '').trim().slice(0, 255),
       data_entrega:        (() => { const d = (document.getElementById('f_data_entrega').value || '').trim(); return d ? d : null; })(),
       puxada:              document.getElementById('f_puxada').value || 'N',
       vlrsubtotal:         vlrSubtotal,
@@ -19502,7 +19691,7 @@ function initPedidosMercosMobileUi() {
   if (!root) return;
   const input = document.getElementById('inputBusca');
   if (input && document.documentElement.classList.contains('sysrep-ms-embed')) {
-    input.setAttribute('placeholder', 'Buscar pedido...');
+    input.setAttribute('placeholder', 'Pedido, cliente, cidade, UF, CNPJ...');
   }
 
   if (typeof SysRepPedidosOffline !== 'undefined') {
@@ -20362,7 +20551,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (PER_PAGE > 20) { PER_PAGE = 20; if (selLimit) selLimit.value = '20'; }
   }
   updateListInsights();
-  if (inputBusca) inputBusca.placeholder = 'Buscar pedido, cliente... ( / )';
+  if (inputBusca) inputBusca.placeholder = 'Buscar pedido, cliente, cidade, UF, CNPJ... ( / )';
   bindListStaticControls();
   document.getElementById('feirinha_preco_revenda')?.addEventListener('input', () => atualizarResumoFeirinha());
   document.getElementById('feirinha_campanha')?.addEventListener('change', () => onFeirinhaCampanhaChange());
@@ -21966,6 +22155,7 @@ function montarTabelaGradeImpressao(its, h, fmtQtd, br, optsOrFab) {
   const exibeCor = (opts.exibeCor != null ? opts.exibeCor : (_exibeCorPedGrades || 'S')) === 'S';
   const completo = String(opts.tipoRel != null ? opts.tipoRel : (_tipoRelGrade || 'SIMPLES')).toUpperCase() === 'COMPLETO';
   const showFoto = !!opts.showFoto;
+  const showCusto = !!opts.showCusto;
   const fmtTam = typeof fmtQtd === 'function'
     ? fmtQtd
     : (v => Math.round(parseFloat(v) || 0).toLocaleString('pt-BR'));
@@ -21975,15 +22165,16 @@ function montarTabelaGradeImpressao(its, h, fmtQtd, br, optsOrFab) {
   const showSeq = completo && cfg.col_seq !== false;
   const showUnid = completo && cfg.col_unidade === true;
   const showQtdeLinha = cfg.col_quantidade !== false;
-  const showVlrPadrao = completo && typeof itensMostraColRelatorio === 'function' && itensMostraColRelatorio('vlr_padrao');
-  const showPreco = cfg.col_preco_unit !== false;
-  const showDesc = completo && cfg.col_desconto === true && (typeof itensMostraColRelatorio !== 'function' || itensMostraColRelatorio('desconto'));
-  const showAcr = completo && cfg.col_acrescimo === true;
-  const showVlrFinal = completo && cfg.col_vlr_desc_unit === true;
+  // Modo fábrica (só custo): NÃO exibe valor de venda / tabela / desc / impostos
+  const showVlrPadrao = !showCusto && completo && typeof itensMostraColRelatorio === 'function' && itensMostraColRelatorio('vlr_padrao');
+  const showPreco = !showCusto && cfg.col_preco_unit !== false;
+  const showDesc = !showCusto && completo && cfg.col_desconto === true && (typeof itensMostraColRelatorio !== 'function' || itensMostraColRelatorio('desconto'));
+  const showAcr = !showCusto && completo && cfg.col_acrescimo === true;
+  const showVlrFinal = !showCusto && completo && cfg.col_vlr_desc_unit === true;
   const showVlrTotal = cfg.col_vlrtotal !== false;
-  const showIpi = completo && (cfg.col_ipi === true || cfg.col_ipi_pct === true);
-  const showSt = completo && (cfg.col_st === true || cfg.col_st_pct === true);
-  const showSubtotal = completo && cfg.col_subtotal === true;
+  const showIpi = !showCusto && completo && (cfg.col_ipi === true || cfg.col_ipi_pct === true);
+  const showSt = !showCusto && completo && (cfg.col_st === true || cfg.col_st_pct === true);
+  const showSubtotal = !showCusto && completo && cfg.col_subtotal === true;
 
   const CORES_BLOCO = [
     { txt: '#4338ca', bg: '#eef2ff', tint: '#e0e7ff' },
@@ -22013,6 +22204,7 @@ function montarTabelaGradeImpressao(its, h, fmtQtd, br, optsOrFab) {
   const unionTamanhosOrdenados = (listaBlocos) => {
     const seen = new Set();
     const list = [];
+    const seqItems = [];
     const push = (t) => {
       const k = String(t == null ? '' : t).trim();
       if (!k || seen.has(k)) return;
@@ -22021,7 +22213,14 @@ function montarTabelaGradeImpressao(its, h, fmtQtd, br, optsOrFab) {
     };
     (listaBlocos || []).forEach((b) => (b.tamanhos || []).forEach(push));
     // também varre os itens (grade_qtd pode vir só com tamanhos preenchidos)
-    comGrade.forEach((i) => (i.grade_qtd || []).forEach((g) => push(g.nome_grade)));
+    comGrade.forEach((i) => (i.grade_qtd || []).forEach((g) => {
+      push(g.nome_grade);
+      if (g && g.nome_grade) seqItems.push(g);
+    }));
+    const multiFonte = (listaBlocos || []).length > 1;
+    if (typeof GradeTamanhoOrdem !== 'undefined' && GradeTamanhoOrdem.ordenarNomesTamanhoUniao) {
+      return GradeTamanhoOrdem.ordenarNomesTamanhoUniao(list, seqItems, multiFonte);
+    }
     return list.sort((a, b) => {
       const na = parseFloat(String(a).replace(',', '.'));
       const nb = parseFloat(String(b).replace(',', '.'));
@@ -22083,6 +22282,7 @@ function montarTabelaGradeImpressao(its, h, fmtQtd, br, optsOrFab) {
       showQtdeLinha ? thFixo('Qtde.') : '',
       showVlrPadrao ? thFixo('Vlr. Tab.', 'right') : '',
       showPreco ? thFixo('Valor', 'right') : '',
+      showCusto ? thFixo('Custo', 'right') : '',
       showDesc ? thFixo('Desc.%') : '',
       showAcr ? thFixo('Acr.%') : '',
       showVlrFinal ? thFixo('Vlr Final', 'right') : '',
@@ -22103,7 +22303,7 @@ function montarTabelaGradeImpressao(its, h, fmtQtd, br, optsOrFab) {
       const qtd = parseFloat(i.quantidade) || 0;
       totalPares += qtd;
       const valorUnit = vlrVendaEfetivoImpressao(i);
-      const total = baseTotalItemImpressao(i);
+      const total = showCusto ? baseTotalCustoItemImpressao(i) : baseTotalItemImpressao(i);
       const gradeMap = {};
       (i.grade_qtd || []).forEach((g) => {
         const n = String(g.nome_grade || '').trim();
@@ -22152,7 +22352,7 @@ function montarTabelaGradeImpressao(its, h, fmtQtd, br, optsOrFab) {
       return `<tr>
       ${fotoCell}
       ${showSeq ? tdFit(String(idx + 1), 'text-align:center;color:#64748b') : ''}
-      ${showCod ? tdFit(h(usarCodFab ? (i.cod_fabricante || i.cod_produto || '') : (i.cod_produto || '')), 'text-align:center;font-weight:700;color:#0f172a') : ''}
+      ${showCod ? tdFit(h(codExibicaoItemNaImpressao(i, fornConf)), 'text-align:center;font-weight:700;color:#0f172a') : ''}
       ${td(descComCor, `text-align:left;padding:5px 8px;line-height:1.3;${COL_FIT}`)}
       ${exibeCor && !corSobDesc ? tdFit(h(corTxt), 'text-align:left;color:#334155;font-weight:700') : ''}
       ${showUnid ? tdFit(h(i.unidade || ''), 'text-align:center') : ''}
@@ -22160,6 +22360,7 @@ function montarTabelaGradeImpressao(its, h, fmtQtd, br, optsOrFab) {
       ${showQtdeLinha ? tdFit(`<b>${fmtTamGrade(qtd)}</b>`, 'text-align:center') : ''}
       ${showVlrPadrao ? tdFit('R$ ' + br(typeof normalizarVlrPadraoItem === 'function' ? normalizarVlrPadraoItem(i) : (i.vlr_padrao || 0)), 'text-align:right') : ''}
       ${showPreco ? tdFit('R$ ' + br(valorUnit), 'text-align:right') : ''}
+      ${showCusto ? tdFit('R$ ' + br(vlrCustoItemImpressao(i)), 'text-align:right') : ''}
       ${showDesc ? tdFit(descPct ? `${descPct}%` : '—', 'text-align:center') : ''}
       ${showAcr ? tdFit(acrPct ? `<span style="color:#16a34a;font-weight:700">+${acrPct}%</span>` : '—', 'text-align:center') : ''}
       ${showVlrFinal ? tdFit('R$ ' + br(valorUnit), 'text-align:right') : ''}
@@ -22321,13 +22522,15 @@ async function imprimirPedidoAtual(opts = {}) {
   });
 
   // ── totais de itens ─────────────────────────────────────────────
-  const totalItens = its.reduce((s,i) => s + baseTotalItemImpressao(i), 0);
-  const totalIpi = its.reduce((s,i) => {
+  // showCustoPDF ainda não existe aqui — calcula modo custo pelo checkbox direto
+  const _modoCustoImp = impressaoIncluirCusto();
+  const totalItens = its.reduce((s,i) => s + (_modoCustoImp ? baseTotalCustoItemImpressao(i) : baseTotalItemImpressao(i)), 0);
+  const totalIpi = _modoCustoImp ? 0 : its.reduce((s,i) => {
     const base = baseTotalItemImpressao(i);
     const pct = parseFloat(i.ipi_percentual ?? i.ipi) || 0;
     return s + (parseFloat(i.vlr_ipi) || (pct > 0 ? base * pct / 100 : 0));
   }, 0);
-  const totalSt = its.reduce((s,i) => {
+  const totalSt = _modoCustoImp ? 0 : its.reduce((s,i) => {
     const base = baseTotalItemImpressao(i);
     const pct = parseFloat(i.st_percentual ?? i.st) || 0;
     return s + (parseFloat(i.vlr_st) || (pct > 0 ? base * pct / 100 : 0));
@@ -22348,6 +22551,7 @@ async function imprimirPedidoAtual(opts = {}) {
 
   // ── colunas dos itens ────────────────────────────────────────────
   const showFotoPDF = its.some(i => i.foto_principal) && !!document.getElementById('chkFotoPDF')?.checked;
+  const showCustoPDF = impressaoIncluirCusto();
   const temPrecoPesoImpressao = pedidoTemPrecoPesoImpressao(its);
   const theadCells = [
     showFotoPDF        ? `<th class="tc" style="width:64px">Foto</th>` : '',
@@ -22357,15 +22561,16 @@ async function imprimirPedidoAtual(opts = {}) {
     cfg.col_unidade    ? `<th class="tc">Unid.</th>` : '',
     cfg.col_quantidade ? `<th class="tr">Quant.</th>` : '',
     temPrecoPesoImpressao ? `<th class="tr">Peso (kg)</th>` : '',
-    itensMostraColRelatorio('vlr_padrao') ? `<th class="tr">Vlr. Tabela</th>` : '',
-    cfg.col_preco_unit ? `<th class="tr">Vlr Venda</th>` : '',
-    itensMostraColRelatorio('desconto') && cfg.col_desconto ? `<th class="tc">Desc.%</th>` : '',
-    cfg.col_acrescimo ? `<th class="tc">Acr.%</th>` : '',
-    cfg.col_vlr_desc_unit ? `<th class="tr">Vlr Final</th>` : '',
-    cfg.col_vlrtotal   ? `<th class="tr">Vlr Total</th>` : '',
-    (cfg.col_ipi || cfg.col_ipi_pct) ? `<th class="tc">IPI</th>` : '',
-    (cfg.col_st || cfg.col_st_pct) ? `<th class="tc">ST</th>` : '',
-    cfg.col_subtotal   ? `<th class="tr">Vlr c/ Imposto</th>` : '',
+    (!showCustoPDF && itensMostraColRelatorio('vlr_padrao')) ? `<th class="tr">Vlr. Tabela</th>` : '',
+    (!showCustoPDF && cfg.col_preco_unit) ? `<th class="tr">Vlr Venda</th>` : '',
+    showCustoPDF ? `<th class="tr">Custo</th>` : '',
+    (!showCustoPDF && itensMostraColRelatorio('desconto') && cfg.col_desconto) ? `<th class="tc">Desc.%</th>` : '',
+    (!showCustoPDF && cfg.col_acrescimo) ? `<th class="tc">Acr.%</th>` : '',
+    (!showCustoPDF && cfg.col_vlr_desc_unit) ? `<th class="tr">Vlr Final</th>` : '',
+    cfg.col_vlrtotal   ? `<th class="tr">Total</th>` : '',
+    (!showCustoPDF && (cfg.col_ipi || cfg.col_ipi_pct)) ? `<th class="tc">IPI</th>` : '',
+    (!showCustoPDF && (cfg.col_st || cfg.col_st_pct)) ? `<th class="tc">ST</th>` : '',
+    (!showCustoPDF && cfg.col_subtotal) ? `<th class="tr">Vlr c/ Imposto</th>` : '',
   ].join('');
 
   // ── linhas de itens ─────────────────────────────────────────────
@@ -22380,30 +22585,31 @@ async function imprimirPedidoAtual(opts = {}) {
       const obs = htmlItemObsPrintLinha(i, fornConf, h);
       return obs ? `${base}${obs}` : base;
     })();
-    const _base1   = baseTotalItemImpressao(i);
+    const _base1   = showCustoPDF ? baseTotalCustoItemImpressao(i) : baseTotalItemImpressao(i);
     const _ipiPct1 = parseFloat(i.ipi_percentual ?? i.ipi) || 0;
     const _stPct1  = parseFloat(i.st_percentual  ?? i.st)  || 0;
-    const _ipiVal1 = parseFloat(i.vlr_ipi) || (_ipiPct1 > 0 ? _base1 * _ipiPct1 / 100 : 0);
-    const _stVal1  = parseFloat(i.vlr_st)  || (_stPct1  > 0 ? _base1 * _stPct1  / 100 : 0);
+    const _ipiVal1 = showCustoPDF ? 0 : (parseFloat(i.vlr_ipi) || (_ipiPct1 > 0 ? _base1 * _ipiPct1 / 100 : 0));
+    const _stVal1  = showCustoPDF ? 0 : (parseFloat(i.vlr_st)  || (_stPct1  > 0 ? _base1 * _stPct1  / 100 : 0));
     // ICMS "por dentro" — não soma no total c/ imposto (apenas IPI + ST)
     const _tot1    = _base1 + _ipiVal1 + _stVal1;
     const cells = [
       showFotoPDF        ? `<td class="tc" style="padding:3px 6px">${i.foto_principal ? `<img src="${h(i.foto_principal)}" style="width:56px;height:56px;object-fit:contain;object-position:center;border-radius:5px;display:block;margin:0 auto;background:#fff" onerror="this.style.display='none'">` : ''}</td>` : '',
       cfg.col_seq        ? `<td class="tc">${idx + 1}</td>` : '',
-      cfg.col_cod        ? `<td class="tc">${h(usarCodFab ? (i.cod_fabricante||i.cod_produto||'') : (i.cod_produto||''))}</td>` : '',
+      cfg.col_cod        ? `<td class="tc">${h(codExibicaoItemNaImpressao(i, fornConf))}</td>` : '',
                            `<td class="td">${descHtml}</td>`,
       cfg.col_unidade    ? `<td class="tc">${h(i.unidade||'')}</td>` : '',
       cfg.col_quantidade ? `<td class="tr">${fmtQtd(i.quantidade)}</td>` : '',
       temPrecoPesoImpressao ? `<td class="tr">${ppItem && pesoKg ? fmtPesoKgImpressao(pesoKg) : ''}</td>` : '',
-      itensMostraColRelatorio('vlr_padrao') ? `<td class="tr">R$ ${br(normalizarVlrPadraoItem(i))}${ppItem ? '<span style="font-size:8px;color:#64748b">/kg</span>' : ''}</td>` : '',
-      cfg.col_preco_unit ? `<td class="tr">R$ ${br(vlrVendaEfetivoImpressao(i))}${ppItem ? '<span style="font-size:8px;color:#64748b">/kg</span>' : ''}</td>` : '',
-      (itensMostraColRelatorio('desconto') && cfg.col_desconto) ? `<td class="tc">${parseFloat(i.desconto_percentual||i.desconto)||0}%</td>` : '',
-      cfg.col_acrescimo ? `<td class="tc">${parseFloat(i.acrescimo_percentual||i.acrescimo)||0 ? `<span style="color:#16a34a;font-weight:700">+${parseFloat(i.acrescimo_percentual||i.acrescimo)}%</span>` : '—'}</td>` : '',
-      cfg.col_vlr_desc_unit ? `<td class="tr">R$ ${br((parseFloat(i.valor_unitario)||0) * (1 - (parseFloat(i.desconto_percentual||i.desconto)||0)/100))}${ppItem ? '<span style="font-size:8px;color:#64748b">/kg</span>' : ''}</td>` : '',
+      (!showCustoPDF && itensMostraColRelatorio('vlr_padrao')) ? `<td class="tr">R$ ${br(normalizarVlrPadraoItem(i))}${ppItem ? '<span style="font-size:8px;color:#64748b">/kg</span>' : ''}</td>` : '',
+      (!showCustoPDF && cfg.col_preco_unit) ? `<td class="tr">R$ ${br(vlrVendaEfetivoImpressao(i))}${ppItem ? '<span style="font-size:8px;color:#64748b">/kg</span>' : ''}</td>` : '',
+      showCustoPDF ? `<td class="tr">R$ ${br(vlrCustoItemImpressao(i))}</td>` : '',
+      (!showCustoPDF && itensMostraColRelatorio('desconto') && cfg.col_desconto) ? `<td class="tc">${parseFloat(i.desconto_percentual||i.desconto)||0}%</td>` : '',
+      (!showCustoPDF && cfg.col_acrescimo) ? `<td class="tc">${parseFloat(i.acrescimo_percentual||i.acrescimo)||0 ? `<span style="color:#16a34a;font-weight:700">+${parseFloat(i.acrescimo_percentual||i.acrescimo)}%</span>` : '—'}</td>` : '',
+      (!showCustoPDF && cfg.col_vlr_desc_unit) ? `<td class="tr">R$ ${br((parseFloat(i.valor_unitario)||0) * (1 - (parseFloat(i.desconto_percentual||i.desconto)||0)/100))}${ppItem ? '<span style="font-size:8px;color:#64748b">/kg</span>' : ''}</td>` : '',
       cfg.col_vlrtotal   ? `<td class="tr">R$ ${br(_base1)}</td>` : '',
-      (cfg.col_ipi || cfg.col_ipi_pct) ? `<td class="tc">${_ipiPct1 || 0}%${(cfg.col_ipi && !cfg.col_ipi_pct && _ipiVal1 > 0) ? `<div style="font-size:9px;color:#6366f1;font-weight:700">R$ ${br(_ipiVal1)}</div>` : ''}</td>` : '',
-      (cfg.col_st || cfg.col_st_pct) ? `<td class="tc">${_stPct1  || 0}%${(cfg.col_st && !cfg.col_st_pct && _stVal1  > 0) ? `<div style="font-size:9px;color:#d97706;font-weight:700">R$ ${br(_stVal1)}</div>`  : ''}</td>` : '',
-      cfg.col_subtotal   ? `<td class="tr"><b>R$ ${br(_tot1)}</b></td>` : '',
+      (!showCustoPDF && (cfg.col_ipi || cfg.col_ipi_pct)) ? `<td class="tc">${_ipiPct1 || 0}%${(cfg.col_ipi && !cfg.col_ipi_pct && _ipiVal1 > 0) ? `<div style="font-size:9px;color:#6366f1;font-weight:700">R$ ${br(_ipiVal1)}</div>` : ''}</td>` : '',
+      (!showCustoPDF && (cfg.col_st || cfg.col_st_pct)) ? `<td class="tc">${_stPct1  || 0}%${(cfg.col_st && !cfg.col_st_pct && _stVal1  > 0) ? `<div style="font-size:9px;color:#d97706;font-weight:700">R$ ${br(_stVal1)}</div>`  : ''}</td>` : '',
+      (!showCustoPDF && cfg.col_subtotal) ? `<td class="tr"><b>R$ ${br(_tot1)}</b></td>` : '',
     ];
     return `<tr class="${idx%2===1?'alt':''}">${cells.join('')}</tr>`;
   }).join('');
@@ -22414,6 +22620,7 @@ async function imprimirPedidoAtual(opts = {}) {
     exibeCor: _exibeCorPedGrades || 'S',
     tipoRel: _tipoRelGrade || 'SIMPLES',
     showFoto: showFotoPDF,
+    showCusto: showCustoPDF,
   }) : null;
   const itensTableHtml = tabelaGrade
     ? tabelaGrade.html
@@ -22422,10 +22629,10 @@ async function imprimirPedidoAtual(opts = {}) {
 
   // ── totais ───────────────────────────────────────────────────────
   const totaisRows = [
-    cfg.tot_itens ? `<tr><td class="tot-label">Total dos Itens</td><td class="tot-val">R$ ${br(totalItens)}</td></tr>` : '',
-    cfg.tot_ipi   ? `<tr><td class="tot-label">Total IPI</td><td class="tot-val">R$ ${br(totalIpi)}</td></tr>` : '',
-    cfg.tot_st    ? `<tr><td class="tot-label">Subst. Tributária</td><td class="tot-val">R$ ${br(totalSt)}</td></tr>` : '',
-    cfg.tot_total ? `<tr class="total-final"><td class="tot-label">${tpImp.total}</td><td class="tot-val">R$ ${br(totalPed)}</td></tr>` : '',
+    cfg.tot_itens ? `<tr><td class="tot-label">${showCustoPDF ? 'Total dos Itens (custo)' : 'Total dos Itens'}</td><td class="tot-val">R$ ${br(totalItens)}</td></tr>` : '',
+    (!showCustoPDF && cfg.tot_ipi) ? `<tr><td class="tot-label">Total IPI</td><td class="tot-val">R$ ${br(totalIpi)}</td></tr>` : '',
+    (!showCustoPDF && cfg.tot_st) ? `<tr><td class="tot-label">Subst. Tributária</td><td class="tot-val">R$ ${br(totalSt)}</td></tr>` : '',
+    cfg.tot_total ? `<tr class="total-final"><td class="tot-label">${showCustoPDF ? 'Total do Pedido (custo)' : tpImp.total}</td><td class="tot-val">R$ ${br(totalPed)}</td></tr>` : '',
   ].join('');
 
   let feirinhaPrintHtml = '';
@@ -22547,6 +22754,7 @@ async function imprimirPedidoAtual(opts = {}) {
       ${cfg.emp_comprador     ? `<div class="field"><span>Comprador:</span> <b>${h(p.comprador||'')}</b></div>` : ''}
       ${cfg.emp_cond_pagto    ? `<div class="field"><span>Cond. Pagto:</span> <b>${h(p.condicao_pagto||p.prazo_pagto||'')}</b></div>` : ''}
       ${cfg.emp_forma_pagto   ? `<div class="field"><span>Forma Pagto:</span> <b>${h(p.forma_pagto||'')}</b></div>` : ''}
+      ${cfg.emp_previsao && (p.previsao || '').toString().trim() ? `<div class="field" style="grid-column:1/-1"><span>Previsão:</span> <b>${h(String(p.previsao).trim())}</b></div>` : ''}
     </div>
     ${logoRightHtml}
   </div>
@@ -22660,6 +22868,7 @@ function coletarDadosImpressaoRascunho() {
     id_usuario: parseInt(gv('f_id_usuario'), 10) || null,
     ped_compras: gv('f_ped_compras'),
     comprador: gv('f_comprador'),
+    previsao: gv('f_previsao'),
     condicao_pagto: gv('f_condicao_pagto'),
     forma_pagto: gv('f_forma_pagto'),
     tipo_frete: gv('f_tipo_frete'),
@@ -22712,7 +22921,7 @@ function _buildHtmlPedidoDetalhado({ p, its, cli, emp, fornConf, dualLogo, logoL
     const pesoUn  = parseFloat(it.peso) || 0;
     const qtd     = parseFloat(it.quantidade) || 0;
     const pesoTot = pesoUn * qtd;
-    const cod     = usarCodFab ? (it.cod_fabricante || it.cod_produto || '') : (it.cod_produto || '');
+    const cod     = codExibicaoItemNaImpressao(it, fornConf);
     const vlrUnit  = parseFloat(it.valor_unitario) || 0;
     const descPct  = parseFloat(it.desconto_percentual || it.desconto) || 0;
     const vlrFinal = vlrUnit * (1 - descPct / 100);
@@ -23121,6 +23330,8 @@ function _abrirModalEnvioComDados(pedido, itens, cliente) {
   if (fotoCheckEl) fotoCheckEl.style.display = deveMostrarFotoCheck ? '' : 'none';
   const chkFoto = $('chkFotoPDF');
   if (chkFoto) chkFoto.checked = _fornecedorConfig.fotosprodutospedido === 'S';
+  const chkCusto = $('chkCustoPDF');
+  if (chkCusto) chkCusto.checked = false;
   try {
     _envioPedidoId = pedido.id || _idEdit || null;
     _envioNumeroPedido = num;
@@ -26779,7 +26990,7 @@ function clearPedidoActionParams() {
   try {
     const url = new URL(window.location.href);
     let changed = false;
-    ['novo', 'id', 'cliente_id', 'id_cliente', 'cliente_nome', 'nome_cliente', 'tele', 'return'].forEach((key) => {
+    ['novo', 'id', 'cliente_id', 'id_cliente', 'cliente_nome', 'nome_cliente', 'tele', 'tipo', 'return'].forEach((key) => {
       if (url.searchParams.has(key)) {
         url.searchParams.delete(key);
         changed = true;
@@ -26810,6 +27021,24 @@ function aplicarFiltroGerafinanceiroUi() {
   if (selTipo) selTipo.value = 'ALL';
 }
 
+/**
+ * Link vindo de outro sistema (ex.: CRM): ?tipo=orcamento (ou pedido) abre o novo documento ja no tipo pedido.
+ * So age se a empresa deixa escolher o tipo (combo habilitado) e a opcao existe; nunca cria nada sozinho.
+ */
+function aplicarTipoPedidoDaUrl(tipo) {
+  try {
+    if (tipo !== 'ORCAMENTO' && tipo !== 'PEDIDO') return false;
+    const sel = document.getElementById('f_tipo_pedido');
+    if (!sel || sel.disabled) return false;
+    const opt = Array.from(sel.options).find((o) => String(o.value || '').toUpperCase().replace(/\u00c7/g, 'C') === tipo);
+    if (!opt) return false;
+    sel.value = opt.value;
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    if (typeof _tiposPedido !== 'undefined') _tipoPedidoAtivo = _tiposPedido.find((t) => t.tipo_pedido === opt.value) || _tipoPedidoAtivo || {};
+    return true;
+  } catch (_) { return false; }
+}
+
 function checkUrlParams() {
   const urlParams = new URLSearchParams(window.location.search);
   const retParam = parsePedidoReturnParam(urlParams.get('return'));
@@ -26826,6 +27055,7 @@ function checkUrlParams() {
     const _cliId   = urlParams.get('cliente_id') || urlParams.get('id_cliente') || '';
     const _cliNome = urlParams.get('cliente_nome') || urlParams.get('nome_cliente') || '';
     const _isTele  = urlParams.get('tele') === '1';
+    const _tipoUrl = String(urlParams.get('tipo') || '').toUpperCase().replace(/\u00c7/g, 'C');
     setTimeout(() => {
       try {
         abrirNovo();
@@ -26835,6 +27065,8 @@ function checkUrlParams() {
             aplicarClienteNovoPedido(_cliId, _cliNome).catch(() => {});
           }, 400);
         }
+        // depois de aplicar o cliente (que pode reaplicar o fluxo da empresa), escolhe o tipo pedido no link
+        if (_tipoUrl) setTimeout(() => aplicarTipoPedidoDaUrl(_tipoUrl), _cliId ? 1400 : 500);
       } catch (_) {}
     }, 650);
     return;
@@ -26909,7 +27141,7 @@ function limparFiltroCliente() {
   const banner = document.getElementById('bannerFiltroCliente');
   if (banner) banner.remove();
   const busca = document.getElementById('inputBusca');
-  if (busca) busca.placeholder = 'Buscar pedido, cliente... ( / )';
+  if (busca) busca.placeholder = 'Buscar pedido, cliente, cidade, UF, CNPJ... ( / )';
   handlePeriodChange(localStorage.getItem('sysrep_pedidos_periodo') || '30');
 }
 function aplicarPermissoesTela() {
@@ -28187,6 +28419,12 @@ async function salvarVisita() {
           Incluir fotos dos produtos (visualizar, PDF e impressão)
         </label>
       </div>
+      <div id="envCustoCheck" style="margin-top:10px;padding:8px 12px;background:var(--card,#fff);border:1.5px solid var(--border,#e2e8f0);border-radius:10px">
+        <label style="display:flex;align-items:flex-start;gap:8px;font-size:12px;font-weight:600;color:var(--text,#0f172a);cursor:pointer;user-select:none">
+          <input type="checkbox" id="chkCustoPDF" style="accent-color:var(--accent,#0ea5e9);width:15px;height:15px;flex-shrink:0;cursor:pointer;margin-top:1px" onchange="_envioHtml='';_envioPdfBase64=null;">
+          <span>Pedido para fábrica (só custo) <span style="font-weight:500;color:var(--text2,#64748b)">— oculta valor de venda; totais usam o custo do cadastro</span></span>
+        </label>
+      </div>
       <div id="envioStatus" class="env-status-inline" role="alert" aria-live="polite"></div>
       <div style="text-align:center;margin-top:12px">
         <button type="button" onclick="abrirConfigurarModelo()" style="background:none;border:1.5px solid var(--border,#d1d5db);font-size:11px;color:var(--content-text,#374151);cursor:pointer;padding:6px 14px;border-radius:8px;display:inline-flex;align-items:center;gap:5px;transition:.15s;font-family:inherit;font-weight:600;opacity:.75" onmouseover="this.style.color='var(--accent)';this.style.borderColor='var(--accent)';this.style.opacity='1'" onmouseout="this.style.color='var(--content-text,#374151)';this.style.borderColor='var(--border,#d1d5db)';this.style.opacity='.75'">
@@ -29052,13 +29290,14 @@ async function gerarHtmlImpressao() {
     fornConf, emp, codForn: p.cod_fornecedor, forPdf: true,
   });
 
-  const totalItens = its.reduce((s,i) => s + baseTotalItemImpressao(i), 0);
-  const totalIpi = its.reduce((s,i) => {
+  const _modoCustoImp2 = impressaoIncluirCusto();
+  const totalItens = its.reduce((s,i) => s + (_modoCustoImp2 ? baseTotalCustoItemImpressao(i) : baseTotalItemImpressao(i)), 0);
+  const totalIpi = _modoCustoImp2 ? 0 : its.reduce((s,i) => {
     const base = baseTotalItemImpressao(i);
     const pct = parseFloat(i.ipi_percentual ?? i.ipi) || 0;
     return s + (parseFloat(i.vlr_ipi) || (pct > 0 ? base * pct / 100 : 0));
   }, 0);
-  const totalSt = its.reduce((s,i) => {
+  const totalSt = _modoCustoImp2 ? 0 : its.reduce((s,i) => {
     const base = baseTotalItemImpressao(i);
     const pct = parseFloat(i.st_percentual ?? i.st) || 0;
     return s + (parseFloat(i.vlr_st) || (pct > 0 ? base * pct / 100 : 0));
@@ -29077,6 +29316,7 @@ async function gerarHtmlImpressao() {
   const showFotosPDF = (fornConf.fotosprodutospedido || 'N') === 'S'
     && its.some(i => i.foto_principal)
     && !!document.getElementById('chkFotoPDF')?.checked;
+  const showCustoPDF2 = impressaoIncluirCusto();
 
   const temPrecoPesoImpressao2 = pedidoTemPrecoPesoImpressao(its);
   const theadCells2 = [
@@ -29087,15 +29327,16 @@ async function gerarHtmlImpressao() {
     cfg2.col_unidade    ? `<th class="tc">Unid.</th>` : '',
     cfg2.col_quantidade ? `<th class="tr">Quant.</th>` : '',
     temPrecoPesoImpressao2 ? `<th class="tr">Peso (kg)</th>` : '',
-    itensMostraColRelatorio('vlr_padrao') ? `<th class="tr">Vlr. Tabela</th>` : '',
-    cfg2.col_preco_unit ? `<th class="tr">Vlr Venda</th>` : '',
-    (itensMostraColRelatorio('desconto') && cfg2.col_desconto) ? `<th class="tc">Desc.%</th>` : '',
-    cfg2.col_acrescimo ? `<th class="tc">Acr.%</th>` : '',
-    cfg2.col_vlr_desc_unit ? `<th class="tr">Vlr Final</th>` : '',
-    cfg2.col_vlrtotal   ? `<th class="tr">Vlr Total</th>` : '',
-    (cfg2.col_ipi || cfg2.col_ipi_pct) ? `<th class="tc">IPI</th>` : '',
-    (cfg2.col_st || cfg2.col_st_pct) ? `<th class="tc">ST</th>` : '',
-    cfg2.col_subtotal   ? `<th class="tr">Vlr c/ Imposto</th>` : '',
+    (!showCustoPDF2 && itensMostraColRelatorio('vlr_padrao')) ? `<th class="tr">Vlr. Tabela</th>` : '',
+    (!showCustoPDF2 && cfg2.col_preco_unit) ? `<th class="tr">Vlr Venda</th>` : '',
+    showCustoPDF2 ? `<th class="tr">Custo</th>` : '',
+    (!showCustoPDF2 && itensMostraColRelatorio('desconto') && cfg2.col_desconto) ? `<th class="tc">Desc.%</th>` : '',
+    (!showCustoPDF2 && cfg2.col_acrescimo) ? `<th class="tc">Acr.%</th>` : '',
+    (!showCustoPDF2 && cfg2.col_vlr_desc_unit) ? `<th class="tr">Vlr Final</th>` : '',
+    cfg2.col_vlrtotal   ? `<th class="tr">Total</th>` : '',
+    (!showCustoPDF2 && (cfg2.col_ipi || cfg2.col_ipi_pct)) ? `<th class="tc">IPI</th>` : '',
+    (!showCustoPDF2 && (cfg2.col_st || cfg2.col_st_pct)) ? `<th class="tc">ST</th>` : '',
+    (!showCustoPDF2 && cfg2.col_subtotal) ? `<th class="tr">Vlr c/ Imposto</th>` : '',
   ].join('');
 
   const itensTr = its.map((i,idx) => {
@@ -29112,30 +29353,31 @@ async function gerarHtmlImpressao() {
     const fotoTd = showFotosPDF
       ? `<td class="tc" style="padding:3px 5px;width:70px">${i.foto_principal ? `<img src="${h(i.foto_principal)}" style="width:60px;height:60px;object-fit:contain;object-position:center;border-radius:5px;display:block;margin:0 auto;background:#fff" onerror="this.style.display='none'">` : ''}</td>`
       : '';
-    const _base2   = baseTotalItemImpressao(i);
+    const _base2   = showCustoPDF2 ? baseTotalCustoItemImpressao(i) : baseTotalItemImpressao(i);
     const _ipiPct2 = parseFloat(i.ipi_percentual ?? i.ipi) || 0;
     const _stPct2  = parseFloat(i.st_percentual  ?? i.st)  || 0;
-    const _ipiVal2 = parseFloat(i.vlr_ipi) || (_ipiPct2 > 0 ? _base2 * _ipiPct2 / 100 : 0);
-    const _stVal2  = parseFloat(i.vlr_st)  || (_stPct2  > 0 ? _base2 * _stPct2  / 100 : 0);
+    const _ipiVal2 = showCustoPDF2 ? 0 : (parseFloat(i.vlr_ipi) || (_ipiPct2 > 0 ? _base2 * _ipiPct2 / 100 : 0));
+    const _stVal2  = showCustoPDF2 ? 0 : (parseFloat(i.vlr_st)  || (_stPct2  > 0 ? _base2 * _stPct2  / 100 : 0));
     // ICMS "por dentro" — não soma no total c/ imposto (apenas IPI + ST)
     const _tot2    = _base2 + _ipiVal2 + _stVal2;
     const cells2 = [
       fotoTd,
       cfg2.col_seq        ? `<td class="tc">${idx + 1}</td>` : '',
-      cfg2.col_cod        ? `<td class="tc">${h(usarCodFab ? (i.cod_fabricante||i.cod_produto||'') : (i.cod_produto||''))}</td>` : '',
+      cfg2.col_cod        ? `<td class="tc">${h(codExibicaoItemNaImpressao(i, fornConf))}</td>` : '',
                             `<td>${descHtml}</td>`,
       cfg2.col_unidade    ? `<td class="tc">${h(i.unidade||'')}</td>` : '',
       cfg2.col_quantidade ? `<td class="tr">${fmtQtd2(i.quantidade)}</td>` : '',
       temPrecoPesoImpressao2 ? `<td class="tr">${ppItem && pesoKg ? fmtPesoKgImpressao(pesoKg) : ''}</td>` : '',
-      itensMostraColRelatorio('vlr_padrao') ? `<td class="tr">R$ ${br(normalizarVlrPadraoItem(i))}${ppItem ? '<span style="font-size:8px;color:#64748b">/kg</span>' : ''}</td>` : '',
-      cfg2.col_preco_unit ? `<td class="tr">R$ ${br(parseFloat(i.valor_unitario)||0)}${ppItem ? '<span style="font-size:8px;color:#64748b">/kg</span>' : ''}</td>` : '',
-      (itensMostraColRelatorio('desconto') && cfg2.col_desconto) ? `<td class="tc">${parseFloat(i.desconto_percentual||i.desconto)>0 ? `<span style="color:#dc2626">${parseFloat(i.desconto_percentual||i.desconto)}%</span>` : '—'}</td>` : '',
-      cfg2.col_acrescimo ? `<td class="tc">${parseFloat(i.acrescimo_percentual)>0 ? `<span style="color:#16a34a;font-weight:700">+${parseFloat(i.acrescimo_percentual)}%</span>` : '—'}</td>` : '',
-      cfg2.col_vlr_desc_unit ? `<td class="tr">R$ ${br(vlrVendaEfetivoImpressao(i))}${ppItem ? '<span style="font-size:8px;color:#64748b">/kg</span>' : ''}</td>` : '',
+      (!showCustoPDF2 && itensMostraColRelatorio('vlr_padrao')) ? `<td class="tr">R$ ${br(normalizarVlrPadraoItem(i))}${ppItem ? '<span style="font-size:8px;color:#64748b">/kg</span>' : ''}</td>` : '',
+      (!showCustoPDF2 && cfg2.col_preco_unit) ? `<td class="tr">R$ ${br(parseFloat(i.valor_unitario)||0)}${ppItem ? '<span style="font-size:8px;color:#64748b">/kg</span>' : ''}</td>` : '',
+      showCustoPDF2 ? `<td class="tr">R$ ${br(vlrCustoItemImpressao(i))}</td>` : '',
+      (!showCustoPDF2 && itensMostraColRelatorio('desconto') && cfg2.col_desconto) ? `<td class="tc">${parseFloat(i.desconto_percentual||i.desconto)>0 ? `<span style="color:#dc2626">${parseFloat(i.desconto_percentual||i.desconto)}%</span>` : '—'}</td>` : '',
+      (!showCustoPDF2 && cfg2.col_acrescimo) ? `<td class="tc">${parseFloat(i.acrescimo_percentual)>0 ? `<span style="color:#16a34a;font-weight:700">+${parseFloat(i.acrescimo_percentual)}%</span>` : '—'}</td>` : '',
+      (!showCustoPDF2 && cfg2.col_vlr_desc_unit) ? `<td class="tr">R$ ${br(vlrVendaEfetivoImpressao(i))}${ppItem ? '<span style="font-size:8px;color:#64748b">/kg</span>' : ''}</td>` : '',
       cfg2.col_vlrtotal   ? `<td class="tr">R$ ${br(_base2)}</td>` : '',
-      (cfg2.col_ipi || cfg2.col_ipi_pct) ? `<td class="tc">${_ipiPct2 || 0}%${(cfg2.col_ipi && !cfg2.col_ipi_pct && _ipiVal2 > 0) ? `<div style="font-size:9px;color:#6366f1;font-weight:700">R$ ${br(_ipiVal2)}</div>` : ''}</td>` : '',
-      (cfg2.col_st || cfg2.col_st_pct) ? `<td class="tc">${_stPct2  || 0}%${(cfg2.col_st && !cfg2.col_st_pct && _stVal2  > 0) ? `<div style="font-size:9px;color:#d97706;font-weight:700">R$ ${br(_stVal2)}</div>`  : ''}</td>` : '',
-      cfg2.col_subtotal   ? `<td class="tr"><b>R$ ${br(_tot2)}</b></td>` : '',
+      (!showCustoPDF2 && (cfg2.col_ipi || cfg2.col_ipi_pct)) ? `<td class="tc">${_ipiPct2 || 0}%${(cfg2.col_ipi && !cfg2.col_ipi_pct && _ipiVal2 > 0) ? `<div style="font-size:9px;color:#6366f1;font-weight:700">R$ ${br(_ipiVal2)}</div>` : ''}</td>` : '',
+      (!showCustoPDF2 && (cfg2.col_st || cfg2.col_st_pct)) ? `<td class="tc">${_stPct2  || 0}%${(cfg2.col_st && !cfg2.col_st_pct && _stVal2  > 0) ? `<div style="font-size:9px;color:#d97706;font-weight:700">R$ ${br(_stVal2)}</div>`  : ''}</td>` : '',
+      (!showCustoPDF2 && cfg2.col_subtotal) ? `<td class="tr"><b>R$ ${br(_tot2)}</b></td>` : '',
     ];
     return `<tr class="${idx%2===1?'alt':''}" style="${showFotosPDF ? 'height:68px' : ''}">${cells2.join('')}</tr>`;
   }).join('');
@@ -29146,6 +29388,7 @@ async function gerarHtmlImpressao() {
     exibeCor: _exibeCorPedGrades || 'S',
     tipoRel: _tipoRelGrade || 'SIMPLES',
     showFoto: showFotosPDF,
+    showCusto: showCustoPDF2,
   }) : null;
   const itensTableHtml2 = tabelaGrade2
     ? tabelaGrade2.html
@@ -29153,10 +29396,10 @@ async function gerarHtmlImpressao() {
   const labelQtdTotal2 = tabelaGrade2 ? 'Total de Pares' : 'Qtd Total de Itens';
 
   const totaisRows2 = [
-    cfg2.tot_itens ? `<tr><td class="tot-label">Total dos Itens</td><td class="tot-val">R$ ${br(totalItens)}</td></tr>` : '',
-    cfg2.tot_ipi   ? `<tr><td class="tot-label">Total IPI</td><td class="tot-val">R$ ${br(totalIpi)}</td></tr>` : '',
-    cfg2.tot_st    ? `<tr><td class="tot-label">Subst. Tributária</td><td class="tot-val">R$ ${br(totalSt)}</td></tr>` : '',
-    cfg2.tot_total ? `<tr class="total-final"><td class="tot-label">${tpImp2.total}</td><td class="tot-val">R$ ${br(totalPed)}</td></tr>` : '',
+    cfg2.tot_itens ? `<tr><td class="tot-label">${showCustoPDF2 ? 'Total dos Itens (custo)' : 'Total dos Itens'}</td><td class="tot-val">R$ ${br(totalItens)}</td></tr>` : '',
+    (!showCustoPDF2 && cfg2.tot_ipi) ? `<tr><td class="tot-label">Total IPI</td><td class="tot-val">R$ ${br(totalIpi)}</td></tr>` : '',
+    (!showCustoPDF2 && cfg2.tot_st) ? `<tr><td class="tot-label">Subst. Tributária</td><td class="tot-val">R$ ${br(totalSt)}</td></tr>` : '',
+    cfg2.tot_total ? `<tr class="total-final"><td class="tot-label">${showCustoPDF2 ? 'Total do Pedido (custo)' : tpImp2.total}</td><td class="tot-val">R$ ${br(totalPed)}</td></tr>` : '',
   ].join('');
 
   const parcs = dados.parcelas || [];
@@ -29235,6 +29478,7 @@ ${headerTextHtml2}
     ${cfg2.emp_comprador    ? `<div class="field"><span>Comprador:</span><b>${h(p.comprador||'')}</b></div>` : ''}
     ${cfg2.emp_cond_pagto   ? `<div class="field"><span>Cond. Pagto:</span><b>${h(p.condicao_pagto||p.prazo_pagto||'')}</b></div>` : ''}
     ${cfg2.emp_forma_pagto  ? `<div class="field"><span>Forma Pagto:</span><b>${h(p.forma_pagto||'')}</b></div>` : ''}
+    ${cfg2.emp_previsao && (p.previsao || '').toString().trim() ? `<div class="field" style="grid-column:1/-1"><span>Previsão:</span><b>${h(String(p.previsao).trim())}</b></div>` : ''}
   </div>
   ${logoRightHtml2}
 </div>
@@ -31327,7 +31571,7 @@ const _CMP_DEFAULT = {
   col_preco_unit:true, col_vlr_desc_unit:false, col_vlrtotal:true, col_subtotal:true, col_ipi:true, col_ipi_pct:false, col_st:true, col_st_pct:false, col_desconto:false, col_acrescimo:false,
   dec_qtd:3, dec_preco:2,
   emp_fabrica:true, emp_ordem_compra:true, emp_data_emissao:true, emp_data_fatura:true,
-  emp_vendedor:true, emp_comprador:true, emp_cond_pagto:true, emp_forma_pagto:true,
+  emp_vendedor:true, emp_comprador:true, emp_cond_pagto:true, emp_forma_pagto:true, emp_previsao:true,
   cli_endereco:true, cli_email:true, cli_telefone:true, cli_cnpj:true, cli_ie:true, cli_transportadora:true,
   tot_itens:true, tot_ipi:true, tot_st:true, tot_total:true, tot_qtd:false, tot_peso:false,
   sec_obs:true, sec_parcelas:true, sec_assinatura:false,
@@ -31335,7 +31579,7 @@ const _CMP_DEFAULT = {
 };
 let _cmpConfig = null;
 const _CMP_KEYS_BOOL = ['col_seq','col_cod','col_unidade','col_quantidade','col_preco_unit','col_vlr_desc_unit','col_vlrtotal','col_subtotal','col_ipi','col_ipi_pct','col_st','col_st_pct','col_desconto','col_acrescimo',
-  'emp_fabrica','emp_ordem_compra','emp_data_emissao','emp_data_fatura','emp_vendedor','emp_comprador','emp_cond_pagto','emp_forma_pagto',
+  'emp_fabrica','emp_ordem_compra','emp_data_emissao','emp_data_fatura','emp_vendedor','emp_comprador','emp_cond_pagto','emp_forma_pagto','emp_previsao',
   'cli_endereco','cli_email','cli_telefone','cli_cnpj','cli_ie','cli_transportadora',
   'tot_itens','tot_ipi','tot_st','tot_total','tot_qtd','tot_peso','sec_obs','sec_parcelas','sec_assinatura'];
 
@@ -31603,6 +31847,7 @@ document.addEventListener('keydown', e => {
           <label class="cmp-row"><input type="checkbox" id="cmp_emp_comprador"> <span>Comprador</span></label>
           <label class="cmp-row"><input type="checkbox" id="cmp_emp_cond_pagto"> <span>Cond. de Pagamento</span></label>
           <label class="cmp-row"><input type="checkbox" id="cmp_emp_forma_pagto"> <span>Forma de Pagamento</span></label>
+          <label class="cmp-row"><input type="checkbox" id="cmp_emp_previsao"> <span>Previsão</span></label>
         </div>
       </div>
 

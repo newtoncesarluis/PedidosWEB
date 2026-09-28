@@ -135,13 +135,20 @@
 
   input[type="text"],
   input[type="password"],
-  input[type="url"] {
+  input[type="url"],
+  input[type="number"],
+  select {
     padding:10px 12px;border:1.5px solid var(--border);
     border-radius:8px;font-size:13px;color:var(--text);
     background:var(--input-bg);transition:.15s;outline:none;
-    font-family:inherit;
+    font-family:inherit;width:100%;
   }
-  input:focus { border-color:var(--blue);background:#fff;box-shadow:0 0 0 3px rgba(67,97,238,.1); }
+  select {
+    cursor:pointer;appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 12px center;padding-right:36px;
+  }
+  input:focus, select:focus { border-color:var(--blue);background:#fff;box-shadow:0 0 0 3px rgba(67,97,238,.1); }
   input.error { border-color:var(--danger); }
   input.success { border-color:#22c55e; }
 
@@ -237,6 +244,40 @@
   .empty { text-align:center;padding:40px;color:var(--text2); }
   .empty svg { width:40px;height:40px;opacity:.2;display:block;margin:0 auto 8px; }
   .empty p   { font-size:13px;opacity:.6; }
+
+  /* MARKETPLACE */
+  .mkt-hint {
+    background:#f0fdfa;border:1px solid #b7e3dc;border-radius:8px;
+    padding:11px 14px;margin-bottom:16px;font-size:12px;color:#0f766e;line-height:1.5;
+  }
+  .mkt-badge {
+    margin-left:0 !important;
+    background:#eef7f0 !important;color:#0d9488 !important;border-color:#b7e3dc !important;
+  }
+  .mkt-form-box {
+    margin-top:18px;padding:16px 18px;
+    background:var(--bg);border:1px solid var(--border);border-radius:12px;
+  }
+  .mkt-form-box .mkt-form-head {
+    font-size:13px;font-weight:700;color:var(--text);
+    margin-bottom:14px;display:flex;align-items:center;gap:8px;
+  }
+  .mkt-form-box .mkt-form-head::before {
+    content:'';width:3px;height:14px;border-radius:2px;background:var(--blue);flex-shrink:0;
+  }
+  .mkt-plat {
+    display:inline-flex;align-items:center;padding:2px 8px;border-radius:6px;
+    font-size:11px;font-weight:600;background:#eff6ff;color:#1d4ed8;
+  }
+  .mkt-cred-ok { color:#15803d;font-size:12px;font-weight:600; }
+  .mkt-cred-off { color:var(--text2);font-size:12px; }
+  .mkt-warn { color:#b45309;font-size:11px;font-weight:600; }
+  @media(max-width:900px) {
+    .form-grid.mkt-grid { grid-template-columns:1fr 1fr; }
+  }
+  @media(max-width:640px) {
+    .form-grid.mkt-grid { grid-template-columns:1fr; }
+  }
 
   /* SPINNER */
   .spinner {
@@ -336,6 +377,7 @@
 </style>
 <link rel="stylesheet" href="/assets/themes.css">
 <script src="/assets/themes.js"></script>
+<script src="/assets/confirm-dialog.js"></script>
 </head>
 <body>
 <div id="_mobile_block" style="display:none;position:fixed;inset:0;z-index:99999;background:#1e2433;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:32px;text-align:center"><svg width="64" height="64" fill="none" stroke="#4361ee" stroke-width="1.5" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg><h2 style="color:#fff;font-size:20px;font-weight:700;margin:0">Use o computador</h2><p style="color:#aaa;font-size:14px;margin:0">Esta tela de configuração<br>não está disponível no celular.</p></div>
@@ -447,6 +489,7 @@
                        font-family:inherit;outline:none">
           <option value="EVOLUTION">Evolution API (instância própria + QR Code)</option>
           <option value="EUATENDO">EuAtendo (plataforma hospedada, Bearer token)</option>
+          <option value="META">Meta — WhatsApp Cloud API (API oficial)</option>
         </select>
         <span class="input-hint">Define por qual API as mensagens são enviadas aos clientes (pedidos, testes, avisos)</span>
       </div>
@@ -477,6 +520,77 @@
       <div class="form-group">
         <label>Empresa Liberada (opcional)</label>
         <input type="text" id="inp_empresa" placeholder="ex: Empresa A">
+      </div>
+    </div>
+
+    <!-- Campos Meta — WhatsApp Cloud API (API oficial) -->
+    <div class="form-grid" id="grp_meta" style="display:none;margin-top:16px">
+      <div class="form-group full" id="meta_liberado_wrap" style="display:none">
+        <div id="meta_liberado_badge"></div>
+      </div>
+
+      <div class="form-group full">
+        <span class="input-hint" style="display:block;line-height:1.55">
+          <strong>API oficial da Meta (WhatsApp Cloud API).</strong> Use se o cliente já tem o número aprovado na Meta.
+          Fora da janela de 24 horas a Meta só entrega <strong>modelos (templates) aprovados</strong> — cadastre um abaixo
+          e o sistema o usa automaticamente quando o texto livre for recusado.
+          Passo a passo em <a href="ajuda-configuracao.html?sec=whatsapp#meta" target="_blank" rel="noopener">Ajuda → Configuração</a>.
+        </span>
+      </div>
+
+      <div class="form-group">
+        <label>Phone Number ID <span class="badge-req">obrigatório</span></label>
+        <input type="text" id="inp_meta_phone" placeholder="ex.: 109876543210987" autocomplete="off"
+               oninput="this.value=this.value.replace(/[^\d]/g,'');limparStatusApi()">
+        <span class="input-hint">Meta for Developers → WhatsApp → Configuração da API</span>
+      </div>
+
+      <div class="form-group">
+        <label>ID da conta do WhatsApp Business (WABA)</label>
+        <input type="text" id="inp_meta_waba" placeholder="opcional" autocomplete="off"
+               oninput="this.value=this.value.replace(/[^\d]/g,'')">
+        <span class="input-hint">Informativo — não é usado no envio</span>
+      </div>
+
+      <div class="form-group full">
+        <label>Token de acesso permanente <span class="badge-req">obrigatório</span></label>
+        <div class="input-wrap">
+          <input type="password" id="inp_meta_token" placeholder="token do Usuário do sistema (não use o token temporário de 24h)"
+                 autocomplete="off" oninput="limparStatusApi()">
+          <button class="btn-eye" type="button" onclick="toggleSenha('inp_meta_token',this)">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+              </svg>
+          </button>
+        </div>
+        <span class="input-hint" id="meta_token_hint">Gere em Meta Business → Configurações → Usuários do sistema, com a permissão whatsapp_business_messaging</span>
+      </div>
+
+      <div class="form-group">
+        <label>Nome do modelo (template) aprovado</label>
+        <input type="text" id="inp_meta_template" placeholder="ex.: aviso_generico" autocomplete="off"
+               oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9_]/g,'')">
+        <span class="input-hint">Modelo com <strong>1 variável</strong> no corpo (<code>{{1}}</code>) — recebe o texto da mensagem</span>
+      </div>
+
+      <div class="form-group">
+        <label>Idioma do modelo</label>
+        <input type="text" id="inp_meta_idioma" placeholder="pt_BR" autocomplete="off" maxlength="6">
+        <span class="input-hint">Precisa ser o mesmo idioma cadastrado na Meta</span>
+      </div>
+
+      <div class="form-group">
+        <label>Versão da API</label>
+        <input type="text" id="inp_meta_versao" placeholder="v21.0" autocomplete="off" maxlength="8">
+        <span class="input-hint">Deixe em branco para usar v21.0</span>
+      </div>
+
+      <div class="form-group">
+        <label>Número para teste de envio (opcional)</label>
+        <input type="text" id="inp_meta_numero_teste" placeholder="5514999999999 — DDI + DDD + número" autocomplete="off"
+               oninput="this.value=this.value.replace(/[^\d]/g,'')">
+        <span class="input-hint">Sem número, «Testar Conexão» só confere o Phone Number ID e o token (não envia nada)</span>
       </div>
     </div>
 
@@ -752,6 +866,111 @@
   </div>
 </div>
 
+<!-- SEÇÃO 2d: MARKETPLACE (só aparece se o módulo estiver liberado na licença) -->
+<div id="secao_marketplace" class="locked lock-overlay" style="display:none">
+  <div class="card" style="margin-top:0">
+    <div class="card-title">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707
+             1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/>
+      </svg>
+      Marketplace — Canais de Venda
+      <span class="card-badge mkt-badge">Add-on</span>
+      <button type="button" class="btn-sm btn-sm-blue" style="margin-left:auto" onclick="carregarCanaisMkt()" title="Atualizar lista">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0
+               01-15.357-2m15.357 2H15"/>
+        </svg>
+        Atualizar
+      </button>
+    </div>
+
+    <div class="mkt-hint">
+      <strong>Como funciona:</strong> cada conta é um canal. Duas contas do Mercado Livre = duas linhas.
+      A comissão entra no cálculo da margem líquida. Credenciais OAuth ficam salvas no servidor e nunca voltam completas na tela.
+      <span style="display:block;margin-top:6px">
+        <button type="button" class="btn-sm btn-sm-blue" onclick="abrirDeParaMkt()">Abrir de-para de anúncios</button>
+      </span>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Canal</th>
+            <th>Plataforma</th>
+            <th>Conta</th>
+            <th>Comissão %</th>
+            <th>Credenciais</th>
+            <th>Anúncios</th>
+            <th>Status</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody id="tbody_canais_mkt">
+          <tr><td colspan="8"><div class="empty"><p>Carregando...</p></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="mkt-form-box">
+      <div class="mkt-form-head" id="titulo_form_canal">Novo canal</div>
+      <input type="hidden" id="mkt_id" />
+
+      <div class="form-grid mkt-grid" style="grid-template-columns:1fr 1fr 1fr">
+        <div class="form-group">
+          <label>Nome do canal <span class="badge-req">obrigatório</span></label>
+          <input type="text" id="mkt_nome" autocomplete="off" placeholder="Ex: Mercado Livre Loja 2" />
+        </div>
+        <div class="form-group">
+          <label>Plataforma</label>
+          <select id="mkt_plataforma">
+            <option value="TRAY">Tray</option>
+            <option value="BLING">Bling</option>
+            <option value="MERCADO_LIVRE">Mercado Livre</option>
+            <option value="SHOPEE">Shopee</option>
+            <option value="AMAZON">Amazon</option>
+            <option value="SHEIN">Shein</option>
+            <option value="TIKTOK">TikTok Shop</option>
+            <option value="OUTRO">Outro</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Identificação da conta</label>
+          <input type="text" id="mkt_conta" autocomplete="off" placeholder="Opcional — ex: loja2" />
+        </div>
+        <div class="form-group">
+          <label>Comissão do canal (%)</label>
+          <input type="number" id="mkt_comissao" step="0.01" min="0" autocomplete="off" placeholder="0,00" />
+          <span class="input-hint">Usada no cálculo da margem líquida por canal</span>
+        </div>
+        <div class="form-group">
+          <label>Client ID</label>
+          <input type="text" id="mkt_client_id" autocomplete="off" placeholder="ID da aplicação OAuth" />
+        </div>
+        <div class="form-group">
+          <label>Client Secret</label>
+          <input type="password" id="mkt_client_secret" autocomplete="new-password"
+                 placeholder="Em branco = manter o atual" />
+          <span class="input-hint">Nunca é exibido após salvar</span>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button type="button" class="btn btn-primary" onclick="salvarCanalMkt()">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+          </svg>
+          Salvar canal
+        </button>
+        <button type="button" class="btn btn-ghost" onclick="limparFormCanalMkt()">Limpar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- SEÇÃO 3: USUÁRIOS WHATSAPP -->
 <div id="secao_usuarios">
   <div class="card">
@@ -997,6 +1216,166 @@ let _usuarioIdAtual = null;
 let _autenticado   = false;
 let _podeGerenciarWA = false;  // acessar_configuracoes = S
 
+// ── MARKETPLACE — CANAIS DE VENDA ────────────────────────────────────────────
+// A seção inteira só existe se o add-on estiver liberado na licença (o gate é
+// no servidor; aqui só evitamos mostrar um card que responderia 403).
+let _marketplaceLiberado = false;
+
+const MKT_PLATAFORMAS = {
+  TRAY: 'Tray', BLING: 'Bling', MERCADO_LIVRE: 'Mercado Livre', SHOPEE: 'Shopee',
+  AMAZON: 'Amazon', SHEIN: 'Shein', TIKTOK: 'TikTok Shop', OUTRO: 'Outro'
+};
+
+async function mktFetch(url, opts = {}) {
+  const r = await fetch(url, {
+    ...opts,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer ' + getToken(),
+      ...(opts.headers || {})
+    }
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || 'Erro na requisição');
+  return d;
+}
+
+async function verificarModuloMarketplace() {
+  try {
+    const d = await mktFetch('/api/modulos/marketplace');
+    _marketplaceLiberado = d.habilitado === true;
+  } catch {
+    _marketplaceLiberado = false;
+  }
+  const sec = document.getElementById('secao_marketplace');
+  if (sec) sec.style.display = _marketplaceLiberado ? '' : 'none';
+}
+
+function abrirDeParaMkt() {
+  try {
+    if (parent && typeof parent.openTab === 'function') {
+      parent.openTab('/pages/marketplace-anuncios.html', 'Marketplace — De-para');
+      return;
+    }
+  } catch {}
+  window.open('/pages/marketplace-anuncios.html', '_blank');
+}
+
+async function carregarCanaisMkt() {
+  if (!_marketplaceLiberado) return;
+  const tb = document.getElementById('tbody_canais_mkt');
+  try {
+    const canais = await mktFetch('/api/marketplace/canais');
+    if (!canais.length) {
+      tb.innerHTML = `<tr><td colspan="8"><div class="empty">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+            d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707
+               1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/>
+        </svg>
+        <p>Nenhum canal cadastrado ainda.</p>
+        <p style="margin-top:4px;font-size:12px">Preencha o formulário abaixo para conectar a primeira conta.</p>
+      </div></td></tr>`;
+      return;
+    }
+    tb.innerHTML = canais.map(c => {
+      const pend = Number(c.anuncios_sem_vinculo) || 0;
+      const total = Number(c.total_anuncios) || 0;
+      const anuncios = pend
+        ? `${total} <span class="mkt-warn">(${pend} sem vínculo)</span>`
+        : String(total);
+      const cred = c.tem_client_secret === 'S'
+        ? '<span class="mkt-cred-ok">Salvas</span>'
+        : '<span class="mkt-cred-off">Pendente</span>';
+      const status = c.status === 'A'
+        ? '<span class="badge badge-on">Ativo</span>'
+        : '<span class="badge badge-off">Inativo</span>';
+      const plat = escHtml(MKT_PLATAFORMAS[c.plataforma] || c.plataforma);
+      return `<tr>
+        <td class="td-nome">${escHtml(c.nome)}</td>
+        <td><span class="mkt-plat">${plat}</span></td>
+        <td class="td-inst">${escHtml(c.conta_externa || '—')}</td>
+        <td>${(parseFloat(c.comissao_pct) || 0).toFixed(2)}</td>
+        <td>${cred}</td>
+        <td>${anuncios}</td>
+        <td>${status}</td>
+        <td class="td-actions">
+          <button type="button" class="btn-sm btn-sm-blue"
+                  onclick='editarCanalMkt(${JSON.stringify(c).replace(/'/g, "&#39;")})'>Editar</button>
+          <button type="button" class="btn-sm btn-sm-red"
+                  onclick="excluirCanalMkt(${c.id}, '${escHtml(c.nome).replace(/'/g, "\\'")}')">Excluir</button>
+        </td>
+      </tr>`;
+    }).join('');
+  } catch (e) {
+    tb.innerHTML = `<tr><td colspan="8"><div class="empty"><p>${escHtml(e.message)}</p></div></td></tr>`;
+  }
+}
+
+function editarCanalMkt(c) {
+  document.getElementById('mkt_id').value            = c.id;
+  document.getElementById('mkt_nome').value          = c.nome || '';
+  document.getElementById('mkt_plataforma').value    = c.plataforma || 'TRAY';
+  document.getElementById('mkt_conta').value         = c.conta_externa || '';
+  document.getElementById('mkt_comissao').value      = c.comissao_pct || '';
+  document.getElementById('mkt_client_id').value     = c.client_id || '';
+  document.getElementById('mkt_client_secret').value = '';   // nunca volta do servidor
+  document.getElementById('titulo_form_canal').textContent = 'Editando: ' + (c.nome || '');
+  document.getElementById('mkt_nome').focus();
+  document.querySelector('.mkt-form-box')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function limparFormCanalMkt() {
+  ['mkt_id','mkt_nome','mkt_conta','mkt_comissao','mkt_client_id','mkt_client_secret']
+    .forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('mkt_plataforma').value = 'TRAY';
+  document.getElementById('titulo_form_canal').textContent = 'Novo canal';
+}
+
+async function salvarCanalMkt() {
+  const id   = document.getElementById('mkt_id').value;
+  const nome = document.getElementById('mkt_nome').value.trim();
+  if (!nome) return toast('Informe o nome do canal', 'error');
+
+  const body = {
+    nome,
+    plataforma:    document.getElementById('mkt_plataforma').value,
+    conta_externa: document.getElementById('mkt_conta').value.trim() || null,
+    comissao_pct:  parseFloat(document.getElementById('mkt_comissao').value) || 0,
+    client_id:     document.getElementById('mkt_client_id').value.trim() || null,
+  };
+  // Secret em branco preserva o que já está gravado
+  const secret = document.getElementById('mkt_client_secret').value;
+  if (secret) body.client_secret = secret;
+
+  try {
+    await mktFetch(id ? `/api/marketplace/canais/${id}` : '/api/marketplace/canais', {
+      method: id ? 'PUT' : 'POST',
+      body: JSON.stringify(body)
+    });
+    toast(id ? 'Canal atualizado!' : 'Canal cadastrado!');
+    limparFormCanalMkt();
+    carregarCanaisMkt();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function excluirCanalMkt(id, nome) {
+  const ok = await SysRepConfirm.ask({
+    titulo: 'Excluir canal?',
+    mensagem: `O canal "${nome}" deixará de sincronizar. Os pedidos já importados são mantidos.`
+  });
+  if (!ok) return;
+  try {
+    await mktFetch(`/api/marketplace/canais/${id}`, { method: 'DELETE' });
+    toast('Canal excluído');
+    carregarCanaisMkt();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
 // ── VERIFICAR PERMISSÃO AO CARREGAR ──────────────────────────────────────────
 (async function verificarPermissao() {
   try {
@@ -1010,6 +1389,7 @@ let _podeGerenciarWA = false;  // acessar_configuracoes = S
       carregarUsuarios();
     }
   } catch {}
+  await verificarModuloMarketplace();
   iniciarEmojiPicker();
 })();
 
@@ -1060,6 +1440,7 @@ async function autenticar() {
     await carregarFbConfig();
     await carregarIgConfig();
     await carregarUsuarios();
+    if (_marketplaceLiberado) await carregarCanaisMkt();
 
   } catch (e) {
     errEl.textContent = 'Erro ao verificar: ' + e.message;
@@ -1070,7 +1451,7 @@ async function autenticar() {
 }
 
 function desbloquear() {
-  ['secao_whatsapp','secao_facebook','secao_instagram'].forEach(id =>
+  ['secao_whatsapp','secao_facebook','secao_instagram','secao_marketplace'].forEach(id =>
     document.getElementById(id)?.classList.remove('locked', 'lock-overlay')
   );
 }
@@ -1085,7 +1466,7 @@ function bloquear() {
   const btn = document.getElementById('btn_autenticar');
   btn.disabled = false;
   btn.innerHTML = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"/></svg> Acessar`;
-  ['secao_whatsapp','secao_facebook','secao_instagram'].forEach(id =>
+  ['secao_whatsapp','secao_facebook','secao_instagram','secao_marketplace'].forEach(id =>
     document.getElementById(id)?.classList.add('locked', 'lock-overlay')
   );
   document.getElementById('auth_error').style.display = 'none';
@@ -1097,6 +1478,7 @@ function alternarProvedor() {
   const prov = document.getElementById('inp_provedor').value;
   document.getElementById('grp_evolution').style.display = prov === 'EVOLUTION' ? 'grid' : 'none';
   document.getElementById('grp_euatendo').style.display  = prov === 'EUATENDO'  ? 'grid' : 'none';
+  document.getElementById('grp_meta').style.display      = prov === 'META'      ? 'grid' : 'none';
   limparStatusApi();
 }
 
@@ -1121,6 +1503,24 @@ function _setEaBadge(validadoEm, tokenConfigurado) {
   }
 }
 
+// Selo "Meta liberada" — aparece quando o último teste de conexão funcionou
+function _setMetaBadge(validadoEm, tokenConfigurado) {
+  const wrap  = document.getElementById('meta_liberado_wrap');
+  const badge = document.getElementById('meta_liberado_badge');
+  if (!tokenConfigurado) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  const ico = '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:17px;height:17px;flex-shrink:0"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>';
+  if (validadoEm) {
+    const dt = new Date(validadoEm).toLocaleDateString('pt-BR',
+      { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    badge.style.cssText = 'display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:8px;font-size:13px;font-weight:600;background:#dcfce7;color:#166534;border:1px solid #bbf7d0';
+    badge.innerHTML = ico + `Meta liberada — último teste de conexão OK em ${dt}`;
+  } else {
+    badge.style.cssText = 'display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:8px;font-size:13px;font-weight:600;background:#fff3cd;color:#856404;border:1px solid #ffc107';
+    badge.innerHTML = ico + 'Credenciais salvas, aguardando validação — clique em «Testar Conexão»';
+  }
+}
+
 async function carregarConfigGlobal() {
   try {
     const r = await fetch('/api/config/api', {
@@ -1132,7 +1532,19 @@ async function carregarConfigGlobal() {
       document.getElementById('inp_apikey').value = d.w_apiglobal    || '';
       document.getElementById('inp_empresa').value = d.empresa_liberada || '';
     }
-    document.getElementById('inp_provedor').value = d.wa_provedor === 'EUATENDO' ? 'EUATENDO' : 'EVOLUTION';
+    document.getElementById('inp_provedor').value = ['EUATENDO', 'META'].includes(d.wa_provedor) ? d.wa_provedor : 'EVOLUTION';
+    document.getElementById('inp_meta_phone').value    = d.meta_phone_number_id || '';
+    document.getElementById('inp_meta_waba').value     = d.meta_waba_id || '';
+    document.getElementById('inp_meta_template').value = d.meta_template_nome || '';
+    document.getElementById('inp_meta_idioma').value   = d.meta_template_idioma || '';
+    document.getElementById('inp_meta_versao').value   = d.meta_api_version || '';
+    if (d.meta_token_configurado) {
+      document.getElementById('inp_meta_token').placeholder =
+        '*** Token já configurado — deixe em branco para manter, ou sobrescreva ***';
+      document.getElementById('meta_token_hint').innerHTML =
+        '<span style="color:#16a34a;font-weight:600">✓ Token configurado.</span> Deixe em branco para manter o atual.';
+    }
+    _setMetaBadge(d.meta_validado_em, d.meta_token_configurado);
     document.getElementById('inp_ea_url').value   = d.euatendo_url || '';
     if (d.euatendo_token_configurado) {
       document.getElementById('inp_ea_token').placeholder =
@@ -1163,6 +1575,17 @@ async function salvarConfig() {
     mostrarStatusApi(false, 'Informe o token da conexão do EuAtendo');
     return;
   }
+  const metaPhone = document.getElementById('inp_meta_phone').value.trim();
+  const metaToken = document.getElementById('inp_meta_token').value.trim();
+  const metaJaConfigurado = document.getElementById('inp_meta_token').placeholder.startsWith('***');
+  if (prov === 'META' && !metaPhone) {
+    mostrarStatusApi(false, 'Informe o Phone Number ID da Meta');
+    return;
+  }
+  if (prov === 'META' && !metaToken && !metaJaConfigurado) {
+    mostrarStatusApi(false, 'Informe o token de acesso permanente da Meta');
+    return;
+  }
 
   const btn = document.getElementById('btn_salvar');
   btn.disabled = true;
@@ -1176,6 +1599,15 @@ async function salvarConfig() {
       senha_admin: _senhaAdmin
     };
     if (eaToken) body.euatendo_token = eaToken;      // em branco = mantém o salvo
+    // Meta: só envia os campos da Meta quando ela é o provedor escolhido ou já tem algo preenchido
+    if (prov === 'META' || metaPhone || metaJaConfigurado) {
+      body.meta_phone_number_id = metaPhone;
+      body.meta_waba_id         = document.getElementById('inp_meta_waba').value.trim();
+      body.meta_template_nome   = document.getElementById('inp_meta_template').value.trim();
+      body.meta_template_idioma = document.getElementById('inp_meta_idioma').value.trim() || 'pt_BR';
+      body.meta_api_version     = document.getElementById('inp_meta_versao').value.trim();
+      if (metaToken) body.meta_access_token = metaToken;   // em branco = mantém o salvo
+    }
     if (url)    body.w_urlplataforma = url;
     if (apikey) body.w_apiglobal     = apikey;
 
@@ -1197,6 +1629,14 @@ async function salvarConfig() {
         // Token novo salvo → pede validação por teste de envio
         _setEaBadge(null, true);
       }
+      if (metaToken) {
+        document.getElementById('inp_meta_token').value = '';
+        document.getElementById('inp_meta_token').placeholder =
+          '*** Token já configurado — deixe em branco para manter, ou sobrescreva ***';
+        document.getElementById('meta_token_hint').innerHTML =
+          '<span style="color:#16a34a;font-weight:600">✓ Token configurado.</span> Deixe em branco para manter o atual.';
+        _setMetaBadge(null, true);
+      }
     } else {
       mostrarStatusApi(false, d.error || 'Erro ao salvar');
       toast(d.error || 'Erro ao salvar', 'error');
@@ -1213,6 +1653,7 @@ async function salvarConfig() {
 async function testarApi() {
   const prov = document.getElementById('inp_provedor').value;
   if (prov === 'EUATENDO') return testarEuAtendo();
+  if (prov === 'META') return testarMeta();
 
   const url    = document.getElementById('inp_url').value.trim();
   const apikey = document.getElementById('inp_apikey').value.trim();
@@ -1281,6 +1722,47 @@ async function testarEuAtendo() {
     } else {
       mostrarStatusApi(false, d.error || 'Falha no envio de teste');
       toast(d.error || 'Falha no envio de teste', 'error');
+    }
+  } catch (e) {
+    mostrarStatusApi(false, 'Erro: ' + e.message);
+    toast('Erro: ' + e.message, 'error');
+  }
+}
+
+async function testarMeta() {
+  const phone  = document.getElementById('inp_meta_phone').value.trim();
+  const token  = document.getElementById('inp_meta_token').value.trim();
+  const numero = document.getElementById('inp_meta_numero_teste').value.trim();
+
+  _statusTestando();
+
+  try {
+    const body = {
+      template: document.getElementById('inp_meta_template').value.trim(),
+      idioma:   document.getElementById('inp_meta_idioma').value.trim() || 'pt_BR',
+      versao:   document.getElementById('inp_meta_versao').value.trim(),
+    };
+    if (phone)  body.phone_number_id = phone;
+    if (token)  body.token = token;      // sem token no campo → usa o token salvo
+    if (numero) body.numero = numero;    // com número → também envia uma mensagem real
+    const r = await fetch('/api/whatsapp/testar-meta', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + getToken() },
+      body: JSON.stringify(body)
+    });
+    const d = await r.json();
+    if (d.ok) {
+      const quem = [d.nome, d.numero].filter(Boolean).join(' · ');
+      const qual = d.qualidade ? ` · qualidade ${d.qualidade}` : '';
+      const env  = d.enviado
+        ? ` — mensagem de teste enviada para ${numero}${d.via === 'template' ? ' (pelo modelo aprovado, fora da janela de 24h)' : ''}`
+        : ' — nenhuma mensagem enviada (informe um número para testar o envio)';
+      mostrarStatusApi(true, `Conexão OK${quem ? ' — ' + quem : ''}${qual}${env}`);
+      toast('Conexão com a Meta OK', 'success');
+      _setMetaBadge(d.validado_em || new Date().toISOString(), true);
+    } else {
+      mostrarStatusApi(false, d.error || 'Falha na conexão com a Meta');
+      toast(d.error || 'Falha na conexão com a Meta', 'error');
     }
   } catch (e) {
     mostrarStatusApi(false, 'Erro: ' + e.message);

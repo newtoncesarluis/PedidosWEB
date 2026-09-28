@@ -5,15 +5,17 @@
  * - Cada produto continua sendo 1 SKU pedível.
  * - id_referencia NULL = avulso ou mãe (sem vínculo).
  * - id_referencia = ID de outro produto = este é cor/variação da mãe.
- * Não altera pedido, preço, estoque nem Showroom (P0).
+ * - Se a mãe tem Cor preenchida e está disponível p/ venda, ela entra como
+ *   1ª opção em cores[] no Showroom/pedido (além dos filhos).
  */
 
 const { ensureProdutoColunas, getProdTabela } = require('./produto-colunas');
 
 const COL_REF = { column: 'id_referencia', type: 'INT NULL DEFAULT NULL' };
+const COL_AGRUPA = { column: 'agrupa_cores', type: "ENUM('S','N') NOT NULL DEFAULT 'N'" };
 
 async function ensureProdutoReferenciaCol(pool) {
-  await ensureProdutoColunas(pool, [COL_REF]);
+  await ensureProdutoColunas(pool, [COL_REF, COL_AGRUPA]);
 }
 
 const SQL_ATIVO = `(excluido='N' OR excluido IS NULL OR excluido='')`;
@@ -99,7 +101,12 @@ async function listarReferenciasMae(pool, { q = '', fornecedor = null, limit = 4
             p.cod_fornecedorpadrao,
             (SELECT COUNT(*) FROM ${tb} c
              WHERE c.id_referencia = p.ID
-               AND (c.excluido='N' OR c.excluido IS NULL OR c.excluido='')) AS qtd_cores
+               AND (c.excluido='N' OR c.excluido IS NULL OR c.excluido=''))
+            + CASE
+                WHEN TRIM(IFNULL(p.cor1,'')) <> ''
+                 AND IFNULL(p.disponivel,'S') <> 'N'
+                THEN 1 ELSE 0
+              END AS qtd_cores
      FROM ${tb} p
      WHERE ${where.join(' AND ')}
      ORDER BY p.descricao
@@ -111,7 +118,8 @@ async function listarReferenciasMae(pool, { q = '', fornecedor = null, limit = 4
 
 /** Campos úteis para Showroom / pedido ao trocar de cor. */
 const SELECT_SKU = `ID AS id, descricao, cod_fabricante, cor1, cor2, foto_principal,
-            id_referencia, cod_fornecedorpadrao, situacao, unidade,
+            id_referencia, IFNULL(agrupa_cores, 'N') AS agrupa_cores,
+            cod_fornecedorpadrao, situacao, unidade,
             COALESCE(vlr_venda, 0) AS vlr_venda,
             IFNULL(tipograde, 0) AS tipograde,
             tipoprodutograde,
@@ -122,8 +130,42 @@ const SELECT_SKU = `ID AS id, descricao, cod_fabricante, cor1, cor2, foto_princi
             IFNULL(disponivel, 'S') AS disponivel`;
 
 /**
+ * Mãe entra como 1ª cor no Showroom/pedido quando tem Cor preenchida
+ * e está disponível para venda (cenário: Pink no pai + 5 filhos = 6 opções).
+ */
+function maeVendeComoCor(mae) {
+  if (!mae) return false;
+  const cor = String(mae.cor1 || '').trim();
+  if (!cor) return false;
+  const disp = String(mae.disponivel != null ? mae.disponivel : 'S').toUpperCase();
+  if (disp === 'N') return false;
+  const sit = String(mae.situacao != null ? mae.situacao : 'A').toUpperCase();
+  if (sit && sit !== 'A' && sit !== '') return false;
+  return true;
+}
+
+/**
+ * Coloca a mãe no início da lista de cores (sem duplicar se já estiver).
+ */
+function montarCoresComMaePrimeira(mae, cores) {
+  const list = Array.isArray(cores) ? cores.slice() : [];
+  if (!maeVendeComoCor(mae)) return list;
+  const idMae = parseInt(mae.id, 10) || 0;
+  if (!(idMae > 0)) return list;
+  const semDup = list.filter((c) => parseInt(c.id || c.ID || c.cod_produto, 10) !== idMae);
+  const maeSku = {
+    ...mae,
+    id: idMae,
+    id_referencia: null,
+    eh_mae_como_cor: true,
+  };
+  return [maeSku, ...semDup];
+}
+
+/**
  * Grupo completo: mãe + cores (incluindo o produto consultado).
  * Inclui preço/grade do cadastro (Showroom pode sobrescrever com tabela).
+ * Se a mãe tem cor e está disponível p/ venda, ela entra como 1ª opção em cores[].
  */
 async function obterGrupoReferencia(pool, idProduto) {
   await ensureProdutoReferenciaCol(pool);
@@ -186,9 +228,11 @@ async function obterGrupoReferencia(pool, idProduto) {
 
   const papel = eu.id_referencia
     ? 'cor'
-    : (cores.length ? 'mae' : 'avulso');
+    : (cores.length || String(eu.agrupa_cores || '').toUpperCase() === 'S' || maeVendeComoCor(mae) ? 'mae' : 'avulso');
 
-  return { papel, mae, cores, eu };
+  const coresComMae = montarCoresComMaePrimeira(mae, cores);
+
+  return { papel, mae, cores: coresComMae, eu };
 }
 
 /**
@@ -202,6 +246,7 @@ function sqlSomenteMaeOuAvulso(alias = 'p') {
 
 /**
  * Colapsa lista (coleção) em 1 card por grupo: prefere a mãe se estiver na lista.
+ * qtd_cores = filhos na lista + 1 se a mãe vende como cor (cor1 + disponível).
  */
 function colapsarItensPorReferencia(itens) {
   const map = new Map();
@@ -212,18 +257,18 @@ function colapsarItensPorReferencia(itens) {
     const idRef = parseInt(it.id_referencia, 10) || 0;
     const key = idRef > 0 ? idRef : cod;
     if (!key) continue;
+    const isFilho = idRef > 0;
     const existing = map.get(key);
     if (!existing) {
-      it.qtd_cores = idRef > 0 ? 1 : 0;
+      it.qtd_cores = isFilho ? 1 : (maeVendeComoCor(it) ? 1 : 0);
       map.set(key, it);
       order.push(key);
-    } else {
+    } else if (isFilho) {
       existing.qtd_cores = (existing.qtd_cores || 0) + 1;
-      // Prefere o produto mãe (sem id_referencia) como card
-      if (idRef === 0 && (parseInt(existing.id_referencia, 10) || 0) > 0) {
-        it.qtd_cores = existing.qtd_cores;
-        map.set(key, it);
-      }
+    } else {
+      // Prefere o produto mãe como card; conta mãe só se vende como cor
+      it.qtd_cores = (existing.qtd_cores || 0) + (maeVendeComoCor(it) ? 1 : 0);
+      map.set(key, it);
     }
   }
   return order.map((k) => map.get(k));
@@ -294,6 +339,8 @@ module.exports = {
   validarVinculoReferencia,
   listarReferenciasMae,
   obterGrupoReferencia,
+  maeVendeComoCor,
+  montarCoresComMaePrimeira,
   parseIdReferenciaBody,
   sqlSomenteMaeOuAvulso,
   colapsarItensPorReferencia,

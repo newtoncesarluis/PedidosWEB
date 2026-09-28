@@ -2100,6 +2100,14 @@ html.ms-embedded-tech.ms-page-clientes .cards-grid {
     </div>
     <div class="filter-panel-body" id="filterPanelBody">
       <div class="form-group">
+        <label>Status</label>
+        <select id="fa_status" onchange="aplicarFiltroAvancado()" autocomplete="off">
+          <option value="">Todos</option>
+          <option value="A">Ativo</option>
+          <option value="I">Inativo</option>
+        </select>
+      </div>
+      <div class="form-group">
         <label>Tipo de Cliente</label>
         <select id="fa_tipo" onchange="aplicarFiltroAvancado()" autocomplete="off">
           <option value="">Todos</option>
@@ -2113,6 +2121,12 @@ html.ms-embedded-tech.ms-page-clientes .cards-grid {
       <div class="form-group">
         <label>Segmento</label>
         <select id="fa_cod_segmento" onchange="aplicarFiltroAvancado()" autocomplete="off">
+          <option value="">Todos</option>
+        </select>
+      </div>
+      <div class="form-group" id="fa_vendedor_wrap">
+        <label>Vendedor</label>
+        <select id="fa_cod_vendedor" onchange="aplicarFiltroAvancado()" autocomplete="off">
           <option value="">Todos</option>
         </select>
       </div>
@@ -3514,7 +3528,7 @@ let _selecionados = new Set();   // IDs selecionados para ações em massa
 let _cacheRows  = [];            // última página carregada (para exportar selecionados)
 let _cliRotaMap = new Map();     // id_cliente → { id_rota, descricao, status_visita }
 let _cliVisitaMap = new Map();   // id_cliente → { id, data_visita, hora_visita }
-let _filtrosAvancados = { tipo:'', cidade:'', cod_segmento:'', sem_compra:'', suspensa:false, cadastro_periodo:'', cadastro_de:'', cadastro_ate:'' };
+let _filtrosAvancados = { status:'', tipo:'', cidade:'', cod_segmento:'', cod_vendedor:'', sem_compra:'', suspensa:false, cadastro_periodo:'', cadastro_de:'', cadastro_ate:'' };
 
 // ── INICIALIZAÇÃO ─────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
@@ -3584,6 +3598,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 // ── FILTROS / BUSCA ───────────────────────────────────────────────────────────
 function setFiltro(v) {
   _filtro   = v;
+  syncFaStatusDoFiltro();
+  _filtrosAvancados.status = (_filtro === 'A' || _filtro === 'I') ? _filtro : '';
   _pagAtual = 0;
   carregar();
 }
@@ -3615,9 +3631,11 @@ function onCadastroPeriodoChange() {
 function sincronizarFiltrosAvancadosDoForm() {
   const tipoEl = document.getElementById('fa_tipo');
   if (!tipoEl) return _filtrosAvancados;
+  _filtrosAvancados.status = document.getElementById('fa_status')?.value || '';
   _filtrosAvancados.tipo = tipoEl.value.trim();
   _filtrosAvancados.cidade = (document.getElementById('fa_cidade')?.value || '').trim();
   _filtrosAvancados.cod_segmento = document.getElementById('fa_cod_segmento')?.value || '';
+  _filtrosAvancados.cod_vendedor = document.getElementById('fa_cod_vendedor')?.value || '';
   _filtrosAvancados.sem_compra = document.getElementById('fa_sem_compra')?.value || '';
   _filtrosAvancados.suspensa = !!document.getElementById('fa_suspensa')?.checked;
   _filtrosAvancados.cadastro_periodo = document.getElementById('fa_cadastro_periodo')?.value || '';
@@ -3625,10 +3643,36 @@ function sincronizarFiltrosAvancadosDoForm() {
   _filtrosAvancados.cadastro_ate = document.getElementById('fa_cadastro_ate')?.value || '';
   const segLabel = document.getElementById('fa_cod_segmento')?.selectedOptions?.[0]?.textContent?.trim() || '';
   _filtrosAvancados._seg_label = (_filtrosAvancados.cod_segmento && segLabel && segLabel !== 'Todos') ? segLabel : '';
+  const vendLabel = document.getElementById('fa_cod_vendedor')?.selectedOptions?.[0]?.textContent?.trim() || '';
+  _filtrosAvancados._vend_label = (_filtrosAvancados.cod_vendedor && vendLabel && vendLabel !== 'Todos') ? vendLabel : '';
+  const st = _filtrosAvancados.status;
+  _filtrosAvancados._status_label = st === 'A' ? 'Ativo' : st === 'I' ? 'Inativo' : '';
   const cp = _filtrosAvancados.cadastro_periodo;
   const cadLabels = { hoje: 'Cadastro: hoje', semana: 'Cadastro: semana', mes: 'Cadastro: mês', ate: 'Cadastro até', intervalo: 'Cadastro período' };
   _filtrosAvancados._cadastro_label = cadLabels[cp] || '';
+  // Mantém o status da listagem alinhado ao combo dos filtros avançados
+  _filtro = st === 'A' || st === 'I' ? st : 'todos';
+  syncInsightCardsComStatus();
   return _filtrosAvancados;
+}
+
+function syncInsightCardsComStatus() {
+  document.querySelectorAll('.ins-card').forEach(c => c.classList.remove('active'));
+  if (_filtro === 'A') {
+    _insightFiltroAtivo = 'ativos';
+    document.getElementById('ins-card-ativos')?.classList.add('active');
+  } else if (_filtro === 'I') {
+    _insightFiltroAtivo = 'inativos';
+    document.getElementById('ins-card-inativos')?.classList.add('active');
+  } else if (_insightFiltroAtivo === 'ativos' || _insightFiltroAtivo === 'inativos') {
+    _insightFiltroAtivo = null;
+  }
+}
+
+function syncFaStatusDoFiltro() {
+  const el = document.getElementById('fa_status');
+  if (!el) return;
+  el.value = (_filtro === 'A' || _filtro === 'I') ? _filtro : '';
 }
 
 function buildClientesFaParams(fa) {
@@ -3637,6 +3681,7 @@ function buildClientesFaParams(fa) {
     fa.tipo       ? `&tipo_cliente=${encodeURIComponent(fa.tipo)}`       : '',
     fa.cidade     ? `&cidade=${encodeURIComponent(fa.cidade)}`           : '',
     fa.cod_segmento ? `&cod_segmento=${encodeURIComponent(fa.cod_segmento)}` : '',
+    fa.cod_vendedor ? `&cod_vendedor=${encodeURIComponent(fa.cod_vendedor)}` : '',
     fa.sem_compra ? `&sem_compra_dias=${fa.sem_compra}`                  : '',
     fa.suspensa   ? `&suspensa=S`                                        : '',
     fa.cadastro_periodo ? `&cadastro_periodo=${encodeURIComponent(fa.cadastro_periodo)}` : '',
@@ -3650,7 +3695,7 @@ function buildClientesFaParams(fa) {
 
 function atualizarBadgeFiltrosAvancados() {
   const fa = _filtrosAvancados || {};
-  const ativos = [fa.tipo, fa.cidade, fa.cod_segmento, fa.sem_compra, fa.cadastro_periodo].filter(Boolean).length + (fa.suspensa ? 1 : 0);
+  const ativos = [fa.status, fa.tipo, fa.cidade, fa.cod_segmento, fa.cod_vendedor, fa.sem_compra, fa.cadastro_periodo].filter(Boolean).length + (fa.suspensa ? 1 : 0);
   const badge = document.getElementById('fphBadge');
   if (badge) { badge.textContent = ativos; badge.style.display = ativos > 0 ? '' : 'none'; }
   const labelEl = document.getElementById('filtroAtivoLabel');
@@ -5350,6 +5395,33 @@ async function carregarVendedores() {
   // Remove options anteriores (mantém o primeiro placeholder)
   while (sel.options.length > 1) sel.remove(1);
 
+  const fillFaVendedor = (lista, { mostrar = true } = {}) => {
+    const faSel = document.getElementById('fa_cod_vendedor');
+    const faWrap = document.getElementById('fa_vendedor_wrap');
+    if (!faSel) return;
+    const prev = faSel.value;
+    while (faSel.options.length > 1) faSel.remove(1);
+    (lista || []).forEach((v) => {
+      const opt = document.createElement('option');
+      opt.value = v.id;
+      opt.textContent = v.nome || v.nome_vendedor || String(v.id);
+      faSel.appendChild(opt);
+    });
+    if (prev && [...faSel.options].some((o) => o.value === prev)) faSel.value = prev;
+    if (faWrap) faWrap.style.display = mostrar ? '' : 'none';
+  };
+
+  /** Quem enxerga carteira de outros pode filtrar a lista por vendedor. */
+  const podeFiltrarPorVendedor = () => {
+    if (_usuLogado.tipo_usuario === 'PREPOSTO') return false;
+    const isAdmin = _usuLogado.perfil == 1 || _usuLogado.role === 'admin';
+    if (isAdmin) return true;
+    if (permCliente('acessartodosclientes') === 'S') return true;
+    if (permCliente('gerentecomercial') === 'S') return true;
+    if (String(_sysConfig.carteira_politica || '').toUpperCase() === 'ABERTA') return true;
+    return false;
+  };
+
   // Preposto: cliente entra na carteira do REPRESENTANTE; combo travado nele
   if (_usuLogado.tipo_usuario === 'PREPOSTO' && _usuLogado.id_gerente) {
     let nomeRep = 'Representante';
@@ -5370,6 +5442,7 @@ async function carregarVendedores() {
     sel.disabled = true;
     sel.title    = 'Cliente vinculado ao representante (preposto)';
     _vendedores  = [{ id: _usuLogado.id_gerente, nome: nomeRep }];
+    fillFaVendedor(_vendedores, { mostrar: false });
     atualizarUiVendedorObrigatorio();
     return;
   }
@@ -5384,6 +5457,23 @@ async function carregarVendedores() {
     sel.disabled = true;
     sel.title    = 'Vendedor definido automaticamente pelo sistema';
     _vendedores  = [{ id: _usuLogado.id, nome: _usuLogado.name }];
+    // Mesmo com form travado, admin/gerente pode filtrar a listagem por vendedor
+    if (podeFiltrarPorVendedor()) {
+      try {
+        const r = await api('/api/clientes/auxiliares/vendedores');
+        if (r.ok) {
+          const data = await r.json();
+          const vendedores = data.vendedores || data.data || [];
+          fillFaVendedor(vendedores, { mostrar: true });
+        } else {
+          fillFaVendedor(_vendedores, { mostrar: false });
+        }
+      } catch {
+        fillFaVendedor(_vendedores, { mostrar: false });
+      }
+    } else {
+      fillFaVendedor(_vendedores, { mostrar: false });
+    }
     atualizarUiVendedorObrigatorio();
     return;
   }
@@ -5405,6 +5495,7 @@ async function carregarVendedores() {
       opt.dataset.nome = v.nome;
       sel.appendChild(opt);
     });
+    fillFaVendedor(vendedores, { mostrar: podeFiltrarPorVendedor() || vendedores.length > 1 });
   } catch {}
   // Re-aplica bloqueio de permissão (pode ter sido desabilitado acima)
   if (_perm.alteravendedorcadastrocli === 'N') {
@@ -7688,10 +7779,13 @@ function toggleInsightFilter(tipo) {
   if (_insightFiltroAtivo === tipo && tipo !== 'total') {
     _insightFiltroAtivo = null;
     _filtro = 'todos';
+    syncFaStatusDoFiltro();
+    _filtrosAvancados.status = '';
     if (tipo === 'sem90') {
       document.getElementById('fa_sem_compra').value = '';
       _filtrosAvancados.sem_compra = '';
     }
+    atualizarBadgeFiltrosAvancados();
     _pagAtual = 0;
     carregar();
     return;
@@ -7716,6 +7810,9 @@ function toggleInsightFilter(tipo) {
     document.getElementById('fa_sem_compra').value = '90';
     _filtrosAvancados.sem_compra = '90';
   }
+  syncFaStatusDoFiltro();
+  _filtrosAvancados.status = (_filtro === 'A' || _filtro === 'I') ? _filtro : '';
+  atualizarBadgeFiltrosAvancados();
   _pagAtual = 0;
   carregar();
 }
@@ -8081,9 +8178,13 @@ function aplicarFiltroAvancado() {
 }
 
 function limparFiltrosAvancados() {
+  const faStatus = document.getElementById('fa_status');
+  if (faStatus) faStatus.value = '';
   document.getElementById('fa_tipo').value = '';
   document.getElementById('fa_cidade').value = '';
   document.getElementById('fa_cod_segmento').value = '';
+  const faVend = document.getElementById('fa_cod_vendedor');
+  if (faVend) faVend.value = '';
   document.getElementById('fa_sem_compra').value = '';
   document.getElementById('fa_suspensa').checked = false;
   const cp = document.getElementById('fa_cadastro_periodo');
@@ -8093,7 +8194,10 @@ function limparFiltrosAvancados() {
   const cat = document.getElementById('fa_cadastro_ate');
   if (cat) cat.value = '';
   onCadastroPeriodoChange();
-  _filtrosAvancados = { tipo:'', cidade:'', cod_segmento:'', sem_compra:'', suspensa:false, cadastro_periodo:'', cadastro_de:'', cadastro_ate:'' };
+  _filtro = 'todos';
+  _insightFiltroAtivo = null;
+  document.querySelectorAll('.ins-card').forEach(c => c.classList.remove('active'));
+  _filtrosAvancados = { status:'', tipo:'', cidade:'', cod_segmento:'', cod_vendedor:'', sem_compra:'', suspensa:false, cadastro_periodo:'', cadastro_de:'', cadastro_ate:'' };
   const badge = document.getElementById('fphBadge');
   badge.style.display = 'none';
   const labelEl = document.getElementById('filtroAtivoLabel');
@@ -8106,9 +8210,11 @@ function salvarFiltroFavorito() {
   sincronizarFiltrosAvancadosDoForm();
   const f = { ..._filtrosAvancados };
   const nome = [
+    f._status_label && `Status:${f._status_label}`,
     f.tipo && `Tipo:${f.tipo}`,
     f.cidade && `Cidade:${f.cidade}`,
     (f._seg_label || f.cod_segmento) && `Segmento:${f._seg_label || f.cod_segmento}`,
+    (f._vend_label || f.cod_vendedor) && `Vendedor:${f._vend_label || f.cod_vendedor}`,
     f.cadastro_periodo === 'hoje' && 'Cadastro:hoje',
     f.cadastro_periodo === 'semana' && 'Cadastro:semana',
     f.cadastro_periodo === 'mes' && 'Cadastro:mês',
@@ -8140,9 +8246,13 @@ async function aplicarFavFiltro(i) {
   if (!f) return;
   await garantirCategoriasFiltro();
   setFiltroPanelOpen(true);
+  const faStatus = document.getElementById('fa_status');
+  if (faStatus) faStatus.value = (f.status === 'A' || f.status === 'I') ? f.status : '';
   document.getElementById('fa_tipo').value    = f.tipo || '';
   document.getElementById('fa_cidade').value  = f.cidade || '';
   document.getElementById('fa_cod_segmento').value = f.cod_segmento ? String(f.cod_segmento) : '';
+  const faVend = document.getElementById('fa_cod_vendedor');
+  if (faVend) faVend.value = f.cod_vendedor ? String(f.cod_vendedor) : '';
   document.getElementById('fa_sem_compra').value = f.sem_compra || '';
   document.getElementById('fa_suspensa').checked = !!f.suspensa;
   const cp = document.getElementById('fa_cadastro_periodo');
@@ -8399,7 +8509,7 @@ async function _waEnviarModal() {
       toast(d.error || 'Falha no envio pela API', 'err');
       return;
     }
-    toast(`Mensagem enviada via ${d.provedor === 'EUATENDO' ? 'EuAtendo' : (d.provedor || 'API')}`, 'ok');
+    toast(`Mensagem enviada via ${d.provedor === 'EUATENDO' ? 'EuAtendo' : (d.provedor === 'META' ? 'Meta (API oficial)' : (d.provedor || 'API'))}`, 'ok');
     // Atualiza badge local imediatamente (não depende só do reload)
     if (codCli && Array.isArray(_cacheRows)) {
       const row = _cacheRows.find(c => String(c.id) === String(codCli));
@@ -9206,7 +9316,7 @@ function _mhistMsgsHtml(msgs) {
   };
   const canalBadge = m => m.canal === 'EMAIL'
     ? '<span class="mhist-badge" style="background:#e0e7ff;color:#3730a3">E-mail</span>'
-    : `<span class="mhist-badge" style="background:#dcfce7;color:#166534">WhatsApp${m.provedor === 'EUATENDO' ? ' · ApiChat' : ''}</span>`;
+    : `<span class="mhist-badge" style="background:#dcfce7;color:#166534">WhatsApp${m.provedor === 'EUATENDO' ? ' · ApiChat' : (m.provedor === 'META' ? ' · Meta' : '')}</span>`;
   const stBadge = m => m.status === 'FALHOU'
     ? `<span class="mhist-badge" style="background:#fee2e2;color:#991b1b;cursor:help" title="${escHtml(m.erro || 'Erro não informado')}">✕ Falhou</span>`
     : '<span class="mhist-badge" style="background:#dcfce7;color:#15803d">✓ Enviado</span>';

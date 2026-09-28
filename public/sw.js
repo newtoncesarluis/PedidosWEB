@@ -1,5 +1,5 @@
 // Service Worker — PedidosWeb PWA
-const CACHE_NAME = 'pedidosweb-v3-__BUILD_ID__';
+const CACHE_NAME = 'pedidosweb-v4-__BUILD_ID__';
 
 const MOBILE_PAGES = [
   '/pages/pedidos.html',
@@ -263,6 +263,17 @@ self.addEventListener('fetch', e => {
     }
 
     const isHtml = url.pathname.endsWith('.html') || url.pathname === '/';
+
+    const NETWORK_FIRST_HTML = [
+      '/pages/produtos.html',
+      '/pages/grades.html',
+      '/pages/pedidos.html',
+      '/pages/comercial-showroom.html',
+    ];
+    if (isHtml && NETWORK_FIRST_HTML.includes(url.pathname)) {
+      e.respondWith(safe(respondAsset(e.request)));
+      return;
+    }
 
     if (isHtml) {
       e.respondWith(safe(respondAppShell(e.request, OFFLINE_HTML)));

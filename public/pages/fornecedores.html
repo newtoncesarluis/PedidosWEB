@@ -194,11 +194,13 @@ tbody td { padding:10px 12px; vertical-align:middle; }
 /* ── PAGINATION ── */
 .pagination { display:flex; align-items:center; justify-content:space-between;
   padding:10px 16px; border-top:1px solid var(--border); font-size:12px; color:var(--text2); flex-wrap:wrap; gap:8px; }
-.pag-btns { display:flex; gap:6px; }
+.pag-btns { display:flex; gap:6px; align-items:center; }
 .pag-btn { padding:5px 12px; border:1.5px solid var(--border); border-radius:6px;
-  background:var(--card); font-size:12px; font-family:inherit; cursor:pointer; color:var(--text); transition:.12s; }
+  background:var(--card); font-size:12px; font-family:inherit; cursor:pointer; color:var(--text); transition:.12s;
+  min-width:36px; display:inline-flex; align-items:center; justify-content:center; }
 .pag-btn:hover:not(:disabled) { border-color:var(--accent); color:var(--accent); }
 .pag-btn:disabled { opacity:.4; cursor:not-allowed; }
+.pag-btn.pag-arrow { font-size:18px; font-weight:700; line-height:1; padding:4px 10px; }
 
 /* ── ACTIONS DROPDOWN ── */
 .btn-acoes { background:#fff; border:1.5px solid var(--border); border-radius:6px;
@@ -284,11 +286,27 @@ html.forn-form-open body { height:100%; overflow:hidden !important; }
 .form-header { padding:14px 20px; border-bottom:1px solid var(--border); display:flex;
   align-items:center; justify-content:space-between; background:var(--card); flex-shrink:0; }
 .form-header-title { font-size:13px; font-weight:800; color:var(--text); text-transform:uppercase; letter-spacing:.5px; }
-.form-tabs { display:flex; gap:0; border-bottom:1px solid var(--border); background:var(--card); padding:0 20px;
-  flex-shrink:0; overflow-x:auto; scrollbar-width:thin; }
+.form-tabs-wrap {
+  position:relative; flex-shrink:0; background:var(--card); border-bottom:1px solid var(--border);
+}
+.form-tabs {
+  display:flex; gap:0; background:var(--card); padding:0 36px;
+  overflow-x:auto; scroll-behavior:smooth; scrollbar-width:none;
+}
+.form-tabs::-webkit-scrollbar { display:none; }
 .form-tab { padding:10px 16px; font-size:12px; font-weight:600; cursor:pointer;
   border-bottom:2px solid transparent; color:var(--text2); transition:.15s; white-space:nowrap; flex-shrink:0; }
 .form-tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+.form-tab-scroll {
+  position:absolute; top:0; bottom:0; width:34px;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--card); border:none; cursor:pointer; z-index:5;
+  font-size:20px; font-weight:700; line-height:1; color:var(--text2); transition:.12s;
+}
+.form-tab-scroll:hover { color:var(--accent); background:var(--accent-soft); }
+.form-tab-scroll.left  { left:0; border-right:1px solid var(--border); }
+.form-tab-scroll.right { right:0; border-left:1px solid var(--border); }
+.form-tab-scroll[hidden] { display:none; }
 .form-body { flex:1 1 0; min-height:0; overflow-y:auto; padding:20px; -webkit-overflow-scrolling:touch; }
 .tab-pane { display:none; }
 .tab-pane.active { display:block; }
@@ -629,7 +647,9 @@ html.sysrep-home-embed #formSection .form-footer { flex-shrink:0 !important; }
   </div>
   <div class="search-wrap">
     <input type="text" id="searchInput" class="search-input" placeholder="Buscar nome, CPF/CNPJ, telefone…"
-      autocomplete="off" oninput="debounceSearch()" onkeydown="if(event.key==='Enter')carregar()">
+      name="sysrep_forn_busca" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+      data-lpignore="true" data-1p-ignore="true" data-form-type="other"
+      oninput="debounceSearch()" onkeydown="if(event.key==='Enter')carregar()">
     <button class="icon-btn" onclick="carregar()" title="Pesquisar">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
@@ -741,21 +761,25 @@ html.sysrep-home-embed #formSection .form-footer { flex-shrink:0 !important; }
       </button>
     </div>
 
-    <div class="form-tabs">
-      <div class="form-tab active" onclick="abrirAba('geral',this)">Geral</div>
-      <div class="form-tab" onclick="abrirAba('endereco',this)">Endereço</div>
-      <div class="form-tab" onclick="abrirAba('contato',this)">Contato</div>
-      <div class="form-tab" onclick="abrirAba('preferencias',this)">Preferências</div>
-      <div class="form-tab" onclick="abrirAba('descontos',this)">Descontos</div>
-      <div class="form-tab" onclick="abrirAba('valores',this)">Valores</div>
-      <div class="form-tab" onclick="abrirAba('tabpreco',this)">Tabela de Preços</div>
-      <div class="form-tab" onclick="abrirAba('vendedores',this)">Vendedores</div>
-      <div class="form-tab" onclick="abrirAba('condpagto',this)">Cond. Pagamento</div>
-      <div class="form-tab" onclick="abrirAba('kitpedido',this)">Kit de Pedido</div>
-      <div class="form-tab" onclick="abrirAba('imagens',this)">Imagens</div>
-      <div class="form-tab" onclick="abrirAba('produtos',this)">Produtos</div>
-      <div class="form-tab" onclick="abrirAba('obs',this)">Observações</div>
-      <div class="form-tab" onclick="abrirAba('emails-fabrica',this)">E-mails Fábrica</div>
+    <div class="form-tabs-wrap">
+      <button type="button" class="form-tab-scroll left" id="fornTabScrollLeft" onclick="scrollFormTabs(-1)" hidden aria-label="Abas anteriores">‹</button>
+      <div class="form-tabs" id="fornFormTabs" onscroll="atualizarSetasAbasForn()">
+        <div class="form-tab active" onclick="abrirAba('geral',this)">Geral</div>
+        <div class="form-tab" onclick="abrirAba('endereco',this)">Endereço</div>
+        <div class="form-tab" onclick="abrirAba('contato',this)">Contato</div>
+        <div class="form-tab" onclick="abrirAba('preferencias',this)">Preferências</div>
+        <div class="form-tab" onclick="abrirAba('descontos',this)">Descontos</div>
+        <div class="form-tab" onclick="abrirAba('valores',this)">Valores</div>
+        <div class="form-tab" onclick="abrirAba('tabpreco',this)">Tabela de Preços</div>
+        <div class="form-tab" onclick="abrirAba('vendedores',this)">Vendedores</div>
+        <div class="form-tab" onclick="abrirAba('condpagto',this)">Cond. Pagamento</div>
+        <div class="form-tab" onclick="abrirAba('kitpedido',this)">Kit de Pedido</div>
+        <div class="form-tab" onclick="abrirAba('imagens',this)">Imagens</div>
+        <div class="form-tab" onclick="abrirAba('produtos',this)">Produtos</div>
+        <div class="form-tab" onclick="abrirAba('obs',this)">Observações</div>
+        <div class="form-tab" onclick="abrirAba('emails-fabrica',this)">E-mails Fábrica</div>
+      </div>
+      <button type="button" class="form-tab-scroll right" id="fornTabScrollRight" onclick="scrollFormTabs(1)" aria-label="Próximas abas">›</button>
     </div>
 
     <div class="form-body">
@@ -932,11 +956,11 @@ html.sysrep-home-embed #formSection .form-footer { flex-shrink:0 !important; }
         <div class="form-grid">
           <div class="form-group">
             <label>Fone Principal</label>
-            <input type="text" id="f_foneprincipal" autocomplete="off" placeholder="(00) 0000-0000">
+            <input type="text" id="f_foneprincipal" name="forn_fone_principal" autocomplete="tel-national" placeholder="(00) 0000-0000">
           </div>
           <div class="form-group">
             <label>WhatsApp</label>
-            <input type="text" id="f_fonesecundario" autocomplete="off" placeholder="(00) 00000-0000">
+            <input type="text" id="f_fonesecundario" name="forn_fone_whatsapp" autocomplete="tel-national" placeholder="(00) 00000-0000">
           </div>
           <div class="form-group">
             <label>E-mail</label>
@@ -1072,6 +1096,11 @@ html.sysrep-home-embed #formSection .form-footer { flex-shrink:0 !important; }
                   <option value="N">Não</option>
                   <option value="S">Sim</option>
                 </select>
+              </div>
+              <div class="pref-item pref-item--feature" onclick="togglePref('f_pedidos_ref_mae')">
+                <input type="checkbox" id="f_pedidos_ref_mae">
+                <label for="f_pedidos_ref_mae" class="feature-title">Pedidos — referência da mãe nas cores</label>
+                <p class="feature-hint">Na tela e no PDF do pedido, cores (filhos) exibem o <strong>Cód. Fabricante da referência mãe</strong>, em vez do código de cada cor. O cadastro e o XML da fábrica continuam com o código do SKU da cor.</p>
               </div>
             </div>
           </div>
@@ -1219,9 +1248,14 @@ html.sysrep-home-embed #formSection .form-footer { flex-shrink:0 !important; }
                 <input type="checkbox" id="f_logopedido">
                 <label for="f_logopedido">Logo Pedido Venda</label>
               </div>
-              <div class="pref-item" onclick="togglePref('f_xml_pedidovenda')">
-                <input type="checkbox" id="f_xml_pedidovenda">
-                <label for="f_xml_pedidovenda">Gerar XML Pedido Venda</label>
+              <div class="pref-item pref-item--feature" onclick="togglePref('f_aparece_showroom')" data-pref-keywords="showroom aparece fabrica catalogo visual colecao">
+                <input type="checkbox" id="f_aparece_showroom">
+                <label for="f_aparece_showroom" class="feature-title">Aparece no Showroom</label>
+                <p class="feature-hint">Quando marcado, esta fábrica entra na seção <strong>Fábricas</strong> do Showroom. Sem marcar, só aparece se estiver em uma <strong>coleção</strong> (Catálogos Visuais) ou se o vendedor abrir pelo catálogo completo.</p>
+              </div>
+              <div class="pref-item" onclick="togglePref('f_xml_pedidovenda', event); syncXmlPedidovendaToFormato();">
+                <input type="checkbox" id="f_xml_pedidovenda" onchange="syncXmlPedidovendaToFormato()">
+                <label for="f_xml_pedidovenda">Gerar XML Pedido Venda <span style="font-weight:500;color:var(--text2);font-size:11px">(aba E-mails Fábrica)</span></label>
               </div>
               <div class="pref-item pref-item--static" style="flex-direction:column;align-items:flex-start;gap:4px">
                 <label style="font-size:12px;font-weight:600;color:var(--text2)">Imprimir Parcelas no Pedido</label>
@@ -1661,6 +1695,47 @@ html.sysrep-home-embed #formSection .form-footer { flex-shrink:0 !important; }
             Enviar pedido automaticamente para a fábrica ao transmitir
           </label>
           <p style="margin:6px 0 0 26px;font-size:11px;color:var(--text2)">Quando ativado, o pedido será enviado por e-mail para os endereços abaixo ao clicar em "Enviar para Fábrica".</p>
+          <div style="margin:14px 0 0 0;padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:var(--card, var(--bg))">
+            <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);margin-bottom:8px">Formato do arquivo anexo</div>
+            <p style="margin:0 0 10px;font-size:11px;color:var(--text2);line-height:1.4">Além do PDF, escolha se a fábrica recebe também um arquivo estruturado (XML ou planilha XLS).</p>
+            <div style="display:flex;flex-wrap:wrap;gap:10px 18px">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600;color:var(--text)">
+                <input type="radio" name="f_formato_anexo_fabrica" value="N" checked style="accent-color:var(--accent);width:15px;height:15px;cursor:pointer"
+                  onchange="syncFormatoAnexoFabricaUi()">
+                Só PDF
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600;color:var(--text)">
+                <input type="radio" name="f_formato_anexo_fabrica" value="XML" style="accent-color:var(--accent);width:15px;height:15px;cursor:pointer"
+                  onchange="syncFormatoAnexoFabricaUi()">
+                PDF + XML
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600;color:var(--text)">
+                <input type="radio" name="f_formato_anexo_fabrica" value="XLS" style="accent-color:var(--accent);width:15px;height:15px;cursor:pointer"
+                  onchange="syncFormatoAnexoFabricaUi()">
+                PDF + XLS
+              </label>
+            </div>
+          </div>
+          <div style="margin:14px 0 0 0;padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:var(--card, var(--bg))">
+            <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);margin-bottom:8px">Cópias do e-mail</div>
+            <p style="margin:0 0 10px;font-size:11px;color:var(--text2);line-height:1.4">No envio à fábrica, o sistema sugere cópia para o cliente e/ou vendedor do pedido — com opção de confirmar ou editar o e-mail na hora.</p>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:13px;font-weight:600;color:var(--text)">
+                <input type="checkbox" id="f_copia_email_cliente" style="accent-color:var(--accent);width:16px;height:16px;cursor:pointer;margin-top:2px;flex-shrink:0">
+                <span>
+                  Enviar cópia para o cliente
+                  <span style="display:block;font-size:11px;font-weight:500;color:var(--text2);margin-top:2px">Usa o e-mail do cadastro do cliente no pedido</span>
+                </span>
+              </label>
+              <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:13px;font-weight:600;color:var(--text)">
+                <input type="checkbox" id="f_copia_email_vendedor" style="accent-color:var(--accent);width:16px;height:16px;cursor:pointer;margin-top:2px;flex-shrink:0">
+                <span>
+                  Enviar cópia para o vendedor
+                  <span style="display:block;font-size:11px;font-weight:500;color:var(--text2);margin-top:2px">Usa o e-mail do vendedor selecionado no pedido</span>
+                </span>
+              </label>
+            </div>
+          </div>
         </div>
         <div style="border-top:1px solid var(--border);padding-top:14px">
           <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);margin-bottom:10px">E-mails cadastrados</div>
@@ -1864,7 +1939,8 @@ function debounceSearch() {
 // ═══════════════════════════════════════════════════════════
 let _pagAtual   = 0;
 let _viewMode   = 'table';
-const LIMIT     = 100;
+/** Quantidade de linhas por página — recalculada pela altura da viewport (evita scroll vertical da lista) */
+let LIMIT       = 12;
 let _total      = 0;
 let _filtro     = 'A';
 let _editandoId = null;
@@ -1872,6 +1948,15 @@ let _cacheRows  = [];
 let _selecionados = new Set();
 let _filtrosAvancados = { segmento:'', cidade:'' };
 let _notifData  = null;
+/** Busca da lista antes de abrir o formulário — evita autofill do Chrome jogar telefone na searchInput ao fechar */
+let _searchAntesDoForm = '';
+
+/** Ao fechar o form, a busca da lista estava oculta — restaura o valor de antes (evita autofill de telefone/CNPJ) */
+function _restaurarBuscaAposForm() {
+  const si = document.getElementById('searchInput');
+  if (!si) return;
+  si.value = _searchAntesDoForm || '';
+}
 
 // ═══════════════════════════════════════════════════════════
 // INICIALIZAÇÃO
@@ -2164,6 +2249,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const sb = document.getElementById('subbar');
   if (sb) sb.style.top = tbH + 'px';
 
+  LIMIT = calcLimitPorViewport();
   carregar();
   carregarNotificacoes();
   carregarCategorias();
@@ -2172,6 +2258,17 @@ document.addEventListener('DOMContentLoaded', () => {
   verificarPermissoes();
   initPrefPreferenciasUi();
   ensureQuickViewPortal();
+  let _resizePagTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(_resizePagTimer);
+    _resizePagTimer = setTimeout(() => {
+      if (document.getElementById('formSection')?.classList.contains('form-open')) {
+        atualizarSetasAbasForn();
+        return;
+      }
+      syncLimitPorViewport();
+    }, 180);
+  });
 
   // Atalhos de teclado
   document.addEventListener('keydown', e => {
@@ -2236,7 +2333,7 @@ function toggleView(mode) {
   document.getElementById('btnViewTable').classList.toggle('active', mode === 'table');
   document.getElementById('btnViewCards').classList.toggle('active', mode === 'cards');
   _selecionados.clear();
-  renderLista(_cacheRows);
+  syncLimitPorViewport(true);
 }
 
 function renderLista(rows) {
@@ -2366,20 +2463,86 @@ function renderTabela(rows) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// PAGINAÇÃO
+// PAGINAÇÃO (tamanho dinâmico pela altura da tela)
 // ═══════════════════════════════════════════════════════════
+function calcLimitPorViewport() {
+  const toolbar = document.getElementById('toolbar')?.offsetHeight || 56;
+  const subbar = document.getElementById('subbar')?.offsetHeight || 36;
+  const fp = document.getElementById('filterPanel');
+  const filterH = (fp && fp.style.display !== 'none' && fp.offsetHeight) ? fp.offsetHeight : 0;
+  const pagH = 52;
+  const chrome = 40; // padding content + card borders
+  const avail = Math.max(180, (window.innerHeight || 700) - toolbar - subbar - filterH - pagH - chrome);
+
+  if (_viewMode === 'cards') {
+    const cardH = 150;
+    const cols = Math.max(1, Math.floor(((window.innerWidth || 1000) - 48) / 280));
+    const rows = Math.max(1, Math.floor(avail / cardH));
+    return Math.max(cols, Math.min(36, rows * cols));
+  }
+
+  const rowH = 44; // altura aproximada da linha da tabela
+  return Math.max(5, Math.min(40, Math.floor(avail / rowH)));
+}
+
+function syncLimitPorViewport(forceReload) {
+  const novo = calcLimitPorViewport();
+  if (novo === LIMIT && !forceReload) return;
+  const firstIdx = _pagAtual * LIMIT;
+  LIMIT = novo;
+  _pagAtual = Math.floor(firstIdx / Math.max(1, LIMIT));
+  carregar();
+}
+
 function renderPaginacao() {
-  const totalPag = Math.ceil(_total / LIMIT);
+  const totalPag = Math.ceil(_total / LIMIT) || 1;
   const el = document.getElementById('paginacao');
-  if (totalPag <= 1) { el.innerHTML = ''; return; }
+  if (!el) return;
+  // Sempre mostra barra quando há registros (mesmo 1 página) — deixa claro o total
+  if (_total <= 0) { el.innerHTML = ''; return; }
+  const ini = _pagAtual * LIMIT + 1;
+  const fim = Math.min((_pagAtual + 1) * LIMIT, _total);
   el.innerHTML = `
-    <span>${_pagAtual * LIMIT + 1}–${Math.min((_pagAtual+1)*LIMIT, _total)} de ${_total}</span>
+    <span>${ini}–${fim} de ${_total}${totalPag > 1 ? ` · pág. ${_pagAtual + 1}/${totalPag}` : ''}</span>
     <div class="pag-btns">
-      <button class="pag-btn" onclick="irPag(${_pagAtual-1})" ${_pagAtual===0?'disabled':''}>← Anterior</button>
-      <button class="pag-btn" onclick="irPag(${_pagAtual+1})" ${_pagAtual>=totalPag-1?'disabled':''}>Próxima →</button>
+      <button type="button" class="pag-btn pag-arrow" onclick="irPag(${_pagAtual - 1})" ${_pagAtual === 0 ? 'disabled' : ''} title="Anterior" aria-label="Página anterior">‹</button>
+      <button type="button" class="pag-btn pag-arrow" onclick="irPag(${_pagAtual + 1})" ${_pagAtual >= totalPag - 1 ? 'disabled' : ''} title="Próxima" aria-label="Próxima página">›</button>
     </div>`;
 }
-function irPag(p) { _pagAtual = p; carregar(); window.scrollTo(0,0); }
+function irPag(p) {
+  const totalPag = Math.ceil(_total / LIMIT) || 1;
+  if (p < 0 || p >= totalPag) return;
+  _pagAtual = p;
+  carregar();
+  window.scrollTo(0, 0);
+}
+
+function scrollFormTabs(dir) {
+  const bar = document.getElementById('fornFormTabs');
+  if (bar) bar.scrollLeft += dir * 180;
+}
+
+function atualizarSetasAbasForn() {
+  const bar = document.getElementById('fornFormTabs');
+  const left = document.getElementById('fornTabScrollLeft');
+  const right = document.getElementById('fornTabScrollRight');
+  if (!bar || !left || !right) return;
+  const precisa = bar.scrollWidth > bar.clientWidth + 4;
+  if (!precisa) {
+    left.setAttribute('hidden', '');
+    right.setAttribute('hidden', '');
+    return;
+  }
+  const scrolled = bar.scrollLeft > 4;
+  const atEnd = bar.scrollLeft + bar.clientWidth >= bar.scrollWidth - 4;
+  if (scrolled) left.removeAttribute('hidden'); else left.setAttribute('hidden', '');
+  if (!atEnd) right.removeAttribute('hidden'); else right.setAttribute('hidden', '');
+}
+
+function initSetasAbasForn() {
+  setTimeout(atualizarSetasAbasForn, 40);
+  setTimeout(atualizarSetasAbasForn, 200);
+}
 
 // ═══════════════════════════════════════════════════════════
 // SELEÇÃO
@@ -2866,6 +3029,7 @@ function _syncFormViewport() {
 }
 
 function mostrarFormSection() {
+  _searchAntesDoForm = document.getElementById('searchInput')?.value || '';
   document.getElementById('listSection').style.display = 'none';
   const fs = document.getElementById('formSection');
   fs.classList.add('form-open');
@@ -2874,9 +3038,11 @@ function mostrarFormSection() {
   _syncFormViewport();
   window.addEventListener('resize', _syncFormViewport);
   _formAberto = true;
+  initSetasAbasForn();
 }
 
 function fecharFormulario() {
+  _restaurarBuscaAposForm();
   const fs = document.getElementById('formSection');
   fs.classList.remove('form-open');
   fs.style.display = 'none';
@@ -2892,6 +3058,15 @@ function fecharFormulario() {
   const _sub = document.getElementById('formSubtitulo');
   if (_sub) { _sub.textContent = ''; _sub.style.display = 'none'; }
   carregar();
+  // Chrome às vezes injeta telefone/CNPJ na busca após o fechamento (autofill assíncrono)
+  const esperado = _searchAntesDoForm || '';
+  setTimeout(() => {
+    const si = document.getElementById('searchInput');
+    if (si && si.value !== esperado) {
+      si.value = esperado;
+      carregar();
+    }
+  }, 120);
 }
 
 // ── CLONAR ────────────────────────────────────────────────────────────────────
@@ -2945,13 +3120,14 @@ function limparForm() {
   ['f_fornecedorpadraopedido','f_exibirdescontopedido','f_observacaopedido',
    'f_obspedido','f_obsitem_pedido',
    'f_importarimpostos','f_importaremablagens','f_importaprecos',
-   'f_consignado','f_logopedido','f_descontomultiplos','f_habilita_feirinha','f_xml_pedidovenda',
+   'f_consignado','f_logopedido','f_aparece_showroom','f_descontomultiplos','f_habilita_feirinha','f_xml_pedidovenda',
    'f_peso_exibritelapedidos','f_manterobsped','f_manterprazoped',
    'f_tabelasunificadas','f_pedido_grades','f_fotosprodutospedido',
    'f_mostrar_vlr_desc_pedido','f_imprimirparcelaspedido','f_alertar_tabela_desatualizada'].forEach(id => setCheckSN(id, 'N'));
   const eIPP = document.getElementById('f_imprimirparcelaspedido'); if (eIPP) eIPP.value = 'N';
   const eLI  = document.getElementById('f_layout_impressao');       if (eLI)  eLI.value  = 'PADRAO';
   const ePCF = document.getElementById('f_pedidos_codfabricante'); if (ePCF) ePCF.value = 'N';
+  setCheckSN('f_pedidos_ref_mae', 'N');
   const eCorObs = document.getElementById('f_cor_obspedido'); if (eCorObs) eCorObs.value = '#c0392b';
   ['f_obs_bold','f_obs_italic','f_obs_underline','f_obs_uppercase'].forEach(id => { const el = document.getElementById(id); if(el) el.checked = false; });
   atualizarPreviewObs();
@@ -2970,6 +3146,11 @@ function limparForm() {
   const rdTNPS = document.getElementById('tnp_sistema'); if (rdTNPS) rdTNPS.checked = true;
   const rdBCP = document.getElementById('bc_parcela'); if (rdBCP) rdBCP.checked = true;
   setCheckSN('f_recalc_comissao_fatur', 'N');
+  const chkFabricaLimpar = document.getElementById('f_enviar_pedido_fabrica');
+  if (chkFabricaLimpar) chkFabricaLimpar.checked = false;
+  setCheckSN('f_copia_email_cliente', 'N');
+  setCheckSN('f_copia_email_vendedor', 'N');
+  setFormatoAnexoFabrica('N');
   _limparAlertaSituacaoCnpj();
 }
 
@@ -3006,6 +3187,7 @@ function preencherForm(f) {
   setCheckSN('f_importaprecos',           f.importaprecos           || 'N');
   setCheckSN('f_consignado',              f.consignado              || 'N');
   setCheckSN('f_logopedido',              f.logopedido              || 'N');
+  setCheckSN('f_aparece_showroom',        f.aparece_showroom        || 'N');
   setVendasDuplicarItemModo(f.vendasduplicaritem);
   setCheckSN('f_descontomultiplos',       f.descontomultiplos       || 'N');
   setCheckSN('f_habilita_feirinha',       f.habilita_feirinha       || 'N');
@@ -3016,6 +3198,7 @@ function preencherForm(f) {
   set('f_promo_condicao_pagto',         f.promo_condicao_pagto || '');
   set('f_promo_texto_banner',           f.promo_texto_banner || '');
   setCheckSN('f_xml_pedidovenda',         f.xml_pedidovenda         || 'N');
+  setFormatoAnexoFabrica(resolveFormatoAnexoFabrica(f));
   setCheckSN('f_peso_exibritelapedidos',  f.peso_exibritelapedidos  || 'N');
   setCheckSN('f_manterobsped',            f.manterobsped            || 'N');
   setCheckSN('f_manterprazoped',          f.manterprazoped          || 'N');
@@ -3032,6 +3215,7 @@ function preencherForm(f) {
   const eLI  = document.getElementById('f_layout_impressao');       if(eLI)  eLI.value  = f.layout_impressao       || 'PADRAO';
   const eFP  = document.getElementById('f_frete_padrao');           if(eFP)  eFP.value  = f.frete_padrao           || '';
   const ePCF = document.getElementById('f_pedidos_codfabricante'); if(ePCF) ePCF.value = f.pedidos_codfabricante || 'N';
+  setCheckSN('f_pedidos_ref_mae', f.pedidos_ref_mae || 'N');
   const eCorObs = document.getElementById('f_cor_obspedido'); if(eCorObs) eCorObs.value = f.cor_obspedido || '#c0392b';
   const estilos = (f.estilo_obspedido || '').split(',');
   const eOB = document.getElementById('f_obs_bold');      if(eOB) eOB.checked = estilos.includes('bold');
@@ -3051,6 +3235,10 @@ function preencherForm(f) {
   setCheckSN('f_recalc_comissao_fatur', f.recalc_comissao_fatur === 'S' ? 'S' : 'N');
   const chkFabrica = document.getElementById('f_enviar_pedido_fabrica');
   if (chkFabrica) chkFabrica.checked = (f.enviar_pedido_fabrica === 'S');
+  setCheckSN('f_copia_email_cliente', f.copia_email_cliente || 'N');
+  setCheckSN('f_copia_email_vendedor', f.copia_email_vendedor || 'N');
+  // Garante sync XML ↔ formato (resolveFormatoAnexoFabrica já rodou; reafirma checkbox)
+  syncFormatoAnexoFabricaUi();
   const rdComTipo = document.querySelector(`input[name="com_tipo"][value="${f.com_tipo || 'PARCELADA'}"]`);
   if (rdComTipo) rdComTipo.checked = true;
   const rdTNP = document.querySelector(`input[name="tipo_num_pedido"][value="${f.tipo_num_pedido || 'SISTEMA'}"]`);
@@ -3110,6 +3298,7 @@ function coletarForm() {
     importaprecos:           getCheckSN('f_importaprecos'),
     consignado:              getCheckSN('f_consignado'),
     logopedido:              getCheckSN('f_logopedido'),
+    aparece_showroom:        getCheckSN('f_aparece_showroom'),
     vendasduplicaritem:      getVendasDuplicarItemModo(),
     descontomultiplos:       getCheckSN('f_descontomultiplos'),
     habilita_feirinha:       getCheckSN('f_habilita_feirinha'),
@@ -3119,7 +3308,8 @@ function coletarForm() {
     promo_primeira_compra_exige_kit: getCheckSN('f_promo_primeira_compra_exige_kit'),
     promo_condicao_pagto:    document.getElementById('f_promo_condicao_pagto')?.value?.trim() || null,
     promo_texto_banner:      document.getElementById('f_promo_texto_banner')?.value?.trim() || null,
-    xml_pedidovenda:         getCheckSN('f_xml_pedidovenda'),
+    xml_pedidovenda:         getFormatoAnexoFabrica() === 'XML' ? 'S' : 'N',
+    formato_anexo_fabrica:   getFormatoAnexoFabrica(),
     peso_exibritelapedidos:  getCheckSN('f_peso_exibritelapedidos'),
     manterobsped:            getCheckSN('f_manterobsped'),
     manterprazoped:          getCheckSN('f_manterprazoped'),
@@ -3135,6 +3325,7 @@ function coletarForm() {
     layout_impressao:        document.getElementById('f_layout_impressao')?.value        || 'PADRAO',
     frete_padrao:            document.getElementById('f_frete_padrao')?.value            || null,
     pedidos_codfabricante:   document.getElementById('f_pedidos_codfabricante')?.value || 'N',
+    pedidos_ref_mae:         getCheckSN('f_pedidos_ref_mae'),
     cor_obspedido:           document.getElementById('f_cor_obspedido')?.value || null,
     estilo_obspedido: [
       document.getElementById('f_obs_bold')?.checked      ? 'bold'      : '',
@@ -3151,6 +3342,8 @@ function coletarForm() {
     base_conciliacao: document.querySelector('input[name="base_conciliacao"]:checked')?.value || 'PARCELA',
     recalc_comissao_fatur: getCheckSN('f_recalc_comissao_fatur'),
     enviar_pedido_fabrica: document.getElementById('f_enviar_pedido_fabrica')?.checked ? 'S' : 'N',
+    copia_email_cliente:  getCheckSN('f_copia_email_cliente'),
+    copia_email_vendedor: getCheckSN('f_copia_email_vendedor'),
     tipo_desconto:        document.querySelector('input[name="tipo_desconto"]:checked')?.value || 'PERCENTUAL',
     exibirtodosdesconto:  getCheckSN('f_exibirtodosdesconto'),
     desconto1:  document.getElementById('f_desconto1')?.value  || null,
@@ -3218,7 +3411,6 @@ async function salvar() {
     await salvarKitPedidoFornecedor(novoId, true);
     showToast(_editandoId ? 'Fornecedor atualizado!' : 'Fornecedor cadastrado!', 'success');
     fecharFormulario();
-    carregar();
   } catch(e) {
     showToast(e.message, 'error');
   } finally {
@@ -3304,13 +3496,21 @@ function abrirAba(nome, tabEl) {
   document.querySelectorAll('.form-tab').forEach(t => t.classList.remove('active'));
   document.getElementById('tab-' + nome)?.classList.add('active');
   document.querySelector('.form-body')?.classList.toggle('form-body--pref-scroll', nome === 'preferencias');
-  if (tabEl) tabEl.classList.add('active');
+  let ativo = tabEl;
+  if (ativo) ativo.classList.add('active');
   else {
     document.querySelectorAll('.form-tab').forEach(t => {
       const fn = t.getAttribute('onclick') || '';
-      if (fn.includes(`'${nome}'`) || fn.includes(`"${nome}"`)) t.classList.add('active');
+      if (fn.includes(`'${nome}'`) || fn.includes(`"${nome}"`)) {
+        t.classList.add('active');
+        ativo = t;
+      }
     });
   }
+  if (ativo && typeof ativo.scrollIntoView === 'function') {
+    ativo.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+  }
+  atualizarSetasAbasForn();
   if (nome === 'preferencias') {
     initPrefPreferenciasUi();
     requestAnimationFrame(() => {
@@ -3967,6 +4167,44 @@ async function carregarProdutosFornecedor(id) {
 // E-MAILS FÁBRICA
 // ═══════════════════════════════════════════════════════════
 let _emailsFabrica = []; // cache local dos e-mails carregados
+
+/** Resolve formato: N | XML | XLS (legado: xml_pedidovenda='S' → XML) */
+function resolveFormatoAnexoFabrica(f) {
+  const fmt = String(f?.formato_anexo_fabrica || '').toUpperCase().trim();
+  if (fmt === 'XML' || fmt === 'XLS') return fmt;
+  if ((f?.xml_pedidovenda || 'N') === 'S') return 'XML';
+  return 'N';
+}
+
+function getFormatoAnexoFabrica() {
+  const el = document.querySelector('input[name="f_formato_anexo_fabrica"]:checked');
+  const v = String(el?.value || 'N').toUpperCase();
+  return (v === 'XML' || v === 'XLS') ? v : 'N';
+}
+
+function setFormatoAnexoFabrica(val) {
+  const v = String(val || 'N').toUpperCase();
+  const norm = (v === 'XML' || v === 'XLS') ? v : 'N';
+  const el = document.querySelector(`input[name="f_formato_anexo_fabrica"][value="${norm}"]`);
+  if (el) el.checked = true;
+  syncFormatoAnexoFabricaUi();
+}
+
+/** Mantém checkbox Preferências (xml_pedidovenda) alinhado ao rádio da aba E-mails */
+function syncFormatoAnexoFabricaUi() {
+  setCheckSN('f_xml_pedidovenda', getFormatoAnexoFabrica() === 'XML' ? 'S' : 'N');
+}
+
+/** Preferências → rádio: marcar XML liga PDF+XML; desmarcar volta a Só PDF (não força XLS) */
+function syncXmlPedidovendaToFormato() {
+  const xmlOn = getCheckSN('f_xml_pedidovenda') === 'S';
+  const atual = getFormatoAnexoFabrica();
+  if (xmlOn) {
+    setFormatoAnexoFabrica('XML');
+  } else if (atual === 'XML') {
+    setFormatoAnexoFabrica('N');
+  }
+}
 
 async function carregarEmailsFabrica(id) {
   _emailsFabrica = [];

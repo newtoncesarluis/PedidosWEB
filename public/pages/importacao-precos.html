@@ -1453,7 +1453,6 @@
       descontoPercentual: true
     }));
     renderTabelaPrecoRows();
-    autoMapearTabelaPrecos();
     atualizarEstadoFormulario();
   }
 
@@ -1688,13 +1687,12 @@
     return true;
   }
 
-  // Campos com EFEITO COLATERAL — nunca auto-mapear (exigem mapeamento manual):
-  // estoque_atual gera movimento de estoque (AJUSTE); situacao muda ativo/inativo.
-  // Assim uma importação de preço/tabela não mexe em estoque/status sem o usuário pedir.
-  const AUTO_MAP_BLOQUEADOS = new Set([
-    'estoque_atual', 'estoque_minimo', 'estoque_maximo', 'estoque_seguranca', 'situacao',
-    // vínculo mãe/cor: exige ordem (mães antes) — mapear manualmente
-    'referencia_mae',
+  // Só estes campos são auto-vinculados ao carregar a planilha; demais colunas ficam «sem vínculo».
+  const AUTO_MAP_PERMITIDOS = new Set([
+    'descricao', 'desc_produto', 'produto',
+    'cod_fabricante',
+    'unidade',
+    'embalagemmaster', 'multiplo_venda', 'qtd_minima_pedido',
   ]);
 
   /** Normaliza cabeçalho/apelido: sem acento, espaços, pontuação (Cod. = Cód. = cod_). */
@@ -1707,55 +1705,32 @@
       .replace(/[\s_\-./ºª°]/g, '');
   }
 
-  /**
-   * Sinônimos comuns de planilha de fábrica → campo do sistema.
-   * Ex.: coluna "Valor" (não "Preço Venda") deve ir para vlr_venda.
-   * Só usado se o match exato nome/apelido falhar.
-   */
+  /** Sinônimos de cabeçalho → campo permitido (somente descricao, cod_fabricante, unidade, quantidade). */
   const AUTO_MAP_ALIASES = {
-    valor: 'vlr_venda',
-    valordavenda: 'vlr_venda',
-    valorvenda: 'vlr_venda',
-    valordevenda: 'vlr_venda',
-    valorunitario: 'vlr_venda',
-    valorunit: 'vlr_venda',
-    preco: 'vlr_venda',
-    precovenda: 'vlr_venda',
-    precodevenda: 'vlr_venda',
-    vlrvenda: 'vlr_venda',
-    vlr: 'vlr_venda',
+    desc: 'descricao',
+    descricao: 'descricao',
+    produto: 'descricao',
+    codigo: 'cod_fabricante',
     codigofabricante: 'cod_fabricante',
     codfabricante: 'cod_fabricante',
     codigofabrica: 'cod_fabricante',
     reffabricante: 'cod_fabricante',
     referenciafabricante: 'cod_fabricante',
-    // grade (vincula existente; se não houver, cria ao salvar)
-    grade: 'grade',
-    tipograde: 'grade',
-    idgrade: 'grade',
-    tamanhos: 'grade',
-    tamanhograde: 'grade',
-    // auxiliares (cria se não existir)
-    grupo: 'grupo',
-    grupoproduto: 'grupo',
-    subfamilia: 'subfamilia',
     unidade: 'unidade',
     und: 'unidade',
-    tipodegrade: 'tipoprodutograde',
-    tipograd: 'tipoprodutograde',
-    tipoprodutograde: 'tipoprodutograde',
-    local: 'local',
-    localarmazenamento: 'local',
-    endereco: 'local',
-    familia: 'familia',
-    familiaproduto: 'familia',
-    categoria: 'categoria',
-    categoriaproduto: 'categoria',
+    un: 'unidade',
+    qtd: 'embalagemmaster',
+    quantidade: 'embalagemmaster',
+    qty: 'embalagemmaster',
+    embalagem: 'embalagemmaster',
+    embalagemmaster: 'embalagemmaster',
+    multiplo: 'multiplo_venda',
+    multiplovenda: 'multiplo_venda',
+    qtdminima: 'qtd_minima_pedido',
+    qtdminimapedido: 'qtd_minima_pedido',
   };
 
-  // Auto-mapeamento: 1) match EXATO (normalizado) nome_campo OU apelido;
-  // 2) aliases de cabeçalhos de fábrica (Valor → Preço Venda, etc.).
-  // Antes só mapeava match literal e "Valor" ficava sem vínculo → produto sem preço.
+  // Auto-mapeamento restrito: só descricao, cod_fabricante, unidade e quantidade (embalagem/múltiplo/qtd mín.).
   function autoMapear() {
     colMapping = {};
     const camposJa = new Set();
@@ -1763,14 +1738,14 @@
       const hNorm = normHeaderImport(h);
       if (!hNorm) return;
       let match = camposImportacao.find(c => {
-        if (AUTO_MAP_BLOQUEADOS.has(c.nome_campo)) return false;
+        if (!AUTO_MAP_PERMITIDOS.has(c.nome_campo)) return false;
         const nome = normHeaderImport(c.nome_campo);
         const apel = normHeaderImport(c.apelido);
         return nome === hNorm || apel === hNorm;
       });
       if (!match) {
         const aliasCampo = AUTO_MAP_ALIASES[hNorm];
-        if (aliasCampo && !AUTO_MAP_BLOQUEADOS.has(aliasCampo) && !camposJa.has(aliasCampo)) {
+        if (aliasCampo && AUTO_MAP_PERMITIDOS.has(aliasCampo) && !camposJa.has(aliasCampo)) {
           match = camposImportacao.find(c => c.nome_campo === aliasCampo);
         }
       }
@@ -2681,7 +2656,6 @@
     resetarStatus();
     renderHead(); renderRows(allRows); renderStats(allRows); atualizarMapBar();
     renderTabelaPrecoRows();
-    autoMapearTabelaPrecos();
     output.style.display='block';
     document.body.classList.add('imp-has-data');
     output.scrollIntoView({behavior:'smooth',block:'start'});

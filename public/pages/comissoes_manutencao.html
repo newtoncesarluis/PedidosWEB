@@ -113,12 +113,13 @@
         }
 
         #loading {
-            position: fixed; inset: 0; background: rgba(255,255,255,0.7);
+            position: absolute; background: rgba(15,23,42,0.35);
             backdrop-filter: blur(4px);
             z-index: 9999; display: none; align-items: center; justify-content: center;
+            box-sizing: border-box;
         }
 
-        /* Modal centralizado (página em iframe na home) */
+        /* Modal iframe-safe: overlay na área visível (sem position:fixed / top:50%) */
         #editModal.modal.show,
         #baixaModal.modal.show,
         #baixaItemModal.modal.show,
@@ -127,17 +128,24 @@
             align-items: center !important;
             justify-content: center !important;
             padding: 1rem;
+            overflow: hidden !important;
         }
         #editModal .modal-dialog,
         #baixaModal .modal-dialog,
         #baixaItemModal .modal-dialog,
         #estornoModal .modal-dialog {
             margin: 0 auto !important;
-            position: fixed !important;
-            top: 50% !important;
-            left: 50% !important;
-            transform: translate(-50%, -50%) !important;
-            max-height: calc(100vh - 2rem);
+            position: relative !important;
+            top: auto !important;
+            left: auto !important;
+            transform: none !important;
+            max-height: calc(100% - 2rem);
+            overflow: auto;
+        }
+        .modal-content {
+            background: var(--card, #fff);
+            color: var(--text, var(--content-text, #1e293b));
+            border-color: var(--border, #e2e8f0);
         }
     </style>
 </head>
@@ -464,6 +472,8 @@
 
 <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/assets/confirm-dialog.js"></script>
+<script src="/assets/mobile-app.js"></script>
 <script src="/assets/comissao-preposto-ui.js?v=20260630b"></script>
 
 <script>
@@ -501,11 +511,113 @@
         return apiComissao(url, { method: 'POST', body });
     }
 
+    function _iframeOverlayBox() {
+        return {
+            x: window.scrollX || document.documentElement.scrollLeft || 0,
+            y: window.scrollY || document.documentElement.scrollTop || 0,
+            w: window.innerWidth || document.documentElement.clientWidth || 0,
+            h: window.innerHeight || document.documentElement.clientHeight || 0,
+        };
+    }
+
+    function _applyIframeOverlay(el) {
+        if (!el) return;
+        const b = _iframeOverlayBox();
+        el.style.position = 'absolute';
+        el.style.top = b.y + 'px';
+        el.style.left = b.x + 'px';
+        el.style.width = b.w + 'px';
+        el.style.height = b.h + 'px';
+        el.style.right = 'auto';
+        el.style.bottom = 'auto';
+        el.style.margin = '0';
+        el.style.maxWidth = 'none';
+        el.style.boxSizing = 'border-box';
+    }
+
+    function _clearIframeOverlay(el) {
+        if (!el) return;
+        el.style.position = '';
+        el.style.top = '';
+        el.style.left = '';
+        el.style.width = '';
+        el.style.height = '';
+        el.style.right = '';
+        el.style.bottom = '';
+        el.style.margin = '';
+        el.style.maxWidth = '';
+        el.style.boxSizing = '';
+        el.style.transform = '';
+    }
+
+    function _pinBsModalToViewport(modalEl) {
+        _applyIframeOverlay(modalEl);
+        modalEl.style.zIndex = '1055';
+        modalEl.style.overflow = 'hidden';
+        document.querySelectorAll('.modal-backdrop').forEach((bd) => {
+            _applyIframeOverlay(bd);
+            bd.style.zIndex = '1050';
+        });
+        const dialog = modalEl.querySelector('.modal-dialog');
+        if (dialog) {
+            dialog.style.position = 'relative';
+            dialog.style.top = 'auto';
+            dialog.style.left = 'auto';
+            dialog.style.transform = 'none';
+            dialog.style.margin = '0 auto';
+        }
+    }
+
+    function showLoading(on) {
+        const el = document.getElementById('loading');
+        if (!el) return;
+        if (on) {
+            _applyIframeOverlay(el);
+            el.style.display = 'flex';
+            el.style.alignItems = 'center';
+            el.style.justifyContent = 'center';
+            el.style.zIndex = '20000';
+        } else {
+            el.style.display = 'none';
+            _clearIframeOverlay(el);
+        }
+    }
+
     function showBsModal(selector) {
         const el = document.querySelector(selector);
         if (!el) return;
-        try { window.scrollTo({ top: 0, behavior: 'instant' }); } catch (_) { window.scrollTo(0, 0); }
+        const pin = () => _pinBsModalToViewport(el);
+        if (!el.dataset.iframePinBound) {
+            el.dataset.iframePinBound = '1';
+            el.addEventListener('show.bs.modal', () => {
+                pin();
+                requestAnimationFrame(pin);
+            });
+            el.addEventListener('shown.bs.modal', pin);
+            el.addEventListener('hidden.bs.modal', () => {
+                _clearIframeOverlay(el);
+                el.style.zIndex = '';
+                el.style.overflow = '';
+                const dlg = el.querySelector('.modal-dialog');
+                if (dlg) {
+                    dlg.style.position = '';
+                    dlg.style.top = '';
+                    dlg.style.left = '';
+                    dlg.style.transform = '';
+                    dlg.style.margin = '';
+                }
+            });
+            window.addEventListener('resize', () => {
+                if (el.classList.contains('show')) pin();
+            });
+            window.addEventListener('scroll', () => {
+                if (el.classList.contains('show')) pin();
+            }, true);
+        }
         bootstrap.Modal.getOrCreateInstance(el).show();
+        pin();
+        setTimeout(pin, 0);
+        setTimeout(pin, 50);
     }
 
     function _statusBadge(s) {
@@ -563,7 +675,7 @@
             limit: 100
         });
 
-        $('#loading').css('display', 'flex');
+        showLoading(true);
         try {
             const res = await apiComissao('/api/comissoes/admin/extrato?' + params.toString());
             const rows = res.data || [];
@@ -612,7 +724,7 @@
                 `;
             });
             $('#table_body').html(html);
-        } catch(e) { console.error(e); } finally { $('#loading').hide(); }
+        } catch(e) { console.error(e); } finally { showLoading(false); }
     }
 
     function openEdit(row) {
@@ -636,7 +748,14 @@
 
     async function recalcularComissao() {
         if (!currentEdit) return;
-        if (!confirm('Recalcular o valor desta comissão aplicando as regras atuais do fornecedor?')) return;
+        const okRecalc = await SysRepConfirm.ask({
+            titulo: 'Recalcular comissão?',
+            mensagem: 'O valor será recalculado com as regras atuais do fornecedor.',
+            okTexto: 'Recalcular',
+            cancelTexto: 'Cancelar',
+            perigo: false,
+        });
+        if (!okRecalc) return;
         try {
             const res = await apiComissao(`/api/comissoes/admin/recalcular/${currentEdit.id}`, { method: 'POST' });
             if (res.ok) {
@@ -650,9 +769,9 @@
                 bootstrap.Modal.getInstance('#editModal').hide();
                 searchCommissions();
             } else {
-                alert('Erro ao recalcular: ' + res.error);
+                await avisar('Erro ao recalcular', res.error || 'Não foi possível recalcular.');
             }
-        } catch(e) { alert('Erro: ' + e.message); }
+        } catch(e) { await avisar('Erro', e.message); }
     }
 
     function calcNewValue() {
@@ -696,8 +815,8 @@
         if (!currentEstorno) return;
         const motivo = $('#estorno_motivo').val().trim();
         const senha  = $('#estorno_senha').val().trim();
-        if (!motivo) { alert('Informe o motivo do estorno.'); $('#estorno_motivo').focus(); return; }
-        if (!senha)  { alert('Informe sua senha.'); $('#estorno_senha').focus(); return; }
+        if (!motivo) { await avisar('Atenção', 'Informe o motivo do estorno.'); $('#estorno_motivo').focus(); return; }
+        if (!senha)  { await avisar('Atenção', 'Informe sua senha.'); $('#estorno_senha').focus(); return; }
 
         const btn = $('#btn_confirmar_estorno');
         btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Processando…');
@@ -709,19 +828,26 @@
                 bootstrap.Modal.getInstance('#estornoModal').hide();
                 searchCommissions();
             } else {
-                alert('Erro: ' + res.error);
+                await avisar('Erro', res.error || 'Não foi possível estornar.');
                 btn.prop('disabled', false).html('<i class="fas fa-undo-alt me-1"></i>Confirmar Estorno');
             }
         } catch(e) {
-            alert('Erro: ' + e.message);
+            await avisar('Erro', e.message);
             btn.prop('disabled', false).html('<i class="fas fa-undo-alt me-1"></i>Confirmar Estorno');
         }
     }
 
     async function saveCommission() {
-        if(!confirm("Deseja realmente alterar esta comissão? Isso afetará os relatórios e o dashboard.")) return;
+        const okSalvar = await SysRepConfirm.ask({
+            titulo: 'Alterar comissão?',
+            mensagem: 'Isso afeta os relatórios e o dashboard.',
+            okTexto: 'Salvar',
+            cancelTexto: 'Cancelar',
+            perigo: true,
+        });
+        if (!okSalvar) return;
 
-        $('#loading').css('display', 'flex');
+        showLoading(true);
         try {
             const res = await apiComissao(`/api/comissoes/${currentEdit.id}/update-perc`, {
                 method: 'PUT',
@@ -735,16 +861,16 @@
                 bootstrap.Modal.getInstance('#editModal').hide();
                 searchCommissions(); // Recarrega
             } else {
-                alert("Erro ao salvar: " + res.error);
+                await avisar('Erro ao salvar', res.error || 'Não foi possível salvar.');
             }
-        } catch(e) { console.error(e); } finally { $('#loading').hide(); }
+        } catch(e) { console.error(e); } finally { showLoading(false); }
     }
 
     // ── Duplicatas ─────────────────────────────────────────────────────────────
     let _dupAnalise = null;
 
     async function analisarDuplicatas() {
-        $('#loading').css('display','flex');
+        showLoading(true);
         document.getElementById('btn-corrigir-dup').disabled = true;
         try {
             const res = await apiComissao('/api/comissoes/admin/analisar-duplicatas');
@@ -753,9 +879,9 @@
             document.getElementById('btn-corrigir-dup').disabled = !(res.resumo?.total_duplicatas > 0);
         } catch(e) {
             if (!String(e.message || '').includes('Sessão expirada')) {
-                alert('Erro: ' + e.message);
+                await avisar('Erro', e.message);
             }
-        } finally { $('#loading').hide(); }
+        } finally { showLoading(false); }
     }
 
     function renderDupAnalise(res) {
@@ -788,31 +914,33 @@
 
     async function corrigirDuplicatas() {
         if (!_dupAnalise?.resumo?.total_duplicatas) {
-            alert('Execute a análise primeiro.');
+            await avisar('Atenção', 'Execute a análise primeiro.');
             return;
         }
         const r = _dupAnalise.resumo;
-        const ok = confirm(
-            `Remover ${r.total_duplicatas} lançamento(s) duplicado(s) em ${r.pedidos_com_duplicata} pedido(s)?\n\n` +
-            `Valor repetido: ${fmtR(r.valor_duplicado)}\n\n` +
-            'Os registros extras serão desativados (não apagados). Comissões legítimas por parcela serão mantidas.'
-        );
+        const ok = await SysRepConfirm.ask({
+            titulo: 'Corrigir duplicatas?',
+            mensagem: 'Remover ' + r.total_duplicatas + ' lançamento(s) duplicado(s) em ' + r.pedidos_com_duplicata + ' pedido(s). Valor repetido: ' + fmtR(r.valor_duplicado) + '. Os extras serão desativados; comissões por parcela serão mantidas.',
+            okTexto: 'Corrigir',
+            cancelTexto: 'Cancelar',
+            perigo: true,
+        });
         if (!ok) return;
-        $('#loading').css('display','flex');
+        showLoading(true);
         try {
             const res = await apiComissao('/api/comissoes/admin/corrigir-duplicatas', {
                 method:'POST',
                 body: JSON.stringify({})
             });
             if (res.ok) {
-                alert(res.message || `${res.total_removidas} removida(s).`);
+                await avisar('Duplicatas', res.message || (res.total_removidas + ' removida(s).'));
                 searchCommissions();
                 analisarDuplicatas();
             } else {
-                alert('Erro: ' + (res.error || 'desconhecido'));
+                await avisar('Erro', res.error || 'desconhecido');
             }
-        } catch(e) { alert('Erro: ' + e.message); }
-        finally { $('#loading').hide(); }
+        } catch(e) { await avisar('Erro', e.message); }
+        finally { showLoading(false); }
     }
 
     // ── Baixa / arquivamento (sem financeiro) ─────────────────────────────────
@@ -839,8 +967,8 @@
 
     async function simularBaixaLote() {
         const p = _baixaFiltrosPayload();
-        if (!p.ate_data) { alert('Informe a data limite.'); return; }
-        $('#loading').css('display', 'flex');
+        if (!p.ate_data) { await avisar('Atenção', 'Informe a data limite.'); return; }
+        showLoading(true);
         document.getElementById('btn-baixa-lote').disabled = true;
         try {
             const qs = new URLSearchParams(p).toString();
@@ -859,13 +987,13 @@
                 ' · Pago: ' + (ps.paga||0) + ' · Inad: ' + (ps.inadimplente||0) + ')</span>';
             document.getElementById('btn-baixa-lote').disabled = false;
         } catch (e) {
-            alert('Erro: ' + e.message);
-        } finally { $('#loading').hide(); }
+            await avisar('Erro', e.message);
+        } finally { showLoading(false); }
     }
 
-    function abrirModalBaixaLote() {
+    async function abrirModalBaixaLote() {
         if (!_baixaPreview?.qtd) {
-            alert('Execute a simulação primeiro.');
+            await avisar('Atenção', 'Execute a simulação primeiro.');
             return;
         }
         const p = _baixaFiltrosPayload();
@@ -884,8 +1012,8 @@
     async function confirmarBaixaLote() {
         const motivo = $('#baixa_motivo').val().trim();
         const senha = $('#baixa_senha').val().trim();
-        if (!motivo) { alert('Informe o motivo.'); return; }
-        if (!senha) { alert('Informe sua senha.'); return; }
+        if (!motivo) { await avisar('Atenção', 'Informe o motivo.'); return; }
+        if (!senha) { await avisar('Atenção', 'Informe sua senha.'); return; }
 
         const filtros = _baixaFiltrosPayload();
         const ate = String(
@@ -895,7 +1023,7 @@
             ''
         ).trim();
         if (!ate) {
-            alert('Data limite não encontrada. Feche o modal, informe «Lançadas até» e clique em Simular de novo.');
+            await avisar('Atenção', 'Data limite não encontrada. Feche o formulário, informe «Lançadas até» e clique em Simular de novo.');
             return;
         }
 
@@ -912,16 +1040,16 @@
             });
             if (res.ok) {
                 bootstrap.Modal.getInstance('#baixaModal').hide();
-                alert(res.message || (res.afetadas + ' arquivada(s).'));
+                await avisar('Arquivamento', res.message || (res.afetadas + ' arquivada(s).'));
                 _baixaPreview = null;
                 document.getElementById('baixa-preview').textContent = 'Informe a data e clique em Simular para ver quantas comissões serão arquivadas.';
                 document.getElementById('btn-baixa-lote').disabled = true;
                 searchCommissions();
             } else {
-                alert('Erro: ' + (res.error || 'desconhecido'));
+                await avisar('Erro', res.error || 'desconhecido');
             }
         } catch (e) {
-            alert('Erro: ' + e.message);
+            await avisar('Erro', e.message);
         } finally {
             btn.prop('disabled', false).html('<i class="fas fa-box-archive me-1"></i>Confirmar Arquivamento');
         }
@@ -943,8 +1071,8 @@
         if (!currentBaixaItem?.id) return;
         const motivo = $('#baixa_item_motivo').val().trim();
         const senha = $('#baixa_item_senha').val().trim();
-        if (!motivo) { alert('Informe o motivo.'); return; }
-        if (!senha) { alert('Informe sua senha.'); return; }
+        if (!motivo) { await avisar('Atenção', 'Informe o motivo.'); return; }
+        if (!senha) { await avisar('Atenção', 'Informe sua senha.'); return; }
         const btn = $('#btn_confirmar_baixa_item');
         btn.prop('disabled', true);
         try {
@@ -953,10 +1081,10 @@
                 bootstrap.Modal.getInstance('#baixaItemModal').hide();
                 searchCommissions();
             } else {
-                alert('Erro: ' + (res.error || 'desconhecido'));
+                await avisar('Erro', res.error || 'desconhecido');
             }
         } catch (e) {
-            alert('Erro: ' + e.message);
+            await avisar('Erro', e.message);
         } finally {
             btn.prop('disabled', false);
         }
@@ -968,22 +1096,28 @@
 
     async function bloquearInadimplentes() {
         const dc = parseInt($('#dias-carencia').val()) || 30;
-        const ok = confirm(`Bloquear comissões cujas parcelas estão em aberto há mais de ${dc} dias?\n\nEssa ação altera o status de Pendente → Inadimplente.`);
+        const ok = await SysRepConfirm.ask({
+            titulo: 'Bloquear inadimplentes?',
+            mensagem: 'Bloquear comissões cujas parcelas estão em aberto há mais de ' + dc + ' dias? O status muda de Pendente para Inadimplente.',
+            okTexto: 'Bloquear',
+            cancelTexto: 'Cancelar',
+            perigo: true,
+        });
         if (!ok) return;
-        $('#loading').css('display','flex');
+        showLoading(true);
         try {
             const res = await apiComissao('/api/comissoes/admin/bloquear-inadimplentes', {
                 method:'POST',
                 body: JSON.stringify({ dias_carencia: dc })
             });
             if (res.ok) {
-                alert(`${res.bloqueadas} comissão(ões) bloqueada(s) com sucesso.`);
+                await avisar('Inadimplência', (res.bloqueadas || 0) + ' comissão(ões) bloqueada(s).');
                 carregarInadimplentes();
             } else {
-                alert('Erro: ' + (res.error||'desconhecido'));
+                await avisar('Erro', res.error || 'desconhecido');
             }
-        } catch(e) { alert('Erro de rede: ' + e.message); }
-        finally { $('#loading').hide(); }
+        } catch(e) { await avisar('Erro de rede', e.message); }
+        finally { showLoading(false); }
     }
 
     async function carregarInadimplentes() {
@@ -1023,32 +1157,46 @@
 
     async function reativarSelecionados() {
         const ids = [...document.querySelectorAll('.chk-inad:checked')].map(c => parseInt(c.value));
-        if (!ids.length) { alert('Selecione ao menos uma comissão.'); return; }
-        if (!confirm(`Reativar ${ids.length} comissão(ões) para Pendente?`)) return;
-        $('#loading').css('display','flex');
+        if (!ids.length) { await avisar('Atenção', 'Selecione ao menos uma comissão.'); return; }
+        const okSel = await SysRepConfirm.ask({
+            titulo: 'Reativar comissões?',
+            mensagem: 'Reativar ' + ids.length + ' comissão(ões) para Pendente?',
+            okTexto: 'Reativar',
+            cancelTexto: 'Cancelar',
+            perigo: false,
+        });
+        if (!okSel) return;
+        showLoading(true);
         try {
             const res = await apiComissao('/api/comissoes/admin/reativar-inadimplentes', {
                 method:'POST',
                 body: JSON.stringify({ ids })
             });
-            if (res.ok) { alert(`${res.reativadas} reativada(s).`); carregarInadimplentes(); }
-            else alert('Erro: ' + (res.error||'desconhecido'));
-        } catch(e) { alert('Erro: ' + e.message); }
-        finally { $('#loading').hide(); }
+            if (res.ok) { await avisar('Reativação', (res.reativadas || 0) + ' reativada(s).'); carregarInadimplentes(); }
+            else await avisar('Erro', res.error || 'desconhecido');
+        } catch(e) { await avisar('Erro', e.message); }
+        finally { showLoading(false); }
     }
 
     async function reativarTodos() {
-        if (!confirm('Reativar TODAS as comissões bloqueadas por inadimplência?')) return;
-        $('#loading').css('display','flex');
+        const okAll = await SysRepConfirm.ask({
+            titulo: 'Reativar todas?',
+            mensagem: 'Reativar todas as comissões bloqueadas por inadimplência?',
+            okTexto: 'Reativar todas',
+            cancelTexto: 'Cancelar',
+            perigo: true,
+        });
+        if (!okAll) return;
+        showLoading(true);
         try {
             const res = await apiComissao('/api/comissoes/admin/reativar-inadimplentes', {
                 method:'POST',
                 body: JSON.stringify({ ids: [] })
             });
-            if (res.ok) { alert(`${res.reativadas} reativada(s).`); carregarInadimplentes(); }
-            else alert('Erro: ' + (res.error||'desconhecido'));
-        } catch(e) { alert('Erro: ' + e.message); }
-        finally { $('#loading').hide(); }
+            if (res.ok) { await avisar('Reativação', (res.reativadas || 0) + ' reativada(s).'); carregarInadimplentes(); }
+            else await avisar('Erro', res.error || 'desconhecido');
+        } catch(e) { await avisar('Erro', e.message); }
+        finally { showLoading(false); }
     }
 
     // Carrega listas ao abrir a página

@@ -103,7 +103,8 @@ function setPwaOfflineCacheHeaders(res) {
 }
 
 app.get('/home.html', (req, res) => {
-  setPwaOfflineCacheHeaders(res);
+  // Dashboard muda com frequência (Meu Dia, KPIs…) — revalida sempre; evita ficar 7 dias na home antiga
+  res.set('Cache-Control', 'private, max-age=0, must-revalidate, stale-while-revalidate=86400');
   res.sendFile(path.join(ROOT_DIR, 'public', 'home.html'), { etag: true, lastModified: true });
 });
 
@@ -602,6 +603,18 @@ app.get('/api/modulos', authMiddleware, async (req, res) => {
   }
 });
 
+// GET /api/modulos/marketplace — o add-on Marketplace está liberado nesta licença?
+// Fica FORA de /api/marketplace de propósito: o menu precisa consultar sem
+// esbarrar no gate (que responde 403 quando não está liberado).
+app.get('/api/modulos/marketplace', authMiddleware, async (req, res) => {
+  try {
+    const { marketplaceHabilitado, chaveDoRequest } = require('./config/modulo-marketplace');
+    res.json({ habilitado: await marketplaceHabilitado(chaveDoRequest(req)) });
+  } catch {
+    res.json({ habilitado: false });
+  }
+});
+
 // ─── Portal de gestão de licenças (sem licenseMiddleware, sem authMiddleware) ─
 app.use('/api/licencas', require('./routes/licencas'));
 
@@ -720,7 +733,9 @@ app.use('/api/estoque',   authMiddleware, require('./routes/estoque'));
 app.use('/api/pedidos',   authMiddleware, require('./routes/pedidos'));
 app.use('/api/feirinha',  authMiddleware, require('./routes/feirinha'));
 app.use('/api/campanhas-whatsapp', authMiddleware, require('./routes/campanhas-whatsapp'));
+app.use('/api/rca', authMiddleware, require('./routes/rca-meu-dia'));
 app.use('/api/catalogos', authMiddleware, require('./routes/catalogos'));
+app.use('/api/marketplace', authMiddleware, require('./routes/marketplace'));
 app.use('/api/xml',       authMiddleware, require('./routes/xml'));
 app.use('/api/excel',     authMiddleware, require('./routes/excel'));
 app.use('/api/analytics', authMiddleware, require('./routes/analytics'));
@@ -750,6 +765,7 @@ app.use('/api/manutencao', authMiddleware, require('./routes/manutencao'));
 app.use('/api/config',    authMiddleware, require('./routes/config-sistema'));
 app.use('/api/parametro-locais', authMiddleware, require('./routes/parametro-locais'));
 app.use('/api/whatsapp',  authMiddleware, require('./routes/whatsapp'));
+app.use('/api/bling',     authMiddleware, require('./routes/bling'));
 app.use('/api/anotacoes', authMiddleware, require('./routes/anotacoes'));
 
 // ─── Dashboard home (Visão Executiva Diamond Flow) ───────────────────────────

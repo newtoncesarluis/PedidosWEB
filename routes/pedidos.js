@@ -10,6 +10,7 @@ const {
   sqlExistsDestaqueComercial,
   tabelaProdutosDestaqueExiste,
 } = require('../config/produtos-destaque');
+const { ordenarItensGrade } = require('../config/grade-tamanho-ordem');
 const {
   ensureItenspedPromoColumns,
   ensureItenspedObsitemColumn,
@@ -28,7 +29,7 @@ const {
   stripVendedorComissaoRep,
   stripProdutosComissaoRep,
 } = require('../config/comissao-preposto-guard');
-const { buildXmlAnexoPedidoVenda } = require('../config/pedido-xml-venda');
+const { buildXmlAnexoPedidoVenda, buildXlsAnexoPedidoVenda } = require('../config/pedido-xml-venda');
 const {
   listVendedoresVisiveis,
   resolveVendedorIdForFilter,
@@ -1095,7 +1096,9 @@ function _toMysqlDate(v) {
 }
 
 // Calcula comissão no backend — cascata Fornecedor → Produto → Vendedor → Preposto, ajustando IPI/ST
-async function _calcComissaoBackend(conn, codFornecedor, idUsuario, itens, idPreposto) {
+// opts.baseTotal: base manual (pedido só totais, sem itens)
+// opts.pctManual: % informado no formulário (override da cascata quando > 0)
+async function _calcComissaoBackend(conn, codFornecedor, idUsuario, itens, idPreposto, opts = {}) {
   // Todas as queries independentes em paralelo
   const [fornRes, vendRes, prepFornRes, prepUserRes] = await Promise.all([
     codFornecedor
@@ -1139,24 +1142,31 @@ async function _calcComissaoBackend(conn, codFornecedor, idUsuario, itens, idPre
 
   const totalIpi = (itens || []).reduce((s, i) => s + (parseFloat(i.vlr_ipi) || 0), 0);
   const totalSt  = (itens || []).reduce((s, i) => s + (parseFloat(i.vlr_st)  || 0), 0);
-  let base = (itens || []).reduce((s, i) => s + (parseFloat(i.vlrtotal_itens) || 0), 0);
-  if (forn.com_sobre_ipi === 'S') base += totalIpi;
-  if (forn.com_sobre_st  === 'S') base += totalSt;
-
-  let pct = parseFloat(forn.comissao) || 0;
-  let origLabel = 'FORNECEDOR';
-
-  if (!pct) {
-    origLabel = 'PRODUTO';
-    const baseItems = (itens || []).reduce((s, i) => s + (parseFloat(i.vlrtotal_itens) || 0), 0);
-    if (baseItems > 0)
-      pct = (itens || []).reduce((s, i) =>
-        s + ((parseFloat(i.comissao_percentual) || 0) * (parseFloat(i.vlrtotal_itens) || 0)), 0) / baseItems;
+  let base = parseFloat(opts.baseTotal);
+  if (!Number.isFinite(base) || base <= 0) {
+    base = (itens || []).reduce((s, i) => s + (parseFloat(i.vlrtotal_itens) || 0), 0);
+    if (forn.com_sobre_ipi === 'S') base += totalIpi;
+    if (forn.com_sobre_st  === 'S') base += totalSt;
   }
 
-  if (!pct) {
-    origLabel = 'VENDEDOR';
-    pct = parseFloat(vend.comissaofixavendedor) || 0;
+  let pct = parseFloat(opts.pctManual);
+  let origLabel = 'MANUAL';
+  if (!Number.isFinite(pct) || pct <= 0) {
+    pct = parseFloat(forn.comissao) || 0;
+    origLabel = 'FORNECEDOR';
+
+    if (!pct) {
+      origLabel = 'PRODUTO';
+      const baseItems = (itens || []).reduce((s, i) => s + (parseFloat(i.vlrtotal_itens) || 0), 0);
+      if (baseItems > 0)
+        pct = (itens || []).reduce((s, i) =>
+          s + ((parseFloat(i.comissao_percentual) || 0) * (parseFloat(i.vlrtotal_itens) || 0)), 0) / baseItems;
+    }
+
+    if (!pct) {
+      origLabel = 'VENDEDOR';
+      pct = parseFloat(vend.comissaofixavendedor) || 0;
+    }
   }
 
   const vlrNormal   = Math.round(base * pct / 100 * 100) / 100;
@@ -1435,9 +1445,37 @@ router.get('/', async (req, res) => {
     let paramsCards = [...visParams];
     
     if (q) {
-      const qp = ` AND (p.numero LIKE ? OR p.nome_cliente LIKE ?)`;
+      // Número, cliente, CNPJ (pedido/cadastro), cidade e UF do cliente
+      const qTrim = String(q).trim();
+      const like = `%${qTrim}%`;
+      const digitos = qTrim.replace(/\D/g, '');
+      const digLike = digitos.length >= 3 ? `%${digitos}%` : null;
+      const digCpfSql = digLike
+        ? ` OR REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(cx.cpf,''),'.',''),'/',''),'-',''),' ','') LIKE ?`
+        : '';
+      const digPedSql = digLike
+        ? ` OR REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(p.cnpj,''),'.',''),'/',''),'-',''),' ','') LIKE ?`
+        : '';
+      const qp = ` AND (
+        CAST(p.numero AS CHAR) LIKE ?
+        OR p.nome_cliente LIKE ?
+        OR COALESCE(p.cnpj,'') LIKE ?
+        OR EXISTS (
+          SELECT 1 FROM clientes cx
+          WHERE cx.id = p.cod_cliente
+            AND (
+              LOWER(COALESCE(cx.cidade,'')) LIKE LOWER(?)
+              OR UPPER(COALESCE(cx.uf,'')) LIKE UPPER(?)
+              OR COALESCE(cx.cpf,'') LIKE ?
+              ${digCpfSql}
+            )
+        )
+        ${digPedSql}
+      )`;
+      const qParams = [like, like, like, like, like, like];
+      if (digLike) qParams.push(digLike, digLike);
       whereClause += qp; whereClauseCards += qp;
-      params.push(`%${q}%`, `%${q}%`); paramsCards.push(`%${q}%`, `%${q}%`);
+      params.push(...qParams); paramsCards.push(...qParams);
     }
 
     const addFilter = (col, val) => {
@@ -1646,7 +1684,9 @@ router.get('/', async (req, res) => {
     try {
       const [r] = await pool.query(
         `SELECT p.*, u.nomeusu, c.cpf as cnpj_cliente,
-                c.latitude, c.longitude, c.endereco, c.cidade, c.id as id_cliente, c.apelido as fantasia_cliente
+                c.latitude, c.longitude, c.endereco,
+                c.cidade AS cidade_cliente, c.uf AS uf_cliente,
+                c.id as id_cliente, c.apelido as fantasia_cliente
          FROM pedidos p
          ${joinFilterClause}
          LEFT JOIN usuarios u ON p.id_usuario = u.idusuario
@@ -1788,8 +1828,12 @@ router.get('/lookup/vendedores', async (req, res) => {
 router.get('/lookup/tipos', async (req, res) => {
   try {
     const pool = getPool();
+    const { ensureTipoPedidosColumns } = require('../config/pedido-gerafinanceiro');
+    await ensureTipoPedidosColumns(pool);
     const [rows] = await pool.query(`
-      SELECT id, gerafinanceiro, movimentaestoque, descricao as tipo_pedido, tratamento 
+      SELECT id, gerafinanceiro, movimentaestoque,
+             CASE WHEN UPPER(COALESCE(so_totais,'N')) = 'S' THEN 'S' ELSE 'N' END AS so_totais,
+             descricao as tipo_pedido, tratamento
       FROM tipo_pedidos 
       WHERE excluido = 'N' AND situacao = 'A' 
       ORDER BY id
@@ -2080,6 +2124,9 @@ router.get('/produtos/busca', async (req, res) => {
     const selKit = prodCols.has('kit') ? "IFNULL(p.kit, 'N') AS kit" : "NULL AS kit";
     const selGrupoDesc = prodCols.has('id_grupo') ? 'g.descricao AS grupo_descricao' : 'NULL AS grupo_descricao';
     const selIdRef = prodCols.has('id_referencia') ? 'p.id_referencia' : 'NULL AS id_referencia';
+    const selCodFabMae = prodCols.has('id_referencia')
+      ? `(SELECT mae.cod_fabricante FROM ${tb} mae WHERE mae.ID = p.id_referencia LIMIT 1) AS cod_fabricante_mae`
+      : 'NULL AS cod_fabricante_mae';
     const selCor1 = prodCols.has('cor1') ? 'p.cor1' : 'NULL AS cor1';
     // Showroom lean: só foto_principal (sem subquery em produto_imagens por linha).
     const selFoto = isShowroomLean
@@ -2091,12 +2138,21 @@ router.get('/produtos/busca', async (req, res) => {
                 ORDER BY pi.is_principal DESC, pi.id ASC
                 LIMIT 1
               )) AS foto_principal`;
-    // qtd_cores só quando agrupar referência (chips de cor); senão 0.
+    // qtd_cores: filhos + mãe (se mãe tem cor e vende) — badge do Showroom bate com o picker
+    const temDisp = prodCols.has('disponivel');
+    const temCor1 = prodCols.has('cor1');
     const selQtdCores = (agruparRef && prodCols.has('id_referencia'))
-      ? `(SELECT COUNT(*) FROM ${tb} c
+      ? `((SELECT COUNT(*) FROM ${tb} c
           WHERE c.id_referencia = p.ID
             AND (c.excluido='N' OR c.excluido IS NULL OR c.excluido='')
-            AND (c.situacao='A' OR c.situacao IS NULL OR c.situacao='')) AS qtd_cores`
+            AND (c.situacao='A' OR c.situacao IS NULL OR c.situacao=''))
+         + CASE
+             WHEN (p.id_referencia IS NULL OR p.id_referencia = 0)
+              AND ${temCor1 ? "TRIM(IFNULL(p.cor1,'')) <> ''" : '0'}
+              AND ${temDisp ? "IFNULL(p.disponivel,'S') <> 'N'" : '1'}
+              AND (p.situacao='A' OR p.situacao IS NULL OR p.situacao='')
+             THEN 1 ELSE 0
+           END) AS qtd_cores`
       : '0 AS qtd_cores';
 
     const orderBarcode = (isBarcodeLike && !idsBatch.length)
@@ -2125,7 +2181,7 @@ router.get('/produtos/busca', async (req, res) => {
               IFNULL(p.bloquear_desconto, 'N') as bloquear_desconto,
               p.desconto_maximo,
               IFNULL(p.peso_liquido, 0) as peso_liquido,
-              ${selIdRef}, ${selCor1}, ${selQtdCores}
+              ${selIdRef}, ${selCodFabMae}, ${selCor1}, ${selQtdCores}
        FROM ${tb} p
        ${join}${grupoJoinSql}
        WHERE (p.excluido = 'N' OR p.excluido IS NULL OR p.excluido = '')
@@ -2652,7 +2708,7 @@ router.get('/grade/:id_grade', async (req, res) => {
       [idGrade]
     );
     res.json({
-      itens: rows,
+      itens: ordenarItensGrade(rows),
       modo_grade: cab?.modo_grade || 'A',
       multiplo_grade: cab?.multiplo_grade || 0,
       nome: cab?.nome || '',
@@ -3830,6 +3886,20 @@ router.get('/:id', async (req, res) => {
     // onde runMigrations nunca rodou (ex: tenants novos no Oracle multi-tenant)
     await ensureProdutoColunas(pool).catch(() => {});
 
+    let custoSel = '0 AS vlr_custo_produto';
+    let refMaeSel = 'NULL AS id_referencia, NULL AS cod_fabricante_mae';
+    try {
+      const [custoCols] = await pool.query(`SHOW COLUMNS FROM ${_ptb} LIKE 'vlr_custo'`);
+      if (custoCols.length) custoSel = 'IFNULL(p.vlr_custo, 0) AS vlr_custo_produto';
+    } catch (_) {}
+    try {
+      const [refCols] = await pool.query(`SHOW COLUMNS FROM ${_ptb} LIKE 'id_referencia'`);
+      if (refCols.length) {
+        refMaeSel = `p.id_referencia,
+                (SELECT mae.cod_fabricante FROM ${_ptb} mae WHERE mae.ID = p.id_referencia LIMIT 1) AS cod_fabricante_mae`;
+      }
+    } catch (_) {}
+
     // Todas as queries independentes rodam em paralelo (pool: cada uma usa conexão própria)
     const [[itens], [parcelas], [logs], [cliRows], [empRows]] = await Promise.all([
       pool.query(
@@ -3840,7 +3910,9 @@ router.get('/:id', async (req, res) => {
                 IFNULL(p.bloquear_desconto, 'N') AS bloquear_desconto,
                 p.desconto_maximo,
                 IFNULL(p.multiplo_venda, 1) AS multiplo_venda_produto,
-                IFNULL(p.qtd_minima_pedido, 0) AS qtd_minima_pedido_produto
+                IFNULL(p.qtd_minima_pedido, 0) AS qtd_minima_pedido_produto,
+                ${custoSel},
+                ${refMaeSel}
          FROM itensped i
          LEFT JOIN ${_ptb} p ON i.cod_produto = p.id
          WHERE i.numpedido = ? AND (i.excluido = 'N' OR i.excluido IS NULL)`,
@@ -3957,7 +4029,7 @@ router.post('/', async (req, res) => {
     // mesmo digitador + mesmo cliente) — assim só deduplica o REENVIO do mesmo
     // pedido, nunca o pedido de outro vendedor (evita descartar pedido legítimo).
     if (pedido && pedido.numero_off && (pedido.cod_cliente != null)) {
-      const _coduserDig = req.user?.id || 0;
+      const _coduserDig = nPedidoId(pedido.coduser_digitacao) ?? nPedidoId(req.user?.id) ?? 0;
       const [jaExiste] = await conn.query(
         `SELECT id, numero FROM pedidos
          WHERE numero_off = ? AND coduser_digitacao = ? AND cod_cliente = ? AND excluido = 'N'
@@ -3984,9 +4056,32 @@ router.post('/', async (req, res) => {
     _mk('validacoes+normalize (1 pass)');                                 // [DIAG-SAVE]
 
     // Comissão calculada no backend — ignora valores enviados pelo frontend
+    // Pedido só totais: base = vlrtotalpedido / vlrsubtotal; % manual se informado
     const idPreposto = nPedidoId(pedido.id_preposto);
+    let soTotais = String(pedido.so_totais || '').toUpperCase() === 'S';
+    if (!soTotais && pedido.id_tipopedido) {
+      try {
+        const [[tp]] = await conn.query(
+          `SELECT so_totais FROM tipo_pedidos WHERE id = ? LIMIT 1`,
+          [pedido.id_tipopedido]
+        );
+        soTotais = String(tp?.so_totais || '').toUpperCase() === 'S';
+      } catch (_) {}
+    }
+    const itensParaCom = itensNormSave || itens || [];
+    const baseTotais = soTotais
+      ? (parseFloat(pedido.vlrsubtotal) || parseFloat(pedido.vlrtotalpedido) || 0)
+      : 0;
+    const pctManual = soTotais ? (parseFloat(pedido.comissao) || 0) : 0;
+    if (soTotais && (!itensParaCom || !itensParaCom.length)) {
+      if (!(baseTotais > 0)) {
+        await conn.rollback();
+        return res.status(400).json({ error: 'Informe o total do pedido (modo só totais).' });
+      }
+    }
     const comissaoCalc = await _calcComissaoBackend(
-      conn, pedido.cod_fornecedor, pedido.id_usuario, itensNormSave || itens || [], idPreposto
+      conn, pedido.cod_fornecedor, pedido.id_usuario, itensParaCom, idPreposto,
+      soTotais ? { baseTotal: baseTotais, pctManual } : {}
     );
     if (comissaoCalc._nome_preposto) pedido.nome_preposto = comissaoCalc._nome_preposto;
     delete comissaoCalc._nome_preposto;
@@ -4018,6 +4113,10 @@ router.post('/', async (req, res) => {
     // CURDATE() no servidor MySQL pode ser um dia à frente do horário do Brasil (UTC vs BRT)
     const dataAbertura = pedido.data_abertura || hojeIsoBrasil();
     const idEmpresaPed = nPedidoId(pedido.id_empresa) ?? nPedidoId(pedido.id_filial);
+
+    const idUsuarioPed = nPedidoId(pedido.id_usuario) ?? nPedidoId(req.user?.id) ?? 0;
+    const idDigitador = nPedidoId(pedido.coduser_digitacao) ?? nPedidoId(req.user?.id) ?? 0;
+    const nomeVendedorPed = up(pedido.nome_vendedor || req.user?.nome || 'ADMIN');
 
     const [pResult] = await conn.query(
       `INSERT INTO pedidos (
@@ -4065,7 +4164,7 @@ router.post('/', async (req, res) => {
       )`,
       [
         num, dataAbertura, horaBR,
-        req.user?.id || 0, req.user?.id || 0, up(pedido.nome_vendedor || req.user?.nome || 'ADMIN'),
+        idUsuarioPed, idDigitador, nomeVendedorPed,
         pedido.cod_cliente, up(pedido.cnpj), up(pedido.nome_cliente),
         pedido.cod_fornecedor || null, up(pedido.nome_fornecedor),
         pedido.cod_transportadora || null, up(pedido.nome_transportadora),
@@ -4123,6 +4222,14 @@ router.post('/', async (req, res) => {
       await conn.query(
         `UPDATE pedidos SET descontos_cascata=? WHERE id=?`,
         [snapDesc, pedidoId]
+      ).catch(() => {});
+    }
+
+    if (pedido.previsao !== undefined) {
+      const prevTxt = String(pedido.previsao ?? '').trim().slice(0, 255) || null;
+      await conn.query(
+        `UPDATE pedidos SET previsao=? WHERE id=?`,
+        [prevTxt, pedidoId]
       ).catch(() => {});
     }
 
@@ -4289,6 +4396,7 @@ router.post('/:id', async (req, res) => {
 
     // Uma passada validação+normalize (reusa resultado no reinsert dos itens)
     let itensNormSave = null;
+    let soTotaisUpd = false;
     if (pedido && itens && itens.length > 0) {
       const prep = await validarENormalizarItensSave(conn, itens, pedido.cod_fornecedor);
       if (prep.erros) {
@@ -4296,17 +4404,45 @@ router.post('/:id', async (req, res) => {
         return res.status(400).json({ error: prep.erros.join(' ') });
       }
       itensNormSave = prep.itensNorm;
+    }
+    if (pedido) {
       let idVend = pedido.id_usuario;
       if (!idVend) {
-        const [pv] = await conn.query(`SELECT id_usuario, id_preposto FROM pedidos WHERE id = ? LIMIT 1`, [id]).catch(() => [[]]);
+        const [pv] = await conn.query(`SELECT id_usuario, id_preposto, id_tipopedido FROM pedidos WHERE id = ? LIMIT 1`, [id]).catch(() => [[]]);
         idVend = pv[0]?.id_usuario;
         if (pedido.id_preposto === undefined) pedido.id_preposto = pv[0]?.id_preposto || null;
+        if (pedido.id_tipopedido === undefined) pedido.id_tipopedido = pv[0]?.id_tipopedido || null;
       }
       const idPrepostoUpd = nPedidoId(pedido.id_preposto);
-      const comissaoCalc = await _calcComissaoBackend(conn, pedido.cod_fornecedor, idVend, itensNormSave, idPrepostoUpd);
-      if (comissaoCalc._nome_preposto) pedido.nome_preposto = comissaoCalc._nome_preposto;
-      delete comissaoCalc._nome_preposto;
-      Object.assign(pedido, comissaoCalc);
+      soTotaisUpd = String(pedido.so_totais || '').toUpperCase() === 'S';
+      if (!soTotaisUpd && pedido.id_tipopedido) {
+        try {
+          const [[tp]] = await conn.query(
+            `SELECT so_totais FROM tipo_pedidos WHERE id = ? LIMIT 1`,
+            [pedido.id_tipopedido]
+          );
+          soTotaisUpd = String(tp?.so_totais || '').toUpperCase() === 'S';
+        } catch (_) {}
+      }
+      const itensParaCom = itensNormSave || (itens && itens.length ? itens : []);
+      const baseTotais = soTotaisUpd
+        ? (parseFloat(pedido.vlrsubtotal) || parseFloat(pedido.vlrtotalpedido) || 0)
+        : 0;
+      const pctManual = soTotaisUpd ? (parseFloat(pedido.comissao) || 0) : 0;
+      if (soTotaisUpd && (!itensParaCom || !itensParaCom.length) && !(baseTotais > 0)) {
+        await conn.rollback();
+        return res.status(400).json({ error: 'Informe o total do pedido (modo só totais).' });
+      }
+      // Recalcula comissão: com itens OU modo só totais
+      if ((itensParaCom && itensParaCom.length > 0) || soTotaisUpd) {
+        const comissaoCalc = await _calcComissaoBackend(
+          conn, pedido.cod_fornecedor, idVend, itensParaCom, idPrepostoUpd,
+          soTotaisUpd ? { baseTotal: baseTotais, pctManual } : {}
+        );
+        if (comissaoCalc._nome_preposto) pedido.nome_preposto = comissaoCalc._nome_preposto;
+        delete comissaoCalc._nome_preposto;
+        Object.assign(pedido, comissaoCalc);
+      }
     }
     _mk('validacoes+normalize+comissao');                                // [DIAG-SAVE]
 
@@ -4345,7 +4481,7 @@ router.post('/:id', async (req, res) => {
         'cod_cliente', 'cnpj', 'nome_cliente',
         'cod_fornecedor', 'nome_fornecedor',
         'cod_transportadora', 'nome_transportadora',
-        'id_usuario', 'coduser_digitacao', 'id_filial', 'id_empresa', 'nome_empresa',
+        'id_usuario', 'coduser_digitacao', 'nome_vendedor', 'id_filial', 'id_empresa', 'nome_empresa',
         'status', 'puxada', 'origem', 'sincronizar', 'statuspedweb', 'numero_off',
         'comissao', 'vlrcomissao', 'vlr_comissaonormal', 'vlr_total_comissao',
         'comissaogerente', 'compartilhacomissao', 'origem_comissao',
@@ -4358,6 +4494,7 @@ router.post('/:id', async (req, res) => {
         'data_retorno', 'obs_retorno',
         'obs_proximo_pedido', 'obs_proximo_consumido',
         'descontos_cascata',
+        'previsao',
       ];
 
       for (const key of allowedFields) {
@@ -4369,6 +4506,8 @@ router.post('/:id', async (req, res) => {
           else if (PEDIDO_DATE_FIELDS.has(key)) {
             if (v === '' || v === null || v === undefined) v = null;
             else if (typeof v === 'string' && !String(v).trim()) v = null;
+          } else if (key === 'previsao') {
+            v = String(v ?? '').trim().slice(0, 255) || null;
           }
           vals.push(v);
         }
@@ -4407,20 +4546,27 @@ router.post('/:id', async (req, res) => {
     }
     _mk('UPDATE cabecalho + log');                                        // [DIAG-SAVE]
 
-    // 2. Atualiza Itens (somente salvamento completo — array vazio não toca itensped)
-    if (itensNormSave && itensNormSave.length > 0 && pedidoRow?.numero != null) {
+    // 2. Atualiza Itens
+    // - Com itens: soft-delete + reinsert (fluxo normal)
+    // - Só totais + array vazio: remove itens ativos (evita sobra de grade antiga)
+    if (pedidoRow?.numero != null) {
       const numPedido = pedidoRow.numero;
-      const codFornUpd = pedido?.cod_fornecedor ?? pedidoRow.cod_fornecedor;
-      await softDeleteItenspedByNumPedido(conn, numPedido);
-      await Promise.all([ensureItenspedPromoColumns(conn), ensureItenspedObsitemColumn(conn)]);
-      await insertItenspedBatch(conn, itensNormSave, {
-        numpedido: numPedido,
-        idPedido: id,
-        codFornecedor: codFornUpd,
-        tipoPedido: pedido?.tipo_pedido,
-        idTipoPedido: pedido?.id_tipopedido,
-      });
-      _mk(`itens (${itensNormSave.length}) soft-del+batch`);               // [DIAG-SAVE]
+      if (itensNormSave && itensNormSave.length > 0) {
+        const codFornUpd = pedido?.cod_fornecedor ?? pedidoRow.cod_fornecedor;
+        await softDeleteItenspedByNumPedido(conn, numPedido);
+        await Promise.all([ensureItenspedPromoColumns(conn), ensureItenspedObsitemColumn(conn)]);
+        await insertItenspedBatch(conn, itensNormSave, {
+          numpedido: numPedido,
+          idPedido: id,
+          codFornecedor: codFornUpd,
+          tipoPedido: pedido?.tipo_pedido,
+          idTipoPedido: pedido?.id_tipopedido,
+        });
+        _mk(`itens (${itensNormSave.length}) soft-del+batch`);               // [DIAG-SAVE]
+      } else if (soTotaisUpd) {
+        await softDeleteItenspedByNumPedido(conn, numPedido);
+        _mk('itens soft-del (modo só totais)');                            // [DIAG-SAVE]
+      }
     }
 
     // 3. Parcelas (só regrava se vieram com conteúdo — preserva ao mudar só status)
@@ -4766,23 +4912,23 @@ router.post('/:id/enviar', async (req, res) => {
         mensagem || `Segue o Pedido Nº ${numero_pedido}`
       )}`;
       try {
-        // ── Provedor EuAtendo: endpoint único com Bearer token, sem instância ──
-        const { euatendoAtivo, enviarTextoEuAtendo, enviarMediaEuAtendo } = require('../config/euatendo');
-        const ea = await euatendoAtivo(pool).catch(() => null);
-        if (ea) {
+        // ── Provedor externo (EuAtendo ou Meta/API oficial): endpoint único com Bearer token, sem instância ──
+        const { provedorExterno } = require('../config/wa-provedor');
+        const ext = await provedorExterno(pool).catch(() => null);
+        if (ext) {
           const caption = mensagem || `Segue em anexo o Pedido Nº ${numero_pedido}`;
           if (pdfBuffer) {
-            await enviarMediaEuAtendo(ea, numero, {
+            await ext.enviarMedia(numero, {
               buffer:   pdfBuffer,
               filename: fileName,
               mimetype: 'application/pdf',
               caption,
             });
           } else {
-            await enviarTextoEuAtendo(ea, numero, caption);
+            await ext.enviarTexto(numero, caption);
           }
-          results.whatsapp = { ok: true, via: 'api', provedor: 'EUATENDO' };
-          void logEnvio({ canal: 'WHATSAPP', provedor: 'EUATENDO', destino: numero });
+          results.whatsapp = { ok: true, via: 'api', provedor: ext.tipo };
+          void logEnvio({ canal: 'WHATSAPP', provedor: ext.tipo, destino: numero });
         } else {
           // ── Provedor Evolution: instância do usuário + sendMedia ──────────
           const [cfgRows] = await pool.query(
@@ -4844,37 +4990,104 @@ router.post('/:id/enviar-fabrica', async (req, res) => {
   try {
     const pool = getPool();
     const id = parseInt(req.params.id, 10);
-    const { pdf_base64, numero_pedido, mensagem } = req.body;
+    const { pdf_base64, numero_pedido, mensagem, copia_cliente, copia_vendedor } = req.body;
+
+    const emailOk = (v) => {
+      const e = String(v || '').trim().toLowerCase();
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) ? e : '';
+    };
 
     // Busca o fornecedor do pedido
     const [pedRows] = await pool.query(
-      `SELECT cod_fornecedor FROM pedidos WHERE id=? AND COALESCE(excluido,'N')='N' LIMIT 1`, [id]
+      `SELECT cod_fornecedor, cod_cliente, id_usuario FROM pedidos WHERE id=? AND COALESCE(excluido,'N')='N' LIMIT 1`, [id]
     );
     if (!pedRows[0]) return res.status(404).json({ error: 'Pedido não encontrado' });
     const cod_fornecedor = pedRows[0].cod_fornecedor;
 
-    // Verifica se envio para fábrica está ativo + flag XML pedido venda
-    const [fornRows] = await pool.query(
-      `SELECT enviar_pedido_fabrica, xml_pedidovenda
-         FROM fornecedores
-        WHERE id=? AND (excluido='N' OR excluido IS NULL OR excluido='') LIMIT 1`,
-      [cod_fornecedor]
-    ).catch(() => [[]]);
+    // Verifica se envio para fábrica está ativo + formato anexo (XML/XLS)
+    let fornRows = [];
+    try {
+      [fornRows] = await pool.query(
+        `SELECT enviar_pedido_fabrica, xml_pedidovenda, formato_anexo_fabrica,
+                copia_email_cliente, copia_email_vendedor
+           FROM fornecedores
+          WHERE id=? AND (excluido='N' OR excluido IS NULL OR excluido='') LIMIT 1`,
+        [cod_fornecedor]
+      );
+    } catch (_) {
+      [fornRows] = await pool.query(
+        `SELECT enviar_pedido_fabrica, xml_pedidovenda
+           FROM fornecedores
+          WHERE id=? AND (excluido='N' OR excluido IS NULL OR excluido='') LIMIT 1`,
+        [cod_fornecedor]
+      ).catch(() => [[]]);
+    }
     if (!fornRows[0]) return res.status(404).json({ error: 'Fornecedor não encontrado' });
     if ((fornRows[0].enviar_pedido_fabrica || 'N') !== 'S') {
       return res.status(400).json({ error: 'Fornecedor não tem envio para fábrica ativado' });
     }
-    const geraXmlVenda = (fornRows[0].xml_pedidovenda || 'N') === 'S';
+    let formatoAnexo = String(fornRows[0].formato_anexo_fabrica || '').toUpperCase().trim();
+    if (formatoAnexo !== 'XML' && formatoAnexo !== 'XLS') {
+      // Legado: só xml_pedidovenda='S'
+      formatoAnexo = (fornRows[0].xml_pedidovenda || 'N') === 'S' ? 'XML' : 'N';
+    }
+    const geraXmlVenda = formatoAnexo === 'XML';
+    const geraXlsVenda = formatoAnexo === 'XLS';
 
-    // Busca os e-mails cadastrados
+    // Busca os e-mails cadastrados na aba E-mails Fábrica do fornecedor
     const [emailRows] = await pool.query(
-      `SELECT email FROM fornecedor_emails WHERE id_fornecedor=? AND excluido='N'`,
+      `SELECT email FROM fornecedor_emails
+        WHERE id_fornecedor=? AND (excluido='N' OR excluido IS NULL OR excluido='')
+          AND email IS NOT NULL AND TRIM(email) <> ''`,
       [cod_fornecedor]
     ).catch(() => [[]]);
     if (!emailRows.length) {
-      return res.status(400).json({ error: 'Nenhum e-mail de fábrica cadastrado para este fornecedor' });
+      return res.status(400).json({
+        error: 'Nenhum e-mail de fábrica cadastrado. Cadastre na aba E-mails Fábrica do fornecedor.',
+      });
     }
-    const emails = emailRows.map(r => r.email);
+    const emails = emailRows.map(r => String(r.email || '').trim()).filter(Boolean);
+
+    // Cópias: front pode forçar enviar/não; senão usa flag do fornecedor + e-mail do cadastro
+    const ccList = [];
+    let enviouCopiaCliente = false;
+    let enviouCopiaVendedor = false;
+
+    const querCopiaCli = copia_cliente && typeof copia_cliente === 'object'
+      ? !!copia_cliente.enviar
+      : (fornRows[0].copia_email_cliente || 'N') === 'S';
+    if (querCopiaCli) {
+      let emCli = emailOk(copia_cliente?.email);
+      if (!emCli && pedRows[0].cod_cliente) {
+        const [cliRows] = await pool.query(
+          `SELECT email FROM clientes WHERE id=? LIMIT 1`, [pedRows[0].cod_cliente]
+        ).catch(() => [[]]);
+        emCli = emailOk(cliRows[0]?.email);
+      }
+      if (emCli && !emails.map((e) => e.toLowerCase()).includes(emCli)) {
+        ccList.push(emCli);
+        enviouCopiaCliente = true;
+      }
+    }
+
+    const querCopiaVen = copia_vendedor && typeof copia_vendedor === 'object'
+      ? !!copia_vendedor.enviar
+      : (fornRows[0].copia_email_vendedor || 'N') === 'S';
+    if (querCopiaVen) {
+      let emVen = emailOk(copia_vendedor?.email);
+      if (!emVen && pedRows[0].id_usuario) {
+        const [venRows] = await pool.query(
+          `SELECT email, emailpedemail FROM usuarios WHERE idusuario=? LIMIT 1`,
+          [pedRows[0].id_usuario]
+        ).catch(() => [[]]);
+        emVen = emailOk(venRows[0]?.email) || emailOk(venRows[0]?.emailpedemail);
+      }
+      if (emVen && !emails.map((e) => e.toLowerCase()).includes(emVen)
+          && !ccList.includes(emVen)) {
+        ccList.push(emVen);
+        enviouCopiaVendedor = true;
+      }
+    }
 
     // Busca SMTP (vendedor → empresa)
     const userId = req.user?.id;
@@ -4920,6 +5133,7 @@ router.post('/:id/enviar-fabrica', async (req, res) => {
     }
 
     let xmlAnexo = false;
+    let xlsAnexo = false;
     if (geraXmlVenda) {
       const xmlPack = await buildXmlAnexoPedidoVenda(pool, id);
       if (xmlPack) {
@@ -4931,25 +5145,50 @@ router.post('/:id/enviar-fabrica', async (req, res) => {
         xmlAnexo = true;
       }
     }
-
-    if (!attachments.length) {
-      return res.status(400).json({ error: 'Nenhum anexo disponível para envio (PDF ou XML do pedido)' });
+    if (geraXlsVenda) {
+      const xlsPack = await buildXlsAnexoPedidoVenda(pool, id);
+      if (xlsPack) {
+        attachments.push({
+          filename: xlsPack.fileName,
+          content: xlsPack.buffer,
+          contentType: 'application/vnd.ms-excel',
+        });
+        xlsAnexo = true;
+      }
     }
 
-    await transporter.sendMail({
+    if (!attachments.length) {
+      return res.status(400).json({ error: 'Nenhum anexo disponível para envio (PDF, XML ou XLS do pedido)' });
+    }
+
+    const mailOpts = {
       from: `"${smtpConfig.emailpednome || 'S.G.I WEB'}" <${smtpConfig.emailpedemail}>`,
       to: emails.join(', '),
       subject: `Pedido Nº ${numero_pedido || id}`,
       html: (mensagem ? `<p style="font-family:Arial">${mensagem.replace(/\n/g, '<br>')}</p>` : '') + assinatura,
       attachments,
-    });
+    };
+    if (ccList.length) mailOpts.cc = ccList.join(', ');
+    await transporter.sendMail(mailOpts);
 
+    const sets = [`emailforenviado='S'`];
+    if (enviouCopiaCliente) sets.push(`emailclienteenviado='S'`);
+    if (enviouCopiaVendedor) sets.push(`emailvendenviado='S'`);
     await pool.query(
-      `UPDATE pedidos SET emailforenviado='S' WHERE id=? AND COALESCE(excluido,'N')='N'`,
+      `UPDATE pedidos SET ${sets.join(', ')} WHERE id=? AND COALESCE(excluido,'N')='N'`,
       [id]
     ).catch(() => {});
 
-    res.json({ ok: true, emails, xml_anexo: xmlAnexo });
+    res.json({
+      ok: true,
+      emails,
+      cc: ccList,
+      xml_anexo: xmlAnexo,
+      xls_anexo: xlsAnexo,
+      formato_anexo: formatoAnexo,
+      copia_cliente: enviouCopiaCliente,
+      copia_vendedor: enviouCopiaVendedor,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -340,35 +340,118 @@ router.get('/insights', async (req, res) => {
 });
 
 /**
- * Listagem consolidada de movimentações (Pagar + Receber)
+ * Listagem consolidada de movimentações (auditoria de caixa)
+ * Fonte principal: banco_movimentos (tudo que aconteceu)
+ * - LIQUIDADO (ativo): conta nos KPIs
+ * - PAGO (movimento original depois estornado): aparece p/ histórico, NÃO conta
+ * - ESTORNADO (lançamento de estorno): aparece p/ histórico, NÃO conta
+ * Fallback: títulos liquidados legados sem movimento bancário
  */
 router.get('/movimentacoes', async (req, res) => {
     const pool = getPool();
     const { dt_inicio, dt_fim, tipo } = req.query;
 
-    let where = "WHERE 1=1";
-    const params = [];
-    if (dt_inicio && dt_fim) {
-        where += " AND data_ref BETWEEN ? AND ?";
-        params.push(dt_inicio, dt_fim);
-    }
-
     try {
-        const outerConds = [];
-        if (dt_inicio && dt_fim) { outerConds.push('data_ref BETWEEN ? AND ?'); params.push(dt_inicio, dt_fim); }
-        if (tipo && tipo !== 'all') { outerConds.push(`tipo_mov = '${tipo === 'receber' ? 'ENTRADA' : 'SAIDA'}'`); }
+        const { sqlLiquidado: sqlLiqReceber } = require('../config/receber-status');
+        const { ensureBancoMovimentoSchema } = require('../config/banco-movimento');
+        await ensureBancoMovimentoSchema(pool).catch(() => {});
 
+        const sqlExcluidoR = `(r.excluido = 'N' OR r.excluido IS NULL OR r.excluido = '')`;
+        const sqlExcluidoP = `(p.excluido = 'N' OR p.excluido IS NULL OR p.excluido = '')`;
+        const sqlLiqPagar = `(p.status IN ('LIQUIDADO','PAGO','BAIXADO','QUITADO'))`;
+        const sqlLiqRec = sqlLiqReceber('r');
+
+        const outerConds = [];
+        const params = [];
+        if (dt_inicio && dt_fim) {
+            outerConds.push('DATE(data_ref) BETWEEN ? AND ?');
+            params.push(dt_inicio, dt_fim);
+        } else if (dt_inicio) {
+            outerConds.push('DATE(data_ref) >= ?');
+            params.push(dt_inicio);
+        } else if (dt_fim) {
+            outerConds.push('DATE(data_ref) <= ?');
+            params.push(dt_fim);
+        }
+        if (tipo && tipo !== 'all') {
+            outerConds.push('tipo_mov = ?');
+            params.push(tipo === 'receber' ? 'ENTRADA' : 'SAIDA');
+        }
         const outerWhere = outerConds.length ? `WHERE ${outerConds.join(' AND ')}` : '';
 
         const query = `
             SELECT * FROM (
-                SELECT id, 'RECEBER' as origem, nome_fornecedor as pessoa, doc, vencimento as data_ref, valor, status, 'ENTRADA' as tipo_mov FROM receber WHERE excluido = 'N'
+                SELECT
+                    bm.id,
+                    bm.origem,
+                    CASE
+                      WHEN bm.origem = 'PAGAR' THEN COALESCE(p.nome_fornecedor, '—')
+                      ELSE COALESCE(r.nome_fornecedor, '—')
+                    END AS pessoa,
+                    CASE
+                      WHEN bm.origem = 'PAGAR' THEN COALESCE(p.doc, CONCAT('PAGAR #', bm.id_origem))
+                      ELSE COALESCE(r.doc, CONCAT('RECEBER #', bm.id_origem))
+                    END AS doc,
+                    bm.data_mov AS data_ref,
+                    bm.valor AS valor,
+                    CASE
+                      WHEN bm.historico LIKE 'ESTORNO%' THEN 'ESTORNADO'
+                      WHEN bm.excluido = 'S' THEN 'PAGO'
+                      ELSE 'LIQUIDADO'
+                    END AS status,
+                    bm.tipo AS tipo_mov,
+                    CASE
+                      WHEN (bm.excluido = 'N' OR bm.excluido IS NULL OR bm.excluido = '') THEN 1
+                      ELSE 0
+                    END AS conta_kpi
+                FROM banco_movimentos bm
+                LEFT JOIN pagar p ON bm.origem = 'PAGAR' AND p.id = bm.id_origem
+                LEFT JOIN receber r ON bm.origem = 'RECEBER' AND r.id = bm.id_origem
+                WHERE bm.origem IN ('PAGAR', 'RECEBER')
+
                 UNION ALL
-                SELECT id, 'PAGAR' as origem, nome_fornecedor as pessoa, doc, vencimento as data_ref, valor, status, 'SAIDA' as tipo_mov FROM pagar WHERE excluido = 'N'
-            ) as consolidado
+
+                SELECT
+                    r.id,
+                    'RECEBER' AS origem,
+                    r.nome_fornecedor AS pessoa,
+                    r.doc,
+                    COALESCE(r.data_pagto, r.vencimento) AS data_ref,
+                    COALESCE(r.valor_pago, r.valor) AS valor,
+                    'LIQUIDADO' AS status,
+                    'ENTRADA' AS tipo_mov,
+                    1 AS conta_kpi
+                FROM receber r
+                WHERE ${sqlExcluidoR}
+                  AND ${sqlLiqRec}
+                  AND NOT EXISTS (
+                    SELECT 1 FROM banco_movimentos bm
+                    WHERE bm.origem = 'RECEBER' AND bm.id_origem = r.id
+                  )
+
+                UNION ALL
+
+                SELECT
+                    p.id,
+                    'PAGAR' AS origem,
+                    p.nome_fornecedor AS pessoa,
+                    p.doc,
+                    COALESCE(p.data_pagto, p.vencimento) AS data_ref,
+                    COALESCE(p.vlrpago, p.valor) AS valor,
+                    'LIQUIDADO' AS status,
+                    'SAIDA' AS tipo_mov,
+                    1 AS conta_kpi
+                FROM pagar p
+                WHERE ${sqlExcluidoP}
+                  AND ${sqlLiqPagar}
+                  AND NOT EXISTS (
+                    SELECT 1 FROM banco_movimentos bm
+                    WHERE bm.origem = 'PAGAR' AND bm.id_origem = p.id
+                  )
+            ) AS consolidado
             ${outerWhere}
-            ORDER BY data_ref DESC
-            LIMIT 200
+            ORDER BY data_ref DESC, id DESC
+            LIMIT 500
         `;
 
         const [rows] = await pool.query(query, params);

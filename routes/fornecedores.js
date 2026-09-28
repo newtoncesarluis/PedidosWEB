@@ -73,8 +73,16 @@ async function ensureColumns(pool) {
     await pool.query(`ALTER TABLE fornecedores ADD COLUMN obsitem_pedido VARCHAR(1) DEFAULT 'N'`).catch(() => {});
     _colunasCache = null;
   }
+  if (!cols.has('aparece_showroom')) {
+    await pool.query(`ALTER TABLE fornecedores ADD COLUMN aparece_showroom CHAR(1) NOT NULL DEFAULT 'N'`).catch(() => {});
+    _colunasCache = null;
+  }
   if (!cols.has('pedidos_codfabricante')) {
     await pool.query(`ALTER TABLE fornecedores ADD COLUMN pedidos_codfabricante VARCHAR(1) DEFAULT 'N'`).catch(() => {});
+    _colunasCache = null;
+  }
+  if (!cols.has('pedidos_ref_mae')) {
+    await pool.query(`ALTER TABLE fornecedores ADD COLUMN pedidos_ref_mae VARCHAR(1) DEFAULT 'N'`).catch(() => {});
     _colunasCache = null;
   }
   if (!cols.has('tipo')) {
@@ -131,6 +139,24 @@ async function ensureColumns(pool) {
   }
   if (!cols.has('enviar_pedido_fabrica')) {
     await pool.query(`ALTER TABLE fornecedores ADD COLUMN enviar_pedido_fabrica CHAR(1) DEFAULT 'N'`).catch(() => {});
+    _colunasCache = null;
+  }
+  if (!cols.has('formato_anexo_fabrica')) {
+    await pool.query(`ALTER TABLE fornecedores ADD COLUMN formato_anexo_fabrica VARCHAR(3) DEFAULT 'N'`).catch(() => {});
+    _colunasCache = null;
+    // Bases que já usavam xml_pedidovenda='S' passam a XML no novo campo
+    await pool.query(
+      `UPDATE fornecedores SET formato_anexo_fabrica='XML'
+        WHERE COALESCE(xml_pedidovenda,'N')='S'
+          AND (formato_anexo_fabrica IS NULL OR formato_anexo_fabrica='' OR formato_anexo_fabrica='N')`
+    ).catch(() => {});
+  }
+  if (!cols.has('copia_email_cliente')) {
+    await pool.query(`ALTER TABLE fornecedores ADD COLUMN copia_email_cliente CHAR(1) DEFAULT 'N'`).catch(() => {});
+    _colunasCache = null;
+  }
+  if (!cols.has('copia_email_vendedor')) {
+    await pool.query(`ALTER TABLE fornecedores ADD COLUMN copia_email_vendedor CHAR(1) DEFAULT 'N'`).catch(() => {});
     _colunasCache = null;
   }
   if (!cols.has('habilita_feirinha')) {
@@ -256,6 +282,12 @@ router.get('/', async (req, res) => {
     if (segmento.trim())  { where.push(`LOWER(f.segmento) LIKE ?`);  vals.push(`%${segmento.trim().toLowerCase()}%`); }
     if (padrao === 'S')   { where.push(`f.fornecedorpadraopedido = 'S'`); }
     if (somente_fabricas === 'true') { where.push(`COALESCE(f.tipo, 'FABRICA') = 'FABRICA'`); }
+
+    // Showroom: só fábricas com «Aparece no Showroom» = Sim (default N)
+    const somenteShowroom = req.query.showroom === '1' || req.query.showroom === 'true';
+    if (somenteShowroom) {
+      where.push(`COALESCE(f.aparece_showroom, 'N') = 'S'`);
+    }
 
     // Filtro de fornecedores bloqueados por usuário (blacklist — somente no contexto do pedido)
     // Fornecedores marcados em fornecedor_vendedor ficam OCULTOS para o vendedor
@@ -490,21 +522,42 @@ router.put('/config/lista', async (req, res) => {
   }
 });
 
-// ─── GET /api/fornecedores/lookup (simplificado) ───────────────────────────
+// ─── GET /api/fornecedores/lookup (simplificado / busca estilo Google) ─────────
+// Query: q (texto), todostipos=true, limit (default 20, máx 50)
 router.get('/lookup', async (req, res) => {
   try {
-    const { todostipos } = req.query;
+    const { todostipos, q = '', limit: limRaw } = req.query;
     let tipoFilter = "AND COALESCE(tipo, 'FABRICA') = 'FABRICA'";
     if (todostipos === 'true') {
-      tipoFilter = ""; // Retorna todos (usado no Contas a Pagar)
+      tipoFilter = ''; // Contas a Pagar / Receber — todos os tipos
+    }
+
+    const lim = Math.min(Math.max(parseInt(limRaw, 10) || 20, 1), 50);
+    const termo = String(q || '').trim();
+    const params = [];
+    let buscaSql = '';
+    if (termo) {
+      const like = `%${termo.replace(/[%_]/g, '')}%`;
+      const digitos = termo.replace(/\D/g, '');
+      buscaSql = ` AND (
+        nome LIKE ? OR IFNULL(apelido,'') LIKE ?
+        OR REPLACE(REPLACE(REPLACE(IFNULL(cpf,''),'.',''),'-',''),'/','') LIKE ?
+        ${digitos.length >= 3 ? 'OR CAST(id AS CHAR) LIKE ?' : ''}
+      )`;
+      params.push(like, like, `%${digitos || termo}%`);
+      if (digitos.length >= 3) params.push(`%${digitos}%`);
     }
 
     const pool = getPool();
     const [rows] = await pool.query(
-      `SELECT id, nome, apelido FROM fornecedores 
-       WHERE (excluido='N' OR excluido IS NULL OR excluido='') 
+      `SELECT id, nome, apelido, cpf, cidade, uf, COALESCE(tipo,'FABRICA') AS tipo
+       FROM fornecedores
+       WHERE (excluido='N' OR excluido IS NULL OR excluido='')
        ${tipoFilter}
-       ORDER BY nome`
+       ${buscaSql}
+       ORDER BY nome
+       LIMIT ${lim}`,
+      params
     );
     res.json(rows);
   } catch (err) {
@@ -624,6 +677,14 @@ router.get('/:id', async (req, res) => {
     } else {
       row.vendasduplicaritem = 'S';
     }
+    // E-mails da aba E-mails Fábrica — usados no Enviar para Fábrica do pedido
+    const [emailRows] = await pool.query(
+      `SELECT id, email, descricao FROM fornecedor_emails
+        WHERE id_fornecedor = ? AND (excluido = 'N' OR excluido IS NULL OR excluido = '')
+        ORDER BY id`,
+      [row.id]
+    ).catch(() => [[]]);
+    row.emails_fabrica = emailRows || [];
     if (isPrepostoUser(req)) row = stripFornecedorComissaoRep(row);
     res.json(row);
   } catch (err) {
@@ -662,13 +723,15 @@ router.post('/', async (req, res) => {
       'uf_faturamento','telefone1_faturamento','telefone2_faturamento',
       'contato_recebedor','contato_financeiro','avisardiasfaturamento',
       'imprimirparcelaspedido','cor_obspedido','estilo_obspedido',
-      'pedidos_codfabricante',
+      'pedidos_codfabricante','pedidos_ref_mae',
       'tipo','url_logo','produtofornecedor','parcela_pedvendas',
       'ipi_frete_base','com_sobre_ipi','com_sobre_st','com_tipo','tipo_num_pedido','base_conciliacao',
-      'min_cx_pedido','recalc_comissao_fatur','enviar_pedido_fabrica','habilita_feirinha',
+      'min_cx_pedido','recalc_comissao_fatur','enviar_pedido_fabrica','formato_anexo_fabrica',
+      'copia_email_cliente','copia_email_vendedor','habilita_feirinha',
       'layout_impressao','mostrar_vlr_desc_pedido','frete_padrao','alertar_tabela_desatualizada',
       'habilita_kit_pedido','kit_desconto_pct','desconto_primeira_compra_pct',
-      'promo_primeira_compra_exige_kit','promo_condicao_pagto','promo_texto_banner'
+      'promo_primeira_compra_exige_kit','promo_condicao_pagto','promo_texto_banner',
+      'aparece_showroom'
     ];
 
     const campos = todosCampos.filter(c => body[c] !== undefined && colunasReais.has(c));
@@ -725,13 +788,15 @@ router.put('/:id', async (req, res) => {
       'uf_faturamento','telefone1_faturamento','telefone2_faturamento',
       'contato_recebedor','contato_financeiro','avisardiasfaturamento',
       'imprimirparcelaspedido','cor_obspedido','estilo_obspedido',
-      'pedidos_codfabricante',
+      'pedidos_codfabricante','pedidos_ref_mae',
       'tipo','url_logo','produtofornecedor','parcela_pedvendas',
       'ipi_frete_base','com_sobre_ipi','com_sobre_st','com_tipo','tipo_num_pedido','base_conciliacao',
-      'min_cx_pedido','recalc_comissao_fatur','enviar_pedido_fabrica','habilita_feirinha',
+      'min_cx_pedido','recalc_comissao_fatur','enviar_pedido_fabrica','formato_anexo_fabrica',
+      'copia_email_cliente','copia_email_vendedor','habilita_feirinha',
       'layout_impressao','mostrar_vlr_desc_pedido','frete_padrao','alertar_tabela_desatualizada',
       'habilita_kit_pedido','kit_desconto_pct','desconto_primeira_compra_pct',
-      'promo_primeira_compra_exige_kit','promo_condicao_pagto','promo_texto_banner'
+      'promo_primeira_compra_exige_kit','promo_condicao_pagto','promo_texto_banner',
+      'aparece_showroom'
     ];
 
     const campos = todosCampos.filter(c => body[c] !== undefined && colunasReais.has(c));
@@ -1098,7 +1163,7 @@ router.get('/:id/emails', async (req, res) => {
     await ensureColumns(pool);
     const [rows] = await pool.query(
       `SELECT id, email, descricao FROM fornecedor_emails
-       WHERE id_fornecedor = ? AND excluido = 'N'
+       WHERE id_fornecedor = ? AND (excluido = 'N' OR excluido IS NULL OR excluido = '')
        ORDER BY id`,
       [req.params.id]
     ).catch(() => [[]]);

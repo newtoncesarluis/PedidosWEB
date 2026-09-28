@@ -20,6 +20,8 @@
     imgIdx: 0,
     gradeItens: [],
     gradeQtd: {},
+    gradesDisponiveis: [],
+    gradeIdSelecionada: null,
     qtdSimples: 1,
     obsItem: '',
     busca: '',
@@ -56,9 +58,13 @@
   const FORMAS = [
     { v: 'BOLETO', l: 'Boleto' },
     { v: 'PIX', l: 'PIX' },
+    { v: 'DINHEIRO', l: 'Dinheiro' },
     { v: 'CARTAO', l: 'Cartão' },
     { v: 'DEPOSITO', l: 'Depósito' },
-    { v: 'DINHEIRO', l: 'Dinheiro' },
+    { v: 'CHEQUE', l: 'Cheque' },
+    { v: 'CHEQUE_PRED', l: 'Cheque Pré-datado' },
+    { v: 'PRAZO', l: 'A Prazo / Carteira' },
+    { v: 'OUTROS', l: 'Outros' },
   ];
 
   function esc(s) {
@@ -97,16 +103,86 @@
   function saveFav() {
     localStorage.setItem(favKey(), JSON.stringify([...S.favoritos]));
   }
+  function resolveUserIdStr() {
+    const a = String(sessionStorage.getItem('userId') || '').trim();
+    const b = String(localStorage.getItem('userId') || '').trim();
+    return a || b || 'u';
+  }
   function cartKey() {
-    return 'sysrep_afv_cart_' + (sessionStorage.getItem('userId') || localStorage.getItem('userId') || 'u');
+    return 'sysrep_afv_cart_' + resolveUserIdStr();
+  }
+  /** Todas as chaves sysrep_afv_cart_* no localStorage (qualquer userId antigo). */
+  function allCartStorageKeys() {
+    const keys = [];
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.indexOf('sysrep_afv_cart_') === 0) keys.push(k);
+      }
+    } catch (_) {}
+    return keys;
+  }
+  function cartKeysPossiveis() {
+    const ids = new Set(['u']);
+    const a = String(sessionStorage.getItem('userId') || '').trim();
+    const b = String(localStorage.getItem('userId') || '').trim();
+    if (a) ids.add(a);
+    if (b) ids.add(b);
+    ids.add(resolveUserIdStr());
+    const fromIds = [...ids].map((id) => 'sysrep_afv_cart_' + id);
+    return [...new Set([...fromIds, ...allCartStorageKeys()])];
   }
   function loadCart() {
-    try { S.cart = JSON.parse(localStorage.getItem(cartKey()) || '[]'); if (!Array.isArray(S.cart)) S.cart = []; }
-    catch (_) { S.cart = []; }
+    try {
+      const primary = cartKey();
+      let raw = localStorage.getItem(primary);
+      // null = nunca gravou nesta chave → tenta migrar de chave antiga.
+      // '[]' = limpeza intencional → NÃO ressuscita de outra chave.
+      if (raw == null) {
+        for (const k of allCartStorageKeys()) {
+          if (k === primary) continue;
+          const alt = localStorage.getItem(k);
+          if (alt && alt !== '[]') {
+            raw = alt;
+            try { localStorage.setItem(primary, alt); } catch (_) {}
+            break;
+          }
+        }
+      }
+      S.cart = JSON.parse(raw || '[]');
+      if (!Array.isArray(S.cart)) S.cart = [];
+    } catch (_) {
+      S.cart = [];
+    }
   }
   function saveCart() {
-    localStorage.setItem(cartKey(), JSON.stringify(S.cart));
+    const json = JSON.stringify(S.cart);
+    const primary = cartKey();
+    localStorage.setItem(primary, json);
+    // Alias alinhados; se vazio, remove ghosts para não voltar no próximo load
+    allCartStorageKeys().forEach((k) => {
+      if (k === primary) return;
+      try {
+        if (!S.cart.length) localStorage.removeItem(k);
+        else localStorage.setItem(k, json);
+      } catch (_) {}
+    });
     atualizarBadge();
+  }
+  function limparCarrinhoPersistido() {
+    S.cart = [];
+    // Apaga TODAS as chaves do carrinho neste aparelho (não só as do userId atual)
+    allCartStorageKeys().forEach((k) => {
+      try { localStorage.removeItem(k); } catch (_) {}
+    });
+    // Tombstone: loadCart não migra de ghost keys
+    try { localStorage.setItem(cartKey(), '[]'); } catch (_) {}
+    atualizarBadge();
+  }
+  function limparConfirmResiduais() {
+    try {
+      document.querySelectorAll('[data-sysrep-confirm]').forEach((n) => n.remove());
+    } catch (_) {}
   }
   function cartQtd() {
     return S.cart.reduce((s, i) => s + (parseFloat(i.quantidade) || 0), 0);
@@ -169,6 +245,90 @@
     return d;
   }
 
+  // Iniciais para a marca d'agua do card sem capa
+  // As variacoes costumam ter cor1 vazio; o que as diferencia esta na descricao
+  // ("... 3,00 L", "... 7,00 L"). Tira o trecho comum e usa o resto como rotulo,
+  // que e o que o vendedor precisa ler — nao o codigo interno.
+  function rotulosDasVariacoes(lista) {
+    const descs = (lista || []).map((c) => String(c.desc_produto || c.descricao || '').trim());
+    let prefixo = 0;
+    if (descs.length > 1 && descs.every(Boolean)) {
+      const menor = Math.min(...descs.map((d) => d.length));
+      while (prefixo < menor && descs.every((d) => d[prefixo] === descs[0][prefixo])) prefixo++;
+      // volta ate o inicio da palavra, para nao cortar no meio
+      while (prefixo > 0 && !/[\s,;/-]/.test(descs[0][prefixo - 1])) prefixo--;
+    }
+    return (lista || []).map((c, i) => {
+      if (c.cor1) return String(c.cor1);
+      const resto = (descs[i] || '').slice(prefixo).trim().replace(/^[-–,;/]+\s*/, '');
+      return resto || c.cod_fabricante || ('#' + c.cod_produto);
+    });
+  }
+
+  function iniciaisMarca(nome) {
+    const palavras = String(nome || '').trim().split(/\s+/).filter(Boolean);
+    if (!palavras.length) return '?';
+    if (palavras.length === 1) return palavras[0].slice(0, 2).toUpperCase();
+    return (palavras[0][0] + palavras[1][0]).toUpperCase();
+  }
+
+  const ICO_TIPO = {
+    colecao: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.25v13m0-13C10.8 5.5 9.2 5 7.5 5S4.2 5.5 3 6.25v13C4.2 18.5 5.8 18 7.5 18s3.3.5 4.5 1.25m0-13C13.2 5.5 14.8 5 16.5 5S19.8 5.5 21 6.25v13C19.8 18.5 18.2 18 16.5 18s-3.3.5-4.5 1.25"/>',
+    fabrica: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21h18M4 21V10l5 3V10l5 3V7l6 4v10"/>',
+    tabela:  '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.6 13.4l-7.2 7.2a2 2 0 01-2.8 0L2 12V2h10l8.6 8.6a2 2 0 010 2.8z"/><circle cx="7" cy="7" r="1.2" fill="currentColor" stroke="none"/>',
+  };
+
+  function gradeChipsHtml(resumo) {
+    const parts = String(resumo || '').trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return '';
+    return `<div class="afv-cart-grades">${parts.map((p) => {
+      const i = p.indexOf(':');
+      const tam = i >= 0 ? p.slice(0, i) : p;
+      const q = i >= 0 ? p.slice(i + 1) : '';
+      return `<span class="afv-cart-gchip"><b>${esc(tam)}</b>${q !== '' ? `<i>×${esc(q)}</i>` : ''}</span>`;
+    }).join('')}</div>`;
+  }
+
+  function cartRowHtml(it, idx) {
+    const sku = it.cod_fabricante || it.cod_produto || '';
+    const nome = it.desc_produto || '';
+    const q = parseFloat(it.quantidade) || 0;
+    const tot = lineTotal(it);
+    const foto = String(it.foto_principal || '').trim();
+    const thumb = foto
+      ? `<div class="afv-cart-thumb"><img src="${esc(foto)}" alt="" loading="lazy" onerror="this.parentNode.innerHTML='<span class=\\'afv-cart-thumb-ph\\' aria-hidden=\\'true\\'>∎</span>'"></div>`
+      : `<div class="afv-cart-thumb"><span class="afv-cart-thumb-ph" aria-hidden="true">∎</span></div>`;
+    return `<article class="afv-cart-row">
+      ${thumb}
+      <div class="afv-cart-meta">
+        <div class="afv-cart-sku">${esc(sku)}</div>
+        <div class="afv-cart-name">${esc(nome)}</div>
+        <div class="afv-cart-price-row">
+          <span class="afv-cart-price">${q} × ${money(it.vlr_venda)}</span>
+          <span class="afv-cart-line">${money(tot)}</span>
+        </div>
+        ${gradeChipsHtml(it.grade_resumo)}
+      </div>
+      <button type="button" class="afv-cart-rm" data-idx="${idx}" title="Remover" aria-label="Remover item">
+        ${ico('x')}
+      </button>
+    </article>`;
+  }
+
+  // Card das secoes da home do Showroom (colecao / fabrica / tabela)
+  function bannerCard(tipo, { id, nome, sub, capa, cor, extra }) {
+    const temCapa = !!capa;
+    const estilo = temCapa
+      ? `background-image:url('${esc(capa)}')`
+      : `background:${esc(cor || '#1f2937')}`;
+    const marca = temCapa ? '' : `<span class="afv-banner-marca" aria-hidden="true">${esc(iniciaisMarca(nome))}</span>`;
+    const icone = `<svg class="afv-banner-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">${ICO_TIPO[tipo] || ''}</svg>`;
+    return `<div class="afv-banner${temCapa ? '' : ' afv-banner--sem-capa'}" data-tipo="${tipo}" data-id="${esc(id)}"${extra || ''} style="${estilo}">
+      ${marca}${icone}
+      <div class="afv-banner-lbl">${esc(nome)}${sub ? `<span class="afv-banner-sub">${esc(sub)}</span>` : ''}</div>
+    </div>`;
+  }
+
   function ico(name) {
     const paths = {
       home: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3 12l9-9 9 9M5 10v10a1 1 0 001 1h3m10-11v10a1 1 0 01-1 1h-3m-4 0v-4a1 1 0 011-1h2a1 1 0 011 1v4"/>',
@@ -214,25 +374,60 @@
 .afv-sort{display:flex;gap:4px;justify-content:flex-end;background:var(--content-bg,#f1f5f9);padding:3px;border-radius:10px;width:fit-content;margin-left:auto}
 .afv-sort-btn{border:none;background:transparent;font:inherit;font-size:11px;font-weight:800;color:var(--text2,#94a3b8);cursor:pointer;letter-spacing:.02em;padding:6px 12px;border-radius:8px}
 .afv-sort-btn.is-on{color:var(--content-text,#0f172a);background:var(--card,#fff);box-shadow:0 1px 3px rgba(15,23,42,.08)}
-.afv-body{flex:1;overflow:auto;padding:14px 14px calc(14px + env(safe-area-inset-bottom));min-height:0;scrollbar-width:thin}
+.afv-body{flex:1;overflow:auto;padding:14px max(14px,calc((100% - 1400px)/2)) calc(14px + env(safe-area-inset-bottom));min-height:0;scrollbar-width:thin}
 .afv-overlay.has-dock .afv-body{padding-bottom:calc(88px + env(safe-area-inset-bottom))}
-.afv-home-hero{margin:0 0 16px;padding:16px 18px;border-radius:16px;background:linear-gradient(135deg,var(--afv-accent),#115e59);color:#fff}
-.afv-home-greet{font-size:18px;font-weight:800;letter-spacing:-.02em}
-.afv-home-hint{font-size:13px;opacity:.9;margin-top:4px;line-height:1.4;max-width:36em}
-.afv-sec{margin-bottom:20px}
+.afv-home-hero{
+  position:relative;display:flex;align-items:center;gap:10px;
+  margin:0 0 14px;padding:10px 40px 10px 14px;border-radius:12px;
+  background:linear-gradient(135deg,var(--afv-accent),#115e59);color:#fff;
+}
+.afv-home-greet{font-size:13px;font-weight:800;letter-spacing:-.01em;flex-shrink:0}
+.afv-home-hint{font-size:12px;opacity:.92;line-height:1.35}
+.afv-hero-x{
+  position:absolute;top:50%;right:8px;transform:translateY(-50%);
+  width:26px;height:26px;border:none;border-radius:8px;padding:0;
+  background:rgba(255,255,255,.16);color:#fff;cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;transition:background .15s;
+}
+.afv-hero-x:hover{background:rgba(255,255,255,.3)}
+@media(max-width:640px){
+  .afv-home-hero{flex-direction:column;align-items:flex-start;gap:2px}
+}
+/* Secoes lado a lado quando cabem: com uma colecao e uma fabrica, empilhar
+   deixava duas linhas quase vazias. Secao com muitos cards pede 100% e fica
+   sozinha na linha, senao viraria uma coluna estreita e comprida. */
+.afv-secoes{display:flex;flex-wrap:wrap;align-items:flex-start;gap:0 22px}
+.afv-sec{flex:0 1 auto;min-width:222px;max-width:100%;margin-bottom:18px}
 .afv-sec-title{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text2,#64748b);margin:0 0 10px;padding-left:2px}
-.afv-grid-col{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+.afv-grid-col{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
 .afv-banner{position:relative;min-height:148px;border-radius:16px;overflow:hidden;cursor:pointer;background:#1f2937;background-size:cover;background-position:center;box-shadow:0 2px 12px rgba(15,23,42,.1);transition:transform .18s ease,box-shadow .18s}
 .afv-banner:hover{transform:translateY(-3px);box-shadow:0 10px 28px rgba(15,23,42,.16)}
 .afv-banner:active{transform:translateY(-1px)}
 .afv-banner::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,transparent 25%,rgba(0,0,0,.72))}
-.afv-banner-lbl{position:absolute;left:14px;right:14px;bottom:14px;z-index:1;color:#fff;font-weight:800;font-size:15px;text-shadow:0 1px 4px rgba(0,0,0,.4)}
+.afv-banner-lbl{position:absolute;left:14px;right:14px;bottom:12px;z-index:2;color:#fff;font-weight:800;font-size:14px;line-height:1.25;text-shadow:0 1px 4px rgba(0,0,0,.4)}
 .afv-banner-sub{display:block;font-size:11px;font-weight:600;opacity:.9;margin-top:3px}
+/* sem foto de capa, o card era um retangulo de cor chapada: a inicial da marca
+   e o icone do tipo dao identidade e dizem o que e sem precisar ler */
+.afv-banner--sem-capa{min-height:115px}
+.afv-banner-marca{
+  /* z-index acima do gradiente ::after, senao a marca some nos cards escuros */
+  position:absolute;right:4px;bottom:-10px;z-index:1;
+  font-size:62px;font-weight:900;line-height:1;letter-spacing:-.06em;
+  color:rgba(255,255,255,.20);user-select:none;pointer-events:none;
+}
+.afv-banner-ico{
+  position:absolute;top:11px;left:13px;z-index:2;
+  width:17px;height:17px;color:rgba(255,255,255,.8);
+}
 .afv-grid-ref{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
-.afv-ref{position:relative;background:var(--card,#fff);border:1px solid var(--card-border,#e2e8f0);border-radius:14px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;transition:border-color .15s,box-shadow .15s,transform .15s;content-visibility:auto;contain-intrinsic-size:auto 220px}
+.afv-ref{position:relative;background:var(--card,#fff);border:1px solid var(--card-border,#e2e8f0);border-radius:14px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;transition:border-color .15s,box-shadow .15s,transform .15s;text-align:left;font:inherit;color:inherit;padding:0;width:100%;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 .afv-ref:hover{border-color:var(--afv-accent);box-shadow:0 8px 20px rgba(15,23,42,.08);transform:translateY(-2px)}
-.afv-ref-img{aspect-ratio:1;background:var(--content-bg,#f8fafc);display:flex;align-items:center;justify-content:center;overflow:hidden;padding:10px;box-sizing:border-box}
-.afv-ref-img img{width:100%;height:100%;object-fit:contain;object-position:center}
+.afv-ref:active{transform:scale(.98)}
+.afv-ref:focus-visible{outline:2px solid var(--afv-accent);outline-offset:2px}
+.afv-ref-img{aspect-ratio:1;background:var(--content-bg,#f8fafc);display:flex;align-items:center;justify-content:center;overflow:hidden;padding:12px;box-sizing:border-box}
+.afv-ref-img img,.afv-ref-empty,.afv-ref-badge{pointer-events:none;-webkit-user-drag:none;user-select:none}
+.afv-ref.is-opening{opacity:.55;pointer-events:none}
+.afv-ref-img img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;object-position:center}
 .afv-ref-empty{width:36%;max-width:48px;height:auto;opacity:.35;color:var(--text2,#94a3b8)}
 .afv-ref-body{padding:10px 10px 12px;display:flex;flex-direction:column;gap:3px;min-height:72px}
 .afv-ref-code{font-size:11px;font-weight:800;color:var(--text2,#64748b);line-height:1.25;word-break:break-word}
@@ -240,51 +435,125 @@
 .afv-ref-preco{font-size:13px;font-weight:800;color:var(--afv-accent);margin-top:auto;padding-top:4px}
 .afv-ref-badge{position:absolute;top:8px;right:8px;background:rgba(15,23,42,.82);color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;backdrop-filter:blur(4px)}
 .afv-empty{padding:56px 20px;text-align:center;color:var(--text2,#64748b);font-size:14px;line-height:1.5}
-.afv-detalhe{display:grid;grid-template-columns:72px 1fr;gap:16px;max-width:960px;margin:0 auto;padding-bottom:8px}
+/* miniaturas embaixo da foto (padrao de loja) em vez de uma coluna lateral
+   de 72px, que roubava largura do produto */
+.afv-detalhe{display:flex;flex-direction:column;gap:12px;max-width:1000px;margin:0 auto;padding-bottom:8px}
 .afv-cores{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 8px;padding:0;justify-content:center}
 .afv-cor-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;border:1.5px solid var(--card-border,#d1d5db);background:var(--card,#fff);color:var(--content-text,#111);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;transition:border-color .15s,background .15s}
 .afv-cor-chip.is-on{border-color:var(--afv-accent);background:var(--afv-soft);color:var(--afv-accent-h);box-shadow:0 0 0 1px var(--afv-accent)}
 .afv-cor-chip img{width:24px;height:24px;border-radius:50%;object-fit:cover;background:var(--content-bg,#e5e7eb)}
-.afv-thumbs{display:flex;flex-direction:column;gap:8px;align-items:center}
+.afv-thumbs{order:2;display:flex;flex-direction:row;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center}
+.afv-stage{order:1}
+.afv-thumbs .afv-icon-btn{width:34px;height:34px}
 .afv-thumb{width:64px;height:64px;border:2px solid var(--card-border,#e2e8f0);border-radius:10px;overflow:hidden;cursor:pointer;background:var(--card,#fff);padding:0;transition:border-color .15s}
 .afv-thumb.is-on{border-color:var(--afv-accent)}
 .afv-thumb img{width:100%;height:100%;object-fit:contain;object-position:center;background:var(--card,#fff)}
-.afv-stage{position:relative;background:var(--card,#fff);border-radius:16px;border:1px solid var(--card-border,#e2e8f0);display:flex;flex-direction:column;align-items:center;padding:18px 18px 88px;min-height:400px}
-.afv-stage-nome{font-size:14px;font-weight:700;color:var(--content-text,#334155);margin-bottom:8px;text-align:center;line-height:1.35;max-width:36em}
-.afv-stage-img{max-width:100%;max-height:min(420px,55vh);object-fit:contain}
+.afv-stage{position:relative;background:var(--card,#fff);border-radius:16px;border:1px solid var(--card-border,#e2e8f0);display:flex;flex-direction:column;align-items:center;padding:18px;min-height:300px}
+.afv-stage-nome{font-size:15px;font-weight:700;color:var(--content-text,#334155);margin-bottom:2px;text-align:center;line-height:1.35;max-width:36em}
+.afv-stage-sku{font-size:11px;font-weight:700;color:var(--text2,#94a3b8);letter-spacing:.02em;margin-bottom:8px}
+/* ficha do produto: estava escondida atras de um icone sem rotulo */
+.afv-ficha{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin:10px 0 0}
+.afv-ficha span{
+  font-size:11px;font-weight:700;color:var(--text2,#64748b);
+  background:var(--content-bg,#f1f5f9);border:1px solid var(--card-border,#e2e8f0);
+  padding:3px 9px;border-radius:999px;
+}
+/* preco ausente nao pode parecer "de graca" */
+.afv-cta-price.sem-preco{font-size:12px;font-weight:800;color:#b45309;line-height:1.25;white-space:normal;max-width:150px}
+.afv-cor-chip small{display:block;font-size:9.5px;font-weight:700;opacity:.65;letter-spacing:.02em}
+.afv-stage-img{max-width:100%;max-height:min(380px,44vh);object-fit:contain}
 .afv-fabs{position:absolute;right:14px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:10px}
 .afv-fab{width:48px;height:48px;border-radius:50%;border:none;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(15,23,42,.14);background:var(--card,#fff);color:var(--text2,#64748b);transition:transform .12s}
 .afv-fab:active{transform:scale(.94)}
 .afv-fab.heart.is-on{color:#ef4444}
-.afv-cta-bar{position:absolute;left:12px;right:12px;bottom:12px;display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:14px;background:var(--content-bg,#f8fafc);border:1px solid var(--card-border,#e2e8f0);box-shadow:0 4px 16px rgba(15,23,42,.08)}
+/* a barra ocupava a largura toda e o botao pegava tudo que sobrava (~700px).
+   Agora ela tem o tamanho do proprio conteudo e fica centralizada. */
+/* a barra flutuava sobre a foto e podia cobrir o produto: agora fica no fluxo,
+   logo abaixo da imagem, com o tamanho do proprio conteudo */
+.afv-cta-bar{
+  margin:16px auto 0;width:max-content;max-width:100%;
+  display:flex;align-items:center;gap:16px;padding:8px 8px 8px 18px;border-radius:14px;
+  background:var(--card,#fff);border:1px solid var(--card-border,#e2e8f0);
+  box-shadow:0 6px 20px rgba(15,23,42,.12);
+  box-sizing:border-box;
+}
 .afv-cta-price{font-size:16px;font-weight:800;color:var(--content-text,#0f172a);white-space:nowrap}
-.afv-cta-bar .afv-save{flex:1;height:44px}
-.afv-edit{max-width:720px;margin:0 auto;background:var(--card,#fff);border-radius:16px;border:1px solid var(--card-border,#e2e8f0);padding:20px;display:flex;flex-direction:column;min-height:calc(100% - 8px)}
-.afv-edit-top{display:flex;gap:16px;align-items:flex-start;margin-bottom:18px}
-.afv-edit-top img{width:110px;height:110px;object-fit:contain;object-position:center;border-radius:12px;background:var(--content-bg,#f8fafc);padding:4px;box-sizing:border-box}
-.afv-edit-meta{font-size:13px;line-height:1.55;color:var(--content-text,#334155)}
+.afv-cta-bar .afv-save{flex:0 0 auto;height:44px;padding:0 30px;font-size:14px}
+/* o card esticava ate o fim da tela (min-height 100%) e o rodape ficava
+   sozinho la embaixo, com um vazio enorme no meio */
+.afv-edit{max-width:560px;margin:0 auto;background:var(--card,#fff);border-radius:16px;border:1px solid var(--card-border,#e2e8f0);padding:18px;display:flex;flex-direction:column;gap:16px}
+.afv-edit-top{display:flex;gap:14px;align-items:center}
+.afv-edit-top img{width:88px;height:88px;flex-shrink:0;object-fit:contain;object-position:center;border-radius:12px;background:var(--content-bg,#f8fafc);padding:4px;box-sizing:border-box;border:1px solid var(--card-border,#e2e8f0)}
+.afv-edit-semfoto{
+  width:88px;height:88px;flex-shrink:0;border-radius:12px;border:1px solid var(--card-border,#e2e8f0);
+  background:var(--content-bg,#f8fafc);display:flex;align-items:center;justify-content:center;
+  color:var(--text2,#94a3b8);font-size:11px;font-weight:700;text-align:center;line-height:1.3;padding:6px;box-sizing:border-box;
+}
+.afv-edit-meta{min-width:0;display:flex;flex-direction:column;gap:3px}
+.afv-edit-nome{font-size:15px;font-weight:800;line-height:1.3;color:var(--content-text,#0f172a)}
+.afv-edit-ref{font-size:11.5px;font-weight:700;color:var(--text2,#64748b)}
+.afv-edit-preco{font-size:14px;font-weight:800;color:var(--afv-accent);margin-top:2px}
+.afv-edit-preco small{font-size:11px;font-weight:700;color:var(--text2,#94a3b8)}
+.afv-edit-sec{display:flex;flex-direction:column;gap:8px;align-items:center;padding:14px 0;border-top:1px solid var(--card-border,#e2e8f0);border-bottom:1px solid var(--card-border,#e2e8f0)}
+.afv-edit-lbl{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--text2,#94a3b8)}
+.afv-obs-wrap{display:flex;flex-direction:column;gap:6px}
 .afv-grade{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:8px 0 18px}
 .afv-gcell{width:78px;background:var(--content-bg,#f8fafc);border:1px solid var(--card-border,#e2e8f0);border-radius:12px;padding:8px 4px;display:flex;flex-direction:column;align-items:center;gap:6px}
 .afv-gbtn{width:36px;height:36px;border:none;border-radius:10px;font-size:18px;font-weight:800;cursor:pointer;line-height:1}
 .afv-gbtn.plus{background:var(--afv-accent);color:#fff}
-.afv-gbtn.minus{background:#fecaca;color:#b91c1c}
+/* o menos era vermelho, cor de acao perigosa, para so tirar uma unidade */
+.afv-gbtn.minus{background:var(--content-bg,#f1f5f9);color:var(--content-text,#334155);border:1px solid var(--card-border,#e2e8f0)}
+.afv-gbtn.minus:hover{border-color:var(--afv-accent);color:var(--afv-accent)}
 .afv-gqtd{font-size:18px;font-weight:900;min-height:24px;color:var(--content-text,#0f172a)}
 .afv-glbl{font-size:11px;font-weight:700;color:var(--text2,#64748b)}
-.afv-qtd-wrap{display:flex;align-items:center;justify-content:center;gap:12px;margin:12px 0}
-.afv-qtd-wrap input{width:84px;height:44px;text-align:center;font-size:18px;font-weight:800;border:1.5px solid var(--card-border,#e2e8f0);border-radius:12px;background:var(--card,#fff);color:var(--content-text,#0f172a)}
-.afv-obs{width:100%;height:42px;border:1.5px solid var(--card-border,#e2e8f0);border-radius:12px;padding:0 12px;font:inherit;margin-top:6px;background:var(--card,#fff);color:var(--content-text,#0f172a);box-sizing:border-box}
+.afv-qtd-wrap{display:flex;align-items:center;justify-content:center;gap:14px;margin:0}
+.afv-qtd-wrap .afv-gbtn{width:44px;height:44px;font-size:20px}
+.afv-qtd-wrap input{width:96px;height:48px;text-align:center;font-size:20px;font-weight:800;border:1.5px solid var(--card-border,#e2e8f0);border-radius:12px;background:var(--card,#fff);color:var(--content-text,#0f172a)}
+.afv-obs{width:100%;height:44px;border:1.5px solid var(--card-border,#e2e8f0);border-radius:12px;padding:0 12px;font:inherit;margin-top:6px;background:var(--card,#fff);color:var(--content-text,#0f172a);box-sizing:border-box}
+.afv-foot-total{display:flex;flex-direction:column;gap:1px;line-height:1.2}
+.afv-foot-total b{font-size:19px;font-weight:800;color:var(--content-text,#0f172a);letter-spacing:-.02em}
+.afv-foot-total span{font-size:11px;font-weight:700;color:var(--text2,#94a3b8)}
 .afv-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:auto;padding-top:16px;border-top:1px solid var(--card-border,#e2e8f0)}
 .afv-save{height:48px;padding:0 22px;border:none;border-radius:12px;background:var(--afv-accent);color:#fff;font:inherit;font-weight:800;cursor:pointer;letter-spacing:.02em;transition:background .15s,transform .12s}
 .afv-save:hover{background:var(--afv-accent-h)}
 .afv-save:active{transform:scale(.98)}
 .afv-save:disabled{opacity:.55;cursor:not-allowed}
 .afv-more{display:block;margin:16px auto;height:40px;padding:0 20px;border-radius:12px;border:1.5px solid var(--card-border,#e2e8f0);background:var(--card,#fff);color:var(--content-text,#334155);font:inherit;font-weight:700;cursor:pointer}
-.afv-cart-list{display:grid;gap:10px;max-width:820px;margin:0 auto}
-.afv-cart-row{display:flex;gap:12px;align-items:center;background:var(--card,#fff);border:1px solid var(--card-border,#e2e8f0);border-radius:14px;padding:12px}
-.afv-cart-row img{width:64px;height:64px;object-fit:contain;object-position:center;border-radius:10px;background:var(--content-bg,#f8fafc);padding:3px;box-sizing:border-box;flex-shrink:0}
-.afv-cart-meta{flex:1;min-width:0;font-size:13px;line-height:1.45;color:var(--content-text,#334155)}
-.afv-cart-meta strong{display:block;font-size:13px}
-.afv-cart-rm{border:none;background:#fee2e2;color:#b91c1c;border-radius:10px;height:36px;padding:0 12px;font:inherit;font-weight:700;cursor:pointer}
+.afv-cart-list{display:grid;gap:12px;max-width:720px;margin:0 auto;width:100%}
+.afv-cart{display:flex;flex-direction:column;gap:0;max-width:720px;margin:0 auto;width:100%;min-height:min(100%,calc(100dvh - 120px))}
+.afv-cart-rows{display:grid;gap:12px;flex:1 1 auto;padding-bottom:8px}
+.afv-cart-row{display:grid;grid-template-columns:72px 1fr auto;gap:12px;align-items:start;background:var(--card,#fff);border:1px solid var(--card-border,#e2e8f0);border-radius:16px;padding:12px;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.afv-cart-thumb{width:72px;height:72px;border-radius:12px;background:var(--content-bg,#f8fafc);border:1px solid var(--card-border,#e2e8f0);overflow:hidden;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.afv-cart-thumb img{width:100%;height:100%;object-fit:contain;object-position:center;padding:4px;box-sizing:border-box}
+.afv-cart-thumb-ph{font-size:22px;opacity:.45;line-height:1}
+.afv-cart-meta{min-width:0;display:flex;flex-direction:column;gap:4px;color:var(--content-text,#334155)}
+.afv-cart-sku{font-size:11px;font-weight:700;color:var(--text2,#64748b);letter-spacing:.02em}
+.afv-cart-name{font-size:13px;font-weight:800;line-height:1.35;color:var(--content-text,#0f172a);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.afv-cart-price-row{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 10px;margin-top:2px}
+.afv-cart-price{font-size:12px;color:var(--text2,#64748b);font-weight:600}
+.afv-cart-line{font-size:15px;font-weight:800;color:var(--content-text,#0f172a);letter-spacing:-.02em}
+.afv-cart-grades{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.afv-cart-gchip{display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:8px;background:var(--content-bg,#f1f5f9);border:1px solid var(--card-border,#e2e8f0);font-size:11px;font-weight:700;color:var(--content-text,#334155);line-height:1.2}
+.afv-cart-gchip i{font-style:normal;color:var(--afv-accent);font-weight:800}
+.afv-cart-rm{width:44px;height:44px;min-width:44px;min-height:44px;border:none;border-radius:12px;background:#fee2e2;color:#b91c1c;font:inherit;font-size:12px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.afv-cart-rm:active{transform:scale(.96)}
+.afv-cart-rm svg{width:18px;height:18px;flex-shrink:0}
+.afv-cart-bar{position:sticky;bottom:0;z-index:6;margin-top:auto;padding:12px 0 calc(10px + env(safe-area-inset-bottom));background:linear-gradient(180deg,transparent 0%,var(--content-bg,#f1f5f9) 18%);display:flex;flex-direction:column;gap:10px}
+.afv-cart-summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-radius:14px;background:var(--card,#fff);border:1px solid var(--card-border,#e2e8f0);box-shadow:0 4px 16px rgba(15,23,42,.06)}
+.afv-cart-summary-meta{display:flex;flex-direction:column;gap:2px;min-width:0}
+.afv-cart-summary-meta span{font-size:12px;font-weight:600;color:var(--text2,#64748b)}
+.afv-cart-summary-meta strong{font-size:13px;font-weight:800;color:var(--content-text,#0f172a)}
+.afv-cart-summary-total{font-size:18px;font-weight:800;color:var(--afv-accent);letter-spacing:-.02em;white-space:nowrap}
+.afv-cart-actions{display:flex;gap:10px;align-items:stretch}
+.afv-cart-btn{min-height:48px;height:48px;border-radius:14px;font:inherit;font-size:14px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0 18px;-webkit-tap-highlight-color:transparent;touch-action:manipulation;transition:background .15s,transform .12s,border-color .15s}
+.afv-cart-btn:active{transform:scale(.98)}
+.afv-cart-btn-ghost{flex:0 0 auto;min-width:108px;border:1.5px solid var(--card-border,#e2e8f0);background:var(--card,#fff);color:var(--content-text,#334155)}
+.afv-cart-btn-ghost:hover{border-color:color-mix(in srgb,var(--afv-accent) 45%,var(--card-border,#e2e8f0));color:var(--afv-accent)}
+.afv-cart-btn-primary{flex:1 1 auto;border:none;background:var(--afv-accent);color:#fff;box-shadow:0 6px 16px color-mix(in srgb,var(--afv-accent) 35%,transparent)}
+.afv-cart-btn-primary:hover{background:var(--afv-accent-h)}
+.afv-cart-foot{display:flex;flex-wrap:nowrap;align-items:center;gap:8px;margin-top:8px;padding-top:0;border:none}
+.afv-cart-foot .afv-chip{flex:0 0 auto;height:40px;min-height:40px;padding:0 14px;width:auto}
+.afv-cart-foot .afv-save{flex:1 1 auto;height:40px;min-height:40px;padding:0 14px;font-size:13px;letter-spacing:0}
 .afv-pre{max-width:560px;margin:0 auto;background:var(--card,#fff);border:1px solid var(--card-border,#e2e8f0);border-radius:16px;padding:20px;display:grid;gap:14px}
 .afv-pre h3{margin:0;font-size:17px;letter-spacing:-.02em;color:var(--content-text,#0f172a)}
 .afv-pre label{font-size:10px;text-transform:uppercase;font-weight:800;color:var(--text2,#64748b);display:block;margin-bottom:4px}
@@ -319,15 +588,37 @@
 .afv-dock-cta:hover{background:var(--afv-accent-h)}
 .afv-toast{position:fixed;bottom:calc(24px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);z-index:2147483646;background:#0f172a;color:#fff;padding:12px 20px;border-radius:999px;font-size:13px;font-weight:700;box-shadow:0 8px 24px rgba(0,0,0,.25);max-width:min(92vw,420px);text-align:center}
 .afv-overlay.has-dock .afv-toast{bottom:calc(96px + env(safe-area-inset-bottom))}
+.afv-busy{display:none;position:absolute;inset:0;z-index:50;align-items:center;justify-content:center;background:rgba(15,23,42,.35);backdrop-filter:blur(2px)}
+.afv-busy-card{display:flex;align-items:center;gap:12px;background:var(--card,#fff);color:var(--content-text,#0f172a);padding:14px 18px;border-radius:14px;box-shadow:0 12px 32px rgba(15,23,42,.2);font-size:13px;font-weight:700}
+.afv-busy-spin{width:18px;height:18px;border:2.5px solid var(--card-border,#e2e8f0);border-top-color:var(--afv-accent);border-radius:50%;animation:afvSpin .7s linear infinite}
+@keyframes afvSpin{to{transform:rotate(360deg)}}
 .afv-toast-err{background:#b91c1c}.afv-toast-warn{background:#b45309}
 @media(max-width:720px){
-  .afv-detalhe{grid-template-columns:1fr}
   .afv-thumbs{flex-direction:row;overflow:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
   .afv-fabs{position:static;transform:none;flex-direction:row;justify-content:center;margin:12px 0 0}
-  .afv-stage{padding-bottom:18px}
-  .afv-cta-bar{position:sticky;bottom:0;left:0;right:0;margin:14px -4px 0;z-index:2}
+  .afv-cta-bar{
+    width:auto;max-width:100%;margin:12px auto 0;padding:6px 6px 6px 12px;gap:10px;
+    border-radius:12px;box-shadow:0 4px 14px rgba(15,23,42,.1);
+    position:sticky;bottom:0;left:auto;right:auto;z-index:2}
+  .afv-cta-bar .afv-save{
+    flex:0 0 auto !important;height:38px;min-height:38px;padding:0 14px;font-size:13px;
+    width:auto !important;max-width:none;letter-spacing:0}
+  .afv-cta-bar .afv-save .afv-lbl-desk{display:none}
+  .afv-cta-bar .afv-save .afv-lbl-mob{display:inline !important}
+  .afv-cta-price{font-size:14px}
+  .afv-cta-price.sem-preco{font-size:11px;max-width:110px}
+  .afv-stage{padding-bottom:12px}
   .afv-tool-btns{justify-content:stretch}
   .afv-chip{flex:1;justify-content:center}
+  .afv-cart-row{grid-template-columns:64px 1fr 44px;gap:10px;padding:12px;border-radius:14px}
+  .afv-cart-thumb{width:64px;height:64px;border-radius:10px}
+  .afv-cart-name{font-size:13px}
+  .afv-cart-line{font-size:16px}
+  .afv-cart-btn{min-height:52px;height:52px;font-size:15px;border-radius:14px}
+  .afv-cart-btn-ghost{min-width:96px}
+  .afv-cart-summary{padding:14px}
+  .afv-cart-summary-total{font-size:20px}
+  .afv-cart-bar{padding-bottom:calc(12px + env(safe-area-inset-bottom))}
   .afv-top-title{font-size:15px;min-width:100px}
   .afv-top-btn{font-size:11px;padding:0 10px;height:36px}
   .afv-top-btn .afv-lbl-desk{display:none}
@@ -336,6 +627,11 @@
   .afv-ref-img{padding:6px}
   .afv-home-hero{padding:14px 16px}
   .afv-grid-col{grid-template-columns:1fr}
+  .afv-edit .afv-foot{gap:8px;padding-top:12px}
+  .afv-edit .afv-foot .afv-save{height:40px;min-height:40px;font-size:13px;padding:0 14px;flex:1}
+  .afv-edit .afv-foot .afv-save .afv-lbl-desk{display:none}
+  .afv-edit .afv-foot .afv-save .afv-lbl-mob{display:inline !important}
+  .afv-edit .afv-foot-total b{font-size:16px}
 }
 @media(min-width:900px){
   .afv-grid-ref{grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:14px}
@@ -350,10 +646,23 @@
       el.remove();
       el = null;
     }
-    if (el) return el;
+    // Sempre atualiza CSS (deploy / hot reload sem recriar o overlay)
+    let stCss = document.getElementById('afvStyles');
+    if (!stCss) {
+      stCss = document.createElement('style');
+      stCss.id = 'afvStyles';
+      document.head.appendChild(stCss);
+    }
+    stCss.textContent = CSS;
+
+    if (el) {
+      el.dataset.msNativeModal = '1';
+      return el;
+    }
     el = document.createElement('div');
     el.id = 'catalogoAfvOverlay';
     el.className = 'afv-overlay' + (opts?.standalone ? ' afv-standalone' : '');
+    el.dataset.msNativeModal = '1';
     el.innerHTML = `
       <div class="afv-main">
         <header class="afv-top">
@@ -397,15 +706,6 @@
       </div>`;
     document.body.appendChild(el);
 
-    if (!document.getElementById('afvStyles')) {
-      const st = document.createElement('style');
-      st.id = 'afvStyles';
-      st.textContent = CSS;
-      document.head.appendChild(st);
-    } else {
-      document.getElementById('afvStyles').textContent = CSS;
-    }
-
     document.getElementById('afvClose').onclick = fechar;
     document.getElementById('afvBack').onclick = voltar;
     document.getElementById('afvBtnCart').onclick = () => { S.view = 'carrinho'; render(); };
@@ -436,6 +736,25 @@
       render();
     };
     document.getElementById('afvBody').addEventListener('scroll', onScroll);
+    // Delegação (capture): no celular é mais confiável que onclick por card
+    document.getElementById('afvBody').addEventListener('click', (e) => {
+      const ref = e.target.closest('.afv-ref');
+      if (ref && document.getElementById('afvBody').contains(ref)) {
+        e.preventDefault();
+        e.stopPropagation();
+        const id = parseInt(ref.dataset.id, 10);
+        if (id) abrirDetalhe(id, ref);
+        return;
+      }
+      const ban = e.target.closest('.afv-banner');
+      if (ban && document.getElementById('afvBody').contains(ban)) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (ban.dataset.tipo === 'colecao') abrirColecao(ban.dataset.id);
+        else if (ban.dataset.tipo === 'fabrica') abrirFabrica(ban.dataset.id, ban.dataset.nome);
+        else if (ban.dataset.tipo === 'tabela') abrirTabela(ban.dataset.id, ban.dataset.nome);
+      }
+    }, true);
     return el;
   }
 
@@ -541,7 +860,20 @@
     const qtd = cartQtd();
     const nItens = S.cart.length;
     const b = document.getElementById('afvBadge');
-    if (b) b.textContent = String(Math.round(qtd) || nItens || 0);
+    if (b) {
+      const pcs = Math.round(qtd) || 0;
+      if (!nItens || pcs <= 0) {
+        b.textContent = '0';
+        b.hidden = true;
+        b.title = '';
+      } else {
+        b.hidden = false;
+        b.textContent = String(pcs);
+        b.title = nItens === 1
+          ? `${pcs} unidade${pcs !== 1 ? 's' : ''} no carrinho`
+          : `${nItens} produtos · ${pcs} unidades`;
+      }
+    }
 
     const ov = document.getElementById('catalogoAfvOverlay');
     const showDock = qtd > 0 && ['colecoes', 'refs', 'detalhe', 'editar'].includes(S.view);
@@ -665,13 +997,11 @@
 
   async function carregarFabricas() {
     try {
-      const d = await apiJson('/api/fornecedores?limit=200&status=A&somente_fabricas=true&lean=1');
+      // showroom=1 → só fábricas com Preferências «Aparece no Showroom»
+      const d = await apiJson('/api/fornecedores?limit=200&status=A&somente_fabricas=true&lean=1&showroom=1');
       S.fabricas = d.fornecedores || d.data || (Array.isArray(d) ? d : []);
     } catch (_) {
-      try {
-        const d2 = await apiJson('/api/lookups/fornecedores');
-        S.fabricas = Array.isArray(d2) ? d2 : [];
-      } catch (e2) { S.fabricas = []; }
+      S.fabricas = [];
     }
   }
 
@@ -721,6 +1051,13 @@
     };
   }
 
+  /** Mãe conta no badge de cores se tem Cor e está disponível (igual ao picker). */
+  function maeContaComoCor(it) {
+    if (!String(it.cor1 || '').trim()) return false;
+    const disp = String(it.disponivel != null ? it.disponivel : 'S').toUpperCase();
+    return disp !== 'N';
+  }
+
   /** Coleção: 1 card por referência (prefere a mãe se estiver na lista). */
   function colapsarItensReferencia(itens) {
     const map = new Map();
@@ -731,17 +1068,17 @@
       const idRef = parseInt(it.id_referencia, 10) || 0;
       const key = idRef > 0 ? idRef : cod;
       if (!key) continue;
+      const isFilho = idRef > 0;
       const existing = map.get(key);
       if (!existing) {
-        it.qtd_cores = idRef > 0 ? 1 : 0;
+        it.qtd_cores = isFilho ? 1 : (maeContaComoCor(it) ? 1 : 0);
         map.set(key, it);
         order.push(key);
-      } else {
+      } else if (isFilho) {
         existing.qtd_cores = (existing.qtd_cores || 0) + 1;
-        if (idRef === 0 && (parseInt(existing.id_referencia, 10) || 0) > 0) {
-          it.qtd_cores = existing.qtd_cores;
-          map.set(key, it);
-        }
+      } else {
+        it.qtd_cores = (existing.qtd_cores || 0) + (maeContaComoCor(it) ? 1 : 0);
+        map.set(key, it);
       }
     }
     return order.map((k) => map.get(k));
@@ -888,6 +1225,7 @@
   }
 
   function render() {
+    limparConfirmResiduais();
     const title = document.getElementById('afvTitle');
     const tools = document.getElementById('afvTools');
     const body = document.getElementById('afvBody');
@@ -913,28 +1251,31 @@
         };
       };
 
-      const colCards = filtrarBusca(S.catalogos, (c) => `${c.nome} ${c.subtitulo || ''} ${c.nome_fornecedor || ''}`).map((c) => {
-        const bg = c.imagem_capa
-          ? `background-image:url('${esc(c.imagem_capa)}')`
-          : `background:${esc(c.cor_fundo || '#1f2937')}`;
-        return `<div class="afv-banner" data-tipo="colecao" data-id="${c.id}" style="${bg}">
-          <div class="afv-banner-lbl">${esc(c.nome)}
-            <span class="afv-banner-sub">${esc(c.subtitulo || (c.qtd_itens || 0) + ' referências')}</span>
-          </div>
-        </div>`;
-      });
-      const fabCards = filtrarBusca(S.fabricas, (f) => `${f.nome || ''} ${f.id}`).slice(0, 12).map((f, i) =>
-        `<div class="afv-banner" data-tipo="fabrica" data-id="${f.id}" data-nome="${esc(f.nome || '')}" style="background:${CORES[i % CORES.length]}">
-          <div class="afv-banner-lbl">${esc(f.nome || ('#' + f.id))}
-            <span class="afv-banner-sub">Catálogo completo da fábrica</span>
-          </div>
-        </div>`);
-      const tabCards = filtrarBusca(S.tabelas, (t) => `${t.descricao || ''} ${t.id}`).slice(0, 8).map((t, i) =>
-        `<div class="afv-banner" data-tipo="tabela" data-id="${t.id}" data-nome="${esc(t.descricao || '')}" style="background:${CORES[(i + 3) % CORES.length]}">
-          <div class="afv-banner-lbl">${esc(t.descricao || ('Tabela ' + t.id))}
-            <span class="afv-banner-sub">Tabela de preço</span>
-          </div>
-        </div>`);
+      const colCards = filtrarBusca(S.catalogos, (c) => `${c.nome} ${c.subtitulo || ''} ${c.nome_fornecedor || ''}`)
+        .map((c) => bannerCard('colecao', {
+          id: c.id,
+          nome: c.nome,
+          sub: c.subtitulo || ((c.qtd_itens || 0) + ' referências'),
+          capa: c.imagem_capa,
+          cor: c.cor_fundo || '#1f2937',
+        }));
+      // o titulo da secao ja diz que sao fabricas: repetir isso em cada card so poluia
+      const fabCards = filtrarBusca(S.fabricas, (f) => `${f.nome || ''} ${f.id}`).slice(0, 12)
+        .map((f, i) => bannerCard('fabrica', {
+          id: f.id,
+          nome: f.nome || ('#' + f.id),
+          sub: '',
+          cor: CORES[i % CORES.length],
+          extra: ` data-nome="${esc(f.nome || '')}"`,
+        }));
+      const tabCards = filtrarBusca(S.tabelas, (t) => `${t.descricao || ''} ${t.id}`).slice(0, 8)
+        .map((t, i) => bannerCard('tabela', {
+          id: t.id,
+          nome: t.descricao || ('Tabela ' + t.id),
+          sub: '',
+          cor: CORES[(i + 3) % CORES.length],
+          extra: ` data-nome="${esc(t.descricao || '')}"`,
+        }));
 
       if (!colCards.length && !fabCards.length && !tabCards.length) {
         body.innerHTML = `<div class="afv-empty">Nenhuma coleção disponível.<br>Cadastre em Comercial → Catálogos Visuais<br>ou use <strong>Catálogo completo</strong> / uma fábrica.</div>`;
@@ -942,15 +1283,37 @@
       }
 
       const nome = userNome();
-      const hero = `<div class="afv-home-hero">
+      let heroOff = false;
+      try { heroOff = localStorage.getItem('afv_hero_off') === '1'; } catch (_) {}
+      const hero = heroOff ? '' : `<div class="afv-home-hero">
         <div class="afv-home-greet">${nome ? `Olá, ${esc(nome.split(' ')[0])}` : 'Showroom'}</div>
-        <div class="afv-home-hint">Mostre as fotos ao cliente, escolha a cor e monte o pedido — o carrinho fica sempre à mão.</div>
+        <div class="afv-home-hint">Mostre as fotos ao cliente, escolha a cor e monte o pedido.</div>
+        <button type="button" class="afv-hero-x" id="afvHeroX" title="Não mostrar mais" aria-label="Dispensar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="13" height="13"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
       </div>`;
-      const sec = (titulo, cards) => cards.length
-        ? `<section class="afv-sec"><h2 class="afv-sec-title">${titulo}</h2><div class="afv-grid-col">${cards.join('')}</div></section>`
-        : '';
-      body.innerHTML = hero + sec('Coleções', colCards) + sec('Fábricas', fabCards) + sec('Tabelas de preço', tabCards);
+      const MAX_LADO_A_LADO = 6;
+      const sec = (titulo, cards) => {
+        if (!cards.length) return '';
+        // limita o que a secao reserva, senao duas secoes medias nunca cabem
+        // na mesma linha; o grid interno se reorganiza dentro do que sobrar
+        const base = cards.length > MAX_LADO_A_LADO
+          ? '100%'
+          : `min(calc(${cards.length} * 222px), 62%)`;
+        return `<section class="afv-sec" style="flex-basis:${base}">
+          <h2 class="afv-sec-title">${titulo}</h2>
+          <div class="afv-grid-col">${cards.join('')}</div>
+        </section>`;
+      };
+      body.innerHTML = hero + `<div class="afv-secoes">`
+        + sec('Coleções', colCards) + sec('Fábricas', fabCards) + sec('Tabelas de preço', tabCards)
+        + `</div>`;
       body.querySelectorAll('.afv-banner').forEach(bindBanner);
+      const heroX = document.getElementById('afvHeroX');
+      if (heroX) heroX.onclick = () => {
+        try { localStorage.setItem('afv_hero_off', '1'); } catch (_) {}
+        heroX.closest('.afv-home-hero')?.remove();
+      };
       return;
     }
 
@@ -988,21 +1351,19 @@
         const nome = it.desc_produto
           ? `<div class="afv-ref-nome">${esc(it.desc_produto)}</div>`
           : '';
-        return `<div class="afv-ref" data-id="${it.cod_produto}">
+        return `<button type="button" class="afv-ref" data-id="${it.cod_produto}" aria-label="Abrir ${esc(it.desc_produto || it.cod_fabricante || it.cod_produto)}">
           <div class="afv-ref-img">${fotoHtml}${badge}</div>
           <div class="afv-ref-body">
             <div class="afv-ref-code">${esc(it.cod_fabricante || it.cod_produto)}</div>
             ${nome}
             ${preco}
           </div>
-        </div>`;
+        </button>`;
       }).join('')}</div>${more}`;
       body.querySelectorAll('.afv-ref-img img').forEach((img) => {
         img.onerror = () => { img.replaceWith(Object.assign(document.createElement('div'), { innerHTML: emptyFoto }).firstChild); };
       });
-      body.querySelectorAll('.afv-ref').forEach((el) => {
-        el.onclick = () => abrirDetalhe(parseInt(el.dataset.id, 10));
-      });
+      // clique via delegação em #afvBody (capture) — evita listener duplicado no celular
       document.getElementById('afvMore')?.addEventListener('click', () => carregarProdutos({ reset: false }));
       return;
     }
@@ -1010,42 +1371,67 @@
     if (S.view === 'detalhe') {
       const p = S.produto;
       const maeCod = S.variacoesMae?.cod_fabricante || S.variacoesMae?.id || p.cod_fabricante || p.cod_produto;
-      title.textContent = 'Ref. ' + maeCod;
-      setSub(p.cor1 ? `Cor: ${p.cor1}` : 'Escolha a cor e adicione ao pedido');
+      const nVar = (S.variacoesCores && S.variacoesCores.length) || 0;
+      // o titulo mostrava so a referencia da mae, e o nome do produto ficava no
+      // meio da tela com outro codigo ao lado: confundia quem estava vendendo
+      title.textContent = p.desc_produto || ('Ref. ' + maeCod);
+      setSub(nVar > 1
+        ? `Ref. ${maeCod} · ${nVar} opções — escolha uma e adicione ao pedido`
+        : `Ref. ${maeCod}`);
       tools.style.display = 'none';
       const imgs = S.imagens.length ? S.imagens : (p.foto_principal ? [p.foto_principal] : []);
       const src = imgs[S.imgIdx] || p.foto_principal || '';
       const favOn = S.favoritos.has(String(p.cod_produto));
+      const rotulos = rotulosDasVariacoes(S.variacoesCores);
       const coresHtml = (S.variacoesCores && S.variacoesCores.length)
-        ? `<div class="afv-cores" id="afvCores" aria-label="Cores disponíveis">${S.variacoesCores.map((c) => {
+        ? `<div class="afv-cores" id="afvCores" aria-label="Opções deste produto">${S.variacoesCores.map((c, i) => {
             const on = parseInt(c.cod_produto, 10) === parseInt(p.cod_produto, 10) ? 'is-on' : '';
-            const lbl = c.cor1 || c.cod_fabricante || ('#' + c.cod_produto);
-            const thumb = c.foto_principal
-              ? `<img src="${esc(c.foto_principal)}" alt="">`
-              : '';
-            return `<button type="button" class="afv-cor-chip ${on}" data-cod="${c.cod_produto}">${thumb}${esc(lbl)}</button>`;
+            const lbl = rotulos[i];
+            const sku = c.cod_fabricante && String(c.cod_fabricante) !== String(lbl)
+              ? `<small>${esc(c.cod_fabricante)}</small>` : '';
+            const thumb = c.foto_principal ? `<img src="${esc(c.foto_principal)}" alt="">` : '';
+            return `<button type="button" class="afv-cor-chip ${on}" data-cod="${c.cod_produto}" title="${esc(c.desc_produto || '')}">${thumb}<span>${esc(lbl)}${sku}</span></button>`;
           }).join('')}</div>`
         : '';
       const corLbl = p.cor1 ? ` · ${p.cor1}` : '';
+
+      // ficha basica na tela: antes so aparecia num toast atras de um icone mudo
+      const multi = parseInt(p.multiplo_venda, 10) || 1;
+      const fichaItens = [];
+      if (p.unidade) fichaItens.push(esc(p.unidade));
+      if (multi > 1) fichaItens.push(`Embalagem: ${multi}`);
+      if (p.cod_barras) fichaItens.push(esc(p.cod_barras));
+      const fichaHtml = fichaItens.length
+        ? `<div class="afv-ficha">${fichaItens.map((f) => `<span>${f}</span>`).join('')}</div>`
+        : '';
+
+      // preco 0 aparecia como "R$ 0,00", parecendo de graca. Quase sempre e a
+      // tabela de preco que nao foi escolhida — o cadastro pode nao ter valor.
+      const temPreco = (parseFloat(p.vlr_venda) || 0) > 0;
+      const precoHtml = temPreco
+        ? `<div class="afv-cta-price">${money(p.vlr_venda)}</div>`
+        : `<div class="afv-cta-price sem-preco">Sem preço nesta tabela</div>`;
+
       body.innerHTML = `<div class="afv-detalhe">
-        <div class="afv-thumbs">
-          <button type="button" class="afv-icon-btn" id="afvThumbUp" title="Anterior">▲</button>
+        ${imgs.length > 1 ? `<div class="afv-thumbs">
+          ${imgs.length > 5 ? `<button type="button" class="afv-icon-btn" id="afvThumbUp" title="Anterior">‹</button>` : ''}
           ${imgs.map((u, i) => `<button type="button" class="afv-thumb ${i === S.imgIdx ? 'is-on' : ''}" data-i="${i}">
             <img src="${esc(u)}" alt="">
-          </button>`).join('') || '<div class="afv-empty" style="padding:8px">Sem foto</div>'}
-          <button type="button" class="afv-icon-btn" id="afvThumbDn" title="Próxima">▼</button>
-        </div>
+          </button>`).join('')}
+          ${imgs.length > 5 ? `<button type="button" class="afv-icon-btn" id="afvThumbDn" title="Próxima">›</button>` : ''}
+        </div>` : ''}
         <div class="afv-stage">
-          <div class="afv-stage-nome">${esc(p.cod_fabricante || p.cod_produto)}${esc(corLbl)} — ${esc(p.desc_produto || '')}</div>
+          <div class="afv-stage-nome">${esc(p.desc_produto || '')}${esc(corLbl)}</div>
+          <div class="afv-stage-sku">${esc(p.cod_fabricante || p.cod_produto)}</div>
           ${coresHtml}
           ${src ? `<img class="afv-stage-img" src="${esc(src)}" alt="">` : '<div class="afv-empty">Sem foto deste produto</div>'}
+          ${fichaHtml}
           <div class="afv-fabs">
-            <button type="button" class="afv-fab heart ${favOn ? 'is-on' : ''}" id="afvFav" title="Favorito">${ico('heart')}</button>
-            <button type="button" class="afv-fab" id="afvInfo" title="Detalhes">${ico('list')}</button>
+            <button type="button" class="afv-fab heart ${favOn ? 'is-on' : ''}" id="afvFav" title="${favOn ? 'Remover dos favoritos' : 'Favoritar'}">${ico('heart')}</button>
           </div>
           <div class="afv-cta-bar">
-            <div class="afv-cta-price">${money(p.vlr_venda)}</div>
-            <button type="button" class="afv-save" id="afvCart">Adicionar ao pedido</button>
+            ${precoHtml}
+            <button type="button" class="afv-save" id="afvCart"><span class="afv-lbl-desk">Adicionar ao pedido</span><span class="afv-lbl-mob" style="display:none">Adicionar</span></button>
           </div>
         </div>
       </div>`;
@@ -1057,17 +1443,18 @@
         saveFav();
         render();
       };
-      document.getElementById('afvInfo').onclick = () => toast((p.desc_produto || '') + ' · ' + money(p.vlr_venda), 'ok');
       body.querySelectorAll('.afv-cor-chip').forEach((btn) => {
         btn.onclick = () => selecionarCorSku(parseInt(btn.dataset.cod, 10));
       });
       body.querySelectorAll('.afv-thumb').forEach((t) => {
         t.onclick = () => { S.imgIdx = parseInt(t.dataset.i, 10) || 0; render(); };
       });
-      document.getElementById('afvThumbUp').onclick = () => {
+      const thumbUp = document.getElementById('afvThumbUp');
+      if (thumbUp) thumbUp.onclick = () => {
         if (imgs.length) { S.imgIdx = (S.imgIdx - 1 + imgs.length) % imgs.length; render(); }
       };
-      document.getElementById('afvThumbDn').onclick = () => {
+      const thumbDn = document.getElementById('afvThumbDn');
+      if (thumbDn) thumbDn.onclick = () => {
         if (imgs.length) { S.imgIdx = (S.imgIdx + 1) % imgs.length; render(); }
       };
       return;
@@ -1078,10 +1465,24 @@
       title.textContent = 'Quantidade';
       setSub(p.cod_fabricante || p.desc_produto || 'Defina a quantidade');
       tools.style.display = 'none';
-      const temGrade = !!(S.habilitaGrade === 'S' && p.tipograde && S.gradeItens.length);
+      const temGrade = !!(S.habilitaGrade === 'S' && (S.gradeIdSelecionada || p.tipograde) && S.gradeItens.length);
       let mid = '';
       if (temGrade) {
-        mid = `<div class="afv-grade">${S.gradeItens.map((g) => {
+        const escolhaHtml = (S.gradesDisponiveis.length > 1)
+          ? `<div style="margin-bottom:10px">
+              <span class="afv-edit-lbl">Escolher grade</span>
+              <select id="afvEscolhaGrade" style="width:100%;height:34px;margin-top:4px;font-weight:700">
+                ${S.gradesDisponiveis.map((g) => {
+                  const lbl = (g.nome || ('Grade #' + g.id))
+                    + (g.padrao ? ' (padrão)' : '')
+                    + (g.modo_grade === 'F' ? ' · fechada' : '');
+                  const sel = String(g.id) === String(S.gradeIdSelecionada) ? ' selected' : '';
+                  return `<option value="${g.id}"${sel}>${esc(lbl)}</option>`;
+                }).join('')}
+              </select>
+            </div>`
+          : '';
+        mid = escolhaHtml + `<div class="afv-grade">${S.gradeItens.map((g) => {
           const q = S.gradeQtd[g.id] || 0;
           return `<div class="afv-gcell">
             <button type="button" class="afv-gbtn plus" data-gid="${g.id}" data-d="1">+</button>
@@ -1101,24 +1502,47 @@
         ? S.gradeItens.reduce((s, g) => s + (parseFloat(S.gradeQtd[g.id]) || 0), 0)
         : (parseFloat(S.qtdSimples) || 0);
       const totalVlr = totalQtd * (parseFloat(p.vlr_venda) || 0);
+      const un = p.unidade || 'un';
+      const temPrecoEdit = (parseFloat(p.vlr_venda) || 0) > 0;
+      const fotoEdit = p.foto_principal
+        ? `<img src="${esc(p.foto_principal)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'afv-edit-semfoto',textContent:'sem foto'}))">`
+        : `<div class="afv-edit-semfoto">sem foto</div>`;
       body.innerHTML = `<div class="afv-edit">
         <div class="afv-edit-top">
-          <img src="${esc(p.foto_principal || '')}" alt="" onerror="this.style.display='none'">
+          ${fotoEdit}
           <div class="afv-edit-meta">
-            <div><strong>Ref.:</strong> ${esc(p.cod_fabricante || p.cod_produto)}</div>
-            <div>${esc(p.desc_produto || '')}</div>
-            <div><strong>Preço:</strong> ${money(p.vlr_venda)}</div>
+            <div class="afv-edit-nome">${esc(p.desc_produto || '')}</div>
+            <div class="afv-edit-ref">Ref. ${esc(p.cod_fabricante || p.cod_produto)} · ${esc(un)}</div>
+            <div class="afv-edit-preco">${temPrecoEdit
+              ? `${money(p.vlr_venda)} <small>por ${esc(un)}</small>`
+              : '<small style="color:#b45309">Sem preço nesta tabela</small>'}</div>
           </div>
         </div>
-        ${mid}
-        <label style="font-size:10px;font-weight:800;text-transform:uppercase;color:#64748b">Observação</label>
-        <input type="text" class="afv-obs" id="afvObs" maxlength="100" value="${esc(S.obsItem)}" placeholder="Opcional">
+        <div class="afv-edit-sec">
+          <span class="afv-edit-lbl">${temGrade ? 'Quantidade por tamanho' : 'Quantidade'}</span>
+          ${mid}
+        </div>
+        <div class="afv-obs-wrap">
+          <span class="afv-edit-lbl">Observação (opcional)</span>
+          <input type="text" class="afv-obs" id="afvObs" maxlength="100" value="${esc(S.obsItem)}" placeholder="Ex.: entregar junto com o pedido anterior">
+        </div>
         <div class="afv-foot">
-          <div><strong>Total:</strong> ${money(totalVlr)} &nbsp;·&nbsp; <strong>Itens:</strong> ${totalQtd}</div>
-          <button type="button" class="afv-save" id="afvSalvar">Adicionar ao pedido</button>
+          <div class="afv-foot-total">
+            <b>${money(totalVlr)}</b>
+            <span>${totalQtd} ${totalQtd === 1 ? 'item' : 'itens'}</span>
+          </div>
+          <button type="button" class="afv-save" id="afvSalvar"><span class="afv-lbl-desk">Adicionar ao pedido</span><span class="afv-lbl-mob" style="display:none">Adicionar</span></button>
         </div>
       </div>`;
       if (temGrade) {
+        const selG = document.getElementById('afvEscolhaGrade');
+        if (selG) {
+          selG.onchange = async () => {
+            const id = parseInt(selG.value, 10) || 0;
+            if (id) await carregarGradeShowroom(id);
+            render();
+          };
+        }
         body.querySelectorAll('.afv-gbtn[data-gid]').forEach((btn) => {
           btn.onclick = () => {
             const id = parseInt(btn.dataset.gid, 10);
@@ -1147,38 +1571,46 @@
         document.getElementById('afvVoltarHome')?.addEventListener('click', () => { S.view = 'colecoes'; render(); });
         return;
       }
-      body.innerHTML = `<div class="afv-cart-list">
-        ${S.cart.map((it, idx) => `
-          <div class="afv-cart-row">
-            <img src="${esc(it.foto_principal || '')}" alt="" onerror="this.style.display='none'">
-            <div class="afv-cart-meta">
-              <strong>${esc(it.cod_fabricante || it.cod_produto)} — ${esc(it.desc_produto || '')}</strong>
-              <div>${it.quantidade} × ${money(it.vlr_venda)} = <strong>${money((it.quantidade || 0) * (it.vlr_venda || 0))}</strong></div>
-              ${it.grade_resumo ? `<div style="font-size:11px;color:var(--text2,#64748b)">${esc(it.grade_resumo)}</div>` : ''}
-            </div>
-            <button type="button" class="afv-cart-rm" data-idx="${idx}">Remover</button>
-          </div>`).join('')}
-        <div class="afv-resumo">
-          <strong>${S.cart.length}</strong> produto(s) · Qtd total <strong>${cartQtd()}</strong> · Total <strong>${money(cartTotal())}</strong>
+      const nItens = S.cart.length;
+      const pcs = Math.round(cartQtd()) || 0;
+      body.innerHTML = `<div class="afv-cart">
+        <div class="afv-cart-rows">
+          ${S.cart.map((it, idx) => cartRowHtml(it, idx)).join('')}
         </div>
-        <div class="afv-foot" style="border:none;padding-top:0">
-          <button type="button" class="afv-chip" id="afvLimparCart">Limpar</button>
-          <button type="button" class="afv-save" id="afvIrPre">Continuar → Pré-pedido</button>
+        <div class="afv-cart-bar">
+          <div class="afv-cart-summary">
+            <div class="afv-cart-summary-meta">
+              <span>${nItens} produto${nItens !== 1 ? 's' : ''} · ${pcs} un.</span>
+              <strong>Total do carrinho</strong>
+            </div>
+            <div class="afv-cart-summary-total">${money(cartTotal())}</div>
+          </div>
+          <div class="afv-cart-actions">
+            <button type="button" class="afv-cart-btn afv-cart-btn-ghost" id="afvLimparCart">Limpar</button>
+            <button type="button" class="afv-cart-btn afv-cart-btn-primary" id="afvIrPre">Continuar</button>
+          </div>
         </div>
       </div>`;
       body.querySelectorAll('.afv-cart-rm').forEach((btn) => {
         btn.onclick = () => {
+          limparConfirmResiduais();
           S.cart.splice(parseInt(btn.dataset.idx, 10), 1);
           saveCart();
           render();
         };
       });
-      document.getElementById('afvLimparCart').onclick = () => {
-        S.cart = [];
-        saveCart();
+      const limparBtn = document.getElementById('afvLimparCart');
+      limparBtn.onclick = () => {
+        limparConfirmResiduais();
+        if (!S.cart.length) {
+          toast('Carrinho já está vazio', 'ok');
+          return;
+        }
+        limparCarrinhoPersistido();
+        toast('Carrinho limpo', 'ok');
         render();
       };
-      document.getElementById('afvIrPre').onclick = () => { S.view = 'prepedido'; render(); };
+      document.getElementById('afvIrPre').onclick = () => { limparConfirmResiduais(); S.view = 'prepedido'; render(); };
       return;
     }
 
@@ -1398,32 +1830,159 @@
     } catch (_) {}
   }
 
-  async function abrirDetalhe(cod) {
-    const p = S.itens.find((it) => parseInt(it.cod_produto, 10) === cod);
-    if (!p) return;
-    S.produto = p;
-    S.variacoesCores = [];
-    S.variacoesMae = null;
-    S.imgIdx = 0;
-    S.imagens = p.foto_principal ? [p.foto_principal] : [];
-    S.view = 'detalhe';
-    render();
-    await carregarImagensProduto(cod);
-    if (S.view === 'detalhe') render();
+  let _abrindoDetalhe = false;
+
+  function setAfvBusy(on, msg) {
+    const root = document.querySelector('.afv-overlay.show') || document.querySelector('.afv-overlay');
+    if (!root) return;
+    let busy = document.getElementById('afvBusy');
+    if (on) {
+      if (!busy) {
+        busy = document.createElement('div');
+        busy.id = 'afvBusy';
+        busy.className = 'afv-busy';
+        busy.innerHTML = '<div class="afv-busy-card"><div class="afv-busy-spin"></div><span id="afvBusyTxt">Abrindo…</span></div>';
+        root.appendChild(busy);
+      }
+      const txt = document.getElementById('afvBusyTxt');
+      if (txt) txt.textContent = msg || 'Abrindo…';
+      busy.style.display = 'flex';
+    } else if (busy) {
+      busy.style.display = 'none';
+    }
+  }
+
+  async function abrirDetalhe(cod, cardEl) {
+    if (_abrindoDetalhe) return;
+    _abrindoDetalhe = true;
+    const limparUi = () => {
+      _abrindoDetalhe = false;
+      setAfvBusy(false);
+      document.querySelectorAll('.afv-ref.is-opening').forEach((el) => el.classList.remove('is-opening'));
+    };
     try {
-      const g = await apiJson('/api/produtos/' + cod + '/variacoes');
-      const cores = g.cores || [];
-      if (cores.length) {
-        S.variacoesMae = g.mae || null;
-        S.variacoesCores = cores.map((c) => normItem(c, p.cod_fornecedor));
-        // Se abriu a mãe e há cores, seleciona a 1ª cor como SKU pedível padrão
-        if (g.papel === 'mae' && S.variacoesCores[0]) {
-          await selecionarCorSku(S.variacoesCores[0].cod_produto, { silent: true });
-        } else if (S.view === 'detalhe') {
-          render();
+      const p = S.itens.find((it) => parseInt(it.cod_produto, 10) === cod);
+      if (!p) return;
+      if (cardEl) cardEl.classList.add('is-opening');
+      setAfvBusy(true, 'Abrindo cores…');
+
+      // Referência com várias cores: abre o picker por cima do Showroom (sem piscar detalhe e voltar).
+      const temCoresBadge = (parseInt(p.qtd_cores, 10) || 0) > 0
+        || String(p.agrupa_cores || '').toUpperCase() === 'S';
+      if (temCoresBadge && typeof ProdutoCoresPicker !== 'undefined') {
+        try {
+          const g = await Promise.race([
+            apiJson('/api/produtos/' + cod + '/variacoes'),
+            new Promise((_, rej) => setTimeout(() => rej(new Error('timeout cores')), 12000)),
+          ]);
+          const cores = g.cores || [];
+          const mae = g.mae || (g.papel === 'mae' ? g.eu : null) || p;
+          if ((g.papel === 'mae' || cores.length > 0) && cores.length) {
+            const coresNorm = cores.map((c) => normItem(c, p.cod_fornecedor));
+            S.variacoesMae = mae;
+            S.variacoesCores = coresNorm;
+            setAfvBusy(false);
+            const opened = await ProdutoCoresPicker.open({
+              grupo: {
+                papel: 'mae',
+                mae: { ...normItem(mae, p.cod_fornecedor), id: mae.id || mae.cod_produto || mae.ID || cod },
+                cores: coresNorm.map((c) => ({
+                  ...c,
+                  id: c.cod_produto,
+                  descricao: c.desc_produto,
+                })),
+              },
+              formatPreco: money,
+              okTexto: 'Adicionar ao carrinho',
+              titulo: 'Escolher cores',
+              habilitaGrade: S.habilitaGrade,
+              fetchGrade: async (idGrade) => apiJson('/api/pedidos/grade/' + idGrade),
+              fetchGradesProduto: async (prodId) => apiJson('/api/produtos/' + prodId + '/grades'),
+              onConfirm: async (selecoes) => {
+                let adicionados = 0;
+                for (const s of selecoes) {
+                  const codCor = parseInt(s.cod_produto, 10);
+                  await selecionarCorSku(codCor, { silent: true });
+                  // Garante o SKU da cor (no celular a busca de preço pode falhar e o add sumia)
+                  if (!S.produto || parseInt(S.produto.cod_produto, 10) !== codCor) {
+                    const fromVar = S.variacoesCores.find((c) => parseInt(c.cod_produto, 10) === codCor);
+                    const fromSel = s.prod
+                      ? normItem({ ...s.prod, cod_produto: codCor, id: codCor }, p.cod_fornecedor)
+                      : null;
+                    if (fromVar || fromSel) S.produto = fromVar || fromSel;
+                  }
+                  if (!S.produto || parseInt(S.produto.cod_produto, 10) !== codCor) continue;
+
+                  if (s.grade_qtd && s.grade_qtd.length) {
+                    S.gradeIdSelecionada = s.id_grade || null;
+                    S.gradeItens = s.grade_qtd.map((g) => ({
+                      id: g.id_descricao_grade,
+                      sequencial: g.sequencial,
+                      nome: g.nome_grade,
+                    }));
+                    S.gradeQtd = {};
+                    s.grade_qtd.forEach((g) => {
+                      S.gradeQtd[g.id_descricao_grade] = parseFloat(g.quantidade) || 0;
+                    });
+                    S.qtdSimples = s.qtd;
+                    // força caminho de grade no add (mesmo se tipograde do SKU vier vazio)
+                    if (s.id_grade) S.produto.tipograde = s.id_grade;
+                  } else {
+                    S.qtdSimples = s.qtd;
+                    S.gradeQtd = {};
+                    S.gradeItens = [];
+                    S.gradeIdSelecionada = null;
+                  }
+                  S.obsItem = '';
+                  const antes = S.cart.length;
+                  adicionarAoCarrinho({ quiet: true });
+                  if (S.cart.length > antes || S.cart.some((c) => parseInt(c.cod_produto, 10) === codCor)) {
+                    adicionados += 1;
+                  }
+                }
+                if (adicionados > 0) {
+                  toast(adicionados === 1 ? '1 item adicionado' : `${adicionados} itens adicionados`, 'ok');
+                } else {
+                  toast('Não foi possível adicionar ao carrinho. Tente de novo.', 'err');
+                }
+                S.view = 'refs';
+                S.produto = null;
+                render();
+              },
+            });
+            if (opened) return; // fica na lista de refs; picker por cima
+          }
+        } catch (err) {
+          console.warn('[showroom] cores', err);
         }
       }
-    } catch (_) {}
+
+      setAfvBusy(false);
+      S.produto = p;
+      S.variacoesCores = [];
+      S.variacoesMae = null;
+      S.imgIdx = 0;
+      S.imagens = p.foto_principal ? [p.foto_principal] : [];
+      S.view = 'detalhe';
+      render();
+      await carregarImagensProduto(cod);
+      if (S.view === 'detalhe') render();
+      try {
+        const g = await apiJson('/api/produtos/' + cod + '/variacoes');
+        const cores = g.cores || [];
+        if (cores.length) {
+          S.variacoesMae = g.mae || null;
+          S.variacoesCores = cores.map((c) => normItem(c, p.cod_fornecedor));
+          if (g.papel === 'mae' && S.variacoesCores[0]) {
+            await selecionarCorSku(S.variacoesCores[0].cod_produto, { silent: true });
+          } else if (S.view === 'detalhe') {
+            render();
+          }
+        }
+      } catch (_) {}
+    } finally {
+      limparUi();
+    }
   }
 
   /**
@@ -1465,30 +2024,57 @@
     if (!silent) toast((next.cor1 || next.cod_fabricante || 'Cor') + ' selecionada', 'ok');
   }
 
+  async function carregarGradeShowroom(idGrade) {
+    S.gradeIdSelecionada = idGrade || null;
+    S.gradeItens = [];
+    S.gradeQtd = {};
+    if (!idGrade) return;
+    try {
+      const d = await apiJson('/api/pedidos/grade/' + idGrade);
+      S.gradeItens = d.itens || [];
+      S.gradeItens.forEach((g) => { S.gradeQtd[g.id] = 0; });
+      if (typeof SysRepGradePack !== 'undefined') {
+        SysRepGradePack.aplicarSugestaoPackFechada(S.gradeItens, d.modo_grade, S.gradeQtd);
+      }
+    } catch (_) {
+      S.gradeItens = [];
+    }
+  }
+
   async function abrirEditar() {
     const p = S.produto;
     if (!p) return;
     S.obsItem = '';
     S.gradeItens = [];
     S.gradeQtd = {};
+    S.gradesDisponiveis = [];
+    S.gradeIdSelecionada = null;
     const mv = parseInt(p.multiplo_venda, 10) || 1;
     const qmin = parseInt(p.qtd_minima_pedido, 10) || 0;
     S.qtdSimples = Math.max(mv, qmin, 1);
     if (S.habilitaGrade === 'S' && p.tipograde) {
       try {
-        const d = await apiJson('/api/pedidos/grade/' + p.tipograde);
-        S.gradeItens = d.itens || [];
-        S.gradeItens.forEach((g) => { S.gradeQtd[g.id] = 0; });
-      } catch (_) { S.gradeItens = []; }
+        const gd = await apiJson('/api/produtos/' + (p.cod_produto || p.id) + '/grades');
+        S.gradesDisponiveis = gd.grades || [];
+      } catch (_) {
+        S.gradesDisponiveis = [];
+      }
+      if (!S.gradesDisponiveis.length) {
+        S.gradesDisponiveis = [{ id: parseInt(p.tipograde, 10), nome: p.tipoprodutograde || '', padrao: true }];
+      }
+      const padrao = S.gradesDisponiveis.find((g) => g.padrao) || S.gradesDisponiveis[0];
+      await carregarGradeShowroom(padrao?.id || p.tipograde);
     }
     S.view = 'editar';
     render();
   }
 
-  function adicionarAoCarrinho() {
+  function adicionarAoCarrinho(opts = {}) {
     const p = S.produto;
     if (!p) return;
-    const temGrade = !!(S.habilitaGrade === 'S' && p.tipograde && S.gradeItens.length);
+    const idGradeUsar = S.gradeIdSelecionada || p.tipograde;
+    const gradeLigada = S.habilitaGrade === true || String(S.habilitaGrade || '').toUpperCase() === 'S';
+    const temGrade = !!(gradeLigada && idGradeUsar && S.gradeItens.length);
     let qtd = 0;
     let grade_qtd = [];
     let grade_resumo = '';
@@ -1515,21 +2101,26 @@
       if (f) nomeForn = f.nome || '';
     }
     const embIni = embalagemDoProduto(p);
+    const maeFab = String(S.variacoesMae?.cod_fabricante || p.cod_fabricante_mae || '').trim();
     const line = {
       cod_produto: p.cod_produto,
       cod_fabricante: p.cod_fabricante,
+      cod_fabricante_mae: maeFab,
+      id_referencia: parseInt(p.id_referencia, 10) || null,
       desc_produto: p.desc_produto,
       unidade: p.unidade,
-      tipograde: p.tipograde,
+      tipograde: idGradeUsar,
       tipoprodutograde: p.tipoprodutograde,
       foto_principal: p.foto_principal,
       vlr_venda: p.vlr_venda,
       quantidade: qtd,
       grade_qtd,
       grade_resumo,
-      id_grade: temGrade ? p.tipograde : null,
-      tipo_grade: temGrade ? String(p.tipograde) : null,
+      id_grade: temGrade ? idGradeUsar : null,
+      tipo_grade: temGrade ? String(idGradeUsar) : null,
       obsitem: (S.obsItem || '').slice(0, 100),
+      cor1: p.cor1 || '',
+      cores_qt: p.cor1 || '',
       cod_fornecedor: forn,
       nome_fornecedor: nomeForn,
       multiplo_venda: p.multiplo_venda,
@@ -1548,10 +2139,12 @@
       S.cart.push(line);
     }
     saveCart();
-    toast('Adicionado ao carrinho', 'ok');
-    S.view = 'refs';
-    S.produto = null;
-    render();
+    if (!opts.quiet) toast('Adicionado ao carrinho', 'ok');
+    if (!opts.quiet) {
+      S.view = 'refs';
+      S.produto = null;
+      render();
+    }
   }
 
   async function resolverFornecedorItem(it) {
@@ -1657,10 +2250,14 @@
             tipo_grade: i.tipo_grade || null,
             grade_qtd: i.grade_qtd || [],
             obsitem: i.obsitem || '',
+            cores_qt: i.cores_qt || i.cor1 || '',
+            cor1: i.cor1 || '',
             cod_fornecedor: codForn,
           };
         });
 
+        const condicao = S.pre.condicao_pagto || '';
+        const forma = S.pre.forma_pagto || 'BOLETO';
         const body = {
           pedido: {
             data_abertura: hojeIso(),
@@ -1674,9 +2271,9 @@
             id_tipopedido: S.pre.id_tipopedido || null,
             tipo_pedido: S.pre.tipo_pedido || 'PEDIDO',
             id_condicaopagto: S.pre.id_condicaopagto || null,
-            condicao_pagto: S.pre.condicao_pagto || '',
-            forma_pagto: S.pre.forma_pagto || 'BOLETO',
-            prazo_pagto: S.pre.condicao_pagto || '',
+            condicao_pagto: condicao,
+            forma_pagto: forma,
+            prazo_pagto: condicao,
             situacao_pedido: 'PENDENTE',
             status: 'PENDENTE',
             vlrsubtotal: vlrSubR,
@@ -1694,7 +2291,12 @@
             obs: (S.pre.obs || '').trim() || 'Pré-pedido Showroom',
           },
           itens: itensBody,
-          parcelas: [],
+          parcelas: [{
+            vencimento: hojeIso(),
+            valor: vlrSubR,
+            forma_pagto: forma,
+            desconto: 0,
+          }],
         };
 
         const r = await apiJson('/api/pedidos', { method: 'POST', body: JSON.stringify(body) });
@@ -1703,7 +2305,7 @@
 
       S.lastPedidos = criados;
       S.cart = [];
-      saveCart();
+      limparCarrinhoPersistido();
       S.view = 'sucesso';
       render();
       toast('Pedido(s) pendente(s) criado(s)', 'ok');

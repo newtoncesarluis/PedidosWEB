@@ -694,6 +694,9 @@
         const d = await apiJson('/api/pedidos/grade/' + p.tipograde);
         STATE.gradeItens = d.itens || [];
         STATE.gradeItens.forEach((g) => { STATE.gradeQtd[g.id] = 0; });
+        if (typeof SysRepGradePack !== 'undefined') {
+          SysRepGradePack.aplicarSugestaoPackFechada(STATE.gradeItens, d.modo_grade, STATE.gradeQtd);
+        }
       } catch (_) {
         STATE.gradeItens = [];
       }
@@ -741,6 +744,8 @@
       cod_produto: p.cod_produto,
       id: p.cod_produto,
       cod_fabricante: p.cod_fabricante,
+      cod_fabricante_mae: String(p.cod_fabricante_mae || p.cod_fabricante_referencia || '').trim(),
+      id_referencia: parseInt(p.id_referencia, 10) || null,
       descricao: p.desc_produto,
       desc_produto: p.desc_produto,
       unidade: p.unidade,

@@ -29,10 +29,28 @@
   .card-cover::after{content:'';position:absolute;inset:0;background:linear-gradient(transparent 40%,rgba(0,0,0,.65))}
   .card-cover-title{position:absolute;left:12px;right:12px;bottom:10px;color:#fff;font-weight:800;font-size:15px;z-index:1;text-shadow:0 1px 4px rgba(0,0,0,.5)}
   .card-body{padding:12px 14px}
+  .card-actions{display:flex;gap:8px;margin-top:10px}
+  .card-actions .btn-apresentar{flex:1;height:32px;border:none;border-radius:8px;background:#0284c7;color:#fff;font:inherit;font-size:11px;font-weight:800;cursor:pointer}
+  .card-actions .btn-apresentar:active{opacity:.85}
   .meta{font-size:12px;color:var(--text2);line-height:1.45}
   .badge{font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent)}
   .badge.off{background:rgba(148,163,184,.15);color:var(--text2)}
   .empty{padding:40px;text-align:center;color:var(--text2);font-size:13px}
+  .workflow{
+    margin:0 18px 14px;padding:14px 16px;border-radius:12px;
+    background:linear-gradient(135deg,rgba(14,165,233,.08),rgba(12,74,138,.06));
+    border:1px solid rgba(14,165,233,.25);
+    display:flex;flex-wrap:wrap;gap:12px;align-items:center;
+  }
+  .workflow-steps{flex:1;min-width:200px;font-size:12px;color:var(--text2);line-height:1.5}
+  .workflow-steps strong{color:var(--text);display:block;font-size:13px;margin-bottom:4px}
+  .workflow-actions{display:flex;flex-wrap:wrap;gap:8px}
+  .btn-workflow{height:36px;padding:0 14px;border-radius:10px;border:none;font:inherit;font-size:12px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+  .btn-workflow.primary{background:#0284c7;color:#fff}
+  .btn-workflow.secondary{background:var(--card);color:var(--text);border:1.5px solid var(--border)}
+  .foto-badge-warn{display:inline-block;font-size:10px;font-weight:800;padding:2px 7px;border-radius:999px;background:#fef2f2;color:#dc2626;margin-left:6px}
+  .foto-stats{font-size:11px;color:var(--text2);margin:6px 0 10px;padding:8px 10px;border-radius:8px;background:var(--bg);border:1px solid var(--border)}
+  .foto-stats.warn{border-color:#fecaca;background:#fef2f2;color:#991b1b}
 
   /* Modal largo — duas colunas */
   .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;display:none;align-items:stretch;justify-content:center;padding:12px}
@@ -118,6 +136,18 @@
       </select>
     </div>
     <button type="button" class="btn btn-primary" id="btnNovo">+ Novo catálogo</button>
+    <button type="button" class="btn btn-secondary" id="btnApresentacaoGeral" title="Abrir índice para visita comercial">▶ Apresentação</button>
+  </div>
+  <div class="workflow" id="workflowBar">
+    <div class="workflow-steps">
+      <strong>Montar catálogo para visita</strong>
+      1) Importe fotos (arquivo = código fabricante) · 2) Gere linhas pela fábrica ou inclua em lote · 3) Apresentar no tablet
+    </div>
+    <div class="workflow-actions">
+      <button type="button" class="btn-workflow secondary" id="btnIrImportFotos">📷 Importar fotos</button>
+      <button type="button" class="btn-workflow secondary" id="btnGerarGrupos">⚡ Gerar linhas da fábrica</button>
+      <button type="button" class="btn-workflow primary" id="btnApresentacaoBar">▶ Apresentar</button>
+    </div>
   </div>
   <div class="content">
     <div class="grid" id="lista"><div class="empty">Carregando…</div></div>
@@ -171,6 +201,7 @@
       </div>
       <div class="modal-right">
         <div class="prod-panel-title">Produtos do catálogo</div>
+        <div class="foto-stats" id="fotoStats" style="display:none"></div>
         <div class="kit-search-wrap">
           <input type="search" id="kit_busca" placeholder="Adicionar um a um: nome ou referência…" autocomplete="off">
           <div class="kit-ac" id="kit_ac"></div>
@@ -232,6 +263,7 @@
     </div>
     <div class="modal-foot">
       <button type="button" class="btn btn-danger btn-sm" id="btnExcluir" style="display:none;margin-right:auto">Excluir</button>
+      <button type="button" class="btn btn-secondary" id="btnApresentar" style="display:none">▶ Apresentar</button>
       <button type="button" class="btn btn-secondary" id="btnFechar">Cancelar</button>
       <button type="button" class="btn btn-primary" id="btnSalvar">Salvar</button>
     </div>
@@ -254,6 +286,86 @@ async function api(url, opts = {}) {
 }
 function esc(s) {
   return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function abrirApresentacao(id) {
+  if (!id) return;
+  const url = '/pages/catalogo-apresentacao.html?id=' + encodeURIComponent(id);
+  try {
+    if (window.parent && window.parent !== window && typeof window.parent.openTab === 'function') {
+      window.parent.openTab(url, 'Apresentação — Catálogo');
+      return;
+    }
+  } catch (_) {}
+  window.open(url, '_blank', 'noopener');
+}
+
+function abrirApresentacaoGeral() {
+  const url = '/pages/catalogo-apresentacao.html';
+  try {
+    if (window.parent && window.parent !== window && typeof window.parent.openTab === 'function') {
+      window.parent.openTab(url, 'Apresentação — Catálogo');
+      return;
+    }
+  } catch (_) {}
+  window.open(url, '_blank', 'noopener');
+}
+
+function irImportarFotos() {
+  const forn = document.getElementById('f_fornecedor')?.value
+    || document.getElementById('m_fornecedor')?.value || '';
+  let url = '/pages/produtos.html?importar_fotos=1';
+  if (forn) url += '&fornecedor=' + encodeURIComponent(forn);
+  try {
+    if (window.parent && window.parent !== window && typeof window.parent.openTab === 'function') {
+      window.parent.openTab(url, 'Produtos — Importar fotos');
+      return;
+    }
+  } catch (_) {}
+  window.open(url, '_blank', 'noopener');
+}
+
+async function gerarCatalogosPorGrupo() {
+  const forn = document.getElementById('f_fornecedor')?.value;
+  if (!forn) {
+    alert('Selecione a fábrica no filtro acima antes de gerar as linhas.');
+    document.getElementById('f_fornecedor')?.focus();
+    return;
+  }
+  const sel = document.getElementById('f_fornecedor');
+  const nomeForn = sel.options[sel.selectedIndex]?.textContent || 'fábrica';
+  if (!confirm(`Gerar um catálogo por «Grupo» (nome_grupo) dos produtos de ${nomeForn}?\n\nCatálogos existentes com o mesmo nome serão atualizados.`)) return;
+  const btn = document.getElementById('btnGerarGrupos');
+  const prev = btn?.textContent;
+  if (btn) { btn.disabled = true; btn.textContent = 'Gerando…'; }
+  try {
+    const r = await api('/api/catalogos/gerar-por-grupos', {
+      method: 'POST',
+      body: JSON.stringify({ cod_fornecedor: parseInt(forn, 10) }),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Erro ao gerar');
+    await carregarLista();
+    alert((d.mensagem || 'Linhas criadas.') + '\n\nPróximo passo: Importar fotos (nome do arquivo = código fabricante).');
+  } catch (e) {
+    alert(e.message || 'Erro ao gerar linhas');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = prev || '⚡ Gerar linhas da fábrica'; }
+  }
+}
+
+function atualizarFotoStats() {
+  const el = document.getElementById('fotoStats');
+  if (!el) return;
+  const total = _itens.length;
+  if (!total) { el.style.display = 'none'; return; }
+  const com = _itens.filter(i => i.foto_principal && String(i.foto_principal).trim()).length;
+  const sem = total - com;
+  el.style.display = 'block';
+  el.className = 'foto-stats' + (sem > 0 ? ' warn' : '');
+  el.innerHTML = sem > 0
+    ? `<strong>${sem} produto(s) sem foto</strong> — renomeie as imagens com o código fabricante e use «Importar fotos». Com foto: ${com}/${total}.`
+    : `Todas as ${total} fotos OK. Pode apresentar ao cliente.`;
 }
 
 let _fornecedores = [];
@@ -367,6 +479,7 @@ function renderItens() {
     list.innerHTML = `<tr><td colspan="4" style="padding:28px;text-align:center;color:var(--text2)">${
       _itens.length ? 'Nenhum produto com este filtro.' : 'Nenhum produto ainda — use a busca ou inclua em lote.'
     }</td></tr>`;
+    atualizarFotoStats();
     return;
   }
 
@@ -374,7 +487,7 @@ function renderItens() {
     <tr>
       <td>${it.foto_principal
         ? `<img src="${esc(it.foto_principal)}" alt="" onerror="this.replaceWith(document.createTextNode('—'))">`
-        : '—'}</td>
+        : '<span style="color:#dc2626;font-size:10px;font-weight:800">Sem foto</span>'}</td>
       <td class="cod">${esc(it.cod_fabricante || it.cod_produto)}</td>
       <td class="desc">${esc(it.desc_produto || '')}</td>
       <td><button type="button" class="btn btn-secondary btn-sm" data-rm="${idx}">Remover</button></td>
@@ -387,6 +500,7 @@ function renderItens() {
       renderItens();
     });
   });
+  atualizarFotoStats();
 }
 
 async function carregarTabelasLote() {
@@ -538,11 +652,21 @@ async function carregarLista() {
             <span class="meta">${c.qtd_itens || 0} produto(s)</span>
           </div>
           <div class="meta" style="margin-top:6px">${esc(c.subtitulo || c.nome_fornecedor || 'Sem fábrica')}</div>
+          <div class="card-actions">
+            <button type="button" class="btn-apresentar" data-apresentar="${c.id}">▶ Apresentar</button>
+          </div>
         </div>
       </div>`;
     }).join('');
     el.querySelectorAll('.card').forEach(card => {
       card.addEventListener('click', () => abrirEditar(card.dataset.id));
+    });
+    el.querySelectorAll('[data-apresentar]').forEach(btn => {
+      btn.addEventListener('click', ev => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        abrirApresentacao(btn.dataset.apresentar);
+      });
     });
   } catch (e) {
     el.innerHTML = `<div class="empty">${esc(e.message)}</div>`;
@@ -580,6 +704,7 @@ function abrirNovo() {
   document.getElementById('m_obs').value = '';
   document.getElementById('m_capa_file').value = '';
   document.getElementById('btnExcluir').style.display = 'none';
+  document.getElementById('btnApresentar').style.display = 'none';
   _itens = [];
   _capaUrl = '';
   setLoteStatus('');
@@ -607,6 +732,8 @@ async function abrirEditar(id) {
   document.getElementById('m_obs').value = c.observacoes || '';
   document.getElementById('m_capa_file').value = '';
   document.getElementById('btnExcluir').style.display = '';
+  document.getElementById('btnApresentar').style.display = '';
+  document.getElementById('btnApresentar').onclick = () => abrirApresentacao(c.id);
   _itens = (d.itens || []).map(it => ({
     cod_produto: it.cod_produto,
     cod_fabricante: it.cod_fabricante,
@@ -689,7 +816,9 @@ async function salvar() {
     document.getElementById('modalOverlay').classList.remove('show');
     setLoteStatus('');
     await carregarLista();
-    alert('Catálogo salvo com sucesso!');
+    if (confirm('Catálogo salvo! Abrir modo Apresentação agora?')) {
+      abrirApresentacao(catId);
+    }
   } catch (e) {
     console.error('[catalogos salvar]', e);
     alert('Erro ao salvar: ' + (e.message || e));
@@ -772,6 +901,10 @@ document.getElementById('btnNovo').onclick = abrirNovo;
 document.getElementById('btnFechar').onclick = () => document.getElementById('modalOverlay').classList.remove('show');
 document.getElementById('btnSalvar').onclick = salvar;
 document.getElementById('btnExcluir').onclick = excluir;
+document.getElementById('btnApresentacaoGeral')?.addEventListener('click', abrirApresentacaoGeral);
+document.getElementById('btnApresentacaoBar')?.addEventListener('click', abrirApresentacaoGeral);
+document.getElementById('btnIrImportFotos')?.addEventListener('click', irImportarFotos);
+document.getElementById('btnGerarGrupos')?.addEventListener('click', gerarCatalogosPorGrupo);
 document.getElementById('btnLoteFabrica').onclick = incluirLoteFabrica;
 document.getElementById('btnLoteTabela').onclick = incluirLoteTabela;
 document.getElementById('btnLimparItens').onclick = () => {

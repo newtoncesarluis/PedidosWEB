@@ -9,6 +9,8 @@
 <link rel="stylesheet" href="/assets/themes.css">
 <script src="/assets/themes.js"></script>
 <script src="/assets/mobile-app.js"></script>
+<script src="/assets/confirm-dialog.js"></script>
+<script src="/assets/lookup-search.js"></script>
 <link rel="stylesheet" href="/assets/mobile-app.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
@@ -158,29 +160,157 @@ input[type="checkbox"]:checked::after {
 
 /* ── FILTROS ── */
 .filters-section {
-    padding: 8px 12px;
+    padding: 0;
     border-bottom: 1px solid var(--card-border);
     background: var(--card-bg);
     flex-shrink: 0;
 }
 .filters-section-title { display: none; }
+.receber-filters-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    padding: 6px 12px;
+    border: none;
+    border-bottom: 1px solid var(--card-border);
+    background: var(--card-bg);
+    color: var(--text);
+    font: inherit;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    cursor: pointer;
+}
+.receber-filters-hint {
+    flex: 1;
+    text-align: right;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text2);
+    text-transform: none;
+    letter-spacing: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.receber-filters-chevron {
+    flex: 0 0 auto;
+    color: var(--accent);
+    transition: transform 0.15s;
+}
+.filters-section.is-collapsed .receber-filters-chevron { transform: rotate(-90deg); }
+.filters-section.is-collapsed .filters-bar { display: none !important; }
 .filters-bar {
     display: grid !important;
-    grid-template-columns: 0.75fr 0.8fr 1fr 1fr 1.35fr auto auto !important;
+    grid-template-columns: minmax(72px,0.7fr) minmax(88px,0.9fr) minmax(96px,1fr) minmax(96px,1fr) minmax(108px,0.85fr) minmax(108px,0.85fr) minmax(220px,1.9fr) !important;
     gap: 6px !important;
     align-items: end;
     width: 100%;
+    padding: 6px 12px 8px;
+    box-sizing: border-box;
+}
+.filter-group--busca { grid-column: auto; min-width: 0; }
+.filter-busca-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    min-width: 0;
+}
+.filter-busca-row .form-control {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 32px;
+    min-height: 32px;
+    box-sizing: border-box;
 }
 .filter-btn-buscar,
 .filter-btn-limpar {
-    align-self: end;
-    height: 34px;
-    padding: 6px 14px;
+    flex: 0 0 auto;
+    box-sizing: border-box;
+    height: 32px;
+    min-height: 32px;
+    min-width: 72px;
+    width: auto;
+    padding: 0 12px;
     font-size: 12px;
+    line-height: 1;
     white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
 }
-.btn-buscar { background: var(--accent); color: var(--btn-text, #fff); border: none; }
+.btn-buscar { background: var(--accent); color: var(--btn-text, #fff); border: 1px solid var(--accent); }
 .btn-buscar:hover { filter: brightness(1.08); }
+.filter-btn-limpar.btn-outline {
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    background: transparent;
+}
+.filters-bar .form-control {
+    min-height: 32px;
+    height: 32px;
+    padding: 4px 8px;
+    font-size: 12px;
+}
+/* Modais compactos (não herdam flex:1 do .glass-panel) */
+.receber-modal-card {
+    background: var(--card, var(--card-bg, #fff));
+    color: var(--text, var(--content-text));
+    border: 1px solid var(--card-border, var(--border, #e2e8f0));
+    border-radius: 14px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 22px;
+    width: 380px;
+    max-width: min(380px, 92vw);
+    flex: 0 0 auto !important;
+    min-height: 0 !important;
+    overflow: visible;
+    box-sizing: border-box;
+    position: relative;
+}
+.receber-modal-card--md {
+    width: 420px;
+    max-width: min(420px, 92vw);
+}
+.receber-modal-card .form-group { width: 100%; }
+.receber-modal-card .form-control { width: 100%; box-sizing: border-box; }
+.receber-modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.72);
+    z-index: 2500;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    box-sizing: border-box;
+    backdrop-filter: blur(8px);
+}
+#modal_recebimento.receber-modal-overlay,
+#modal_lote.receber-modal-overlay { z-index: 3000; }
+.receber-modal-actions,
+#liq_actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+    justify-content: flex-end;
+    align-items: center;
+}
+.receber-modal-actions .btn,
+#liq_actions .btn {
+    flex: 0 0 auto;
+    min-width: 96px;
+    padding: 8px 16px;
+    font-size: 13px;
+}
 .list-summary {
     padding: 5px 12px;
     font-size: 11px;
@@ -323,7 +453,8 @@ select option { background: var(--bg); color: var(--text); }
     .kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
     .filters-bar { grid-template-columns: 1fr 1fr !important; }
     .filter-group--busca { grid-column: 1 / -1; }
-    .filter-btn-buscar, .filter-btn-limpar { grid-column: span 1; }
+    .filter-busca-row { flex-wrap: nowrap; }
+    .filter-btn-buscar, .filter-btn-limpar { min-width: 70px; flex: 0 0 auto; }
 }
 
 @media (max-width: 768px) {
@@ -459,18 +590,55 @@ html.sysrep-ms-embed .kpi-row {
     gap: 5px !important;
 }
 html.sysrep-ms-embed .tab-content { padding: 0 8px 6px !important; }
-html.sysrep-ms-embed .filters-bar {
-    grid-template-columns: 0.7fr 0.75fr 0.95fr 0.95fr 1.2fr auto auto !important;
-    gap: 5px !important;
+html.sysrep-ms-embed .filters-bar,
+html.ms-embedded-tech .filters-bar {
+    grid-template-columns: minmax(72px,0.7fr) minmax(88px,0.9fr) minmax(96px,1fr) minmax(96px,1fr) minmax(108px,0.85fr) minmax(108px,0.85fr) minmax(220px,2fr) !important;
+    gap: 6px !important;
 }
-html.sysrep-ms-embed .filter-group--busca { grid-column: auto !important; }
+html.sysrep-ms-embed .filter-group--busca,
+html.ms-embedded-tech .filter-group--busca { grid-column: auto !important; }
+html.sysrep-ms-embed .filter-busca-row,
+html.ms-embedded-tech .filter-busca-row {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    gap: 6px !important;
+}
+html.sysrep-ms-embed .filter-btn-buscar,
+html.sysrep-ms-embed .filter-btn-limpar,
+html.ms-embedded-tech .filter-btn-buscar,
+html.ms-embedded-tech .filter-btn-limpar {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    min-width: 72px !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    padding: 0 12px !important;
+}
+html.sysrep-ms-embed .receber-modal-card,
+html.ms-embedded-tech .receber-modal-card {
+    flex: 0 0 auto !important;
+    width: 380px !important;
+    max-width: min(380px, 92vw) !important;
+    border: 1px solid var(--card-border, #e2e8f0) !important;
+    border-radius: 14px !important;
+    background: var(--card, var(--card-bg, #fff)) !important;
+    overflow: visible !important;
+}
+html.sysrep-ms-embed .receber-modal-card--md,
+html.ms-embedded-tech .receber-modal-card--md {
+    width: 420px !important;
+    max-width: min(420px, 92vw) !important;
+}
 html.sysrep-ms-embed .filter-group label { font-size: 9px; }
 html.sysrep-ms-embed .form-control { font-size: 11px; padding: 5px 8px; min-height: 32px; }
 html.sysrep-ms-embed .receber-table-wrap { max-height: none; }
 @media (max-width: 720px) {
     html.sysrep-ms-embed .kpi-row { grid-template-columns: repeat(2, 1fr) !important; }
-    html.sysrep-ms-embed .filters-bar { grid-template-columns: 1fr 1fr !important; }
-    html.sysrep-ms-embed .filter-group--busca { grid-column: 1 / -1 !important; }
+    html.sysrep-ms-embed .filters-bar,
+    html.ms-embedded-tech .filters-bar { grid-template-columns: 1fr 1fr !important; }
+    html.sysrep-ms-embed .filter-group--busca,
+    html.ms-embedded-tech .filter-group--busca { grid-column: 1 / -1 !important; }
 }
 @media (max-width: 900px) {
     html.sysrep-ms-embed .receber-table-wrap { display: none !important; }
@@ -478,7 +646,7 @@ html.sysrep-ms-embed .receber-table-wrap { max-height: none; }
 }
 </style>
 </head>
-<body data-page-version="contas-receber-20260724c">
+<body data-page-version="contas-receber-20260815a">
 
 <div class="toolbar">
     <div class="toolbar-title">Contas a Receber</div>
@@ -578,9 +746,14 @@ html.sysrep-ms-embed .receber-table-wrap { max-height: none; }
             </div>
         </div>
 
-        <div class="filters-section">
+        <div class="filters-section" id="filters_section_receber">
+            <button type="button" class="receber-filters-head" id="btn_toggle_filters_receber" onclick="toggleReceberFilters()" aria-expanded="true" title="Ocultar ou mostrar filtros">
+                <span class="receber-filters-title" id="receber_filters_toggle_label">Ocultar filtros</span>
+                <span class="receber-filters-hint" id="receber_filters_hint"></span>
+                <span class="receber-filters-chevron" aria-hidden="true">▾</span>
+            </button>
             <div class="filters-section-title">Filtros da listagem</div>
-            <div class="filters-bar">
+            <div class="filters-bar" id="filters_bar_receber">
                 <div class="filter-group">
                     <label for="filter_status">Status</label>
                     <select class="form-control" id="filter_status" autocomplete="off">
@@ -616,11 +789,13 @@ html.sysrep-ms-embed .receber-table-wrap { max-height: none; }
                 </div>
                 <div class="filter-group filter-group--busca">
                     <label for="search_forn">Busca</label>
-                    <input type="text" class="form-control" id="search_forn" placeholder="Cliente, doc..." autocomplete="off"
-                           onkeydown="if(event.key==='Enter'){event.preventDefault();buscarReceber();}">
+                    <div class="filter-busca-row">
+                        <input type="text" class="form-control" id="search_forn" placeholder="Cliente, doc..." autocomplete="off"
+                               onkeydown="if(event.key==='Enter'){event.preventDefault();buscarReceber();}">
+                        <button type="button" class="btn btn-buscar filter-btn-buscar" onclick="buscarReceber()">Buscar</button>
+                        <button type="button" class="btn btn-outline filter-btn-limpar" onclick="limparFiltros()">Limpar</button>
+                    </div>
                 </div>
-                <button type="button" class="btn btn-buscar filter-btn-buscar" onclick="buscarReceber()">Buscar</button>
-                <button type="button" class="btn btn-outline filter-btn-limpar" onclick="limparFiltros()">Limpar</button>
             </div>
         </div>
 
@@ -701,8 +876,7 @@ html.sysrep-ms-embed .receber-table-wrap { max-height: none; }
         </div>
         <div class="form-group">
             <label>Cliente / Pagador</label>
-            <input type="text" id="f_nome" class="form-control" placeholder="Busque ou digite..." list="list_clientes" onchange="vincularCliente()">
-            <datalist id="list_clientes"></datalist>
+            <input type="text" id="f_nome" class="form-control" placeholder="Digite nome, CNPJ ou código…" autocomplete="off">
         </div>
         <div class="form-group">
             <label>Receita / Natureza</label>
@@ -711,7 +885,7 @@ html.sysrep-ms-embed .receber-table-wrap { max-height: none; }
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
             <div class="form-group">
                 <label>Conta contábil <span style="font-weight:500;text-transform:none;color:var(--text2)">(opcional)</span></label>
-                <select id="f_planoconta" class="form-control" title="Se vazio, usa a conta da Natureza"></select>
+                <select id="f_planoconta" class="form-control" title="Só contas do grupo Receita. Se vazio, usa a conta da Natureza"></select>
             </div>
             <div class="form-group">
                 <label>Centro de custo <span style="font-weight:500;text-transform:none;color:var(--text2)">(opcional)</span></label>
@@ -741,18 +915,18 @@ html.sysrep-ms-embed .receber-table-wrap { max-height: none; }
             <textarea id="f_obs" class="form-control" style="height:80px; resize:none"></textarea>
         </div>
     </div>
-    <div class="panel-foot">
-        <button class="btn btn-outline" style="flex:1" onclick="fecharPanel()">Sair</button>
-        <button class="btn btn-primary" style="flex:1" onclick="salvar()">Confirmar</button>
+    <div class="panel-foot" style="display:flex;gap:8px;justify-content:flex-end;align-items:center;padding:16px 20px;border-top:1px solid var(--card-border)">
+        <button type="button" class="btn btn-outline" onclick="fecharPanel()">Sair</button>
+        <button type="button" class="btn btn-primary" onclick="salvar()">Confirmar</button>
     </div>
 </div>
 
 <!-- MODAL LIQUIDAÇÃO -->
-<div id="modal_recebimento" style="display:none; position:fixed; inset:0; background:rgba(15, 17, 26, 0.85); z-index:3000; align-items:center; justify-content:center; backdrop-filter:blur(15px)">
-    <div class="glass-panel" style="width:100%; max-width:460px; padding:20px; display:flex; flex-direction:column; gap:16px; position:relative;">
-        <button onclick="fecharModalReceber()" style="position:absolute; top:15px; right:15px; background:none; border:none; color:var(--text2); cursor:pointer">✕</button>
-        <h2 id="liq_title" style="font-size:18px; font-weight:800; color:#fff">Receber Conta</h2>
-        <p id="liq_fornecedor" style="color:var(--text2); font-size:13px">Cliente</p>
+<div id="modal_recebimento" class="receber-modal-overlay no-print">
+    <div class="receber-modal-card receber-modal-card--md">
+        <button type="button" onclick="fecharModalReceber()" style="position:absolute; top:12px; right:12px; background:none; border:none; color:var(--text2); cursor:pointer; font-size:18px" aria-label="Fechar">✕</button>
+        <h2 id="liq_title" style="font-size:18px; font-weight:800; color:var(--text); margin:0; padding-right:28px">Receber Conta</h2>
+        <p id="liq_fornecedor" style="color:var(--text2); font-size:13px; margin:0">Cliente</p>
 
         <div style="background:rgba(255,255,255,0.03); padding:8px 12px; border-radius:10px; border:1px solid var(--card-border); text-align:center">
             <div style="font-size:10px; color:var(--text2); text-transform:uppercase; font-weight:800">Valor Original</div>
@@ -784,6 +958,11 @@ html.sysrep-ms-embed .receber-table-wrap { max-height: none; }
           </div>
         </div>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
+            <div class="form-group" style="grid-column:1/-1">
+                <label>Banco / Caixa *</label>
+                <select id="liq_banco" class="form-control"><option value="">Selecione para onde entra o valor...</option></select>
+                <small style="color:var(--text2);font-size:11px">O saldo desta conta será creditado na confirmação.</small>
+            </div>
             <div class="form-group"><label>Juros (%)</label><input type="number" step="0.01" id="liq_juros" class="form-control" oninput="calcReceber()"></div>
             <div class="form-group"><label>Acréscimos (R$)</label><input type="number" step="0.01" id="liq_acrescimo" class="form-control" oninput="calcReceber()"></div>
         </div>
@@ -791,18 +970,18 @@ html.sysrep-ms-embed .receber-table-wrap { max-height: none; }
             <div style="font-size:13px; font-weight:700">Total Recebido</div>
             <input type="number" step="0.01" id="liq_vlrpago" class="form-control" style="width:120px; text-align:right; font-weight:800; color:var(--success); background:transparent; border:none; border-bottom:2px solid var(--success)">
         </div>
-        <div style="display:flex; gap:12px" id="liq_actions">
-            <button class="btn btn-outline" style="flex:1" onclick="fecharModalReceber()">Cancelar</button>
-            <button class="btn btn-success" style="flex:1" onclick="salvarRecebimento()">Confirmar</button>
+        <div class="receber-modal-actions" id="liq_actions">
+            <button type="button" class="btn btn-outline" onclick="fecharModalReceber()">Cancelar</button>
+            <button type="button" class="btn btn-success" onclick="salvarRecebimento()">Confirmar</button>
         </div>
     </div>
 </div>
 
 <!-- MODAL RECEBIMENTO EM LOTE -->
-<div id="modal_lote" style="display:none; position:fixed; inset:0; background:rgba(15, 17, 26, 0.85); z-index:3000; align-items:center; justify-content:center; backdrop-filter:blur(15px)">
-    <div class="glass-panel" style="width:100%; max-width:460px; padding:20px; display:flex; flex-direction:column; gap:16px; position:relative;">
-        <button type="button" onclick="fecharModalLote()" style="position:absolute; top:15px; right:15px; background:none; border:none; color:var(--text2); cursor:pointer">✕</button>
-        <h2 style="font-size:18px; font-weight:800; color:#fff; margin:0">Receber em Lote</h2>
+<div id="modal_lote" class="receber-modal-overlay no-print">
+    <div class="receber-modal-card receber-modal-card--md">
+        <button type="button" onclick="fecharModalLote()" style="position:absolute; top:12px; right:12px; background:none; border:none; color:var(--text2); cursor:pointer; font-size:18px" aria-label="Fechar">✕</button>
+        <h2 style="font-size:18px; font-weight:800; color:var(--text); margin:0; padding-right:28px">Receber em Lote</h2>
         <p id="lote_msg" style="color:var(--text2); font-size:13px; margin:0">Títulos selecionados</p>
 
         <div style="background:rgba(255,255,255,0.03); padding:8px 12px; border-radius:10px; border:1px solid var(--card-border); text-align:center">
@@ -822,6 +1001,11 @@ html.sysrep-ms-embed .receber-table-wrap { max-height: none; }
                     <option value="CARTAO">Cartão</option>
                 </select>
             </div>
+            <div class="form-group">
+                <label>Banco / Caixa *</label>
+                <select id="lote_banco" class="form-control"><option value="">Selecione...</option></select>
+                <small style="color:var(--text2);font-size:11px">O valor entra nesta conta e o saldo é atualizado.</small>
+            </div>
         </div>
 
         <div style="background:rgba(0, 230, 118, 0.05); padding:16px; border-radius:12px; border:1px solid rgba(0, 230, 118, 0.2); display:flex; justify-content:space-between; align-items:center">
@@ -829,14 +1013,16 @@ html.sysrep-ms-embed .receber-table-wrap { max-height: none; }
             <div id="lote_total_receber" style="font-size:18px; font-weight:800; color:var(--success)">R$ 0,00</div>
         </div>
 
-        <div style="display:flex; gap:12px">
-            <button type="button" class="btn btn-outline" style="flex:1" onclick="fecharModalLote()">Cancelar</button>
-            <button type="button" class="btn btn-success" style="flex:1" onclick="confirmarLote()">Confirmar</button>
+        <div class="receber-modal-actions">
+            <button type="button" class="btn btn-outline" onclick="fecharModalLote()">Cancelar</button>
+            <button type="button" class="btn btn-success" onclick="confirmarLote()">Confirmar</button>
         </div>
     </div>
 </div>
 
 <script>
+let _bancosRecCache = [];
+const LS_BANCO_RECEBER = 'sysrep_receber_ultimo_banco';
 let currentPage = 1;
 let _globalContas = [];
 let _listTotal = 0;
@@ -863,6 +1049,55 @@ function shouldUseMobileCards() {
     return document.documentElement.classList.contains('sysrep-ms-embed') && window.innerWidth < 901;
 }
 
+
+function receberAvisar(titulo, msg) {
+    if (typeof avisar === 'function') return avisar(titulo, msg);
+    if (typeof SysRepConfirm !== 'undefined' && SysRepConfirm.alert) return SysRepConfirm.alert({ titulo, mensagem: msg });
+    return Promise.resolve();
+}
+async function receberConfirmar(titulo, msg, opts) {
+    if (typeof SysRepConfirm !== 'undefined' && SysRepConfirm.ask) {
+        return SysRepConfirm.ask(Object.assign({ titulo, mensagem: msg, perigo: true }, opts || {}));
+    }
+    if (typeof confirmar === 'function') {
+        return new Promise((resolve) => confirmar(titulo, msg, () => resolve(true), () => resolve(false)));
+    }
+    return false;
+}
+
+const RECEBER_FILTROS_LS = 'sysrep_receber_filtros_collapsed';
+
+function setReceberFiltersCollapsed(collapsed) {
+    const sec = document.getElementById('filters_section_receber');
+    const btn = document.getElementById('btn_toggle_filters_receber');
+    const label = document.getElementById('receber_filters_toggle_label');
+    if (!sec) return;
+    sec.classList.toggle('is-collapsed', !!collapsed);
+    if (btn) btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    if (label) label.textContent = collapsed ? 'Mostrar filtros' : 'Ocultar filtros';
+    try { localStorage.setItem(RECEBER_FILTROS_LS, collapsed ? '1' : '0'); } catch (_) {}
+    updateReceberFiltersHint();
+}
+
+function toggleReceberFilters() {
+    const sec = document.getElementById('filters_section_receber');
+    if (!sec) return;
+    setReceberFiltersCollapsed(!sec.classList.contains('is-collapsed'));
+}
+
+function updateReceberFiltersHint() {
+    const hint = document.getElementById('receber_filters_hint');
+    if (!hint) return;
+    const st = document.getElementById('filter_status');
+    const nat = document.getElementById('filter_natureza');
+    const ini = document.getElementById('f_dt_ini')?.value || '';
+    const fim = document.getElementById('f_dt_fim')?.value || '';
+    const br = (iso) => (iso && iso.length >= 10) ? iso.slice(8, 10) + '/' + iso.slice(5, 7) : '';
+    const stTxt = st && st.selectedOptions[0] ? st.selectedOptions[0].text : 'Todos';
+    const natTxt = nat && nat.value && nat.selectedOptions[0] ? nat.selectedOptions[0].text : 'Todas';
+    hint.textContent = stTxt + ' · ' + natTxt + ' · ' + br(ini) + '–' + br(fim);
+}
+
 function limparFiltros() {
     document.getElementById('filter_status').value = 'ABERTA';
     document.getElementById('search_forn').value = '';
@@ -886,6 +1121,7 @@ function qsFiltroContabil() {
 }
 
 function buscarReceber() {
+    updateReceberFiltersHint();
     currentPage = 1;
     fetchData();
 }
@@ -1038,6 +1274,7 @@ function renderDesktopTable(rows) {
                         <button class="btn btn-outline" style="padding:4px 6px" onclick="abrirEditar(${row.id})">✎</button>
                         <button class="btn btn-outline" style="padding:4px 6px; color:var(--danger)" onclick="excluir(${row.id})">✕</button>
                     ` : `
+                        <button class="btn btn-outline" style="padding:4px 6px; color:var(--warn,#ffab40); border-color:var(--warn,#ffab40)" onclick="estornarReceber(${row.id})" title="Estornar">↩️</button>
                         <button class="btn btn-outline" style="padding:4px 6px; color:var(--accent); border-color:var(--accent)" onclick="abrirModalReceber(${row.id}, true)">👁️</button>
                         <button class="btn btn-outline" style="padding:4px 6px; color:var(--success); border-color:var(--success)" title="Imprimir Recibo" onclick="imprimirReciboUnico(${row.id})">🧾</button>
                     `}
@@ -1067,6 +1304,7 @@ function renderMobileCards(rows) {
             <button onclick="event.stopPropagation();abrirEditar(${row.id})" style="background:none;border:1px solid var(--card-border);color:var(--text2);border-radius:8px;padding:5px 10px;font-size:11px;cursor:pointer">✎</button>
             <button onclick="event.stopPropagation();excluir(${row.id})" style="background:none;border:1px solid var(--danger);color:var(--danger);border-radius:8px;padding:5px 10px;font-size:11px;cursor:pointer">✕</button>
         ` : `
+            <button onclick="event.stopPropagation();estornarReceber(${row.id})" style="background:none;border:1px solid var(--warn,#ffab40);color:var(--warn,#ffab40);border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer">↩ Estornar</button>
             <button onclick="event.stopPropagation();abrirModalReceber(${row.id},true)" style="background:none;border:1px solid var(--accent);color:var(--accent);border-radius:8px;padding:5px 10px;font-size:11px;cursor:pointer">👁 Ver</button>
             <button onclick="event.stopPropagation();imprimirReciboUnico(${row.id})" style="background:none;border:1px solid var(--success);color:var(--success);border-radius:8px;padding:5px 10px;font-size:11px;cursor:pointer">🧾</button>
         `;
@@ -1143,8 +1381,9 @@ function resetForm() {
     document.getElementById('f_cod_fornecedor').value = '';
     document.getElementById('f_num').value = '';
     document.getElementById('f_nome').value = '';
+    if (typeof _lookupFornReceber !== 'undefined' && _lookupFornReceber) _lookupFornReceber.clear();
     document.getElementById('f_valor').value = '';
-    document.getElementById('f_venc').value = new Date().toISOString().split('T')[0];
+    document.getElementById('f_venc').value = hojeIsoLocal();
     document.getElementById('f_obs').value = '';
     document.getElementById('f_meses').value = 1;
     const selNat = document.getElementById('f_natureza');
@@ -1166,14 +1405,32 @@ function sugerirContaDaNatureza() {
 function fecharPanel() { document.getElementById('panel_form').classList.remove('open'); }
 
 async function salvar() {
-    if (!validarFormulario()) return;
     const id = document.getElementById('f_id').value;
+    const venc = (document.getElementById('f_venc').value || '').trim();
+    const valor = document.getElementById('f_valor').value;
+    const nome = (document.getElementById('f_nome').value || '').trim();
+    const numRaw = (document.getElementById('f_num').value || '').trim();
+
+    if (!nome) {
+        await receberAvisar('Cliente / Pagador', 'Informe o cliente ou pagador.');
+        return;
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(venc)) {
+        await receberAvisar('Vencimento', 'Informe a data de vencimento válida (use o calendário do campo).');
+        return;
+    }
+    if (!valor || parseFloat(valor) <= 0) {
+        await receberAvisar('Valor', 'Informe o valor da conta.');
+        return;
+    }
+
     const body = {
-        numero: document.getElementById('f_num').value,
+        numero: numRaw,
+        doc: numRaw ? numRaw.slice(0, 15) : null,
         cod_fornecedor: document.getElementById('f_cod_fornecedor').value,
-        nome_fornecedor: document.getElementById('f_nome').value,
-        vencimento: document.getElementById('f_venc').value,
-        valor: document.getElementById('f_valor').value,
+        nome_fornecedor: nome,
+        vencimento: venc,
+        valor: valor,
         id_receitas: document.getElementById('f_natureza').value,
         id_planoconta: document.getElementById('f_planoconta')?.value || null,
         id_centrocusto: document.getElementById('f_centrocusto')?.value || null,
@@ -1181,23 +1438,26 @@ async function salvar() {
         obs: document.getElementById('f_obs').value,
         recorrencia: document.getElementById('f_meses').value
     };
-    
+
     const method = id ? 'PUT' : 'POST';
     const url = id ? `/api/receber/${id}` : '/api/receber';
-    
+
     try {
         const response = await fetch(url, {
             method, headers: authHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify(body)
         });
-        if (!response.ok) throw new Error('Erro ao salvar os dados.');
-        alert('Dados salvos com sucesso!');
+        const errBody = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            await receberAvisar('Erro', errBody.error || 'Não foi possível gravar o título.');
+            return;
+        }
         fecharPanel();
         fetchData();
         loadLookups();
     } catch (error) {
         console.error('Erro ao salvar:', error);
-        alert('Ocorreu um erro ao salvar os dados.');
+        await receberAvisar('Erro', (error && error.message) || 'Ocorreu um erro ao salvar os dados.');
     }
 }
 
@@ -1210,7 +1470,10 @@ async function abrirEditar(id) {
     document.getElementById('f_num').value = conta.numero || '';
     document.getElementById('f_nome').value = conta.nome_fornecedor || '';
     document.getElementById('f_cod_fornecedor').value = conta.cod_fornecedor || '';
-    document.getElementById('f_venc').value = conta.vencimento ? new Date(conta.vencimento).toISOString().split('T')[0] : '';
+    if (_lookupFornReceber) {
+        _lookupFornReceber.setValue(conta.cod_fornecedor || '', conta.nome_fornecedor || '');
+    }
+    document.getElementById('f_venc').value = isoDateInput(conta.vencimento);
     document.getElementById('f_valor').value = conta.valor;
     document.getElementById('f_natureza').value = conta.id_receitas || '';
     const selPc = document.getElementById('f_planoconta');
@@ -1227,14 +1490,49 @@ async function abrirEditar(id) {
 }
 
 async function excluir(id) {
-    if(!confirm('Deseja excluir este título?')) return;
+    const ok = await receberConfirmar('Excluir título?', 'Deseja excluir este título?', { okTexto: 'Excluir', cancelTexto: 'Cancelar' });
+    if (!ok) return;
     await fetch(`/api/receber/${id}`, { method: 'DELETE', headers: authHeaders() });
     fetchData();
 }
 
-function abrirModalReceber(id, viewOnly = false) {
+async function estornarReceber(id) {
+    const ok = await receberConfirmar(
+        'Estornar recebimento?',
+        'A conta volta para aberto e o valor sai do banco/caixa (estorno na movimentação).',
+        { okTexto: 'Estornar', cancelTexto: 'Cancelar' }
+    );
+    if (!ok) return;
+    try {
+        const r = await fetch(`/api/receber/${id}`, {
+            method: 'PUT',
+            headers: authHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ estornar: true, baixar: false }),
+        });
+        const errBody = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(errBody.error || 'Falha ao estornar');
+        const row = (_globalContas || []).find((c) => String(c.id) === String(id));
+        if (row) {
+            row.status = 'A RECEBER';
+            row.status_display = 'ABERTA';
+            row.data_pagto = null;
+            row.valor_pago = 0;
+            row.id_banco = null;
+            renderDesktopTable(_globalContas);
+            renderMobileCards(_globalContas);
+        }
+        await fetchData();
+        if (typeof fetchStats === 'function') fetchStats();
+    } catch (e) {
+        await receberAvisar('Erro', (e && e.message) || 'Não foi possível estornar o título.');
+    }
+}
+
+async function abrirModalReceber(id, viewOnly = false) {
     const conta = _globalContas.find(c => c.id == id);
     if (!conta) return;
+    await carregarBancosReceber(true);
+    preencherSelectBancosRec('liq_banco', conta.id_banco || localStorage.getItem(LS_BANCO_RECEBER));
     document.getElementById('liq_id').value = conta.id;
     document.getElementById('liq_valor_base').value = conta.valor;
     document.getElementById('liq_fornecedor').textContent = conta.nome_fornecedor || 'Desconhecido';
@@ -1253,6 +1551,41 @@ function abrirModalReceber(id, viewOnly = false) {
 
 function fecharModalReceber() { document.getElementById('modal_recebimento').style.display = 'none'; }
 
+
+async function carregarBancosReceber(force) {
+  if (!force && _bancosRecCache.length) return _bancosRecCache;
+  try {
+    const r = await fetch('/api/bancos', { headers: authHeaders(), cache: 'no-store' });
+    const d = await r.json().catch(() => ({}));
+    const lista = Array.isArray(d.bancos) ? d.bancos : [];
+    _bancosRecCache = lista.filter((b) => {
+      const st = String(b.status || 'A').toUpperCase();
+      const ex = String(b.excluido || 'N').toUpperCase();
+      return (st === 'A' || !st) && (ex === 'N' || !ex);
+    });
+  } catch (e) { _bancosRecCache = []; }
+  return _bancosRecCache;
+}
+function fmtSaldoBancoRec(b) {
+  const saldo = parseFloat(b.saldo) || 0;
+  const nome = b.apelido || b.nome || ('Banco #' + b.id);
+  const conta = b.conta ? ' · ' + b.conta : '';
+  return nome + conta + ' (R$ ' + saldo.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) + ')';
+}
+function preencherSelectBancosRec(selId, preferId) {
+  const sel = document.getElementById(selId);
+  if (!sel) return;
+  const prefer = preferId != null && preferId !== '' ? String(preferId) : (localStorage.getItem(LS_BANCO_RECEBER) || '');
+  if (!_bancosRecCache.length) {
+    sel.innerHTML = '<option value="">Cadastre um banco/caixa em Financeiro → Bancos</option>';
+    return;
+  }
+  sel.innerHTML = '<option value="">Selecione...</option>' + _bancosRecCache.map((b) =>
+    '<option value="' + b.id + '"' + (String(b.id) === String(prefer) ? ' selected' : '') + '>' +
+    fmtSaldoBancoRec(b).replace(/</g, '&lt;') + '</option>'
+  ).join('');
+}
+
 function calcReceber() {
     const base = parseFloat(document.getElementById('liq_valor_base').value) || 0;
     const juros = parseFloat(document.getElementById('liq_juros').value) || 0;
@@ -1264,8 +1597,11 @@ function calcReceber() {
 async function salvarRecebimento() {
     const id = document.getElementById('liq_id').value;
     const forma = document.getElementById('liq_forma').value;
+    const idBancoRec = document.getElementById('liq_banco')?.value || '';
+    if (!idBancoRec) { receberAvisar('Atenção', 'Selecione o banco/caixa para onde entra o recebimento.'); return; }
     const body = {
         baixar: true,
+        id_banco: idBancoRec,
         data_pagto: document.getElementById('liq_data_pagto').value,
         forma_pagto: forma,
         valor_pago: document.getElementById('liq_vlrpago').value,
@@ -1284,16 +1620,30 @@ async function salvarRecebimento() {
         };
       }
     }
-    await fetch(`/api/receber/${id}`, {
-        method: 'PUT', headers: authHeaders({ 'Content-Type': 'application/json' }),
+    const rLiq = await fetch(`/api/receber/${id}`, {
+        method: 'PUT',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(body)
     });
+    const errLiq = await rLiq.json().catch(() => ({}));
+    if (!rLiq.ok) { receberAvisar('Erro', errLiq.error || 'Falha ao receber'); return; }
+    try { localStorage.setItem(LS_BANCO_RECEBER, String(body.id_banco || '')); } catch (_) {}
     fecharModalReceber();
     fetchData();
 }
 
 function hojeIsoLocal() {
     return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+}
+
+function isoDateInput(v) {
+    if (v == null || v === '') return '';
+    const s = String(v).trim();
+    const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+    const br = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (br) return `${br[3]}-${br[2]}-${br[1]}`;
+    return '';
 }
 
 function fecharModalLote() {
@@ -1303,7 +1653,7 @@ function fecharModalLote() {
 function abrirBaixaLote() {
     const checks = Array.from(document.querySelectorAll('.row-check:checked'));
     if (!checks.length) {
-        alert('Selecione pelo menos um título em aberto.');
+        receberAvisar('Atenção', 'Selecione pelo menos um título em aberto.');
         return;
     }
     const ids = checks.map(c => String(c.value));
@@ -1316,6 +1666,7 @@ function abrirBaixaLote() {
     document.getElementById('lote_valor_total').textContent = fmtCur(total);
     document.getElementById('lote_total_receber').textContent = fmtCur(total);
     document.getElementById('lote_data').value = hojeIsoLocal();
+    carregarBancosReceber(true).then(() => preencherSelectBancosRec('lote_banco', localStorage.getItem(LS_BANCO_RECEBER)));
     document.getElementById('lote_forma').value = 'PIX';
     document.getElementById('modal_lote').style.display = 'flex';
 }
@@ -1323,17 +1674,20 @@ function abrirBaixaLote() {
 async function confirmarLote() {
     const ids = Array.from(document.querySelectorAll('.row-check:checked')).map(c => c.value);
     if (!ids.length) {
-        alert('Selecione pelo menos um título em aberto.');
+        receberAvisar('Atenção', 'Selecione pelo menos um título em aberto.');
         return;
     }
     try {
+        const idBancoLote = document.getElementById('lote_banco')?.value || '';
+        if (!idBancoLote) { receberAvisar('Atenção', 'Selecione o banco/caixa para onde entra o recebimento.'); return; }
         const r = await fetch('/api/receber/lote/baixar', {
             method: 'POST',
             headers: authHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify({
                 ids,
                 data_pagto: document.getElementById('lote_data').value,
-                forma_pagto: document.getElementById('lote_forma').value
+                forma_pagto: document.getElementById('lote_forma').value,
+                id_banco: idBancoLote
             })
         });
         if (!r.ok) {
@@ -1346,7 +1700,7 @@ async function confirmarLote() {
         fetchStats();
     } catch (e) {
         console.error('confirmarLote', e);
-        alert(e.message || 'Erro ao receber em lote.');
+        receberAvisar('Erro', e.message || 'Erro ao receber em lote.');
     }
 }
 
@@ -1400,13 +1754,21 @@ async function loadDashboard() {
 }
 
 async function loadLookups() {
-    const nats = await fetch('/api/lookups/natureza', { headers: authHeaders() }).then(r => r.json());
+    let nats = [];
+    try {
+        const rNat = await fetch('/api/lookups/natureza', { headers: authHeaders() });
+        const rawNat = await rNat.json().catch(() => []);
+        nats = Array.isArray(rawNat) ? rawNat : [];
+    } catch (e) {
+        console.warn('loadLookups natureza:', e);
+    }
     const fill = (id, data) => {
         const el = document.getElementById(id);
         const elForm = document.getElementById('f_natureza');
+        if (!el || !elForm) return;
         el.innerHTML = '<option value="">Todas</option>';
         elForm.innerHTML = '<option value="">Selecione...</option>';
-        data.forEach(i => {
+        (data || []).forEach(i => {
             const pc = i.id_planoconta || '';
             const opt = `<option value="${i.id}" data-planoconta="${pc}">${i.nome || i.descricao || ''}</option>`;
             el.innerHTML += opt;
@@ -1417,8 +1779,8 @@ async function loadLookups() {
 
     try {
         const [rpc, rcc] = await Promise.all([
-            fetch('/api/plano-contas?analiticas=1', { headers: authHeaders() }),
-            fetch('/api/centro-custo?analiticas=1', { headers: authHeaders() }),
+            fetch('/api/plano-contas?analiticas=1&grupo=RECEITA', { headers: authHeaders() }),
+            fetch('/api/centro-custo?analiticas=1&uso=RECEBER', { headers: authHeaders() }),
         ]);
         const dpc = await rpc.json().catch(() => ({}));
         const dcc = await rcc.json().catch(() => ({}));
@@ -1429,6 +1791,9 @@ async function loadLookups() {
             const manual = selPc.dataset.manual || '';
             selPc.innerHTML = '<option value="">— Usar conta da Natureza —</option>' +
                 (dpc.plano_contas || []).map(p => `<option value="${p.id}">${p.numero ? p.numero + ' — ' : ''}${p.descricao}</option>`).join('');
+            if (!(dpc.plano_contas || []).length) {
+                selPc.innerHTML = '<option value="">— Nenhuma conta de Receita cadastrada —</option>';
+            }
             selPc.value = cur || '';
             selPc.dataset.manual = manual;
             selPc.onchange = () => { selPc.dataset.manual = '1'; };
@@ -1456,22 +1821,27 @@ async function loadLookups() {
     } catch (e) {
         console.warn('loadLookups plano/centro:', e);
     }
-
-    const forns = await fetch('/api/fornecedores/lookup?todostipos=true', { headers: authHeaders() }).then(r => r.json());
-    document.getElementById('list_clientes').innerHTML = forns.map(f => `<option value="${f.nome}" data-id="${f.id}">${f.nome} (${f.id})</option>`).join('');
 }
 
-function vincularCliente() {
-    const val = document.getElementById('f_nome').value;
-    const opts = document.getElementById('list_clientes').childNodes;
-    document.getElementById('f_cod_fornecedor').value = '';
-    for (let i = 0; i < opts.length; i++) {
-        if (opts[i].value === val) {
-            document.getElementById('f_cod_fornecedor').value = opts[i].getAttribute('data-id');
-            break;
-        }
-    }
+let _lookupFornReceber = null;
+function initLookupPagadorReceber() {
+    if (_lookupFornReceber || typeof SysRepLookup === 'undefined') return;
+    _lookupFornReceber = SysRepLookup.attach({
+        input: '#f_nome',
+        hiddenId: '#f_cod_fornecedor',
+        url: '/api/fornecedores/lookup?todostipos=true',
+        minChars: 2,
+        allowFreeText: true,
+        placeholder: 'Digite nome, CNPJ ou código…',
+        mapItem: (f) => ({
+            id: f.id,
+            title: f.nome || f.apelido || ('#' + f.id),
+            subtitle: [f.apelido && f.apelido !== f.nome ? f.apelido : null, f.cpf, [f.cidade, f.uf].filter(Boolean).join('/'), '#' + f.id].filter(Boolean).join(' · '),
+        }),
+    });
 }
+
+function vincularCliente() { /* compat — vínculo via SysRepLookup */ }
 
 async function imprimirTela() {
     const isDash = document.getElementById('content_analise').classList.contains('active');
@@ -1526,7 +1896,7 @@ document.addEventListener('click', e => {
 /* ── IMPRESSÃO CONTAS PAGAS ── */
 function imprimirContasPagas() {
     const pagas = _globalContas.filter(c => c.status_display === 'LIQUIDADO' || c.status_display === 'RECEBIDO');
-    if (!pagas.length) { alert('Nenhuma conta recebida na listagem atual.'); return; }
+    if (!pagas.length) { receberAvisar('Atenção', 'Nenhuma conta recebida na listagem atual.'); return; }
     aplicarCabecalhoImpressaoEmpresa('Contas Recebidas');
     const tbody = document.getElementById('print_tbody');
     tbody.innerHTML = '';
@@ -1620,9 +1990,9 @@ function imprimirReciboUnico(id) {
 
 function imprimirRecibosSelecionados() {
     const ids = Array.from(document.querySelectorAll('.row-check:checked')).map(c=>parseInt(c.value));
-    if (!ids.length) { alert('Selecione pelo menos um lançamento recebido.'); return; }
+    if (!ids.length) { receberAvisar('Atenção', 'Selecione pelo menos um lançamento recebido.'); return; }
     const rows = _globalContas.filter(r => ids.includes(r.id) && (r.status_display==='LIQUIDADO'||r.status_display==='RECEBIDO'));
-    if (!rows.length) { alert('Nenhum dos itens selecionados está com status RECEBIDO.'); return; }
+    if (!rows.length) { receberAvisar('Atenção', 'Nenhum dos itens selecionados está com status RECEBIDO.'); return; }
     document.getElementById('print_recibo_container').innerHTML = rows.map(_htmlRecibo).join('');
     document.body.classList.remove('print-list','print-dash','print-pagas');
     document.body.classList.add('print-recibo');
@@ -1632,7 +2002,7 @@ function imprimirRecibosSelecionados() {
 
 function imprimirTodosRecibos() {
     const rows = _globalContas.filter(r => r.status_display==='LIQUIDADO'||r.status_display==='RECEBIDO');
-    if (!rows.length) { alert('Nenhuma conta recebida na listagem atual.'); return; }
+    if (!rows.length) { receberAvisar('Atenção', 'Nenhuma conta recebida na listagem atual.'); return; }
     document.getElementById('print_recibo_container').innerHTML = rows.map(_htmlRecibo).join('');
     document.body.classList.remove('print-list','print-dash','print-pagas');
     document.body.classList.add('print-recibo');
@@ -1673,7 +2043,20 @@ window.addEventListener('message', (ev) => {
 });
 
 document.addEventListener('DOMContentLoaded', () => {
-    loadLookups().then(() => buscarReceber());
+    document.documentElement.classList.add('ms-page-contas-receber');
+    {
+        let collapsedPref = null;
+        try { collapsedPref = localStorage.getItem(RECEBER_FILTROS_LS); } catch (_) {}
+        const isEmbed = document.documentElement.classList.contains('sysrep-ms-embed')
+            || document.documentElement.classList.contains('ms-embedded-tech');
+        const defaultCollapsed = isEmbed && window.innerWidth < 901;
+        const collapsed = collapsedPref === '1' || (collapsedPref === null && defaultCollapsed);
+        setReceberFiltersCollapsed(collapsed);
+    }
+    loadLookups().then(() => {
+        initLookupPagadorReceber();
+        buscarReceber();
+    });
     fetchStats();
     const st = document.getElementById('filter_status');
     if (st) st.addEventListener('change', () => buscarReceber());

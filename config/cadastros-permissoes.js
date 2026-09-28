@@ -113,6 +113,7 @@ const COMERCIAL_TELAS = [
   { col: 'tela_dash_mapa_oportunidades', jwt: 'gtela_dash_mapa_oportunidades', page: '/pages/mapa-oportunidades.html', label: 'Mapa de Oportunidades — Cliente x Fábrica' },
   { col: 'tela_recompra', jwt: 'gtela_recompra', page: '/pages/comercial-recompra.html', label: 'Carteira de Recompra' },
   { col: 'tela_campanhas_wa', jwt: 'gtela_campanhas_wa', page: '/pages/comercial-campanhas-whatsapp.html', label: 'Campanhas WhatsApp' },
+  { col: 'tela_marketplace', jwt: 'gtela_marketplace', page: '/pages/marketplace-anuncios.html', label: 'Marketplace — De-para de Anúncios' },
   { col: 'tela_emails_enviados', jwt: 'gtela_emails_enviados', page: '/pages/emails-enviados.html', label: 'E-mails Enviados' },
   { col: 'tela_catalogos', jwt: 'gtela_catalogos', page: '/pages/comercial-catalogos.html', label: 'Catálogos Visuais' },
 ];

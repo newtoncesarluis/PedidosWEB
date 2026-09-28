@@ -524,6 +524,27 @@
   body.ms-pedido-form-open #ms-btn-novo-pedido {
     display: none !important;
   }
+  /* Showroom: tela cheia — some Início/Voltar/nav (não pode cobrir os botões do modal) */
+  body.ms-showroom-open {
+    --ms-nav-h: 0px;
+    --ms-top-h: 0px;
+  }
+  body.ms-showroom-open #ms-top,
+  body.ms-showroom-open #ms-summary,
+  body.ms-showroom-open #ms-nav,
+  body.ms-showroom-open #ms-float-bar,
+  body.ms-showroom-open #ms-btn-back,
+  body.ms-showroom-open #ms-btn-novo-pedido,
+  body.ms-showroom-open #ms-pack-hint {
+    display: none !important;
+  }
+  body.ms-showroom-open #ms-frame-wrap {
+    top: 0 !important;
+    bottom: 0 !important;
+  }
+  body.ms-showroom-open.has-pack-hint #ms-frame-wrap {
+    top: 0 !important;
+  }
   body.has-banner { --banner-h: 34px; }
   #ms-frame {
     width: 100%; height: 100%;
@@ -1517,6 +1538,10 @@
         <span class="ms-sheet-ico" style="background:rgba(34,197,94,.12);color:#15803d"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg></span>
         Relatórios padrão
       </button>
+      <button type="button" class="ms-sheet-link ms-sheet-highlight" data-ms-href="/pages/comercial-carteira-operacional.html" data-ms-label="Carteira Operacional">
+        <span class="ms-sheet-ico" style="background:rgba(16,185,129,.12);color:#047857"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg></span>
+        Carteira Operacional
+      </button>
 
       <div class="ms-sheet-group-label" style="margin-top:8px">Campo</div>
       <button type="button" class="ms-sheet-link ms-estoque-btn" data-ms-href="/pages/estoque-mobile.html" style="display:none">
@@ -1957,8 +1982,30 @@ window.msToast = function (msg, type) {
     var showChrome = isHomeDashboardRoot();
     document.body.classList.toggle('ms-chrome-hidden', !showChrome);
     updateFabVisibility(showChrome);
+    updateShowroomShell();
     if (typeof window._reloadSummary === 'function') window._reloadSummary(false);
   }
+
+  function isShowroomPage() {
+    try {
+      var p = (frame.contentWindow.location.pathname || '').toLowerCase();
+      return p.indexOf('comercial-showroom') >= 0;
+    } catch (_) {
+      return String(frame.src || '').toLowerCase().indexOf('comercial-showroom') >= 0;
+    }
+  }
+
+  function updateShowroomShell() {
+    var on = isShowroomPage();
+    document.body.classList.toggle('ms-showroom-open', on);
+    if (on) {
+      // Banner offline não deve cobrir o Showroom
+      var hint = document.getElementById('ms-pack-hint');
+      if (hint) hint.classList.remove('show');
+      document.body.classList.remove('has-pack-hint');
+    }
+  }
+  window._msUpdateShowroomShell = updateShowroomShell;
   window._msIsHomeDashboardRoot = isHomeDashboardRoot;
 
   function shellGoHome(force) {
@@ -2073,6 +2120,7 @@ window.msToast = function (msg, type) {
     doc.documentElement.classList.toggle('ms-page-clientes', embeddedPath.indexOf('/pages/clientes.html') >= 0);
     doc.documentElement.classList.toggle('ms-page-clientes-inativos', embeddedPath.indexOf('/pages/comercial-clientes-inativos.html') >= 0);
     doc.documentElement.classList.toggle('ms-page-relatorios-padrao', embeddedPath.indexOf('/pages/comercial-relatorios-padrao.html') >= 0);
+    doc.documentElement.classList.toggle('ms-page-carteira-operacional', embeddedPath.indexOf('/pages/comercial-carteira-operacional.html') >= 0);
     doc.documentElement.classList.toggle('ms-page-comissoes-relatorio', embeddedPath.indexOf('/pages/comissoes_relatorio.html') >= 0);
     doc.documentElement.classList.toggle('ms-page-comissoes-conferencia', embeddedPath.indexOf('/pages/comissoes_conferencia.html') >= 0);
     doc.documentElement.classList.toggle('ms-page-comissoes-gestao', embeddedPath.indexOf('/pages/comissoes.html') >= 0
@@ -2337,6 +2385,8 @@ window.msToast = function (msg, type) {
   // Observação: seletor precisa de pontos nas classes (".classe"). Também
   // cobrimos alertas comuns (SweetAlert2, Bootbox e variações internas).
   // #modalHist (.modal-hist) é tratado em pedidos.html — não incluir aqui
+  // #sysrepProdCoresPicker / .afv-overlay: já são position:fixed próprios —
+  // ms-modal-open + focus forçado quebrava o Showroom no celular.
   var MS_MODAL_OVERLAY_SEL = '.modal,.modal-overlay,.overlay,.popup,.popup-window,.janela-pesquisa,.pesquisa-modal,.search-modal,.dialog,[role="dialog"],[role="alertdialog"],.modal-backdrop,.swal2-container,.bootbox,.bootbox.modal,.alert-modal,.confirm-modal,.toast-modal,.drawer';
   var MS_MODAL_CARD_SEL = '.modal-dialog,.modal-content,.modal-card,.popup-content,.popup-card,.dialog-content,.pesquisa-content,.search-content,.janela-pesquisa-content,.alert,.swal2-popup,.modal-hist-content,.modal-envio-panel,.cmp-box';
   var MS_MODAL_FOCUS_SEL = 'input[type="search"],input[type="text"]:not([readonly]),input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([readonly]):not([disabled]),textarea:not([readonly]):not([disabled])';
@@ -2578,8 +2628,12 @@ window.msToast = function (msg, type) {
         }
         continue;
       }
-      // Modais nativos do pedidos (já são position:fixed + flex) — não aplicar ms-modal-*
-      if (el.id === 'modalEnvio' || el.id === 'modalHist' || el.id === 'cmpOverlay' || (el.dataset && (el.dataset.msNativeModal === '1' || el.dataset.msEmbedEnvio === '1' || el.dataset.msEmbedHist === '1'))) {
+      // Modais nativos (já são position:fixed + flex) — não aplicar ms-modal-*
+      // Showroom: #sysrepProdCoresPicker e .afv-overlay (focus forçado quebrava no iPhone)
+      if (el.id === 'modalEnvio' || el.id === 'modalHist' || el.id === 'cmpOverlay'
+          || el.id === 'sysrepProdCoresPicker'
+          || (el.classList && el.classList.contains('afv-overlay'))
+          || (el.dataset && (el.dataset.msNativeModal === '1' || el.dataset.msEmbedEnvio === '1' || el.dataset.msEmbedHist === '1'))) {
         if (!_msIsVisible(el)) {
           el.classList.remove('ms-modal-open', 'ms-modal-card-fixed', 'ms-modal-card');
           var nativeCards = el.querySelectorAll('.ms-modal-card');
@@ -3345,6 +3399,8 @@ window.msToast = function (msg, type) {
     if (!href) return;
     if (typeof window._fecharModalVitrineShell === 'function') window._fecharModalVitrineShell();
     resetPedidosShellState();
+    // Some Início/nav já no clique — não espera o load do iframe
+    document.body.classList.toggle('ms-showroom-open', String(href || '').toLowerCase().indexOf('comercial-showroom') >= 0);
     frame.src = href + (href.indexOf('?') >= 0 ? '&' : '?') + '_ms=' + Date.now();
     setActiveNav(href);
     document.getElementById('ms-title').textContent = label || 'SysRep Mobile';
@@ -3751,6 +3807,7 @@ window.msToast = function (msg, type) {
         else if (data.url.indexOf('visitas') >= 0) label = 'Visitas';
         else if (data.url.indexOf('clientes') >= 0) label = 'Clientes';
         else if (data.url.indexOf('comercial-clientes-inativos') >= 0) label = 'Clientes Inativos';
+        else if (data.url.indexOf('comercial-carteira-operacional') >= 0) label = 'Carteira Operacional';
         else if (data.url.indexOf('anotacoes') >= 0) label = 'Anotações';
         else if (data.url.indexOf('visitas-calendario') >= 0) label = 'Visitas';
         else if (data.url.indexOf('contas-receber') >= 0) label = 'Contas a Receber';

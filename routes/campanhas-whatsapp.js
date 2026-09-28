@@ -20,7 +20,7 @@ const axios   = require('axios');
 const { getPool } = require('../config/database');
 const { logError } = require('../config/logger');
 const { permSn } = require('../config/cadastros-permissoes');
-const { euatendoAtivo, enviarTextoEuAtendo } = require('../config/euatendo');
+const { provedorExterno } = require('../config/wa-provedor');
 const { registrarMensagemCliente } = require('../config/cliente-mensagens');
 
 // Intervalo entre mensagens (ms) — aleatório dentro da faixa, contra bloqueio
@@ -290,8 +290,8 @@ async function processarCampanha(pool, chave, idCampanha, envio) {
       const texto = _personalizar(envio.mensagem, dest);
       let ok = true, erro = null;
       try {
-        if (envio.euatendo) {
-          await enviarTextoEuAtendo(envio.euatendo, dest.telefone, texto);
+        if (envio.externo) {
+          await envio.externo.enviarTexto(dest.telefone, texto);
         } else {
           await _enviarEvolution(envio, dest.telefone, texto);
         }
@@ -313,7 +313,7 @@ async function processarCampanha(pool, chave, idCampanha, envio) {
         id_campanha: idCampanha,
         id_usuario:  envio.idUsuario,
         canal:       'WHATSAPP',
-        provedor:    envio.euatendo ? 'EUATENDO' : 'EVOLUTION',
+        provedor:    envio.externo ? envio.externo.tipo : 'EVOLUTION',
         destino:     dest.telefone,
         mensagem:    texto,
         status:      ok ? 'ENVIADO' : 'FALHOU',
@@ -358,10 +358,10 @@ router.post('/:id(\\d+)/iniciar', async (req, res) => {
       mensagem:     camp.mensagem,
       nomeCampanha: camp.nome,
       idUsuario:    req.user?.id || null,
-      euatendo:     await euatendoAtivo(pool).catch(() => null),
+      externo:      await provedorExterno(pool).catch(() => null),   // EuAtendo ou Meta (API oficial)
       evolution:    null,
     };
-    if (!envio.euatendo) {
+    if (!envio.externo) {
       const [[cfg]] = await pool.query(
         `SELECT w_urlplataforma AS url, w_apiglobal AS apikey
          FROM configuracao WHERE excluido='N' ORDER BY id DESC LIMIT 1`
@@ -372,7 +372,7 @@ router.post('/:id(\\d+)/iniciar', async (req, res) => {
       ).catch(() => [[]]);
       if (!cfg?.url || !usr?.instancia) {
         return res.status(400).json({
-          error: 'Nenhum provedor de envio pronto — configure o EuAtendo ou conecte sua instância WhatsApp (Evolution) em Configurações de API',
+          error: 'Nenhum provedor de envio pronto — configure o EuAtendo, a API oficial da Meta ou conecte sua instância WhatsApp (Evolution) em Configurações de API',
         });
       }
       envio.evolution = { url: cfg.url, instancia: usr.instancia, chave: usr.chave || cfg.apikey };
@@ -386,7 +386,7 @@ router.post('/:id(\\d+)/iniciar', async (req, res) => {
     // dispara o motor em background (não aguarda)
     void processarCampanha(pool, `${db}:${id}`, id, envio);
 
-    res.json({ ok: true, pendentes: pend.n, provedor: envio.euatendo ? 'EUATENDO' : 'EVOLUTION' });
+    res.json({ ok: true, pendentes: pend.n, provedor: envio.externo ? envio.externo.tipo : 'EVOLUTION' });
   } catch (err) {
     logError(`${req.method} ${req.path}`, err);
     res.status(500).json({ error: err.message });

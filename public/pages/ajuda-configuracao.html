@@ -30,6 +30,7 @@
           <a class="nav-link" href="?sec=config-sistema">Config. do Sistema</a>
           <a class="nav-link" href="?sec=whatsapp">Configurações WhatsApp</a>
           <a class="nav-link" href="?sec=whatsapp" style="padding-left:20px;font-size:11px">↳ EuAtendo (ApiChat)</a>
+          <a class="nav-link" href="?sec=whatsapp" style="padding-left:20px;font-size:11px">↳ Meta (API oficial)</a>
           <a class="nav-link" href="?sec=whatsapp" style="padding-left:20px;font-size:11px">↳ Evolution API</a>
           <a class="nav-link" href="?sec=marca">Marca da instalação</a>
           <a class="nav-link" href="?sec=config-sistema" style="padding-left:20px;font-size:11px">↳ Exibir centavos nos preços</a>
@@ -86,17 +87,17 @@
 
         <section class="section help-section" id="whatsapp">
           <h3>Configurações WhatsApp — API de Envio</h3>
-          <p>O sistema envia mensagens e o <strong>PDF do pedido</strong> direto no WhatsApp do cliente. O envio pode sair por <strong>dois provedores</strong> — escolha um deles em <strong>Configurações de API → card "WhatsApp — API de Envio"</strong> (a tela pede a <em>senha administrativa</em> para liberar a edição).</p>
+          <p>O sistema envia mensagens e o <strong>PDF do pedido</strong> direto no WhatsApp do cliente. O envio pode sair por <strong>três provedores</strong> — escolha um deles em <strong>Configurações de API → card "WhatsApp — API de Envio"</strong> (a tela pede a <em>senha administrativa</em> para liberar a edição).</p>
 
           <h4 style="margin-top:16px">Qual provedor escolher?</h4>
           <div class="table-wrap">
             <table>
-              <thead><tr><th></th><th>EuAtendo (ApiChat)</th><th>Evolution API</th></tr></thead>
+              <thead><tr><th></th><th>EuAtendo (ApiChat)</th><th>Meta (API oficial)</th><th>Evolution API</th></tr></thead>
               <tbody>
-                <tr><td><strong>Tipo</strong></td><td>Plataforma hospedada (contratada)</td><td>Servidor próprio (self-hosted)</td></tr>
-                <tr><td><strong>Conexão</strong></td><td>Um <strong>token</strong> por empresa — sem QR Code</td><td>Instância por usuário + QR Code no celular</td></tr>
-                <tr><td><strong>Número que envia</strong></td><td>O número conectado no painel do EuAtendo</td><td>O WhatsApp de cada vendedor</td></tr>
-                <tr><td><strong>Manutenção</strong></td><td>Praticamente zero</td><td>Reconectar QR quando a sessão cai</td></tr>
+                <tr><td><strong>Tipo</strong></td><td>Plataforma hospedada (contratada)</td><td>API oficial da Meta (WhatsApp Cloud API)</td><td>Servidor próprio (self-hosted)</td></tr>
+                <tr><td><strong>Conexão</strong></td><td>Um <strong>token</strong> por empresa — sem QR Code</td><td><strong>Phone Number ID + token permanente</strong> — sem QR Code</td><td>Instância por usuário + QR Code no celular</td></tr>
+                <tr><td><strong>Número que envia</strong></td><td>O número conectado no painel do EuAtendo</td><td>O número aprovado na Meta</td><td>O WhatsApp de cada vendedor</td></tr>
+                <tr><td><strong>Manutenção</strong></td><td>Praticamente zero</td><td>Zero — mas texto livre só na janela de 24h; fora dela, modelo aprovado</td><td>Reconectar QR quando a sessão cai</td></tr>
               </tbody>
             </table>
           </div>
@@ -129,6 +130,24 @@
           </ol>
           <div class="callout warn">O EuAtendo cobre o <strong>envio</strong> de mensagens. Recursos que dependem de <em>receber</em> mensagens (bot do vendedor, captura de Instagram DM) continuam usando a Evolution API.</div>
           <div class="callout">Para enviar mensagens <strong>em massa</strong> (promoções, reativação de clientes), use <strong>Vendas → Campanhas WhatsApp</strong> — guia completo em <a href="/pages/ajuda-campanhas-whatsapp.html">Ajuda: Campanhas WhatsApp</a>.</div>
+
+          <h4 id="meta" style="margin-top:20px">Meta (WhatsApp Cloud API — API oficial) — como configurar</h4>
+          <p>Use quando o cliente <strong>já tem (ou quer ter) o número aprovado direto na Meta</strong>. Não há QR Code nem instância: o sistema fala com a API oficial usando um <strong>Phone Number ID</strong> e um <strong>token permanente</strong>.</p>
+          <ol class="steps">
+            <li>Em <strong>developers.facebook.com</strong>, no app do cliente, abra <strong>WhatsApp → Configuração da API</strong> e copie o <strong>ID do número de telefone</strong> (Phone Number ID) e, se quiser, o <strong>ID da conta do WhatsApp Business</strong>.</li>
+            <li>No <strong>Meta Business → Configurações → Usuários do sistema</strong>, crie um usuário do sistema, atribua o app e gere um <strong>token permanente</strong> com a permissão <code>whatsapp_business_messaging</code>. <em>Não use o token temporário de 24h</em> da tela de testes — ele expira.</li>
+            <li>No <strong>Gerenciador do WhatsApp</strong>, crie e aprove um <strong>modelo de mensagem</strong> (categoria <em>Utilidade</em>) cujo corpo seja apenas <code>{{1}}</code> — ele recebe o texto da mensagem. Anote o nome e o idioma (ex.: <code>aviso_generico</code> / <code>pt_BR</code>).</li>
+            <li>No sistema, acesse <strong>Configurações de API</strong>, informe a <strong>senha administrativa</strong> e mude o <strong>Provedor de envio</strong> para <strong>Meta — WhatsApp Cloud API (API oficial)</strong>.</li>
+            <li>Preencha <strong>Phone Number ID</strong>, <strong>Token</strong>, <strong>Nome do modelo</strong> e <strong>Idioma</strong> e clique em <strong>Salvar</strong>.</li>
+            <li>Clique em <strong>Testar Conexão</strong>. Sem número de teste ele só confere o Phone Number ID e o token (mostra o número, o nome verificado e a qualidade). Informando o seu celular em <strong>Número para teste</strong> ele também <strong>envia uma mensagem real</strong>.</li>
+            <li>Selo verde <strong>«Meta liberada»</strong> = último teste de conexão OK. Ao trocar o token ou o Phone Number ID o selo volta para amarelo até um novo teste passar.</li>
+          </ol>
+          <div class="callout warn">
+            <strong>Janela de 24 horas.</strong> A Meta só aceita <em>texto livre</em> se o cliente falou com o número nas últimas 24h. Fora disso, só entrega <strong>modelo aprovado</strong>. O sistema tenta o texto livre primeiro e, se a Meta recusar, <strong>reenvia sozinho pelo modelo cadastrado</strong> (a mensagem vai na variável <code>{{1}}</code>). Sem modelo cadastrado, o envio fora da janela falha com uma mensagem explicando o motivo.<br>
+            <strong>PDF/imagem</strong> seguem a mesma regra: fora da janela a Meta não aceita anexo sem modelo com cabeçalho de documento — nesse caso o envio é recusado e fica registrado com o motivo.
+          </div>
+          <div class="callout info">Com a Meta ativa, a <strong>home</strong> mostra «● Meta (API oficial)», os pedidos e as <strong>Campanhas WhatsApp</strong> enviam por ela e todo envio continua registrado no <strong>Histórico do cliente</strong>. Para envio em massa, a Meta cobra pelos modelos enviados e limita o volume conforme o nível do número — respeite os intervalos da campanha.</div>
+          <div class="callout warn">A Meta cobre o <strong>envio</strong>. O recebimento de mensagens (webhook) ainda <strong>não</strong> está integrado — bot do vendedor e captura de Instagram DM continuam usando a Evolution API.</div>
 
           <h4 id="evolution" style="margin-top:20px">Evolution API — como configurar</h4>
           <ol class="steps">
@@ -273,8 +292,10 @@
               <tbody>
                 <tr><td>WhatsApp não conecta (Evolution)</td><td>Token ou instância inválidos</td><td>Revisar credenciais na Evolution API; gerar novo QR Code</td></tr>
                 <tr><td>Teste do EuAtendo falha</td><td>Token errado ou conexão inativa no painel EuAtendo</td><td>Copiar o token novamente do cadastro da conexão; conferir se a conexão está ativa no EuAtendo</td></tr>
+                <tr><td>Teste da Meta falha (token / Phone Number ID)</td><td>Token expirado (temporário de 24h), sem a permissão <code>whatsapp_business_messaging</code> ou Phone Number ID de outro app</td><td>Gerar token permanente em <strong>Usuários do sistema</strong> e conferir o ID em <strong>WhatsApp → Configuração da API</strong></td></tr>
+                <tr><td>Meta: «fora da janela de 24 horas»</td><td>Cliente não falou com o número nas últimas 24h e não há modelo cadastrado</td><td>Cadastrar em Configurações de API o <strong>nome e idioma de um modelo aprovado</strong> com 1 variável — o reenvio passa a ser automático</td></tr>
                 <tr><td>Selo do ApiChat fica amarelo</td><td>Token salvo mas nenhum teste aprovado ainda</td><td>Informar número para teste e clicar em <strong>Testar Conexão</strong> — verde só após mensagem entregue</td></tr>
-                <tr><td>Pedido não envia PDF no WhatsApp</td><td>Provedor sem teste OK / instância desconectada</td><td>EuAtendo: validar com Testar Conexão. Evolution: reconectar QR Code do vendedor</td></tr>
+                <tr><td>Pedido não envia PDF no WhatsApp</td><td>Provedor sem teste OK / instância desconectada</td><td>EuAtendo/Meta: validar com Testar Conexão (Meta: PDF fora da janela de 24h não é aceito). Evolution: reconectar QR Code do vendedor</td></tr>
                 <tr><td>Usuário não vê menu Cadastros</td><td><code>acessar_cadastros = N</code></td><td>Marque <strong>Acesso Cadastros = S</strong> no perfil; novo login</td></tr>
                 <tr><td>Não abre Clientes / Fornec. / Produtos</td><td><code>tela_* = N</code></td><td>Libere <strong>Acessar tela de … = S</strong> na aba correspondente do perfil</td></tr>
                 <tr><td>Vê tela mas não cadastra</td><td>Incluir = N</td><td>Ajuste <em>Incluir</em> na mesma aba do perfil (telas principais e auxiliares)</td></tr>

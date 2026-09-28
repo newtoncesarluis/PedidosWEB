@@ -5,7 +5,14 @@
 const express = require('express');
 const router  = express.Router();
 const { getPool } = require('../config/database');
-const { resolveNaturezaLabelColumn, naturezaLabelColumnName } = require('../config/natureza-label');
+const {
+  ensureNaturezaSchema,
+  resolveNaturezaLabelColumn,
+  naturezaLabelExpr,
+  naturezaSqlAtiva,
+  loadNaturezaCache,
+} = require('../config/natureza-label');
+const { ensureFinanceiroContabilCols } = require('../config/plano-contas-schema');
 const {
   resolveDespesasLabelColumn,
   despesasLabelExpr,
@@ -186,11 +193,20 @@ router.get('/transportadoras', async (req, res) => {
 router.get('/natureza', async (req, res) => {
   try {
     const pool = getPool();
+    await ensureNaturezaSchema(pool);
+    await ensureFinanceiroContabilCols(pool).catch(() => {});
     await resolveNaturezaLabelColumn(pool);
-    const label = naturezaLabelColumnName();
-    const rows = await query(
-      `SELECT id, \`${label}\` AS nome, id_planoconta
-       FROM natureza WHERE excluido='N' AND (status='A' OR status IS NULL) ORDER BY \`${label}\``
+    const cache = await loadNaturezaCache(pool);
+    const label = naturezaLabelExpr('n');
+    const pcCol = cache.cols.has('id_planoconta') ? 'n.id_planoconta' : 'NULL';
+    const statusSql = cache.cols.has('status')
+      ? `(n.status='A' OR n.status IS NULL OR n.status='')`
+      : '1=1';
+    const [rows] = await pool.query(
+      `SELECT n.id, ${label} AS nome, ${pcCol} AS id_planoconta
+       FROM natureza n
+       WHERE ${naturezaSqlAtiva('n')} AND ${statusSql}
+       ORDER BY ${label}`
     );
     res.json(rows);
   } catch (err) {

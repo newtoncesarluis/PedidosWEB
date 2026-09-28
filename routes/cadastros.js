@@ -11,7 +11,14 @@ const {
   sanitizeEmpresaRow,
 } = require('../services/empresa-logo');
 const { ensurePerfilCadastroColumns } = require('../config/schema-migrations');
-const { resolveNaturezaLabelColumn } = require('../config/natureza-label');
+const {
+  ensureNaturezaSchema,
+  naturezaLabelExpr,
+  naturezaSqlAtiva,
+  tipoNaturezaParaGravar,
+  tipoNaturezaParaForm,
+  loadNaturezaCache,
+} = require('../config/natureza-label');
 const {
   resolveDespesasLabelColumn,
   despesasLabelExpr,
@@ -29,6 +36,7 @@ const {
   ensureFinanceiroContabilCols,
   normalizeTipoConta,
   normalizeGrupoConta,
+  normalizeUsoCentro,
   calcNivelPai,
   planoContasLegacyWriteFields,
 } = require('../config/plano-contas-schema');
@@ -1291,7 +1299,48 @@ router.delete('/formas-pagamento/:id', async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // BANCOS
+// Legado Delphi: numero_banco / obs (não num_banco / observacao).
+// Sem isso o INSERT quebra com "Unknown column 'num_banco'".
 // ─────────────────────────────────────────────────────────────────────────────
+async function bancosColumns(pool) {
+  let rows = [];
+  try {
+    const [r] = await pool.query(
+      `SELECT LOWER(TRIM(\`COLUMN_NAME\`)) AS n FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
+      ['bancos']
+    );
+    rows = r || [];
+  } catch (_) {
+    rows = [];
+  }
+  return new Set(rows.map((x) => String(x.n)));
+}
+
+function bancosPickCol(cols, ...names) {
+  return names.find((n) => cols.has(n)) || null;
+}
+
+function mapBancoRow(row) {
+  const o = { ...row };
+  if (o.num_banco == null && o.numero_banco != null) o.num_banco = o.numero_banco;
+  if (o.observacao == null && o.obs != null) o.observacao = o.obs;
+  return o;
+}
+
+function bancosWriteCols(cols) {
+  return {
+    nome: bancosPickCol(cols, 'nome'),
+    apelido: bancosPickCol(cols, 'apelido'),
+    num_banco: bancosPickCol(cols, 'num_banco', 'numero_banco'),
+    agencia: bancosPickCol(cols, 'agencia'),
+    conta: bancosPickCol(cols, 'conta'),
+    observacao: bancosPickCol(cols, 'observacao', 'obs'),
+    saldo: bancosPickCol(cols, 'saldo'),
+    status: bancosPickCol(cols, 'status'),
+    excluido: bancosPickCol(cols, 'excluido'),
+  };
+}
+
 async function ensureBancosTable(pool) {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS bancos (
@@ -1310,12 +1359,28 @@ async function ensureBancosTable(pool) {
   `).catch(() => {});
 }
 
+function bancosPayload(body) {
+  const saldoNum = Number(String(body.saldo ?? 0).replace(',', '.'));
+  return {
+    nome: String(body.nome || '').trim(),
+    apelido: String(body.apelido || '').trim() || null,
+    num_banco: String(body.num_banco || '').trim() || null,
+    agencia: String(body.agencia || '').trim() || null,
+    conta: String(body.conta || '').trim() || null,
+    observacao: String(body.observacao || '').trim() || null,
+    saldo: Number.isFinite(saldoNum) ? saldoNum : 0,
+    status: body.status === 'I' ? 'I' : 'A',
+  };
+}
+
 router.get('/bancos', async (req, res) => {
   try {
     const pool = getPool();
     await ensureBancosTable(pool);
-    const [rows] = await pool.query(`SELECT * FROM bancos WHERE excluido='N' ORDER BY nome`);
-    res.json({ bancos: rows });
+    const [rows] = await pool.query(
+      `SELECT * FROM bancos WHERE (excluido='N' OR excluido IS NULL OR excluido='') ORDER BY nome`
+    );
+    res.json({ bancos: rows.map(mapBancoRow) });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1324,11 +1389,32 @@ router.post('/bancos', async (req, res) => {
     const pc = permCrud(req, { incluir: 'incluir_bancos', alterar: 'alterar_bancos', excluir: 'excluir_bancos' });
     if (pc.incluir !== 'S') return negarCad(res, 'Sem permissão para incluir bancos');
     const pool = getPool();
-    const { nome, apelido, num_banco, agencia, conta, observacao, saldo, status } = req.body;
-    if (!nome) return res.status(400).json({ error: 'Nome é obrigatório' });
+    await ensureBancosTable(pool);
+    const p = bancosPayload(req.body);
+    if (!p.nome) return res.status(400).json({ error: 'Nome é obrigatório' });
+    const cols = await bancosColumns(pool);
+    const map = bancosWriteCols(cols);
+    const fields = [];
+    const ph = [];
+    const vals = [];
+    const push = (logical, value) => {
+      if (!map[logical]) return;
+      fields.push(map[logical]);
+      ph.push('?');
+      vals.push(value);
+    };
+    push('nome', p.nome);
+    push('apelido', p.apelido);
+    push('num_banco', p.num_banco);
+    push('agencia', p.agencia);
+    push('conta', p.conta);
+    push('observacao', p.observacao);
+    push('saldo', p.saldo);
+    push('status', p.status);
+    push('excluido', 'N');
     const [r] = await pool.query(
-      `INSERT INTO bancos (nome, apelido, num_banco, agencia, conta, observacao, saldo, status, excluido) VALUES (?,?,?,?,?,?,?,?,'N')`,
-      [nome, apelido || null, num_banco || null, agencia || null, conta || null, observacao || null, saldo || 0, status || 'A']
+      `INSERT INTO bancos (${fields.join(',')}) VALUES (${ph.join(',')})`,
+      vals
     );
     res.status(201).json({ ok: true, id: r.insertId });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -1339,11 +1425,28 @@ router.put('/bancos/:id', async (req, res) => {
     const pc = permCrud(req, { incluir: 'incluir_bancos', alterar: 'alterar_bancos', excluir: 'excluir_bancos' });
     if (pc.alterar !== 'S') return negarCad(res, 'Sem permissão para alterar bancos');
     const pool = getPool();
-    const { nome, apelido, num_banco, agencia, conta, observacao, saldo, status } = req.body;
-    await pool.query(
-      `UPDATE bancos SET nome=?, apelido=?, num_banco=?, agencia=?, conta=?, observacao=?, saldo=?, status=? WHERE id=?`,
-      [nome, apelido || null, num_banco || null, agencia || null, conta || null, observacao || null, saldo || 0, status || 'A', req.params.id]
-    );
+    await ensureBancosTable(pool);
+    const p = bancosPayload(req.body);
+    if (!p.nome) return res.status(400).json({ error: 'Nome é obrigatório' });
+    const cols = await bancosColumns(pool);
+    const map = bancosWriteCols(cols);
+    const sets = [];
+    const vals = [];
+    const push = (logical, value) => {
+      if (!map[logical]) return;
+      sets.push(`${map[logical]}=?`);
+      vals.push(value);
+    };
+    push('nome', p.nome);
+    push('apelido', p.apelido);
+    push('num_banco', p.num_banco);
+    push('agencia', p.agencia);
+    push('conta', p.conta);
+    push('observacao', p.observacao);
+    push('saldo', p.saldo);
+    push('status', p.status);
+    vals.push(req.params.id);
+    await pool.query(`UPDATE bancos SET ${sets.join(', ')} WHERE id=?`, vals);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -1568,7 +1671,7 @@ router.post('/categorias-produto', async (req, res) => {
       `INSERT INTO categoria (descricao, status, excluido) VALUES (?,?,'N')`,
       [String(descricao).trim().toUpperCase(), _normStatusSegmento(status)]
     );
-    res.status(201).json({ ok: true, id: r.insertId });
+    res.status(201).json({ ok: true, id: r.insertId, descricao: String(descricao).trim().toUpperCase() });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1822,33 +1925,40 @@ router.delete('/regioes/:id', async (req, res) => {
 // NATUREZA
 // ─────────────────────────────────────────────────────────────────────────────
 async function ensureNaturezaTable(pool) {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS natureza (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      descricao VARCHAR(100) NOT NULL,
-      tipo VARCHAR(50) DEFAULT NULL,
-      movimenta_estoque CHAR(1) DEFAULT 'N',
-      status CHAR(1) DEFAULT 'A',
-      excluido CHAR(1) DEFAULT 'N',
-      dt_cadastro DATETIME DEFAULT CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3
-  `).catch(() => {});
+  await ensureNaturezaSchema(pool);
   await ensureFinanceiroContabilCols(pool);
+  await loadNaturezaCache(pool);
+}
+
+function camposGravacaoNatureza(cache, descricao, tipo, movimenta_estoque, status, idPlano) {
+  const cols = [];
+  const ph = [];
+  const vals = [];
+  if (cache.hasNome) { cols.push('nome'); ph.push('?'); vals.push(descricao); }
+  if (cache.hasDesc) { cols.push('descricao'); ph.push('?'); vals.push(descricao); }
+  if (cache.cols.has('tipo')) { cols.push('tipo'); ph.push('?'); vals.push(tipoNaturezaParaGravar(tipo, cache)); }
+  if (cache.cols.has('movimenta_estoque')) { cols.push('movimenta_estoque'); ph.push('?'); vals.push(movimenta_estoque); }
+  if (cache.cols.has('status')) { cols.push('status'); ph.push('?'); vals.push(status); }
+  if (cache.cols.has('id_planoconta')) { cols.push('id_planoconta'); ph.push('?'); vals.push(idPlano); }
+  return { cols, ph, vals };
 }
 
 router.get('/natureza', async (req, res) => {
   try {
     const pool = getPool();
     await ensureNaturezaTable(pool);
-    const col = await resolveNaturezaLabelColumn(pool);
+    const label = naturezaLabelExpr('n');
     const [rows] = await pool.query(
-      `SELECT n.*, n.\`${col}\` AS descricao,
+      `SELECT n.*, ${label} AS descricao,
               p.numero AS planoconta_numero, p.descricao AS planoconta_nome
        FROM natureza n
        LEFT JOIN plano_contas p ON p.id = n.id_planoconta
-       WHERE n.excluido='N' ORDER BY n.\`${col}\``
+       WHERE ${naturezaSqlAtiva('n')}
+       ORDER BY ${label}`
     );
-    res.json({ natureza: rows });
+    res.json({
+      natureza: rows.map((r) => ({ ...r, tipo: tipoNaturezaParaForm(r.tipo) })),
+    });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1857,12 +1967,17 @@ router.post('/natureza', async (req, res) => {
     const pool = getPool();
     await ensureNaturezaTable(pool);
     const n = v => (v === 'S' || v === true) ? 'S' : 'N';
-    const col = await resolveNaturezaLabelColumn(pool);
+    const cache = await loadNaturezaCache(pool);
     const { descricao, tipo, movimenta_estoque, status, id_planoconta } = req.body;
     if (!descricao) return res.status(400).json({ error: 'Descrição é obrigatória' });
+    const g = camposGravacaoNatureza(
+      cache, String(descricao).trim(), tipo, n(movimenta_estoque), status || 'A', parseInt(id_planoconta, 10) || null
+    );
+    if (cache.cols.has('excluido')) { g.cols.push('excluido'); g.ph.push("'N'"); }
+    if (!g.cols.length) return res.status(500).json({ error: 'Tabela natureza sem colunas para gravar' });
     const [r] = await pool.query(
-      `INSERT INTO natureza (\`${col}\`, tipo, movimenta_estoque, status, id_planoconta, excluido) VALUES (?,?,?,?,?,'N')`,
-      [descricao, tipo || null, n(movimenta_estoque), status || 'A', parseInt(id_planoconta, 10) || null]
+      `INSERT INTO natureza (${g.cols.map((c) => `\`${c}\``).join(',')}) VALUES (${g.ph.join(',')})`,
+      g.vals
     );
     res.status(201).json({ ok: true, id: r.insertId });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -1873,11 +1988,17 @@ router.put('/natureza/:id', async (req, res) => {
     const pool = getPool();
     await ensureNaturezaTable(pool);
     const n = v => (v === 'S' || v === true) ? 'S' : 'N';
-    const col = await resolveNaturezaLabelColumn(pool);
+    const cache = await loadNaturezaCache(pool);
     const { descricao, tipo, movimenta_estoque, status, id_planoconta } = req.body;
+    if (!descricao) return res.status(400).json({ error: 'Descrição é obrigatória' });
+    const g = camposGravacaoNatureza(
+      cache, String(descricao).trim(), tipo, n(movimenta_estoque), status || 'A', parseInt(id_planoconta, 10) || null
+    );
+    if (!g.cols.length) return res.status(500).json({ error: 'Tabela natureza sem colunas para gravar' });
+    const sets = g.cols.map((c) => `\`${c}\`=?`).join(', ');
     await pool.query(
-      `UPDATE natureza SET \`${col}\`=?, tipo=?, movimenta_estoque=?, status=?, id_planoconta=? WHERE id=?`,
-      [descricao, tipo || null, n(movimenta_estoque), status || 'A', parseInt(id_planoconta, 10) || null, req.params.id]
+      `UPDATE natureza SET ${sets} WHERE id=?`,
+      [...g.vals, req.params.id]
     );
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -1886,6 +2007,7 @@ router.put('/natureza/:id', async (req, res) => {
 router.delete('/natureza/:id', async (req, res) => {
   try {
     const pool = getPool();
+    await ensureNaturezaTable(pool);
     await pool.query(`UPDATE natureza SET excluido='S' WHERE id=?`, [req.params.id]);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -1997,6 +2119,7 @@ async function ensureTipoPedidosColumns(pool) {
     ['faturado',        "CHAR(1) NOT NULL DEFAULT 'N'"],
     ['importacao',      "CHAR(1) NOT NULL DEFAULT 'N'"],
     ['padrao_vitrine',  "CHAR(1) NOT NULL DEFAULT 'N'"],
+    ['so_totais',       "CHAR(1) NOT NULL DEFAULT 'N'"],
     ['cod_planoconta',  'INT DEFAULT NULL'],
     ['tratamento',      'VARCHAR(50) DEFAULT NULL'],
     ['id_receitas',     'INT DEFAULT NULL'],
@@ -2035,6 +2158,7 @@ router.get('/tipo-pedidos', async (req, res) => {
 router.get('/tipo-pedidos/:id', async (req, res) => {
   try {
     const pool = getPool();
+    await ensureTipoPedidosColumns(pool);
     const [[row]] = await pool.query(`SELECT * FROM tipo_pedidos WHERE id = ? AND excluido = 'N'`, [req.params.id]);
     if (!row) return res.status(404).json({ error: 'Não encontrado' });
     res.json(row);
@@ -2046,18 +2170,18 @@ router.post('/tipo-pedidos', async (req, res) => {
     const pool = getPool();
     await ensureTipoPedidosColumns(pool);
     const { descricao, obs, situacao, puxada, gerafinanceiro, permiteprocesso,
-            movimentaestoque, faturado, importacao, padrao_vitrine,
+            movimentaestoque, faturado, importacao, padrao_vitrine, so_totais,
             cod_planoconta, tratamento, id_receitas } = req.body;
     if (!descricao) return res.status(400).json({ error: 'Descrição é obrigatória' });
     const [r] = await pool.query(
       `INSERT INTO tipo_pedidos
        (descricao, obs, situacao, puxada, gerafinanceiro, permiteprocesso,
-        movimentaestoque, faturado, importacao, padrao_vitrine,
+        movimentaestoque, faturado, importacao, padrao_vitrine, so_totais,
         cod_planoconta, tratamento, id_receitas, excluido)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,'N')`,
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,'N')`,
       [ descricao.toUpperCase(), obs || null, situacao || 'A',
         _sn(puxada), _sn(gerafinanceiro), _sn(permiteprocesso),
-        _sn(movimentaestoque), _sn(faturado), _sn(importacao), _sn(padrao_vitrine),
+        _sn(movimentaestoque), _sn(faturado), _sn(importacao), _sn(padrao_vitrine), _sn(so_totais),
         cod_planoconta || null, tratamento || null, id_receitas || null ]
     );
     res.status(201).json({ ok: true, id: r.insertId });
@@ -2069,18 +2193,18 @@ router.put('/tipo-pedidos/:id', async (req, res) => {
     const pool = getPool();
     await ensureTipoPedidosColumns(pool);
     const { descricao, obs, situacao, puxada, gerafinanceiro, permiteprocesso,
-            movimentaestoque, faturado, importacao, padrao_vitrine,
+            movimentaestoque, faturado, importacao, padrao_vitrine, so_totais,
             cod_planoconta, tratamento, id_receitas } = req.body;
     if (!descricao) return res.status(400).json({ error: 'Descrição é obrigatória' });
     await pool.query(
       `UPDATE tipo_pedidos SET
        descricao=?, obs=?, situacao=?, puxada=?, gerafinanceiro=?, permiteprocesso=?,
-       movimentaestoque=?, faturado=?, importacao=?, padrao_vitrine=?,
+       movimentaestoque=?, faturado=?, importacao=?, padrao_vitrine=?, so_totais=?,
        cod_planoconta=?, tratamento=?, id_receitas=?
        WHERE id=? AND excluido='N'`,
       [ descricao.toUpperCase(), obs || null, situacao || 'A',
         _sn(puxada), _sn(gerafinanceiro), _sn(permiteprocesso),
-        _sn(movimentaestoque), _sn(faturado), _sn(importacao), _sn(padrao_vitrine),
+        _sn(movimentaestoque), _sn(faturado), _sn(importacao), _sn(padrao_vitrine), _sn(so_totais),
         cod_planoconta || null, tratamento || null, id_receitas || null,
         req.params.id ]
     );
@@ -2124,6 +2248,12 @@ router.get('/plano-contas', async (req, res) => {
     const pool = getPool();
     await ensurePlanoContasTable(pool);
     const analiticas = req.query.analiticas === '1' || req.query.analiticas === 'S';
+    // grupo=DESPESA|RECEITA…  ou  uso=PAGAR|RECEBER (atalho p/ combos de títulos)
+    let grupoFiltro = String(req.query.grupo || '').toUpperCase().trim();
+    const usoFiltro = String(req.query.uso || '').toUpperCase().trim();
+    if (!grupoFiltro && usoFiltro === 'PAGAR') grupoFiltro = 'DESPESA';
+    if (!grupoFiltro && usoFiltro === 'RECEBER') grupoFiltro = 'RECEITA';
+    const params = [];
     let sql = `
       SELECT pc.*, pai.descricao AS pai_descricao, pai.numero AS pai_numero
       FROM plano_contas pc
@@ -2134,8 +2264,18 @@ router.get('/plano-contas', async (req, res) => {
                AND COALESCE(pc.aceita_lancamento,'S')='S'
                AND COALESCE(pc.status,'A')='A'`;
     }
+    if (grupoFiltro) {
+      const grupos = grupoFiltro.split(',').map((g) => normalizeGrupoConta(g.trim())).filter(Boolean);
+      if (grupos.length === 1) {
+        sql += ` AND UPPER(COALESCE(pc.grupo,'')) = ?`;
+        params.push(grupos[0]);
+      } else if (grupos.length > 1) {
+        sql += ` AND UPPER(COALESCE(pc.grupo,'')) IN (${grupos.map(() => '?').join(',')})`;
+        params.push(...grupos);
+      }
+    }
     sql += ` ORDER BY COALESCE(pc.numero,''), pc.descricao`;
-    const [rows] = await pool.query(sql);
+    const [rows] = await pool.query(sql, params);
     res.json({ plano_contas: rows });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -2262,16 +2402,24 @@ router.get('/centro-custo', async (req, res) => {
     const pool = getPool();
     await ensureCentroCustoSchema(pool);
     const analiticas = req.query.analiticas === '1' || req.query.analiticas === 'S';
+    const usoFiltro = normalizeUsoCentro(req.query.uso || '');
+    const filtrarUso = String(req.query.uso || '').trim() !== '';
     let sql = `
       SELECT cc.*, pai.descricao AS pai_descricao, pai.codigo AS pai_codigo
       FROM centro_custo cc
       LEFT JOIN centro_custo pai ON pai.id = cc.id_pai
       WHERE (cc.excluido='N' OR cc.excluido IS NULL)`;
+    const params = [];
     if (analiticas) {
       sql += ` AND UPPER(COALESCE(cc.tipo,'ANALITICA'))='ANALITICA' AND COALESCE(cc.status,'A')='A'`;
     }
+    // PAGAR → PAGAR+AMBOS; RECEBER → RECEBER+AMBOS; AMBOS → todos
+    if (filtrarUso && usoFiltro !== 'AMBOS') {
+      sql += ` AND UPPER(COALESCE(cc.uso,'AMBOS')) IN (?, 'AMBOS')`;
+      params.push(usoFiltro);
+    }
     sql += ` ORDER BY COALESCE(cc.codigo,''), cc.descricao`;
-    const [rows] = await pool.query(sql);
+    const [rows] = await pool.query(sql, params);
     res.json({ centro_custo: rows });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -2282,15 +2430,16 @@ router.post('/centro-custo', async (req, res) => {
     if (pc.incluir !== 'S') return negarCad(res, 'Sem permissão para incluir centro de custo');
     const pool = getPool();
     await ensureCentroCustoSchema(pool);
-    const { codigo, descricao, id_pai, tipo, status } = req.body;
+    const { codigo, descricao, id_pai, tipo, status, uso } = req.body;
     if (!descricao || !String(descricao).trim()) return res.status(400).json({ error: 'Descrição é obrigatória' });
     const [r] = await pool.query(
-      `INSERT INTO centro_custo (codigo, descricao, id_pai, tipo, status, excluido) VALUES (?,?,?,?,?,'N')`,
+      `INSERT INTO centro_custo (codigo, descricao, id_pai, tipo, uso, status, excluido) VALUES (?,?,?,?,?,?,'N')`,
       [
         (codigo || '').toString().trim() || null,
         String(descricao).trim(),
         parseInt(id_pai, 10) || null,
         normalizeTipoConta(tipo),
+        normalizeUsoCentro(uso),
         status === 'I' ? 'I' : 'A',
       ]
     );
@@ -2305,17 +2454,18 @@ router.put('/centro-custo/:id', async (req, res) => {
     const pool = getPool();
     await ensureCentroCustoSchema(pool);
     const id = parseInt(req.params.id, 10);
-    const { codigo, descricao, id_pai, tipo, status } = req.body;
+    const { codigo, descricao, id_pai, tipo, status, uso } = req.body;
     if (!descricao || !String(descricao).trim()) return res.status(400).json({ error: 'Descrição é obrigatória' });
     const idPai = parseInt(id_pai, 10) || null;
     if (idPai && idPai === id) return res.status(400).json({ error: 'O centro não pode ser pai de si mesmo' });
     await pool.query(
-      `UPDATE centro_custo SET codigo=?, descricao=?, id_pai=?, tipo=?, status=? WHERE id=?`,
+      `UPDATE centro_custo SET codigo=?, descricao=?, id_pai=?, tipo=?, uso=?, status=? WHERE id=?`,
       [
         (codigo || '').toString().trim() || null,
         String(descricao).trim(),
         idPai,
         normalizeTipoConta(tipo),
+        normalizeUsoCentro(uso),
         status === 'I' ? 'I' : 'A',
         id,
       ]

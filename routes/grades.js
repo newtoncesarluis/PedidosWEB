@@ -3,6 +3,7 @@ const router  = express.Router();
 const { getPool } = require('../config/database');
 const { permCrud, negarCad } = require('../config/cadastros-permissoes');
 const { ensureTipogradeColunas, msgErroGradeSql } = require('../config/tipograde-colunas');
+const { ordenarItensGrade } = require('../config/grade-tamanho-ordem');
 
 const _permGrades = (req) => permCrud(req, {
   incluir: 'incluir_grades',
@@ -94,7 +95,7 @@ router.get('/:id', async (req, res) => {
        ORDER BY sequencial, nome`,
       [req.params.id]
     );
-    grade.itens = itens;
+    grade.itens = ordenarItensGrade(itens);
     res.json(grade);
   } catch (err) {
     res.status(500).json({ error: err.message });

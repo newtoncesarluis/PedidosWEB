@@ -12,6 +12,13 @@ const fs = require('fs');
 const { getPool } = require('../config/database');
 const { ensureCatalogosTables } = require('../config/schema-migrations');
 const { getProdTabela } = require('../config/produto-colunas');
+const {
+  detectProdImagensTb,
+  detectProdCols,
+  buildProdutoFotoSql,
+  corrigirFotoItens,
+  fotoExisteNoDisco,
+} = require('../config/produto-foto-resolve');
 
 const router = express.Router();
 
@@ -90,19 +97,10 @@ async function listItensCatalogo(pool, idCatalogo) {
   const [cols] = await pool.query(`DESCRIBE \`${tb}\``);
   const colSet = new Set(cols.map((c) => c.Field));
   const idCol = colSet.has('ID') ? 'ID' : 'id';
-  const fotoExpr = colSet.has('foto_principal')
-    ? `COALESCE(p.foto_principal, (
-         SELECT CONCAT('/uploads/produtos/', pi.cod_produto, '/', pi.filename)
-         FROM produto_imagens pi
-         WHERE pi.cod_produto = p.\`${idCol}\` AND (pi.is_principal = 1 OR pi.is_principal = 'S')
-         ORDER BY pi.ordem ASC LIMIT 1
-       ))`
-    : `(
-         SELECT CONCAT('/uploads/produtos/', pi.cod_produto, '/', pi.filename)
-         FROM produto_imagens pi
-         WHERE pi.cod_produto = p.\`${idCol}\` AND (pi.is_principal = 1 OR pi.is_principal = 'S')
-         ORDER BY pi.ordem ASC LIMIT 1
-       )`;
+  const prodCols = await detectProdCols(pool, tb);
+  const hasImgTb = await detectProdImagensTb(pool);
+  const maeWhere = `(mae.excluido='N' OR mae.excluido IS NULL OR mae.excluido='')`;
+  const fotoExpr = buildProdutoFotoSql(tb, prodCols, hasImgTb, { idCol, maeWhere });
   const tipograde = colSet.has('tipograde') ? 'IFNULL(p.tipograde, 0)' : '0';
   const tipoprod = colSet.has('tipoprodutograde') ? 'p.tipoprodutograde' : 'NULL';
   const vlr = colSet.has('vlr_venda') ? 'COALESCE(p.vlr_venda, 0)' : '0';
@@ -114,6 +112,10 @@ async function listItensCatalogo(pool, idCatalogo) {
   const forn = colSet.has('cod_fornecedorpadrao') ? 'p.cod_fornecedorpadrao' : 'NULL';
   const idRef = colSet.has('id_referencia') ? 'p.id_referencia' : 'NULL';
   const cor1 = colSet.has('cor1') ? 'p.cor1' : 'NULL';
+  const nomeGrupo = colSet.has('nome_grupo') ? 'p.nome_grupo' : 'NULL';
+  const codBarras = colSet.has('cod_barras') ? 'p.cod_barras' : 'NULL';
+  const embMaster = colSet.has('embalagemmaster') ? 'IFNULL(p.embalagemmaster, 0)' : '0';
+  const apelido = colSet.has('apelido') ? 'p.apelido' : 'NULL';
   const [rows] = await pool.query(
     `SELECT ci.id, ci.cod_produto, ci.ordem,
             p.descricao AS desc_produto,
@@ -121,7 +123,7 @@ async function listItensCatalogo(pool, idCatalogo) {
             p.unidade,
             ${tipograde} AS tipograde,
             ${tipoprod} AS tipoprodutograde,
-            ${fotoExpr} AS foto_principal,
+            ${fotoExpr},
             ${vlr} AS vlr_venda,
             ${mv} AS multiplo_venda,
             ${qmin} AS qtd_minima_pedido,
@@ -130,7 +132,11 @@ async function listItensCatalogo(pool, idCatalogo) {
             ${disp} AS disponivel,
             ${forn} AS cod_fornecedorpadrao,
             ${idRef} AS id_referencia,
-            ${cor1} AS cor1
+            ${cor1} AS cor1,
+            ${nomeGrupo} AS nome_grupo,
+            ${codBarras} AS cod_barras,
+            ${embMaster} AS embalagemmaster,
+            ${apelido} AS apelido
      FROM catalogos_itens ci
      INNER JOIN \`${tb}\` p ON p.\`${idCol}\` = ci.cod_produto
      WHERE ci.id_catalogo = ?
@@ -140,8 +146,127 @@ async function listItensCatalogo(pool, idCatalogo) {
      ORDER BY ci.ordem ASC, p.descricao ASC`,
     [idCatalogo]
   );
+  await corrigirFotoItens(pool, rows, {
+    idField: 'cod_produto',
+    resolveOpts: {
+      prodTb: tb,
+      prodCols,
+      hasImgTb,
+      idCol,
+      excluidoSql: `(excluido='N' OR excluido IS NULL OR excluido='')`,
+    },
+  });
   return rows;
 }
+
+function statsItens(itens) {
+  const total = itens.length;
+  const comFoto = itens.filter((i) => i.foto_principal && fotoExisteNoDisco(i.foto_principal)).length;
+  return { total, com_foto: comFoto, sem_foto: total - comFoto };
+}
+
+// ─── POST /api/catalogos/gerar-por-grupos ─────────────────────────────────────
+// Cria/atualiza um catálogo por nome_grupo da fábrica — monta o índice em minutos.
+router.post('/gerar-por-grupos', async (req, res) => {
+  if (!podeGerenciar(req)) return res.status(403).json({ error: 'Sem permissão' });
+  try {
+    const pool = getPool();
+    await ensure(pool);
+    const codForn = parseInt(req.body.cod_fornecedor || req.body.id_fornecedor, 10);
+    if (!codForn) return res.status(400).json({ error: 'Informe a fábrica (cod_fornecedor)' });
+
+    const tb = await getProdTabela(pool);
+    const [cols] = await pool.query(`DESCRIBE \`${tb}\``);
+    const colSet = new Set(cols.map((c) => c.Field));
+    const idCol = colSet.has('ID') ? 'ID' : 'id';
+    if (!colSet.has('nome_grupo')) {
+      return res.status(422).json({
+        error: 'Produtos sem campo nome_grupo nesta base. Use «+ Incluir por fábrica» em cada catálogo.',
+      });
+    }
+    const fornCol = colSet.has('cod_fornecedorpadrao') ? 'cod_fornecedorpadrao' : null;
+    if (!fornCol) {
+      return res.status(422).json({ error: 'Produtos sem fornecedor padrão nesta base.' });
+    }
+
+    const [produtos] = await pool.query(
+      `SELECT \`${idCol}\` AS id, TRIM(nome_grupo) AS nome_grupo
+       FROM \`${tb}\`
+       WHERE ${fornCol} = ?
+         AND (excluido='N' OR excluido IS NULL OR excluido='')
+         AND (situacao='A' OR situacao IS NULL OR situacao='')
+         AND TRIM(COALESCE(nome_grupo,'')) <> ''
+       ORDER BY nome_grupo, descricao`,
+      [codForn]
+    );
+
+    if (!produtos.length) {
+      return res.status(404).json({
+        error: 'Nenhum produto ativo com «Grupo» preenchido para esta fábrica. Cadastre nome_grupo nos produtos ou inclua manualmente.',
+      });
+    }
+
+    const porGrupo = new Map();
+    produtos.forEach((p) => {
+      const g = String(p.nome_grupo || '').trim();
+      if (!porGrupo.has(g)) porGrupo.set(g, []);
+      porGrupo.get(g).push(p.id);
+    });
+
+    const userId = req.user?.id || req.user?.idusuario || null;
+    const criados = [];
+    const atualizados = [];
+    let ordemCat = 0;
+
+    for (const [grupo, ids] of porGrupo.entries()) {
+      ordemCat += 1;
+      const nomeCat = grupo.startsWith('Linha') ? grupo : `Linha ${grupo}`;
+      const [[exist]] = await pool.query(
+        `SELECT id FROM catalogos
+         WHERE nome = ? AND cod_fornecedor = ?
+           AND (excluido='N' OR excluido IS NULL OR excluido='')
+         LIMIT 1`,
+        [nomeCat, codForn]
+      );
+
+      let idCat;
+      if (exist) {
+        idCat = exist.id;
+        await pool.query(
+          `UPDATE catalogos SET ativo='S', subtitulo=?, ordem=? WHERE id=?`,
+          [`${ids.length} produto(s) · gerado automaticamente`, ordemCat, idCat]
+        );
+        atualizados.push({ id: idCat, nome: nomeCat, qtd: ids.length });
+      } else {
+        const [ins] = await pool.query(
+          `INSERT INTO catalogos
+            (nome, subtitulo, cod_fornecedor, cor_fundo, ordem, ativo, excluido, id_usuario)
+           VALUES (?, ?, ?, '#0c4a8a', ?, 'S', 'N', ?)`,
+          [nomeCat.slice(0, 200), `${ids.length} produto(s)`, codForn, ordemCat, userId]
+        );
+        idCat = ins.insertId;
+        criados.push({ id: idCat, nome: nomeCat, qtd: ids.length });
+      }
+
+      await gravarItens(
+        pool,
+        idCat,
+        ids.map((cod, i) => ({ cod_produto: cod, ordem: i + 1 }))
+      );
+    }
+
+    res.json({
+      ok: true,
+      grupos: porGrupo.size,
+      criados,
+      atualizados,
+      mensagem: `${porGrupo.size} linha(s) montada(s). Importe as fotos (nome = código fabricante) e abra Apresentar.`,
+    });
+  } catch (err) {
+    console.error('[catalogos gerar-por-grupos]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // ─── GET /api/catalogos ───────────────────────────────────────────────────────
 router.get('/', async (req, res) => {
@@ -194,6 +319,7 @@ router.get('/:id', async (req, res) => {
     if (!cat) return res.status(404).json({ error: 'Catálogo não encontrado' });
     const itens = await listItensCatalogo(pool, cat.id);
     cat.qtd_itens = itens.length;
+    cat.stats = statsItens(itens);
     res.json({ catalogo: cat, itens });
   } catch (err) {
     console.error('[catalogos GET :id]', err.message);

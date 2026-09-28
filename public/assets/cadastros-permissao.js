@@ -55,6 +55,7 @@
     '/pages/formas-pagamento.html': { incluir: 'incluir_formas_pagamento', alterar: 'alterar_formas_pagamento', excluir: 'excluir_formas_pagamento' },
     '/pages/bancos.html': { incluir: 'incluir_bancos', alterar: 'alterar_bancos', excluir: 'excluir_bancos' },
     '/pages/despesas.html': { incluir: 'incluir_despesas', alterar: 'alterar_despesas', excluir: 'excluir_despesas' },
+    '/pages/natureza.html': { incluir: 'incluir_natureza', alterar: 'alterar_natureza', excluir: 'excluir_natureza' },
     '/pages/plano-contas.html': { incluir: 'incluir_plano_contas', alterar: 'alterar_plano_contas', excluir: 'excluir_plano_contas' },
     '/pages/centro-custo.html': { incluir: 'incluir_centro_custo', alterar: 'alterar_centro_custo', excluir: 'excluir_centro_custo' },
     '/pages/cartoes-corporativos.html': { incluir: 'incluir_cartoes', alterar: 'alterar_cartoes', excluir: 'excluir_cartoes' },

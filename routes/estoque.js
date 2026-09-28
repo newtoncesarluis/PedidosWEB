@@ -7,8 +7,11 @@ const {
   ensureMovimentoEstoqueTable,
   entradaEstoque,
   ajusteEstoque,
-  entradaXml,
 } = require('../config/estoque-movimentacao');
+const {
+  previewEntradaXml,
+  confirmarEntradaXml,
+} = require('../config/estoque-entrada-xml');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
@@ -192,18 +195,51 @@ router.post('/ajuste', _requirePerm('alterar_estoque'), async (req, res) => {
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
-// POST /api/estoque/entrada-xml
-// Upload de NF-e XML e entrada automática de estoque
+// POST /api/estoque/entrada-xml/preview — conferência (não grava)
+// POST /api/estoque/entrada-xml/confirmar — gera pagar + estoque (se marcado)
+// POST /api/estoque/entrada-xml — compat: preview (não grava mais automaticamente)
 // ──────────────────────────────────────────────────────────────────────────────
+router.post('/entrada-xml/preview', _requirePerm('tela_estoque'), upload.single('xml'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo XML enviado' });
+    const pool = getPool();
+    const result = await previewEntradaXml(pool, req.file.buffer.toString('utf8'));
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.post('/entrada-xml/confirmar', _requirePerm('tela_estoque'), async (req, res) => {
+  try {
+    const pool = getPool();
+    const body = req.body || {};
+    const result = await confirmarEntradaXml(pool, {
+      xml_base64: body.xml_base64,
+      gerar_pagar: body.gerar_pagar !== false && body.gerar_pagar !== 'N',
+      atualizar_estoque: body.atualizar_estoque !== false && body.atualizar_estoque !== 'N',
+      criar_fornecedor: body.criar_fornecedor !== false && body.criar_fornecedor !== 'N',
+      criar_produtos: body.criar_produtos !== false && body.criar_produtos !== 'N',
+      forcar: body.forcar === true || body.forcar === 'S' || body.forcar === '1',
+      id_usuario: req.user?.id,
+      nome_usuario: req.user?.name || req.user?.nomeusu || req.user?.nome,
+    });
+    res.json(result);
+  } catch (err) {
+    const code = ['DUPLICADO_PAGAR', 'DUPLICADO_ESTOQUE', 'NADA_A_FAZER', 'XML_OBRIGATORIO', 'NFE_INVALIDA', 'SEM_PARCELAS', 'FORNECEDOR_AUSENTE'].includes(err.code)
+      ? 400
+      : 400;
+    res.status(code).json({ error: err.message, code: err.code });
+  }
+});
+
 router.post('/entrada-xml', _requirePerm('tela_estoque'), upload.single('xml'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Nenhum arquivo XML enviado' });
     const pool = getPool();
-    const result = await entradaXml(pool, req.file.buffer.toString('utf8'), {
-      id_usuario:   req.user?.id,
-      nome_usuario: req.user?.name || req.user?.nomeusu || req.user?.nome,
-    });
-    res.json(result);
+    // Compat: agora só preview — a UI nova confirma em /confirmar
+    const result = await previewEntradaXml(pool, req.file.buffer.toString('utf8'));
+    res.json({ ...result, preview: true, message: 'Conferência gerada. Use /entrada-xml/confirmar para gravar.' });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

@@ -6,6 +6,8 @@ const { logError } = require('../config/logger');
 const {
   euatendoAtivo, enviarTextoEuAtendo, enviarMediaEuAtendo, EUATENDO_URL_PADRAO,
 } = require('../config/euatendo');
+const { provedorExterno } = require('../config/wa-provedor');
+const { getMetaConfig, testarConexaoMeta, enviarTextoMeta } = require('../config/meta-whatsapp');
 
 // ─── helper: faz request HTTP/HTTPS para a Evolution API (via axios) ─────────
 async function apiRequest(baseUrl, path, method = 'GET', apikey, body = null, timeoutMs = 15000) {
@@ -247,10 +249,10 @@ router.get('/status', async (req, res) => {
   try {
     const pool = getPool();
 
-    // EuAtendo ativo → sempre pronto (plataforma hospedada, sem instância/QR)
-    const ea = await euatendoAtivo(pool).catch(() => null);
-    if (ea) {
-      return res.json({ conectado: true, status: 'open', provedor: 'EUATENDO' });
+    // EuAtendo ou Meta (API oficial) ativos → sempre pronto (plataforma hospedada, sem instância/QR)
+    const ext = await provedorExterno(pool).catch(() => null);
+    if (ext) {
+      return res.json({ conectado: true, status: 'open', provedor: ext.tipo });
     }
 
     const [rows] = await pool.query(
@@ -364,11 +366,11 @@ router.post('/enviar-teste', async (req, res) => {
 
     const pool = getPool();
 
-    // EuAtendo ativo → envia pela plataforma (não depende de instância do usuário)
-    const ea = await euatendoAtivo(pool).catch(() => null);
-    if (ea) {
-      await enviarTextoEuAtendo(ea, numero, mensagem);
-      return res.json({ ok: true, provedor: 'EUATENDO' });
+    // EuAtendo / Meta ativos → envia pela plataforma (não depende de instância do usuário)
+    const ext = await provedorExterno(pool).catch(() => null);
+    if (ext) {
+      await ext.enviarTexto(numero, mensagem);
+      return res.json({ ok: true, provedor: ext.tipo });
     }
 
     const cfg  = await getConfig();
@@ -661,6 +663,53 @@ router.post('/testar-euatendo', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// POST /api/whatsapp/testar-meta
+// Testa a API oficial da Meta (WhatsApp Cloud API).
+//   1) consulta o número (GET) — confirma Phone Number ID + token, SEM enviar nada;
+//   2) se vier `numero`, envia também uma mensagem real (usa o modelo cadastrado se estiver fora da janela de 24h).
+// Body: { phone_number_id?, token?, versao?, template?, idioma?, numero?, mensagem? }  (sem valor usa o que está salvo)
+// ─────────────────────────────────────────────────────────────────────────────
+router.post('/testar-meta', async (req, res) => {
+  try {
+    const { phone_number_id, token, versao, template, idioma, numero, mensagem } = req.body || {};
+    const salvo = await getMetaConfig(getPool());
+    const cfg = {
+      ...salvo,
+      phoneNumberId: String(phone_number_id || '').replace(/\D/g, '') || salvo.phoneNumberId,
+      token:         token || salvo.token,
+      versao:        /^v\d+\.\d+$/.test(String(versao || '')) ? versao : salvo.versao,
+      template:      template !== undefined ? (String(template).trim().toLowerCase().replace(/[^a-z0-9_]/g, '') || null) : salvo.template,
+      idioma:        idioma ? String(idioma).trim() : salvo.idioma,
+    };
+    if (!cfg.phoneNumberId || !cfg.token) {
+      return res.status(400).json({ ok: false, error: 'Informe o Phone Number ID e o token de acesso (ou salve a configuração primeiro)' });
+    }
+
+    const info = await testarConexaoMeta(cfg);
+    let envio = null;
+    if (numero) {
+      envio = await enviarTextoMeta(cfg, numero, mensagem || 'Teste de integração SysRepWeb ↔ WhatsApp Cloud API (Meta) ✅');
+    }
+
+    // Conexão confirmada = liberada — grava para exibir o selo "Meta liberada"
+    const validadoEm = new Date();
+    await getPool().query(
+      `UPDATE configuracao SET meta_validado_em=NOW()
+       WHERE excluido='N' ORDER BY id DESC LIMIT 1`
+    ).catch(() => {});
+
+    res.json({
+      ok: true,
+      numero: info.numero, nome: info.nome, qualidade: info.qualidade,
+      enviado: !!envio, via: envio ? envio.via : null,
+      validado_em: validadoEm.toISOString(),
+    });
+  } catch (err) {
+    res.json({ ok: false, error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // POST /api/whatsapp/enviar
 // Envio genérico de texto (+ anexo opcional) para um cliente — roteia pelo
 // provedor configurado.
@@ -709,22 +758,22 @@ router.post('/enviar', async (req, res) => {
       }
     }
 
-    const ea = await euatendoAtivo(pool).catch(() => null);
-    if (ea) {
+    const ext = await provedorExterno(pool).catch(() => null);
+    if (ext) {
       if (anexoBuffer) {
-        await enviarMediaEuAtendo(ea, numero, {
+        await ext.enviarMedia(numero, {
           buffer: anexoBuffer,
           filename: anexo_nome || 'anexo',
           mimetype: anexo_tipo || 'application/octet-stream',
           caption: mensagem || '',
         });
       } else {
-        await enviarTextoEuAtendo(ea, numero, mensagem);
+        await ext.enviarTexto(numero, mensagem);
       }
       // Aguarda a gravação — senão a tela de clientes recarrega antes do INSERT
       // e o badge "enviado" / histórico ficam vazios.
-      const registrado = await logEnvio({ provedor: 'EUATENDO' });
-      return res.json({ ok: true, provedor: 'EUATENDO', registrado: !!registrado });
+      const registrado = await logEnvio({ provedor: ext.tipo });
+      return res.json({ ok: true, provedor: ext.tipo, registrado: !!registrado });
     }
 
     // Evolution: usa a instância do usuário logado

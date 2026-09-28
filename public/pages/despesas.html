@@ -203,6 +203,10 @@ input:focus,select:focus { border-color:var(--accent);box-shadow:0 0 0 3px rgba(
               <select id="f_id_planoconta">
                 <option value="">Nenhum</option>
               </select>
+              <small id="hint_planoconta" style="display:none;color:var(--text2);font-size:11px;margin-top:6px;line-height:1.4">
+                Nenhuma conta analítica cadastrada. Vá em <strong>Financeiro → Cadastros Financeiros → Plano de Contas</strong>,
+                crie contas do tipo <strong>Analítica</strong> (ou use «Carregar modelo») e volte aqui para vincular.
+              </small>
             </div>
           </div>
         </form>
@@ -267,13 +271,19 @@ function renderLista(rows) {
 
 async function loadPlanoContas() {
   try {
-    const r = await fetch('/api/plano-contas?analiticas=1', { headers: authHeaders(), credentials: 'include' });
+    const r = await fetch('/api/plano-contas?analiticas=1&grupo=DESPESA', { headers: authHeaders(), credentials: 'include' });
     const d = await r.json();
+    const lista = d.plano_contas || [];
     const sel = document.getElementById('f_id_planoconta');
-    sel.innerHTML = '<option value="">Nenhum</option>' + (d.plano_contas || []).map(p =>
+    sel.innerHTML = '<option value="">Nenhum</option>' + lista.map(p =>
       `<option value="${p.id}">${p.numero ? p.numero + ' — ' : ''}${p.descricao}</option>`
     ).join('');
-  } catch(e) {}
+    const hint = document.getElementById('hint_planoconta');
+    if (hint) hint.style.display = lista.length ? 'none' : 'block';
+  } catch(e) {
+    const hint = document.getElementById('hint_planoconta');
+    if (hint) hint.style.display = 'block';
+  }
 }
 
 function toggleFiltroStatus(st) {

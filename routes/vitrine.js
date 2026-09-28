@@ -10,6 +10,7 @@ const {
   getPoolForLicense,
   runWithPool,
   customerDbFromLicense,
+  getBoundChave,
   _poolMapKeys,
 } = require('../config/database');
 const { authMiddleware } = require('../middleware/auth');
@@ -18,6 +19,17 @@ const { emitNovoPedido } = require('../config/pedido-events');
 const { acquireNumeroPedidoLock, releaseNumeroPedidoLock } = require('../config/pedido-numero-lock');
 const { ensureVitrineColumns } = require('../config/schema-migrations');
 const { calcBaseItemTotal, embalagemInicialProduto, isPrecoPorPeso } = require('../config/preco-peso-produto');
+const { inserirParcelaUnicaReceber } = require('../config/pedido-parcela-canal');
+const {
+  fotoExisteNoDisco,
+  detectProdImagensTb,
+  detectProdCols,
+  buildProdutoFotoSql,
+  buildProdutoQtdFotosSql,
+  buildProdutoImgJoins,
+  resolveProdImagens,
+} = require('../config/produto-foto-resolve');
+const { obterGrupoReferencia } = require('../config/produto-referencia');
 
 const _fmtBRL = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -117,6 +129,9 @@ async function ensureTable(pool) {
     `ALTER TABLE vitrine_tokens ADD COLUMN id_empresa  INT          NULL`,
     `ALTER TABLE vitrine_tokens ADD COLUMN nome_empresa VARCHAR(255) NULL`,
     `ALTER TABLE vitrine_tokens ADD COLUMN ids_tabelas VARCHAR(255) NULL`,
+    // fotos de produto costumam ter fundo branco: no escuro viram blocos berrantes,
+    // por isso o padrao e DIA e quem gera o link decide
+    `ALTER TABLE vitrine_tokens ADD COLUMN tema VARCHAR(10) NOT NULL DEFAULT 'DIA'`,
     `ALTER TABLE vitrine_tokens MODIFY COLUMN id_cliente INT NULL`,
     `ALTER TABLE tipo_pedidos   ADD COLUMN padrao_vitrine CHAR(1) NOT NULL DEFAULT 'N'`,
   ]) { await pool.query(sql).catch(() => {}); }
@@ -179,8 +194,28 @@ async function _notificarRepresentante(pool, tk, pedidosCriados) {
 
 // Em modo multi-tenant, percorre todos os pools conhecidos e retorna
 // o que contém o token — evita depender de qual banco está no binding.
+// "Link invalido ou expirado" nao distinguia link SUBSTITUIDO (ativo=0, o caso
+// mais comum) de expirado ou inexistente, e mandava o cliente para o lugar errado.
+const TEMAS_VITRINE = ['DIA', 'NOITE'];
+const normalizarTema = (v) => {
+  const t = String(v || '').trim().toUpperCase();
+  return TEMAS_VITRINE.includes(t) ? t : 'DIA';
+};
+
+async function motivoTokenInvalido(pool, token) {
+  const [[t]] = await pool.query(
+    `SELECT ativo, (expira_em IS NOT NULL AND expira_em <= NOW()) AS venceu
+     FROM vitrine_tokens WHERE token = ? LIMIT 1`,
+    [token]
+  ).catch(() => [[null]]);
+  if (!t) return 'Link inv\u00e1lido ou expirado';
+  if (Number(t.venceu)) return 'Este link expirou. Pe\u00e7a um link novo ao seu representante.';
+  if (!Number(t.ativo)) return 'Este link foi substitu\u00eddo por um mais recente. Pe\u00e7a o link atualizado ao seu representante.';
+  return 'Link inv\u00e1lido ou expirado';
+}
+
 async function findPoolForToken(token) {
-  if (!customerDbFromLicense()) {
+  if (!customerDbFromLicense() || getBoundChave()) {
     const p = getPool();
     await ensureTable(p);
     return p;
@@ -233,11 +268,41 @@ router.post('/gerar', authMiddleware, async (req, res) => {
       }
     }
 
+    const userId   = user.id || user.idusuario;
+
+    // Gerar de novo desativa o link anterior — e o cliente que ja recebeu aquele
+    // link ficava sem acesso. Por padrao devolvemos o link ativo que ja existe;
+    // so criamos outro quando o representante pede (forcar_novo).
+    const forcarNovo = req.body.forcar_novo === true || req.body.forcar_novo === 'S';
+    if (!forcarNovo) {
+      const [[emUso]] = await pool.query(
+        idCliente
+          ? `SELECT token, expira_em, tema FROM vitrine_tokens
+             WHERE id_cliente = ? AND id_usuario = ? AND ativo = 1
+               AND (expira_em IS NULL OR expira_em > NOW())
+             ORDER BY id DESC LIMIT 1`
+          : `SELECT token, expira_em, tema FROM vitrine_tokens
+             WHERE id_cliente IS NULL AND id_usuario = ? AND ativo = 1
+               AND (expira_em IS NULL OR expira_em > NOW())
+             ORDER BY id DESC LIMIT 1`,
+        idCliente ? [idCliente, userId] : [userId]
+      ).catch(() => [[null]]);
+      if (emUso) {
+        return res.json({
+          token: emUso.token,
+          expira: emUso.expira_em,
+          link: `/vitrine/${emUso.token}`,
+          link_aberto: aberto,
+          tema: normalizarTema(emUso.tema),
+          reaproveitado: true,
+        });
+      }
+    }
+
     const token = crypto.randomBytes(32).toString('hex');
     const expiraDate = addDaysIsoBrasil(parseInt(dias_validade, 10) || 60);
     const expiraSql = `${expiraDate} 23:59:59`;
 
-    const userId   = user.id || user.idusuario;
     const nomeUser = user.nome || user.nomeusu || '';
     const idEmpresa = user.id_empresa || null;
 
@@ -260,13 +325,14 @@ router.post('/gerar', authMiddleware, async (req, res) => {
         [userId]
       );
     }
+    const tema = normalizarTema(req.body.tema);
     await pool.query(
-      `INSERT INTO vitrine_tokens (token, id_cliente, id_usuario, nome_cliente, nome_usuario, expira_em, id_empresa, nome_empresa)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [token, idCliente, userId, nomeCliente, nomeUser, expiraSql, idEmpresa, nomeEmpresa]
+      `INSERT INTO vitrine_tokens (token, id_cliente, id_usuario, nome_cliente, nome_usuario, expira_em, id_empresa, nome_empresa, tema)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [token, idCliente, userId, nomeCliente, nomeUser, expiraSql, idEmpresa, nomeEmpresa, tema]
     );
 
-    res.json({ token, expira: expiraDate, link: `/vitrine/${token}`, link_aberto: aberto });
+    res.json({ token, expira: expiraDate, link: `/vitrine/${token}`, link_aberto: aberto, tema });
   } catch (err) {
     console.error('[vitrine/gerar]', err);
     res.status(500).json({ erro: err.message });
@@ -324,6 +390,24 @@ router.patch('/:token/tabelas', authMiddleware, async (req, res) => {
   }
 });
 
+// ── PATCH /api/vitrine/:token/tema  (requer autenticação) ────────────────────
+router.patch('/:token/tema', authMiddleware, async (req, res) => {
+  try {
+    const pool = getPool();
+    await ensureTable(pool);
+    const tema = normalizarTema(req.body.tema);
+    const userId = req.user.id || req.user.idusuario;
+    const [r] = await pool.query(
+      `UPDATE vitrine_tokens SET tema = ? WHERE token = ? AND id_usuario = ?`,
+      [tema, req.params.token, userId]
+    );
+    res.json({ ok: true, tema, atualizado: r.affectedRows > 0 });
+  } catch (err) {
+    console.error('[vitrine/patch-tema]', err);
+    res.status(500).json({ erro: err.message });
+  }
+});
+
 // ── GET /api/vitrine/:token  (público) ───────────────────────────────────────
 router.get('/:token', async (req, res) => {
   try {
@@ -336,7 +420,7 @@ router.get('/:token', async (req, res) => {
          WHERE token = ? AND ativo = 1 AND (expira_em IS NULL OR expira_em > NOW())`,
         [req.params.token]
       );
-      if (!tk) return res.status(404).json({ erro: 'Link inválido ou expirado' });
+      if (!tk) return res.status(404).json({ erro: await motivoTokenInvalido(pool, req.params.token) });
 
       let cliente = null;
       if (tk.id_cliente) {
@@ -378,19 +462,25 @@ router.get('/:token', async (req, res) => {
       }
 
       const prodTb  = await detectProdTable(pool);
+      const prodCols = await detectProdCols(pool, prodTb);
       const hasForn = await detectProdFornCol(pool, prodTb);
       const fornSel  = hasForn ? `, p.cod_fornecedorpadrao AS cod_fornecedor, COALESCE(f.nome,'') AS nome_fornecedor` : `, NULL AS cod_fornecedor, '' AS nome_fornecedor`;
       const fornJoin = hasForn ? `LEFT JOIN fornecedores f ON f.id = p.cod_fornecedorpadrao` : '';
+      const hasImgTb = await detectProdImagensTb(pool);
+      const fotoSql = buildProdutoFotoSql(prodTb, prodCols, hasImgTb);
+      const imgSel = buildProdutoQtdFotosSql(prodCols, hasImgTb);
+      const imgJoin = buildProdutoImgJoins(prodCols, hasImgTb);
+      const idRefSel = prodCols.idRef ? ', p.id_referencia' : ', NULL AS id_referencia';
       let produtos;
       try {
         const [rows] = await pool.query(`
           SELECT p.ID AS id, p.descricao, p.apelido, p.cod_barras,
-                 p.cod_fabricante, p.unidade, p.foto_principal, p.nome_grupo,
+                 p.cod_fabricante, p.unidade, ${fotoSql}, p.nome_grupo,
                  COALESCE(p.multiplo_venda, 1) AS multiplo_venda,
                  COALESCE(p.precopeso, 'N') AS precopeso,
                  COALESCE(p.kilo_embalagem, 0) AS kilo_embalagem
-                 ${fornSel}
-          FROM ${prodTb} p ${fornJoin}
+                 ${idRefSel}${fornSel}${imgSel}
+          FROM ${prodTb} p ${fornJoin} ${imgJoin}
           WHERE p.excluido = 'N' AND p.situacao = 'A'
           ORDER BY p.nome_grupo, p.descricao
         `);
@@ -400,11 +490,11 @@ router.get('/:token', async (req, res) => {
         console.warn('[vitrine/get] fallback produtos sem precopeso:', e.message);
         const [rows] = await pool.query(`
           SELECT p.ID AS id, p.descricao, p.apelido, p.cod_barras,
-                 p.cod_fabricante, p.unidade, p.foto_principal, p.nome_grupo,
+                 p.cod_fabricante, p.unidade, ${fotoSql}, p.nome_grupo,
                  COALESCE(p.multiplo_venda, 1) AS multiplo_venda,
                  'N' AS precopeso, 0 AS kilo_embalagem
-                 ${fornSel}
-          FROM ${prodTb} p ${fornJoin}
+                 ${idRefSel}${fornSel}${imgSel}
+          FROM ${prodTb} p ${fornJoin} ${imgJoin}
           WHERE p.excluido = 'N' AND p.situacao = 'A'
           ORDER BY p.nome_grupo, p.descricao
         `);
@@ -420,14 +510,84 @@ router.get('/:token', async (req, res) => {
         .map(p => ({ ...p, precos: precosPorProduto[String(p.id)] || {} }))
         .filter(p => Object.keys(p.precos).length > 0);
 
+      // URL quebrada no filho (cadastro antigo) → tenta mãe/galeria
+      for (const p of lista) {
+        if (p.foto_principal && !fotoExisteNoDisco(p.foto_principal)) {
+          const imgs = await resolveProdImagens(pool, p.id);
+          p.foto_principal = imgs[0]?.url || null;
+          if (imgs.length > 1) p.qtd_fotos = imgs.length;
+        }
+      }
+
+      const qtdSkusComPreco = Object.keys(precosPorProduto).length;
+      let catalogo_vazio_motivo = null;
+      if (!lista.length) {
+        if (!tabelas.length) catalogo_vazio_motivo = 'SEM_TABELA';
+        else if (!qtdSkusComPreco) catalogo_vazio_motivo = 'TABELA_SEM_PRECOS';
+        else if (!produtos.length) catalogo_vazio_motivo = 'SEM_PRODUTO_ATIVO';
+        else catalogo_vazio_motivo = 'SEM_INTERSECAO';
+      }
+
+      // Minimos por fabrica: o POST ja bloqueia o pedido com eles, mas o cliente
+      // so descobria ao enviar. Mandamos junto para o carrinho poder avisar antes.
+      const minimos = { fornecedores: {}, condicao: {} };
+      if (tabelas.some(t => String(t.usar_regras_fornecedor || '').toUpperCase() === 'S')) {
+        const idsForn = [...new Set(lista.map(p => p.cod_fornecedor).filter(Boolean))];
+        if (idsForn.length) {
+          let rowsF = [];
+          try {
+            const [r] = await pool.query(
+              `SELECT id, COALESCE(vlr_minimofaturamento,0) AS minimo, COALESCE(min_cx_pedido,0) AS min_cx
+                 FROM fornecedores WHERE id IN (?)`, [idsForn]
+            );
+            rowsF = r || [];
+          } catch (_) {
+            const [r] = await pool.query(
+              `SELECT id, COALESCE(vlr_minimofaturamento,0) AS minimo
+                 FROM fornecedores WHERE id IN (?)`, [idsForn]
+            ).catch(() => [[]]);
+            rowsF = (r || []).map(x => ({ ...x, min_cx: 0 }));
+          }
+          rowsF.forEach(r => {
+            minimos.fornecedores[String(r.id)] = {
+              minimo: parseFloat(r.minimo) || 0,
+              min_cx: parseInt(r.min_cx, 10) || 0,
+            };
+          });
+          // minimo da condicao de pagamento varia por tabela
+          for (const t of tabelas) {
+            if (String(t.usar_regras_fornecedor || '').toUpperCase() !== 'S' || !t.cond_pagamento) continue;
+            const [rowsC] = await pool.query(
+              `SELECT id_fornecedor, COALESCE(valor_minimo,0) AS minimo
+                 FROM fornecedor_condicoes_pagamento
+                WHERE id_condicao = ? AND excluido = 'N' AND id_fornecedor IN (?)`,
+              [t.cond_pagamento, idsForn]
+            ).catch(() => [[]]);
+            if (rowsC && rowsC.length) {
+              minimos.condicao[String(t.id_tabela)] = {};
+              rowsC.forEach(r => {
+                minimos.condicao[String(t.id_tabela)][String(r.id_fornecedor)] = parseFloat(r.minimo) || 0;
+              });
+            }
+          }
+        }
+      }
+
       res.json({
         cliente,
         link_aberto: !tk.id_cliente,
         historico_disponivel: !!tk.id_cliente,
+        tema: normalizarTema(tk.tema),
         representante: rep || null,
-        tabelas: tabelas.map(t => ({ id_tabela: t.id_tabela, descricao: t.descricao })),
+        tabelas: tabelas.map(t => ({
+          id_tabela: t.id_tabela,
+          descricao: t.descricao,
+          usar_regras_fornecedor: String(t.usar_regras_fornecedor || 'N').toUpperCase(),
+        })),
+        minimos: minimos,
         soma_embalagempedido: sis?.soma_embalagempedido || 'N',
         produtos: lista,
+        catalogo_vazio_motivo,
       });
     });
   } catch (err) {
@@ -457,7 +617,7 @@ router.post('/:token/pedido', async (req, res) => {
          WHERE token = ? AND ativo = 1 AND (expira_em IS NULL OR expira_em > NOW())`,
         [req.params.token]
       );
-      if (!tk) return res.status(404).json({ erro: 'Link inválido ou expirado' });
+      if (!tk) return res.status(404).json({ erro: await motivoTokenInvalido(pool, req.params.token) });
 
       let codCliente = null;
       let nomeCliente = '';
@@ -504,11 +664,17 @@ router.post('/:token/pedido', async (req, res) => {
 
       // Rastreia a tabela escolhida (e a condição de pagamento) no pedido, via obs
       let _condDesc = '';
+      let _prazoPadrao = '0';
+      let _formaPagto = 'BOLETO';
       if (tabela.cond_pagamento) {
         const [[fp]] = await pool.query(
-          `SELECT descricao FROM forma_pagto WHERE id = ? LIMIT 1`, [tabela.cond_pagamento]
+          `SELECT descricao, prazopadrao, forma FROM forma_pagto WHERE id = ? LIMIT 1`,
+          [tabela.cond_pagamento]
         ).catch(() => [[null]]);
         _condDesc = fp?.descricao || '';
+        _prazoPadrao = String(fp?.prazopadrao || '').trim()
+          || (/^\d+(\/\d+)*$/.test(_condDesc) ? _condDesc : '0');
+        _formaPagto = fp?.forma || 'BOLETO';
       }
       const _infoTabela = `Tabela: ${tabela.descricao}${_condDesc ? ` · Pagamento: ${_condDesc}` : ''}`;
       let obsBase = String(obs || '').trim();
@@ -711,17 +877,19 @@ router.post('/:token/pedido', async (req, res) => {
               cod_cliente, cnpj, nome_cliente,
               cod_fornecedor, nome_fornecedor,
               id_tipopedido, tipo_pedido, situacao_pedido, status,
+              id_condicaopagto, condicao_pagto, forma_pagto, qt_parcelas,
               vlrsubtotal, vlrtotalitens, vlrtotalpedido,
               vlrdesconto, vlrtotalimposto, vlrtotalbruto,
               id_filial, id_empresa, nome_empresa,
               obs, origem, excluido, dtcadastro
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW())`,
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW())`,
             [
               numero, dataAb, horaAb,
               tk.id_usuario, tk.nome_usuario,
               codCliente, cnpjCliente, (nomeCliente || '').toUpperCase(),
               grupo.cod_fornecedor || null, grupo.nome_fornecedor || '',
               id_tipopedido, tipo_pedido_str, 'PENDENTE', 'PENDENTE',
+              tabela.cond_pagamento || null, _condDesc, _formaPagto, 1,
               totalGrupo, totalGrupo, totalGrupo, 0, 0, totalGrupo,
               tk.id_empresa || null, tk.id_empresa || null, tk.nome_empresa || '',
               obsFinal, 'VITRINE', 'N'
@@ -749,6 +917,17 @@ router.post('/:token/pedido', async (req, res) => {
               ]
             );
           }
+
+          await inserirParcelaUnicaReceber(conn, {
+            numero,
+            pedidoId,
+            total: totalGrupo,
+            dataAbertura: dataAb,
+            codFornecedor: grupo.cod_fornecedor,
+            nomeFornecedor: grupo.nome_fornecedor,
+            formaPagto: _formaPagto,
+            prazoPadrao: _prazoPadrao,
+          });
 
           pedidosCriados.push({
             numero, pedido_id: pedidoId, fornecedor: grupo.nome_fornecedor || '',
@@ -783,7 +962,29 @@ router.post('/:token/pedido', async (req, res) => {
   }
 });
 
-const _uploadsProdutos = path.join(process.cwd(), 'public', 'uploads', 'produtos');
+// ── GET /api/vitrine/:token/variacoes/:prodId  (público — pai/cores) ───────
+router.get('/:token/variacoes/:prodId', async (req, res) => {
+  try {
+    const pool = await findPoolForToken(req.params.token);
+    if (!pool) return res.status(404).json({ erro: 'Link inválido ou expirado' });
+
+    await runWithPool(pool, async () => {
+      const [[tk]] = await pool.query(
+        `SELECT id FROM vitrine_tokens
+         WHERE token = ? AND ativo = 1 AND (expira_em IS NULL OR expira_em > NOW())`,
+        [req.params.token]
+      );
+      if (!tk) return res.status(404).json({ erro: await motivoTokenInvalido(pool, req.params.token) });
+
+      const grupo = await obterGrupoReferencia(pool, req.params.prodId);
+      if (!grupo) return res.status(404).json({ erro: 'Produto não encontrado' });
+      res.json(grupo);
+    });
+  } catch (err) {
+    console.error('[vitrine/variacoes]', err);
+    res.status(500).json({ erro: err.message });
+  }
+});
 
 // ── GET /api/vitrine/:token/imagens/:prodId  (público) ─────────────────────
 router.get('/:token/imagens/:prodId', async (req, res) => {
@@ -797,28 +998,9 @@ router.get('/:token/imagens/:prodId', async (req, res) => {
          WHERE token = ? AND ativo = 1 AND (expira_em IS NULL OR expira_em > NOW())`,
         [req.params.token]
       );
-      if (!tk) return res.status(404).json({ erro: 'Link inválido ou expirado' });
+      if (!tk) return res.status(404).json({ erro: await motivoTokenInvalido(pool, req.params.token) });
 
-      const prodId = String(req.params.prodId);
-      const [rows] = await pool.query(
-        `SELECT filename, is_principal FROM produto_imagens
-         WHERE cod_produto = ? ORDER BY is_principal DESC, ordem, id`,
-        [prodId]
-      ).catch(() => [[]]);
-
-      let imgs = rows
-        .filter(r => r.filename && fs.existsSync(path.join(_uploadsProdutos, prodId, r.filename)))
-        .map(r => ({ url: `/uploads/produtos/${prodId}/${r.filename}`, is_principal: r.is_principal }));
-
-      if (!imgs.length) {
-        const prodTb = await detectProdTable(pool);
-        const [[p]] = await pool.query(
-          `SELECT foto_principal FROM ${prodTb} WHERE ID = ? AND excluido = 'N' LIMIT 1`,
-          [prodId]
-        );
-        if (p?.foto_principal) imgs = [{ url: p.foto_principal, is_principal: 1 }];
-      }
-
+      const imgs = await resolveProdImagens(pool, req.params.prodId);
       res.json(imgs);
     });
   } catch (err) {
@@ -837,7 +1019,7 @@ router.get('/:token/historico/:pedidoId/itens', async (req, res) => {
         `SELECT id_cliente FROM vitrine_tokens WHERE token = ? AND ativo = 1 AND (expira_em IS NULL OR expira_em > NOW())`,
         [req.params.token]
       );
-      if (!tk) return res.status(404).json({ erro: 'Link inválido ou expirado' });
+      if (!tk) return res.status(404).json({ erro: await motivoTokenInvalido(pool, req.params.token) });
       if (!tk.id_cliente) return res.status(403).json({ erro: 'Histórico disponível apenas em links por cliente' });
 
       const [[ped]] = await pool.query(
@@ -847,7 +1029,7 @@ router.get('/:token/historico/:pedidoId/itens', async (req, res) => {
       if (!ped) return res.status(403).json({ erro: 'Pedido não encontrado' });
 
       const [itens] = await pool.query(`
-        SELECT desc_prod, quantidade, valor_unitario, vlrtotal_itens, unidade
+        SELECT cod_produto, desc_prod, quantidade, valor_unitario, vlrtotal_itens, unidade
         FROM itensped
         WHERE id_pedido = ? AND excluido = 'N'
         ORDER BY sequencia
@@ -871,7 +1053,7 @@ router.get('/:token/historico', async (req, res) => {
         `SELECT * FROM vitrine_tokens WHERE token = ? AND ativo = 1 AND (expira_em IS NULL OR expira_em > NOW())`,
         [req.params.token]
       );
-      if (!tk) return res.status(404).json({ erro: 'Link inválido ou expirado' });
+      if (!tk) return res.status(404).json({ erro: await motivoTokenInvalido(pool, req.params.token) });
       if (!tk.id_cliente) return res.status(403).json({ erro: 'Histórico disponível apenas em links por cliente' });
 
       const [pedidos] = await pool.query(`

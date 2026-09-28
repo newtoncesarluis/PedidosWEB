@@ -9,6 +9,8 @@
 <title>Gestão de Estoque | SysRepWeb</title>
 <link rel="stylesheet" href="/assets/themes.css">
 <script src="/assets/themes.js"></script>
+<script src="/assets/confirm-dialog.js"></script>
+<script src="/assets/lookup-search.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:var(--font,'Inter','Segoe UI',sans-serif);background:var(--content-bg);color:var(--content-text);min-height:100vh}
@@ -96,9 +98,10 @@ tbody td{padding:11px 12px;border-bottom:1px solid var(--card-border);vertical-a
 .produto-info{background:var(--content-bg);border:1px solid var(--card-border);border-radius:8px;padding:10px 12px;font-size:12px;margin-bottom:12px;display:none}
 .produto-info strong{display:block;font-weight:700;margin-bottom:2px}
 .saldo-atual{font-size:18px;font-weight:800;color:var(--accent)}
-.callout{background:var(--accent-soft,rgba(13,148,136,.1));border-left:3px solid var(--accent);padding:10px 14px;border-radius:0 6px 6px 0;font-size:12px;margin-bottom:14px}
-.callout.warn{background:#fef3c7;border-left-color:#f59e0b;color:#78350f}
-.callout.danger{background:#fee2e2;border-left-color:#ef4444;color:#7f1d1d}
+.callout{background:var(--accent-soft,rgba(13,148,136,.1));border-left:3px solid var(--accent);padding:10px 14px;border-radius:0 6px 6px 0;font-size:12px;margin-bottom:14px;color:var(--content-text)}
+.callout.warn{background:var(--accent-soft,rgba(245,158,11,.12));border-left-color:#f59e0b;color:var(--content-text)}
+.callout.danger{background:var(--accent-soft,rgba(239,68,68,.12));border-left-color:#ef4444;color:var(--content-text)}
+.callout strong{color:var(--content-text)}
 
 /* XML drop zone */
 .xml-zone{border:2px dashed var(--card-border);border-radius:10px;padding:32px 20px;text-align:center;cursor:pointer;transition:.15s;background:var(--card-bg)}
@@ -110,9 +113,46 @@ tbody td{padding:11px 12px;border-bottom:1px solid var(--card-border);vertical-a
 .xml-result-table{margin-top:14px;font-size:12px;width:100%;border-collapse:collapse}
 .xml-result-table th{background:var(--content-bg);padding:7px 10px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text2);border-bottom:1px solid var(--card-border)}
 .xml-result-table td{padding:8px 10px;border-bottom:1px solid var(--card-border)}
-.xml-status-ok{color:#065f46;font-weight:700}
-.xml-status-nao{color:#92400e}
-.xml-status-erro{color:#991b1b;font-weight:700}
+.xml-status-ok{color:var(--success,#065f46);font-weight:700}
+.xml-status-nao{color:var(--warning,#92400e);font-weight:600}
+.xml-status-erro{color:var(--danger,#991b1b);font-weight:700}
+.xml-conf{margin-top:16px;display:none}
+.xml-meta{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:12px}
+.xml-meta-card{background:var(--card,var(--card-bg));border:1px solid var(--card-border);border-radius:8px;padding:10px 12px}
+.xml-meta-card label{display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text2);margin-bottom:3px}
+.xml-meta-card span{font-size:13px;font-weight:600;color:var(--content-text);word-break:break-word}
+.xml-opts{display:flex;flex-wrap:wrap;gap:14px;align-items:center;padding:12px 14px;background:var(--card,var(--card-bg));border:1px solid var(--card-border);border-radius:8px;margin-bottom:12px}
+.xml-opts label{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:600;cursor:pointer;color:var(--content-text)}
+.xml-opts input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent)}
+.xml-dup-table{font-size:12px;width:100%;border-collapse:collapse;margin-bottom:12px}
+.xml-dup-table th{background:var(--content-bg);padding:7px 10px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text2);border-bottom:1px solid var(--card-border)}
+.xml-dup-table td{padding:8px 10px;border-bottom:1px solid var(--card-border);color:var(--content-text)}
+.xml-warn{font-size:12px;padding:8px 12px;border-radius:7px;margin-bottom:10px;background:var(--accent-soft,rgba(245,158,11,.12));border:1px solid rgba(245,158,11,.35);color:var(--content-text)}
+.xml-warn.info{background:var(--accent-soft,rgba(13,148,136,.12));border-color:rgba(13,148,136,.35)}
+.xml-warn.danger{background:var(--accent-soft,rgba(239,68,68,.12));border-color:rgba(239,68,68,.35)}
+.xml-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+
+/* Overlay leitura XML */
+.xml-loading{
+  display:none;margin-top:16px;padding:28px 20px;border-radius:12px;text-align:center;
+  background:var(--card,var(--card-bg));border:1.5px solid var(--accent);
+  box-shadow:0 8px 28px rgba(13,148,136,.12);
+}
+.xml-loading.on{display:block}
+.xml-loading .xml-spin{
+  width:48px;height:48px;margin:0 auto 14px;border-radius:50%;
+  border:4px solid var(--card-border);border-top-color:var(--accent);
+  animation:xmlSpin .8s linear infinite;
+}
+@keyframes xmlSpin{to{transform:rotate(360deg)}}
+.xml-loading h4{font-size:15px;font-weight:800;color:var(--content-text);margin-bottom:6px}
+.xml-loading p{font-size:12px;color:var(--text2);margin:0}
+.xml-zone.busy{pointer-events:none;opacity:.55;filter:grayscale(.2)}
+.xml-progress{height:6px;border-radius:99px;background:var(--content-bg);margin-top:16px;overflow:hidden}
+.xml-progress>i{display:block;height:100%;width:30%;border-radius:99px;background:var(--accent);animation:xmlBar 1.2s ease-in-out infinite}
+@keyframes xmlBar{0%{transform:translateX(-100%);width:30%}50%{width:60%}100%{transform:translateX(350%);width:30%}}
+.xml-status-criado{color:var(--accent);font-weight:700}
+
 </style>
 </head>
 <body>
@@ -272,7 +312,7 @@ tbody td{padding:11px 12px;border-bottom:1px solid var(--card-border);vertical-a
     </div>
     <div class="form-group">
       <label>Fornecedor (informativo)</label>
-      <input id="e-fornecedor" type="text" placeholder="Nome do fornecedor…" autocomplete="off">
+      <input id="e-fornecedor" type="text" placeholder="Digite para buscar fornecedor…" autocomplete="off">
     </div>
     <div class="form-group">
       <label>Observação</label>
@@ -315,23 +355,57 @@ tbody td{padding:11px 12px;border-bottom:1px solid var(--card-border);vertical-a
 
 <!-- ABA: Entrada por XML -->
 <div class="tab-pane" id="aba-xml">
-  <div style="max-width:700px">
-    <div class="callout">Importe a NF-e em XML para dar entrada automática no estoque. Os produtos são casados pelo <strong>código do fabricante</strong> (cProd) ou pelo <strong>código de barras</strong> registrado no cadastro. Itens não encontrados são listados para ajuste manual.</div>
+  <div style="max-width:920px">
+    <div class="callout">Importe a NF-e em XML para <strong>conferir</strong> e depois gerar <strong>Contas a Pagar</strong> (parcelas da nota) e, se o estoque estiver habilitado, a <strong>entrada de mercadoria</strong>. Produtos casam por código do fabricante (cProd) ou código de barras.</div>
     <div class="xml-zone" id="xmlZone" onclick="document.getElementById('xml-file').click()" ondrop="xmlDrop(event)" ondragover="xmlDragOver(event)" ondragleave="xmlDragLeave()">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-      <p>Arraste o arquivo XML aqui ou <strong>clique para selecionar</strong></p>
-      <p style="font-size:11px;margin-top:4px;color:var(--text2)">Aceita nfeProc (autorizada pela SEFAZ) ou NFe direta</p>
+      <p id="xmlZoneTxt">Arraste o arquivo XML aqui ou <strong>clique para selecionar</strong></p>
+      <p style="font-size:11px;margin-top:4px;color:var(--text2)">Aceita nfeProc (autorizada pela SEFAZ) ou NFe direta · máx. 5 MB</p>
     </div>
     <input type="file" id="xml-file" accept=".xml" onchange="xmlFileSelected(this)">
-    <div id="xml-resultado" style="margin-top:16px;display:none">
-      <div id="xml-resumo" style="margin-bottom:10px;font-size:13px;font-weight:600"></div>
+
+    <div class="xml-loading" id="xmlLoading" aria-live="polite">
+      <div class="xml-spin" aria-hidden="true"></div>
+      <h4 id="xmlLoadingTitle">Lendo XML da NF-e…</h4>
+      <p id="xmlLoadingMsg">Aguarde — estamos interpretando emitente, parcelas e itens.</p>
+      <div class="xml-progress"><i></i></div>
+    </div>
+
+    <div class="xml-conf" id="xmlConf">
+      <div id="xmlAvisos"></div>
+      <div class="xml-meta" id="xmlMeta"></div>
+
+      <div class="xml-opts">
+        <label><input type="checkbox" id="xmlOptPagar" checked> Gerar Contas a Pagar (parcelas)</label>
+        <label id="xmlOptEstoqueWrap"><input type="checkbox" id="xmlOptEstoque" checked> Atualizar estoque</label>
+        <span id="xmlEstoqueOff" style="display:none;font-size:11px;color:var(--text2)">Estoque desabilitado nas configurações — só Contas a Pagar.</span>
+      </div>
+
+      <div id="xmlDupWrap" style="display:none;margin-bottom:12px">
+        <div style="font-size:12px;font-weight:700;margin-bottom:6px;color:var(--content-text)">Parcelas (Contas a Pagar)</div>
+        <div class="table-card">
+          <div class="table-wrap">
+            <table class="xml-dup-table">
+              <thead><tr><th>Parcela</th><th>Vencimento</th><th style="text-align:right">Valor</th></tr></thead>
+              <tbody id="tbXmlDup"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div style="font-size:12px;font-weight:700;margin-bottom:6px;color:var(--content-text)">Itens da NF-e</div>
       <div class="table-card">
         <div class="table-wrap">
           <table class="xml-result-table">
-            <thead><tr><th>#</th><th>Cód. NF</th><th>Descrição NF</th><th>Qtd</th><th>Produto Sistema</th><th style="text-align:right">Saldo Pós</th><th>Status</th></tr></thead>
+            <thead><tr><th>#</th><th>Cód. NF</th><th>Descrição NF</th><th style="text-align:right">Qtd</th><th style="text-align:right">Unit.</th><th>Produto Sistema</th><th style="text-align:right">Saldo Atual</th><th>Status</th></tr></thead>
             <tbody id="tbXmlResult"></tbody>
           </table>
         </div>
+      </div>
+
+      <div class="xml-actions">
+        <button type="button" class="btn btn-ghost" onclick="limparXmlConf()">Limpar</button>
+        <button type="button" class="btn btn-primary" id="btnXmlConfirmar" onclick="confirmarEntradaXml()">Confirmar entrada</button>
       </div>
     </div>
   </div>
@@ -624,7 +698,14 @@ async function salvarEntradaRapida() {
 
 // ── Estornar Movimento ────────────────────────────────────────────────────────
 async function estornarMovimento(id) {
-  if (!confirm('Estornar este movimento? O saldo do produto será revertido.')) return;
+  const ok = await SysRepConfirm.ask({
+    titulo: 'Estornar movimento?',
+    mensagem: 'O saldo do produto será revertido e o lançamento sai do histórico.',
+    okTexto: 'Estornar',
+    cancelTexto: 'Cancelar',
+    perigo: true,
+  });
+  if (!ok) return;
   const r = await fetch(`/api/estoque/movimentos/${id}`,{ method:'DELETE', headers:H });
   const d = await r.json();
   if (!r.ok) { toast(d.error||'Erro ao estornar','erro'); return; }
@@ -633,42 +714,302 @@ async function estornarMovimento(id) {
   carregarRelatorio();
 }
 
-// ── XML Upload ────────────────────────────────────────────────────────────────
-function xmlDragOver(e){ e.preventDefault(); document.getElementById('xmlZone').classList.add('drag'); }
+// ── XML Upload (conferência → confirmar) ──────────────────────────────────────
+let _xmlPreview = null;
+let _xmlLendo = false;
+
+function xmlDragOver(e){ e.preventDefault(); if(!_xmlLendo) document.getElementById('xmlZone').classList.add('drag'); }
 function xmlDragLeave(){ document.getElementById('xmlZone').classList.remove('drag'); }
-function xmlDrop(e){ e.preventDefault(); xmlDragLeave(); const f=e.dataTransfer.files[0]; if(f) processarXml(f); }
-function xmlFileSelected(inp){ if(inp.files[0]) processarXml(inp.files[0]); inp.value=''; }
+function xmlDrop(e){ e.preventDefault(); xmlDragLeave(); if(_xmlLendo) return; const f=e.dataTransfer.files[0]; if(f) processarXml(f); }
+function xmlFileSelected(inp){ if(_xmlLendo){ inp.value=''; return; } if(inp.files[0]) processarXml(inp.files[0]); inp.value=''; }
+
+function limparXmlConf() {
+  _xmlPreview = null;
+  document.getElementById('xmlConf').style.display = 'none';
+  _setXmlLoading(false);
+  document.getElementById('xmlZoneTxt').innerHTML = 'Arraste o arquivo XML aqui ou <strong>clique para selecionar</strong>';
+}
+
+function _setXmlLoading(on, titulo, msg) {
+  _xmlLendo = !!on;
+  const zone = document.getElementById('xmlZone');
+  const box = document.getElementById('xmlLoading');
+  zone.classList.toggle('busy', !!on);
+  box.classList.toggle('on', !!on);
+  if (titulo) document.getElementById('xmlLoadingTitle').textContent = titulo;
+  if (msg) document.getElementById('xmlLoadingMsg').textContent = msg;
+}
+
+function _fmtMoeda(n) {
+  return (parseFloat(n) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+function _fmtDataBr(iso) {
+  if (!iso || String(iso).length < 10) return '—';
+  const p = String(iso).slice(0, 10).split('-');
+  return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : iso;
+}
 
 async function processarXml(file) {
-  document.getElementById('xml-resultado').style.display='none';
-  document.getElementById('xmlZone').querySelector('p').textContent='Processando…';
-  const fd = new FormData();
-  fd.append('xml', file);
-  const r = await fetch('/api/estoque/entrada-xml',{ method:'POST', headers:{ Authorization:'Bearer '+TOKEN }, body:fd });
-  const d = await r.json();
-  document.getElementById('xmlZone').querySelector('p').textContent='Arraste o arquivo XML aqui ou clique para selecionar';
+  if (_xmlLendo) return;
+  limparXmlConf();
+  _setXmlLoading(true, 'Lendo XML da NF-e…', `Arquivo: ${file.name || 'nfe.xml'} — interpretando emitente, totais, parcelas e itens.`);
+  try {
+    const fd = new FormData();
+    fd.append('xml', file);
+    const r = await fetch('/api/estoque/entrada-xml/preview', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + TOKEN },
+      body: fd,
+    });
+    const d = await r.json();
+    if (!r.ok) {
+      _setXmlLoading(false);
+      await SysRepConfirm.alert({ titulo: 'XML inválido', mensagem: d.error || 'Não foi possível ler a NF-e.' });
+      return;
+    }
+    _setXmlLoading(true, 'Conferência pronta', 'Montando resumo da nota…');
+    await new Promise((res) => setTimeout(res, 280));
+    _xmlPreview = d;
+    renderXmlPreview(d);
+  } catch (e) {
+    await SysRepConfirm.alert({ titulo: 'Erro', mensagem: e.message || 'Falha ao ler o XML.' });
+  } finally {
+    _setXmlLoading(false);
+  }
+}
 
-  if (!r.ok) { toast(d.error||'Erro ao processar XML','erro'); return; }
+function renderXmlPreview(d) {
+  const avisos = [];
+  const em = d.emitente || {};
+  const fornNome = em.nome || em.fantasia || 'Emitente da NF-e';
 
-  document.getElementById('xml-resultado').style.display='block';
-  document.getElementById('xml-resumo').innerHTML =
-    `NF <strong>${d.numero||'?'}/${d.serie||'?'}</strong> — ${d.data_emissao||''} &nbsp;|&nbsp; `+
-    `<span style="color:#065f46">✔ ${d.ok} entrada(s)</span> &nbsp;`+
-    (d.nao_encontrado?`<span style="color:#92400e">⚠ ${d.nao_encontrado} não encontrado(s)</span> &nbsp;`:'')+
-    (d.erro?`<span style="color:#991b1b">✕ ${d.erro} erro(s)</span>`:'');
+  if (d.fornecedor_ausente || !d.fornecedor) {
+    avisos.push({
+      cls: 'danger',
+      html: `<strong>Fornecedor não cadastrado:</strong> ${fornNome}${em.cnpj ? ' (CNPJ ' + em.cnpj + ')' : ''}. ` +
+        `Ao confirmar, o sistema <strong>cadastrará automaticamente</strong> este fornecedor (ou cancele e cadastre antes em Cadastros).`,
+    });
+  } else {
+    avisos.push({
+      cls: 'info',
+      html: `<strong>Fornecedor encontrado:</strong> ${d.fornecedor.nome} (#${d.fornecedor.id}).`,
+    });
+  }
 
-  document.getElementById('tbXmlResult').innerHTML = (d.itens||[]).map((it,i)=>`
+  if ((d.nao_encontrado || 0) > 0) {
+    avisos.push({
+      cls: 'danger',
+      html: `<strong>${d.nao_encontrado} item(ns) sem cadastro</strong> no sistema. ` +
+        `Ao confirmar, esses produtos <strong>serão cadastrados automaticamente</strong> (código fabricante, descrição e preço da NF) e poderão entrar no estoque.`,
+    });
+  } else if ((d.ok || 0) > 0) {
+    avisos.push({
+      cls: 'info',
+      html: `<strong>Itens:</strong> todos os ${d.ok} produto(s) da NF foram encontrados no cadastro.`,
+    });
+  }
+
+  if (d.ja_importado_pagar) avisos.push({ cls: '', html: 'Já existem títulos no Contas a Pagar com esta chave NF-e.' });
+  if (d.ja_importado_estoque) avisos.push({ cls: '', html: 'Esta chave NF-e já gerou entrada de estoque.' });
+
+  document.getElementById('xmlAvisos').innerHTML = avisos.map(a =>
+    `<div class="xml-warn${a.cls ? ' ' + a.cls : ''}">${a.html}</div>`
+  ).join('');
+
+  const tot = d.total || {};
+  const forn = d.fornecedor;
+  document.getElementById('xmlMeta').innerHTML = `
+    <div class="xml-meta-card"><label>NF-e</label><span>${d.numero || '?'}/${d.serie || '?'}</span></div>
+    <div class="xml-meta-card"><label>Emissão</label><span>${_fmtDataBr(d.data_emissao)}</span></div>
+    <div class="xml-meta-card"><label>Total NF</label><span>${_fmtMoeda(tot.vNF)}</span></div>
+    <div class="xml-meta-card"><label>Emitente</label><span>${em.nome || em.fantasia || '—'}${em.cnpj ? '<br><small style="font-weight:500;color:var(--text2)">CNPJ ' + em.cnpj + '</small>' : ''}</span></div>
+    <div class="xml-meta-card"><label>Fornecedor no sistema</label><span>${forn
+      ? (forn.nome + ' <small style="color:var(--text2)">#' + forn.id + '</small>')
+      : '<span style="color:var(--warning,#b45309)">⚠ Não cadastrado — será criado ao confirmar</span>'}</span></div>
+    <div class="xml-meta-card"><label>Itens</label><span>${d.ok || 0} casado(s)${d.nao_encontrado ? ' · <span style="color:var(--warning,#b45309)">' + d.nao_encontrado + ' a cadastrar</span>' : ''}</span></div>
+  `;
+
+  const estoqueOn = !!d.estoque_habilitado;
+  const chkEst = document.getElementById('xmlOptEstoque');
+  chkEst.disabled = !estoqueOn;
+  chkEst.checked = estoqueOn;
+  document.getElementById('xmlEstoqueOff').style.display = estoqueOn ? 'none' : 'inline';
+  document.getElementById('xmlOptPagar').checked = true;
+
+  const dups = d.duplicatas || [];
+  if (!estoqueOn && !dups.length) {
+    document.getElementById('xmlAvisos').innerHTML +=
+      '<div class="xml-warn">Sem estoque habilitado e sem parcelas na NF — nada poderá ser gravado.</div>';
+  }
+  document.getElementById('xmlDupWrap').style.display = dups.length ? 'block' : 'none';
+  document.getElementById('tbXmlDup').innerHTML = dups.map((dup, i) => `
     <tr>
-      <td>${i+1}</td>
-      <td>${it.cod_fabricante||'—'}</td>
-      <td>${it.descricao_nfe||'—'}</td>
-      <td style="text-align:right">${fmt(it.quantidade)}</td>
-      <td>${it.descricao_sys||'<span style="color:var(--text2)">—</span>'}</td>
-      <td style="text-align:right">${it.saldo_posterior!==null?fmt(it.saldo_posterior):'—'}</td>
-      <td class="xml-status-${it.status==='ok'?'ok':it.status==='nao_encontrado'?'nao':'erro'}">${it.status==='ok'?'✔ Entrada':it.status==='nao_encontrado'?'⚠ Não encontrado':'✕ Erro'}</td>
+      <td>${dup.numero || (i + 1)}</td>
+      <td>${_fmtDataBr(dup.vencimento)}</td>
+      <td style="text-align:right">${_fmtMoeda(dup.valor)}</td>
     </tr>
   `).join('');
+
+  document.getElementById('tbXmlResult').innerHTML = (d.itens || []).map((it, i) => `
+    <tr>
+      <td>${it.sequencial || i + 1}</td>
+      <td>${it.cod_fabricante || '—'}</td>
+      <td>${it.descricao_nfe || '—'}</td>
+      <td style="text-align:right">${fmt(it.quantidade)}</td>
+      <td style="text-align:right">${_fmtMoeda(it.valor_unitario)}</td>
+      <td>${it.descricao_sys || '<span style="color:var(--text2)">— será cadastrado —</span>'}</td>
+      <td style="text-align:right">${it.estoque_atual != null ? fmt(it.estoque_atual) : '—'}</td>
+      <td class="xml-status-${it.status === 'ok' ? 'ok' : 'nao'}">${it.status === 'ok' ? '✔ Casado' : '⚠ Sem cadastro'}</td>
+    </tr>
+  `).join('');
+
+  document.getElementById('xmlConf').style.display = 'block';
+  try { document.getElementById('xmlConf').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (_) {}
+}
+
+async function confirmarEntradaXml() {
+  if (!_xmlPreview?.xml_base64) {
+    await SysRepConfirm.alert({ titulo: 'Atenção', mensagem: 'Carregue um XML antes de confirmar.' });
+    return;
+  }
+  const gerarPagar = document.getElementById('xmlOptPagar').checked;
+  const atualizarEstoque = document.getElementById('xmlOptEstoque').checked;
+  const faltamItens = (_xmlPreview.nao_encontrado || 0) > 0;
+  const fornAusente = !!(_xmlPreview.fornecedor_ausente || !_xmlPreview.fornecedor);
+
+  if (!gerarPagar && !atualizarEstoque && !faltamItens && !fornAusente) {
+    await SysRepConfirm.alert({ titulo: 'Atenção', mensagem: 'Marque Contas a Pagar e/ou Atualizar estoque.' });
+    return;
+  }
+
+  let criarFornecedor = true;
+  let criarProdutos = true;
+
+  if (fornAusente) {
+    const em = _xmlPreview.emitente || {};
+    const okForn = await SysRepConfirm.ask({
+      titulo: 'Fornecedor não cadastrado',
+      mensagem: `${em.nome || em.fantasia || 'Emitente'}${em.cnpj ? ' (CNPJ ' + em.cnpj + ')' : ''} não está no cadastro.\n\n` +
+        'Deseja cadastrar automaticamente e continuar a importação?\n\n' +
+        'Se preferir cadastrar manualmente antes, clique em Cancelar.',
+      okTexto: 'Cadastrar e continuar',
+      cancelTexto: 'Cancelar',
+    });
+    if (!okForn) return;
+    criarFornecedor = true;
+  }
+
+  if (faltamItens) {
+    const okItens = await SysRepConfirm.ask({
+      titulo: 'Produtos sem cadastro',
+      mensagem: `${_xmlPreview.nao_encontrado} item(ns) da NF não existem no cadastro.\n\n` +
+        'Ao confirmar, o sistema cadastra esses produtos (código fabricante, descrição e preço da nota) e depois faz a entrada.\n\n' +
+        'Deseja cadastrar e continuar?',
+      okTexto: 'Cadastrar e continuar',
+      cancelTexto: 'Cancelar',
+    });
+    if (!okItens) return;
+    criarProdutos = true;
+  }
+
+  const partes = [];
+  if (gerarPagar) partes.push(`gerar ${(_xmlPreview.duplicatas || []).length || 1} título(s) no Contas a Pagar`);
+  if (atualizarEstoque) partes.push(`entrar estoque dos itens`);
+  if (fornAusente) partes.push('cadastrar o fornecedor');
+  if (faltamItens) partes.push(`cadastrar ${_xmlPreview.nao_encontrado} produto(s)`);
+
+  const ok = await SysRepConfirm.ask({
+    titulo: 'Confirmar entrada da NF-e?',
+    mensagem: `NF ${_xmlPreview.numero}/${_xmlPreview.serie}. Vai ${partes.join('; ')}.`,
+    okTexto: 'Confirmar',
+    cancelTexto: 'Cancelar',
+  });
+  if (!ok) return;
+
+  const btn = document.getElementById('btnXmlConfirmar');
+  btn.disabled = true;
+  _setXmlLoading(true, 'Gravando entrada…', 'Cadastrando (se preciso), gerando títulos e atualizando estoque.');
+  try {
+    let forcar = false;
+    if ((_xmlPreview.ja_importado_pagar && gerarPagar) || (_xmlPreview.ja_importado_estoque && atualizarEstoque)) {
+      _setXmlLoading(false);
+      forcar = await SysRepConfirm.ask({
+        titulo: 'NF-e já importada',
+        mensagem: 'Esta chave já foi usada. Deseja gravar mesmo assim?',
+        okTexto: 'Forçar',
+        cancelTexto: 'Cancelar',
+        perigo: true,
+      });
+      if (!forcar) return;
+      _setXmlLoading(true, 'Gravando entrada…', 'Reimportação forçada em andamento.');
+    }
+
+    const payload = {
+      xml_base64: _xmlPreview.xml_base64,
+      gerar_pagar: gerarPagar,
+      atualizar_estoque: atualizarEstoque,
+      criar_fornecedor: criarFornecedor,
+      criar_produtos: criarProdutos,
+      forcar: !!forcar,
+    };
+
+    const r = await fetch('/api/estoque/entrada-xml/confirmar', {
+      method: 'POST',
+      headers: H,
+      body: JSON.stringify(payload),
+    });
+    const d = await r.json();
+    if (!r.ok) {
+      if (d.code === 'DUPLICADO_PAGAR' || d.code === 'DUPLICADO_ESTOQUE') {
+        _setXmlLoading(false);
+        const force = await SysRepConfirm.ask({
+          titulo: 'Duplicidade',
+          mensagem: (d.error || '') + ' Forçar gravação?',
+          okTexto: 'Forçar',
+          cancelTexto: 'Cancelar',
+          perigo: true,
+        });
+        if (!force) return;
+        _setXmlLoading(true, 'Gravando entrada…', 'Reimportação forçada…');
+        const r2 = await fetch('/api/estoque/entrada-xml/confirmar', {
+          method: 'POST',
+          headers: H,
+          body: JSON.stringify({ ...payload, forcar: true }),
+        });
+        const d2 = await r2.json();
+        if (!r2.ok) {
+          await SysRepConfirm.alert({ titulo: 'Erro', mensagem: d2.error || 'Falha ao confirmar.' });
+          return;
+        }
+        await _okXmlConfirm(d2);
+        return;
+      }
+      await SysRepConfirm.alert({ titulo: 'Erro', mensagem: d.error || 'Falha ao confirmar.' });
+      return;
+    }
+    await _okXmlConfirm(d);
+  } finally {
+    _setXmlLoading(false);
+    btn.disabled = false;
+  }
+}
+
+async function _okXmlConfirm(d) {
+  const msg = [
+    d.fornecedor_criado ? 'fornecedor cadastrado' : null,
+    d.produtos_criados_qtd ? `${d.produtos_criados_qtd} produto(s) cadastrado(s)` : null,
+    d.pagar_qtd ? `${d.pagar_qtd} título(s) no Contas a Pagar` : null,
+    d.estoque_aplicado ? `${d.ok_estoque || 0} item(ns) no estoque` : null,
+    d.nao_encontrado ? `${d.nao_encontrado} ainda sem cadastro` : null,
+  ].filter(Boolean).join(' · ');
+  await SysRepConfirm.alert({
+    titulo: 'Entrada confirmada',
+    mensagem: `NF ${d.numero}/${d.serie} — ${msg || 'concluído'}.`,
+  });
+  limparXmlConf();
+  carregarSaldos();
   carregarRelatorio();
+  if (typeof carregarMovimentos === 'function') carregarMovimentos();
 }
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
@@ -678,6 +1019,20 @@ document.addEventListener('click', e=>{ if(e.target.classList.contains('modal-ov
 // ── Init ──────────────────────────────────────────────────────────────────────
 carregarRelatorio();
 carregarSaldos();
+if (typeof SysRepLookup !== 'undefined') {
+  SysRepLookup.attach({
+    input: '#e-fornecedor',
+    url: '/api/fornecedores/lookup?todostipos=true',
+    minChars: 2,
+    allowFreeText: true,
+    placeholder: 'Digite para buscar fornecedor…',
+    mapItem: (f) => ({
+      id: f.id,
+      title: f.nome || f.apelido || ('#' + f.id),
+      subtitle: [f.cpf, [f.cidade, f.uf].filter(Boolean).join('/'), '#' + f.id].filter(Boolean).join(' · '),
+    }),
+  });
+}
 </script>
 </body>
 </html>

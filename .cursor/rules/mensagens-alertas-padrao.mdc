@@ -1,0 +1,55 @@
+---
+description: Proíbe alert/confirm nativos do browser — usar padrão SysRep (confirm-dialog / toast)
+alwaysApply: true
+---
+
+# Mensagens e alertas — padrão do sistema
+
+## Proibido
+
+- `alert(...)`
+- `confirm(...)`
+- `prompt(...)`
+
+O diálogo nativo do browser (ex.: «localhost:3002 diz») **não é o padrão** do SysRepWeb.
+
+## Obrigatório
+
+1. Incluir o helper nas páginas HTML:
+```html
+<script src="/assets/confirm-dialog.js"></script>
+```
+
+2. **Confirmação** (Sim/Não — exclusão, estorno, ações destrutivas):
+```javascript
+const ok = await SysRepConfirm.ask({
+  titulo: 'Estornar pagamento?',
+  mensagem: 'A conta volta para ABERTA e o valor retorna ao banco/caixa.',
+  okTexto: 'Estornar',
+  cancelTexto: 'Cancelar',
+  perigo: true,
+});
+if (!ok) return;
+```
+
+Ou: `confirmar('Título', 'Mensagem', () => { /* onOk */ });`
+
+3. **Aviso / erro / info** (só OK):
+```javascript
+await SysRepConfirm.alert({
+  titulo: 'Atenção',
+  mensagem: 'Selecione o banco/caixa.',
+});
+// atalho:
+avisar('Atenção', 'Selecione o banco/caixa.');
+```
+
+4. **Feedback rápido** de sucesso/erro curto (sem bloquear): preferir `toast(msg, 'ok'|'err'|'warn')` quando a tela já tiver toast.
+
+## Iframe da home
+
+Não usar `position:fixed` no card do diálogo. Detalhes em `confirm-dialog-iframe.mdc` e implementação em `/assets/confirm-dialog.js`.
+
+## Ao editar qualquer tela
+
+Se encontrar `alert`/`confirm`/`prompt`, **substituir** pelo padrão acima na mesma alteração (não deixar legado novo).

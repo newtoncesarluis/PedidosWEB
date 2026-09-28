@@ -57,8 +57,8 @@ select option { color:var(--text);background:var(--card,#fff); }
   <div id="listSection">
     <div class="table-card">
       <table>
-        <thead><tr><th>Código</th><th>Descrição</th><th>Tipo</th><th>Status</th><th style="width:60px"></th></tr></thead>
-        <tbody id="tbody"><tr><td colspan="5" style="text-align:center;padding:40px;color:var(--text2)">Carregando…</td></tr></tbody>
+        <thead><tr><th>Código</th><th>Descrição</th><th>Tipo</th><th>Uso</th><th>Status</th><th style="width:60px"></th></tr></thead>
+        <tbody id="tbody"><tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text2)">Carregando…</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -73,6 +73,13 @@ select option { color:var(--text);background:var(--card,#fff); }
             <div class="form-group"><label>Centro pai</label><select id="f_id_pai"><option value="">— Raiz —</option></select></div>
             <div class="form-group"><label>Tipo</label>
               <select id="f_tipo"><option value="ANALITICA">Analítico</option><option value="SINTETICA">Sintético</option></select>
+            </div>
+            <div class="form-group"><label>Uso</label>
+              <select id="f_uso" title="Define em quais telas o centro aparece">
+                <option value="AMBOS">Pagar e Receber</option>
+                <option value="PAGAR">Só Contas a Pagar</option>
+                <option value="RECEBER">Só Contas a Receber</option>
+              </select>
             </div>
             <div class="form-group"><label>Status</label>
               <select id="f_status"><option value="A">Ativo</option><option value="I">Inativo</option></select>
@@ -118,13 +125,15 @@ async function buscar() {
 function renderLista(rows) {
   const tbody = document.getElementById('tbody');
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--text2)">Nenhum centro cadastrado</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text2)">Nenhum centro cadastrado</td></tr>';
     return;
   }
+  const usoLbl = { PAGAR: 'Pagar', RECEBER: 'Receber', AMBOS: 'Ambos' };
   tbody.innerHTML = rows.map(f => `<tr onclick="abrirEditar(${f.id})">
     <td style="font-family:monospace;font-weight:700">${f.codigo || '—'}</td>
     <td style="font-weight:600">${f.descricao}</td>
     <td>${f.tipo || 'ANALITICA'}</td>
+    <td>${usoLbl[String(f.uso || 'AMBOS').toUpperCase()] || (f.uso || 'Ambos')}</td>
     <td><span class="badge badge-${f.status==='A'?'A':'I'}">${f.status==='A'?'Ativo':'Inativo'}</span></td>
     <td onclick="event.stopPropagation()"><button class="btn-acoes" onclick="abrirDrop(event,${f.id})">⋮</button></td>
   </tr>`).join('');
@@ -144,6 +153,7 @@ function abrirNovo() {
   S.registroId = null;
   document.getElementById('mainForm').reset();
   document.getElementById('f_tipo').value = 'ANALITICA';
+  document.getElementById('f_uso').value = 'AMBOS';
   document.getElementById('f_status').value = 'A';
   document.getElementById('formSub').textContent = 'Novo Centro';
   fillPai();
@@ -160,6 +170,7 @@ function abrirEditar(id) {
   document.getElementById('f_descricao').value = f.descricao || '';
   document.getElementById('f_id_pai').value = f.id_pai || '';
   document.getElementById('f_tipo').value = f.tipo || 'ANALITICA';
+  document.getElementById('f_uso').value = f.uso || 'AMBOS';
   document.getElementById('f_status').value = f.status || 'A';
   document.getElementById('formSub').textContent = 'Editar: ' + f.descricao;
   document.getElementById('listSection').style.display = 'none';
@@ -180,6 +191,7 @@ async function salvar() {
     descricao: document.getElementById('f_descricao').value.trim(),
     id_pai: document.getElementById('f_id_pai').value || null,
     tipo: document.getElementById('f_tipo').value,
+    uso: document.getElementById('f_uso').value,
     status: document.getElementById('f_status').value,
   };
   if (!payload.descricao) return toast('Preencha a descrição','err');

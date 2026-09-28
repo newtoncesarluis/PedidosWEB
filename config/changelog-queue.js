@@ -10,6 +10,1155 @@
  */
 module.exports = [
   {
+    versao: '1.1.3.160',
+    tipo: 'NOVO',
+    titulo: 'Pedido: referência da mãe nas cores',
+    descricao:
+      'No cadastro da fábrica (Preferências), ligue «Pedidos — referência da mãe nas cores». ' +
+      'Na tela e no PDF do pedido, as cores do mesmo modelo passam a mostrar o Cód. Fabricante da referência mãe — em vez de um código diferente por cor. O cadastro e o XML da fábrica continuam com o código de cada SKU.',
+    data_lancamento: '2026-09-24',
+  },
+  {
+    versao: '1.1.3.160',
+    tipo: 'MELHORIA',
+    titulo: 'Showroom: carrinho mais claro no celular',
+    descricao:
+      'A tela do carrinho ganhou cards com foto, grade em chips e barra fixa com Limpar e Continuar em botões grandes — fácil de usar no celular e no desktop.',
+    data_lancamento: '2026-09-24',
+  },
+  {
+    versao: '1.1.3.160',
+    tipo: 'BUG',
+    titulo: 'Showroom: Limpar carrinho não “volta” mais',
+    descricao:
+      'O Limpar do carrinho às vezes parecia funcionar e os itens reapareciam (cópia antiga no navegador). ' +
+      'Agora limpa de um toque e apaga todas as cópias salvas neste aparelho.',
+    data_lancamento: '2026-09-24',
+  },
+  {
+    versao: '1.1.3.158',
+    tipo: 'BUG',
+    titulo: 'Showroom: cores não vêm mais todas marcadas',
+    descricao:
+      'No «Escolher cores» (grade fechada), todas as cores abriam já marcadas com o pack preenchido e a cesta somava quantidades enormes. ' +
+      'Agora as cores começam desmarcadas; ao marcar uma, o pack preenche só nela. Desmarcar zera a quantidade daquela cor.',
+    data_lancamento: '2026-09-24',
+  },
+  {
+    versao: '1.1.3.158',
+    tipo: 'MELHORIA',
+    titulo: 'Showroom: cor do produto pai também aparece',
+    descricao:
+      'Quando a referência mãe tem Cor preenchida e está disponível para venda, ela entra como a primeira opção em «Escolher cores» (Showroom/pedido), junto com as cores filhas. ' +
+      'Ex.: Pink no pai + 5 filhos = 6 cores no picker. O cadastro continua listando só as cores filhas em «Cores (N)».',
+    data_lancamento: '2026-09-22',
+  },
+  {
+    versao: '1.1.3.158',
+    tipo: 'MELHORIA',
+    titulo: 'Lista de pedidos: colunas Cidade e Estado',
+    descricao:
+      'Na grade de Pedidos (COLUNAS E ORDEM) dá para exibir Cidade e Estado do cliente. ' +
+      'As colunas vêm ligadas por padrão; dá para ocultar ou reordenar como as demais.',
+    data_lancamento: '2026-09-22',
+  },
+  {
+    versao: '1.1.3.157',
+    tipo: 'MELHORIA',
+    titulo: 'Modelo de impressão: opção Previsão',
+    descricao:
+      'Em Configurar modelo de impressão há o checkbox Previsão. Com ele marcado, o texto da aba Entrega ' +
+      'aparece no cabeçalho do PDF (só se estiver preenchido).',
+    data_lancamento: '2026-09-22',
+  },
+  {
+    versao: '1.1.3.157',
+    tipo: 'NOVO',
+    titulo: 'Pedido: campo Previsão na aba Entrega',
+    descricao:
+      'Na aba Entrega há o campo texto Previsão (livre). Se preenchido, o texto aparece no cabeçalho da impressão/PDF do pedido, ' +
+      'junto com fábrica, comprador e demais dados. A Previsão de Entrega (data) continua separada.',
+    data_lancamento: '2026-09-22',
+  },
+  {
+    versao: '1.1.3.156',
+    tipo: 'MELHORIA',
+    titulo: 'Lista de pedidos: busca por cidade, UF e CNPJ',
+    descricao:
+      'Na barra de busca da tela de Pedidos você também encontra pedidos digitando a cidade, o estado (UF) ' +
+      'ou o CNPJ/CPF do cliente (com ou sem pontuação), além do número e do nome.',
+    data_lancamento: '2026-09-22',
+  },
+  {
+    versao: '1.1.3.155',
+    tipo: 'BUG',
+    titulo: 'Impressão de grade: ordem P/M/G/GG correta',
+    descricao:
+      'No relatório do pedido com cabeçalho único, tamanhos em letra saíam em ordem alfabética (G, GG, M, P). ' +
+      'Agora seguem a ordem de confecção (P, M, G, GG); grades numéricas continuam 44, 46, 48… antes das letras.',
+    data_lancamento: '2026-09-22',
+  },
+  {
+    versao: '1.1.3.149',
+    tipo: 'BUG',
+    titulo: 'Showroom: Limpar carrinho sem travar no celular',
+    descricao:
+      'No carrinho do Showroom (celular), o botão Limpar abria um aviso que piscava e travava a tela. ' +
+      'Agora basta tocar Limpar e de novo em Confirmar. Os botões do rodapé também ficaram menores.',
+    data_lancamento: '2026-09-22',
+  },
+  {
+    versao: '1.1.3.149',
+    tipo: 'MELHORIA',
+    titulo: 'Showroom no celular: tela limpa sem Início por cima',
+    descricao:
+      'No app celular, ao abrir o Showroom some a barra Início/Voltar (não cobre mais os botões). ' +
+      'No modal Escolher cores, o rodapé ficou compacto: ações secundárias numa linha e Cancelar + Adicionar lado a lado.',
+    data_lancamento: '2026-09-22',
+  },
+  {
+    versao: '1.1.3.149',
+    tipo: 'BUG',
+    titulo: 'Showroom: limpar carrinho não traz o número de volta',
+    descricao:
+      'O número na sacola do Showroom é a quantidade total de unidades (ex.: pack 12 da grade fechada), não a quantidade de produtos. ' +
+      'Ao limpar o carrinho, o valor às vezes voltava por causa de chave antiga no aparelho — agora a limpeza remove de verdade e o badge some.',
+    data_lancamento: '2026-09-22',
+  },
+  {
+    versao: '1.1.3.149',
+    tipo: 'BUG',
+    titulo: 'Showroom: aviso de grade fechada sem travar a tela',
+    descricao:
+      'No celular, ao adicionar cores com quantidade fora do múltiplo da grade fechada, um aviso «Grade fechada» piscava e a tela ficava travada. ' +
+      'Agora o aviso aparece dentro do próprio modal (destaca a cor), dá para ajustar ou cancelar sem perder o fluxo.',
+    data_lancamento: '2026-09-22',
+  },
+  {
+    versao: '1.1.3.149',
+    tipo: 'BUG',
+    titulo: 'Showroom no celular: adicionar cores ao carrinho',
+    descricao:
+      'No celular, ao abrir «Escolher cores» a grade já vinha preenchida mas o botão Adicionar ao carrinho não fazia nada (cores sem marcar). ' +
+      'Agora as cores com quantidade entram no carrinho, dá para fechar com X/Cancelar e o fluxo volta à lista com o carrinho atualizado.',
+    data_lancamento: '2026-09-22',
+  },
+  {
+    versao: '1.1.3.149',
+    tipo: 'BUG',
+    titulo: 'Showroom no celular: toque abre as cores',
+    descricao:
+      'No app/celular, tocar numa referência do Showroom às vezes não abria o modal «Escolher cores» (ficava na capa). ' +
+      'Corrigido o conflito com o ajuste de modais do mobile e o feedback imediato ao tocar.',
+    data_lancamento: '2026-09-22',
+  },
+  {
+    versao: '1.1.3.149',
+    tipo: 'BUG',
+    titulo: 'Pedido para fábrica: só custo, sem valor de venda',
+    descricao:
+      'No modal Imprimir / Enviar, ao marcar «Pedido para fábrica (só custo)», o PDF/visualização deixa de mostrar a coluna VALOR (preço de venda). ' +
+      'Ficam só Custo unitário e Total da linha = Qtde × Custo; o Total do Pedido no rodapé também usa o custo. ' +
+      'A impressão comercial (checkbox desligado) continua igual, com valor de venda.',
+    data_lancamento: '2026-09-21',
+  },
+  {
+    versao: '1.1.3.148',
+    tipo: 'NOVO',
+    titulo: 'Impressão: opção de incluir preço de custo',
+    descricao:
+      'No modal Imprimir / Enviar do pedido há um checkbox «Incluir preço de custo» (desligado por padrão). ' +
+      'Quando marcado, a visualização/PDF mostra a coluna Custo (do cadastro do produto) e o Total Custo — útil para passar o pedido à fábrica, sem alterar o documento comercial padrão.',
+    data_lancamento: '2026-09-21',
+  },
+  {
+    versao: '1.1.3.147',
+    tipo: 'MELHORIA',
+    titulo: 'Novo pedido: link já abre como ORÇAMENTO (?tipo=orcamento)',
+    descricao:
+      'A tela de novo pedido aceita o parâmetro «tipo» no endereço (…/pages/pedidos.html?novo=1&cliente_id=…&tipo=orcamento). ' +
+      'Quando a empresa deixa escolher o tipo, o documento já abre como ORÇAMENTO (ou PEDIDO) — usado pelo botão «Criar orçamento no SysRepWeb» do CRM. ' +
+      'Sem o parâmetro, ou quando a empresa fixa o tipo, nada muda.',
+    data_lancamento: '2026-09-21',
+  },
+  {
+    versao: '1.1.3.147',
+    tipo: 'BUG',
+    titulo: 'Escolher cores: cards não se sobrepõem mais',
+    descricao:
+      'Corrigido o layout da tela «Escolher cores»: os cards de cor estavam empilhados uns sobre os outros. Agora cada cor fica em seu próprio card (com tipo de grade e numeração), sem sobreposição.',
+    data_lancamento: '2026-09-21',
+  },
+  {
+    versao: '1.1.3.147',
+    tipo: 'MELHORIA',
+    titulo: 'Escolher cores: tipo da grade e numeração no card',
+    descricao:
+      'Nos cards de «Escolher cores» (Showroom/pedido) a legenda mostra o tipo da grade (ex. Feminina) e a faixa de numeração (ex. 34–39). Ao marcar a cor, os tamanhos abrem limpos abaixo.',
+    data_lancamento: '2026-09-21',
+  },
+  {
+    versao: '1.1.3.144',
+    tipo: 'MELHORIA',
+    titulo: 'Pedido: mais opções em Forma Pagto',
+    descricao:
+      'No combo Forma Pagto Padrão (e nas parcelas) agora há também Dinheiro, Cheque, Cheque Pré-datado, A Prazo/Carteira e Outros — além de Boleto, PIX, Cartão e Depósito/TED.',
+    data_lancamento: '2026-09-21',
+  },
+  {
+    versao: '1.1.3.140',
+    tipo: 'MELHORIA',
+    titulo: 'Escolher cores: fotos maiores em grade responsiva',
+    descricao:
+      'No Showroom e no pedido, a tela «Escolher cores» passou a exibir as cores em cards com foto grande, ' +
+      'em colunas que se adaptam à largura da tela (celular 2 colunas; desktop várias). ' +
+      'Ao marcar uma cor com grade, o card abre em destaque para informar os tamanhos.',
+    data_lancamento: '2026-09-21',
+  },
+  {
+    versao: '1.1.3.140',
+    tipo: 'BUG',
+    titulo: 'Pedido: mesma referência com grades diferentes fica em linhas separadas',
+    descricao:
+      'Ao pedir a mesma referência em grade feminina e masculina (ex.: 34–39 e 38–43), o sistema somava tudo numa linha só e “esticava” a numeração. ' +
+      'Agora cada tipograde vira uma linha no pedido. Só soma quantidade se for o mesmo produto e a mesma grade.',
+    data_lancamento: '2026-09-21',
+  },
+  {
+    versao: '1.1.3.140',
+    tipo: 'NOVO',
+    titulo: 'WhatsApp: API oficial da Meta (Cloud API) como provedor opcional',
+    descricao:
+      'Em Configurações de API o provedor de envio agora pode ser «Meta — WhatsApp Cloud API», ao lado do EuAtendo e da Evolution API. ' +
+      'Informe Phone Number ID e token permanente e use «Testar Conexão» (o selo «Meta liberada» confirma). ' +
+      'Fora da janela de 24h da Meta, o sistema reenvia sozinho pelo modelo aprovado cadastrado. ' +
+      'Vale para mensagens, PDF do pedido e Campanhas WhatsApp; clientes que não usam a Meta não mudam nada.',
+    data_lancamento: '2026-09-21',
+  },
+  {
+    versao: '1.1.3.140',
+    tipo: 'BUG',
+    titulo: 'Pedido: ordem das colunas de grade (ex. masc + fem)',
+    descricao:
+      'Na visualização/impressão do pedido, quando havia tamanhos numéricos de grades cruzadas (ex.: 34–39 e 38–43), ' +
+      'o cabeçalho ficava 38…43 e só depois 34…37. Agora a ordem é sempre natural (34…43). ' +
+      'O pack e as quantidades por tamanho não mudam. Grades em letra (P/M/G) continuam pelo sequencial do cadastro.',
+    data_lancamento: '2026-09-19',
+  },
+  {
+    versao: '1.1.3.140',
+    tipo: 'MELHORIA',
+    titulo: 'Showroom: escolha quais fábricas aparecem',
+    descricao:
+      'A seção Fábricas do Showroom deixa de listar todas as fábricas ativas. ' +
+      'No cadastro do fornecedor (Preferências), marque «Aparece no Showroom» só nas fábricas que quiser liberar. ' +
+      'Coleções (Catálogos Visuais) e tabelas com «Aparece no Showroom» continuam independentes.',
+    data_lancamento: '2026-09-17',
+  },
+  {
+    versao: '1.1.3.140',
+    tipo: 'BUG',
+    titulo: 'Showroom: cores abrem e não fecham sozinhas',
+    descricao:
+      'Ao tocar numa referência com várias cores no Showroom, o modal «Escolher cores» abria atrás da tela e sumia em poucos segundos. ' +
+      'Agora o modal fica na frente e permanece aberto até você cancelar ou adicionar ao carrinho.',
+    data_lancamento: '2026-09-17',
+  },
+  {
+    versao: '1.1.3.140',
+    tipo: 'BUG',
+    titulo: 'Escolher cores: pack da grade fechada e qtd total',
+    descricao:
+      'Ao trocar a grade fechada, o pack (qtds mínimas) passa a carregar na hora. ' +
+      'Há o campo «Qtd total» (ex.: 24) para multiplicar o pack. ' +
+      '«Incluir todas as grades» só envia as demais grades se você clicar no botão — senão vai só a grade escolhida no combo.',
+    data_lancamento: '2026-09-17',
+  },
+  {
+    versao: '1.1.3.140',
+    tipo: 'BUG',
+    titulo: 'Pedido: várias grades do produto voltam a aparecer',
+    descricao:
+      'Quando o produto tinha Grade principal + Outras grades, o pedido às vezes mostrava só uma. ' +
+      'Agora lista todas; no painel de item e no modal Configurar Grade dá para trocar de grade; ' +
+      'no cadastro do produto as outras grades são checkboxes (mais fácil de marcar).',
+    data_lancamento: '2026-09-17',
+  },
+  {
+    versao: '1.1.3.140',
+    tipo: 'MELHORIA',
+    titulo: 'Produtos: cadastrar auxiliar sem sair da tela',
+    descricao:
+      'Nos combos Família, Grupo, Categoria, Subfamília, Local de Armazenamento, Tipo de Grade e Grade principal, ' +
+      'o botão «+» abre um cadastro rápido. Ao salvar, o item entra no combo e já fica selecionado — sem atualizar a página.',
+    data_lancamento: '2026-09-17',
+  },
+  {
+    versao: '1.1.3.136',
+    tipo: 'MELHORIA',
+    titulo: 'Escolher cores: melhor no celular e tablet',
+    descricao:
+      'O modal de cores no pedido ficou adaptado para tela pequena: no celular abre em tela cheia, no tablet sobe como painel. ' +
+      'Checkbox e campos de tamanho ficam maiores para o dedo, e o teclado do iPhone não dá zoom ao digitar a quantidade.',
+    data_lancamento: '2026-09-17',
+  },
+  {
+    versao: '1.1.3.136',
+    tipo: 'MELHORIA',
+    titulo: 'Pedido: escolher só as cores que quiser',
+    descricao:
+      'No modal «Escolher cores» (referência com várias cores), cada cor tem um checkbox ao lado. ' +
+      'Marque só as que vão para o pedido — o botão Adicionar não leva mais todas automaticamente. ' +
+      'Dá para marcar/desmarcar pelo checkbox, pela foto ou pelo nome; use Marcar todas / Limpar no rodapé.',
+    data_lancamento: '2026-09-17',
+  },
+  {
+    versao: '1.1.3.136',
+    tipo: 'BUG',
+    titulo: 'Produtos: X da foto e Cancelar voltam a responder',
+    descricao:
+      'Ao clicar no X para remover uma foto (ou em Cancelar no cadastro), às vezes nada acontecia: o diálogo de confirmação ficava preso e bloqueava os cliques. ' +
+      'Agora a confirmação abre na tela e a exclusão da foto funciona; Cancelar fecha o formulário normalmente.',
+    data_lancamento: '2026-09-17',
+  },
+  {
+    versao: '1.1.3.136',
+    tipo: 'BUG',
+    titulo: 'Manutenção de Comissões: ajuste abre no centro da tela',
+    descricao:
+      'Ao clicar em Ajustar valor/percentual, o formulário abre no centro da área visível. ' +
+      'Antes o fundo ficava escuro e o formulário aparecia no fim da lista, sem conseguir usar.',
+    data_lancamento: '2026-09-16',
+  },
+  {
+    versao: '1.1.3.136',
+    tipo: 'MELHORIA',
+    titulo: 'Produtos: escolher colunas da lista',
+    descricao:
+      'Na listagem de produtos, o botão Colunas (ao lado de Fotos) abre as mesmas opções do cadastro: preços, estoque, impostos, grade, família e outros. ' +
+      'A escolha fica salva por usuário. O CSV exporta as colunas visíveis. Checkbox, número da linha e Ações continuam sempre na tela.',
+    data_lancamento: '2026-09-16',
+  },
+  {
+    versao: '1.1.3.136',
+    tipo: 'MELHORIA',
+    titulo: 'Produtos: arrastar foto para a galeria',
+    descricao:
+      'Na aba Fotos do cadastro, além de Ctrl+V, dá para arrastar as imagens da pasta do computador (ou do explorador) e soltar na área da galeria. ' +
+      'O produto precisa estar salvo. Também funciona no importar fotos em lote.',
+    data_lancamento: '2026-09-16',
+  },
+  {
+    versao: '1.1.3.136',
+    tipo: 'BUG',
+    titulo: 'Pedido: todas as grades não misturam na mesma linha',
+    descricao:
+      'Ao incluir todas as grades (no Escolher cores ou no item), cada grade da mesma cor fica em uma linha. ' +
+      'Antes o modo Somar da fábrica juntava tudo num item só, e parecia que só veio a grade visível.',
+    data_lancamento: '2026-09-16',
+  },
+  {
+    versao: '1.1.3.136',
+    tipo: 'MELHORIA',
+    titulo: 'Escolher cores: botão incluir todas as grades',
+    descricao:
+      'No modal Escolher cores (referência com várias cores), quando o produto tem 2 ou mais grades, o botão «Incluir todas as grades» aparece no rodapé. ' +
+      'Com ele ligado, cada cor entra no pedido com o pack de cada grade — sem precisar trocar uma a uma.',
+    data_lancamento: '2026-09-16',
+  },
+  {
+    versao: '1.1.3.136',
+    tipo: 'MELHORIA',
+    titulo: 'Pedido: incluir todas as grades de uma vez',
+    descricao:
+      'Quando o produto tem 2 ou mais grades, no item aparece o botão «Incluir todas as grades». ' +
+      'Cada grade vira um item. Grades fechadas já entram com o pack da coluna Mín.; o fluxo de uma grade por vez continua igual.',
+    data_lancamento: '2026-09-16',
+  },
+  {
+    versao: '1.1.3.136',
+    tipo: 'BUG',
+    titulo: 'Produtos: remover foto no endereço da nuvem (DNS)',
+    descricao:
+      'No site publicado (ex.: tupa.nresolutions.com.br) a exclusão da foto falhava ou a imagem voltava. ' +
+      'Agora a remoção usa o mesmo fluxo da nuvem e do local: apaga galeria e foto principal, inclusive URL completa.',
+    data_lancamento: '2026-09-16',
+  },
+  {
+    versao: '1.1.3.135',
+    tipo: 'MELHORIA',
+    titulo: 'Clientes: filtrar por status (ativo/inativo)',
+    descricao:
+      'Nos Filtros Avançados da tela de Clientes, dá para filtrar por Ativo ou Inativo. ' +
+      'O combo fica sincronizado com os cards Total/Ativos/Inativos e também entra nos favoritos.',
+    data_lancamento: '2026-09-15',
+  },
+  {
+    versao: '1.1.3.135',
+    tipo: 'MELHORIA',
+    titulo: 'Clientes: filtrar por vendedor',
+    descricao:
+      'Nos Filtros Avançados da tela de Clientes, agora dá para escolher o vendedor e listar só a carteira dele. ' +
+      'O filtro entra no badge, nos favoritos e funciona junto com os demais (cidade, segmento, sem compra, etc.).',
+    data_lancamento: '2026-09-15',
+  },
+  {
+    versao: '1.1.3.132',
+    tipo: 'MELHORIA',
+    titulo: 'Escolher cores: quantidades por tamanho (grade)',
+    descricao:
+      'No pedido e no Showroom, ao selecionar um produto pai com cores e grade, o formulário «Escolher cores» ' +
+      'passa a mostrar os tamanhos de cada cor (e o seletor se houver 2+ grades). Cada cor entra no pedido já com a grade preenchida. ' +
+      'Produto sem grade continua com o campo de quantidade simples.',
+    data_lancamento: '2026-09-14',
+  },
+  {
+    versao: '1.1.3.132',
+    tipo: 'NOVO',
+    titulo: 'Produto com várias grades (ex.: 34–39 e 38–43)',
+    descricao:
+      'No cadastro do produto, além da grade principal, dá para marcar outras grades opcionais. ' +
+      'No pedido e no Showroom, se o produto tiver 2 ou mais grades, aparece um seletor para escolher qual usar. ' +
+      'Com uma grade só, o fluxo continua igual — nada muda.',
+    data_lancamento: '2026-09-14',
+  },
+  {
+    versao: '1.1.3.132',
+    tipo: 'NOVO',
+    titulo: 'Pedido: escolher várias cores do mesmo SKU',
+    descricao:
+      'Ao selecionar um produto pai com variações de cor, abre um formulário para informar a quantidade de cada cor. ' +
+      'Cada cor entra como uma linha no pedido (ex.: 1.001 Verde, 1.001 Azul) e a cor aparece na impressão/PDF. ' +
+      'Mesmo fluxo no Showroom e na Vitrine Digital.',
+    data_lancamento: '2026-09-14',
+  },
+  {
+    versao: '1.1.3.132',
+    tipo: 'BUG',
+    titulo: 'Produtos: exclusão de foto que «voltava» na galeria',
+    descricao:
+      'Corrigida a remoção de fotos na aba Fotos: o sistema agora usa o ID real da imagem, ' +
+      'também remove pelo nome do arquivo e limpa o campo foto principal para a imagem não reaparecer. ' +
+      'Reinicie o servidor e atualize a página (Ctrl+F5) antes de tentar de novo.',
+    data_lancamento: '2026-09-15',
+  },
+  {
+    versao: '1.1.3.132',
+    tipo: 'MELHORIA',
+    titulo: 'Grade fechada: pack sugerido no pedido',
+    descricao:
+      'Com a grade em modo Fechada (pack), as quantidades da coluna Mín. passam a ser ' +
+      'sugeridas automaticamente ao incluir o produto no pedido. Grade aberta continua igual ' +
+      '(sem preenchimento). Ao editar um item já lançado, as quantidades salvas são mantidas.',
+    data_lancamento: '2026-09-14',
+  },
+  {
+    versao: '1.1.3.132',
+    tipo: 'BUG',
+    titulo: 'Produtos: remoção de foto na aba Fotos',
+    descricao:
+      'Ao clicar em ✕ para remover uma foto do produto, o sistema acusava «Imagem não encontrada» ' +
+      'porque a tela usava um identificador incorreto. Agora a exclusão usa o ID real da galeria e ' +
+      'também remove fotos que existem só no campo URL / foto principal.',
+    data_lancamento: '2026-09-14',
+  },
+  {
+    versao: '1.1.3.132',
+    tipo: 'BUG',
+    titulo: 'Impressão de grade: sem duplicar tamanhos sobrepostos',
+    descricao:
+      'Quando o pedido mistura grades numéricas que se cruzam (ex.: 46–52 e 48–54), a impressão ' +
+      'criava dois blocos e repetia as quantidades nos tamanhos em comum, confundindo a fábrica. ' +
+      'Agora essas grades viram um único bloco unificado; grades sem tamanhos em comum (como P/M/G) ' +
+      'continuam em colunas separadas.',
+    data_lancamento: '2026-09-14',
+  },
+  {
+    versao: '1.1.3.131',
+    tipo: 'BUG',
+    titulo: 'Produtos: coluna Tipo PAI/FILHO e vínculo visível na edição',
+    descricao:
+      'A lista de Produtos ganhou a coluna Tipo (PAI / FILHO). Na edição, a relação aparece na aba Geral: ' +
+      'dá para marcar como pai ou filho, escolher o produto pai e ver as cores vinculadas. ' +
+      'O vínculo passa a ser gravado de forma confiável ao salvar.',
+    data_lancamento: '2026-09-13',
+  },
+  {
+    versao: '1.1.3.129',
+    tipo: 'MELHORIA',
+    titulo: 'Ajuda Produtos: passo a passo interativo de cores',
+    descricao:
+      'Na ajuda de Produtos, a seção «Variações de cor» ganhou um roteiro interativo com checklist clicável, ' +
+      'barra de progresso e resumo do fluxo (produto principal → SKU da cor → pedido).',
+    data_lancamento: '2026-09-01',
+  },
+  {
+    versao: '1.1.3.129',
+    tipo: 'MELHORIA',
+    titulo: 'Produtos: cadastro de cores mais simples',
+    descricao:
+      'O fluxo de variações de cor foi simplificado na aba Geral: pergunta «Tem variações de cor?», lista de cores ' +
+      'e botão «+ Nova cor» no mesmo lugar. O campo Cor ficou ao lado do SKU. Após salvar o produto principal, ' +
+      'o sistema oferece cadastrar a primeira cor na hora.',
+    data_lancamento: '2026-09-01',
+  },
+  {
+    versao: '1.1.3.129',
+    tipo: 'MELHORIA',
+    titulo: 'Showroom: tela de quantidade reorganizada',
+    descricao:
+      'A tela que abre ao adicionar o produto ao pedido esticava até o fim da janela, deixando um vazio grande no ' +
+      'meio e jogando o total lá embaixo, longe do resto. Agora é um cartão do tamanho do conteúdo, com a foto do ' +
+      'produto ao lado do nome, a referência e o preço por unidade logo abaixo. Os botões de quantidade ficaram ' +
+      'maiores e o «−» deixou de ser vermelho, cor que o sistema usa para ações que apagam algo. ' +
+      'O total ganhou destaque junto do botão de confirmar, e o campo de observação passou a mostrar um exemplo ' +
+      'do que escrever. Quando o produto não tem preço na tabela em uso, o aviso é o mesmo da tela anterior.',
+    data_lancamento: '2026-08-30',
+  },
+  {
+    versao: '1.1.3.129',
+    tipo: 'MELHORIA',
+    titulo: 'Showroom: tela do produto mais clara na hora de vender',
+    descricao:
+      'A tela que mostra o produto ao cliente foi reorganizada. As opções do produto (tamanhos, cores) apareciam ' +
+      'como códigos soltos — «9036, 9022, 9023» — e o vendedor precisava clicar em cada uma para descobrir qual era. ' +
+      'Agora o botão mostra o que diferencia de fato, por exemplo «3,00 L», «7,00 L» e «10,00 L», com o código em ' +
+      'letra menor embaixo. O topo da tela também mudou: o nome do produto virou o título e a referência ficou ' +
+      'no subtítulo, junto com quantas opções existem — antes apareciam dois códigos diferentes sem explicar a relação. ' +
+      'Quando o produto não tem preço na tabela em uso, o rodapé passa a avisar «Sem preço nesta tabela» em vez de ' +
+      'mostrar R$ 0,00, que dava a impressão de estar de graça. Unidade, embalagem e código de barras agora ficam ' +
+      'visíveis na tela, em vez de escondidos atrás de um botão sem rótulo — que foi removido. ' +
+      'As miniaturas das fotos passaram para baixo da imagem principal, liberando largura para o produto, ' +
+      'e o botão «Adicionar ao pedido» deixou de ocupar a tela inteira: agora tem tamanho normal, junto do preço, ' +
+      'numa faixa centralizada logo abaixo da foto — antes ela flutuava por cima e podia cobrir o produto. ' +
+      'No computador a tela inteira cabe sem rolagem; no celular o botão continua largo, para o toque.',
+    data_lancamento: '2026-08-30',
+  },
+  {
+    versao: '1.1.3.129',
+    tipo: 'MELHORIA',
+    titulo: 'Showroom: tela inicial mais limpa e com identidade',
+    descricao:
+      'A tela que abre o Showroom foi retrabalhada. Coleções, fábricas e tabelas sem foto de capa apareciam como ' +
+      'retângulos de cor chapada, sem nada além do nome — agora trazem a inicial da marca ao fundo e um ícone que ' +
+      'identifica o tipo, ficando com cara de catálogo. Os cards diminuíram de altura e cabem mais por linha, ' +
+      'e o conteúdo ganhou largura máxima para não esticar em monitor grande: onde antes cabiam 4 por linha, ' +
+      'agora cabem 6. As seções Coleções, Fábricas e Tabelas passam a ficar lado a lado quando cabem na tela — ' +
+      'antes cada uma ocupava uma faixa inteira mesmo tendo um único item, deixando a tela vazia. ' +
+      'A faixa verde de boas-vindas ficou fina e pode ser dispensada de vez, e o texto ' +
+      '«Catálogo completo da fábrica», que se repetia em todos os cards, saiu — a seção já diz isso.',
+    data_lancamento: '2026-08-30',
+  },
+  {
+    versao: '1.1.3.129',
+    tipo: 'MELHORIA',
+    titulo: 'Vitrine Digital: menus de ordenação e exibição no visual do sistema',
+    descricao:
+      'Os campos «Ordem» e «Exibir» do catálogo usavam a lista suspensa padrão do navegador, desenhada pelo sistema ' +
+      'operacional — por isso apareciam com visual cru, fora do tema e às vezes com cores estranhas no Windows. ' +
+      'Agora abrem um menu no mesmo estilo do resto da vitrine, com a opção atual destacada, e acompanham corretamente ' +
+      'os modos Dia e Noite. Fecham ao escolher, ao clicar fora ou com a tecla Esc.',
+    data_lancamento: '2026-08-30',
+  },
+  {
+    versao: '1.1.3.129',
+    tipo: 'NOVO',
+    titulo: 'Vitrine Digital: mínimo por fábrica, carrinho salvo e pedir de novo',
+    descricao:
+      'Três novidades na vitrine. 1) O carrinho não se perde mais: fica guardado no navegador do cliente, então ' +
+      'fechar a aba, travar o celular ou cair a conexão não apaga o pedido que ele estava montando — ao voltar, ' +
+      'o carrinho e a tabela de preços voltam como estavam, com os preços atualizados. ' +
+      '2) Quando a tabela usa as regras da fábrica, o carrinho mostra em cada uma quanto falta para atingir o mínimo ' +
+      'de faturamento, com barra de progresso, e avisa quando o mínimo foi alcançado. Antes o cliente só descobria ' +
+      'que não tinha atingido o mínimo ao ser bloqueado na hora de enviar, depois de montar o pedido inteiro. ' +
+      '3) No histórico, o botão «Pedir de novo» recria o carrinho com os itens de um pedido anterior, usando os preços ' +
+      'atuais e avisando quais produtos saíram do catálogo — caminho rápido para quem repõe sempre o mesmo mix.',
+    data_lancamento: '2026-08-30',
+  },
+  {
+    versao: '1.1.3.129',
+    tipo: 'MELHORIA',
+    titulo: 'Vitrine Digital: carrinho no padrão das lojas online',
+    descricao:
+      'O carrinho da vitrine foi refeito para funcionar como o cliente já está acostumado nas lojas online. ' +
+      'Cada item agora tem os botões de mais e menos para ajustar a quantidade ali mesmo — antes só dava para remover ' +
+      'o produto inteiro e voltar ao catálogo para incluir de novo. Cada linha mostra o preço unitário e o subtotal ' +
+      'daquele produto, em vez do texto corrido de antes. No topo aparece o resumo (quantos produtos e quantos itens) ' +
+      'e um botão Limpar, que pede confirmação. Quando a lista continua além da tela, a base desvanece indicando que ' +
+      'há mais itens abaixo. Produtos vendidos por embalagem fechada mostram o múltiplo na linha. ' +
+      'Para carrinhos grandes: os itens são separados por fábrica com o subtotal de cada uma, e o carrinho avisa ' +
+      'quando o pedido vai se dividir — a vitrine gera um pedido para cada fábrica, e isso antes só aparecia depois ' +
+      'de enviar. Acima de 10 produtos surge uma busca para achar o item sem rolar a lista toda, e o campo de ' +
+      'observação começa recolhido, sobrando mais espaço para os produtos. Cada linha ficou mais enxuta: cabem ' +
+      'cerca de 40% mais itens na tela do que na primeira versão.',
+    data_lancamento: '2026-08-30',
+  },
+  {
+    versao: '1.1.3.129',
+    tipo: 'BUG',
+    titulo: 'Lista de pedidos: «CÓD: null» em visitantes da vitrine',
+    descricao:
+      'Pedidos da vitrine/showroom sem cliente cadastrado passam a exibir «Visitante · sem cadastro» na listagem, em vez do texto «CÓD: null».',
+    data_lancamento: '2026-08-30',
+  },
+  {
+    versao: '1.1.3.129',
+    tipo: 'MELHORIA',
+    titulo: 'Pedido visitante: nome, banner e salvamento liberado',
+    descricao:
+      'Pedidos vindos da Vitrine Digital ou Showroom com visitante (sem cadastro) agora abrem com o nome no campo Cliente, ' +
+      'banner orientando a vincular cadastro, parcela sugerida automaticamente e salvamento liberado enquanto o representante regulariza o cliente.',
+    data_lancamento: '2026-08-30',
+  },
+  {
+    versao: '1.1.3.129',
+    tipo: 'MELHORIA',
+    titulo: 'Produtos: foto do pai na listagem dos filhos',
+    descricao:
+      'No cadastro de Produtos, itens filhos (referência mãe) sem foto própria passam a exibir a imagem do produto pai na coluna Foto — ' +
+      'incluindo galeria produto_imagens do pai.',
+    data_lancamento: '2026-08-30',
+  },
+  {
+    versao: '1.1.3.129',
+    tipo: 'MELHORIA',
+    titulo: 'Modo Apresentação: foto do pai nas variações',
+    descricao:
+      'No Modo Apresentação, variações (referência mãe) sem foto própria passam a exibir a imagem do produto pai — ' +
+      'na tabela do catálogo e ao abrir o detalhe — igual à vitrine digital.',
+    data_lancamento: '2026-08-30',
+  },
+  {
+    versao: '1.1.3.129',
+    tipo: 'MELHORIA',
+    titulo: 'Vitrine: foto da referência mãe nos produtos filhos',
+    descricao:
+      'Variações (filhos) sem foto própria passam a exibir a imagem do produto pai na vitrine digital — ' +
+      'no card e no carrossel de fotos — igual ao comportamento esperado de referência mãe/cor.',
+    data_lancamento: '2026-08-30',
+  },
+  {
+    versao: '1.1.3.129',
+    tipo: 'MELHORIA',
+    titulo: 'Vitrine digital: aviso quando o catálogo está vazio',
+    descricao:
+      'Se o link da vitrine abrir sem produtos, a tela agora explica o motivo: falta liberar tabela na vitrine, ' +
+      'falta preço nos itens ou não há produtos ativos — em vez de só «Nenhum produto encontrado».',
+    data_lancamento: '2026-08-30',
+  },
+  {
+    versao: '1.1.3.129',
+    tipo: 'MELHORIA',
+    titulo: 'Modo Apresentação com layout de catálogo impresso',
+    descricao:
+      'A tela Apresentar agora replica o visual do catálogo de fábrica: faixa azul por linha, tabela com ' +
+      'Cód., Nº, Cap., Medidas, Master e código de barras EAN desenhado — foto à esquerda e variantes à direita, ' +
+      'como no PDF Fort-Lar.',
+    data_lancamento: '2026-08-30',
+  },
+  {
+    versao: '1.1.3.129',
+    tipo: 'NOVO',
+    titulo: 'Catálogo para visita: gerar linhas, fotos e apresentar',
+    descricao:
+      'Em Catálogos Visuais, use «Gerar linhas da fábrica» para montar um catálogo por grupo do produto, ' +
+      '«Importar fotos» (nome do arquivo = código fabricante) e «Apresentar» no tablet — layout tabular ' +
+      'como catálogo de fábrica, modo visita sem preço e busca rápida. Não altera pedidos nem vitrine.',
+    data_lancamento: '2026-08-30',
+  },
+  {
+    versao: '1.1.3.129',
+    tipo: 'NOVO',
+    titulo: 'Modo Apresentação — catálogo estilo visita comercial',
+    descricao:
+      'Novo modo para levar o tablet na visita ao cliente: layout tabular como catálogo de fábrica ' +
+      '(foto, código, EAN, cor, master), agrupado por linha/grupo, com índice de coleções, busca rápida ' +
+      'e «Modo visita» que oculta preços até você decidir mostrar. Acesse em Catálogos Visuais pelo botão Apresentar — ' +
+      'não altera Vitrine, Showroom nem pedidos.',
+    data_lancamento: '2026-08-30',
+  },
+  {
+    versao: '1.1.3.129',
+    tipo: 'BUG',
+    titulo: 'Botões das janelas de confirmação sem formatação',
+    descricao:
+      'As janelas de confirmação e aviso do sistema apareciam com os botões sem formatação nenhuma, no visual cru do ' +
+      'navegador — o "Confirmar" com uma borda fina e o "Cancelar" parecendo um link sublinhado. ' +
+      'Agora os botões seguem o visual do sistema: ação principal preenchida (vermelha quando a ação desfaz ou apaga ' +
+      'algo, azul nos demais casos) e o cancelar com contorno discreto. Vale para todas as telas e no tema escuro.',
+    data_lancamento: '2026-08-30',
+  },
+  {
+    versao: '1.1.3.129',
+    tipo: 'NOVO',
+    titulo: 'Vitrine Digital: escolher aparência Dia ou Noite do catálogo',
+    descricao:
+      'Na tela onde o link da vitrine é gerado, agora dá para escolher a aparência do catálogo que o cliente vai ver: ' +
+      'Dia (claro) ou Noite (escuro). O padrão é Dia, porque foto de produto quase sempre vem com fundo branco e ' +
+      'ficava destoando no escuro. Antes a vitrine seguia o tema do celular do cliente, sem ninguém poder decidir. ' +
+      'A escolha pode ser trocada a qualquer momento no mesmo link, sem precisar gerar outro e sem invalidar o que o ' +
+      'cliente já recebeu. No modo Noite, o fundo das fotos aparece em tom suave em vez de branco estourado, e os ' +
+      'botões de avançar e voltar páginas ganharam contraste para ficarem legíveis no escuro.',
+    data_lancamento: '2026-08-30',
+  },
+  {
+    versao: '1.1.3.129',
+    tipo: 'MELHORIA',
+    titulo: 'Vitrine Digital: cores alinhadas à identidade PedidosWeb',
+    descricao:
+      'A vitrine era a única tela do sistema em verde — uma paleta própria que não combinava com o logo nem com o ' +
+      'resto do produto. Agora ela usa o mesmo azul do PedidosWeb, o mesmo do tema padrão do sistema. ' +
+      'O preço do produto passou a ser exibido em cor neutra, para não competir com o botão de adicionar, e o verde ' +
+      'ficou reservado para o que ele realmente significa: pedido enviado com sucesso e preço mais barato na comparação ' +
+      'entre tabelas. Os botões também ganharam contraste, ficando mais legíveis no celular sob luz forte.',
+    data_lancamento: '2026-08-30',
+  },
+  {
+    versao: '1.1.3.129',
+    tipo: 'BUG',
+    titulo: 'Vitrine Digital: link do cliente não é mais invalidado sem querer',
+    descricao:
+      'Abrir a tela do link da vitrine gerava um link novo toda vez — e isso desativava o anterior. ' +
+      'Quem já tinha mandado o link para o cliente no WhatsApp acabava derrubando o acesso dele sem saber, ' +
+      'e o cliente via "Link inválido ou expirado" sem ninguém entender o motivo. ' +
+      'Agora a tela mostra o link que já está em uso, com um aviso de que não precisa reenviar. ' +
+      'Para trocar o link existe um botão próprio, que avisa antes que o link antigo vai parar de funcionar. ' +
+      'E quando um link realmente já não vale, a mensagem passa a dizer o porquê: substituído por um mais recente, ' +
+      'ou vencido — em vez do texto genérico de antes.',
+    data_lancamento: '2026-08-30',
+  },
+  {
+    versao: '1.1.3.129',
+    tipo: 'NOVO',
+    titulo: 'Vitrine Digital: todas as fotos do produto no catálogo',
+    descricao:
+      'Produto com mais de uma foto agora mostra isso. No catálogo, um selo com a quantidade de fotos aparece no canto ' +
+      'da imagem. Ao abrir o produto, as fotos viram um carrossel: miniaturas embaixo, setas para trocar e, no celular, ' +
+      'basta arrastar para o lado. Tocando na foto ela abre ampliada já na imagem que estava sendo vista. ' +
+      'Antes as fotos extras eram carregadas mas ficavam invisíveis — só apareciam para quem descobrisse que dava para ' +
+      'clicar na imagem. Produto com uma foto só continua igual, sem setas nem miniaturas.',
+    data_lancamento: '2026-08-30',
+  },
+  {
+    versao: '1.1.3.129',
+    tipo: 'MELHORIA',
+    titulo: 'Vitrine Digital: busca mais fluida e navegação por teclado',
+    descricao:
+      'A busca do catálogo passou a filtrar quando o cliente para de digitar, em vez de a cada letra — em catálogo ' +
+      'grande a digitação não trava mais. Um botão de voltar ao topo aparece quando a lista fica longa. ' +
+      'E, para quem navega por teclado, o Tab agora circula dentro da janela aberta em vez de escapar para os produtos ' +
+      'atrás dela, voltando para o botão de origem quando a janela fecha.',
+    data_lancamento: '2026-08-30',
+  },
+  {
+    versao: '1.1.3.129',
+    tipo: 'NOVO',
+    titulo: 'Vitrine Digital: comparar preços entre tabelas',
+    descricao:
+      'No seletor de tabela de preços da vitrine, o cliente agora pode marcar até duas outras tabelas para comparar. ' +
+      'Cada produto passa a mostrar, embaixo do preço, quanto ele custaria nessas tabelas — em verde quando sai mais ' +
+      'barato que a tabela em uso, e com um traço quando o produto não existe naquela tabela. Serve só para consulta: ' +
+      'o pedido continua saindo de uma única tabela, a que estiver selecionada, sem misturar preços. A escolha de ' +
+      'comparação fica guardada no navegador do cliente e um botão Limpar desfaz tudo.',
+    data_lancamento: '2026-08-30',
+  },
+  {
+    versao: '1.1.3.129',
+    tipo: 'MELHORIA',
+    titulo: 'Vitrine Digital: seletor de tabela de preços com busca',
+    descricao:
+      'Quando o cliente tem muitas tabelas de preço liberadas no link, elas enchiam a tela com dezenas de botões — ' +
+      'em alguns casos três linhas no computador e seis no celular. Agora, acima de 5 tabelas, o bloco vira um ' +
+      'seletor de uma linha só, mostrando a tabela em uso e quantas estão disponíveis. Ao tocar, abre a lista ' +
+      'completa com campo de busca (basta digitar parte do nome) e a tabela atual marcada. Com 5 tabelas ou menos ' +
+      'nada muda: continuam todas à mostra, como antes. Dica: no modal do link da vitrine dá para liberar só as ' +
+      'tabelas que aquele cliente realmente usa.',
+    data_lancamento: '2026-08-30',
+  },
+  {
+    versao: '1.1.3.129',
+    tipo: 'MELHORIA',
+    titulo: 'Vitrine Digital: layout responsivo e tema escuro',
+    descricao:
+      'A vitrine (link do catálogo enviado ao cliente) foi retrabalhada. No celular a barra fixa do topo caiu quase ' +
+      'pela metade — a ordenação, a quantidade por página e o seletor de tabela de preços saíram dela e agora ficam ' +
+      'junto da lista, sobrando muito mais tela para os produtos. Os campos deixaram de dar zoom automático no iPhone, ' +
+      'o carrinho e os detalhes abrem como painel de baixo para cima, e o fundo não rola mais atrás deles. ' +
+      'A página passou a acompanhar o tema claro/escuro do aparelho do cliente e ganhou largura máxima em monitores grandes. ' +
+      'Correções: o carrinho agora fecha clicando fora ou com Esc, os produtos em Destaques abrem o detalhe (antes só ' +
+      'os da grade), a paginação não esconde mais o topo da lista atrás do cabeçalho, a troca de tabela de preços pede ' +
+      'confirmação numa janela do próprio sistema, e mudar a quantidade não repinta a grade inteira nem perde a posição da rolagem.',
+    data_lancamento: '2026-08-29',
+  },
+  {
+    versao: '1.1.3.128',
+    tipo: 'NOVO',
+    titulo: 'Marketplace: de-para de anúncios',
+    descricao:
+      'Nova tela Comercial → Marketplace — De-para para ligar o anúncio/SKU do canal ao produto interno. ' +
+      'Filtros por canal e pendentes, paginação, vínculo manual com busca de produto, vínculo automático ' +
+      '(só quando o match é único) e cadastro manual de anúncios enquanto a Tray não sincroniza. ' +
+      'Requer o add-on Marketplace liberado na licença.',
+    data_lancamento: '2026-08-25',
+  },
+  {
+    versao: '1.1.3.127',
+    tipo: 'NOVO',
+    titulo: 'Marketplace: cadastro dos canais de venda',
+    descricao:
+      'Novo card Marketplace — Canais de Venda em Configurações de API, para cadastrar as contas de Tray, Bling, ' +
+      'Mercado Livre, Shopee, Amazon, Shein e TikTok Shop. Cada conta é um canal, então quem tem duas contas do ' +
+      'mesmo marketplace cadastra duas linhas. A comissão informada em cada canal é usada no cálculo da margem líquida. ' +
+      'Módulo adicional — disponível apenas para licenças com o Marketplace habilitado.',
+    data_lancamento: '2026-08-25',
+  },
+  {
+    versao: '1.1.3.126',
+    tipo: 'MELHORIA',
+    titulo: 'Fábrica: cópia do e-mail para cliente e vendedor',
+    descricao:
+      'Na aba E-mails Fábrica do fornecedor, você pode marcar cópia automática para o cliente e/ou vendedor. ' +
+      'Na hora do envio, o sistema mostra os e-mails com opção de confirmar, desmarcar ou alterar antes de enviar. ' +
+      'O PDF começa a gerar em paralelo enquanto você confirma — reduz a espera no clique de enviar.',
+    data_lancamento: '2026-08-24',
+  },
+  {
+    versao: '1.1.3.126',
+    tipo: 'BUG',
+    titulo: 'Fornecedores: busca sem telefone após salvar',
+    descricao:
+      'Ao salvar o fornecedor, a busca da lista não recebe mais o telefone por autofill do navegador. ' +
+      'O envio do pedido à fábrica usa só os e-mails cadastrados na aba E-mails Fábrica.',
+    data_lancamento: '2026-08-24',
+  },
+  {
+    versao: '1.1.3.126',
+    tipo: 'MELHORIA',
+    titulo: 'Fábrica: escolher anexo XML ou XLS no e-mail',
+    descricao:
+      'Na aba E-mails Fábrica do fornecedor, além de ativar o envio automático, você escolhe o formato do arquivo anexo: só PDF, PDF + XML ou PDF + XLS. ' +
+      'No Enviar para Fábrica, o sistema gera o arquivo no formato Delphi (Número, CNPJ, DataEntrega, Observação e itens com código fabricante, quantidade e preço).',
+    data_lancamento: '2026-08-24',
+  },
+  {
+    versao: '1.1.3.123',
+    tipo: 'MELHORIA',
+    titulo: 'Lista de pedidos: cards de filtro mais compactos',
+    descricao:
+      'Os cards Todos / Pedidos / Orçamentos na lista ficam menores, alinhados à esquerda e com visual mais leve — sem esticar na tela inteira.',
+    data_lancamento: '2026-08-23',
+  },
+  {
+    versao: '1.1.3.123',
+    tipo: 'BUG',
+    titulo: 'Clonar pedido: grade copiada junto',
+    descricao:
+      'Ao clonar ou repetir um pedido, as quantidades por tamanho (grade P/M/G…) passam a vir junto com a quantidade total. ' +
+      'Antes só copiava o total e o save pedia para informar a grade de novo em cada item.',
+    data_lancamento: '2026-08-23',
+  },
+  {
+    versao: '1.1.3.123',
+    tipo: 'BUG',
+    titulo: 'Impressão de grade: sem bloco P/M repetido',
+    descricao:
+      'Na impressão/mapa de grade, um item preenchido só com P e M não cria mais um segundo bloco de colunas. ' +
+      'Os tamanhos da mesma grade ficam numa sequência só (P, M, G, GG…), sem repetir cabeçalhos.',
+    data_lancamento: '2026-08-22',
+  },
+  {
+    versao: '1.1.3.123',
+    tipo: 'MELHORIA',
+    titulo: 'Carteira Operacional no mobile + Diário e Agenda de volta',
+    descricao:
+      'A Carteira Operacional entra no menu do app mobile (mais opções). ' +
+      'Nos clientes voltam os botões visíveis Diário (o que foi feito) e Agenda (próxima visita), no computador e no celular — nas visões Compras e Follow-up.',
+    data_lancamento: '2026-08-22',
+  },
+  {
+    versao: '1.1.3.123',
+    tipo: 'MELHORIA',
+    titulo: 'Meu Dia mais compacto na home',
+    descricao:
+      'O painel Meu Dia ficou menor: números em uma linha, só 4 clientes para reativar e a coluna de orçamentos some quando está vazia — ' +
+      'assim o Resumo do mês (Faturamento, gráficos) volta a aparecer sem rolar tanto.',
+    data_lancamento: '2026-08-22',
+  },
+  {
+    versao: '1.1.3.123',
+    tipo: 'BUG',
+    titulo: 'Meu Dia: cards e listas sempre visíveis',
+    descricao:
+      'O painel Meu Dia deixa de parecer só uma barra de botões: clientes parados, orçamentos e promoções ficam em destaque, ' +
+      'com listas de reativação abaixo. O bloco de Faturamento/Pedidos aparece separado como «Resumo do mês».',
+    data_lancamento: '2026-08-22',
+  },
+  {
+    versao: '1.1.3.123',
+    tipo: 'BUG',
+    titulo: 'Home: Meu Dia carrega sem precisar dar F5',
+    descricao:
+      'O painel Meu Dia passa a atualizar ao abrir a home e ao voltar das abas, sem ficar preso em «Carregando…». ' +
+      'Removemos também a faixa «Atalhos» de Vitrine/Showroom — esses botões já existem na barra superior.',
+    data_lancamento: '2026-08-22',
+  },
+  {
+    versao: '1.1.3.123',
+    tipo: 'MELHORIA',
+    titulo: 'Home mais limpa: Meu Dia em destaque e menos propaganda',
+    descricao:
+      'O painel Meu Dia sobe para o topo do dashboard. Os cards grandes de Vitrine/Showroom ficam recolhidos por padrão (há atalhos compactos e opção de reexibir). ' +
+      'O botão «Conheça o PedidosWeb» saiu da barra superior e foi para o rodapé como «Apresentação».',
+    data_lancamento: '2026-08-22',
+  },
+  {
+    versao: '1.1.3.123',
+    tipo: 'MELHORIA',
+    titulo: 'Home mais limpa: topbar enxuta e Acesso rápido recolhido',
+    descricao:
+      'Removemos o atalho Config da barra superior (já existe em Configurações na lateral). ' +
+      'WhatsApp, Fonte e Ajuda foram para o rodapé, junto do status. O Acesso Rápido abre fechado — use o botão flutuante quando precisar.',
+    data_lancamento: '2026-08-22',
+  },
+  {
+    versao: '1.1.3.123',
+    tipo: 'NOVO',
+    titulo: 'Meu Dia do representante + Oferta WhatsApp',
+    descricao:
+      'Na home, o representante vê clientes parados, orçamentos pendentes e promoções ativas. ' +
+      'Monta oferta com um clique e envia pelo WhatsApp: se a API (Evolution/EuAtendo) estiver conectada no computador, envia por ela e grava no histórico do cliente; senão abre o WhatsApp Web (wa.me).',
+    data_lancamento: '2026-08-22',
+  },
+  {
+    versao: '1.1.3.123',
+    tipo: 'BUG',
+    titulo: 'Pedido: vendedor selecionado permanece ao salvar',
+    descricao:
+      'Ao lançar um pedido novo, o vendedor escolhido no combo passa a ser gravado corretamente. ' +
+      'Antes o sistema salvava sempre o usuário logado e era preciso reabrir o pedido para corrigir.',
+    data_lancamento: '2026-08-22',
+  },
+  {
+    versao: '1.1.3.123',
+    tipo: 'BUG',
+    titulo: 'Grades P/M/G: ordem correta na tela e impressão',
+    descricao:
+      'Tamanhos alfabéticos de grade (P, M, G, GG…) deixam de aparecer em ordem alfabética confusa. ' +
+      'A exibição respeita o sequencial cadastrado na grade e, quando necessário, a ordem padrão de confecção.',
+    data_lancamento: '2026-08-22',
+  },
+  {
+    versao: '1.1.3.123',
+    tipo: 'MELHORIA',
+    titulo: 'Importação de preços: auto-vínculo seletivo',
+    descricao:
+      'Ao carregar a planilha, só Descrição, Cód. Fabricante, Unidade e Quantidade (QTD) são vinculados automaticamente. ' +
+      'Preços, impostos e demais colunas ficam «sem vínculo» para você escolher manualmente. Botão «Essenciais» continua disponível.',
+    data_lancamento: '2026-08-22',
+  },
+  {
+    versao: '1.1.3.122',
+    tipo: 'MELHORIA',
+    titulo: 'Produto Pai: pergunta clara e aviso das cores',
+    descricao:
+      'No cadastro do produto, a pergunta «Este produto é Pai?» explica o papel da referência. ' +
+      'Se for Pai, o sistema informa que as cores são SKUs separados e oferece o atalho para adicionar cores. ' +
+      'Na lista aparece o selo PAI ou COR.',
+    data_lancamento: '2026-08-17',
+  },
+  {
+    versao: '1.1.3.122',
+    tipo: 'BUG',
+    titulo: 'Contas a Receber: lançamento não gravava',
+    descricao:
+      'O botão Confirmar em Lançar Receita não gravava o título. Agora o lançamento salva normalmente e o sistema avisa se faltar cliente, valor ou vencimento. ' +
+      'Na Natureza de Operação o Plano de Contas volta a listar as contas e o cadastro grava mesmo em bases Delphi (nome / excluído nulo).',
+    data_lancamento: '2026-08-17',
+  },
+  {
+    versao: '1.1.3.121',
+    tipo: 'MELHORIA',
+    titulo: 'Entrada XML: aviso de cadastro + leitura visual',
+    descricao:
+      'Na Entrada por XML, se o fornecedor ou produtos não existirem, o sistema avisa e pergunta se pode cadastrar ao confirmar. ' +
+      'Enquanto o XML é lido, aparece um painel com animação para você acompanhar o progresso.',
+    data_lancamento: '2026-08-15',
+  },
+  {
+    versao: '1.1.3.120',
+    tipo: 'MELHORIA',
+    titulo: 'Busca de fornecedor estilo Google no Pagar, Receber e Estoque',
+    descricao:
+      'Nos lançamentos de Contas a Pagar, Contas a Receber e na entrada manual de Estoque, o campo de fornecedor/pagador busca enquanto você digita (nome, CNPJ ou código), ' +
+      'com lista de sugestões — como uma busca do Google. Ainda dá para digitar um nome livre se ainda não estiver cadastrado.',
+    data_lancamento: '2026-08-15',
+  },
+  {
+    versao: '1.1.3.119',
+    tipo: 'NOVO',
+    titulo: 'Estoque: entrada por XML com conferência e Contas a Pagar',
+    descricao:
+      'Na aba Entrada por XML você confere emitente, totais, parcelas e itens antes de gravar. ' +
+      'Na confirmação o sistema gera os títulos no Contas a Pagar e, se o estoque estiver habilitado, dá entrada nos produtos casados (código fabricante / barras).',
+    data_lancamento: '2026-08-15',
+  },
+  {
+    versao: '1.1.3.118',
+    tipo: 'MELHORIA',
+    titulo: 'Pagar/Receber: conta contábil por contexto + estorno no Receber',
+    descricao:
+      'No lançamento, Conta Contábil lista só Despesas no Contas a Pagar e só Receitas no Contas a Receber; Centro de Custo pode ser marcado para Pagar, Receber ou ambos. ' +
+      'Contas a Receber agora tem estorno (devolve o valor do banco/caixa e gera movimentação). Liquidar já debitava/creditava o banco escolhido.',
+    data_lancamento: '2026-08-15',
+  },
+  {
+    versao: '1.1.3.117',
+    tipo: 'MELHORIA',
+    titulo: 'Contas a Receber: filtros e diálogos no padrão',
+    descricao:
+      'Contas a Receber ganhou a mesma experiência do Contas a Pagar: filtros compactos numa faixa, botão para ocultar/mostrar filtros, ' +
+      'modais de recebimento menores e avisos/confirmações no padrão do sistema (sem janela nativa do navegador).',
+    data_lancamento: '2026-08-15',
+  },
+  {
+    versao: '1.1.3.116',
+    tipo: 'MELHORIA',
+    titulo: 'Contas a Pagar: filtros compactos e ocultáveis',
+    descricao:
+      'A barra de filtros fica em uma faixa só (Busca e botões na mesma linha) e o botão «Ocultar filtros / Mostrar filtros» ' +
+      'libera espaço para a lista de títulos. A preferência fica salva no navegador.',
+    data_lancamento: '2026-08-15',
+  },
+  {
+    versao: '1.1.3.115',
+    tipo: 'BUG',
+    titulo: 'Contas a Pagar: botões Buscar e Limpar',
+    descricao:
+      'Os botões Buscar e Limpar da barra de filtros ficam alinhados ao campo de busca, com a mesma altura e largura parecida — ' +
+      'sem o Limpar esticado nem desalinhado em relação ao input.',
+    data_lancamento: '2026-08-15',
+  },
+  {
+    versao: '1.1.3.114',
+    tipo: 'BUG',
+    titulo: 'Contas a Pagar: tamanho dos modais',
+    descricao:
+      'Os diálogos de Excluir título, Liquidação em lote e Liquidar conta deixam de ocupar a largura toda da tela ' +
+      '(especialmente no mobile/embed) e passam a abrir em um card compacto, com botões alinhados à direita.',
+    data_lancamento: '2026-08-15',
+  },
+  {
+    versao: '1.1.3.113',
+    tipo: 'BUG',
+    titulo: 'Movimentação: pagamento e estorno juntos',
+    descricao:
+      'Na Movimentação Financeira, ao pagar e depois estornar, ficam os dois lançamentos: o pagamento (status PAGO) e o estorno (ESTORNADO). ' +
+      'Nenhum dos dois entra nos totais — só movimentos ainda ativos (LIQUIDADO) somam em Entradas/Saídas.',
+    data_lancamento: '2026-08-15',
+  },
+  {
+    versao: '1.1.3.112',
+    tipo: 'MELHORIA',
+    titulo: 'Movimentação: estornos na lista sem somar',
+    descricao:
+      'Pagamentos/recebimentos estornados voltam a aparecer na Movimentação Financeira com status ESTORNADO (para controle), ' +
+      'mas o valor riscado não entra nos totais de Entradas, Saídas e Saldo Líquido.',
+    data_lancamento: '2026-08-15',
+  },
+  {
+    versao: '1.1.3.111',
+    tipo: 'MELHORIA',
+    titulo: 'Contas a Pagar: confirmações no padrão do sistema',
+    descricao:
+      'Estorno e demais avisos do Contas a Pagar deixam de usar a janela nativa do navegador («localhost diz…») ' +
+      'e passam a usar o diálogo visual padrão do SysRep.',
+    data_lancamento: '2026-08-15',
+  },
+  {
+    versao: '1.1.3.110',
+    tipo: 'BUG',
+    titulo: 'Contas a Pagar: lista ao abrir e status após liquidar',
+    descricao:
+      'Ao abrir Contas a Pagar a lista carrega sozinha com o filtro do mês. ' +
+      'Depois de confirmar o pagamento o status muda para Liquidado na hora, sem precisar clicar em Buscar. ' +
+      'Botões do modal de liquidação e da coluna Ações ficaram menores e alinhados à direita.',
+    data_lancamento: '2026-08-15',
+  },
+  {
+    versao: '1.1.3.109',
+    tipo: 'BUG',
+    titulo: 'Movimentação Financeira: some título estornado',
+    descricao:
+      'A Movimentação Financeira passa a listar só títulos liquidados (pela data de pagamento). ' +
+      'Depois de estornar um pagamento, o lançamento deixa de aparecer nessa tela e nos totais de entrada/saída.',
+    data_lancamento: '2026-08-15',
+  },
+  {
+    versao: '1.1.3.108',
+    tipo: 'NOVO',
+    titulo: 'Baixa financeira debita/credita banco ou caixa',
+    descricao:
+      'Ao liquidar Contas a Pagar ou receber Contas a Receber, é obrigatório informar o banco/caixa. ' +
+      'O saldo da conta é atualizado na hora (saída no pagar, entrada no receber). No estorno do pagar, o valor volta para a mesma conta. ' +
+      'Cadastre bancos com o saldo do extrato em Financeiro → Cadastros Financeiros → Bancos.',
+    data_lancamento: '2026-08-15',
+  },
+  {
+    versao: '1.1.3.107',
+    tipo: 'MELHORIA',
+    titulo: 'Carteira: visões por fornecedor/vendedor e busca de cliente',
+    descricao:
+      'Na Carteira Operacional a Visão não corta mais o texto e inclui Compras por cidade, fornecedor, vendedor, região ou UF. ' +
+      'A busca de cliente sugere resultados enquanto você digita (como no Google). Há filtro de fornecedor nas visões de compras.',
+    data_lancamento: '2026-08-14',
+  },
+  {
+    versao: '1.1.3.107',
+    tipo: 'NOVO',
+    titulo: 'Carteira: mapa de compras por cidade e cliente',
+    descricao:
+      'Na Carteira Operacional, a visão Compras lista cidade → cliente → cada pedido (se comprou 3 vezes, aparecem 3 linhas), ' +
+      'com data, tipo, nº, fornecedor, vendedor, frete, forma de pagamento, valor e subtotal por cliente — para prospecção. ' +
+      'A visão Follow-up continua com 1 linha por cliente (última compra, alerta, agenda e rotas).',
+    data_lancamento: '2026-08-14',
+  },
+  {
+    versao: '1.1.3.105',
+    tipo: 'MELHORIA',
+    titulo: 'Carteira Operacional: exportar XLS, PDF e imprimir',
+    descricao:
+      'Na Carteira Operacional você exporta a lista filtrada em Excel (.xls), gera PDF (janela de impressão) ou imprime direto na tela. ' +
+      'CSV continua disponível. A exportação inclui todos os clientes do filtro, não só a página atual.',
+    data_lancamento: '2026-08-14',
+  },
+  {
+    versao: '1.1.3.105',
+    tipo: 'NOVO',
+    titulo: 'Carteira Operacional: última compra, agenda e rotas',
+    descricao:
+      'Novo relatório em Comercial → Relatórios Padrão → Carteira Operacional: mesmos filtros da carteira por região, ' +
+      'com última compra e último pedido (clique para ver), alerta de dias sem compra, agrupamento por cidade/região/vendedor, ' +
+      'anotações no diário, tarefas com Google Agenda, mapa e criação de rotas. Dados reais da base — sem exemplos fictícios.',
+    data_lancamento: '2026-08-14',
+  },
+  {
+    versao: '1.1.3.104',
+    tipo: 'MELHORIA',
+    titulo: 'Contas a Pagar: excluir títulos em aberto',
+    descricao:
+      'Títulos em aberto (incluindo vencidos) passam a ter o botão Excluir (✕) na coluna Ações. ' +
+      'Informe o motivo da exclusão. Títulos já liquidados continuam exigindo estorno antes de excluir.',
+    data_lancamento: '2026-08-14',
+  },
+  {
+    versao: '1.1.3.104',
+    tipo: 'MELHORIA',
+    titulo: 'Despesas: aviso quando Plano de Contas está vazio',
+    descricao:
+      'Na tela de Despesas, se ainda não houver contas analíticas no Plano de Contas, o sistema explica como cadastrá-las para liberar o vínculo.',
+    data_lancamento: '2026-08-14',
+  },
+  {
     versao: '1.1.3.99',
     tipo: 'MELHORIA',
     titulo: 'Importação: validação com tela de espera e botões bloqueados',
@@ -1498,12 +2647,57 @@ module.exports = [
     data_lancamento: '2026-07-08',
   },
   {
-    versao: '1.1.3.60',
+    versao: '1.1.3.127',
     tipo: 'BUG',
-    titulo: 'Cards da lista mostram «Orçamento» corretamente',
+    titulo: 'Salvar tabela de preços importada em lote',
     descricao:
-      'Na visualização em cards da lista de Pedidos, um orçamento aparecia com o título «Pedido #...». ' +
-      'Agora o cabeçalho do card mostra «Orçamento #...» quando o tipo do documento for orçamento.',
-    data_lancamento: '2026-07-08',
+      'Ao importar produtos em lote, itens sem preço de venda no cadastro deixavam o campo vazio e o salvamento falhava. ' +
+      'Agora o preço é normalizado (0 quando ausente) e o valor da tabela é recalculado corretamente.',
+    data_lancamento: '2026-08-30',
+  },
+  {
+    versao: '1.1.3.149',
+    tipo: 'MELHORIA',
+    titulo: 'Vitrine Digital mais ágil no catálogo',
+    descricao:
+      'No catálogo público (link da vitrine): tabelas de preço com avatar e contagem, seletor responsivo (popover no tablet / lista no celular), ' +
+      'imagens com proporção fixa e carregamento suave, quantidade escolhida no card antes de adicionar, ' +
+      'resumo do carrinho no topo (desktop) e rodapé (celular), atalhos de ordenação e botão voltar ao topo.',
+    data_lancamento: '2026-09-21',
+  },
+  {
+    versao: '1.1.3.149',
+    tipo: 'MELHORIA',
+    titulo: 'Modal Vitrine Digital modernizado',
+    descricao:
+      'O painel de gerar link da Vitrine Digital ficou mais claro: fechar com X, validade em destaque, aparência Dia/Noite em controle único, ações em ícones (WhatsApp, copiar, abrir, QR) e seleção de tabelas com chips — funciona no computador, tablet e celular.',
+    data_lancamento: '2026-09-21',
+  },
+  {
+    versao: '1.1.3.149',
+    tipo: 'BUG',
+    titulo: 'Showroom: toque no celular abre as cores',
+    descricao:
+      'No Showroom (celular), tocar na referência ou na cor do modal às vezes não fazia nada. ' +
+      'Agora o card responde ao toque e, em Escolher cores, tocar em qualquer área do card (não só na foto) marca a cor.',
+    data_lancamento: '2026-09-22',
+  },
+  {
+    versao: '1.1.3.160',
+    tipo: 'MELHORIA',
+    titulo: 'Tabela de preços: coluna Preço Custo',
+    descricao:
+      'Na edição da tabela de preços, a grade de itens mostra o Preço Custo do cadastro do produto (somente leitura), ' +
+      'também na busca/importação em lote e no Excel exportado — facilita conferir margem ao montar a tabela.',
+    data_lancamento: '2026-09-24',
+  },
+  {
+    versao: '1.1.3.160',
+    tipo: 'MELHORIA',
+    titulo: 'Tabela de preços: análise de margem',
+    descricao:
+      'Ao montar a tabela, cada item mostra se o Vlr. Tabela está ok, abaixo da margem % do cadastro ou em prejuízo em relação ao custo. ' +
+      'Há um resumo no topo (ok / abaixo / prejuízo) e a análise também vai no Excel exportado.',
+    data_lancamento: '2026-09-24',
   },
 ];

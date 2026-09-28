@@ -16,7 +16,8 @@
 <script src="/assets/ajuda-tour.js"></script>
 <script src="/assets/ajuda-tours.js"></script>
 <script src="/assets/preco-peso-produto.js"></script>
-<script src="/assets/clipboard-image-paste.js"></script>
+<script src="/assets/clipboard-image-paste.js?v=20260916a"></script>
+<script src="/assets/confirm-dialog.js?v=20260917b"></script>
 <style>
 * { margin:0;padding:0;box-sizing:border-box; }
 :root {
@@ -164,10 +165,10 @@ body.prod-form-open { overflow: hidden; }
 
 /* ── TABLE ── */
 .table-wrap { overflow-x:auto; overflow-y:auto; flex:1 1 auto; min-height:0; -webkit-overflow-scrolling:touch; }
-table { width:100%; border-collapse:collapse; font-size:15px; table-layout:auto; }
-thead th { padding:10px 12px; background:#f9fafb; border-bottom:2px solid var(--border);
+table { width:100%; min-width:max-content; border-collapse:collapse; font-size:15px; table-layout:auto; }
+thead th { padding:10px 12px; background:var(--card, #f9fafb); border-bottom:2px solid var(--border);
   text-align:left; font-size:12px; font-weight:700; text-transform:uppercase;
-  letter-spacing:.5px; color:var(--text2); white-space:nowrap; }
+  letter-spacing:.5px; color:var(--text2); white-space:nowrap; position:sticky; top:0; z-index:2; }
 tbody tr { border-bottom:1px solid #f3f4f6; cursor:pointer; transition: all 0.2s; border-left: 3px solid transparent; }
 tbody tr:hover { 
   background: var(--accent-soft, rgba(13,148,136,0.1)); 
@@ -180,6 +181,34 @@ tbody td { padding:10px 12px; vertical-align:middle; }
 .td-sub { font-size:11px; color:var(--text2); }
 .tag-novo { background:#dcfce7; color:#15803d; border-radius:4px;
   padding:1px 6px; font-size:9px; font-weight:700; margin-left:4px; }
+.ref-bloco { margin-top:2px; }
+.ref-row {
+  display:grid; grid-template-columns:1fr 1fr; gap:12px 16px; align-items:end;
+}
+@media (max-width:720px) {
+  .ref-row { grid-template-columns:1fr; }
+}
+.ref-cell { margin:0 !important; min-width:0; }
+.ref-cell label {
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+}
+.ref-link-pai {
+  font-size:11px; font-weight:600; color:var(--accent); text-decoration:none; white-space:nowrap;
+}
+.ref-link-pai:hover { text-decoration:underline; }
+.box-cores-pai {
+  margin-top:10px; padding-top:8px;
+  border-top:1px solid var(--border, #e5e7eb);
+  background:transparent; font-size:12px; color:var(--text);
+}
+.box-cores-pai ul { margin:6px 0 0; padding:0; list-style:none; }
+.box-cores-pai li {
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  padding:4px 0; border-bottom:1px solid var(--border, #e5e7eb);
+}
+.box-cores-pai li:last-child { border-bottom:none; }
+.ref-campo-destaque label { color:var(--accent, #0d9488); font-weight:700; }
+.ref-campo-destaque input { border-color:var(--accent, #0d9488); }
 .td-est-baixo { color:#dc2626; font-weight:700; }
 .td-foto { width:56px; padding:6px 8px !important; vertical-align:middle; }
 .td-foto img { width:44px; height:44px; object-fit:contain; object-position:center; border-radius:6px; border:1px solid var(--border); display:block; background:var(--card, var(--bg, #fff)); }
@@ -187,6 +216,21 @@ tbody td { padding:10px 12px; vertical-align:middle; }
 .chk-fotos-label { cursor:pointer; user-select:none; }
 .chk-fotos-label.active { color:var(--accent); border-color:var(--accent); background:var(--accent-soft); }
 .chk-fotos-label input { accent-color:var(--accent); cursor:pointer; margin:0; }
+.prod-cols-overlay { display:none; position:fixed; inset:0; z-index:2147483400; background:rgba(15,23,42,.55);
+  backdrop-filter:blur(3px); align-items:center; justify-content:center; padding:16px; box-sizing:border-box; }
+.prod-cols-overlay.open { display:flex; }
+.prod-cols-box { background:var(--card); color:var(--text); border-radius:14px; width:min(520px,100%);
+  max-height:min(88vh,720px); display:flex; flex-direction:column; overflow:hidden;
+  border:1px solid var(--border); box-shadow:0 20px 50px rgba(0,0,0,.22); }
+.prod-cols-head { padding:16px 18px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+.prod-cols-body { padding:12px 16px 16px; overflow-y:auto; flex:1; min-height:0; display:flex; flex-direction:column; gap:10px; }
+.prod-cols-foot { padding:12px 16px; border-top:1px solid var(--border); display:flex; gap:8px; justify-content:flex-end; flex-shrink:0; }
+.prod-cols-group-title { font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:var(--text2); padding:6px 2px 0; }
+.prod-cols-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:8px 10px;
+  background:var(--bg); border:1px solid var(--border); border-radius:8px; }
+.prod-cols-lbl { font-size:12px; font-weight:700; color:var(--text); }
+.prod-cols-chk { font-size:12px; color:var(--text2); display:flex; align-items:center; gap:6px; cursor:pointer; }
+.prod-cols-chk input { accent-color:var(--accent); }
 .status-badge { display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:600; }
 .status-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
 
@@ -398,9 +442,53 @@ tbody td { padding:10px 12px; vertical-align:middle; }
   outline:none; transition:.15s; width:100%; }
 .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color:var(--accent); }
 .form-group textarea { resize:vertical; min-height:70px; }
-.form-group input[readonly] { background:#f9fafb; color:var(--text2); cursor:default; }
+.form-group input[readonly] { background:var(--bg, #f9fafb); color:var(--text2); cursor:default; }
+
+/* Atalho + cadastrar no combo (sem sair da tela) */
+.iwa-row { display:flex; gap:6px; align-items:center; }
+.iwa-row > select { flex:1; min-width:0; }
+.btn-novo-rapido {
+  flex-shrink:0; height:32px; min-width:32px; padding:0 8px;
+  border:1.5px dashed var(--accent); border-radius:7px;
+  background:transparent; color:var(--accent);
+  font-size:18px; font-weight:700; cursor:pointer; line-height:1;
+  display:flex; align-items:center; justify-content:center;
+  transition:.15s; font-family:inherit;
+}
+.btn-novo-rapido:hover { background:var(--accent-soft, rgba(67,97,238,.12)); border-style:solid; }
+
+.qr-overlay { display:none; position:fixed; inset:0; z-index:30000;
+  align-items:center; justify-content:center; background:rgba(0,0,0,.45); }
+.qr-overlay.open { display:flex; }
+.qr-box { background:var(--card); border-radius:12px; width:420px; max-width:95vw;
+  box-shadow:0 20px 60px rgba(0,0,0,.2); display:flex; flex-direction:column; overflow:hidden; color:var(--text); }
+.qr-head { padding:14px 18px; border-bottom:1px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between;
+  font-weight:800; font-size:14px; }
+.qr-body { padding:18px; display:flex; flex-direction:column; gap:12px; }
+.qr-foot { padding:12px 18px; border-top:1px solid var(--border);
+  display:flex; gap:8px; justify-content:flex-end; background:var(--card); }
+.qr-group { display:flex; flex-direction:column; gap:4px; }
+.qr-group label { font-size:11px; font-weight:700; color:var(--text2); text-transform:uppercase; }
+.qr-group .input-field, .qr-group select {
+  height:36px; font-size:13px; padding:6px 9px; border:1px solid var(--border);
+  border-radius:6px; font-family:inherit; background:var(--card); color:var(--text); outline:none; width:100%;
+}
+.qr-group .input-field:focus, .qr-group select:focus { border-color:var(--accent); }
+.qr-group select option { color:var(--text); background:var(--card); }
 .col-span-2 { grid-column:span 2; }
 .col-span-3 { grid-column:span 3; }
+.grades-extras-box {
+  display:flex; flex-direction:column; gap:4px; max-height:160px; overflow:auto;
+  padding:8px 10px; border:1px solid var(--border); border-radius:8px;
+  background:var(--card, #fff); color:var(--text);
+}
+.grades-extras-box .ge-item {
+  display:flex; align-items:center; gap:8px; padding:4px 2px;
+  font-size:12px; font-weight:600; cursor:pointer; user-select:none;
+}
+.grades-extras-box .ge-item input { width:16px; height:16px; accent-color:var(--accent); flex-shrink:0; }
+.grades-extras-box .ge-empty { font-size:11px; color:var(--text2); padding:6px 0; }
 .form-footer {
   padding:12px 20px;
   padding-bottom:calc(12px + env(safe-area-inset-bottom, 0px));
@@ -423,9 +511,10 @@ tbody td { padding:10px 12px; vertical-align:middle; }
 .foto-card.foto-principal { border-color:var(--accent); }
 .foto-card img { width:100%; height:100%; object-fit:cover; display:block; transition:opacity .15s; }
 .foto-card:hover img { opacity:.85; }
-.foto-del { position:absolute; top:4px; right:4px; width:22px; height:22px; border-radius:50%;
-  border:none; background:rgba(0,0,0,.55); color:#fff; font-size:12px; cursor:pointer;
-  display:flex; align-items:center; justify-content:center; line-height:1; padding:0; }
+.foto-del { position:absolute; top:4px; right:4px; width:26px; height:26px; border-radius:50%;
+  border:none; background:rgba(0,0,0,.65); color:#fff; font-size:14px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; line-height:1; padding:0;
+  z-index:5; pointer-events:auto; }
 .foto-del:hover { background:#dc2626; }
 .foto-badge { position:absolute; bottom:0; left:0; right:0; background:var(--accent);
   color:#fff; font-size:10px; font-weight:700; text-align:center; padding:2px 0; }
@@ -437,6 +526,19 @@ tbody td { padding:10px 12px; vertical-align:middle; }
 .btn-add-foto:hover:not(:disabled) { background:var(--accent); color:#fff; }
 .btn-add-foto:disabled { opacity:.4; cursor:default; }
 .galeria-hint { color:var(--text2); font-size:13px; padding:24px 0; text-align:center; }
+.galeria-dropzone {
+  border:2px dashed var(--border, #e5e7eb);
+  border-radius:10px;
+  padding:12px;
+  min-height:120px;
+  background:var(--bg, var(--card, #fff));
+  transition:border-color .15s, background .15s;
+}
+.galeria-dropzone.drag-over {
+  border-color:var(--accent);
+  background:var(--accent-soft, color-mix(in srgb, var(--accent) 12%, transparent));
+}
+.galeria-drop-hint { margin:10px 0 0; font-size:11px; color:var(--text2); text-align:center; line-height:1.4; }
 .promo-panel { display:flex; flex-direction:column; gap:14px; }
 .promo-form { background:var(--card, var(--card-bg)); border:1px solid var(--border, var(--card-border)); border-radius:12px; padding:14px 16px; }
 .promo-form h4 { font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; margin:0 0 10px; color:var(--text2); }
@@ -690,6 +792,12 @@ tbody td { padding:10px 12px; vertical-align:middle; }
       </svg>
       Fotos
     </label>
+    <button type="button" class="icon-btn" onclick="abrirProdColunasModal()" title="Escolher colunas do grid">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:12px;height:12px">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h10M4 14h16M4 18h10"/>
+      </svg>
+      Colunas
+    </button>
   </div>
   <div class="search-group">
     <input type="text" id="searchInput" class="search-input" placeholder="Código, descrição, referência/SKU…"
@@ -853,28 +961,40 @@ tbody td { padding:10px 12px; vertical-align:middle; }
           </div>
           <div class="form-group">
             <label>Grupo</label>
-            <select id="f_id_grupo" onchange="onGrupoChange(this)">
-              <option value="">— Selecione —</option>
-            </select>
+            <div class="iwa-row">
+              <select id="f_id_grupo" onchange="onGrupoChange(this)">
+                <option value="">— Selecione —</option>
+              </select>
+              <button type="button" class="btn-novo-rapido" title="Cadastrar Grupo" onclick="abrirQrLookup('grupo')">+</button>
+            </div>
             <input type="hidden" id="f_nome_grupo">
           </div>
           <div class="form-group">
             <label>Família</label>
-            <select id="f_id_familiaproduto">
-              <option value="">— Selecione —</option>
-            </select>
+            <div class="iwa-row">
+              <select id="f_id_familiaproduto">
+                <option value="">— Selecione —</option>
+              </select>
+              <button type="button" class="btn-novo-rapido" title="Cadastrar Família" onclick="abrirQrLookup('familia')">+</button>
+            </div>
           </div>
           <div class="form-group">
             <label>Categoria</label>
-            <select id="f_segmento">
-              <option value="">— Selecione —</option>
-            </select>
+            <div class="iwa-row">
+              <select id="f_segmento">
+                <option value="">— Selecione —</option>
+              </select>
+              <button type="button" class="btn-novo-rapido" title="Cadastrar Categoria" onclick="abrirQrLookup('categoria')">+</button>
+            </div>
           </div>
           <div class="form-group">
             <label title="Segmentação por público-alvo">Subfamília</label>
-            <select id="f_subfamilia">
-              <option value="">— Selecione —</option>
-            </select>
+            <div class="iwa-row">
+              <select id="f_subfamilia">
+                <option value="">— Selecione —</option>
+              </select>
+              <button type="button" class="btn-novo-rapido" title="Cadastrar Subfamília" onclick="abrirQrLookup('subfamilia')">+</button>
+            </div>
           </div>
           <div class="form-group">
             <label title="Ex.: tênis jogger, camiseta slim">Linha de Produto</label>
@@ -896,6 +1016,10 @@ tbody td { padding:10px 12px; vertical-align:middle; }
             <label title="Único por fornecedor padrão — não pode repetir para a mesma fábrica">Cód. Fabricante/SKU</label>
             <input type="text" id="f_cod_fabricante" autocomplete="off">
           </div>
+          <div class="form-group" id="wrap_cor1_geral">
+            <label>Cor</label>
+            <input type="text" id="f_cor1" autocomplete="off" placeholder="Ex.: PRETO, AZUL MARINHO">
+          </div>
           <div class="form-group">
             <label>Disponível p/ Venda</label>
             <select id="f_disponivel">
@@ -909,6 +1033,29 @@ tbody td { padding:10px 12px; vertical-align:middle; }
               <option value="N">Não</option>
               <option value="S">Sim</option>
             </select>
+          </div>
+          <div class="form-group ref-bloco" id="wrap_papel_referencia" style="grid-column:1/-1">
+            <input type="hidden" id="f_id_referencia_val" value="">
+            <div class="ref-row">
+              <div class="form-group ref-cell">
+                <label>Variação de cor</label>
+                <select id="f_papel_referencia" autocomplete="off" onchange="onPapelReferenciaChange(true)">
+                  <option value="avulso">Produto único</option>
+                  <option value="mae">Pai (agrupa cores)</option>
+                  <option value="cor">Filho (cor de outro)</option>
+                </select>
+              </div>
+              <div class="form-group ref-cell" id="wrap_id_referencia" style="display:none">
+                <label>
+                  <span>Produto pai</span>
+                  <a href="#" id="link_abrir_pai" class="ref-link-pai" style="display:none" onclick="return abrirPaiDaCor(event)">Abrir pai</a>
+                </label>
+                <select id="f_id_referencia" autocomplete="off" title="Produto principal desta cor" onchange="onIdReferenciaChange()">
+                  <option value="">— Selecione —</option>
+                </select>
+              </div>
+            </div>
+            <div id="box_cores_referencia" class="box-cores-pai" style="display:none"></div>
           </div>
         </div>
       </div>
@@ -1042,9 +1189,12 @@ tbody td { padding:10px 12px; vertical-align:middle; }
           </div>
           <div class="form-group">
             <label>Local de Armazenamento</label>
-            <select id="f_id_endereco">
-              <option value="">— Selecione —</option>
-            </select>
+            <div class="iwa-row">
+              <select id="f_id_endereco">
+                <option value="">— Selecione —</option>
+              </select>
+              <button type="button" class="btn-novo-rapido" title="Cadastrar Local" onclick="abrirQrLookup('local')">+</button>
+            </div>
           </div>
         </div>
 
@@ -1132,10 +1282,6 @@ tbody td { padding:10px 12px; vertical-align:middle; }
       <div class="tab-pane" id="tab-outras">
         <div class="form-grid">
           <div class="form-group">
-            <label>Cor 1</label>
-            <input type="text" id="f_cor1" autocomplete="off">
-          </div>
-          <div class="form-group">
             <label>Cor 2</label>
             <input type="text" id="f_cor2" autocomplete="off">
           </div>
@@ -1155,17 +1301,6 @@ tbody td { padding:10px 12px; vertical-align:middle; }
               <option value="">— Selecione —</option>
             </select>
           </div>
-          <div class="form-group" style="grid-column:1/-1">
-            <label>Referência mãe <span style="font-weight:500;text-transform:none;color:var(--text2)">(opcional)</span></label>
-            <select id="f_id_referencia" autocomplete="off" title="Deixe vazio se este produto for a referência principal ou avulso">
-              <option value="">— Nenhuma (avulso ou referência principal) —</option>
-            </select>
-            <small style="display:block;margin-top:4px;font-size:11px;color:var(--text2);line-height:1.35">
-              Vincule este SKU como <strong>cor</strong> de uma referência principal.
-              Na mãe, use <strong>+ Adicionar cor</strong> para clonar e já vincular. Pedido, preço e estoque ficam no SKU da cor.
-            </small>
-            <div id="box_cores_referencia" style="display:none;margin-top:8px;padding:10px 12px;border:1px solid var(--border,#e5e7eb);border-radius:8px;background:var(--card,#fff);font-size:12px;color:var(--text)"></div>
-          </div>
         </div>
       </div>
 
@@ -1174,19 +1309,33 @@ tbody td { padding:10px 12px; vertical-align:middle; }
         <div class="form-grid">
           <div class="form-group">
             <label>Tipo de Grade</label>
-            <select id="f_tipograde">
-              <option value="">— Selecione —</option>
-            </select>
+            <div class="iwa-row">
+              <select id="f_tipograde">
+                <option value="">— Selecione —</option>
+              </select>
+              <button type="button" class="btn-novo-rapido" title="Cadastrar Tipo de Grade" onclick="abrirQrLookup('tipoGrade')">+</button>
+            </div>
           </div>
           <div class="form-group">
-            <label>Grades</label>
-            <select id="f_id_grade">
-              <option value="">— Selecione —</option>
-            </select>
+            <label>Grade principal</label>
+            <div class="iwa-row">
+              <select id="f_id_grade" onchange="onGradePrincipalChange()">
+                <option value="">— Selecione —</option>
+              </select>
+              <button type="button" class="btn-novo-rapido" title="Cadastrar Grade" onclick="abrirQrLookup('grade')">+</button>
+            </div>
           </div>
           <div class="form-group">
             <label>Solado</label>
             <input type="text" id="f_solado" autocomplete="off">
+          </div>
+          <div class="form-group col-span-3" id="wrap_grades_extras">
+            <label>Outras grades (opcional)</label>
+            <div id="f_grades_extras" class="grades-extras-box" role="group" aria-label="Outras grades do produto"></div>
+            <small style="display:block;margin-top:6px;color:var(--text2);font-size:11px;line-height:1.35">
+              Marque as grades alternativas (ex.: 34–39 e 38–43). A <strong>Grade principal</strong> acima já é o padrão — não precisa marcar de novo.
+              No pedido, com 2 ou mais grades, aparece o seletor para escolher ou incluir todas.
+            </small>
           </div>
         </div>
       </div>
@@ -1316,9 +1465,12 @@ tbody td { padding:10px 12px; vertical-align:middle; }
             <input type="file" id="inputFotos" accept="image/jpeg,image/png,image/webp,image/gif" multiple style="display:none" onchange="uploadFotos(this)">
           </div>
           <p style="margin:0 0 10px;font-size:11px;color:var(--text2);line-height:1.45">
-            Dica: com a aba Fotos aberta, use <strong>Ctrl+V</strong> para colar imagens copiadas (ex.: Google Drive → abrir foto → Copiar imagem).
+            Dica: arraste as imagens para a área abaixo, use <strong>+ Adicionar fotos</strong> ou <strong>Ctrl+V</strong> para colar (ex.: Google Drive → abrir foto → Copiar imagem).
           </p>
-          <div id="galeriaGrid" class="galeria-grid"></div>
+          <div id="galeriaDropzone" class="galeria-dropzone" title="Arraste imagens para cá">
+            <div id="galeriaGrid" class="galeria-grid"></div>
+            <p class="galeria-drop-hint">Solte as fotos aqui — JPG, PNG, WEBP ou GIF</p>
+          </div>
         </div>
       </div>
 
@@ -1410,6 +1562,24 @@ tbody td { padding:10px 12px; vertical-align:middle; }
   </div>
 </div>
 
+<div id="prodColsOverlay" class="prod-cols-overlay" data-ms-native-modal="1" aria-modal="true" aria-hidden="true" onclick="if(event.target===this)fecharProdColunasModal()">
+  <div class="prod-cols-box" role="dialog" aria-labelledby="prodColsTitle">
+    <div class="prod-cols-head">
+      <div>
+        <div id="prodColsTitle" style="font-size:15px;font-weight:800">Colunas do grid</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:2px">Escolha os campos do cadastro que aparecem na lista</div>
+      </div>
+      <button type="button" onclick="fecharProdColunasModal()" style="width:28px;height:28px;border-radius:50%;border:none;background:var(--bg);cursor:pointer;font-size:14px;color:var(--text2)">✕</button>
+    </div>
+    <div class="prod-cols-body" id="prodColsModalBody"></div>
+    <div class="prod-cols-foot">
+      <button type="button" class="btn btn-ghost" onclick="restaurarProdColunasPadrao()">Padrão</button>
+      <button type="button" class="btn btn-ghost" onclick="fecharProdColunasModal()">Cancelar</button>
+      <button type="button" class="btn btn-primary" onclick="salvarProdColunasModal()">Salvar</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── TOAST ──────────────────────────────────────────────────────────────── -->
 <div class="toast" id="toast"></div>
 
@@ -1464,17 +1634,37 @@ function carregarGaleria(prodId) {
       if (btnDl) btnDl.disabled = !imgs.length;
 
       if (!imgs.length) {
-        grid.innerHTML = '<p style="font-size:13px;color:var(--text2)">Nenhuma foto cadastrada.</p>';
+        grid.innerHTML = '<p style="font-size:13px;color:var(--text2);text-align:center;padding:18px 8px 8px">Nenhuma foto cadastrada. Arraste imagens para cá.</p>';
         return;
       }
 
-      grid.innerHTML = imgs.map(img => `
-        <div class="foto-card ${img.is_principal ? 'foto-principal' : ''}" title="${img.is_principal ? 'Principal' : 'Clique para definir como principal'}">
-          <img src="${escHtml(img.url)}" loading="lazy" onclick="setPrincipalFoto(${prodId},${img.id})" onerror="this.style.display='none'">
-          <button class="foto-del" onclick="deletarFoto(${prodId},${img.id})" title="Remover foto">✕</button>
-          ${img.is_principal ? '<span class="foto-badge">Principal</span>' : ''}
-        </div>
-      `).join('');
+      const temHerdada = imgs.some(img => img.heredada);
+      grid.innerHTML = imgs.map(img => {
+        const idJs = JSON.stringify(img.id);
+        const herdada = !!img.heredada;
+        const title = herdada
+          ? 'Foto do produto pai (referência) — adicione uma foto própria para substituir'
+          : (img.is_principal ? 'Principal' : 'Clique para definir como principal');
+        const onClick = herdada ? '' : `onclick="setPrincipalFoto(${prodId},${idJs})"`;
+        const btnDel = herdada
+          ? ''
+          : `<button type="button" class="foto-del" data-del-foto="1" data-prod-id="${prodId}" data-img-id="${escAttr(String(img.id))}" data-filename="${escAttr(img.filename || '')}" data-url="${escAttr(img.url || '')}" title="Remover foto">✕</button>`;
+        const badge = herdada
+          ? '<span class="foto-badge" style="background:#64748b">Do pai</span>'
+          : (img.is_principal ? '<span class="foto-badge">Principal</span>' : '');
+        const avisoArq = img.arquivo_ok === false
+          ? '<span style="display:block;font-size:9px;color:#dc2626;font-weight:700;margin-top:2px">Arquivo ausente</span>'
+          : '';
+        return `
+        <div class="foto-card ${img.is_principal && !herdada ? 'foto-principal' : ''}" title="${title}">
+          <img src="${escHtml(img.url)}" loading="lazy" ${onClick} onerror="this.style.opacity='0.3'">
+          ${btnDel}
+          ${badge}
+          ${avisoArq}
+        </div>`;
+      }).join('') + (temHerdada
+        ? '<p style="grid-column:1/-1;font-size:12px;color:var(--text2);margin:0">Esta foto vem do produto pai. Use «+ Adicionar fotos» para cadastrar uma imagem própria neste produto.</p>'
+        : '');
     })
     .catch(() => { grid.innerHTML = '<p style="font-size:13px;color:#dc2626">Erro ao carregar fotos.</p>'; });
 }
@@ -1513,20 +1703,62 @@ async function uploadFotos(inputOrFiles) {
 
 async function setPrincipalFoto(prodId, imgId) {
   try {
-    const r = await api(`/api/produtos/${prodId}/imagens/${imgId}/principal`, { method: 'PUT' });
+    const r = await api(`/api/produtos/${prodId}/imagens/${encodeURIComponent(imgId)}/principal`, { method: 'PUT' });
     if (!r.ok) { const j = await r.json(); throw new Error(j.error); }
     carregarGaleria(prodId);
   } catch(err) { showToast(err.message || 'Erro', 'error'); }
 }
 
-async function deletarFoto(prodId, imgId) {
-  if (!confirm('Remover esta foto?')) return;
+async function deletarFoto(prodId, imgId, filename, url) {
+  // Limpa confirm preso de tentativa anterior
+  try { document.querySelectorAll('[data-sysrep-confirm]').forEach((el) => el.remove()); } catch (_) {}
+
+  let ok = false;
   try {
-    const r = await api(`/api/produtos/${prodId}/imagens/${imgId}`, { method: 'DELETE' });
-    if (!r.ok) { const j = await r.json(); throw new Error(j.error); }
+    if (typeof SysRepConfirm !== 'undefined' && SysRepConfirm.ask) {
+      ok = await SysRepConfirm.ask({
+        titulo: 'Remover foto?',
+        mensagem: 'A imagem será excluída deste produto.',
+        okTexto: 'Remover',
+        cancelTexto: 'Cancelar',
+        perigo: true,
+      });
+    } else {
+      ok = true;
+    }
+  } catch (_) {
+    ok = true;
+  }
+  if (!ok) return;
+  try {
+    showToast('Removendo foto…');
+    const r = await api(`/api/produtos/${prodId}/imagens/remover`, {
+      method: 'POST',
+      body: JSON.stringify({ id: imgId, filename: filename || '', url: url || '' }),
+    });
+    if (!r.ok) {
+      let msg = 'Não foi possível remover a foto';
+      try { const j = await r.json(); msg = j.error || msg; } catch (_) {}
+      throw new Error(msg);
+    }
     showToast('Foto removida', 'success');
+    try {
+      const r2 = await api(`/api/produtos/${prodId}/imagens`);
+      const imgs = r2.ok ? await r2.json() : [];
+      const proprias = (imgs || []).filter((im) => !im.heredada);
+      const princ = proprias.find((im) => im.is_principal) || proprias[0];
+      const elUrl = document.getElementById('f_foto_principal');
+      if (elUrl) {
+        elUrl.value = princ && princ.url ? princ.url : '';
+        if (typeof atualizarPreviewFotoExterna === 'function') {
+          atualizarPreviewFotoExterna(elUrl.value);
+        }
+      }
+    } catch (_) {}
     carregarGaleria(prodId);
-  } catch(err) { showToast(err.message || 'Erro', 'error'); }
+  } catch (err) {
+    showToast(err.message || 'Erro ao remover foto', 'error');
+  }
 }
 
 async function _baixarFotosZip(body, fallbackName, { silent } = {}) {
@@ -1958,6 +2190,7 @@ const _limit = 50;
 let _total = 0;
 let _view = 'lista'; // 'lista' | 'cards'
 let _exibirFotos = false;
+let _prodColsAtivas = null;
 let _listaCache = [];
 let _selecionados = new Set();
 let _editandoId = null;
@@ -2131,6 +2364,23 @@ document.addEventListener('DOMContentLoaded', () => {
   obs.observe(tb);
   sb.style.top = tb.offsetHeight + 'px';
 
+  // X da foto na galeria (delegação — não depende de onclick inline)
+  document.getElementById('galeriaGrid')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-del-foto]');
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    deletarFoto(
+      btn.dataset.prodId,
+      btn.dataset.imgId,
+      btn.dataset.filename || '',
+      btn.dataset.url || ''
+    );
+  });
+
+  // Limpa confirm fantasma que bloqueava o formulário
+  try { document.querySelectorAll('[data-sysrep-confirm]').forEach((el) => el.remove()); } catch (_) {}
+
   // move notif panel to body
   const np = document.getElementById('notifPanel');
   document.body.appendChild(np);
@@ -2147,6 +2397,18 @@ document.addEventListener('DOMContentLoaded', () => {
   } else {
     atualizarBtnVoltarPromocoes();
     if (temRetornoPromocoes()) _notificarTabLabelProdutos();
+  }
+
+  const qsInit = new URLSearchParams(window.location.search);
+  if (qsInit.get('importar_fotos') === '1') {
+    setTimeout(async () => {
+      await abrirImportFotos();
+      const forn = qsInit.get('fornecedor');
+      if (forn) {
+        const sel = document.getElementById('ifFornecedor');
+        if (sel) sel.value = forn;
+      }
+    }, 400);
   }
 
   fecharQuickView();
@@ -2189,7 +2451,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // atalhos
   document.addEventListener('keydown', e => {
     if ((e.ctrlKey||e.metaKey) && e.key === 'n') { e.preventDefault(); novoRegistro(); }
-    if (e.key === 'Escape') { fecharFormulario(); fecharQuickView(); }
+    if (e.key === 'Escape') {
+      if (document.getElementById('qrLookupOverlay')?.classList.contains('open')) { fecharQrLookup(); return; }
+      const colsOv = document.getElementById('prodColsOverlay');
+      if (colsOv && colsOv.classList.contains('open')) { fecharProdColunasModal(); return; }
+      fecharFormulario(); fecharQuickView();
+    }
     if ((e.ctrlKey||e.metaKey) && e.key === 'f') { e.preventDefault(); document.getElementById('searchInput').focus(); }
   });
 
@@ -2200,8 +2467,86 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ═══════════════════════════════════════════════════════════
-// PREFERÊNCIAS DA LISTA (exibir fotos)
+// PREFERÊNCIAS DA LISTA (fotos + colunas do grid)
 // ═══════════════════════════════════════════════════════════
+const PROD_COLS_META = {
+  foto:                  { label: 'Foto',                    fmt: 'foto',  def: false },
+  id:                    { label: 'Código',                  fmt: 'text',  def: true  },
+  descricao:             { label: 'Descrição',               fmt: 'desc',  def: true  },
+  apelido:               { label: 'Apelido',                 fmt: 'text',  def: false },
+  marca:                 { label: 'Marca',                   fmt: 'text',  def: false },
+  unidade:               { label: 'Unidade',                 fmt: 'text',  def: true  },
+  situacao:              { label: 'Status',                  fmt: 'status',def: true  },
+  disponivel:            { label: 'Disponível',              fmt: 'sn',    def: false },
+  kit:                   { label: 'Kit',                     fmt: 'sn',    def: false },
+  dt_cadastro:           { label: 'Dt. Cadastro',            fmt: 'date',  def: false },
+  cod_interno:           { label: 'Cód. Interno',            fmt: 'text',  def: false },
+  cod_barras:            { label: 'Cód. Barras',             fmt: 'text',  def: true  },
+  cod_fabricante:        { label: 'Referência/SKU',          fmt: 'text',  def: true  },
+  nome_fabricante:       { label: 'Fabricante',              fmt: 'text',  def: true  },
+  cor1:                  { label: 'Cor 1',                   fmt: 'text',  def: false },
+  cor2:                  { label: 'Cor 2',                   fmt: 'text',  def: false },
+  id_referencia:         { label: 'Ref. mãe (ID)',           fmt: 'text',  def: false },
+  nome_grupo:            { label: 'Grupo',                   fmt: 'text',  def: true  },
+  nome_familia:          { label: 'Família',                 fmt: 'text',  def: false },
+  segmento:              { label: 'Categoria',               fmt: 'text',  def: false },
+  nome_subfamilia:       { label: 'Subfamília',              fmt: 'text',  def: false },
+  linha_produto:         { label: 'Linha',                   fmt: 'text',  def: false },
+  campo_extra:           { label: 'Campo extra',             fmt: 'text',  def: false },
+  vlr_custo:             { label: 'Custo',                   fmt: 'money', def: false },
+  vlr_despesas:          { label: 'Despesas',                fmt: 'money', def: false },
+  vlr_custofinal:        { label: 'Custo final',             fmt: 'money', def: false },
+  margem:                { label: 'Margem %',                fmt: 'num',   def: false },
+  vlr_venda:             { label: 'Vlr. Venda',              fmt: 'money', def: true  },
+  precoa:                { label: 'Preço A',                 fmt: 'money', def: false },
+  precob:                { label: 'Preço B',                 fmt: 'money', def: false },
+  precoc:                { label: 'Preço C',                 fmt: 'money', def: false },
+  precopromo:            { label: 'Preço promo',             fmt: 'money', def: false },
+  desconto:              { label: 'Desconto %',              fmt: 'num',   def: false },
+  comissao:              { label: 'Comissão %',              fmt: 'num',   def: false },
+  margem_liquida:        { label: 'Margem líquida',          fmt: 'num',   def: false },
+  cod_tabelapreco:       { label: 'Tabela de preço',         fmt: 'text',  def: false },
+  estoque_atual:         { label: 'Estoque',                 fmt: 'est',   def: true  },
+  estoque_minimo:        { label: 'Est. mínimo',             fmt: 'num',   def: false },
+  estoque_maximo:        { label: 'Est. máximo',             fmt: 'num',   def: false },
+  estoque_seguranca:     { label: 'Est. segurança',          fmt: 'num',   def: false },
+  nome_local:            { label: 'Local',                   fmt: 'text',  def: false },
+  precopeso:             { label: 'Preço por peso',          fmt: 'sn',    def: false },
+  kilo_embalagem:        { label: 'Kg embalagem',            fmt: 'num',   def: false },
+  embalagemmaster:       { label: 'Embalagem master',        fmt: 'num',   def: false },
+  multiplo_venda:        { label: 'Múltiplo venda',          fmt: 'num',   def: false },
+  qtd_minima_pedido:     { label: 'Qtd. mínima pedido',      fmt: 'num',   def: false },
+  desconto_maximo:       { label: 'Desc. máximo %',          fmt: 'num',   def: false },
+  bloquear_desconto:     { label: 'Bloquear desconto',       fmt: 'sn',    def: false },
+  ncm:                   { label: 'NCM',                     fmt: 'text',  def: false },
+  cest:                  { label: 'CEST',                    fmt: 'text',  def: false },
+  origem:                { label: 'Origem',                  fmt: 'text',  def: false },
+  icms:                  { label: 'ICMS %',                  fmt: 'num',   def: false },
+  ipi:                   { label: 'IPI %',                   fmt: 'num',   def: false },
+  vlr_pis:               { label: 'PIS',                     fmt: 'num',   def: false },
+  vlr_confins:           { label: 'COFINS',                  fmt: 'num',   def: false },
+  vlr_st:                { label: 'ST %',                    fmt: 'num',   def: false },
+  peso_liquido:          { label: 'Peso líquido',            fmt: 'num',   def: false },
+  nome_fornecedor_custo: { label: 'Forn. custo',             fmt: 'text',  def: false },
+  nome_grade:            { label: 'Grade principal',         fmt: 'text',  def: false },
+  tipoprodutograde:      { label: 'Tipo de grade',           fmt: 'text',  def: false },
+  solado:                { label: 'Solado',                  fmt: 'text',  def: false },
+  obs:                   { label: 'Observações',             fmt: 'obs',   def: false },
+  obs2:                  { label: 'Obs. interna',            fmt: 'obs',   def: false },
+  agrupa_cores:          { label: 'Agrupa cores',            fmt: 'sn',    def: false },
+};
+const PROD_COLS_ORDER = Object.keys(PROD_COLS_META);
+const PROD_COLS_DEFAULT = PROD_COLS_ORDER.filter((k) => PROD_COLS_META[k].def);
+const PROD_COLS_GROUPS = [
+  { title: 'Identificação', cols: ['foto','id','descricao','apelido','marca','unidade','situacao','disponivel','kit','dt_cadastro'] },
+  { title: 'Códigos e cores', cols: ['cod_interno','cod_barras','cod_fabricante','nome_fabricante','cor1','cor2','id_referencia'] },
+  { title: 'Classificação', cols: ['nome_grupo','nome_familia','segmento','nome_subfamilia','linha_produto','campo_extra'] },
+  { title: 'Preços', cols: ['vlr_custo','vlr_despesas','vlr_custofinal','margem','vlr_venda','precoa','precob','precoc','precopromo','desconto','comissao','margem_liquida','cod_tabelapreco'] },
+  { title: 'Estoque e venda', cols: ['estoque_atual','estoque_minimo','estoque_maximo','estoque_seguranca','nome_local','precopeso','kilo_embalagem','embalagemmaster','multiplo_venda','qtd_minima_pedido','desconto_maximo','bloquear_desconto'] },
+  { title: 'Impostos', cols: ['ncm','cest','origem','icms','ipi','vlr_pis','vlr_confins','vlr_st','peso_liquido'] },
+  { title: 'Outros', cols: ['nome_fornecedor_custo','nome_grade','tipoprodutograde','solado','obs','obs2','agrupa_cores'] },
+];
+
 function _prefsListaLsKey() {
   try {
     const u = JSON.parse(sessionStorage.getItem('user') || localStorage.getItem('user') || '{}');
@@ -2210,13 +2555,49 @@ function _prefsListaLsKey() {
     return 'sysrep_produtos_exibir_fotos_0';
   }
 }
-
-function _tableColspan() {
-  return _exibirFotos ? 14 : 13;
+function _prefsColsLsKey() {
+  try {
+    const u = JSON.parse(sessionStorage.getItem('user') || localStorage.getItem('user') || '{}');
+    return 'sysrep_produtos_colunas_' + (u.id || '0');
+  } catch (_) {
+    return 'sysrep_produtos_colunas_0';
+  }
 }
 
-function aplicarExibirFotos(val) {
+function _prodColsSetPadrao() {
+  return new Set(PROD_COLS_DEFAULT);
+}
+
+function _normalizarProdCols(lista) {
+  if (!Array.isArray(lista) || !lista.length) return _prodColsSetPadrao();
+  const set = new Set();
+  lista.forEach((id) => {
+    if (PROD_COLS_META[id]) set.add(id);
+  });
+  return set.size ? set : _prodColsSetPadrao();
+}
+
+function prodColAtiva(id) {
+  if (!_prodColsAtivas) _prodColsAtivas = _prodColsSetPadrao();
+  return _prodColsAtivas.has(id);
+}
+
+function _prodColsVisiveis() {
+  if (!_prodColsAtivas) _prodColsAtivas = _prodColsSetPadrao();
+  return PROD_COLS_ORDER.filter((id) => _prodColsAtivas.has(id));
+}
+
+function _tableColspan() {
+  return 3 + _prodColsVisiveis().length;
+}
+
+function aplicarExibirFotos(val, { syncColuna = true } = {}) {
   _exibirFotos = !!val;
+  if (!_prodColsAtivas) _prodColsAtivas = _prodColsSetPadrao();
+  if (syncColuna) {
+    if (_exibirFotos) _prodColsAtivas.add('foto');
+    else _prodColsAtivas.delete('foto');
+  }
   const chk = document.getElementById('chkExibirFotos');
   if (chk) chk.checked = _exibirFotos;
   const lbl = document.getElementById('lblExibirFotos');
@@ -2226,21 +2607,33 @@ function aplicarExibirFotos(val) {
 
 async function carregarPrefsLista() {
   let val = localStorage.getItem(_prefsListaLsKey()) === '1';
+  let cols = null;
+  try {
+    const rawCols = localStorage.getItem(_prefsColsLsKey());
+    if (rawCols) cols = JSON.parse(rawCols);
+  } catch (_) {}
   try {
     const r = await api('/api/produtos/config/lista');
     if (r.ok) {
       const cfg = await r.json();
       if (typeof cfg.exibir_fotos === 'boolean') val = cfg.exibir_fotos;
+      if (Array.isArray(cfg.colunas) && cfg.colunas.length) cols = cfg.colunas;
     }
   } catch (_) {}
-  aplicarExibirFotos(val);
+  _prodColsAtivas = _normalizarProdCols(cols);
+  if (val) _prodColsAtivas.add('foto');
+  else if (!Array.isArray(cols) || !cols.includes('foto')) _prodColsAtivas.delete('foto');
+  aplicarExibirFotos(_prodColsAtivas.has('foto'), { syncColuna: false });
 }
 
 function salvarPrefsLista() {
+  if (!_prodColsAtivas) _prodColsAtivas = _prodColsSetPadrao();
+  const colunas = _prodColsVisiveis();
   localStorage.setItem(_prefsListaLsKey(), _exibirFotos ? '1' : '0');
+  try { localStorage.setItem(_prefsColsLsKey(), JSON.stringify(colunas)); } catch (_) {}
   api('/api/produtos/config/lista', {
     method: 'PUT',
-    body: JSON.stringify({ exibir_fotos: _exibirFotos })
+    body: JSON.stringify({ exibir_fotos: _exibirFotos, colunas })
   }).catch(() => {});
 }
 
@@ -2253,24 +2646,92 @@ function toggleExibirFotos(checked) {
 function atualizarCabecalhoTabela() {
   const head = document.getElementById('tabelaHead');
   if (!head) return;
-  const fotoTh = _exibirFotos ? '<th class="td-foto">Foto</th>' : '';
+  const ths = _prodColsVisiveis().map((id) => {
+    const cls = id === 'foto' ? ' class="td-foto"' : '';
+    return `<th${cls}>${escHtml(PROD_COLS_META[id].label)}</th>`;
+  }).join('');
   head.innerHTML = `<tr>
     <th style="width:36px"><input type="checkbox" id="chkAll" onchange="toggleSelecionarTodos(this.checked)"></th>
-    ${fotoTh}
     <th>#</th>
-    <th>Código</th>
-    <th>Descrição / Apelido</th>
-    <th>Cod.Barras</th>
-    <th>Referência/SKU</th>
-    <th>Fabricante</th>
-    <th>Un</th>
-    <th>Vlr.Venda</th>
-    <th>Estoque</th>
-    <th>Grupo</th>
-    <th>Status</th>
+    ${ths}
     <th style="width:70px">Ações</th>
   </tr>`;
   sincronizarChkAll();
+}
+
+function prodColsModalRowHtml(id) {
+  const m = PROD_COLS_META[id];
+  if (!m) return '';
+  const on = prodColAtiva(id);
+  return `<label class="prod-cols-row">
+    <span class="prod-cols-lbl">${escHtml(m.label)}</span>
+    <span class="prod-cols-chk"><input type="checkbox" data-prod-col="${id}" ${on ? 'checked' : ''}> Exibir</span>
+  </label>`;
+}
+
+function popularProdColunasModal() {
+  const body = document.getElementById('prodColsModalBody');
+  if (!body) return;
+  const used = new Set();
+  const groupsHtml = PROD_COLS_GROUPS.map((g) => {
+    const cols = g.cols.filter((id) => PROD_COLS_META[id]);
+    if (!cols.length) return '';
+    cols.forEach((id) => used.add(id));
+    return `<div>
+      <div class="prod-cols-group-title">${escHtml(g.title)}</div>
+      ${cols.map((id) => prodColsModalRowHtml(id)).join('')}
+    </div>`;
+  }).join('');
+  const rest = PROD_COLS_ORDER.filter((id) => !used.has(id));
+  const restHtml = rest.length
+    ? `<div><div class="prod-cols-group-title">Outros</div>${rest.map((id) => prodColsModalRowHtml(id)).join('')}</div>`
+    : '';
+  body.innerHTML = `<div style="display:flex;gap:8px;margin-bottom:4px">
+    <button type="button" class="btn btn-ghost" style="font-size:12px;padding:4px 10px" onclick="marcarProdColunasModal(true)">Todos</button>
+    <button type="button" class="btn btn-ghost" style="font-size:12px;padding:4px 10px" onclick="marcarProdColunasModal(false)">Nenhum</button>
+  </div>${groupsHtml}${restHtml}`;
+}
+
+function marcarProdColunasModal(todas) {
+  document.querySelectorAll('#prodColsModalBody input[data-prod-col]').forEach((el) => {
+    el.checked = !!todas;
+  });
+}
+
+function abrirProdColunasModal() {
+  const ov = document.getElementById('prodColsOverlay');
+  if (!ov) return;
+  if (ov.parentNode !== document.body) document.body.appendChild(ov);
+  popularProdColunasModal();
+  ov.classList.add('open');
+  ov.setAttribute('aria-hidden', 'false');
+}
+
+function fecharProdColunasModal() {
+  const ov = document.getElementById('prodColsOverlay');
+  if (!ov) return;
+  ov.classList.remove('open');
+  ov.setAttribute('aria-hidden', 'true');
+}
+
+function restaurarProdColunasPadrao() {
+  const padrao = new Set(PROD_COLS_DEFAULT);
+  document.querySelectorAll('#prodColsModalBody input[data-prod-col]').forEach((el) => {
+    el.checked = padrao.has(el.dataset.prodCol);
+  });
+}
+
+async function salvarProdColunasModal() {
+  const set = new Set();
+  document.querySelectorAll('#prodColsModalBody input[data-prod-col]').forEach((el) => {
+    if (el.checked && PROD_COLS_META[el.dataset.prodCol]) set.add(el.dataset.prodCol);
+  });
+  _prodColsAtivas = set.size ? set : _prodColsSetPadrao();
+  aplicarExibirFotos(_prodColsAtivas.has('foto'), { syncColuna: false });
+  salvarPrefsLista();
+  fecharProdColunasModal();
+  if (_view === 'lista') renderTabela(_listaCache);
+  showToast('Colunas do grid salvas', 'success');
 }
 
 function _fotoListaHtml(p) {
@@ -2326,6 +2787,87 @@ async function carregar(resetOffset = true) {
   }
 }
 
+/** Texto discreto sob a descrição: Pai #id | Pai · N cores */
+function _subTipoProduto(p) {
+  const idRef = parseInt(p.id_referencia, 10) || 0;
+  const qtd = Number(p.qtd_cores) || 0;
+  const ehPai = qtd > 0 || String(p.agrupa_cores || '').toUpperCase() === 'S';
+  if (idRef > 0) return `Pai #${idRef}`;
+  if (ehPai) {
+    if (qtd === 1) return 'Pai · 1 cor';
+    if (qtd > 1) return `Pai · ${qtd} cores`;
+    return 'Produto pai';
+  }
+  return '';
+}
+
+function _fmtProdSN(v) {
+  const s = String(v == null ? '' : v).trim().toUpperCase();
+  if (s === 'S' || s === '1' || s === 'SIM') return 'Sim';
+  if (s === 'N' || s === '0' || s === 'NAO' || s === 'NÃO') return 'Não';
+  return s || '—';
+}
+
+function _fmtProdData(v) {
+  if (!v) return '';
+  const d = String(v).slice(0, 10);
+  const m = d.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : d;
+}
+
+function _fmtProdObs(v) {
+  const t = String(v || '').replace(/\s+/g, ' ').trim();
+  if (!t) return '';
+  return t.length > 80 ? t.slice(0, 80) + '…' : t;
+}
+
+function _celulaProdCol(p, id, ctx) {
+  const meta = PROD_COLS_META[id];
+  if (!meta) return '<td></td>';
+  if (id === 'foto') return _fotoListaHtml(p);
+  if (meta.fmt === 'status') {
+    const statusInfo = {
+      'A': ['#22c55e', 'Ativo'],
+      'I': ['#f59e0b', 'Inativo'],
+      'E': ['#ef4444', 'Excluído']
+    }[p.situacao] || ['#9ca3af', '—'];
+    return `<td><span class="status-badge"><span class="status-dot" style="background:${statusInfo[0]}"></span>${statusInfo[1]}</span></td>`;
+  }
+  if (meta.fmt === 'desc') {
+    const apelidoAparte = prodColAtiva('apelido');
+    const subTipo = _subTipoProduto(p);
+    return `<td>
+      <div class="td-nome">${escHtml(p.descricao || '—')}${ctx.isNovo ? '<span class="tag-novo">NOVO</span>' : ''}${ctx.fotoIcon}</div>
+      ${!apelidoAparte && p.apelido ? `<div class="td-sub">${escHtml(p.apelido)}</div>` : ''}
+      ${subTipo ? `<div class="td-sub">${escHtml(subTipo)}</div>` : ''}
+    </td>`;
+  }
+  if (meta.fmt === 'est') {
+    const est = fmtNum(p.estoque_atual, 2);
+    const html = ctx.estBaixo
+      ? `<span class="td-est-baixo" title="Abaixo do mínimo">${est}</span>`
+      : est;
+    return `<td>${html}</td>`;
+  }
+  if (meta.fmt === 'money') return `<td>${fmtMoeda(p[id])}</td>`;
+  if (meta.fmt === 'num') return `<td>${fmtNum(p[id], 2)}</td>`;
+  if (meta.fmt === 'sn') return `<td>${escHtml(_fmtProdSN(p[id]))}</td>`;
+  if (meta.fmt === 'date') return `<td style="font-size:10px;color:var(--text2)">${escHtml(_fmtProdData(p[id]))}</td>`;
+  if (meta.fmt === 'obs') {
+    const txt = _fmtProdObs(p[id]);
+    return `<td style="font-size:10px;color:var(--text2);max-width:220px" title="${escAttr(p[id] || '')}">${escHtml(txt)}</td>`;
+  }
+  let val = p[id];
+  if (id === 'nome_familia') val = p.nome_familia || p.id_familiaproduto;
+  if (id === 'nome_subfamilia') val = p.nome_subfamilia || p.subfamilia;
+  if (id === 'nome_local') val = p.nome_local || p.id_endereco;
+  if (id === 'nome_grade') val = p.nome_grade || p.tipograde;
+  if (id === 'nome_fornecedor_custo') val = p.nome_fornecedor_custo || p.cod_fornecedorcusto;
+  const small = !['unidade', 'marca', 'nome_grupo'].includes(id);
+  const style = small ? ' style="font-size:10px;color:var(--text2)"' : '';
+  return `<td${style}>${escHtml(val == null || val === '' ? '' : val)}</td>`;
+}
+
 // ═══════════════════════════════════════════════════════════
 // RENDER TABELA
 // ═══════════════════════════════════════════════════════════
@@ -2353,49 +2895,23 @@ function renderTabela(lista) {
     return;
   }
 
-  const fotoCol = _exibirFotos;
+  const fotoCol = prodColAtiva('foto');
+  const cols = _prodColsVisiveis();
   tbody.innerHTML = lista.map((p, i) => {
     const isNovo = p.dt_cadastro && new Date(p.dt_cadastro) >= seteDias;
     const estBaixo = Number(p.estoque_minimo) > 0 && Number(p.estoque_atual) <= Number(p.estoque_minimo);
-    const est = fmtNum(p.estoque_atual, 2);
-    const estHtml = estBaixo
-      ? `<span class="td-est-baixo" title="Abaixo do mínimo">${est}</span>`
-      : est;
-
-    const statusInfo = {
-      'A': ['#22c55e','Ativo'],
-      'I': ['#f59e0b','Inativo'],
-      'E': ['#ef4444','Excluído']
-    }[p.situacao] || ['#9ca3af','—'];
-
     const sel = _selecionados.has(p.id);
     const fotoIcon = !fotoCol && p.foto_principal
       ? '<svg title="Tem foto" style="width:11px;height:11px;margin-left:5px;color:var(--accent);vertical-align:middle" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>'
       : '';
+    const ctx = { isNovo, estBaixo, fotoIcon };
+    const tds = cols.map((id) => _celulaProdCol(p, id, ctx)).join('');
     return `<tr onclick="abrirQuickView(${p.id},event)" class="${sel?'row-selected':''}" data-id="${p.id}">
       <td onclick="event.stopPropagation()">
         <input type="checkbox" class="row-chk" data-id="${p.id}" ${sel?'checked':''} onchange="toggleSelecionado(${p.id},this.checked)">
       </td>
-      ${fotoCol ? _fotoListaHtml(p) : ''}
       <td style="color:var(--text2)">${_offset + i + 1}</td>
-      <td style="color:var(--text2);font-size:10px">${escHtml(p.id)}</td>
-      <td>
-        <div class="td-nome">${escHtml(p.descricao||'—')}${isNovo?'<span class="tag-novo">NOVO</span>':''}${fotoIcon}</div>
-        ${p.apelido ? `<div class="td-sub">${escHtml(p.apelido)}</div>` : ''}
-      </td>
-      <td style="font-size:10px;color:var(--text2)">${escHtml(p.cod_barras||'')}</td>
-      <td style="font-size:10px;color:var(--text2)">${escHtml(p.cod_fabricante||'')}</td>
-      <td style="font-size:10px;color:var(--text2)">${escHtml(p.nome_fabricante||'')}</td>
-      <td>${escHtml(p.unidade||'')}</td>
-      <td>${fmtMoeda(p.vlr_venda)}</td>
-      <td>${estHtml}</td>
-      <td style="font-size:10px">${escHtml(p.nome_grupo||'')}</td>
-      <td>
-        <span class="status-badge">
-          <span class="status-dot" style="background:${statusInfo[0]}"></span>
-          ${statusInfo[1]}
-        </span>
-      </td>
+      ${tds}
       <td onclick="event.stopPropagation()" style="display:flex;gap:4px;align-items:center;justify-content:flex-end">
         <button type="button" class="btn-acoes" data-prod-id="${p.id}" data-prod-nome="${escAttr(p.descricao||'')}" data-prod-status="${p.situacao}" onclick="event.stopPropagation();abrirDropdownBtn(this)">⋮</button>
       </td>
@@ -2438,10 +2954,12 @@ function renderCards(lista) {
     const imgEl = p.foto_principal
       ? `<div class="pc-thumb"><img src="${escHtml(p.foto_principal)}" alt="" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\\'pc-avatar ${_avatarClass(p.descricao)}\\'>${(p.descricao||'?')[0].toUpperCase()}</div>'"></div>`
       : `<div class="pc-avatar ${_avatarClass(p.descricao)}">${(p.descricao||'?')[0].toUpperCase()}</div>`;
+    const subTipo = _subTipoProduto(p);
     return `<div class="prod-card" onclick="abrirQuickView(${p.id},event)">
       <div class="pc-head">
         <div class="pc-info">
           <div class="pc-nome">${escHtml(p.descricao||'—')}</div>
+          ${subTipo ? `<div class="pc-sub" style="font-size:11px;color:var(--text2)">${escHtml(subTipo)}</div>` : ''}
           <div class="pc-cod">#${escHtml(String(p.id))}${p.cod_fabricante ? ' · '+escHtml(p.cod_fabricante) : ''}</div>
           <div class="pc-rows">
             <div class="pc-row"><span>Preço</span><span>${fmtMoeda(p.vlr_venda)}</span></div>
@@ -2758,6 +3276,75 @@ function _populaSelect(selId, itens, valField, txtField, placeholder = '— Sele
   if (valorAtual) sel.value = valorAtual;
 }
 
+/** Checkboxes de grades extras (mesma lista do tipograde). */
+let _pendingGradesExtras = null;
+let _gradesExtrasCatalog = [];
+
+function _populaGradesExtras(data, vKey, tKey) {
+  const box = document.getElementById('f_grades_extras');
+  if (!box || !Array.isArray(data)) return;
+  const keep = _pendingGradesExtras != null
+    ? _pendingGradesExtras.map(String)
+    : [...box.querySelectorAll('input[type=checkbox]:checked')].map((el) => el.value);
+  _gradesExtrasCatalog = data.map((it) => ({
+    id: String(it[vKey]),
+    nome: it[tKey] || it.nome || String(it[vKey]),
+  }));
+  const padrao = String(document.getElementById('f_id_grade')?.value || '');
+  if (!_gradesExtrasCatalog.length) {
+    box.innerHTML = '<div class="ge-empty">Nenhuma grade cadastrada. Cadastre em Cadastros → Grades.</div>';
+    _pendingGradesExtras = null;
+    return;
+  }
+  box.innerHTML = _gradesExtrasCatalog.map((g) => {
+    const isPad = g.id === padrao;
+    const checked = !isPad && keep.includes(g.id) ? ' checked' : '';
+    const disabled = isPad ? ' disabled' : '';
+    const hint = isPad ? ' <span style="color:var(--text2);font-weight:500">(já é a principal)</span>' : '';
+    return `<label class="ge-item"><input type="checkbox" value="${escAttr(g.id)}"${checked}${disabled}>${escHtml(g.nome)}${hint}</label>`;
+  }).join('');
+  if (_pendingGradesExtras != null) _pendingGradesExtras = null;
+}
+
+function getGradesExtrasForm() {
+  const box = document.getElementById('f_grades_extras');
+  if (!box) return [];
+  const padrao = String(document.getElementById('f_id_grade')?.value || '');
+  return [...box.querySelectorAll('input[type=checkbox]:checked')]
+    .map((el) => parseInt(el.value, 10) || 0)
+    .filter((id) => id > 0 && String(id) !== padrao);
+}
+
+function setGradesExtrasForm(ids) {
+  const box = document.getElementById('f_grades_extras');
+  const list = (ids || []).map((x) => parseInt(x, 10) || 0).filter((x) => x > 0);
+  if (!box || !box.querySelector('input[type=checkbox]')) {
+    _pendingGradesExtras = list;
+    return;
+  }
+  _pendingGradesExtras = null;
+  const set = new Set(list.map(String));
+  const padrao = String(document.getElementById('f_id_grade')?.value || '');
+  box.querySelectorAll('input[type=checkbox]').forEach((el) => {
+    const isPad = el.value === padrao;
+    el.disabled = isPad;
+    el.checked = !isPad && set.has(el.value);
+  });
+}
+
+/** Ao mudar a grade principal, atualiza checkboxes (desabilita a principal). */
+function onGradePrincipalChange() {
+  const box = document.getElementById('f_grades_extras');
+  if (!box || !_gradesExtrasCatalog.length) return;
+  const keep = getGradesExtrasForm();
+  _pendingGradesExtras = keep;
+  _populaGradesExtras(
+    _gradesExtrasCatalog.map((g) => ({ id: g.id, nome: g.nome })),
+    'id',
+    'nome'
+  );
+}
+
 /** Fallback se o lookup falhar (não deixa combo vazio). */
 function _fallbackSelectSeVazio(selId, opts) {
   const sel = document.getElementById(selId);
@@ -2832,6 +3419,7 @@ async function carregarLookups() {
       if (!r.ok) return;
       const data = await r.json();
       _populaSelect(sel, data, v, t, '— Selecione —', labelFmt);
+      if (sel === 'f_id_grade') _populaGradesExtras(data, v, t);
     } catch(_) {}
   }));
   // Fallbacks seguros (mesmo conteúdo antigo hardcoded)
@@ -2865,6 +3453,213 @@ function onGrupoChange(sel) {
   const h = document.getElementById('f_nome_grupo');
   if (h) h.value = txt !== '— Selecione —' ? txt : '';
 }
+
+// ── Cadastro rápido nos combos auxiliares ─────────────────────────────────────
+const _QR_LOOKUP = {
+  grupo: {
+    titulo: 'Novo Grupo',
+    campos: [{ key: 'descricao', label: 'Descrição', required: true, placeholder: 'Ex.: CALÇADOS' }],
+    postUrl: '/api/produto-auxiliares/grupos',
+    buildBody: (v) => ({ descricao: v.descricao }),
+    selectId: 'f_id_grupo',
+    lookupUrl: '/api/lookups/grupos',
+    valueKey: 'id',
+    textKey: 'descricao',
+    pickValue: (j) => j.id,
+    afterSelect: () => {
+      const sel = document.getElementById('f_id_grupo');
+      if (sel) onGrupoChange(sel);
+    },
+  },
+  familia: {
+    titulo: 'Nova Família',
+    campos: [{ key: 'nome', label: 'Nome', required: true, placeholder: 'Ex.: TÊNIS' }],
+    postUrl: '/api/familia-produtos',
+    buildBody: (v) => ({ nome: v.nome }),
+    selectId: 'f_id_familiaproduto',
+    lookupUrl: '/api/lookups/familia',
+    valueKey: 'id',
+    textKey: 'nome',
+    pickValue: (j) => j.id,
+  },
+  categoria: {
+    titulo: 'Nova Categoria',
+    campos: [{ key: 'descricao', label: 'Descrição', required: true, placeholder: 'Ex.: ESPORTIVO' }],
+    postUrl: '/api/categorias-produto',
+    buildBody: (v) => ({ descricao: v.descricao, status: 'A' }),
+    selectId: 'f_segmento',
+    lookupUrl: '/api/lookups/categorias',
+    valueKey: 'descricao',
+    textKey: 'descricao',
+    pickValue: (j, v) => (j.descricao || String(v.descricao || '').trim().toUpperCase()),
+  },
+  subfamilia: {
+    titulo: 'Nova Subfamília',
+    campos: [{ key: 'descricao', label: 'Descrição', required: true, placeholder: 'Ex.: MASCULINO' }],
+    postUrl: '/api/produto-auxiliares/subfamilias',
+    buildBody: (v) => ({ descricao: v.descricao }),
+    selectId: 'f_subfamilia',
+    lookupUrl: '/api/lookups/subfamilias',
+    valueKey: 'codigo',
+    textKey: 'descricao',
+    pickValue: (j) => j.codigo,
+  },
+  local: {
+    titulo: 'Novo Local de Armazenamento',
+    campos: [{ key: 'descricao', label: 'Nome do local', required: true, placeholder: 'Ex.: PRATELEIRA A1' }],
+    postUrl: '/api/produto-auxiliares/locais',
+    buildBody: (v) => ({ descricao: v.descricao }),
+    selectId: 'f_id_endereco',
+    lookupUrl: '/api/lookups/local-arm',
+    valueKey: 'id',
+    textKey: 'nome_local',
+    pickValue: (j) => j.id,
+  },
+  tipoGrade: {
+    titulo: 'Novo Tipo de Grade',
+    campos: [{ key: 'descricao', label: 'Nome / código', required: true, placeholder: 'Ex.: ROUPA ou SAPATO' }],
+    postUrl: '/api/produto-auxiliares/tipos-grade',
+    buildBody: (v) => ({ descricao: v.descricao }),
+    selectId: 'f_tipograde',
+    lookupUrl: '/api/lookups/tipos-grade-produto',
+    valueKey: 'codigo',
+    textKey: 'codigo',
+    pickValue: (j) => j.codigo,
+  },
+  grade: {
+    titulo: 'Nova Grade',
+    campos: [
+      { key: 'nome', label: 'Nome da grade', required: true, placeholder: 'Ex.: P/M/G ou 34 AO 39' },
+      { key: 'tamanhos', label: 'Tamanhos (vírgula)', required: true, placeholder: 'Ex.: P, M, G, GG  ou  34, 35, 36, 37' },
+      {
+        key: 'tipo', label: 'Tipo', required: false, type: 'select',
+        options: [['R', 'Roupa'], ['S', 'Sapato']],
+      },
+    ],
+    postUrl: '/api/grades',
+    buildBody: (v) => {
+      const itens = String(v.tamanhos || '')
+        .split(/[,;|/]+/)
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map((nome) => ({ nome }));
+      const nome = String(v.nome || '').trim();
+      return {
+        nome,
+        apelido: nome.slice(0, 40),
+        tipo: v.tipo || 'R',
+        qtnumero: itens.length,
+        itens,
+        modo_grade: 'A',
+      };
+    },
+    selectId: 'f_id_grade',
+    lookupUrl: '/api/lookups/tipograde',
+    valueKey: 'id',
+    textKey: 'nome',
+    pickValue: (j) => j.id,
+    afterReload: (data) => _populaGradesExtras(data, 'id', 'nome'),
+  },
+};
+
+let _qrLookupKey = null;
+
+function abrirQrLookup(key) {
+  const cfg = _QR_LOOKUP[key];
+  if (!cfg) return;
+  _qrLookupKey = key;
+  document.getElementById('qrLookupTitulo').textContent = '+ ' + cfg.titulo;
+  const body = document.getElementById('qrLookupBody');
+  body.innerHTML = cfg.campos.map((c) => {
+    if (c.type === 'select') {
+      const opts = (c.options || []).map(([v, t]) => `<option value="${escAttr(v)}">${escHtml(t)}</option>`).join('');
+      return `<div class="qr-group"><label>${escHtml(c.label)}</label>
+        <select id="qr_f_${c.key}">${opts}</select></div>`;
+    }
+    const req = c.required ? ' <span style="color:var(--danger)">*</span>' : '';
+    return `<div class="qr-group"><label>${escHtml(c.label)}${req}</label>
+      <input type="text" class="input-field" id="qr_f_${c.key}" autocomplete="off"
+        placeholder="${escAttr(c.placeholder || '')}" style="text-transform:uppercase"></div>`;
+  }).join('');
+  document.getElementById('qrLookupOverlay').classList.add('open');
+  const first = body.querySelector('input, select');
+  if (first) setTimeout(() => first.focus(), 50);
+}
+
+function fecharQrLookup() {
+  document.getElementById('qrLookupOverlay')?.classList.remove('open');
+  _qrLookupKey = null;
+}
+
+async function _reloadSelectLookup(cfg, selectValue) {
+  const r = await api(cfg.lookupUrl);
+  if (!r.ok) throw new Error('Não foi possível atualizar o combo');
+  const data = await r.json();
+  _populaSelect(cfg.selectId, data, cfg.valueKey, cfg.textKey, '— Selecione —');
+  if (typeof cfg.afterReload === 'function') cfg.afterReload(data);
+  const sel = document.getElementById(cfg.selectId);
+  if (sel && selectValue != null && selectValue !== '') {
+    sel.value = String(selectValue);
+    if (!sel.value) {
+      // tenta casar por texto se valueKey diferente
+      const opt = [...sel.options].find((o) => o.textContent === String(selectValue));
+      if (opt) sel.value = opt.value;
+    }
+  }
+  if (typeof cfg.afterSelect === 'function') cfg.afterSelect();
+}
+
+async function salvarQrLookup() {
+  const cfg = _QR_LOOKUP[_qrLookupKey];
+  if (!cfg) return;
+  const vals = {};
+  for (const c of cfg.campos) {
+    const el = document.getElementById('qr_f_' + c.key);
+    vals[c.key] = el ? String(el.value || '').trim() : '';
+    if (c.required && !vals[c.key]) {
+      if (typeof SysRepConfirm !== 'undefined' && SysRepConfirm.alert) {
+        await SysRepConfirm.alert({ titulo: 'Atenção', mensagem: `Preencha: ${c.label}` });
+      } else if (typeof avisar === 'function') {
+        avisar('Atenção', `Preencha: ${c.label}`);
+      }
+      el?.focus();
+      return;
+    }
+  }
+  if (_qrLookupKey === 'grade') {
+    const n = String(vals.tamanhos || '').split(/[,;|/]+/).map((s) => s.trim()).filter(Boolean).length;
+    if (!n) {
+      if (typeof SysRepConfirm !== 'undefined' && SysRepConfirm.alert) {
+        await SysRepConfirm.alert({ titulo: 'Atenção', mensagem: 'Informe ao menos um tamanho (separados por vírgula).' });
+      }
+      return;
+    }
+  }
+  const btn = document.getElementById('qrLookupBtnSalvar');
+  if (btn) { btn.disabled = true; btn.textContent = 'Salvando…'; }
+  try {
+    const r = await api(cfg.postUrl, { method: 'POST', body: JSON.stringify(cfg.buildBody(vals)) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || j.message || 'Erro ao cadastrar');
+    const pick = typeof cfg.pickValue === 'function' ? cfg.pickValue(j, vals) : j.id;
+    await _reloadSelectLookup(cfg, pick);
+    fecharQrLookup();
+    if (typeof showToast === 'function') showToast('Cadastrado e selecionado no combo', 'success');
+  } catch (err) {
+    if (typeof SysRepConfirm !== 'undefined' && SysRepConfirm.alert) {
+      await SysRepConfirm.alert({ titulo: 'Erro', mensagem: err.message || 'Falha ao cadastrar' });
+    } else if (typeof showToast === 'function') {
+      showToast(err.message || 'Erro', 'error');
+    }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Salvar e selecionar'; }
+  }
+}
+
+document.addEventListener('click', (e) => {
+  const ov = document.getElementById('qrLookupOverlay');
+  if (ov && e.target === ov) fecharQrLookup();
+});
 
 // ═══════════════════════════════════════════════════════════
 // NOTIFICAÇÕES
@@ -3158,6 +3953,26 @@ function novoRegistro() {
   mostrarForm();
 }
 
+/** Produtos marcados como Pai antes de ter cores (não há coluna no banco — só filhos vinculados). */
+const PAI_INTENT_KEY = 'sysrep_prod_pai_intent';
+function getPaiIntentIds() {
+  try {
+    const raw = sessionStorage.getItem(PAI_INTENT_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (_) { return []; }
+}
+function isProdutoPaiIntent(prodId) {
+  const id = parseInt(prodId, 10);
+  return id > 0 && getPaiIntentIds().includes(id);
+}
+function setProdutoPaiIntent(prodId, ativo) {
+  const id = parseInt(prodId, 10);
+  if (!id) return;
+  const ids = getPaiIntentIds().filter((x) => x !== id);
+  if (ativo) ids.push(id);
+  try { sessionStorage.setItem(PAI_INTENT_KEY, JSON.stringify(ids)); } catch (_) {}
+}
+
 /** Opt-in: opções de referência mãe (não quebra cadastro se API falhar). */
 async function carregarReferenciasMaeSelect(selectedId) {
   const sel = document.getElementById('f_id_referencia');
@@ -3171,7 +3986,7 @@ async function carregarReferenciasMaeSelect(selectedId) {
     const r = await api('/api/produtos/referencias-mae?' + qs.toString());
     const d = await r.json().catch(() => ({}));
     const rows = d.referencias || [];
-    let html = '<option value="">— Nenhuma (avulso ou referência principal) —</option>';
+    let html = '<option value="">— Selecione o Pai —</option>';
     for (const p of rows) {
       const fab = p.cod_fabricante ? p.cod_fabricante + ' — ' : '';
       const cor = p.cor1 ? ` [${p.cor1}]` : '';
@@ -3189,10 +4004,118 @@ async function carregarReferenciasMaeSelect(selectedId) {
   }
 }
 
+function getIdReferenciaForm() {
+  const hid = document.getElementById('f_id_referencia_val');
+  const sel = document.getElementById('f_id_referencia');
+  const fromHid = parseInt(hid?.value, 10) || 0;
+  const fromSel = parseInt(sel?.value, 10) || 0;
+  return fromSel || fromHid || 0;
+}
+
+function setIdReferenciaForm(id) {
+  const n = parseInt(id, 10) || 0;
+  const val = n > 0 ? String(n) : '';
+  const hid = document.getElementById('f_id_referencia_val');
+  const sel = document.getElementById('f_id_referencia');
+  if (hid) hid.value = val;
+  if (sel && val) sel.value = val;
+  else if (sel && !val) sel.value = '';
+}
+
+function onIdReferenciaChange() {
+  const sel = document.getElementById('f_id_referencia');
+  setIdReferenciaForm(sel?.value || '');
+  syncLinkAbrirPai();
+}
+
+function syncLinkAbrirPai() {
+  const link = document.getElementById('link_abrir_pai');
+  if (!link) return;
+  const idMae = getIdReferenciaForm();
+  const papel = document.getElementById('f_papel_referencia')?.value || 'avulso';
+  if (papel === 'cor' && idMae > 0) {
+    link.style.display = '';
+    link.dataset.idMae = String(idMae);
+  } else {
+    link.style.display = 'none';
+    delete link.dataset.idMae;
+  }
+}
+
+function abrirPaiDaCor(ev) {
+  if (ev) ev.preventDefault();
+  const idMae = parseInt(document.getElementById('link_abrir_pai')?.dataset?.idMae, 10)
+    || getIdReferenciaForm();
+  if (idMae > 0) abrirEdicao(idMae);
+  return false;
+}
+
+function aplicarUiReferenciaProduto(p) {
+  const wrapPapel = document.getElementById('wrap_papel_referencia');
+  if (wrapPapel) wrapPapel.style.display = '';
+  const isFilho = !!(p && Number(p.id_referencia) > 0);
+  const wrapRef = document.getElementById('wrap_id_referencia');
+  const papel = document.getElementById('f_papel_referencia')?.value || '';
+  if (wrapRef) wrapRef.style.display = (isFilho || papel === 'cor') ? '' : 'none';
+  syncLinkAbrirPai();
+}
+
+/** Mantém o link «Abrir pai» alinhado aos dados carregados. */
+function preencherBoxFilhoReferencia(p) {
+  const idMae = parseInt(p?.id_referencia, 10) || getIdReferenciaForm();
+  if (idMae > 0) setIdReferenciaForm(idMae);
+  syncLinkAbrirPai();
+}
+
+function destacarCamposNovaCor(ativo) {
+  ['f_cod_fabricante', 'f_cor1'].forEach((id) => {
+    const el = document.getElementById(id);
+    const grp = el?.closest('.form-group');
+    if (grp) grp.classList.toggle('ref-campo-destaque', !!ativo);
+  });
+}
+
+function onPapelReferenciaChange(fromUser) {
+  const papel = document.getElementById('f_papel_referencia')?.value || 'avulso';
+  const wrapRef = document.getElementById('wrap_id_referencia');
+  const boxCores = document.getElementById('box_cores_referencia');
+  const prodId = parseInt(document.getElementById('f_id')?.value, 10) || _editandoId;
+  if (fromUser && prodId) setProdutoPaiIntent(prodId, papel === 'mae');
+
+  if (wrapRef) wrapRef.style.display = papel === 'cor' ? '' : 'none';
+
+  if (papel !== 'cor' && fromUser) {
+    setIdReferenciaForm('');
+  }
+
+  if (papel === 'mae' && prodId) {
+    carregarBoxCoresReferencia(prodId);
+  } else if (papel === 'mae' && boxCores) {
+    boxCores.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+      <span style="color:var(--text2)">Salve o produto e use <strong>+ Nova cor</strong> para cada SKU.</span>
+    </div>`;
+    boxCores.style.display = 'block';
+  } else if (boxCores && papel !== 'mae') {
+    boxCores.style.display = 'none';
+    boxCores.innerHTML = '';
+  }
+
+  if (papel === 'cor') {
+    const cur = getIdReferenciaForm();
+    carregarReferenciasMaeSelect(cur > 0 ? cur : null).then(() => {
+      if (cur > 0) setIdReferenciaForm(cur);
+      syncLinkAbrirPai();
+    });
+  }
+
+  syncLinkAbrirPai();
+}
+
 let _boxRefToken = 0;
 
 async function carregarBoxCoresReferencia(prodId) {
   const box = document.getElementById('box_cores_referencia');
+  const papel = document.getElementById('f_papel_referencia')?.value || 'avulso';
   if (!box || !prodId) {
     if (box) { box.style.display = 'none'; box.innerHTML = ''; }
     return;
@@ -3203,53 +4126,56 @@ async function carregarBoxCoresReferencia(prodId) {
     if (token !== _boxRefToken) return;
     const d = await r.json().catch(() => ({}));
     if (!r.ok || !d.mae) {
+      if (papel === 'mae') {
+        box.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+          <span style="color:var(--text2)">Nenhuma cor cadastrada</span>
+          <button type="button" class="btn btn-outline" style="font-size:11px;padding:4px 10px" onclick="adicionarCorDaMae(${prodId})">+ Nova cor</button>
+        </div>`;
+        box.style.display = 'block';
+      } else {
+        box.style.display = 'none';
+        box.innerHTML = '';
+      }
+      return;
+    }
+    const cores = (d.cores || []).filter((c) => parseInt(c.id_referencia, 10) > 0);
+
+    if (d.papel === 'cor') {
+      aplicarUiReferenciaProduto({ id_referencia: d.mae.id });
+      const selPapel = document.getElementById('f_papel_referencia');
+      if (selPapel) selPapel.value = 'cor';
+      setIdReferenciaForm(d.mae.id);
+      syncLinkAbrirPai();
       box.style.display = 'none';
       box.innerHTML = '';
       return;
     }
-    const cores = d.cores || [];
-    const maeLabel = `${d.mae.cod_fabricante ? d.mae.cod_fabricante + ' — ' : ''}${d.mae.descricao || ''}`;
-    let html = '';
 
-    if (d.papel === 'cor') {
-      html = `<strong>Cor da referência:</strong> ${maeLabel.replace(/</g, '&lt;')}`;
-      if (d.mae?.id) {
-        html += ` <button type="button" class="btn btn-ghost" style="font-size:11px;padding:3px 8px;margin-left:6px" onclick="abrirEdicao(${d.mae.id})">Abrir mãe</button>`;
-      }
-      if (cores.length > 1) {
-        html += `<div style="margin-top:4px;color:var(--text2)">${cores.length} cores no grupo</div>`;
-      }
-    } else {
-      // mãe (já tem cores) ou avulso (pode virar mãe ao adicionar a 1ª cor)
-      const titulo = d.papel === 'mae'
-        ? 'Este produto é a referência mãe'
-        : 'Referência / cores';
-      const sub = d.papel === 'mae'
-        ? `${cores.length} cor(es) vinculada(s) · pedido usa o SKU de cada cor`
-        : 'Ainda sem cores. Use «Adicionar cor» para clonar este produto como SKU da cor.';
-      html = `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
-        <strong>${titulo}</strong>
-        <button type="button" class="btn btn-outline" style="font-size:12px;padding:5px 10px" onclick="adicionarCorDaMae(${prodId})">+ Adicionar cor</button>
-      </div>
-      <div style="margin-top:4px;color:var(--text2)">${sub}</div>`;
-      if (cores.length) {
-        html += '<ul style="margin:8px 0 0;padding-left:0;list-style:none">' +
-          cores.map(c => {
-            const lbl = `${c.cor1 || c.cod_fabricante || '#' + c.id} — ${c.descricao || ''}`;
-            return `<li style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid var(--border,#e5e7eb)">
-              <span style="font-size:12px">${lbl.replace(/</g, '&lt;')}</span>
-              <button type="button" class="btn btn-ghost" style="font-size:11px;padding:3px 8px" onclick="abrirEdicao(${c.id})">Editar</button>
-            </li>`;
-          }).join('') +
-          '</ul>';
-      }
+    const selPapel = document.getElementById('f_papel_referencia');
+    if (selPapel && (d.papel === 'mae' || papel === 'mae' || cores.length > 0)) {
+      selPapel.value = 'mae';
+      if (cores.length > 0) setProdutoPaiIntent(prodId, false);
+    }
+
+    let html = `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+      <span style="color:var(--text2)">Cores (${cores.length})</span>
+      <button type="button" class="btn btn-outline" style="font-size:11px;padding:4px 10px" onclick="adicionarCorDaMae(${prodId})">+ Nova cor</button>
+    </div>`;
+    if (cores.length) {
+      html += '<ul>' + cores.map((c) => {
+        const lbl = `${c.cor1 || c.cod_fabricante || '#' + c.id} — ${c.descricao || ''}`;
+        return `<li>
+          <span>${escHtml(lbl)}</span>
+          <button type="button" class="btn btn-ghost" style="font-size:11px;padding:2px 6px" onclick="abrirEdicao(${c.id})">Editar</button>
+        </li>`;
+      }).join('') + '</ul>';
     }
     if (token !== _boxRefToken) return;
     box.innerHTML = html;
-    box.style.display = html ? 'block' : 'none';
+    box.style.display = (papel === 'mae' || cores.length > 0) ? 'block' : 'none';
   } catch (_) {
     if (token !== _boxRefToken) return;
-    box.style.display = 'none';
+    if (box) { box.style.display = 'none'; box.innerHTML = ''; }
   }
 }
 
@@ -3271,8 +4197,9 @@ async function adicionarCorDaMae(idMae) {
     await window._lookupsReadyPromise;
 
     _editandoId = null;
-    document.getElementById('formTitulo').textContent = 'Nova cor da referência';
+    document.getElementById('formTitulo').textContent = 'Nova cor — ' + (p.descricao || 'referência');
     limparForm();
+    destacarCamposNovaCor(false);
     preencherForm(p);
     carregarGaleria(null);
     carregarPromocoes(null);
@@ -3290,19 +4217,19 @@ async function adicionarCorDaMae(idMae) {
     atualizarPreviewFotoExterna('');
 
     await carregarReferenciasMaeSelect(maeId);
-    const selRef = document.getElementById('f_id_referencia');
-    if (selRef) selRef.value = String(maeId);
-
-    _boxRefToken++; // invalida carregarBoxCoresReferencia disparado pelo preencherForm da mãe
-    const box = document.getElementById('box_cores_referencia');
-    if (box) {
-      box.innerHTML = '<strong>Nova cor</strong><div style="margin-top:4px;color:var(--text2)">Já vinculada à referência mãe. Informe o Cód. Fabricante (SKU), a Cor 1 e salve. Depois adicione fotos na aba Fotos.</div>';
-      box.style.display = 'block';
-    }
+    const selPapel = document.getElementById('f_papel_referencia');
+    if (selPapel) selPapel.value = 'cor';
+    setIdReferenciaForm(maeId);
+    if (typeof onPapelReferenciaChange === 'function') onPapelReferenciaChange(false);
+    setIdReferenciaForm(maeId);
+    const wrapRef = document.getElementById('wrap_id_referencia');
+    if (wrapRef) wrapRef.style.display = '';
+    aplicarUiReferenciaProduto({ id_referencia: maeId });
+    syncLinkAbrirPai();
 
     mostrarForm();
-    showToast('Preencha o SKU e a cor, depois salve', 'success');
-    abrirAba('outras', document.querySelector('.form-tab[onclick*="outras"]') || document.querySelector('.form-tab'));
+    destacarCamposNovaCor(true);
+    abrirAba('geral', document.querySelector('.form-tab'));
     document.getElementById('f_cod_fabricante')?.focus();
   } catch (err) {
     showToast(err.message || 'Erro ao criar cor', 'error');
@@ -3433,7 +4360,7 @@ function limparForm() {
     'f_kilo_embalagem','f_embalagemmaster','f_multiplo_venda','f_qtd_minima_pedido','f_id_endereco',
     'f_ncm','f_cest','f_icms','f_ipi','f_vlr_pis','f_vlr_confins','f_vlr_st','f_origem',
     'f_cor1','f_cor2','f_solado','f_peso_liquido','f_tipograde','f_id_grade',
-    'f_cod_fornecedorpadrao','f_cod_fornecedorcusto','f_id_referencia','f_obs','f_obs2','f_foto_principal'];
+    'f_cod_fornecedorpadrao','f_cod_fornecedorcusto','f_id_referencia','f_id_referencia_val','f_papel_referencia','f_obs','f_obs2','f_foto_principal'];
   ids.forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = el.tagName === 'SELECT' ? (el.options[0]?.value||'') : '';
@@ -3448,6 +4375,12 @@ function limparForm() {
   atualizarPreviewFotoExterna('');
   const boxRef = document.getElementById('box_cores_referencia');
   if (boxRef) { boxRef.style.display = 'none'; boxRef.innerHTML = ''; }
+  setIdReferenciaForm('');
+  setGradesExtrasForm([]);
+  destacarCamposNovaCor(false);
+  aplicarUiReferenciaProduto(null);
+  if (typeof onPapelReferenciaChange === 'function') onPapelReferenciaChange(false);
+  syncLinkAbrirPai();
   abrirAba('geral', document.querySelector('.form-tab'));
 }
 
@@ -3510,6 +4443,7 @@ function preencherForm(p) {
   set('f_peso_liquido',       p.peso_liquido);
   set('f_tipograde',          p.tipoprodutograde);
   set('f_id_grade',           p.tipograde);
+  setGradesExtrasForm(p.grades_extras || (p.grades || []).filter((g) => !g.padrao).map((g) => g.id));
   set('f_cod_fornecedorpadrao', p.cod_fornecedorpadrao);
   set('f_cod_fornecedorcusto',  p.cod_fornecedorcusto);
   set('f_obs',                p.obs);
@@ -3519,10 +4453,32 @@ function preencherForm(p) {
   set('f_desconto_maximo',    p.desconto_maximo ?? '');
   const elBlq = document.getElementById('f_bloquear_desconto');
   if (elBlq) elBlq.checked = (p.bloquear_desconto === 'S');
-  // Referência mãe (opt-in) — carrega opções e seleciona vínculo
-  carregarReferenciasMaeSelect(p.id_referencia || null).then(() => {
-    set('f_id_referencia', p.id_referencia || '');
-    carregarBoxCoresReferencia(p.ID ?? p.id);
+  // Pai / cor / avulso
+  const papelEl = document.getElementById('f_papel_referencia');
+  const prodIdRef = p.ID ?? p.id;
+  const qtdCores = Number(p.qtd_cores) || 0;
+  const idRefNum = parseInt(p.id_referencia, 10) || 0;
+  const ehPaiFlag = String(p.agrupa_cores || '').toUpperCase() === 'S';
+  let papelRef = 'avulso';
+  if (idRefNum > 0) papelRef = 'cor';
+  else if (qtdCores > 0 || ehPaiFlag || isProdutoPaiIntent(prodIdRef)) papelRef = 'mae';
+  if (papelEl) papelEl.value = papelRef;
+  setIdReferenciaForm(idRefNum > 0 ? idRefNum : '');
+  aplicarUiReferenciaProduto(p);
+  if (papelRef === 'cor') preencherBoxFilhoReferencia(p);
+  syncLinkAbrirPai();
+  if (typeof onPapelReferenciaChange === 'function') onPapelReferenciaChange(false);
+  carregarReferenciasMaeSelect(idRefNum > 0 ? idRefNum : null).then(() => {
+    setIdReferenciaForm(idRefNum > 0 ? idRefNum : '');
+    if (papelRef === 'cor') {
+      const selPapel = document.getElementById('f_papel_referencia');
+      if (selPapel) selPapel.value = 'cor';
+      const wrapRef = document.getElementById('wrap_id_referencia');
+      if (wrapRef) wrapRef.style.display = '';
+      preencherBoxFilhoReferencia(p);
+    }
+    syncLinkAbrirPai();
+    carregarBoxCoresReferencia(prodIdRef);
   });
   calcMarkupLiquido();
 }
@@ -3547,6 +4503,23 @@ async function salvar() {
     abrirAba('outras', document.querySelector('.form-tab[onclick*="outras"]'));
     document.getElementById('f_cod_fornecedorpadrao')?.focus();
     return;
+  }
+
+  const papelRef = document.getElementById('f_papel_referencia')?.value || 'avulso';
+  const idRefNum = getIdReferenciaForm();
+  const isFilho = papelRef === 'cor' || idRefNum > 0;
+  const isMae = !isFilho && papelRef === 'mae';
+  const cor1Val = (document.getElementById('f_cor1')?.value || '').trim();
+  if (papelRef === 'cor' && !idRefNum) {
+    showToast('Selecione o produto PAI desta cor (aba Geral).', 'error');
+    abrirAba('geral', document.querySelector('.form-tab'));
+    document.getElementById('f_id_referencia')?.focus();
+    return;
+  }
+  if (isFilho && !cor1Val) {
+    // Não bloqueia: preenche um padrão para não perder o vínculo
+    const elCor = document.getElementById('f_cor1');
+    if (elCor) elCor.value = 'COR';
   }
 
   const v = id => document.getElementById(id)?.value || undefined;
@@ -3610,14 +4583,16 @@ async function salvar() {
     peso_liquido:         v('f_peso_liquido'),
     tipoprodutograde:     v('f_tipograde'),
     tipograde:            v('f_id_grade'),
+    grades_extras:        getGradesExtrasForm(),
     cod_fornecedorpadrao: v('f_cod_fornecedorpadrao'),
     cod_fornecedorcusto:  v('f_cod_fornecedorcusto'),
-    id_referencia:        document.getElementById('f_id_referencia')?.value || null,
+    id_referencia:        isFilho ? idRefNum : null,
+    agrupa_cores:         isMae ? 'S' : 'N',
     obs:                  v('f_obs'),
     obs2:                 v('f_obs2'),
     desconto_maximo:      v('f_desconto_maximo') !== '' ? v('f_desconto_maximo') : null,
     bloquear_desconto:    document.getElementById('f_bloquear_desconto')?.checked ? 'S' : 'N',
-    foto_principal:       v('f_foto_principal') || undefined,
+    foto_principal:       v('f_foto_principal'),
   };
 
   const btn = document.getElementById('btnSalvar');
@@ -3632,10 +4607,42 @@ async function salvar() {
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || 'Erro ao salvar');
 
-    showToast(_editandoId ? 'Produto atualizado!' : 'Produto cadastrado!', 'success');
-    fecharFormulario();
-    carregar();
-    carregarNotificacoes();
+    const prodIdSalvo = parseInt(j.id || _editandoId, 10) || null;
+    if (prodIdSalvo) {
+      _editandoId = prodIdSalvo;
+      const elId = document.getElementById('f_id');
+      if (elId) elId.value = String(prodIdSalvo);
+    }
+
+    if (isMae && prodIdSalvo) {
+      setProdutoPaiIntent(prodIdSalvo, true);
+      if (typeof onPapelReferenciaChange === 'function') onPapelReferenciaChange(false);
+      carregarBoxCoresReferencia(prodIdSalvo);
+      showToast('Produto salvo. Agora cadastre as cores abaixo.', 'success');
+      carregar(false);
+      carregarNotificacoes();
+
+      const rVar = await api(`/api/produtos/${prodIdSalvo}/variacoes`);
+      const dVar = await rVar.json().catch(() => ({}));
+      const qtdCores = (dVar.cores || []).length;
+      if (qtdCores === 0) {
+        document.getElementById('modalTitle').textContent = 'Cadastrar primeira cor?';
+        document.getElementById('modalMsg').textContent =
+          'Produto salvo como referência principal. Deseja cadastrar a primeira cor agora?';
+        document.getElementById('modalOkBtn').onclick = async () => {
+          fecharModal();
+          await adicionarCorDaMae(prodIdSalvo);
+        };
+        document.getElementById('modalConfirm').classList.add('show');
+      }
+    } else {
+      if (prodIdSalvo) setProdutoPaiIntent(prodIdSalvo, false);
+      destacarCamposNovaCor(false);
+      showToast(_editandoId ? 'Produto atualizado!' : 'Produto cadastrado!', 'success');
+      fecharFormulario();
+      carregar(false);
+      carregarNotificacoes();
+    }
   } catch(err) {
     showToast(err.message, 'error');
   } finally {
@@ -3678,7 +4685,12 @@ function mostrarForm() {
 }
 
 function fecharFormulario() {
+  // Remove confirm preso que engolia cliques no formulário
+  try {
+    document.querySelectorAll('[data-sysrep-confirm]').forEach((el) => el.remove());
+  } catch (_) {}
   const fs = document.getElementById('formSection');
+  if (!fs) return;
   fs.style.display = 'none';
   fs.classList.remove('prod-form-visible');
   fs.style.top = '';
@@ -3687,7 +4699,8 @@ function fecharFormulario() {
   const sub = document.getElementById('subbar');
   if (sub && sub.dataset.wasVisible !== '0') sub.style.display = '';
 
-  document.getElementById('listSection').style.display = '';
+  const list = document.getElementById('listSection');
+  if (list) list.style.display = '';
   _editandoId = null;
 }
 
@@ -3951,23 +4964,39 @@ async function bulkExcluir() {
 // ═══════════════════════════════════════════════════════════
 // CSV
 // ═══════════════════════════════════════════════════════════
+function _csvProdValor(p, id) {
+  if (id === 'foto') return p.foto_principal || '';
+  if (id === 'situacao') return ({ A: 'Ativo', I: 'Inativo', E: 'Excluído' }[p.situacao] || p.situacao || '');
+  if (id === 'nome_familia') return p.nome_familia || p.id_familiaproduto || '';
+  if (id === 'nome_subfamilia') return p.nome_subfamilia || p.subfamilia || '';
+  if (id === 'nome_local') return p.nome_local || p.id_endereco || '';
+  if (id === 'nome_grade') return p.nome_grade || p.tipograde || '';
+  if (id === 'nome_fornecedor_custo') return p.nome_fornecedor_custo || p.cod_fornecedorcusto || '';
+  const meta = PROD_COLS_META[id] || {};
+  if (meta.fmt === 'sn') return _fmtProdSN(p[id]);
+  if (meta.fmt === 'date') return _fmtProdData(p[id]);
+  if (p[id] == null) return '';
+  return String(p[id]);
+}
+
 async function exportarCSV() {
   try {
     const r = await api(`/api/produtos?limit=9999&offset=0`);
     const { produtos } = await r.json();
     if (!produtos.length) { showToast('Nenhum dado para exportar'); return; }
 
-    const cols = ['id','descricao','apelido','cod_barras','cod_fabricante','unidade','vlr_venda','estoque_atual','estoque_minimo','nome_grupo','situacao'];
-    const header = ['ID','Descrição','Apelido','Cód.Barras','Ref.Fabricante/SKU','Un','Vlr.Venda','Estoque','Est.Mínimo','Grupo','Status'];
-    const rows = [header, ...produtos.map(p => cols.map(c => String(p[c]??'').replace(/"/g,'""')))];
-    const csv = rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+    let cols = _prodColsVisiveis().filter((id) => id !== 'foto');
+    if (!cols.length) cols = ['id', 'descricao'];
+    const header = cols.map((id) => (PROD_COLS_META[id] && PROD_COLS_META[id].label) || id);
+    const rows = [header, ...produtos.map((p) => cols.map((c) => String(_csvProdValor(p, c)).replace(/"/g, '""')))];
+    const csv = rows.map((row) => row.map((v) => `"${v}"`).join(',')).join('\n');
 
     const a = document.createElement('a');
     a.href = 'data:text/csv;charset=utf-8,\uFEFF' + encodeURIComponent(csv);
-    a.download = `produtos_${new Date().toISOString().slice(0,10)}.csv`;
+    a.download = `produtos_${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     showToast('CSV exportado!', 'success');
-  } catch(err) { showToast(err.message, 'error'); }
+  } catch (err) { showToast(err.message, 'error'); }
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -4162,6 +5191,7 @@ function _ifBindModalEvents() {
     dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
     dz.addEventListener('drop', (e) => {
       e.preventDefault();
+      e.stopPropagation();
       dz.classList.remove('drag-over');
       _ifAddFiles(e.dataTransfer.files);
     });
@@ -4183,23 +5213,49 @@ function _ifBindModalEvents() {
 document.addEventListener('DOMContentLoaded', () => {
   _ifBindModalEvents();
   if (typeof SysRepClipboard === 'undefined') return;
-  SysRepClipboard.bindPaste(document, (files) => {
+
+  function _fotosPodeReceber() {
+    const modal = typeof _ifModalEl === 'function' ? _ifModalEl() : null;
+    if (modal && modal.classList.contains('open')) return true;
+    const tab = document.getElementById('tab-fotos');
+    return !!(tab && tab.classList.contains('active') && _editandoId);
+  }
+
+  function _fotosReceberArquivos(files) {
+    if (!files || !files.length) return;
     const modal = typeof _ifModalEl === 'function' ? _ifModalEl() : null;
     if (modal && modal.classList.contains('open')) {
       _ifAddFiles(files);
-      showToast(files.length + ' imagem(ns) colada(s)', 'success');
+      showToast(files.length + ' imagem(ns) adicionada(s)', 'success');
       return;
     }
     uploadFotos(files);
-  }, {
+  }
+
+  function _fotosHighlight() {
+    const modal = typeof _ifModalEl === 'function' ? _ifModalEl() : null;
+    if (modal && modal.classList.contains('open')) return document.getElementById('ifDropzone');
+    return document.getElementById('galeriaDropzone');
+  }
+
+  SysRepClipboard.bindPaste(document, _fotosReceberArquivos, {
     ignoreTyping: true,
-    when: () => {
-      const modal = typeof _ifModalEl === 'function' ? _ifModalEl() : null;
-      if (modal && modal.classList.contains('open')) return true;
-      const tab = document.getElementById('tab-fotos');
-      return !!(tab && tab.classList.contains('active') && _editandoId);
-    },
+    when: _fotosPodeReceber,
   });
+  SysRepClipboard.bindDrop(document, _fotosReceberArquivos, {
+    when: _fotosPodeReceber,
+    highlight: _fotosHighlight,
+  });
+
+  const dzGal = document.getElementById('galeriaDropzone');
+  if (dzGal && dzGal.dataset.clickPick !== '1') {
+    dzGal.dataset.clickPick = '1';
+    dzGal.addEventListener('click', (e) => {
+      if (e.target.closest('.foto-card, .foto-del, button, a')) return;
+      const inp = document.getElementById('inputFotos');
+      if (inp && !inp.disabled) inp.click();
+    });
+  }
 });
 
 async function enviarImportFotos() {
@@ -4256,6 +5312,21 @@ async function enviarImportFotos() {
 
 fecharQuickView();
 </script>
+
+<!-- ── MODAL CADASTRO RÁPIDO (combos auxiliares) ──────────────────────────── -->
+<div class="qr-overlay" id="qrLookupOverlay">
+  <div class="qr-box">
+    <div class="qr-head">
+      <span id="qrLookupTitulo">+ Novo</span>
+      <button type="button" class="btn btn-ghost" style="padding:3px 9px;font-size:12px" onclick="fecharQrLookup()">✕</button>
+    </div>
+    <div class="qr-body" id="qrLookupBody"></div>
+    <div class="qr-foot">
+      <button type="button" class="btn btn-ghost" onclick="fecharQrLookup()">Cancelar</button>
+      <button type="button" class="btn btn-primary" id="qrLookupBtnSalvar" onclick="salvarQrLookup()">Salvar e selecionar</button>
+    </div>
+  </div>
+</div>
 
 <!-- ── MODAL IMPORTAR FOTOS ───────────────────────────────────────────────── -->
 <div id="modalImportFotos">

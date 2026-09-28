@@ -1,11 +1,16 @@
 /**
- * Colar imagem da área de transferência (Ctrl+V / Cmd+V).
- * Útil para fotos do Google Drive: abrir a imagem → Copiar imagem → colar no SysRep.
+ * Colar ou arrastar imagem (Ctrl+V / drag-and-drop).
+ * Útil para fotos do Google Drive: abrir a imagem → Copiar imagem → colar no SysRep,
+ * ou arrastar o arquivo da pasta para a aba Fotos.
  *
  * Uso:
  *   SysRepClipboard.bindPaste(document, (files, e) => { ... }, {
  *     when: () => abaFotosAberta && produtoSalvo,
  *     ignoreTyping: true,
+ *   });
+ *   SysRepClipboard.bindDrop(zona, (files, e) => { ... }, {
+ *     when: () => abaFotosAberta && produtoSalvo,
+ *     highlight: zona,
  *   });
  *   const files = SysRepClipboard.filesFromEvent(e);
  */
@@ -25,7 +30,6 @@
     if (!el || !el.closest) return false;
     const t = el.closest('input, textarea, select, [contenteditable="true"]');
     if (!t) return false;
-    // file inputs não "digitam"
     if (t.tagName === 'INPUT' && String(t.type || '').toLowerCase() === 'file') return false;
     return true;
   }
@@ -42,6 +46,18 @@
     } catch (_) {
       return file;
     }
+  }
+
+  function _hasFiles(e) {
+    const types = e && e.dataTransfer && e.dataTransfer.types;
+    if (!types) return false;
+    return Array.prototype.indexOf.call(types, 'Files') >= 0;
+  }
+
+  function _highlightEl(opts) {
+    if (!opts) return null;
+    if (typeof opts.highlight === 'function') return opts.highlight();
+    return opts.highlight || null;
   }
 
   /**
@@ -98,5 +114,68 @@
     return () => el.removeEventListener('paste', handler);
   }
 
-  global.SysRepClipboard = { filesFromEvent, bindPaste, ensureFileName: _ensureFileName };
+  /**
+   * @param {Element|Document|Window} target
+   * @param {(files: File[], e: DragEvent) => void} onFiles
+   * @param {{ when?: () => boolean, highlight?: Element|(() => Element|null), highlightClass?: string }} [opts]
+   */
+  function bindDrop(target, onFiles, opts) {
+    opts = opts || {};
+    const el = target === global ? global.document : target;
+    if (!el || typeof el.addEventListener !== 'function') return () => {};
+    const hlClass = opts.highlightClass || 'drag-over';
+    let hlTimer = null;
+
+    const allowed = (e) => {
+      if (typeof opts.when === 'function' && !opts.when()) return false;
+      return _hasFiles(e);
+    };
+    const setHl = (on) => {
+      const h = _highlightEl(opts);
+      if (h) h.classList.toggle(hlClass, !!on);
+    };
+    const keepHl = () => {
+      if (hlTimer) clearTimeout(hlTimer);
+      setHl(true);
+      hlTimer = setTimeout(() => setHl(false), 150);
+    };
+
+    const onEnter = (e) => {
+      if (!allowed(e)) return;
+      e.preventDefault();
+      keepHl();
+    };
+    const onOver = (e) => {
+      if (!allowed(e)) return;
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+      keepHl();
+    };
+    const onDrop = (e) => {
+      if (hlTimer) clearTimeout(hlTimer);
+      hlTimer = null;
+      setHl(false);
+      if (typeof opts.when === 'function' && !opts.when()) return;
+      const files = filesFromEvent(e);
+      if (!files.length) {
+        if (_hasFiles(e)) e.preventDefault();
+        return;
+      }
+      e.preventDefault();
+      onFiles(files, e);
+    };
+
+    el.addEventListener('dragenter', onEnter);
+    el.addEventListener('dragover', onOver);
+    el.addEventListener('drop', onDrop);
+    return () => {
+      el.removeEventListener('dragenter', onEnter);
+      el.removeEventListener('dragover', onOver);
+      el.removeEventListener('drop', onDrop);
+      if (hlTimer) clearTimeout(hlTimer);
+      setHl(false);
+    };
+  }
+
+  global.SysRepClipboard = { filesFromEvent, bindPaste, bindDrop, ensureFileName: _ensureFileName };
 })(typeof window !== 'undefined' ? window : globalThis);

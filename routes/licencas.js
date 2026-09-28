@@ -519,6 +519,40 @@ router.put('/license/remote/:id/edit', async (req, res) => {
   }
 });
 
+// PUT /api/licencas/license/remote/:id/modulo-marketplace — liga/desliga o add-on
+// Exclusivo do painel do desenvolvedor: o admin do cliente não tem como chamar.
+router.put('/license/remote/:id/modulo-marketplace', async (req, res) => {
+  try {
+    const licPool = getLicensePool();
+    const {
+      ensureColunaModuloMarketplace,
+      resetCacheModuloMarketplace
+    } = require('../config/modulo-marketplace');
+
+    await ensureColunaModuloMarketplace(licPool);
+    const habilitar = req.body?.habilitado === true || req.body?.habilitado === 1 || req.body?.habilitado === '1' ? 1 : 0;
+
+    await licPool.query(
+      'UPDATE sistema_licencas SET modulo_marketplace = ? WHERE id = ?',
+      [habilitar, req.params.id]
+    );
+
+    const [[lic]] = await licPool.query(
+      'SELECT chave_licenca FROM sistema_licencas WHERE id = ?', [req.params.id]
+    );
+    if (lic) resetCacheModuloMarketplace(lic.chave_licenca);
+
+    await licPool.query(
+      'INSERT INTO historico_licencas (licenca_id, acao, detalhes) VALUES (?, ?, ?)',
+      [req.params.id, 'modulo_marketplace', JSON.stringify({ habilitado: !!habilitar })]
+    ).catch(() => {});
+
+    res.json({ sucesso: true, habilitado: !!habilitar });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/licencas/license/remote/:id/renew — renovar licença
 router.post('/license/remote/:id/renew', async (req, res) => {
   try {

@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Marketplace — De-para de Anúncios</title>
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<script src="/assets/confirm-dialog.js"></script>
+<style>
+  :root {
+    --bg: var(--content-bg);
+    --card: var(--card-bg);
+    --border: var(--card-border);
+    --text: var(--content-text);
+    --text2: var(--text2);
+    --accent: var(--accent);
+    --accent-soft: var(--accent-soft);
+    --danger: #dc2626;
+    --shadow: 0 10px 30px rgba(0,0,0,.06);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--font, Inter, system-ui, sans-serif); background: var(--bg); color: var(--text); }
+  .page { min-height: 100vh; display: flex; flex-direction: column; width: 100%; max-width: none; }
+  .toolbar {
+    position: sticky; top: 0; z-index: 20;
+    background: var(--card); border-bottom: 1px solid var(--border);
+    padding: 12px 16px; display: flex; flex-wrap: wrap; align-items: end; gap: 10px;
+  }
+  .title-wrap { margin-right: auto; min-width: 200px; }
+  .eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: .8px; color: var(--text2); font-weight: 800; }
+  h1 { margin: 3px 0 0; font-size: 20px; font-weight: 800; }
+  .subtitle { margin-top: 4px; font-size: 12px; color: var(--text2); max-width: 640px; line-height: 1.45; }
+  .btn {
+    height: 36px; border: none; border-radius: 10px; padding: 0 14px;
+    font: inherit; font-weight: 700; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  }
+  .btn-primary { background: var(--accent); color: var(--btn-text, #fff); }
+  .btn-secondary { background: var(--bg); color: var(--text); border: 1.5px solid var(--border); }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-sm { height: 30px; padding: 0 10px; font-size: 11px; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .content { padding: 14px 16px 24px; display: grid; gap: 14px; width: 100%; }
+  .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  .kpi {
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 14px; box-shadow: var(--shadow);
+  }
+  .kpi .lbl { font-size: 10px; text-transform: uppercase; letter-spacing: .5px; color: var(--text2); font-weight: 800; }
+  .kpi .val { font-size: 22px; font-weight: 800; margin-top: 4px; letter-spacing: -.02em; }
+  .kpi.warn .val { color: #b45309; }
+  .panel {
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 14px; box-shadow: var(--shadow);
+  }
+  .filters-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
+  .filter { display: flex; flex-direction: column; gap: 5px; min-width: 140px; }
+  .filter.grow { flex: 1; min-width: 180px; }
+  .filter label { font-size: 10px; text-transform: uppercase; color: var(--text2); font-weight: 800; }
+  .filter input, .filter select, .form-field input, .form-field select {
+    height: 36px; border: 1.5px solid var(--border); border-radius: 10px;
+    padding: 0 10px; background: var(--card); color: var(--text); font: inherit; width: 100%;
+  }
+  .filter select option, .form-field select option { color: var(--text); background: var(--card); }
+  .tbl-wrap { overflow-x: auto; margin-top: 10px; }
+  .tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .tbl th {
+    font-size: 10px; text-transform: uppercase; letter-spacing: .5px; color: var(--text2);
+    text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border);
+    background: var(--bg); white-space: nowrap;
+  }
+  .tbl td { padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  .tbl tbody tr:hover { background: var(--accent-soft); }
+  .mono { font-family: ui-monospace, Consolas, monospace; font-size: 11px; }
+  .muted { color: var(--text2); }
+  .badge {
+    font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 999px;
+    white-space: nowrap; display: inline-block;
+  }
+  .b-ok { background: rgba(34,197,94,.15); color: #15803d; }
+  .b-pend { background: rgba(245,158,11,.15); color: #b45309; }
+  .b-plat { background: rgba(59,130,246,.12); color: #1d4ed8; }
+  .pager {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    flex-wrap: wrap; margin-top: 12px; font-size: 12px; color: var(--text2);
+  }
+  .pager .nav { display: flex; gap: 6px; }
+  .empty { text-align: center; color: var(--text2); padding: 36px 16px; font-size: 13px; }
+  .blocked {
+    max-width: 520px; margin: 60px auto; text-align: center; padding: 28px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  }
+  .blocked h2 { margin: 0 0 8px; font-size: 18px; }
+  .blocked p { margin: 0; color: var(--text2); font-size: 13px; line-height: 1.5; }
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 100;
+    display: none; align-items: center; justify-content: center; padding: 16px;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    width: min(560px, 100%); max-height: 92vh; overflow: auto;
+    padding: 18px 20px; box-shadow: var(--shadow);
+  }
+  .modal h3 { margin: 0 0 12px; font-size: 16px; }
+  .form-field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+  .form-field label { font-size: 10px; text-transform: uppercase; color: var(--text2); font-weight: 800; }
+  .modal-foot { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; flex-wrap: wrap; }
+  .prod-list { border: 1px solid var(--border); border-radius: 10px; max-height: 220px; overflow: auto; margin-top: 8px; }
+  .prod-item {
+    display: flex; justify-content: space-between; gap: 10px; align-items: center;
+    padding: 8px 10px; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 12px;
+  }
+  .prod-item:last-child { border-bottom: none; }
+  .prod-item:hover { background: var(--accent-soft); }
+  .prod-item .cod { font-weight: 700; }
+  .hint { font-size: 11px; color: var(--text2); margin: 0 0 8px; line-height: 1.4; }
+  #toast { position: fixed; bottom: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+  .toast-item {
+    background: #111827; color: #fff; border-radius: 10px; padding: 10px 16px;
+    font-size: 13px; font-weight: 600; box-shadow: var(--shadow);
+  }
+  .toast-item.err { background: var(--danger); }
+  @media (max-width: 900px) {
+    .kpis { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 640px) {
+    .content { padding: 10px 12px 20px; }
+    .toolbar { padding: 10px 12px; }
+    .kpis { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="page" id="app" style="display:none">
+  <div class="toolbar">
+    <div class="title-wrap">
+      <div class="eyebrow">Marketplace</div>
+      <h1>De-para de Anúncios</h1>
+      <div class="subtitle">
+        Liga o anúncio/SKU do canal ao produto interno. Sem vínculo, o pedido do marketplace não sabe qual item baixar.
+        Enquanto a Tray não sincroniza, você pode cadastrar anúncios manualmente.
+      </div>
+    </div>
+    <button type="button" class="btn btn-secondary" onclick="carregarTudo()">↻ Atualizar</button>
+    <button type="button" class="btn btn-secondary" onclick="vincularAuto()">Vínculo automático</button>
+    <button type="button" class="btn btn-primary" onclick="abrirNovo()">+ Anúncio</button>
+    <button type="button" class="btn btn-secondary" onclick="fecharAba()" title="Fechar">✕ Fechar</button>
+  </div>
+
+  <div class="content">
+    <div class="kpis">
+      <div class="kpi"><div class="lbl">Anúncios</div><div class="val" id="kpi_total">—</div></div>
+      <div class="kpi warn"><div class="lbl">Sem vínculo</div><div class="val" id="kpi_pend">—</div></div>
+      <div class="kpi"><div class="lbl">Vinculados</div><div class="val" id="kpi_ok">—</div></div>
+      <div class="kpi"><div class="lbl">Canais</div><div class="val" id="kpi_canais">—</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="filters-row">
+        <div class="filter">
+          <label>Canal</label>
+          <select id="f_canal" autocomplete="off"><option value="">Todos</option></select>
+        </div>
+        <div class="filter">
+          <label>Vínculo</label>
+          <select id="f_vinculo" autocomplete="off">
+            <option value="pendente">Pendentes</option>
+            <option value="">Todos</option>
+            <option value="ok">Vinculados</option>
+          </select>
+        </div>
+        <div class="filter grow">
+          <label>Buscar</label>
+          <input type="text" id="f_q" autocomplete="off" placeholder="Código, SKU, descrição…" />
+        </div>
+        <button type="button" class="btn btn-primary" onclick="pagina=1;carregarAnuncios()">Filtrar</button>
+      </div>
+
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th>Canal</th>
+              <th>Código externo</th>
+              <th>SKU</th>
+              <th>Descrição no canal</th>
+              <th>Produto interno</th>
+              <th>Preço canal</th>
+              <th>Vínculo</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="tbody"><tr><td colspan="8"><div class="empty">Carregando…</div></td></tr></tbody>
+        </table>
+      </div>
+      <div class="pager">
+        <div id="pager_info">—</div>
+        <div class="nav">
+          <button type="button" class="btn btn-secondary btn-sm" id="btn_prev" onclick="mudarPagina(-1)">← Anterior</button>
+          <button type="button" class="btn btn-secondary btn-sm" id="btn_next" onclick="mudarPagina(1)">Próxima →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="bloqueado" class="blocked" style="display:none">
+  <h2>Marketplace não liberado</h2>
+  <p>Este add-on não está habilitado na licença desta empresa. Libere no Painel NC (módulo Marketplace) ou peça ao suporte.</p>
+</div>
+
+<!-- Modal vincular produto -->
+<div class="modal-overlay" id="modalVincular">
+  <div class="modal">
+    <h3 id="mv_titulo">Vincular produto</h3>
+    <p class="hint" id="mv_meta"></p>
+    <div class="form-field">
+      <label>Buscar produto</label>
+      <input type="text" id="mv_q" autocomplete="off" placeholder="Descrição, código fabricante, ID…" />
+    </div>
+    <div class="prod-list" id="mv_lista"><div class="empty">Digite para buscar</div></div>
+    <div class="modal-foot">
+      <button type="button" class="btn btn-secondary" onclick="fecharVincular()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal novo anúncio -->
+<div class="modal-overlay" id="modalNovo">
+  <div class="modal">
+    <h3>Cadastrar anúncio</h3>
+    <p class="hint">Use enquanto a sincronização com a Tray não estiver ligada. Depois a importação automática passa a alimentar esta lista.</p>
+    <div class="form-field">
+      <label>Canal</label>
+      <select id="n_canal" autocomplete="off"></select>
+    </div>
+    <div class="form-field">
+      <label>Código externo</label>
+      <input type="text" id="n_codigo" autocomplete="off" placeholder="ID do anúncio no canal" />
+    </div>
+    <div class="form-field">
+      <label>SKU externo</label>
+      <input type="text" id="n_sku" autocomplete="off" placeholder="SKU — usado no vínculo automático" />
+    </div>
+    <div class="form-field">
+      <label>Descrição</label>
+      <input type="text" id="n_desc" autocomplete="off" />
+    </div>
+    <div class="form-field">
+      <label>Preço no canal (opcional)</label>
+      <input type="number" id="n_preco" step="0.01" min="0" autocomplete="off" />
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn btn-secondary" onclick="fecharNovo()">Cancelar</button>
+      <button type="button" class="btn btn-primary" onclick="salvarNovo()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const PAGE_SIZE = 15;
+let pagina = 1;
+let totalRows = 0;
+let canais = [];
+let _vincularId = null;
+let _buscaTimer = null;
+let _prodTimer = null;
+
+const PLAT = {
+  TRAY: 'Tray', BLING: 'Bling', MERCADO_LIVRE: 'Mercado Livre', SHOPEE: 'Shopee',
+  AMAZON: 'Amazon', SHEIN: 'Shein', TIKTOK: 'TikTok', OUTRO: 'Outro'
+};
+
+function getToken() {
+  try {
+    return localStorage.getItem('token')
+      || sessionStorage.getItem('token')
+      || (parent && parent.App && parent.App.token)
+      || '';
+  } catch { return ''; }
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+function toast(msg, err) {
+  const el = document.createElement('div');
+  el.className = 'toast-item' + (err ? ' err' : '');
+  el.textContent = msg;
+  document.getElementById('toast').appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+}
+
+async function api(url, opts = {}) {
+  const r = await fetch(url, {
+    ...opts,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer ' + getToken(),
+      ...(opts.headers || {})
+    }
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || 'Erro na requisição');
+  return d;
+}
+
+function fecharAba() {
+  try {
+    if (parent && typeof parent.closeTabByIframe === 'function' && window.frameElement) {
+      parent.closeTabByIframe(window.frameElement);
+      return;
+    }
+  } catch {}
+  history.back();
+}
+
+async function boot() {
+  try {
+    const mod = await api('/api/modulos/marketplace');
+    if (!mod.habilitado) {
+      document.getElementById('bloqueado').style.display = '';
+      return;
+    }
+  } catch {
+    document.getElementById('bloqueado').style.display = '';
+    return;
+  }
+  document.getElementById('app').style.display = '';
+  document.getElementById('f_q').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { pagina = 1; carregarAnuncios(); }
+  });
+  document.getElementById('f_q').addEventListener('input', () => {
+    clearTimeout(_buscaTimer);
+    _buscaTimer = setTimeout(() => { pagina = 1; carregarAnuncios(); }, 350);
+  });
+  document.getElementById('f_canal').addEventListener('change', () => { pagina = 1; carregarAnuncios(); });
+  document.getElementById('f_vinculo').addEventListener('change', () => { pagina = 1; carregarAnuncios(); });
+  document.getElementById('mv_q').addEventListener('input', () => {
+    clearTimeout(_prodTimer);
+    _prodTimer = setTimeout(buscarProdutos, 280);
+  });
+  document.getElementById('modalVincular').addEventListener('click', e => {
+    if (e.target.id === 'modalVincular') fecharVincular();
+  });
+  document.getElementById('modalNovo').addEventListener('click', e => {
+    if (e.target.id === 'modalNovo') fecharNovo();
+  });
+  await carregarTudo();
+}
+
+async function carregarTudo() {
+  await Promise.all([carregarCanais(), carregarResumo(), carregarAnuncios()]);
+}
+
+async function carregarCanais() {
+  canais = await api('/api/marketplace/canais');
+  const opts = canais.map(c =>
+    `<option value="${c.id}">${esc(c.nome)} (${esc(PLAT[c.plataforma] || c.plataforma)})</option>`
+  ).join('');
+  document.getElementById('f_canal').innerHTML = '<option value="">Todos</option>' + opts;
+  document.getElementById('n_canal').innerHTML = opts || '<option value="">Cadastre um canal em Config. API</option>';
+  document.getElementById('kpi_canais').textContent = String(canais.length);
+}
+
+async function carregarResumo() {
+  try {
+    const r = await api('/api/marketplace/resumo');
+    const a = r.anuncios || {};
+    document.getElementById('kpi_total').textContent = String(a.total ?? 0);
+    document.getElementById('kpi_pend').textContent = String(a.sem_vinculo ?? 0);
+    document.getElementById('kpi_ok').textContent = String((a.total || 0) - (a.sem_vinculo || 0));
+  } catch {
+    /* resumo é opcional */
+  }
+}
+
+async function carregarAnuncios() {
+  const tb = document.getElementById('tbody');
+  const qs = new URLSearchParams();
+  const canal = document.getElementById('f_canal').value;
+  const vinculo = document.getElementById('f_vinculo').value;
+  const q = document.getElementById('f_q').value.trim();
+  if (canal) qs.set('id_canal', canal);
+  if (vinculo) qs.set('vinculo', vinculo);
+  if (q) qs.set('q', q);
+  qs.set('limit', String(PAGE_SIZE));
+  qs.set('offset', String((pagina - 1) * PAGE_SIZE));
+
+  try {
+    const d = await api('/api/marketplace/anuncios?' + qs.toString());
+    const rows = d.rows || [];
+    totalRows = Number(d.total) || 0;
+    renderPager();
+
+    if (!rows.length) {
+      tb.innerHTML = '<tr><td colspan="8"><div class="empty">Nenhum anúncio encontrado. Cadastre um canal e inclua anúncios (ou aguarde a sync da Tray).</div></td></tr>';
+      return;
+    }
+
+    tb.innerHTML = rows.map(a => {
+      const plat = esc(PLAT[a.plataforma] || a.plataforma);
+      const vinculoBadge = a.cod_produto
+        ? `<span class="badge b-ok">${esc(a.vinculado_por || 'OK')}</span>`
+        : `<span class="badge b-pend">Pendente</span>`;
+      const prod = a.cod_produto
+        ? `<div><strong>#${a.cod_produto}</strong> ${esc(a.descricao_produto || '')}</div>
+           <div class="muted mono">${esc(a.cod_fabricante || '')}</div>`
+        : `<span class="muted">— sem vínculo</span>`;
+      const preco = a.preco_canal != null
+        ? Number(a.preco_canal).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+        : '—';
+      return `<tr>
+        <td><div>${esc(a.nome_canal)}</div><span class="badge b-plat">${plat}</span></td>
+        <td class="mono">${esc(a.codigo_externo)}</td>
+        <td class="mono">${esc(a.sku_externo || '—')}</td>
+        <td>${esc(a.descricao_externa || '—')}</td>
+        <td>${prod}</td>
+        <td>${preco}</td>
+        <td>${vinculoBadge}</td>
+        <td style="white-space:nowrap">
+          <button type="button" class="btn btn-primary btn-sm" onclick='abrirVincular(${JSON.stringify({
+            id: a.id, codigo_externo: a.codigo_externo, sku_externo: a.sku_externo,
+            descricao_externa: a.descricao_externa, nome_canal: a.nome_canal
+          }).replace(/'/g, "&#39;")})'>${a.cod_produto ? 'Trocar' : 'Vincular'}</button>
+          ${a.cod_produto ? `<button type="button" class="btn btn-secondary btn-sm" onclick="desvincular(${a.id})">Soltar</button>` : ''}
+          <button type="button" class="btn btn-secondary btn-sm" onclick="excluirAnuncio(${a.id}, '${esc(a.codigo_externo).replace(/'/g, "\\'")}')">Excluir</button>
+        </td>
+      </tr>`;
+    }).join('');
+  } catch (e) {
+    tb.innerHTML = `<tr><td colspan="8"><div class="empty">${esc(e.message)}</div></td></tr>`;
+    toast(e.message, true);
+  }
+}
+
+function renderPager() {
+  const de = totalRows ? (pagina - 1) * PAGE_SIZE + 1 : 0;
+  const ate = Math.min(pagina * PAGE_SIZE, totalRows);
+  document.getElementById('pager_info').textContent =
+    totalRows ? `${de}–${ate} de ${totalRows}` : '0 registros';
+  document.getElementById('btn_prev').disabled = pagina <= 1;
+  document.getElementById('btn_next').disabled = pagina * PAGE_SIZE >= totalRows;
+}
+
+function mudarPagina(delta) {
+  const max = Math.max(1, Math.ceil(totalRows / PAGE_SIZE) || 1);
+  pagina = Math.min(max, Math.max(1, pagina + delta));
+  carregarAnuncios();
+}
+
+function abrirVincular(a) {
+  _vincularId = a.id;
+  document.getElementById('mv_titulo').textContent = 'Vincular produto';
+  document.getElementById('mv_meta').textContent =
+    `${a.nome_canal || ''} · ${a.codigo_externo || ''}` +
+    (a.sku_externo ? ` · SKU ${a.sku_externo}` : '') +
+    (a.descricao_externa ? ` — ${a.descricao_externa}` : '');
+  document.getElementById('mv_q').value = a.sku_externo || '';
+  document.getElementById('mv_lista').innerHTML = '<div class="empty">Digite para buscar</div>';
+  document.getElementById('modalVincular').classList.add('show');
+  document.getElementById('mv_q').focus();
+  if (a.sku_externo) buscarProdutos();
+}
+
+function fecharVincular() {
+  document.getElementById('modalVincular').classList.remove('show');
+  _vincularId = null;
+}
+
+async function buscarProdutos() {
+  const q = document.getElementById('mv_q').value.trim();
+  const lista = document.getElementById('mv_lista');
+  if (q.length < 1) {
+    lista.innerHTML = '<div class="empty">Digite para buscar</div>';
+    return;
+  }
+  try {
+    const d = await api('/api/pedidos/produtos/busca?q=' + encodeURIComponent(q) + '&limit=20&lean=1&skip_total=1');
+    const arr = d.data || d.produtos || d.rows || (Array.isArray(d) ? d : []);
+    if (!arr.length) {
+      lista.innerHTML = '<div class="empty">Nenhum produto encontrado</div>';
+      return;
+    }
+    lista.innerHTML = arr.map(p => {
+      const id = p.ID || p.id;
+      const desc = p.descricao || p.desc_prod || '';
+      const fab = p.cod_fabricante || '';
+      return `<div class="prod-item" onclick="escolherProduto(${id})">
+        <div>
+          <div class="cod">#${id} ${esc(desc)}</div>
+          <div class="muted mono">${esc(fab)}</div>
+        </div>
+        <button type="button" class="btn btn-primary btn-sm">Usar</button>
+      </div>`;
+    }).join('');
+  } catch (e) {
+    lista.innerHTML = `<div class="empty">${esc(e.message)}</div>`;
+  }
+}
+
+async function escolherProduto(codProduto) {
+  if (!_vincularId) return;
+  try {
+    await api('/api/marketplace/anuncios/' + _vincularId, {
+      method: 'PUT',
+      body: JSON.stringify({ cod_produto: codProduto })
+    });
+    toast('Vínculo salvo');
+    fecharVincular();
+    await Promise.all([carregarResumo(), carregarAnuncios()]);
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+async function desvincular(id) {
+  const ok = await SysRepConfirm.ask({
+    titulo: 'Soltar vínculo?',
+    mensagem: 'O anúncio volta para a fila de pendentes.'
+  });
+  if (!ok) return;
+  try {
+    await api('/api/marketplace/anuncios/' + id, {
+      method: 'PUT',
+      body: JSON.stringify({ cod_produto: null })
+    });
+    toast('Vínculo removido');
+    await Promise.all([carregarResumo(), carregarAnuncios()]);
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+async function excluirAnuncio(id, codigo) {
+  const ok = await SysRepConfirm.ask({
+    titulo: 'Excluir anúncio?',
+    mensagem: `O anúncio "${codigo}" será desativado (soft-delete).`
+  });
+  if (!ok) return;
+  try {
+    await api('/api/marketplace/anuncios/' + id, { method: 'DELETE' });
+    toast('Anúncio excluído');
+    await Promise.all([carregarResumo(), carregarAnuncios()]);
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+async function vincularAuto() {
+  const canal = document.getElementById('f_canal').value;
+  const ok = await SysRepConfirm.ask({
+    titulo: 'Vínculo automático?',
+    mensagem: 'Casa SKU do canal com código fabricante, referência, código de barras ou ID. Só vincula quando o match é único — ambíguos ficam para você.'
+  });
+  if (!ok) return;
+  try {
+    const body = canal ? { id_canal: Number(canal) } : {};
+    const r = await api('/api/marketplace/anuncios/vincular-automatico', {
+      method: 'POST',
+      body: JSON.stringify(body)
+    });
+    await avisar(
+      'Vínculo automático',
+      `Analisados: ${r.analisados}\nVinculados: ${r.vinculados}\nAmbíguos: ${r.ambiguos}\nSem match: ${r.semMatch}`
+    );
+    await Promise.all([carregarResumo(), carregarAnuncios()]);
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+function abrirNovo() {
+  if (!canais.length) {
+    toast('Cadastre um canal em Configurações de API primeiro', true);
+    return;
+  }
+  document.getElementById('n_codigo').value = '';
+  document.getElementById('n_sku').value = '';
+  document.getElementById('n_desc').value = '';
+  document.getElementById('n_preco').value = '';
+  document.getElementById('modalNovo').classList.add('show');
+  document.getElementById('n_codigo').focus();
+}
+
+function fecharNovo() {
+  document.getElementById('modalNovo').classList.remove('show');
+}
+
+async function salvarNovo() {
+  const id_canal = Number(document.getElementById('n_canal').value);
+  const codigo_externo = document.getElementById('n_codigo').value.trim();
+  if (!id_canal) return toast('Selecione o canal', true);
+  if (!codigo_externo) return toast('Informe o código externo', true);
+  const preco = document.getElementById('n_preco').value;
+  try {
+    await api('/api/marketplace/anuncios', {
+      method: 'POST',
+      body: JSON.stringify({
+        id_canal,
+        codigo_externo,
+        sku_externo: document.getElementById('n_sku').value.trim() || null,
+        descricao_externa: document.getElementById('n_desc').value.trim() || null,
+        preco_canal: preco === '' ? null : Number(preco)
+      })
+    });
+    toast('Anúncio cadastrado');
+    fecharNovo();
+    document.getElementById('f_vinculo').value = 'pendente';
+    pagina = 1;
+    await Promise.all([carregarResumo(), carregarAnuncios()]);
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+boot();
+</script>
+</body>
+</html>

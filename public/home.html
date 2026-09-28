@@ -29,10 +29,14 @@
     }
   } catch (_) {}
   try {
-    if (localStorage.getItem('sysrep_vitrine_spotlight_dismissed') === '1') {
+    // Destaques Vitrine/Showroom: recolhidos por padrão (home limpa).
+    // Só reaparece se o usuário pedir explicitamente (valor '0').
+    if (localStorage.getItem('sysrep_vitrine_spotlight_dismissed') !== '0') {
       document.documentElement.classList.add('vitrine-spotlight-dismissed');
     }
-  } catch (_) {}
+  } catch (_) {
+    document.documentElement.classList.add('vitrine-spotlight-dismissed');
+  }
 })();
 </script>
 <script src="/assets/mobile-route.js"></script>
@@ -44,6 +48,15 @@
 <script src="/assets/novidades-modal.js?v=20260629b" defer></script>
 <script src="/assets/themes.js?v=font-menu-20260517"></script>
 <script src="/assets/page-transitions.js" defer></script>
+<script src="/assets/confirm-dialog.js"></script>
+<script>
+  // alias global usado em vários pontos da home
+  document.addEventListener('DOMContentLoaded', () => {
+    if (typeof window.toast !== 'function' && typeof window.PTToast === 'function') {
+      window.toast = window.PTToast;
+    }
+  });
+</script>
 <script>
   // Suprime o botão flutuante do themes.js — home.html tem botão Tema na topbar
   document.addEventListener('DOMContentLoaded', () => {
@@ -824,6 +837,239 @@
   .home-novidade-link:hover { border-color: #0ea5e9; color: #0284c7; }
   .home-novidade-card--showroom .home-novidade-link:hover { border-color: #0d9488; color: #0f766e; }
 
+  /* ── Painel RCA Meu Dia (compacto — não rouba a home) ── */
+  #rca_meu_dia {
+    display: block !important;
+    flex-shrink: 0;
+    margin: 0 0 10px;
+    border-radius: 12px;
+    border: 1px solid color-mix(in srgb, #10b981 22%, var(--card-border, #e2e8f0));
+    background: var(--card, var(--card-bg, #fff));
+    box-shadow: 0 2px 8px rgba(16,185,129,.06);
+    overflow: hidden;
+    animation: vitrineSpotIn .35s ease;
+  }
+  #rca_meu_dia.rca-oculto { display: none !important; }
+  #rca_meu_dia.rca-ativo,
+  #rca_meu_dia.rca-visivel { display: block !important; }
+  .rca-md-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 10px 12px; flex-wrap: wrap;
+    background: linear-gradient(135deg, rgba(16,185,129,.08), rgba(14,165,233,.05));
+  }
+  .rca-md-title-wrap { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .rca-md-icon {
+    width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0;
+    background: linear-gradient(135deg, #10b981, #0ea5e9);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .rca-md-icon svg { width: 15px; height: 15px; color: #fff; }
+  .rca-md-title { font-size: .88rem; font-weight: 800; color: var(--content-text, var(--text)); line-height: 1.15; }
+  .rca-md-sub { font-size: .68rem; color: var(--text2, #64748b); margin-top: 1px; }
+  .rca-md-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .rca-md-btn {
+    height: 30px; padding: 0 10px; border-radius: 8px; border: none;
+    font: inherit; font-size: 11px; font-weight: 700; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 5px;
+  }
+  .rca-md-btn--pri {
+    background: linear-gradient(135deg, #10b981, #059669); color: #fff;
+  }
+  .rca-md-btn--pri:hover { filter: brightness(1.06); }
+  .rca-md-btn--ghost {
+    background: var(--card, var(--card-bg, #fff)); color: var(--content-text, var(--text));
+    border: 1px solid var(--card-border, rgba(0,0,0,.1));
+  }
+  .rca-md-btn--ghost:hover { border-color: #10b981; color: #059669; }
+  /* KPIs em pills — uma linha, sem cards altos */
+  .rca-md-kpis {
+    display: flex !important;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 6px;
+    padding: 8px 12px;
+    border-top: 1px solid var(--card-border, rgba(0,0,0,.05));
+    background: var(--bg, #f8fafc);
+    min-height: 0;
+  }
+  .rca-md-kpi {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 6px;
+    flex: 1 1 140px;
+    max-width: 220px;
+    border-radius: 8px;
+    padding: 6px 10px;
+    background: var(--card, var(--card-bg, #fff));
+    border: 1px solid var(--card-border, #e2e8f0);
+    cursor: pointer; text-align: left; font: inherit;
+    color: var(--content-text, var(--text));
+    transition: border-color .15s;
+  }
+  .rca-md-kpi:hover { border-color: #10b981; }
+  .rca-md-kpi-label { font-size: 10px; font-weight: 700; color: var(--text2, #64748b); text-transform: uppercase; letter-spacing: .2px; }
+  .rca-md-kpi-val { font-size: 1.05rem; font-weight: 800; color: var(--content-text, var(--text, #0f172a)); line-height: 1; margin: 0; }
+  .rca-md-kpi-hint { display: none; } /* dica só no title do card — economiza altura */
+  .rca-md-body {
+    display: grid !important;
+    grid-template-columns: 1fr;
+    gap: 0;
+    border-top: 1px solid var(--card-border, rgba(0,0,0,.06));
+    min-height: 0;
+    background: var(--card, var(--card-bg, #fff));
+    align-items: start;
+  }
+  /* Só abre 2 colunas quando há orçamentos */
+  .rca-md-body.rca-md-body--com-orc {
+    grid-template-columns: 1.4fr 1fr;
+  }
+  @media (max-width: 900px) {
+    .rca-md-body.rca-md-body--com-orc { grid-template-columns: 1fr; }
+  }
+  .rca-md-col { padding: 8px 12px 10px; min-width: 0; }
+  .rca-md-col + .rca-md-col { border-left: 1px solid var(--card-border, rgba(0,0,0,.06)); }
+  @media (max-width: 900px) {
+    .rca-md-col + .rca-md-col { border-left: none; border-top: 1px solid var(--card-border, rgba(0,0,0,.06)); }
+  }
+  .rca-md-col--orc.rca-md-col--vazia { display: none; }
+  .rca-md-body.rca-md-body--com-orc .rca-md-col--orc.rca-md-col--vazia { display: none; }
+  .rca-md-col-title {
+    font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .35px;
+    color: var(--text2, #64748b); margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between;
+  }
+  .rca-md-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+  .rca-md-item {
+    display: flex; align-items: center; gap: 8px; padding: 5px 8px;
+    border-radius: 8px; border: 1px solid var(--card-border, rgba(0,0,0,.05));
+    background: var(--bg, #f8fafc);
+  }
+  .rca-md-item-info { flex: 1; min-width: 0; }
+  .rca-md-item-name { font-size: 12px; font-weight: 700; color: var(--content-text, var(--text)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rca-md-item-meta { font-size: 10px; color: var(--text2, #64748b); margin-top: 0; }
+  .rca-md-item-btns { display: flex; gap: 4px; flex-shrink: 0; }
+  .rca-md-mini {
+    height: 24px; padding: 0 7px; border-radius: 6px; border: 1px solid var(--card-border);
+    background: var(--card, var(--card-bg, #fff)); color: var(--content-text); font: inherit; font-size: 10px; font-weight: 700; cursor: pointer;
+  }
+  .rca-md-mini--wa { border-color: #25d366; color: #128c7e; }
+  .rca-md-mini--wa:hover { background: rgba(37,211,102,.1); }
+  .rca-md-empty { font-size: 11px; color: var(--text2, #64748b); padding: 4px 0; line-height: 1.35; }
+  .rca-md-more {
+    font-size: 11px; color: var(--text2, #64748b); padding: 4px 2px 0;
+  }
+  .rca-md-more button {
+    border: none; background: none; color: #059669; font: inherit; font-size: 11px;
+    font-weight: 700; cursor: pointer; padding: 0; text-decoration: underline;
+  }
+  /* Mobile / app (mobile-shell iframe) — mesmo Meu Dia do RCA, layout em coluna */
+  @media (max-width: 700px) {
+    .rca-md-head { padding: 10px; gap: 8px; }
+    .rca-md-actions { width: 100%; }
+    .rca-md-btn { flex: 1; justify-content: center; min-height: 36px; }
+    .rca-md-kpis { gap: 6px; padding: 8px 10px; }
+    .rca-md-kpi {
+      flex: 1 1 calc(33.33% - 6px);
+      max-width: none;
+      min-width: 0;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
+      padding: 8px;
+    }
+    .rca-md-kpi-val { font-size: 1.15rem; }
+    .rca-md-item { padding: 8px; gap: 8px; }
+    .rca-md-mini { min-height: 32px; padding: 0 10px; font-size: 11px; }
+    .rca-md-col { padding: 8px 10px 10px; }
+  }
+  html.sysrep-ms-embed #rca_meu_dia,
+  html.ms-embedded-tech #rca_meu_dia {
+    margin: 0 0 12px;
+    border-radius: 14px;
+  }
+  html.sysrep-ms-embed .dash-sec-label,
+  html.ms-embedded-tech .dash-sec-label {
+    margin-top: 4px;
+  }
+  /* Modal Oferta: no iframe do app cobre a viewport visível (não some no scroll) */
+  html.sysrep-ms-embed #modalRcaOfertaBack.rca-open,
+  html.ms-embedded-tech #modalRcaOfertaBack.rca-open {
+    position: absolute;
+    align-items: flex-start;
+    padding-top: 12px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  html.sysrep-ms-embed .rca-oferta-card,
+  html.ms-embedded-tech .rca-oferta-card {
+    width: min(560px, 100%);
+    max-height: none;
+    margin-bottom: 24px;
+  }
+  /* Separador: Meu Dia (RCA) × Resumo do mês (BI) */
+  .dash-sec-label {
+    display: flex; align-items: center; gap: 10px;
+    margin: 2px 0 0; padding: 0 2px;
+    font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--text2, #64748b);
+  }
+  .dash-sec-label::after {
+    content: ''; flex: 1; height: 1px;
+    background: var(--card-border, #e2e8f0);
+  }
+
+  /* Modal Oferta WhatsApp */
+  #modalRcaOfertaBack {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45);
+    z-index: 2147483000; align-items: center; justify-content: center; padding: 16px;
+  }
+  #modalRcaOfertaBack.rca-open { display: flex; }
+  .rca-oferta-card {
+    width: min(560px, 100%); background: var(--card, var(--card-bg, #fff));
+    border: 1px solid var(--card-border); border-radius: 16px;
+    box-shadow: 0 20px 48px rgba(0,0,0,.2); max-height: 90vh;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .rca-oferta-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 14px 16px; border-bottom: 1px solid var(--card-border);
+  }
+  .rca-oferta-body { padding: 14px 16px; overflow-y: auto; flex: 1; }
+  .rca-oferta-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; color: var(--text2); margin: 0 0 6px; }
+  .rca-oferta-field {
+    width: 100%; box-sizing: border-box; height: 38px; padding: 0 12px;
+    border-radius: 9px; border: 1.5px solid var(--card-border);
+    background: var(--card, #fff); color: var(--content-text, var(--text));
+    font: inherit; font-size: 13px; margin-bottom: 12px;
+  }
+  .rca-oferta-field option { color: var(--content-text, var(--text)); background: var(--card, #fff); }
+  textarea.rca-oferta-field { height: auto; min-height: 120px; padding: 10px 12px; resize: vertical; }
+  .rca-oferta-cli-drop {
+    border: 1px solid var(--card-border); border-radius: 10px; max-height: 160px; overflow-y: auto;
+    margin: -6px 0 12px; display: none;
+  }
+  .rca-oferta-cli-drop.rca-show { display: block; }
+  .rca-oferta-cli-opt {
+    display: block; width: 100%; text-align: left; padding: 9px 12px;
+    border: none; border-bottom: 1px solid var(--card-border); background: transparent;
+    color: var(--content-text); font: inherit; font-size: 13px; cursor: pointer;
+  }
+  .rca-oferta-cli-opt:hover { background: rgba(16,185,129,.08); }
+  .rca-oferta-cli-opt:last-child { border-bottom: none; }
+  .rca-oferta-promo {
+    display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px;
+    border: 1px solid var(--card-border); border-radius: 9px; margin-bottom: 6px;
+    cursor: pointer; background: var(--bg, transparent);
+  }
+  .rca-oferta-promo:hover { border-color: #10b981; }
+  .rca-oferta-promo input { margin-top: 3px; }
+  .rca-oferta-promo-name { font-size: 13px; font-weight: 650; color: var(--content-text); }
+  .rca-oferta-promo-price { font-size: 12px; color: #059669; font-weight: 700; margin-top: 1px; }
+  .rca-oferta-foot {
+    display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap;
+    padding: 12px 16px; border-top: 1px solid var(--card-border);
+  }
+
   @keyframes vitrineSpotIn {
     from { opacity: 0; transform: translateY(8px); }
     to   { opacity: 1; transform: none; }
@@ -1151,6 +1397,27 @@
   .sb-user    { color:var(--statusbar-text,#ddd);font-weight:500; }
   .sb-whats-on  { color:#4ade80;font-weight:600; }
   .sb-whats-off { color:var(--statusbar-text,#888); }
+
+  /* Ações discretas no rodapé (Fonte / Ajuda / WhatsApp) */
+  .sb-tools {
+    display:flex;align-items:center;gap:2px;
+    padding:0 6px;height:100%;
+  }
+  .sb-tools + .sb-seg,
+  .sb-seg + .sb-tools { border-left:1px solid var(--statusbar-border,rgba(255,255,255,.08)); }
+  .sb-tool-btn {
+    display:inline-flex;align-items:center;gap:4px;
+    height:22px;padding:0 8px;border-radius:5px;
+    border:none;background:transparent;
+    color:var(--statusbar-text,#aaa);
+    font:inherit;font-size:11px;cursor:pointer;
+    white-space:nowrap;transition:background .15s, color .15s;
+  }
+  .sb-tool-btn:hover { background:rgba(255,255,255,.08); color:var(--statusbar-text,#ddd); }
+  .sb-tool-btn svg { width:12px;height:12px;flex-shrink:0; }
+  .sb-tool-btn.whats-on { color:#4ade80;font-weight:600; }
+  .sb-tool-btn.whats-on:hover { color:#86efac; }
+  .sb-tool-lbl { max-width:110px;overflow:hidden;text-overflow:ellipsis; }
 
   @keyframes pulse-red {
     0%,100%{opacity:1} 50%{opacity:.4}
@@ -2061,42 +2328,8 @@
       Tema
     </button>
 
-    <!-- Botão Fonte/Ajustes -->
-    <button class="topbar-btn" onclick="window.SysFont?.open()" title="Fonte, tamanho e acento">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-          d="M4 20h16M6 20l6-16 6 16M9 12h6"/>
-      </svg>
-      Fonte
-    </button>
-
-    <button class="topbar-btn" onclick="abrirCentralAjuda()" title="Central de Ajuda">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-      </svg>
-      Ajuda
-    </button>
-
-    <!-- Botão Landing Page -->
-    <button class="topbar-btn btn-landing-destaque" onclick="abrirLandingPage()" title="Ver e compartilhar a página de apresentação do sistema">
-      ✨ Conheça o PedidosWeb
-    </button>
-
-    <!-- Botão Configurações -->
-    <button id="btn_topbar_config" class="topbar-btn" onclick="abrirConfiguracaoSistema()" title="Configurações do Sistema" style="display:none">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-      </svg>
-      Config
-    </button>
-
-    <!-- Botão WhatsApp -->
-    <button class="topbar-btn" id="btn_whatsapp" onclick="iniciarWhatsApp()">
-      <svg viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 2C6.477 2 2 6.477 2 12c0 4.97 3.657 9.067 8.438 9.877L12 22l1.562-.123C18.343 21.067 22 16.97 22 12 22 6.477 17.523 2 12 2zm1.1 14.4c-1.2.4-2.5.6-3.8.6-.3 0-.6 0-.9-.02l-.7-.04.6-2.2-.4-.5c-.8-.9-.9-1.4-.6-1.8.2-.3.5-.6.9-.9.3-.2.5-.3.7-.3.2 0 .4.1.6.2.2.1.4.2.6.3.2.1.4.1.5.1.1 0 .2 0 .2-.1.1-.1.2-.3.3-.5.1-.2.2-.4.3-.5.1-.2.2-.3.4-.3s.5 0 .9.2c.7.3 1.4.9 1.9 1.6.5.7.8 1.6.8 2.6 0 1.1-.4 2.2-1.3 2.8-.6.4-1.2.6-1.9.8z"/>
-      </svg>
-      <span id="btn_whatsapp_label">WhatsApp</span>
-    </button>
+    <!-- Fonte / Ajuda / WhatsApp / Config → rodapé (menos poluição na topbar) -->
+    <!-- Landing «Conheça o PedidosWeb» → rodapé (Novidades) -->
 
     <button type="button" class="topbar-btn topbar-btn-vitrine" onclick="abrirModalVitrineHome()" title="Gerar catálogo digital para o cliente">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
@@ -2188,6 +2421,60 @@
           <div id="alerta-rotas-lista"></div>
         </div>
       </div>
+
+      <!-- Painel RCA — Meu Dia (acima dos KPIs) -->
+      <section id="rca_meu_dia" class="rca-visivel" aria-label="Meu Dia — representante">
+        <div class="rca-md-head">
+          <div class="rca-md-title-wrap">
+            <div class="rca-md-icon" aria-hidden="true">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            </div>
+            <div>
+              <div class="rca-md-title">Meu Dia</div>
+              <div class="rca-md-sub" id="rca_md_sub">Carteira, orçamentos e ofertas</div>
+            </div>
+          </div>
+          <div class="rca-md-actions">
+            <button type="button" class="rca-md-btn rca-md-btn--ghost" onclick="openPedidosTab('')">Novo pedido</button>
+            <button type="button" class="rca-md-btn rca-md-btn--pri" onclick="abrirModalRcaOferta()">Oferta WhatsApp</button>
+          </div>
+        </div>
+        <div class="rca-md-kpis" id="rca_md_kpis">
+          <div class="rca-md-kpi" id="rca_kpi_parados" role="button" tabindex="0" title="Clientes sem compra recente" onclick="document.getElementById('rca_lista_parados')?.scrollIntoView({behavior:'smooth',block:'nearest'})">
+            <span class="rca-md-kpi-val" id="rca_kpi_parados_val">…</span>
+            <span class="rca-md-kpi-label">parados</span>
+            <span class="rca-md-kpi-hint" id="rca_kpi_parados_hint" hidden>45+ dias</span>
+          </div>
+          <div class="rca-md-kpi" id="rca_kpi_orc" role="button" tabindex="0" title="Orçamentos pendentes" onclick="openPedidosTab('gerafinanceiro=N')">
+            <span class="rca-md-kpi-val" id="rca_kpi_orc_val">…</span>
+            <span class="rca-md-kpi-label">orçamentos</span>
+            <span class="rca-md-kpi-hint" id="rca_kpi_orc_hint" hidden>pendentes</span>
+          </div>
+          <div class="rca-md-kpi" id="rca_kpi_promo" role="button" tabindex="0" title="Promoções ativas" onclick="abrirModalRcaOferta()">
+            <span class="rca-md-kpi-val" id="rca_kpi_promo_val">…</span>
+            <span class="rca-md-kpi-label">promoções</span>
+          </div>
+        </div>
+        <div class="rca-md-body" id="rca_md_body">
+          <div class="rca-md-col">
+            <div class="rca-md-col-title">
+              <span>Reativar</span>
+              <button type="button" class="rca-md-mini" onclick="carregarMeuDiaRca()">Atualizar</button>
+            </div>
+            <ul class="rca-md-list" id="rca_lista_parados"><li class="rca-md-empty">Carregando…</li></ul>
+            <div class="rca-md-more" id="rca_lista_parados_more" hidden></div>
+          </div>
+          <div class="rca-md-col rca-md-col--orc rca-md-col--vazia" id="rca_col_orc">
+            <div class="rca-md-col-title">
+              <span>Orçamentos</span>
+              <button type="button" class="rca-md-mini" onclick="openPedidosTab('gerafinanceiro=N')">Ver todos</button>
+            </div>
+            <ul class="rca-md-list" id="rca_lista_orc"></ul>
+          </div>
+        </div>
+      </section>
+
+      <div class="dash-sec-label" id="dash_sec_resumo">Resumo do mês</div>
 
       <!-- KPI GRID PREMIUM -->
       <div class="kpi-row" id="kpi_row">
@@ -2490,8 +2777,8 @@
 
   </div>
 
-  <!-- TIMELINE -->
-  <div class="timeline-panel">
+  <!-- TIMELINE — inicia recolhida (mais espaço no dashboard) -->
+  <div class="timeline-panel tl-hidden">
     <div class="tl-header" style="display:flex;align-items:center;justify-content:space-between">
       <div class="tl-header-title">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2626,6 +2913,10 @@
         <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z"/>
       </svg>
     </button>
+    <button type="button" class="btn-novidades" onclick="abrirLandingPage()" title="Página de apresentação do PedidosWeb" style="margin-left:2px">
+      <span aria-hidden="true">🔗</span>
+      <span>Apresentação</span>
+    </button>
   </div>
 
   <div class="sb-seg">
@@ -2646,13 +2937,20 @@
     <span class="sb-warn" id="status_backup">Verificando backup...</span>
   </div>
 
-  <div class="sb-seg">
-    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="color:var(--statusbar-text,#888)">
-      <path stroke-linecap="round" stroke-linejoin="round"
-        d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3
-           20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
-    </svg>
-    <span class="sb-whats-off" id="status_whatsapp">WhatsApp não configurado</span>
+  <div class="sb-tools" title="Ferramentas">
+    <button type="button" class="sb-tool-btn" onclick="window.SysFont?.open()" title="Fonte, tamanho e acento">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 20h16M6 20l6-16 6 16M9 12h6"/></svg>
+      Fonte
+    </button>
+    <button type="button" class="sb-tool-btn" onclick="abrirCentralAjuda()" title="Central de Ajuda">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      Ajuda
+    </button>
+    <button type="button" class="sb-tool-btn" id="btn_whatsapp" onclick="iniciarWhatsApp()" title="Conectar / status do WhatsApp">
+      <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M12 2C6.477 2 2 6.477 2 12c0 4.97 3.657 9.067 8.438 9.877L12 22l1.562-.123C18.343 21.067 22 16.97 22 12 22 6.477 17.523 2 12 2zm1.1 14.4c-1.2.4-2.5.6-3.8.6-.3 0-.6 0-.9-.02l-.7-.04.6-2.2-.4-.5c-.8-.9-.9-1.4-.6-1.8.2-.3.5-.6.9-.9.3-.2.5-.3.7-.3.2 0 .4.1.6.2.2.1.4.2.6.3.2.1.4.1.5.1.1 0 .2 0 .2-.1.1-.1.2-.3.3-.5.1-.2.2-.4.3-.5.1-.2.2-.3.4-.3s.5 0 .9.2c.7.3 1.4.9 1.9 1.6.5.7.8 1.6.8 2.6 0 1.1-.4 2.2-1.3 2.8-.6.4-1.2.6-1.9.8z"/></svg>
+      <span class="sb-tool-lbl" id="btn_whatsapp_label">WhatsApp</span>
+    </button>
+    <span class="sb-whats-off" id="status_whatsapp" style="font-size:10px;max-width:140px;overflow:hidden;text-overflow:ellipsis">desconectado</span>
   </div>
 
   <div class="sb-spacer"></div>
@@ -2836,6 +3134,9 @@ const SUBMENUS = {
         { label: 'Campanhas WhatsApp', key: 'campanhas-whatsapp', page: '/pages/comercial-campanhas-whatsapp.html',
           perm: 'gtela_campanhas_wa',
           svg: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>' },
+        { label: 'Marketplace — De-para', key: 'marketplace-anuncios', page: '/pages/marketplace-anuncios.html',
+          perm: 'gtela_marketplace',
+          svg: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/>' },
         { label: 'E-mails Enviados', key: 'emails-enviados', page: '/pages/emails-enviados.html', perm: 'gtela_emails_enviados',
           svg: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>' },
         { label: 'Catálogos Visuais', key: 'comercial-catalogos', page: '/pages/comercial-catalogos.html',
@@ -2885,6 +3186,9 @@ const SUBMENUS = {
         { label: 'Relatórios Região / Carteira', key: 'comercial-relatorios-regiao', page: '/pages/comercial-relatorios-regiao.html',
           perm: 'gtela_relatorios_regiao',
           svg: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>' },
+        { label: 'Carteira Operacional', key: 'comercial-carteira-operacional', page: '/pages/comercial-carteira-operacional.html',
+          perm: 'gtela_relatorios_regiao',
+          svg: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857M15 7a3 3 0 11-6 0 3 3 0 016 0"/>' },
       ]
     },
     {
@@ -2945,6 +3249,8 @@ const SUBMENUS = {
       items: [
         { label: 'Configurações de API', key: 'config-api', page: '/pages/config-api.html',
           svg: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>' },
+        { label: 'Integração Bling', key: 'integracao-bling', page: '/pages/integracao-bling.html', adminOnly: true,
+          svg: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>' },
         { label: 'Config. do Sistema', key: 'config-sistema', page: '/pages/config-sistema.html',
           svg: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>' },
         { label: 'Marca da instalação', key: 'parametro-locais', page: '/pages/parametro-locais.html',
@@ -3565,8 +3871,15 @@ window.addEventListener('DOMContentLoaded', async () => {
     verificarBackup(token);
     verificarWhatsApp(token);
   }
+  // Meu Dia: chama cedo (não só dentro do dashboard) para não ficar «Carregando…»
+  if (typeof carregarMeuDiaRca === 'function') {
+    setTimeout(() => carregarMeuDiaRca(token), 50);
+    setTimeout(() => carregarMeuDiaRca(token), 1500); // 2ª tentativa se a 1ª falhou por timing
+  }
   carregarAlertaRotas(token);
   registrarPushSubscription(token);
+  // Acesso Rápido começa fechado — mostra o botão flutuante
+  if (!_isAppEmbed && typeof ocultarTimeline === 'function') ocultarTimeline();
   setTimeout(notifyShellChromeState, 400);
 });
 
@@ -3721,12 +4034,9 @@ async function carregarModulos(token) {
       // Ocultar módulo Estoque se usuário sem tela_estoque
       if (cfg.key === 'estoque' && window.App?.perm?.gtela_estoque === 'N') return;
 
-      // Módulo de configurações: mantém o atalho rápido na topbar (abre direto
-      // Config. do Sistema) e também entra na sidebar como os demais módulos
-      // (accordion com todos os itens: Configurações de API, Marca, LGPD…).
+      // Configurações: só na lateral (sem atalho «Config» na topbar — evita poluição)
       if (cfg.key === 'configuracoes') {
-        const btnTopbar = document.getElementById('btn_topbar_config');
-        if (btnTopbar) btnTopbar.style.display = 'flex';
+        /* no-op topbar */
       }
 
       const btn = document.createElement('button');
@@ -3986,8 +4296,12 @@ function voltarHome() {
     const bar = document.getElementById('tab-bar');
     if (bar && bar.innerHTML) bar.innerHTML = '';
   }
-  // Reexibe a timeline
-  mostrarTimeline();
+  // Acesso Rápido permanece recolhido na home (abre pelo botão flutuante)
+  if (typeof ocultarTimeline === 'function') ocultarTimeline();
+  // Garante Meu Dia ao voltar da aba (não depende só do 1º load do dashboard)
+  if (typeof carregarMeuDiaRca === 'function') {
+    try { carregarMeuDiaRca(); } catch (_) {}
+  }
   notifyShellChromeState();
 }
 
@@ -4107,6 +4421,12 @@ function dismissVitrineSpotlight() {
   try { localStorage.setItem('sysrep_vitrine_spotlight_dismissed', '1'); } catch (_) {}
 }
 
+/** Reexibe os cards grandes de Vitrine/Showroom na home (opcional). */
+function showVitrineSpotlight() {
+  document.documentElement.classList.remove('vitrine-spotlight-dismissed');
+  try { localStorage.setItem('sysrep_vitrine_spotlight_dismissed', '0'); } catch (_) {}
+}
+
 function toggleSidebarCollapse() {
   const collapsed = document.documentElement.classList.toggle('sidebar-collapsed');
   try { localStorage.setItem('sysrep_sidebar_collapsed', collapsed ? '1' : '0'); } catch (_) {}
@@ -4177,6 +4497,7 @@ function temAcessoPagina(page) {
     '/pages/comercial-relatorios-padrao.html': 'gtela_rel_padrao',
     '/pages/relatorio-peso.html': 'gtela_rel_peso',
     '/pages/comercial-relatorios-regiao.html': 'gtela_relatorios_regiao',
+    '/pages/comercial-carteira-operacional.html': 'gtela_relatorios_regiao',
     '/pages/performance-representantes.html': 'gtela_dash_performance_rep',
     '/pages/comercial-dashboards.html': 'gtela_dash_painel_exec',
     '/pages/comercial-clientes-ia.html': 'gtela_dash_clientes_carteira',
@@ -4731,6 +5052,7 @@ async function abrirModalAniversariantes(token) {
 
 // ═══ VITRINE DIGITAL (HOME) ═════════════════════════════════════════════════
 let _vitrineHomeTimer = null;
+let _vitrineCtxCliente = null;
 
 function fecharModalVitrineHome() {
   const back = document.getElementById('modalVitrineHomeBack');
@@ -4879,28 +5201,17 @@ function _vitrineHomeIframeShow(data) {
   const link   = String(data.link || '');
   const expira = String(data.expira || '');
   const waUrl  = String(data.waUrl || ('https://wa.me/?text=' + encodeURIComponent('Olá! Acesse o catálogo: ' + link)));
-  const linkSafe = link.replace(/"/g, '&quot;');
-  body.innerHTML = `
-    <div style="margin-bottom:12px;font-size:13px;color:var(--text2);line-height:1.45">
-      Link válido até <strong>${expira}</strong>. Compartilhe com o cliente para que ele consulte produtos e faça pedidos.
-    </div>
-    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
-      <input id="vitrineHomeLink" value="${linkSafe}" readonly
-        style="flex:1;padding:10px 12px;border:1.5px solid var(--card-border);border-radius:8px;font-size:11px;background:var(--content-bg);color:var(--content-text);font-family:monospace;outline:none">
-      <button type="button" onclick="copiarVitrineHome()" style="flex-shrink:0;height:38px;padding:0 14px;border:none;border-radius:8px;background:#0284c7;color:#fff;font:inherit;font-size:12px;font-weight:700;cursor:pointer">Copiar</button>
-    </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
-      <a href="${linkSafe}" target="_blank" rel="noopener"
-        style="flex:1;min-width:120px;height:36px;border:1.5px solid var(--card-border);border-radius:8px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--content-text);text-decoration:none;background:var(--content-bg)">Abrir vitrine</a>
-      <a href="${waUrl.replace(/"/g,'&quot;')}" target="_blank" rel="noopener"
-        style="flex:1;min-width:120px;height:36px;border:1.5px solid #bbf7d0;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#16a34a;text-decoration:none;background:#f0fdf4">Enviar WhatsApp</a>
-    </div>
-    <div id="vitrineHomePicker"></div>
-    <div id="vitrineHomeQrWrap" style="display:none;flex-direction:column;align-items:center;gap:6px;margin-top:14px">
-      <div id="vitrineHomeQr" style="border:1px solid var(--card-border);border-radius:12px;padding:8px;background:#fff;display:inline-block"></div>
-      <span style="font-size:10px;color:var(--text2)">QR Code — aponte a câmera do cliente</span>
-    </div>`;
-  _gerarQrVitrineHome(link);
+  _vitrineTokenAtual = String(link.split('/vitrine/')[1] || data.token || '');
+  body.innerHTML = _vitrineResultadoHtml({
+    expira,
+    link,
+    waUrl,
+    tema: data.tema || 'DIA',
+    renovarOnclick: '_renovarVitrineCliente()',
+    showOutroCliente: false,
+    tituloHtml: `<div style="margin:-4px 0 12px;font-size:13px;color:var(--text2);line-height:1.45">Compartilhe com o cliente para consultar produtos e fazer pedidos.</div>`,
+  });
+  if (data.id_cliente) _vitrineCtxCliente = { id: data.id_cliente, nome: data.nome || '' };
   _vitrinePickerTabelas(data.id_cliente || null, link, 'vitrineHomePicker');
 }
 
@@ -4919,19 +5230,21 @@ async function _vitrinePickerTabelas(idCliente, link, containerId) {
     if (!r.ok) return;
     tabelas = await r.json();
   } catch (_) { return; }
-  if (!Array.isArray(tabelas) || tabelas.length < 2) return; // 0 ou 1 tabela: nada a escolher
+  if (!Array.isArray(tabelas) || tabelas.length < 2) return;
 
-  const sel = new Set(tabelas.map(t => Number(t.id_tabela))); // inicia todas marcadas
+  const sel = new Set(tabelas.map(t => Number(t.id_tabela)));
   let termo = '';
-  let page = 1;
-  const PAGE_SIZE = 10;
   const filtradas = () => {
     const q = termo.trim().toLowerCase();
     return q ? tabelas.filter(t => String(t.descricao || '').toLowerCase().includes(q)) : tabelas;
   };
+  // Lista de baixo = só as que ainda NÃO estão nos chips (evita duplicar)
+  const disponiveis = () => filtradas().filter(t => !sel.has(Number(t.id_tabela)));
+  const byId = (id) => tabelas.find(t => Number(t.id_tabela) === Number(id));
+  const esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 
   box.innerHTML = `
-    <div class="vpt-wrap" style="margin-top:14px;border:1px solid var(--card-border);border-radius:12px;overflow:hidden;background:var(--content-bg)">
+    <div class="vpt-wrap" style="margin-top:4px;border:1px solid var(--card-border);border-radius:12px;overflow:hidden;background:var(--content-bg)">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border-bottom:1px solid var(--card-border)">
         <div style="font-size:12px;font-weight:700;color:var(--content-text)">Tabelas neste link <span id="vptCount" style="font-weight:400;color:var(--text2)"></span></div>
         <div style="display:flex;gap:6px;flex-shrink:0">
@@ -4939,78 +5252,23 @@ async function _vitrinePickerTabelas(idCliente, link, containerId) {
           <button type="button" id="vptNone" style="height:26px;padding:0 10px;border:1px solid var(--card-border);border-radius:6px;background:transparent;color:var(--content-text);font:inherit;font-size:11px;font-weight:600;cursor:pointer">Limpar</button>
         </div>
       </div>
+      <div class="vpt-chips" id="vptChips"></div>
       <div style="padding:8px 12px;border-bottom:1px solid var(--card-border)">
-        <input id="vptSearch" type="text" placeholder="Buscar tabela…" autocomplete="off"
+        <div style="font-size:10px;font-weight:700;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.03em">Adicionar tabelas</div>
+        <input id="vptSearch" type="text" placeholder="Buscar para adicionar…" autocomplete="off"
           style="width:100%;height:34px;padding:0 12px;border:1px solid var(--card-border);border-radius:7px;background:var(--content-bg);color:var(--content-text);font:inherit;font-size:12px;outline:none;box-sizing:border-box">
       </div>
-      <div id="vptList" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0;min-height:120px;max-height:280px;overflow-y:auto;overflow-x:hidden;padding:4px 0"></div>
-      <div id="vptPager" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:8px 12px;border-top:1px solid var(--card-border);background:var(--card-bg,var(--content-bg))"></div>
+      <div id="vptList" style="max-height:260px;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch"></div>
       <div id="vptMsg" style="font-size:11px;color:var(--text2);padding:6px 12px;border-top:1px solid var(--card-border);min-height:26px"></div>
     </div>`;
 
   const list = box.querySelector('#vptList');
-  const pager = box.querySelector('#vptPager');
+  const chips = box.querySelector('#vptChips');
   const msg = box.querySelector('#vptMsg');
   const count = box.querySelector('#vptCount');
   const search = box.querySelector('#vptSearch');
 
   const updateMeta = () => { count.textContent = '— ' + sel.size + ' de ' + tabelas.length + ' marcadas'; };
-
-  const vptPageNums = (current, total) => {
-    if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
-    const out = [1];
-    if (current > 3) out.push('…');
-    const from = Math.max(2, current - 1);
-    const to = Math.min(total - 1, current + 1);
-    for (let i = from; i <= to; i++) out.push(i);
-    if (current < total - 2) out.push('…');
-    out.push(total);
-    return out;
-  };
-
-  const renderPager = (arr) => {
-    const total = arr.length;
-    const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-    if (page > pages) page = pages;
-    if (total <= PAGE_SIZE) {
-      pager.innerHTML = total
-        ? '<span style="font-size:11px;font-weight:600;color:var(--text2)">' + total + ' tabela(s)</span><span></span>'
-        : '';
-      pager.style.display = total ? 'flex' : 'none';
-      return;
-    }
-    const start = (page - 1) * PAGE_SIZE;
-    const end = Math.min(start + PAGE_SIZE, total);
-    const btn = (label, p, active, disabled) =>
-      '<button type="button" class="vpt-pg" data-page="' + p + '"' + (active ? ' data-active="1"' : '') + (disabled ? ' disabled' : '') + '>' + label + '</button>';
-    let nav = btn('‹', 'prev', false, page <= 1);
-    vptPageNums(page, pages).forEach((n) => {
-      nav += n === '…'
-        ? '<span style="padding:0 4px;color:var(--text2);font-size:12px;font-weight:700">…</span>'
-        : btn(String(n), String(n), n === page, false);
-    });
-    nav += btn('›', 'next', false, page >= pages);
-    pager.innerHTML =
-      '<span style="font-size:11px;font-weight:600;color:var(--text2)">Mostrando <strong style="color:var(--content-text)">' + (start + 1) + '–' + end + '</strong> de <strong style="color:var(--content-text)">' + total + '</strong></span>' +
-      '<div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">' + nav + '</div>';
-    pager.style.display = 'flex';
-    pager.querySelectorAll('.vpt-pg').forEach((b) => {
-      b.style.cssText = 'min-width:30px;height:30px;padding:0 8px;border-radius:8px;border:1.5px solid var(--card-border);background:var(--content-bg);color:var(--content-text);font:inherit;font-size:11px;font-weight:700;cursor:pointer';
-      if (b.dataset.active) {
-        b.style.background = 'var(--accent,#0ea5e9)';
-        b.style.borderColor = 'transparent';
-        b.style.color = '#fff';
-      }
-      if (b.disabled) b.style.opacity = '0.4';
-      b.addEventListener('click', () => {
-        const p = b.getAttribute('data-page');
-        if (p === 'prev') page = Math.max(1, page - 1);
-        else if (p === 'next') page = Math.min(pages, page + 1);
-        else page = parseInt(p, 10) || 1;
-        renderList();
-      });
-    });
-  };
 
   let _t;
   const salvar = () => {
@@ -5032,49 +5290,79 @@ async function _vitrinePickerTabelas(idCliente, link, containerId) {
     }, 400);
   };
 
-  const renderList = () => {
-    const arr = filtradas();
-    const pages = Math.max(1, Math.ceil(arr.length / PAGE_SIZE));
-    if (page > pages) page = pages;
-    const slice = arr.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-    list.style.gridTemplateColumns = arr.length > 6 ? 'repeat(2,minmax(0,1fr))' : '1fr';
-    list.innerHTML = slice.length
-      ? slice.map(t => {
-          const id = Number(t.id_tabela);
-          const checked = sel.has(id);
-          return `<label style="display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;transition:background .12s;min-width:0${checked ? ';background:color-mix(in srgb,var(--accent,#0ea5e9) 8%,transparent)' : ''}"
-              onmouseover="this.style.background='var(--hover-bg, rgba(0,0,0,.04))'"
-              onmouseout="this.style.background='${checked ? "color-mix(in srgb,var(--accent,#0ea5e9) 8%,transparent)" : "transparent"}'">
-            <input type="checkbox" class="vptChk" value="${id}" ${checked ? 'checked' : ''}
-              style="width:16px;height:16px;accent-color:#0ea5e9;flex-shrink:0;cursor:pointer">
-            <span style="font-size:12px;color:var(--content-text);line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${String(t.descricao || '').replace(/"/g, '&quot;').replace(/</g, '&lt;')}">${String(t.descricao || '').replace(/</g, '&lt;')}</span>
-          </label>`;
+  const renderChips = () => {
+    const ids = [...sel];
+    const chipHtml = ids.length
+      ? ids.map(id => {
+          const t = byId(id);
+          if (!t) return '';
+          const nome = String(t.descricao || '#' + id);
+          return `<span class="vpt-chip" title="${esc(nome)}">
+            ${_vitrineAvatarHtml(nome)}
+            <span style="overflow:hidden;text-overflow:ellipsis;max-width:110px;white-space:nowrap">${esc(nome)}</span>
+            <button type="button" class="vpt-chip-x" data-rm="${id}" aria-label="Remover">×</button>
+          </span>`;
         }).join('')
-      : '<div style="grid-column:1/-1;font-size:12px;color:var(--text2);padding:14px">Nenhuma tabela encontrada.</div>';
-    renderPager(arr);
-    list.querySelectorAll('.vptChk').forEach(c => c.addEventListener('change', () => {
-      const id = parseInt(c.value, 10);
-      if (c.checked) sel.add(id); else sel.delete(id);
-      updateMeta(); salvar();
-      const lbl = c.closest('label');
-      if (lbl) {
-        const bg = c.checked ? 'color-mix(in srgb,var(--accent,#0ea5e9) 8%,transparent)' : 'transparent';
-        lbl.style.background = bg;
-        lbl.setAttribute('onmouseout', "this.style.background='" + bg + "'");
-      }
+      : '<span style="font-size:12px;color:var(--text2);padding:2px 0">Nenhuma tabela selecionada.</span>';
+    chips.innerHTML = chipHtml +
+      (disponiveis().length || termo
+        ? `<button type="button" class="vpt-chip-add" id="vptAddChip">+ adicionar</button>`
+        : '');
+    chips.querySelectorAll('[data-rm]').forEach(b => b.addEventListener('click', () => {
+      sel.delete(Number(b.getAttribute('data-rm')));
+      renderAll();
+      if (!sel.size) msg.textContent = 'Marque ao menos uma tabela.';
+      else salvar();
+    }));
+    chips.querySelector('#vptAddChip')?.addEventListener('click', () => {
+      search.focus();
+      search.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+  };
+
+  const renderList = () => {
+    const arr = disponiveis();
+    if (!arr.length) {
+      list.innerHTML = termo.trim()
+        ? '<div style="font-size:12px;color:var(--text2);padding:14px">Nenhuma tabela encontrada na busca.</div>'
+        : sel.size === tabelas.length
+          ? '<div style="font-size:12px;color:var(--text2);padding:14px;line-height:1.45">Todas as tabelas já estão no link. Remova um chip acima se quiser trocar.</div>'
+          : '<div style="font-size:12px;color:var(--text2);padding:14px">Nenhuma tabela disponível.</div>';
+      return;
+    }
+    list.innerHTML = arr.map(t => {
+      const id = Number(t.id_tabela);
+      const nome = String(t.descricao || '');
+      return `<button type="button" class="vpt-list-item" data-tid="${id}">
+        ${_vitrineAvatarHtml(nome)}
+        <span style="flex:1;min-width:0;font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(nome)}</span>
+        <span style="font-size:11px;font-weight:800;color:var(--accent,#0284c7);flex-shrink:0">+</span>
+      </button>`;
+    }).join('');
+    list.querySelectorAll('.vpt-list-item').forEach(b => b.addEventListener('click', () => {
+      const id = Number(b.getAttribute('data-tid'));
+      sel.add(id);
+      renderAll();
+      salvar();
     }));
   };
 
-  box.querySelector('#vptAll').addEventListener('click', () => { filtradas().forEach(t => sel.add(Number(t.id_tabela))); renderList(); updateMeta(); salvar(); });
-  box.querySelector('#vptNone').addEventListener('click', () => {
-    filtradas().forEach(t => sel.delete(Number(t.id_tabela)));
-    renderList(); updateMeta();
-    if (!sel.size) msg.textContent = 'Marque ao menos uma tabela.'; else salvar();
-  });
-  search.addEventListener('input', () => { termo = search.value; page = 1; renderList(); });
+  const renderAll = () => { updateMeta(); renderChips(); renderList(); };
 
-  updateMeta();
-  renderList();
+  box.querySelector('#vptAll').addEventListener('click', () => {
+    filtradas().forEach(t => sel.add(Number(t.id_tabela)));
+    renderAll(); salvar();
+  });
+  box.querySelector('#vptNone').addEventListener('click', () => {
+    if (termo.trim()) filtradas().forEach(t => sel.delete(Number(t.id_tabela)));
+    else sel.clear();
+    renderAll();
+    if (!sel.size) msg.textContent = 'Marque ao menos uma tabela.';
+    else salvar();
+  });
+  search.addEventListener('input', () => { termo = search.value; renderList(); renderChips(); });
+
+  renderAll();
 }
 
 function _vitrineHomeIframeError(msg) {
@@ -5092,7 +5380,223 @@ function _isoToDisplayBr(v) {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : String(v);
 }
 
-async function gerarVitrineAbertaHome() {
+function _vitrineParseExpiraIso(v) {
+  if (v == null || v === '') return null;
+  const s = String(v).trim();
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+  return null;
+}
+
+/** Dias restantes até expira_em (só validade — sem contador de acesso). */
+function _vitrineDiasRestantes(expira) {
+  const iso = _vitrineParseExpiraIso(expira);
+  if (!iso) return null;
+  const end = new Date(iso + 'T23:59:59');
+  if (Number.isNaN(end.getTime())) return null;
+  const now = new Date();
+  return Math.ceil((end.getTime() - now.getTime()) / 86400000);
+}
+
+function _vitrineExpiraCardHtml(expira) {
+  const dias = _vitrineDiasRestantes(expira);
+  const br = _isoToDisplayBr(_vitrineParseExpiraIso(expira) || expira);
+  let val = '—';
+  let warn = false;
+  if (dias !== null) {
+    if (dias < 0) { val = 'Expirado'; warn = true; }
+    else if (dias === 0) { val = 'Expira hoje'; warn = true; }
+    else if (dias === 1) { val = 'Expira em 1 dia'; warn = true; }
+    else { val = 'Expira em ' + dias + ' dias'; warn = dias <= 7; }
+  }
+  return `<div class="vt-mod-stats" title="Contador de acessos ainda não é registrado pelo sistema">
+    <div class="vt-mod-stat vt-mod-stat--exp${warn ? ' vt-mod-stat--warn' : ''}">
+      <span class="vt-mod-stat-lbl">Validade do link</span>
+      <span class="vt-mod-stat-val">${val}</span>
+      ${br ? `<span class="vt-mod-stat-sub">até ${br}</span>` : ''}
+    </div>
+  </div>`;
+}
+
+function _vitrineAvatarHue(nome) {
+  let h = 0;
+  const s = String(nome || '');
+  for (let i = 0; i < s.length; i++) h = ((h << 5) - h) + s.charCodeAt(i);
+  return Math.abs(h) % 360;
+}
+
+function _vitrineAvatarHtml(nome, sizeCls) {
+  const letter = ((nome || '?').trim().charAt(0) || '?').toUpperCase();
+  const hue = _vitrineAvatarHue(nome);
+  const cls = sizeCls || 'vpt-chip-av';
+  return `<span class="${cls}" style="background:hsl(${hue}, 42%, 42%)">${letter.replace(/</g, '&lt;')}</span>`;
+}
+
+function _vitrineToggleQr() {
+  const w = document.getElementById('vitrineHomeQrWrap');
+  if (!w) return;
+  const open = w.style.display !== 'flex';
+  w.style.display = open ? 'flex' : 'none';
+  if (open) {
+    const link = document.getElementById('vitrineHomeLink')?.value;
+    if (link) _gerarQrVitrineHome(link);
+  }
+}
+
+function _vitrineToggleMore(ev) {
+  if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+  const menu = document.getElementById('vitrineMoreMenu');
+  if (!menu) return;
+  const open = !menu.classList.contains('open');
+  menu.classList.toggle('open', open);
+}
+
+document.addEventListener('click', function (e) {
+  const menu = document.getElementById('vitrineMoreMenu');
+  if (!menu || !menu.classList.contains('open')) return;
+  if (e.target.closest('.vt-mod-more')) return;
+  menu.classList.remove('open');
+});
+
+function _vitrineAcoesHtml(opts) {
+  const link = String(opts.link || '');
+  const waUrl = String(opts.waUrl || ('https://wa.me/?text=' + encodeURIComponent('Olá! Acesse o catálogo: ' + link)));
+  const linkSafe = link.replace(/"/g, '&quot;');
+  const waSafe = waUrl.replace(/"/g, '&quot;');
+  const renovar = opts.renovarOnclick || '';
+  const outro = opts.showOutroCliente
+    ? `<button type="button" onclick="_vitrineToggleMore(null);abrirModalVitrineHome()">Outro cliente</button>`
+    : '';
+  const ico = (paths) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">${paths}</svg>`;
+  return `
+    <div class="vt-mod-actions">
+      <a class="vt-mod-act" href="${waSafe}" target="_blank" rel="noopener">
+        <span class="vt-mod-act-ico vt-mod-act-wa">${ico('<path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/>')}</span>
+        <span class="vt-mod-act-lbl">WhatsApp</span>
+      </a>
+      <button type="button" class="vt-mod-act" onclick="copiarVitrineHome()">
+        <span class="vt-mod-act-ico">${ico('<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>')}</span>
+        <span class="vt-mod-act-lbl">Copiar link</span>
+      </button>
+      <a class="vt-mod-act" href="${linkSafe}" target="_blank" rel="noopener">
+        <span class="vt-mod-act-ico">${ico('<path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>')}</span>
+        <span class="vt-mod-act-lbl">Abrir vitrine</span>
+      </a>
+      <button type="button" class="vt-mod-act" onclick="_vitrineToggleQr()">
+        <span class="vt-mod-act-ico">${ico('<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/><rect x="18" y="14" width="3" height="3"/><rect x="14" y="18" width="3" height="3"/><rect x="18" y="18" width="3" height="3"/>')}</span>
+        <span class="vt-mod-act-lbl">QR Code</span>
+      </button>
+      <div class="vt-mod-more">
+        <button type="button" class="vt-mod-act" onclick="_vitrineToggleMore(event)" aria-haspopup="true">
+          <span class="vt-mod-act-ico" style="font-size:18px;font-weight:800;letter-spacing:1px">⋯</span>
+          <span class="vt-mod-act-lbl">Mais</span>
+        </button>
+        <div id="vitrineMoreMenu" class="vt-mod-more-menu">
+          <button type="button" onclick="_vitrineToggleMore(null);${renovar}">Gerar link novo</button>
+          ${outro}
+        </div>
+      </div>
+    </div>
+    <div id="vitrineHomeQrWrap" class="vt-mod-qr" style="display:none">
+      <div id="vitrineHomeQr"></div>
+      <span>QR Code — aponte a câmera do cliente</span>
+    </div>`;
+}
+
+function _vitrineResultadoHtml(opts) {
+  const linkSafe = String(opts.link || '').replace(/"/g, '&quot;');
+  return `
+    ${_vitrineExpiraCardHtml(opts.expira)}
+    ${opts.tituloHtml || ''}
+    ${_avisoLinkEmUso(opts.reaproveitado)}
+    <div class="vt-mod-link-row">
+      <input id="vitrineHomeLink" value="${linkSafe}" readonly aria-label="Link da vitrine">
+    </div>
+    <div id="vitrineTemaBox">${_seletorTemaVitrine(opts.tema)}</div>
+    ${_vitrineAcoesHtml({
+      link: opts.link,
+      waUrl: opts.waUrl,
+      renovarOnclick: opts.renovarOnclick,
+      showOutroCliente: !!opts.showOutroCliente,
+    })}
+    <div id="vitrineHomePicker"></div>`;
+}
+
+// Trocar o link invalida o que o cliente ja recebeu — por isso a confirmacao.
+async function _confirmarNovoLinkVitrine() {
+  const msg = 'O link atual vai parar de funcionar para quem j\u00e1 recebeu. Gerar um link novo?';
+  if (typeof SysRepConfirm !== 'undefined' && SysRepConfirm.ask) {
+    return await SysRepConfirm.ask({ titulo: 'Gerar link novo?', mensagem: msg, okTexto: 'Gerar novo' });
+  }
+  return true;
+}
+// Fotos de produto costumam ter fundo branco, entao Dia e o padrao.
+let _vitrineTemaAtual = 'DIA';
+let _vitrineTokenAtual = '';
+function _seletorTemaVitrine(tema) {
+  _vitrineTemaAtual = String(tema || 'DIA').toUpperCase() === 'NOITE' ? 'NOITE' : 'DIA';
+  const isNoite = _vitrineTemaAtual === 'NOITE';
+  const sol = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M5 5l1.5 1.5M17.5 17.5L19 19M2 12h2M20 12h2M5 19l1.5-1.5M17.5 6.5L19 5"/></svg>';
+  const lua = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>';
+  return `<div class="vt-mod-tema">
+    <div class="vt-mod-tema-lbl">Aparência do catálogo</div>
+    <div class="vt-mod-seg" role="group" aria-label="Aparência Dia ou Noite">
+      <button type="button" class="vt-mod-seg-btn${!isNoite ? ' is-on' : ''}" onclick="_trocarTemaVitrine('DIA')">${sol} Dia</button>
+      <button type="button" class="vt-mod-seg-btn${isNoite ? ' is-on' : ''}" onclick="_trocarTemaVitrine('NOITE')">${lua} Noite</button>
+    </div>
+    ${isNoite
+      ? '<div class="vt-mod-tema-warn">Atenção: fotos com fundo branco podem perder contraste no modo Noite.</div>'
+      : '<div class="vt-mod-tema-hint">Fotos de produto com fundo branco ficam melhor no modo Dia.</div>'}
+  </div>`;
+}
+
+// Falhar em silencio aqui vira "o botao nao funciona": sempre avisa o motivo.
+function _avisarVitrine(msg, tipo) {
+  if (typeof toast === 'function') return toast(msg, tipo === 'erro' ? 'erro' : 'ok');
+  if (typeof SysRepConfirm !== 'undefined' && SysRepConfirm.alert) {
+    return SysRepConfirm.alert({ titulo: tipo === 'erro' ? 'Atenção' : 'Pronto', mensagem: msg });
+  }
+  console.warn('[vitrine]', msg);
+}
+
+async function _trocarTemaVitrine(tema) {
+  if (tema === _vitrineTemaAtual) return;
+  if (!_vitrineTokenAtual) {
+    _avisarVitrine('Gere o link antes de escolher a aparência.', 'erro');
+    return;
+  }
+  const jwt = sessionStorage.getItem('token') || localStorage.getItem('token');
+  try {
+    const r = await fetch('/api/vitrine/' + _vitrineTokenAtual + '/tema', {
+      method: 'PATCH',
+      headers: { Authorization: 'Bearer ' + jwt, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tema })
+    });
+    if (r.status === 404) {
+      throw new Error('O servidor ainda não tem essa função. Reinicie o sistema e tente de novo.');
+    }
+    if (!r.ok) {
+      const d = await r.json().catch(() => ({}));
+      throw new Error(d.erro || ('Erro ' + r.status + ' ao trocar a aparência.'));
+    }
+    const box = document.getElementById('vitrineTemaBox');
+    if (box) box.innerHTML = _seletorTemaVitrine(tema);
+    _avisarVitrine(tema === 'NOITE' ? 'Catálogo no modo Noite' : 'Catálogo no modo Dia', 'ok');
+  } catch (e) {
+    _avisarVitrine(e.message || 'Não foi possível trocar a aparência.', 'erro');
+  }
+}
+
+function _avisoLinkEmUso(reaproveitado) {
+  if (!reaproveitado) return '';
+  return `<div style="margin:-4px 0 12px;padding:8px 10px;border-radius:8px;background:#f0f9ff;border:1px solid #bae6fd;font-size:11px;color:#075985;line-height:1.45">
+    Este \u00e9 o link que <strong>j\u00e1 est\u00e1 em uso</strong>. Se voc\u00ea j\u00e1 enviou ao cliente, ele continua valendo \u2014 n\u00e3o precisa mandar de novo.
+  </div>`;
+}
+
+async function gerarVitrineAbertaHome(forcarNovo) {
   const body = document.getElementById('modalVitrineHomeBody');
   if (!body) return;
   body.innerHTML = '<div style="padding:32px 0;text-align:center;color:var(--text2)">Gerando link…</div>';
@@ -5101,31 +5605,24 @@ async function gerarVitrineAbertaHome() {
     const r = await fetch('/api/vitrine/gerar', {
       method: 'POST',
       headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ link_aberto: true, dias_validade: 60 })
+      body: JSON.stringify({ link_aberto: true, dias_validade: 60, forcar_novo: forcarNovo === true })
     });
     const d = await r.json();
     if (!r.ok) throw new Error(d.erro || 'Erro ao gerar link');
     const link = location.origin + d.link;
     const expira = _isoToDisplayBr(d.expira);
-    body.innerHTML = `
-      <div style="margin-bottom:12px;font-size:13px;color:var(--text2)">
-        <strong style="color:var(--content-text)">Link aberto</strong> — válido até <strong>${expira}</strong>.
-        Quem abrir informa nome e telefone ao enviar o pedido.
-      </div>
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
-        <input id="vitrineHomeLink" value="${link.replace(/"/g, '&quot;')}" readonly
-          style="flex:1;padding:10px 12px;border:1.5px solid var(--card-border);border-radius:8px;font-size:11px;background:var(--content-bg);color:var(--content-text);font-family:monospace;outline:none">
-        <button type="button" onclick="copiarVitrineHome()" style="flex-shrink:0;height:38px;padding:0 14px;border:none;border-radius:8px;background:#0284c7;color:#fff;font:inherit;font-size:12px;font-weight:700;cursor:pointer">Copiar</button>
-      </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <a href="${link.replace(/"/g, '&quot;')}" target="_blank" rel="noopener"
-          style="flex:1;min-width:120px;height:36px;border:1.5px solid var(--card-border);border-radius:8px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--content-text);text-decoration:none;background:var(--content-bg)">Abrir vitrine</a>
-        <a href="https://wa.me/?text=${encodeURIComponent('Olá! Confira nosso catálogo de produtos: ' + link)}" target="_blank" rel="noopener"
-          style="flex:1;min-width:120px;height:36px;border:1.5px solid #bbf7d0;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#16a34a;text-decoration:none;background:#f0fdf4">WhatsApp</a>
-        <button type="button" onclick="abrirModalVitrineHome()"
-          style="flex:1;min-width:120px;height:36px;border:1.5px solid var(--card-border);border-radius:8px;background:transparent;color:var(--content-text);font:inherit;font-size:12px;font-weight:700;cursor:pointer">Novo link</button>
-      </div>
-      <div id="vitrineHomePicker"></div>`;
+    _vitrineTokenAtual = d.token;
+    const waUrl = 'https://wa.me/?text=' + encodeURIComponent('Olá! Confira nosso catálogo de produtos: ' + link);
+    body.innerHTML = _vitrineResultadoHtml({
+      expira: d.expira || expira,
+      link,
+      waUrl,
+      tema: d.tema,
+      reaproveitado: d.reaproveitado,
+      renovarOnclick: '_renovarVitrineAberta()',
+      showOutroCliente: false,
+      tituloHtml: '<div style="margin:-4px 0 12px;font-size:13px;color:var(--text2);line-height:1.45"><strong style="color:var(--content-text)">Link aberto</strong> — quem abrir informa nome e telefone ao enviar o pedido.</div>',
+    });
     _vitrinePickerTabelas(null, link, 'vitrineHomePicker');
   } catch (e) {
     body.innerHTML = `
@@ -5134,7 +5631,16 @@ async function gerarVitrineAbertaHome() {
   }
 }
 
-async function gerarVitrineHome(idCliente, nomeCliente) {
+async function _renovarVitrineAberta() {
+  if (await _confirmarNovoLinkVitrine()) gerarVitrineAbertaHome(true);
+}
+async function _renovarVitrineCliente() {
+  if (!_vitrineCtxCliente) return;
+  const { id, nome } = _vitrineCtxCliente;
+  if (await _confirmarNovoLinkVitrine()) gerarVitrineHome(id, nome, true);
+}
+
+async function gerarVitrineHome(idCliente, nomeCliente, forcarNovo) {
   const body = document.getElementById('modalVitrineHomeBody');
   if (!body) return;
   body.innerHTML = '<div style="padding:32px 0;text-align:center;color:var(--text2)">Gerando link…</div>';
@@ -5143,31 +5649,26 @@ async function gerarVitrineHome(idCliente, nomeCliente) {
     const r = await fetch('/api/vitrine/gerar', {
       method: 'POST',
       headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id_cliente: idCliente, dias_validade: 60 })
+      body: JSON.stringify({ id_cliente: idCliente, dias_validade: 60, forcar_novo: forcarNovo === true })
     });
     const d = await r.json();
     if (!r.ok) throw new Error(d.erro || 'Erro ao gerar link');
     const link = location.origin + d.link;
     const expira = _isoToDisplayBr(d.expira);
     const nomeSafe = String(nomeCliente || 'Cliente').replace(/</g, '&lt;');
-    body.innerHTML = `
-      <div style="margin-bottom:12px;font-size:13px;color:var(--text2)">
-        Catálogo para <strong style="color:var(--content-text)">${nomeSafe}</strong> — válido até <strong>${expira}</strong>.
-      </div>
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
-        <input id="vitrineHomeLink" value="${link.replace(/"/g, '&quot;')}" readonly
-          style="flex:1;padding:10px 12px;border:1.5px solid var(--card-border);border-radius:8px;font-size:11px;background:var(--content-bg);color:var(--content-text);font-family:monospace;outline:none">
-        <button type="button" onclick="copiarVitrineHome()" style="flex-shrink:0;height:38px;padding:0 14px;border:none;border-radius:8px;background:#0284c7;color:#fff;font:inherit;font-size:12px;font-weight:700;cursor:pointer">Copiar</button>
-      </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <a href="${link.replace(/"/g, '&quot;')}" target="_blank" rel="noopener"
-          style="flex:1;min-width:120px;height:36px;border:1.5px solid var(--card-border);border-radius:8px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--content-text);text-decoration:none;background:var(--content-bg)">Abrir vitrine</a>
-        <a href="https://wa.me/?text=${encodeURIComponent('Olá! Acesse aqui o catálogo de produtos com seus preços: ' + link)}" target="_blank" rel="noopener"
-          style="flex:1;min-width:120px;height:36px;border:1.5px solid #bbf7d0;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#16a34a;text-decoration:none;background:#f0fdf4">WhatsApp</a>
-        <button type="button" onclick="abrirModalVitrineHome()"
-          style="flex:1;min-width:120px;height:36px;border:1.5px solid var(--card-border);border-radius:8px;background:transparent;color:var(--content-text);font:inherit;font-size:12px;font-weight:700;cursor:pointer">Outro cliente</button>
-      </div>
-      <div id="vitrineHomePicker"></div>`;
+    _vitrineCtxCliente = { id: idCliente, nome: nomeCliente };
+    _vitrineTokenAtual = d.token;
+    const waUrl = 'https://wa.me/?text=' + encodeURIComponent('Olá! Acesse aqui o catálogo de produtos com seus preços: ' + link);
+    body.innerHTML = _vitrineResultadoHtml({
+      expira: d.expira || expira,
+      link,
+      waUrl,
+      tema: d.tema,
+      reaproveitado: d.reaproveitado,
+      renovarOnclick: '_renovarVitrineCliente()',
+      showOutroCliente: true,
+      tituloHtml: '<div style="margin:-4px 0 12px;font-size:13px;color:var(--text2);line-height:1.45">Catálogo para <strong style="color:var(--content-text)">' + nomeSafe + '</strong>.</div>',
+    });
     _vitrinePickerTabelas(idCliente, link, 'vitrineHomePicker');
   } catch (e) {
     body.innerHTML = `
@@ -5239,8 +5740,585 @@ async function trocarUsuario() {
 // ═══ DASHBOARD ═══════════════════════════════════════════════════════════════
 const DASH_CORES = ['#42A5F5','#66BB6A','#FFA726','#AB47BC','#26C6DA','#FF7043','#7E57C2','#EC407A','#26A69A','#D4E157'];
 
+// ─── Painel RCA Meu Dia + Oferta WhatsApp ────────────────────────────────────
+let _rcaMeuDiaCache = null;
+let _rcaOfertaCliente = null;
+let _rcaOfertaBuscaTimer = null;
+let _rcaWaApiCache = { at: 0, pronta: false, provedor: '' };
+
+function _rcaHomeToken() {
+  try {
+    return sessionStorage.getItem('token') || localStorage.getItem('token') || (window.App && App.token) || '';
+  } catch (_) { return ''; }
+}
+
+function _rcaToast(msg, tipo) {
+  if (typeof window.PTToast === 'function') return window.PTToast(msg, tipo === 'err' ? 'error' : tipo === 'ok' ? 'success' : (tipo || 'info'));
+  if (typeof window.toast === 'function') return window.toast(msg, tipo);
+  if (typeof window.avisar === 'function') return window.avisar('Atenção', msg);
+}
+
+function _rcaWaNumero(tel) {
+  let d = String(tel || '').replace(/\D/g, '');
+  if (!d) return '';
+  if (!d.startsWith('55') && (d.length === 10 || d.length === 11)) d = '55' + d;
+  return d;
+}
+
+function _rcaEsc(s) {
+  return String(s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+/** Status WhatsApp API (EuAtendo / Evolution) — cache curto; respeita topbar se já verificou. */
+async function _rcaWaStatus(force) {
+  const agora = Date.now();
+  if (!force && _rcaWaApiCache.at && (agora - _rcaWaApiCache.at) < 30000) {
+    return _rcaWaApiCache;
+  }
+  // Reaproveita estado da topbar se já estiver online
+  if (!force && typeof whatsConectado !== 'undefined' && whatsConectado === true) {
+    _rcaWaApiCache = {
+      at: agora,
+      pronta: true,
+      provedor: (typeof whatsProvedor !== 'undefined' && whatsProvedor) ? whatsProvedor : 'API',
+    };
+    return _rcaWaApiCache;
+  }
+  try {
+    const tok = _rcaHomeToken();
+    const r = await fetch('/api/whatsapp/status', {
+      headers: { Authorization: 'Bearer ' + tok },
+      credentials: 'include',
+    });
+    if (!r.ok) {
+      _rcaWaApiCache = { at: agora, pronta: false, provedor: '' };
+      return _rcaWaApiCache;
+    }
+    const d = await r.json();
+    const pronta = d.conectado === true || d.status === 'open';
+    _rcaWaApiCache = {
+      at: agora,
+      pronta,
+      provedor: d.provedor || (pronta ? 'EVOLUTION' : ''),
+    };
+  } catch (_) {
+    _rcaWaApiCache = { at: agora, pronta: false, provedor: '' };
+  }
+  return _rcaWaApiCache;
+}
+
+function _rcaLabelProvedor(prov) {
+  if (String(prov || '').toUpperCase() === 'EUATENDO') return 'ApiChat EuAtendo';
+  if (String(prov || '').toUpperCase() === 'META') return 'Meta (API oficial)';
+  if (String(prov || '').toUpperCase() === 'EVOLUTION') return 'Evolution API';
+  return prov || 'API WhatsApp';
+}
+
+/**
+ * Envia pela API se configurada/conectada; senão abre wa.me (fallback).
+ * @returns {{ via: 'api'|'wa.me', provedor?: string }}
+ */
+async function _rcaEnviarWhatsApp({ numero, mensagem, cod_cliente }) {
+  const num = _rcaWaNumero(numero);
+  if (!num) throw new Error('Número WhatsApp inválido');
+  const texto = String(mensagem || '').trim();
+  if (!texto) throw new Error('Mensagem vazia');
+
+  const st = await _rcaWaStatus(true);
+  if (st.pronta) {
+    const tok = _rcaHomeToken();
+    const body = { numero: num, mensagem: texto };
+    const cod = parseInt(cod_cliente, 10);
+    if (cod > 0) body.cod_cliente = cod;
+
+    const r = await fetch('/api/whatsapp/enviar', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer ' + tok,
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify(body),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      throw new Error(d.error || 'Falha no envio pela API WhatsApp');
+    }
+    return { via: 'api', provedor: d.provedor || st.provedor || 'API' };
+  }
+
+  window.open(`https://wa.me/${num}?text=${encodeURIComponent(texto)}`, '_blank');
+  return { via: 'wa.me' };
+}
+
+async function _rcaAtualizarHintOferta() {
+  const hint = document.getElementById('rca_oferta_wa_hint');
+  const btn = document.getElementById('rca_oferta_btn_wa');
+  const st = await _rcaWaStatus(false);
+  if (st.pronta) {
+    if (hint) hint.textContent = `Envio pela ${_rcaLabelProvedor(st.provedor)} (computador) · histórico do cliente gravado`;
+    if (btn) btn.textContent = 'Enviar pela API';
+  } else {
+    if (hint) hint.textContent = 'API WhatsApp offline — abre o WhatsApp Web (wa.me)';
+    if (btn) btn.textContent = 'Abrir WhatsApp';
+  }
+}
+
+function _rcaUsuarioPodeVerPainel() {
+  try {
+    const u = (window.App && App.user) || JSON.parse(sessionStorage.getItem('user') || '{}');
+    const p = (window.App && App.perm) || u.permissoes || {};
+    if (u.perfil == 1 || u.role === 'admin') return true;
+    if (String(p.p_vender || '').toUpperCase() === 'S') return true;
+    // fallback: quem tem acesso a pedidos também vê o painel
+    if (typeof temAcessoPagina === 'function' && temAcessoPagina('/pages/pedidos.html')) return true;
+  } catch (_) {}
+  return false;
+}
+
+async function carregarMeuDiaRca(token) {
+  const painel = document.getElementById('rca_meu_dia');
+  if (!painel) return;
+
+  painel.classList.remove('rca-oculto');
+  painel.classList.add('rca-visivel');
+
+  const sub = document.getElementById('rca_md_sub');
+  const ulP = document.getElementById('rca_lista_parados');
+  const ulO = document.getElementById('rca_lista_orc');
+  if (sub && /carregar|Carregando/i.test(sub.textContent || '')) {
+    sub.textContent = 'Carteira, orçamentos e ofertas';
+  }
+
+  const tok = token || _rcaHomeToken();
+  if (!tok) {
+    if (sub) sub.textContent = 'Faça login novamente para carregar o Meu Dia.';
+    if (ulP) ulP.innerHTML = '<li class="rca-md-empty">Sem sessão.</li>';
+    if (ulO) ulO.innerHTML = '';
+    return;
+  }
+
+  const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const tOut = setTimeout(() => { try { ctrl?.abort(); } catch (_) {} }, 15000);
+
+  try {
+    const r = await fetch('/api/rca/meu-dia?dias_sem_compra=45&limit_clientes=4&limit_orcamentos=3', {
+      headers: { Authorization: 'Bearer ' + tok },
+      credentials: 'include',
+      signal: ctrl?.signal,
+    });
+    clearTimeout(tOut);
+
+    if (r.status === 404) {
+      if (sub) sub.textContent = 'Reinicie o servidor Node — API /api/rca ainda não está no ar.';
+      if (ulP) ulP.innerHTML = '<li class="rca-md-empty">Servidor precisa ser reiniciado.</li>';
+      if (ulO) ulO.innerHTML = '';
+      return;
+    }
+    if (!r.ok) {
+      if (sub) sub.textContent = 'Não foi possível carregar o Meu Dia (erro ' + r.status + ').';
+      if (ulP) ulP.innerHTML = '<li class="rca-md-empty">Tente o botão Atualizar.</li>';
+      if (ulO) ulO.innerHTML = '';
+      return;
+    }
+    const d = await r.json();
+    if (!d.ativo) {
+      // Mantém painel visível se pode vender; senão oculta
+      if (!_rcaUsuarioPodeVerPainel()) {
+        painel.classList.add('rca-oculto');
+        painel.classList.remove('rca-visivel', 'rca-ativo');
+      } else {
+        painel.classList.add('rca-ativo', 'rca-visivel');
+        if (sub) sub.textContent = 'Perfil sem flag «Vender» — peça ao admin liberar no perfil.';
+        const elPar = document.getElementById('rca_kpi_parados_val');
+        const elOrc = document.getElementById('rca_kpi_orc_val');
+        const elPro = document.getElementById('rca_kpi_promo_val');
+        if (elPar) elPar.textContent = '—';
+        if (elOrc) elOrc.textContent = '—';
+        if (elPro) elPro.textContent = '—';
+        if (ulP) ulP.innerHTML = '<li class="rca-md-empty">Sem permissão de venda neste perfil.</li>';
+        if (ulO) ulO.innerHTML = '';
+      }
+      return;
+    }
+
+    _rcaMeuDiaCache = d;
+    painel.classList.remove('rca-oculto');
+    painel.classList.add('rca-ativo', 'rca-visivel');
+    _rcaWaStatus(false);
+
+    const dias = d.dias_sem_compra || 45;
+    const k = d.kpis || {};
+    const elPar = document.getElementById('rca_kpi_parados_val');
+    const elParH = document.getElementById('rca_kpi_parados_hint');
+    const elOrc = document.getElementById('rca_kpi_orc_val');
+    const elOrcH = document.getElementById('rca_kpi_orc_hint');
+    const elPro = document.getElementById('rca_kpi_promo_val');
+    const kpiParados = Number(k.clientes_parados) || 0;
+    const kpiOrc = Number(k.orcamentos_pendentes) || 0;
+    const kpiPro = Number(k.promocoes_ativas) || 0;
+    if (elPar) elPar.textContent = kpiParados;
+    if (elParH) elParH.textContent = `sem compra há ${dias}+ dias`;
+    if (elOrc) elOrc.textContent = kpiOrc;
+    if (elOrcH) {
+      const v = Number(k.orcamentos_valor) || 0;
+      elOrcH.textContent = v > 0
+        ? v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+        : 'pendentes';
+    }
+    if (elPro) elPro.textContent = kpiPro;
+    const kpiParEl = document.getElementById('rca_kpi_parados');
+    const kpiOrcEl = document.getElementById('rca_kpi_orc');
+    const kpiProEl = document.getElementById('rca_kpi_promo');
+    if (kpiParEl) kpiParEl.title = `${kpiParados} clientes sem compra há ${dias}+ dias`;
+    if (kpiOrcEl) kpiOrcEl.title = kpiOrc ? `${kpiOrc} orçamentos pendentes` : 'Nenhum orçamento pendente';
+    if (kpiProEl) kpiProEl.title = kpiPro ? `${kpiPro} promoções ativas` : 'Nenhuma promoção ativa';
+    if (sub) sub.textContent = `${kpiParados} parados · ${kpiOrc} orç. · ${kpiPro} promo`;
+
+    const bodyEl = document.getElementById('rca_md_body');
+    const colOrc = document.getElementById('rca_col_orc');
+    const moreEl = document.getElementById('rca_lista_parados_more');
+
+    if (ulP) {
+      const list = d.clientes_parados || [];
+      const show = list.slice(0, 4);
+      if (moreEl) {
+        moreEl.hidden = true;
+        moreEl.innerHTML = '';
+      }
+      if (!show.length) {
+        ulP.innerHTML = '<li class="rca-md-empty">Nenhum parado com WhatsApp — use Oferta para buscar cliente.</li>';
+      } else {
+        ulP.innerHTML = show.map((c, idx) => {
+          const meta = [c.cidade, c.uf].filter(Boolean).join('/') || '—';
+          const diasTxt = c.dias_sem_compra != null ? `${c.dias_sem_compra}d` : 'sem compra';
+          return `<li class="rca-md-item">
+            <div class="rca-md-item-info">
+              <div class="rca-md-item-name">${_rcaEsc(c.nome)}</div>
+              <div class="rca-md-item-meta">${_rcaEsc(meta)} · ${diasTxt}</div>
+            </div>
+            <div class="rca-md-item-btns">
+              <button type="button" class="rca-md-mini rca-md-mini--wa" data-rca-wa-idx="${idx}">WA</button>
+              <button type="button" class="rca-md-mini" data-rca-oferta-idx="${idx}">Oferta</button>
+            </div>
+          </li>`;
+        }).join('');
+        ulP.querySelectorAll('[data-rca-wa-idx]').forEach((btn) => {
+          btn.onclick = () => {
+            const c = show[parseInt(btn.getAttribute('data-rca-wa-idx'), 10)];
+            if (!c) return;
+            rcaEnviarContatoRapido(c);
+          };
+        });
+        ulP.querySelectorAll('[data-rca-oferta-idx]').forEach((btn) => {
+          btn.onclick = () => {
+            const c = show[parseInt(btn.getAttribute('data-rca-oferta-idx'), 10)];
+            abrirModalRcaOferta(c || null);
+          };
+        });
+        const restante = Math.max(0, kpiParados - show.length);
+        if (moreEl && restante > 0) {
+          moreEl.hidden = false;
+          moreEl.innerHTML = `+${restante.toLocaleString('pt-BR')} na carteira · <button type="button" onclick="abrirModalRcaOferta()">buscar na Oferta</button>`;
+        }
+      }
+    }
+
+    if (ulO) {
+      const list = d.orcamentos || [];
+      const temOrc = list.length > 0;
+      if (colOrc) colOrc.classList.toggle('rca-md-col--vazia', !temOrc);
+      if (bodyEl) bodyEl.classList.toggle('rca-md-body--com-orc', temOrc);
+      if (!temOrc) {
+        ulO.innerHTML = '';
+      } else {
+        ulO.innerHTML = list.slice(0, 3).map((o) => {
+          const num = o.numero != null ? `#${o.numero}` : `#${o.id}`;
+          return `<li class="rca-md-item">
+            <div class="rca-md-item-info">
+              <div class="rca-md-item-name">${_rcaEsc(o.nome_cliente || 'Cliente')}</div>
+              <div class="rca-md-item-meta">${num} · ${_rcaEsc(o.valor_fmt || '')}</div>
+            </div>
+            <div class="rca-md-item-btns">
+              <button type="button" class="rca-md-mini" onclick="openPedidosTab('id=${o.id}')">Abrir</button>
+            </div>
+          </li>`;
+        }).join('');
+      }
+    }
+  } catch (e) {
+    clearTimeout(tOut);
+    console.warn('[MeuDia RCA]', e);
+    const aborted = e && (e.name === 'AbortError' || /abort/i.test(String(e.message || '')));
+    if (sub) {
+      sub.textContent = aborted
+        ? 'Demorou demais para responder. Clique em Atualizar.'
+        : 'Erro ao carregar. Clique em Atualizar (e confira se o servidor foi reiniciado).';
+    }
+    if (ulP) ulP.innerHTML = '<li class="rca-md-empty">Falha ao carregar — use Atualizar.</li>';
+    if (ulO) ulO.innerHTML = '';
+  }
+}
+
+async function rcaEnviarContatoRapido(c) {
+  if (!c) return;
+  const num = _rcaWaNumero(c.telefone);
+  if (!num) {
+    _rcaToast('Cliente sem telefone WhatsApp.', 'err');
+    return;
+  }
+  const msg = `Olá, ${c.nome}! Tudo bem? Passei para retomar o contato e ver se precisa de algo.`;
+  try {
+    const res = await _rcaEnviarWhatsApp({
+      numero: num,
+      mensagem: msg,
+      cod_cliente: c.id,
+    });
+    if (res.via === 'api') {
+      _rcaToast(`Mensagem enviada via ${_rcaLabelProvedor(res.provedor)}`, 'ok');
+    }
+  } catch (e) {
+    _rcaToast(e.message || 'Erro ao enviar WhatsApp', 'err');
+  }
+}
+
+function fecharModalRcaOferta() {
+  const m = document.getElementById('modalRcaOfertaBack');
+  if (m) {
+    m.classList.remove('rca-open');
+    m.style.cssText = '';
+  }
+}
+
+function _rcaPosicionarModalOferta() {
+  const m = document.getElementById('modalRcaOfertaBack');
+  if (!m) return;
+  const embed = document.documentElement.classList.contains('sysrep-ms-embed')
+    || document.documentElement.classList.contains('ms-embedded-tech');
+  if (!embed) {
+    m.style.cssText = '';
+    return;
+  }
+  // No iframe do app: ancora na área visível (evita modal “sumir” no fim do scroll)
+  const y = window.scrollY || document.documentElement.scrollTop || 0;
+  const h = window.innerHeight || document.documentElement.clientHeight || 600;
+  m.style.position = 'absolute';
+  m.style.left = '0';
+  m.style.right = '0';
+  m.style.top = y + 'px';
+  m.style.height = h + 'px';
+  m.style.width = '100%';
+  m.style.zIndex = '2147483000';
+  m.style.display = 'flex';
+  m.style.alignItems = 'flex-start';
+  m.style.justifyContent = 'center';
+  m.style.padding = '12px';
+  m.style.boxSizing = 'border-box';
+  m.style.overflowY = 'auto';
+  m.style.background = 'rgba(0,0,0,.45)';
+}
+
+function abrirModalRcaOferta(clientePre) {
+  const m = document.getElementById('modalRcaOfertaBack');
+  if (!m) return;
+  _rcaOfertaCliente = clientePre || null;
+  _rcaPosicionarModalOferta();
+  m.classList.add('rca-open');
+
+  const drop = document.getElementById('rca_oferta_cli_drop');
+  const busca = document.getElementById('rca_oferta_busca');
+  const sel = document.getElementById('rca_oferta_cli_sel');
+  if (drop) { drop.classList.remove('rca-show'); drop.innerHTML = ''; }
+  if (busca) busca.value = clientePre?.nome || '';
+
+  if (clientePre) {
+    if (sel) {
+      sel.style.display = 'block';
+      const telOk = clientePre.telefone ? ' · WhatsApp ok' : ' · sem telefone';
+      sel.textContent = (clientePre.nome || 'Cliente') + telOk;
+    }
+  } else if (sel) {
+    sel.style.display = 'none';
+    sel.textContent = '';
+  }
+
+  const box = document.getElementById('rca_oferta_promos');
+  const promos = (_rcaMeuDiaCache && _rcaMeuDiaCache.promocoes) || [];
+  if (box) {
+    if (!promos.length) {
+      box.innerHTML = '<div class="rca-md-empty">Nenhuma promoção ativa no momento. Você ainda pode montar um texto livre.</div>';
+    } else {
+      box.innerHTML = promos.map((p, i) => `
+        <label class="rca-oferta-promo">
+          <input type="checkbox" data-rca-promo-idx="${i}" onchange="rcaOfertaMontarMsg()">
+          <span>
+            <div class="rca-oferta-promo-name">${_rcaEsc(p.nome)}</div>
+            <div class="rca-oferta-promo-price">${_rcaEsc(p.preco_fmt)}</div>
+          </span>
+        </label>`).join('');
+    }
+  }
+
+  rcaOfertaMontarMsg();
+  _rcaAtualizarHintOferta();
+  if (busca && !clientePre) setTimeout(() => busca.focus(), 50);
+}
+
+function rcaOfertaBuscarCliente(q) {
+  clearTimeout(_rcaOfertaBuscaTimer);
+  const drop = document.getElementById('rca_oferta_cli_drop');
+  if (!drop) return;
+  const term = String(q || '').trim();
+  if (term.length < 2) {
+    drop.classList.remove('rca-show');
+    drop.innerHTML = '';
+    return;
+  }
+  _rcaOfertaBuscaTimer = setTimeout(async () => {
+    try {
+      const tok = _rcaHomeToken();
+      const r = await fetch('/api/rca/oferta/buscar-clientes?q=' + encodeURIComponent(term), {
+        headers: { Authorization: 'Bearer ' + tok },
+        credentials: 'include',
+      });
+      if (!r.ok) return;
+      const d = await r.json();
+      const list = d.clientes || [];
+      if (!list.length) {
+        drop.innerHTML = '<div class="rca-md-empty" style="padding:10px">Nenhum cliente encontrado</div>';
+        drop.classList.add('rca-show');
+        return;
+      }
+      drop.innerHTML = list.map((c) => {
+        const meta = [c.cidade, c.uf].filter(Boolean).join('/') || '—';
+        const tel = c.telefone ? ' · WA' : '';
+        return `<button type="button" class="rca-oferta-cli-opt" data-id="${c.id}">${_rcaEsc(c.nome)} <span style="opacity:.65;font-size:11px">${_rcaEsc(meta)}${tel}</span></button>`;
+      }).join('');
+      drop.classList.add('rca-show');
+      drop.querySelectorAll('.rca-oferta-cli-opt').forEach((btn, idx) => {
+        btn.onclick = () => {
+          _rcaOfertaCliente = list[idx];
+          const busca = document.getElementById('rca_oferta_busca');
+          const sel = document.getElementById('rca_oferta_cli_sel');
+          if (busca) busca.value = _rcaOfertaCliente.nome || '';
+          if (sel) {
+            sel.style.display = 'block';
+            sel.textContent = (_rcaOfertaCliente.nome || '') + (_rcaOfertaCliente.telefone ? ' · WhatsApp ok' : ' · sem telefone');
+          }
+          drop.classList.remove('rca-show');
+          rcaOfertaMontarMsg();
+        };
+      });
+    } catch (_) { /* ignore */ }
+  }, 280);
+}
+
+function rcaOfertaItensSelecionados() {
+  const promos = (_rcaMeuDiaCache && _rcaMeuDiaCache.promocoes) || [];
+  const out = [];
+  document.querySelectorAll('#rca_oferta_promos input[data-rca-promo-idx]:checked').forEach((inp) => {
+    const i = parseInt(inp.getAttribute('data-rca-promo-idx'), 10);
+    if (promos[i]) out.push(promos[i]);
+  });
+  return out;
+}
+
+function rcaOfertaMontarMsg() {
+  const ta = document.getElementById('rca_oferta_msg');
+  if (!ta) return;
+  const nome = (_rcaOfertaCliente && (_rcaOfertaCliente.nome || _rcaOfertaCliente.nome_completo)) || 'cliente';
+  const itens = rcaOfertaItensSelecionados();
+  let msg = `Olá, ${nome}! Tudo bem?\n\nPassei para te mostrar algumas oportunidades:`;
+  if (itens.length) {
+    msg += '\n';
+    itens.forEach((p) => {
+      msg += `\n• ${p.nome} — ${p.preco_fmt}`;
+    });
+    msg += '\n\nMe confirma a quantidade que eu já monto o pedido pra você!';
+  } else {
+    msg += '\n\nMe avisa o que está precisando que eu te mando as melhores condições.';
+  }
+  ta.value = msg;
+}
+
+async function rcaOfertaCopiar() {
+  const ta = document.getElementById('rca_oferta_msg');
+  const txt = ta?.value || '';
+  if (!txt.trim()) {
+    _rcaToast('Monte a mensagem antes de copiar.', 'warn');
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(txt);
+    _rcaToast('Texto copiado!', 'ok');
+  } catch (_) {
+    if (ta) { ta.select(); document.execCommand('copy'); _rcaToast('Texto copiado!', 'ok'); }
+  }
+}
+
+async function rcaOfertaAbrirWa() {
+  if (!_rcaOfertaCliente) {
+    if (typeof SysRepConfirm !== 'undefined' && SysRepConfirm.alert) {
+      await SysRepConfirm.alert({ titulo: 'Atenção', mensagem: 'Selecione um cliente com WhatsApp.' });
+    } else {
+      _rcaToast('Selecione um cliente com WhatsApp.', 'warn');
+    }
+    return;
+  }
+  const num = _rcaWaNumero(_rcaOfertaCliente.telefone);
+  if (!num) {
+    if (typeof SysRepConfirm !== 'undefined' && SysRepConfirm.alert) {
+      await SysRepConfirm.alert({ titulo: 'Atenção', mensagem: 'Este cliente não tem telefone WhatsApp cadastrado (campo WhatsApp / celular).' });
+    } else {
+      _rcaToast('Cliente sem telefone WhatsApp.', 'err');
+    }
+    return;
+  }
+  const ta = document.getElementById('rca_oferta_msg');
+  const texto = (ta && ta.value) || '';
+  if (!String(texto).trim()) {
+    _rcaToast('Monte a mensagem antes de enviar.', 'warn');
+    return;
+  }
+
+  const btn = document.getElementById('rca_oferta_btn_wa');
+  const btnTxt = btn ? btn.textContent : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Enviando…';
+  }
+  try {
+    const res = await _rcaEnviarWhatsApp({
+      numero: num,
+      mensagem: texto,
+      cod_cliente: _rcaOfertaCliente.id,
+    });
+    if (res.via === 'api') {
+      _rcaToast(`Oferta enviada via ${_rcaLabelProvedor(res.provedor)}`, 'ok');
+      fecharModalRcaOferta();
+    }
+    // wa.me: já abriu em nova aba — mantém o modal aberto para copiar/ajustar
+  } catch (e) {
+    if (typeof SysRepConfirm !== 'undefined' && SysRepConfirm.alert) {
+      await SysRepConfirm.alert({
+        titulo: 'WhatsApp',
+        mensagem: (e.message || 'Falha no envio') + '\n\nVocê ainda pode Copiar o texto e enviar manualmente.',
+      });
+    } else {
+      _rcaToast(e.message || 'Erro ao enviar WhatsApp', 'err');
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      await _rcaAtualizarHintOferta();
+      if (!btn.textContent || btn.textContent === 'Enviando…') btn.textContent = btnTxt || 'Abrir WhatsApp';
+    }
+  }
+}
+
 // ─── UTILITÁRIOS ─────────────────────────────────────────────────────────────
 async function carregarDashboard(token) {
+  carregarMeuDiaRca(token);
   const _semDados = (msg = 'Sem dados') => `<div style="text-align:center;padding:20px;opacity:0.5;font-size:11px">${msg}</div>`;
   const _set = (id, val, attr='textContent') => {
     const el = document.getElementById(id);
@@ -5864,7 +6942,7 @@ async function carregarPainelMobile(token) {
 
 // ═══ WHATSAPP ════════════════════════════════════════════════════════════════
 let whatsConectado = false;
-let whatsProvedor  = null;   // 'EUATENDO' quando o envio é pelo ApiChat EuAtendo
+let whatsProvedor  = null;   // 'EUATENDO' (ApiChat) ou 'META' (API oficial) quando o envio é por plataforma hospedada
 
 async function verificarWhatsApp(token) {
   try {
@@ -5872,23 +6950,24 @@ async function verificarWhatsApp(token) {
     const data = await r.json();
     const ok = data.status === 'open';
     whatsProvedor = data.provedor || null;
-    _atualizarUIWhats(ok, whatsProvedor === 'EUATENDO' ? 'ApiChat EuAtendo' : data.instancia);
+    _atualizarUIWhats(ok, whatsProvedor === 'EUATENDO' ? 'ApiChat EuAtendo' : (whatsProvedor === 'META' ? 'Meta (API oficial)' : data.instancia));
     return ok;
   } catch { return false; }
 }
 
 function _atualizarUIWhats(ok, instancia) {
   whatsConectado = ok;
+  const btn = document.getElementById('btn_whatsapp');
   
   if (ok) {
-    _setElClass('btn_whatsapp', 'topbar-btn whats-on');
-    _setElText('btn_whatsapp_label', 'WhatsApp Online');
+    if (btn) btn.classList.add('whats-on');
+    _setElText('btn_whatsapp_label', 'Online');
     _setElText('status_whatsapp', '● ' + (instancia || 'Conectado'));
     _setElClass('status_whatsapp', 'sb-whats-on');
   } else {
-    _setElClass('btn_whatsapp', 'topbar-btn');
+    if (btn) btn.classList.remove('whats-on');
     _setElText('btn_whatsapp_label', 'WhatsApp');
-    _setElText('status_whatsapp', 'WhatsApp desconectado');
+    _setElText('status_whatsapp', 'desconectado');
     _setElClass('status_whatsapp', 'sb-whats-off');
   }
 }
@@ -5897,7 +6976,7 @@ async function iniciarWhatsApp() {
   const token = sessionStorage.getItem('token') || localStorage.getItem('token');
 
   // ApiChat EuAtendo: não há instância/QR para desconectar — gestão é na tela de APIs
-  if (whatsConectado && whatsProvedor === 'EUATENDO') {
+  if (whatsConectado && (whatsProvedor === 'EUATENDO' || whatsProvedor === 'META')) {
     _modalWhatsEuAtendo();
     return;
   }
@@ -5931,17 +7010,17 @@ function _modalWhatsEuAtendo() {
   m.innerHTML = `
     <div class="modal-box">
       <div class="modal-head">
-        <h3>WhatsApp via ApiChat EuAtendo</h3>
+        <h3>WhatsApp via ${whatsProvedor === 'META' ? 'Meta (API oficial)' : 'ApiChat EuAtendo'}</h3>
         <button class="modal-close" onclick="document.getElementById('modal_whats_ea').remove()">✕</button>
       </div>
       <div class="modal-body">
         <div style="display:flex;gap:14px;align-items:flex-start;margin-bottom:16px">
           <div style="width:44px;height:44px;border-radius:12px;background:rgba(34,197,94,.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:22px">✅</div>
           <div>
-            <div style="font-size:14px;font-weight:600;color:var(--content-text,#333);margin-bottom:4px">ApiChat liberado</div>
+            <div style="font-size:14px;font-weight:600;color:var(--content-text,#333);margin-bottom:4px">${whatsProvedor === 'META' ? 'API oficial da Meta ativa' : 'ApiChat liberado'}</div>
             <div style="font-size:12px;color:var(--content-text,#888);line-height:1.5">
-              O envio de mensagens está ativo pela plataforma <strong>EuAtendo</strong> — não há QR Code nem instância para conectar neste painel.
-              Token e testes de envio ficam em <strong>Configurações de API</strong>.
+              O envio de mensagens está ativo pela plataforma <strong>${whatsProvedor === 'META' ? 'Meta (WhatsApp Cloud API)' : 'EuAtendo'}</strong> — não há QR Code nem instância para conectar neste painel.
+              Credenciais e testes de envio ficam em <strong>Configurações de API</strong>.
             </div>
           </div>
         </div>
@@ -6157,6 +7236,7 @@ const SEARCH_INDEX = [
   { label:'Campanhas Feirinha',                          sub:'Comercial › Vendas', tag:'Comercial', page:'/pages/comercial-feirinha.html', modKey:'comercial', subKey:'comercial-feirinha' },
   { label:'Catálogos Visuais',                           sub:'Comercial › Vendas', tag:'Comercial', page:'/pages/comercial-catalogos.html', modKey:'comercial', subKey:'comercial-catalogos' },
   { label:'Showroom',                                    sub:'Comercial › Vendas', tag:'Comercial', page:'/pages/comercial-showroom.html', modKey:'comercial', subKey:'comercial-showroom' },
+  { label:'Marketplace — De-para de Anúncios',            sub:'Comercial › Vendas', tag:'Marketplace', page:'/pages/marketplace-anuncios.html', modKey:'comercial', subKey:'marketplace-anuncios' },
   { label:'Metas de Vendas',                             sub:'Comercial › Vendas', tag:'Comercial', page:'/pages/metas-vendas.html',        modKey:'comercial', subKey:'metas-vendas' },
   { label:'Carteira de Recompra',                        sub:'Comercial › Vendas', tag:'Comercial', page:'/pages/comercial-recompra.html', modKey:'comercial', subKey:'comercial-recompra' },
   { label:'Clientes',                                    sub:'Cadastros',  tag:'Cadastro', page:'/pages/clientes.html',           modKey:'cadastros', subKey:'clientes' },
@@ -6206,6 +7286,7 @@ const SEARCH_INDEX = [
   { label:'Marca da instalação',  sub:'Configurações › Sistema',   tag:'Config',    page:'/pages/parametro-locais.html',modKey:'configuracoes', subKey:'parametro-locais' },
   { label:'LGPD — Gestão de Consentimento', sub:'Configurações › Sistema', tag:'Config', page:'/pages/lgpd.html', modKey:'configuracoes', subKey:'lgpd' },
   { label:'WhatsApp',             sub:'Configurações de API',      tag:'API',       page:'/pages/config-api.html',    modKey:'configuracoes', subKey:'config-api' },
+  { label:'Integração Bling',     sub:'Configurações › Sistema',   tag:'API',       page:'/pages/integracao-bling.html', modKey:'configuracoes', subKey:'integracao-bling', adminOnly:true },
   { label:'Minhas Comissões',     sub:'Financeiro',                tag:'Financeiro', page:'/pages/comissoes_conferencia.html', modKey:'financeiro', subKey:'minhas_comissoes' },
   { label:'Prepostos',            sub:'Cadastros › Pessoas',       tag:'Cadastro',   page:'/pages/prepostos.html',            modKey:'cadastros', subKey:'prepostos' },
   { label:'Gestão de Comissões',  sub:'Financeiro',                tag:'Financeiro', page:'/pages/comissoes.html',            modKey:'financeiro', subKey:'comissoes' },
@@ -6234,6 +7315,7 @@ const SEARCH_INDEX = [
   { label:'Regiões e Rotas', sub:'Cadastros › Tabelas de Apoio', tag:'Cadastro', page:'/pages/regiao-rota.html', modKey:'cadastros', subKey:'regiao-rota' },
   { label:'Central de Relatorios Padrao', sub:'Comercial › Relatorios Padrao', tag:'Relatório', page:'/pages/comercial-relatorios-padrao.html', modKey:'comercial', subKey:'comercial-relatorios-padrao' },
   { label:'Relatórios Região / Carteira', sub:'Comercial › Relatorios Padrao', tag:'Relatório', page:'/pages/comercial-relatorios-regiao.html', modKey:'comercial', subKey:'comercial-relatorios-regiao' },
+  { label:'Carteira Operacional', sub:'Comercial › Relatorios Padrao', tag:'Relatório', page:'/pages/comercial-carteira-operacional.html', modKey:'comercial', subKey:'comercial-carteira-operacional' },
   { label:'Vendas por Fabrica (Ano)', sub:'Comercial › Relatorios Padrao', tag:'Relatório', page:'/pages/comercial-relatorios-padrao.html?report=vendas_fornecedor_ano', modKey:'comercial', subKey:'comercial-relatorios-padrao-fabricas-ano' },
   { label:'Vendas por Produto (Ano)', sub:'Comercial › Relatorios Padrao', tag:'Relatório', page:'/pages/comercial-relatorios-padrao.html?report=vendas_produtos_ano', modKey:'comercial', subKey:'comercial-relatorios-padrao-produtos-ano' },
   { label:'Vendas por Cliente (Ano)', sub:'Comercial › Relatorios Padrao', tag:'Relatório', page:'/pages/comercial-relatorios-padrao.html?report=vendas_clientes_ano', modKey:'comercial', subKey:'comercial-relatorios-padrao-clientes-ano' },
@@ -6276,7 +7358,7 @@ function renderSearchResults(q) {
 
   // Monta índice completo (estático + módulos carregados)
   const fullIndex = [...SEARCH_INDEX, ..._searchModulosExtra].filter(i =>
-    temAcessoPagina(i.page || '')
+    temAcessoPagina(i.page || '') && (!i.adminOnly || menuItemPermOk(i))
   );
 
   const hits = term.length === 0
@@ -6547,6 +7629,121 @@ document.addEventListener('keydown', e => {
 </script>
 
 <!-- Modal Vitrine Digital -->
+<style>
+/* Modal Vitrine Digital — layout modernizado (home) */
+#modalVitrineHomeBack .vt-mod-close{
+  width:36px;height:36px;border:1.5px solid var(--card-border);border-radius:10px;
+  background:transparent;color:var(--content-text);cursor:pointer;flex-shrink:0;
+  display:inline-flex;align-items:center;justify-content:center;padding:0;
+}
+#modalVitrineHomeBack .vt-mod-close:hover{border-color:var(--accent,#0ea5e9);color:var(--accent,#0ea5e9)}
+.vt-mod-stats{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.vt-mod-stat{
+  flex:1;min-width:120px;padding:10px 12px;border-radius:12px;
+  border:1px solid var(--card-border);background:var(--content-bg);
+}
+.vt-mod-stat-lbl{display:block;font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.03em;margin-bottom:4px}
+.vt-mod-stat-val{display:block;font-size:14px;font-weight:800;color:var(--content-text)}
+.vt-mod-stat-sub{display:block;font-size:10px;color:var(--text2);margin-top:2px}
+.vt-mod-stat--warn{border-color:color-mix(in srgb,var(--danger,#dc2626) 45%,var(--card-border));background:color-mix(in srgb,var(--danger,#dc2626) 8%,var(--content-bg))}
+.vt-mod-stat--warn .vt-mod-stat-val{color:var(--danger,#dc2626)}
+.vt-mod-link-row{margin-bottom:12px}
+.vt-mod-link-row input{
+  width:100%;padding:10px 12px;border:1.5px solid var(--card-border);border-radius:10px;
+  font-size:11px;background:var(--content-bg);color:var(--content-text);font-family:monospace;
+  outline:none;box-sizing:border-box;
+}
+.vt-mod-tema{margin:0 0 14px}
+.vt-mod-tema-lbl{font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px}
+.vt-mod-seg{
+  display:flex;padding:3px;border-radius:999px;border:1px solid var(--card-border);
+  background:var(--content-bg);gap:2px;
+}
+.vt-mod-seg-btn{
+  flex:1;height:34px;border:none;border-radius:999px;background:transparent;
+  color:var(--text2);font:inherit;font-size:12px;font-weight:700;cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;transition:background .15s,color .15s;
+}
+.vt-mod-seg-btn.is-on{background:var(--accent,#0ea5e9);color:#fff;box-shadow:0 2px 8px color-mix(in srgb,var(--accent,#0ea5e9) 35%,transparent)}
+.vt-mod-tema-hint,.vt-mod-tema-warn{font-size:10px;margin-top:6px;line-height:1.4}
+.vt-mod-tema-hint{color:var(--text3,var(--text2))}
+.vt-mod-tema-warn{
+  color:var(--danger,#b45309);padding:8px 10px;border-radius:8px;
+  background:color-mix(in srgb,#f59e0b 12%,var(--content-bg));border:1px solid color-mix(in srgb,#f59e0b 35%,var(--card-border));
+}
+.vt-mod-actions{
+  display:flex;flex-wrap:wrap;gap:10px 8px;justify-content:space-around;
+  margin:0 0 14px;padding:4px 0 2px;
+}
+.vt-mod-act{
+  display:inline-flex;flex-direction:column;align-items:center;gap:6px;
+  min-width:64px;padding:4px;border:none;background:transparent;cursor:pointer;
+  text-decoration:none;color:var(--content-text);font:inherit;-webkit-tap-highlight-color:transparent;
+}
+.vt-mod-act-ico{
+  width:48px;height:48px;min-width:48px;min-height:48px;border-radius:50%;
+  display:inline-flex;align-items:center;justify-content:center;
+  border:1.5px solid var(--card-border);background:var(--content-bg);
+  color:var(--content-text);transition:border-color .12s,background .12s,transform .12s;
+}
+.vt-mod-act:hover .vt-mod-act-ico{border-color:var(--accent,#0ea5e9)}
+.vt-mod-act:active .vt-mod-act-ico{transform:scale(.96)}
+.vt-mod-act-wa{background:color-mix(in srgb,#16a34a 12%,var(--content-bg));border-color:color-mix(in srgb,#16a34a 35%,var(--card-border));color:#16a34a}
+.vt-mod-act-lbl{font-size:10px;font-weight:700;color:var(--text2);text-align:center;line-height:1.2}
+.vt-mod-more{position:relative}
+.vt-mod-more-menu{
+  display:none;position:absolute;right:0;bottom:calc(100% + 6px);z-index:5;
+  min-width:180px;padding:6px;border-radius:12px;border:1px solid var(--card-border);
+  background:var(--card-bg,var(--content-bg));box-shadow:0 12px 28px rgba(0,0,0,.16);
+}
+.vt-mod-more-menu.open{display:flex;flex-direction:column;gap:2px}
+.vt-mod-more-menu button{
+  width:100%;text-align:left;padding:10px 12px;border:none;border-radius:8px;
+  background:transparent;color:var(--content-text);font:inherit;font-size:12px;font-weight:700;cursor:pointer;
+}
+.vt-mod-more-menu button:hover{background:color-mix(in srgb,var(--accent,#0ea5e9) 10%,transparent)}
+.vt-mod-qr{
+  display:none;flex-direction:column;align-items:center;gap:6px;margin:0 0 14px;
+}
+.vt-mod-qr #vitrineHomeQr{
+  border:1px solid var(--card-border);border-radius:12px;padding:8px;background:var(--card,#fff);display:inline-block;
+}
+.vt-mod-qr span{font-size:10px;color:var(--text2)}
+.vpt-chips{display:flex;flex-wrap:wrap;gap:6px;padding:10px 12px;border-bottom:1px solid var(--card-border);min-height:44px;align-items:center}
+.vpt-chip{
+  display:inline-flex;align-items:center;gap:6px;max-width:100%;
+  padding:4px 8px 4px 4px;border-radius:999px;border:1.5px solid var(--card-border);
+  background:var(--content-bg);font:inherit;font-size:11px;font-weight:700;color:var(--content-text);
+}
+.vpt-chip-av{
+  width:22px;height:22px;border-radius:50%;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;
+  font-size:10px;font-weight:800;color:#fff;
+}
+.vpt-chip-x{
+  width:20px;height:20px;border:none;border-radius:50%;background:transparent;color:var(--text2);
+  cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0;font-size:14px;line-height:1;
+}
+.vpt-chip-x:hover{color:var(--danger,#dc2626)}
+.vpt-chip-add{
+  display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border-radius:999px;
+  border:1.5px dashed var(--accent,#0ea5e9);background:transparent;color:var(--accent,#0284c7);
+  font:inherit;font-size:11px;font-weight:800;cursor:pointer;
+}
+.vpt-list-item{
+  display:flex;align-items:center;gap:10px;width:100%;padding:9px 12px;border:none;border-bottom:1px solid var(--card-border);
+  background:transparent;cursor:pointer;text-align:left;font:inherit;color:var(--content-text);
+}
+.vpt-list-item:hover{background:color-mix(in srgb,var(--accent,#0ea5e9) 6%,transparent)}
+.vpt-list-item.is-on{background:color-mix(in srgb,var(--accent,#0ea5e9) 10%,transparent)}
+.vpt-list-check{margin-left:auto;color:var(--accent,#0284c7);opacity:0;flex-shrink:0}
+.vpt-list-item.is-on .vpt-list-check{opacity:1}
+@media (max-width:480px){
+  #modalVitrineHomeBack{padding:10px !important;align-items:flex-end !important}
+  #modalVitrineHomeBack > div{width:100% !important;max-height:92vh !important;border-radius:16px 16px 10px 10px !important}
+  .vt-mod-act{min-width:56px}
+  .vt-mod-act-ico{width:44px;height:44px;min-width:44px;min-height:44px}
+}
+</style>
 <div id="modalVitrineHomeBack" onclick="if(event.target===this)fecharModalVitrineHome()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:2147483000;align-items:center;justify-content:center;padding:18px">
   <div style="width:min(520px,100%);background:var(--card-bg);border:1px solid var(--card-border);border-radius:16px;box-shadow:0 20px 48px rgba(0,0,0,.2);overflow:hidden;max-height:88vh;display:flex;flex-direction:column">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--card-border);gap:10px">
@@ -6559,9 +7756,41 @@ document.addEventListener('keydown', e => {
           <div id="vitrineHomeSub" style="font-size:11px;color:var(--text2);margin-top:2px">Busque o cliente e gere o link do catálogo</div>
         </div>
       </div>
-      <button type="button" onclick="fecharModalVitrineHome()" style="height:30px;border:1.5px solid var(--card-border);border-radius:8px;padding:0 10px;background:transparent;color:var(--content-text);font:inherit;font-size:12px;cursor:pointer;flex-shrink:0">Fechar</button>
+      <button type="button" class="vt-mod-close" onclick="fecharModalVitrineHome()" title="Fechar" aria-label="Fechar">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
     </div>
-    <div id="modalVitrineHomeBody" style="padding:14px 18px 18px;overflow-y:auto;flex:1"></div>
+    <div id="modalVitrineHomeBody" style="padding:14px 18px 18px;overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch"></div>
+  </div>
+</div>
+
+<!-- Modal Oferta WhatsApp (RCA) -->
+<div id="modalRcaOfertaBack" onclick="if(event.target===this)fecharModalRcaOferta()">
+  <div class="rca-oferta-card" role="dialog" aria-labelledby="rca_oferta_titulo">
+    <div class="rca-oferta-head">
+      <div>
+        <div id="rca_oferta_titulo" style="font-size:15px;font-weight:900;color:var(--content-text)">Oferta WhatsApp</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:2px">Escolha o cliente e as promoções</div>
+        <div id="rca_oferta_wa_hint" style="font-size:11px;color:var(--text2);margin-top:4px"></div>
+      </div>
+      <button type="button" class="rca-md-btn rca-md-btn--ghost" onclick="fecharModalRcaOferta()">Fechar</button>
+    </div>
+    <div class="rca-oferta-body">
+      <div class="rca-oferta-label">Cliente</div>
+      <input type="text" class="rca-oferta-field" id="rca_oferta_busca" placeholder="Buscar por nome ou cidade…" autocomplete="off" oninput="rcaOfertaBuscarCliente(this.value)">
+      <div class="rca-oferta-cli-drop" id="rca_oferta_cli_drop"></div>
+      <div id="rca_oferta_cli_sel" style="display:none;margin:-4px 0 12px;padding:8px 10px;border-radius:9px;background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.25);font-size:13px;font-weight:700;color:var(--content-text)"></div>
+
+      <div class="rca-oferta-label">Promoções ativas (marque as que quiser)</div>
+      <div id="rca_oferta_promos" style="max-height:180px;overflow-y:auto;margin-bottom:12px"></div>
+
+      <div class="rca-oferta-label">Mensagem</div>
+      <textarea class="rca-oferta-field" id="rca_oferta_msg" rows="7" placeholder="A mensagem é montada automaticamente…"></textarea>
+    </div>
+    <div class="rca-oferta-foot">
+      <button type="button" class="rca-md-btn rca-md-btn--ghost" onclick="rcaOfertaCopiar()">Copiar texto</button>
+      <button type="button" class="rca-md-btn rca-md-btn--pri" id="rca_oferta_btn_wa" onclick="rcaOfertaAbrirWa()">Abrir WhatsApp</button>
+    </div>
   </div>
 </div>
 

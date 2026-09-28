@@ -87,6 +87,26 @@ tbody td { padding:10px 12px; vertical-align:middle; }
 .regras-header { background: #f9fafb; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
 .regras-title { font-size: 11px; font-weight: 700; color: var(--text2); text-transform: uppercase; }
 .regras-table-wrap { max-height: 400px; overflow-y: auto; overflow-x: auto; }
+
+/* Análise de margem vs custo do produto */
+.margem-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700;
+  white-space: nowrap; letter-spacing: .2px;
+}
+.margem-badge.ok { background: color-mix(in srgb, var(--success, #22c55e) 18%, transparent); color: var(--success, #16a34a); }
+.margem-badge.abaixo { background: color-mix(in srgb, #f59e0b 20%, transparent); color: #b45309; }
+.margem-badge.prejuizo { background: color-mix(in srgb, var(--danger, #ef4444) 18%, transparent); color: var(--danger, #dc2626); }
+.margem-badge.sem { background: var(--border, #e5e7eb); color: var(--text2); font-weight: 600; }
+.margem-resumo {
+  display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center;
+  padding: 8px 12px; border-bottom: 1px solid var(--border);
+  background: var(--card, #fff); font-size: 11px; color: var(--text2);
+}
+.margem-resumo strong { color: var(--text); }
+.margem-resumo .mr-ok { color: var(--success, #16a34a); font-weight: 700; }
+.margem-resumo .mr-abaixo { color: #b45309; font-weight: 700; }
+.margem-resumo .mr-prejuizo { color: var(--danger, #dc2626); font-weight: 700; }
 .regras-table { width: 100%; border-collapse: collapse; font-size: 11px; min-width:1200px; }
 .regras-table thead th { position: sticky; top: 0; z-index: 10; background: #f9fafb; padding: 10px 12px; border-bottom: 2px solid var(--border); text-align:left; color:var(--text2); }
 .regras-table td { padding: 6px 10px; border-bottom: 1px solid #f3f4f6; }
@@ -298,6 +318,7 @@ tbody td { padding:10px 12px; vertical-align:middle; }
             <button class="btn btn-outline btn-mini" onclick="abrirBuscaProduto()">+ Adicionar Produto</button>
           </div>
         </div>
+        <div id="margemResumo" class="margem-resumo" style="display:none"></div>
         <div class="regras-table-wrap">
           <table class="regras-table">
             <thead>
@@ -307,11 +328,13 @@ tbody td { padding:10px 12px; vertical-align:middle; }
                 <th>Descrição do Produto</th>
                 <th style="width:120px">Ref. Fabr.</th>
                 <th style="width:50px">Un.</th>
+                <th style="width:110px">Preço Custo</th>
                 <th style="width:110px">Preço Base</th>
                 <th style="width:110px">Preço Venda</th>
                 <th style="width:90px">Tipo Desc.</th>
                 <th style="width:100px">Vlr Desc.</th>
                 <th style="width:110px">Vlr. Tabela</th>
+                <th style="width:120px" title="Compara o Vlr. Tabela com o custo e a margem % do cadastro do produto">Margem</th>
                 <th style="width:60px">Ativo?</th>
                 <th style="width:130px">Vigência</th>
                 <th style="width:50px"></th>
@@ -350,6 +373,7 @@ tbody td { padding:10px 12px; vertical-align:middle; }
               <th>Descrição</th>
               <th style="width:120px">Ref. Fabricante</th>
               <th style="width:60px">Un.</th>
+              <th style="width:100px">Custo</th>
               <th style="width:100px">Preço Base</th>
             </tr>
           </thead>
@@ -444,11 +468,12 @@ tbody td { padding:10px 12px; vertical-align:middle; }
               <th style="padding:8px 6px;border-bottom:1px solid var(--border);text-align:left;font-weight:700">Fornecedor</th>
               <th style="padding:8px 6px;border-bottom:1px solid var(--border);text-align:left;font-weight:700">Referência</th>
               <th style="padding:8px 6px;border-bottom:1px solid var(--border);text-align:center;font-weight:700">Un.</th>
+              <th style="padding:8px 6px;border-bottom:1px solid var(--border);text-align:right;font-weight:700">Custo</th>
               <th style="padding:8px 6px;border-bottom:1px solid var(--border);text-align:right;font-weight:700">Preço Base</th>
             </tr>
           </thead>
           <tbody id="il_tbody">
-            <tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text2)">Clique em Buscar para carregar os produtos</td></tr>
+            <tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text2)">Clique em Buscar para carregar os produtos</td></tr>
           </tbody>
         </table>
       </div>
@@ -721,7 +746,7 @@ async function editarTabela(id) {
     const elAM = document.getElementById('f_aparece_mobile'); if (elAM) elAM.value = data.aparece_mobile === 'N' ? 'N' : 'S';
     const elSR = document.getElementById('f_aparece_showroom'); if (elSR) elSR.value = data.aparece_showroom === 'S' ? 'S' : 'N';
 
-    _itensTabela = data.itens || [];
+    _itensTabela = _normalizarItensParaSalvar(data.itens || []);
     renderItens();
     carregarLookups();
     mostrarForm();
@@ -745,7 +770,7 @@ async function salvarTabela() {
     usar_regras_fornecedor: document.getElementById('f_usar_regras')?.value || 'N',
     aparece_mobile: document.getElementById('f_aparece_mobile')?.value || 'S',
     aparece_showroom: document.getElementById('f_aparece_showroom')?.value || 'N',
-    itens: _itensTabela
+    itens: _normalizarItensParaSalvar(_itensTabela)
   };
 
   if (!body.Descricao) return showToast('Descrição é obrigatória', 'error');
@@ -795,11 +820,16 @@ function exportarExcelTabela() {
     'Cod. Fabricante': it.cod_fabricante || '',
     Descricao: it.descricao || '',
     Unidade: it.unidade || 'UN',
+    'Preco Custo': Number(it.vlr_custo) || 0,
+    'Custo Final': Number(it.vlr_custofinal) || 0,
     'Preco Base': Number(it.preco_base) || 0,
     'Preco Venda': Number(it.preco_venda) || 0,
     'Tipo Desc.': it.tipo_desconto || 'R',
     'Vlr Desc.': Number(it.vlr_desconto) || 0,
     'Vlr Tabela': Number(it.valor_tabela) || 0,
+    'Margem %': (() => { const a = _analiseMargemItem(it); return a.pct == null ? '' : a.pct; })(),
+    'Margem Meta %': Number(it.margem) || 0,
+    'Analise Margem': _analiseMargemItem(it).label,
     Ativo: it.ativo === 'N' ? 'N' : 'S',
     Vigencia: it.vigencia ? String(it.vigencia).split('T')[0] : ''
   }));
@@ -807,7 +837,8 @@ function exportarExcelTabela() {
   const ws = XLSX.utils.json_to_sheet(rows);
   ws['!cols'] = [
     { wch: 6 }, { wch: 12 }, { wch: 18 }, { wch: 40 }, { wch: 8 },
-    { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 12 },
+    { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 12 },
+    { wch: 10 }, { wch: 12 }, { wch: 14 },
     { wch: 8 }, { wch: 12 }
   ];
   const wb = XLSX.utils.book_new();
@@ -821,10 +852,154 @@ function exportarExcelTabela() {
 }
 
 // ─── GESTÃO DE ITENS ───
+function _numPrecoTabela(v, fallback = 0) {
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function _precoVendaProduto(p) {
+  return _numPrecoTabela(p?.vlr_venda, 0);
+}
+
+function _calcValorTabelaFront(pv, tipoDesconto, vlrDesconto) {
+  const preco = _numPrecoTabela(pv, 0);
+  const desc = _numPrecoTabela(vlrDesconto, 0);
+  let vt = tipoDesconto === 'P' ? preco - (preco * desc / 100) : preco - desc;
+  return vt < 0 ? 0 : Math.round(vt * 100) / 100;
+}
+
+function _novoItemTabela(p) {
+  const preco = _precoVendaProduto(p);
+  return {
+    cod_produto: p.id,
+    descricao: p.descricao,
+    cod_fabricante: p.cod_fabricante,
+    unidade: p.unidade,
+    vlr_custo: _numPrecoTabela(p.vlr_custo, 0),
+    vlr_custofinal: _numPrecoTabela(p.vlr_custofinal, 0),
+    margem: _numPrecoTabela(p.margem, 0),
+    preco_base: preco,
+    preco_venda: preco,
+    tipo_desconto: 'R',
+    vlr_desconto: 0,
+    valor_tabela: preco,
+    ativo: 'S',
+    vigencia: null
+  };
+}
+
+function _normalizarItensParaSalvar(itens) {
+  return itens.map(it => {
+    const precoVenda = _numPrecoTabela(it.preco_venda, 0);
+    const tipoDesconto = it.tipo_desconto === 'P' ? 'P' : 'R';
+    const vlrDesconto = _numPrecoTabela(it.vlr_desconto, 0);
+    const precoBase = it.preco_base == null || it.preco_base === ''
+      ? precoVenda
+      : _numPrecoTabela(it.preco_base, precoVenda);
+    return {
+      ...it,
+      preco_base: precoBase,
+      preco_venda: precoVenda,
+      tipo_desconto: tipoDesconto,
+      vlr_desconto: vlrDesconto,
+      valor_tabela: _calcValorTabelaFront(precoVenda, tipoDesconto, vlrDesconto),
+      ativo: it.ativo === 'N' ? 'N' : 'S',
+      vigencia: it.vigencia || null
+    };
+  });
+}
+
+/** Custo usado na análise: custo final se houver; senão custo inicial. */
+function _custoParaAnalise(it) {
+  const cf = _numPrecoTabela(it.vlr_custofinal, 0);
+  if (cf > 0) return cf;
+  return _numPrecoTabela(it.vlr_custo, 0);
+}
+
+/**
+ * Compara Vlr. Tabela × custo do produto.
+ * - prejuizo: preço < custo
+ * - abaixo: margem real < margem % do cadastro (quando informada)
+ * - ok: lucro e (sem meta ou >= meta)
+ * - sem: sem custo cadastrado
+ */
+function _analiseMargemItem(it) {
+  const custo = _custoParaAnalise(it);
+  const preco = _numPrecoTabela(it.valor_tabela, 0);
+  const meta = _numPrecoTabela(it.margem, 0);
+
+  if (custo <= 0) {
+    return { status: 'sem', label: '—', pct: null, title: 'Sem custo no cadastro do produto' };
+  }
+
+  const pct = Math.round(((preco - custo) / custo) * 10000) / 100;
+  const pctTxt = `${pct.toFixed(1)}%`;
+  const custoTxt = custo.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+
+  if (preco < custo) {
+    return {
+      status: 'prejuizo',
+      label: `Prejuízo ${pctTxt}`,
+      pct,
+      title: `Vlr. Tabela abaixo do custo (R$ ${custoTxt}). Margem ${pctTxt}.`,
+    };
+  }
+
+  if (meta > 0 && pct + 0.005 < meta) {
+    return {
+      status: 'abaixo',
+      label: `${pctTxt} ↓ meta`,
+      pct,
+      title: `Margem ${pctTxt} abaixo da meta do produto (${meta.toFixed(1)}%). Custo R$ ${custoTxt}.`,
+    };
+  }
+
+  const metaHint = meta > 0 ? ` Meta ${meta.toFixed(1)}%.` : '';
+  return {
+    status: 'ok',
+    label: pctTxt,
+    pct,
+    title: `Margem ${pctTxt} sobre o custo (R$ ${custoTxt}).${metaHint}`,
+  };
+}
+
+function _htmlBadgeMargem(it) {
+  const a = _analiseMargemItem(it);
+  return `<span class="margem-badge ${a.status}" title="${String(a.title).replace(/"/g, '&quot;')}">${a.label}</span>`;
+}
+
+function _atualizarResumoMargem() {
+  const el = document.getElementById('margemResumo');
+  if (!el) return;
+  if (!_itensTabela.length) {
+    el.style.display = 'none';
+    el.innerHTML = '';
+    return;
+  }
+  let ok = 0, abaixo = 0, prejuizo = 0, sem = 0;
+  _itensTabela.forEach((it) => {
+    const s = _analiseMargemItem(it).status;
+    if (s === 'ok') ok++;
+    else if (s === 'abaixo') abaixo++;
+    else if (s === 'prejuizo') prejuizo++;
+    else sem++;
+  });
+  el.style.display = 'flex';
+  el.innerHTML = `
+    <strong>Análise de margem</strong>
+    <span class="mr-ok">${ok} ok</span>
+    <span class="mr-abaixo">${abaixo} abaixo da meta</span>
+    <span class="mr-prejuizo">${prejuizo} prejuízo</span>
+    ${sem ? `<span>${sem} sem custo</span>` : ''}
+    <span style="opacity:.75">Meta = margem % do cadastro · Custo = custo final (ou inicial)</span>
+  `;
+}
+
 function renderItens() {
   const tbody = document.getElementById('itensBody');
   if (!_itensTabela.length) {
-    tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:30px;color:var(--text2)">Nenhum item adicionado. Use o botão acima para adicionar produtos.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="15" style="text-align:center;padding:30px;color:var(--text2)">Nenhum item adicionado. Use o botão acima para adicionar produtos.</td></tr>';
+    _atualizarResumoMargem();
     return;
   }
 
@@ -835,8 +1010,9 @@ function renderItens() {
       <td style="font-weight:600">${it.descricao}</td>
       <td class="readonly-cell">${it.cod_fabricante || '-'}</td>
       <td class="readonly-cell">${it.unidade || 'UN'}</td>
+      <td class="readonly-cell" title="Custo do cadastro do produto">R$ ${_numPrecoTabela(it.vlr_custo, 0).toLocaleString('pt-BR', {minimumFractionDigits:2})}</td>
       <td class="readonly-cell">R$ ${parseFloat(it.preco_base||0).toLocaleString('pt-BR', {minimumFractionDigits:2})}</td>
-      <td><input type="number" step="0.01" value="${it.preco_venda}" onchange="updateItemFieldValue(${idx}, 'preco_venda', this.value)"></td>
+      <td><input type="number" step="0.01" min="0" value="${_numPrecoTabela(it.preco_venda, 0)}" onchange="updateItemFieldValue(${idx}, 'preco_venda', this.value)"></td>
       <td>
         <select onchange="updateItemFieldValue(${idx}, 'tipo_desconto', this.value)">
           <option value="R" ${it.tipo_desconto==='R'?'selected':''}>R$</option>
@@ -844,34 +1020,37 @@ function renderItens() {
         </select>
       </td>
       <td><input type="number" step="0.01" value="${it.vlr_desconto}" onchange="updateItemFieldValue(${idx}, 'vlr_desconto', this.value)"></td>
-      <td class="readonly-cell" style="color:var(--accent)">R$ <span class="vlr-tabela-span">${parseFloat(it.valor_tabela).toLocaleString('pt-BR', {minimumFractionDigits:2})}</span></td>
+      <td class="readonly-cell" style="color:var(--accent)">R$ <span class="vlr-tabela-span">${_numPrecoTabela(it.valor_tabela, 0).toLocaleString('pt-BR', {minimumFractionDigits:2})}</span></td>
+      <td class="margem-cell">${_htmlBadgeMargem(it)}</td>
       <td><input type="checkbox" ${it.ativo==='S'?'checked':''} onchange="updateItemFieldValue(${idx}, 'ativo', this.checked?'S':'N')"></td>
       <td><input type="date" value="${it.vigencia ? it.vigencia.split('T')[0] : ''}" onchange="updateItemFieldValue(${idx}, 'vigencia', this.value)"></td>
       <td style="text-align:center"><button class="btn-remove" onclick="removerItem(${idx})">✕</button></td>
     </tr>
   `).join('');
+  _atualizarResumoMargem();
 }
 
 function updateItemFieldValue(idx, field, val) {
   const it = _itensTabela[idx];
-  it[field] = val;
+  if (field === 'preco_venda' || field === 'vlr_desconto') {
+    it[field] = _numPrecoTabela(val, 0);
+  } else {
+    it[field] = val;
+  }
 
   // Recalcular Valor Tabela
   if (['preco_venda', 'tipo_desconto', 'vlr_desconto'].includes(field)) {
-    const pv = parseFloat(it.preco_venda) || 0;
-    const desc = parseFloat(it.vlr_desconto) || 0;
-    
-    if (it.tipo_desconto === 'R') {
-      it.valor_tabela = pv - desc;
-    } else {
-      it.valor_tabela = pv - (pv * desc / 100);
-    }
+    it.valor_tabela = _calcValorTabelaFront(it.preco_venda, it.tipo_desconto, it.vlr_desconto);
 
-    if (it.valor_tabela < 0) it.valor_tabela = 0;
-    
     // Update no DOM local para performance
     const row = document.querySelector(`tr[data-idx="${idx}"]`);
-    row.querySelector('.vlr-tabela-span').textContent = parseFloat(it.valor_tabela).toLocaleString('pt-BR', {minimumFractionDigits:2});
+    if (row) {
+      const vt = row.querySelector('.vlr-tabela-span');
+      if (vt) vt.textContent = parseFloat(it.valor_tabela).toLocaleString('pt-BR', {minimumFractionDigits:2});
+      const mc = row.querySelector('.margem-cell');
+      if (mc) mc.innerHTML = _htmlBadgeMargem(it);
+    }
+    _atualizarResumoMargem();
   }
 }
 
@@ -917,12 +1096,13 @@ async function buscarProdutosModal(page = 1) {
         <td>${p.descricao}</td>
         <td>${p.cod_fabricante || '-'}</td>
         <td>${p.unidade || 'UN'}</td>
+        <td style="color:var(--text2)">R$ ${_numPrecoTabela(p.vlr_custo, 0).toLocaleString('pt-BR', {minimumFractionDigits:2})}</td>
         <td style="font-weight:600">R$ ${parseFloat(p.vlr_venda||0).toLocaleString('pt-BR', {minimumFractionDigits:2})}</td>
       </tr>
     `).join('');
 
     renderPaginacaoModal(page, last_page);
-  } catch (err) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--danger)">Erro na busca</td></tr>'; }
+  } catch (err) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--danger)">Erro na busca</td></tr>'; }
 }
 
 function renderPaginacaoModal(current, last) {
@@ -943,19 +1123,7 @@ function selecionarProdutoModal(p) {
     return;
   }
 
-  _itensTabela.push({
-    cod_produto: p.id,
-    descricao: p.descricao,
-    cod_fabricante: p.cod_fabricante,
-    unidade: p.unidade,
-    preco_base: p.vlr_venda,
-    preco_venda: p.vlr_venda,
-    tipo_desconto: 'R',
-    vlr_desconto: 0,
-    valor_tabela: p.vlr_venda,
-    ativo: 'S',
-    vigencia: null
-  });
+  _itensTabela.push(_novoItemTabela(p));
 
   renderItens();
   showToast('Produto adicionado', 'success');
@@ -1145,7 +1313,7 @@ async function buscarImportarLote(page = 1) {
     document.getElementById('il_checkAll').checked = false;
 
     if (!data.length) {
-      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text2)">Nenhum produto encontrado.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text2)">Nenhum produto encontrado.</td></tr>';
       document.getElementById('il_pagination').innerHTML = '';
       document.getElementById('il_info').textContent = 'Nenhum produto encontrado.';
       return;
@@ -1169,6 +1337,7 @@ async function buscarImportarLote(page = 1) {
         <td style="padding:6px;color:var(--text2)">${p.nome_fornecedor || '—'}</td>
         <td style="padding:6px;color:var(--text2)">${p.cod_fabricante || '—'}</td>
         <td style="padding:6px;text-align:center">${p.unidade || 'UN'}</td>
+        <td style="padding:6px;text-align:right;color:var(--text2)">R$ ${_numPrecoTabela(p.vlr_custo, 0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</td>
         <td style="padding:6px;text-align:right;font-weight:600">R$ ${parseFloat(p.vlr_venda||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</td>
       </tr>`;
     }).join('');
@@ -1176,7 +1345,7 @@ async function buscarImportarLote(page = 1) {
     ilAtualizarInfo();
     ilRenderPaginacao();
   } catch(e) {
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--danger)">Erro: ${e.message}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--danger)">Erro: ${e.message}</td></tr>`;
   }
 }
 
@@ -1268,19 +1437,7 @@ function confirmarImportarLote() {
     let adicionados = 0;
     produtos.forEach(p => {
       if (!jaAdicionados.has(p.id)) {
-        _itensTabela.push({
-          cod_produto: p.id,
-          descricao: p.descricao,
-          cod_fabricante: p.cod_fabricante,
-          unidade: p.unidade,
-          preco_base: p.vlr_venda,
-          preco_venda: p.vlr_venda,
-          tipo_desconto: 'R',
-          vlr_desconto: 0,
-          valor_tabela: p.vlr_venda,
-          ativo: 'S',
-          vigencia: null
-        });
+        _itensTabela.push(_novoItemTabela(p));
         adicionados++;
       }
     });

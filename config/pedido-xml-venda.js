@@ -1,7 +1,10 @@
 /**
- * XML de pedido de venda — compatível com GeraXMLPedidos (Delphi legado).
- * Estrutura: Pedidos > Pedido > Numero, CNPJ, DataEntrega, Observacao, Itens > Item...
+ * XML/XLS de pedido de venda — compatível com GeraXMLPedidos (Delphi legado).
+ * Estrutura XML: Pedidos > Pedido > Numero, CNPJ, DataEntrega, Observacao, Itens > Item...
+ * XLS: mesmas informações (aba Pedido + aba Itens).
  */
+
+const XLSX = require('xlsx');
 
 function stripDoc(doc) {
   return String(doc || '').replace(/\D/g, '');
@@ -34,8 +37,13 @@ function fmtFloatDelphi(v) {
   return n.toLocaleString('pt-BR', { useGrouping: false, maximumFractionDigits: 10 });
 }
 
-function gerarXmlPedidoVenda(dados) {
+function nomeArquivoPedidoVenda(dados, ext) {
   const tipoPedido = String(dados.tipoPedido || 'PEDIDO').trim() || 'PEDIDO';
+  const numero = String(dados.numero || '').trim();
+  return `${tipoPedido} ${numero}.${ext}`;
+}
+
+function gerarXmlPedidoVenda(dados) {
   const numero = String(dados.numero || '').trim();
 
   const lines = [
@@ -62,8 +70,46 @@ function gerarXmlPedidoVenda(dados) {
   lines.push('    </Itens>', '  </Pedido>', '</Pedidos>');
 
   const xml = lines.join('\r\n');
-  const fileName = `${tipoPedido} ${numero}.xml`;
+  const fileName = nomeArquivoPedidoVenda(dados, 'xml');
   return { xml, fileName, buffer: Buffer.from(xml, 'utf8') };
+}
+
+/**
+ * Mesma lógica do XML: cabeçalho (Numero/CNPJ/DataEntrega/Observacao) + itens
+ * (Produto=cod_fabricante, Quantidade, Preco=valor_unitario).
+ * Formato .xls (BIFF) para compatibilidade com importadores legados.
+ */
+function gerarXlsPedidoVenda(dados) {
+  const numero = String(dados.numero || '').trim();
+  const wb = XLSX.utils.book_new();
+
+  const wsPedido = XLSX.utils.aoa_to_sheet([
+    ['Numero', 'CNPJ', 'DataEntrega', 'Observacao'],
+    [
+      numero,
+      String(dados.cnpj || ''),
+      formatDataEntregaDelphi(dados.dataEntrega),
+      String(dados.observacao || ''),
+    ],
+  ]);
+  XLSX.utils.book_append_sheet(wb, wsPedido, 'Pedido');
+
+  const rowsItens = [['Produto', 'Quantidade', 'Preco']];
+  for (const it of dados.itens || []) {
+    const cod = String(it.cod_fabricante || '').trim();
+    if (!cod) continue;
+    rowsItens.push([
+      cod,
+      parseFloat(it.quantidade) || 0,
+      parseFloat(it.valor_unitario) || 0,
+    ]);
+  }
+  const wsItens = XLSX.utils.aoa_to_sheet(rowsItens);
+  XLSX.utils.book_append_sheet(wb, wsItens, 'Itens');
+
+  const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xls' });
+  const fileName = nomeArquivoPedidoVenda(dados, 'xls');
+  return { fileName, buffer: Buffer.from(buffer) };
 }
 
 async function carregarDadosXmlPedidoVenda(pool, pedidoId) {
@@ -79,6 +125,7 @@ async function carregarDadosXmlPedidoVenda(pool, pedidoId) {
   );
   if (!pedRows[0]) return null;
   const ped = pedRows[0];
+  const numpedido = String(ped.numero != null && ped.numero !== '' ? ped.numero : id);
 
   let cnpj = '';
   if (ped.cod_cliente) {
@@ -89,13 +136,24 @@ async function carregarDadosXmlPedidoVenda(pool, pedidoId) {
     cnpj = stripDoc(cliRows[0]?.cpf || '');
   }
 
-  const [itens] = await pool.query(
+  // numpedido (string) usa índice; id_pedido varchar quase todo NULL faz full scan em bases legadas
+  let [itens] = await pool.query(
     `SELECT cod_fabricante, quantidade, valor_unitario
        FROM itensped
-      WHERE id_pedido = ? AND COALESCE(excluido, 'N') = 'N'
+      WHERE numpedido = ? AND COALESCE(excluido, 'N') = 'N'
       ORDER BY id`,
-    [id]
-  );
+    [numpedido]
+  ).catch(() => [[]]);
+
+  if (!itens?.length) {
+    [itens] = await pool.query(
+      `SELECT cod_fabricante, quantidade, valor_unitario
+         FROM itensped
+        WHERE CAST(id_pedido AS CHAR) = ? AND COALESCE(excluido, 'N') = 'N'
+        ORDER BY id`,
+      [String(id)]
+    ).catch(() => [[]]);
+  }
 
   const itensNorm = (itens || [])
     .map((i) => ({
@@ -106,7 +164,7 @@ async function carregarDadosXmlPedidoVenda(pool, pedidoId) {
     .filter((i) => i.cod_fabricante);
 
   return {
-    numero: String(ped.numero || id),
+    numero: numpedido,
     tipoPedido: String(ped.tipo_pedido || 'PEDIDO').trim() || 'PEDIDO',
     cnpj,
     dataEntrega: ped.data_entrega,
@@ -121,11 +179,19 @@ async function buildXmlAnexoPedidoVenda(pool, pedidoId) {
   return gerarXmlPedidoVenda(dados);
 }
 
+async function buildXlsAnexoPedidoVenda(pool, pedidoId) {
+  const dados = await carregarDadosXmlPedidoVenda(pool, pedidoId);
+  if (!dados || !dados.itens.length) return null;
+  return gerarXlsPedidoVenda(dados);
+}
+
 module.exports = {
   stripDoc,
   fmtFloatDelphi,
   formatDataEntregaDelphi,
   gerarXmlPedidoVenda,
+  gerarXlsPedidoVenda,
   carregarDadosXmlPedidoVenda,
   buildXmlAnexoPedidoVenda,
+  buildXlsAnexoPedidoVenda,
 };

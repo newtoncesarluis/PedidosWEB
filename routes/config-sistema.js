@@ -254,7 +254,41 @@ const FB_EXTRA_COLS = {
   euatendo_url:           "ALTER TABLE configuracao ADD COLUMN euatendo_url VARCHAR(250) NULL DEFAULT NULL",
   euatendo_token:         "ALTER TABLE configuracao ADD COLUMN euatendo_token VARCHAR(500) NULL DEFAULT NULL",
   euatendo_validado_em:   "ALTER TABLE configuracao ADD COLUMN euatendo_validado_em DATETIME NULL DEFAULT NULL",
+  // Meta — WhatsApp Cloud API (API oficial). Provedor opcional: só vale quando wa_provedor = 'META'
+  meta_phone_number_id:   "ALTER TABLE configuracao ADD COLUMN meta_phone_number_id VARCHAR(40) NULL DEFAULT NULL",
+  meta_waba_id:           "ALTER TABLE configuracao ADD COLUMN meta_waba_id VARCHAR(40) NULL DEFAULT NULL",
+  meta_access_token:      "ALTER TABLE configuracao ADD COLUMN meta_access_token VARCHAR(700) NULL DEFAULT NULL",
+  meta_api_version:       "ALTER TABLE configuracao ADD COLUMN meta_api_version VARCHAR(10) NULL DEFAULT NULL",
+  meta_template_nome:     "ALTER TABLE configuracao ADD COLUMN meta_template_nome VARCHAR(120) NULL DEFAULT NULL",
+  meta_template_idioma:   "ALTER TABLE configuracao ADD COLUMN meta_template_idioma VARCHAR(10) NULL DEFAULT NULL",
+  meta_validado_em:       "ALTER TABLE configuracao ADD COLUMN meta_validado_em DATETIME NULL DEFAULT NULL",
 };
+
+// Provedores de envio aceitos em wa_provedor
+const WA_PROVEDORES_OK = ['EVOLUTION', 'EUATENDO', 'META'];
+
+// Campos da Meta que vieram no body → SET do UPDATE. Token em branco = mantém o salvo.
+function montarSetsMeta(body) {
+  const sets = [];
+  const vals = [];
+  const set = (col, val) => { sets.push(`${col}=?`); vals.push(val); };
+  if ('meta_phone_number_id' in body) set('meta_phone_number_id', String(body.meta_phone_number_id || '').replace(/\D/g, '') || null);
+  if ('meta_waba_id' in body)         set('meta_waba_id', String(body.meta_waba_id || '').replace(/\D/g, '') || null);
+  if ('meta_api_version' in body) {
+    const v = String(body.meta_api_version || '').trim();
+    set('meta_api_version', /^v\d+\.\d+$/.test(v) ? v : null);
+  }
+  if ('meta_template_nome' in body) {
+    // nomes de modelo da Meta: minúsculas, números e sublinhado
+    set('meta_template_nome', String(body.meta_template_nome || '').trim().toLowerCase().replace(/[^a-z0-9_]/g, '') || null);
+  }
+  if ('meta_template_idioma' in body) {
+    const i = String(body.meta_template_idioma || '').trim();
+    set('meta_template_idioma', /^[a-z]{2}(_[A-Z]{2})?$/.test(i) ? i : 'pt_BR');
+  }
+  if (body.meta_access_token) set('meta_access_token', String(body.meta_access_token).trim());
+  return { sets, vals };
+}
 
 async function ensureConfigCols(pool) {
   const [cols] = await pool.query('SHOW COLUMNS FROM configuracao').catch(() => [[]]);
@@ -292,7 +326,9 @@ router.get('/api', async (req, res) => {
       `SELECT id, w_apiglobal, w_urlplataforma, empresa_liberada, senha_acesso,
               fb_verify_token, fb_page_access_token, fb_default_id_empresa, fb_default_id_vendedor,
               ig_instancia, ig_autoreply, ig_reply_msg,
-              wa_provedor, euatendo_url, euatendo_token, euatendo_validado_em
+              wa_provedor, euatendo_url, euatendo_token, euatendo_validado_em,
+              meta_phone_number_id, meta_waba_id, meta_access_token, meta_api_version,
+              meta_template_nome, meta_template_idioma, meta_validado_em
        FROM configuracao WHERE excluido = 'N' ORDER BY id DESC LIMIT 1`
     );
     const row = rows[0] || {};
@@ -314,6 +350,8 @@ router.get('/api', async (req, res) => {
     delete out.fb_page_access_token;
     out.euatendo_token_configurado = !!out.euatendo_token;
     delete out.euatendo_token;
+    out.meta_token_configurado = !!out.meta_access_token;
+    delete out.meta_access_token;
     res.json(out);
   } catch (err) {
     logError('GET /api/config/api', err);
@@ -356,6 +394,20 @@ router.post('/api', async (req, res) => {
     const newFbToken = regenerar_fb_token ? genToken() : undefined;
 
     const provedor    = wa_provedor ? String(wa_provedor).toUpperCase() : undefined;
+    const provedorOk  = provedor === undefined ? undefined : (WA_PROVEDORES_OK.includes(provedor) ? provedor : 'EVOLUTION');
+    const meta        = montarSetsMeta(req.body);
+
+    // Escolher a Meta exige número + token (os já salvos contam)
+    if (provedorOk === 'META') {
+      const [[salvo]] = existing[0]
+        ? await pool.query('SELECT meta_phone_number_id, meta_access_token FROM configuracao WHERE id=?', [existing[0].id])
+        : [[{}]];
+      const phone = ('meta_phone_number_id' in req.body ? String(req.body.meta_phone_number_id || '').replace(/\D/g, '') : (salvo && salvo.meta_phone_number_id)) || '';
+      const token = req.body.meta_access_token || (salvo && salvo.meta_access_token) || '';
+      if (!phone || !token) {
+        return res.status(400).json({ error: 'Para usar a API oficial da Meta informe o Phone Number ID e o token de acesso' });
+      }
+    }
     const euatendoUrl = euatendo_url !== undefined
       ? (euatendo_url ? String(euatendo_url).replace(/\/$/, '') : null)
       : undefined;
@@ -376,7 +428,7 @@ router.post('/api', async (req, res) => {
       if ('ig_instancia'           in req.body) set('ig_instancia', ig_instancia || null);
       if ('ig_autoreply'           in req.body) set('ig_autoreply', ig_autoreply === 'S' ? 'S' : 'N');
       if ('ig_reply_msg'           in req.body) set('ig_reply_msg', ig_reply_msg || null);
-      if (provedor    !== undefined) set('wa_provedor', provedor === 'EUATENDO' ? 'EUATENDO' : 'EVOLUTION');
+      if (provedorOk  !== undefined) set('wa_provedor', provedorOk);
       if (euatendoUrl !== undefined) set('euatendo_url', euatendoUrl);
       if (fb_page_access_token) set('fb_page_access_token', fb_page_access_token);
       if (euatendo_token) {                                                 // em branco = mantém o atual
@@ -384,6 +436,19 @@ router.post('/api', async (req, res) => {
         set('euatendo_validado_em', null);   // token novo → exige novo teste p/ selo "liberado"
       }
       if (newFbToken)           set('fb_verify_token', newFbToken);
+
+      // Meta: número/token novos → exige novo teste para o selo "liberado"
+      if (meta.sets.length) {
+        sets.push(...meta.sets);
+        vals.push(...meta.vals);
+        if (req.body.meta_access_token || 'meta_phone_number_id' in req.body) {
+          const [[atualMeta]] = await pool.query('SELECT meta_phone_number_id FROM configuracao WHERE id=?', [existing[0].id]);
+          const novoPhone = String(req.body.meta_phone_number_id || '').replace(/\D/g, '');
+          if (req.body.meta_access_token || (novoPhone && novoPhone !== String((atualMeta && atualMeta.meta_phone_number_id) || ''))) {
+            set('meta_validado_em', null);
+          }
+        }
+      }
 
       if (sets.length) {
         vals.push(existing[0].id);
@@ -406,11 +471,14 @@ router.post('/api', async (req, res) => {
           ig_instancia || null,
           ig_autoreply === 'S' ? 'S' : 'N',
           ig_reply_msg || null,
-          provedor === 'EUATENDO' ? 'EUATENDO' : 'EVOLUTION',
+          provedorOk || 'EVOLUTION',
           euatendoUrl || null,
           euatendo_token || null,
         ]
       );
+      if (meta.sets.length) {
+        await pool.query(`UPDATE configuracao SET ${meta.sets.join(', ')} WHERE id=?`, [...meta.vals, result.insertId]);
+      }
       res.status(201).json({ ok: true, acao: 'insert', id: result.insertId, ...(newFbToken ? { fb_verify_token: newFbToken } : {}) });
     }
   } catch (err) {

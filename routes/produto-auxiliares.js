@@ -67,7 +67,7 @@ function mountAuxCrud(basePath, table, label) {
         `INSERT INTO \`${table}\` (codigo, descricao, ordem, status, excluido) VALUES (?,?,?,'A','N')`,
         [codigo, descricao, ordem]
       );
-      res.json({ ok: true, id: ins.insertId });
+      res.json({ ok: true, id: ins.insertId, codigo, descricao });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
