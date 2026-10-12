@@ -235,7 +235,34 @@ async function buscarMarcaPropriaClienteFabrica(codCliente, codFornecedor, pool)
   }
 }
 
+/**
+ * Código do cliente na fábrica (cliente_representadas.codigo_na_fabrica) — usado no relatório do pedido.
+ * Independe de marca própria.
+ */
+async function buscarCodigoClienteFabrica(codCliente, codFornecedor, pool) {
+  const idCli = parseInt(codCliente, 10);
+  const idForn = parseInt(codFornecedor, 10);
+  if (!(idCli > 0) || !(idForn > 0)) return null;
+  const executor = pool || getPool();
+  await ensureRepresentadasCols(executor);
+  try {
+    const [rows] = await executor.query(
+      `SELECT cr.codigo_na_fabrica
+       FROM cliente_representadas cr
+       WHERE cr.cod_cliente = ? AND cr.cod_fornecedor = ?
+         AND COALESCE(cr.excluido, 'N') = 'N'
+         AND NULLIF(TRIM(cr.codigo_na_fabrica), '') IS NOT NULL
+       LIMIT 1`,
+      [idCli, idForn]
+    );
+    return rows[0] ? String(rows[0].codigo_na_fabrica).trim() : null;
+  } catch {
+    return null;
+  }
+}
+
 module.exports = {
+  buscarCodigoClienteFabrica,
   buscarRepresentadas,
   salvarRepresentadas,
   clienteRestringeRepresentadas,

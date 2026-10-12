@@ -224,6 +224,7 @@ input:focus,select:focus { border-color:var(--accent);box-shadow:0 0 0 3px rgba(
                 <option value="CARTAO">CARTÃO</option>
                 <option value="PIX">PIX</option>
                 <option value="BOLETO">BOLETO</option>
+                <option value="CHEQUE">CHEQUE</option>
                 <option value="CONVENIO">CONVÊNIO</option>
               </select>
             </div>
@@ -289,6 +290,21 @@ function _apiHeaders(json) {
   return h;
 }
 
+function esc(v){return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
+/** Combo «Tipo de Pagamento» vem do cadastro (Financeiro › Tipos de Pagamento). */
+async function carregarTiposPagto() {
+  try {
+    const r = await fetch('/api/tipo-pagamento?ativos=1', { headers: _apiHeaders() });
+    if (!r.ok) return;
+    const d = await r.json();
+    const sel = document.getElementById('f_tipo_pagto');
+    if (!sel || !(d.tipos || []).length) return;
+    const atual = sel.value;
+    sel.innerHTML = d.tipos.map(t => `<option value="${esc(t.codigo)}">${esc(t.descricao)}</option>`).join('');
+    if (atual) sel.value = atual;
+  } catch (_) { /* mantém as opções fixas */ }
+}
+
 async function buscar() {
   const q = document.getElementById('inputBusca').value.trim();
   try {
@@ -347,6 +363,7 @@ function toggleFiltroStatus(st) {
 }
 
 function abrirNovo() {
+  carregarTiposPagto();
   if (!guardCadIncluir('Sem permissão para incluir formas de pagamento')) return;
   S.registroId = null;
   document.getElementById('mainForm').reset();
@@ -366,7 +383,13 @@ async function abrirEditar(id) {
     S.registroId = id;
     document.getElementById('f_id').value = f.id;
     document.getElementById('f_descricao').value = f.descricao;
-    document.getElementById('f_tipo_pagto').value = f.tipo_pagto || 'DINHEIRO';
+    await carregarTiposPagto();
+    {
+      const selT = document.getElementById('f_tipo_pagto');
+      const vt = f.tipo_pagto || 'DINHEIRO';
+      if (![...selT.options].some(o => o.value === vt)) selT.add(new Option(vt, vt)); // tipo inativo/antigo
+      selT.value = vt;
+    }
     document.getElementById('f_prazo_padrao').value = f.prazo_padrao || '';
     document.getElementById('f_tipo_percentual').value = f.tipo_percentual || '';
     document.getElementById('f_percentual').value = f.percentual || 0;

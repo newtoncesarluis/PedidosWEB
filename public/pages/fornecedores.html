@@ -1050,6 +1050,51 @@ html.sysrep-home-embed #formSection .form-footer { flex-shrink:0 !important; }
                   </div>
                 </div>
               </div>
+              <div id="flex-pref-section" class="pref-item pref-item--feature pref-item--stacked" data-pref-keywords="flex conta corrente saldo vendedor desconto acima tabela preço verba">
+                <div style="display:flex;align-items:flex-start;gap:12px;width:100%;cursor:pointer" onclick="togglePref('f_habilita_flex');syncFlexPref()">
+                  <input type="checkbox" id="f_habilita_flex" style="width:18px;height:18px;margin-top:2px" onclick="event.stopPropagation()" onchange="syncFlexPref()">
+                  <div style="flex:1;min-width:0">
+                    <label for="f_habilita_flex" class="feature-title" onclick="event.stopPropagation()">Flex de preço (conta corrente do vendedor)</label>
+                    <p class="feature-hint">
+                      Vender <strong>acima</strong> da tabela gera crédito na conta flex do vendedor; vender <strong>abaixo</strong> consome o saldo.
+                      O saldo é por vendedor e por fábrica e pode pagar descontos em outros clientes/produtos.
+                    </p>
+                  </div>
+                </div>
+                <div id="flex-pref-opcoes" style="display:none;width:100%;margin-top:10px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">
+                  <div class="form-group" style="margin:0">
+                    <label for="f_flex_lancar_em">Lançar o flex quando</label>
+                    <select id="f_flex_lancar_em" class="input-field" autocomplete="off">
+                      <option value="SALVAR">Salvar o pedido</option>
+                      <option value="APROVAR">Aprovar o pedido</option>
+                      <option value="FATURAR">Faturar o pedido</option>
+                    </select>
+                  </div>
+                  <div class="form-group" style="margin:0">
+                    <label for="f_flex_saldo_insuficiente">Saldo insuficiente</label>
+                    <select id="f_flex_saldo_insuficiente" class="input-field" autocomplete="off">
+                      <option value="AVISAR">Apenas avisar</option>
+                      <option value="BLOQUEAR">Bloquear o pedido</option>
+                      <option value="NEGATIVAR">Permitir ficar negativo</option>
+                    </select>
+                  </div>
+                  <div class="form-group" style="margin:0">
+                    <label for="f_flex_validade">Validade do saldo</label>
+                    <select id="f_flex_validade" class="input-field" autocomplete="off">
+                      <option value="NUNCA">Não expira</option>
+                      <option value="SEMANAL">Semanal (zera toda segunda)</option>
+                      <option value="MENSAL">Mensal (zera todo dia 1)</option>
+                    </select>
+                  </div>
+                  <div class="form-group" style="margin:0">
+                    <label for="f_flex_gera_credito">Venda acima da tabela</label>
+                    <select id="f_flex_gera_credito" class="input-field" autocomplete="off">
+                      <option value="S">Gera crédito flex</option>
+                      <option value="N">Não gera (só controla consumo)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
               <div class="pref-item" onclick="togglePref('f_fornecedorpadraopedido')">
                 <input type="checkbox" id="f_fornecedorpadraopedido">
                 <label for="f_fornecedorpadraopedido">Fornecedor Padrão Pedidos</label>
@@ -3128,6 +3173,7 @@ function limparForm() {
   const eLI  = document.getElementById('f_layout_impressao');       if (eLI)  eLI.value  = 'PADRAO';
   const ePCF = document.getElementById('f_pedidos_codfabricante'); if (ePCF) ePCF.value = 'N';
   setCheckSN('f_pedidos_ref_mae', 'N');
+  setFlexCampos({});
   const eCorObs = document.getElementById('f_cor_obspedido'); if (eCorObs) eCorObs.value = '#c0392b';
   ['f_obs_bold','f_obs_italic','f_obs_underline','f_obs_uppercase'].forEach(id => { const el = document.getElementById(id); if(el) el.checked = false; });
   atualizarPreviewObs();
@@ -3191,6 +3237,7 @@ function preencherForm(f) {
   setVendasDuplicarItemModo(f.vendasduplicaritem);
   setCheckSN('f_descontomultiplos',       f.descontomultiplos       || 'N');
   setCheckSN('f_habilita_feirinha',       f.habilita_feirinha       || 'N');
+  setFlexCampos(f);
   setCheckSN('f_habilita_kit_pedido',   f.habilita_kit_pedido     || 'N');
   set('f_kit_desconto_pct',             f.kit_desconto_pct != null ? f.kit_desconto_pct : '');
   set('f_desconto_primeira_compra_pct', f.desconto_primeira_compra_pct != null ? f.desconto_primeira_compra_pct : '');
@@ -3302,6 +3349,7 @@ function coletarForm() {
     vendasduplicaritem:      getVendasDuplicarItemModo(),
     descontomultiplos:       getCheckSN('f_descontomultiplos'),
     habilita_feirinha:       getCheckSN('f_habilita_feirinha'),
+    ...getFlexCampos(),
     habilita_kit_pedido:     getCheckSN('f_habilita_kit_pedido'),
     kit_desconto_pct:        document.getElementById('f_kit_desconto_pct')?.value || null,
     desconto_primeira_compra_pct: document.getElementById('f_desconto_primeira_compra_pct')?.value || null,
@@ -4297,6 +4345,31 @@ function getVendasDuplicarItemModo() {
     ? VendasDuplicarItem.normalize(el.value)
     : (String(el.value || 'S').toUpperCase() === 'N' ? 'N' : (String(el.value || 'S').toUpperCase() === 'D' ? 'D' : 'S'));
 }
+function syncFlexPref() {
+  const on = !!document.getElementById('f_habilita_flex')?.checked;
+  const box = document.getElementById('flex-pref-opcoes');
+  if (box) box.style.display = on ? 'grid' : 'none';
+}
+function setFlexCampos(f) {
+  setCheckSN('f_habilita_flex', f.habilita_flex || 'N');
+  const v = (id, val, def) => { const el = document.getElementById(id); if (el) el.value = val || def; };
+  v('f_flex_lancar_em', f.flex_lancar_em, 'APROVAR');
+  v('f_flex_saldo_insuficiente', f.flex_saldo_insuficiente, 'AVISAR');
+  v('f_flex_validade', f.flex_validade, 'NUNCA');
+  v('f_flex_gera_credito', f.flex_gera_credito, 'S');
+  syncFlexPref();
+}
+function getFlexCampos() {
+  const g = (id, def) => document.getElementById(id)?.value || def;
+  return {
+    habilita_flex:           getCheckSN('f_habilita_flex'),
+    flex_lancar_em:          g('f_flex_lancar_em', 'APROVAR'),
+    flex_saldo_insuficiente: g('f_flex_saldo_insuficiente', 'AVISAR'),
+    flex_validade:           g('f_flex_validade', 'NUNCA'),
+    flex_gera_credito:       g('f_flex_gera_credito', 'S'),
+  };
+}
+
 function togglePref(id, ev) {
   if (ev) {
     const t = ev.target;

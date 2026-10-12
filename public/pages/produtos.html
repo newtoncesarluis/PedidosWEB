@@ -1082,7 +1082,7 @@ tbody td { padding:10px 12px; vertical-align:middle; }
           <hr class="form-section-sep">
           <div class="form-group">
             <label>Margem (%)</label>
-            <input type="number" id="f_margem" step="0.01" min="0" placeholder="0,00"
+            <input type="number" id="f_margem" step="0.01" min="0" max="99.99" placeholder="0,00"
               oninput="calcVlrVenda()">
           </div>
           <div class="form-group">
@@ -4793,8 +4793,9 @@ function calcCustoFinal() {
 function calcVlrVenda() {
   const custo  = parseFloat(document.getElementById('f_vlr_custofinal').value) || 0;
   const margem = parseFloat(document.getElementById('f_margem').value) || 0;
-  if (custo && margem) {
-    const venda = custo * (1 + margem / 100);
+  if (custo && margem && margem < 100) {
+    // Margem sobre a venda: venda = custo / (1 − margem%) — ex.: custo 47, margem 41,18% → 79,90
+    const venda = custo / (1 - margem / 100);
     document.getElementById('f_vlr_venda').value = fmtMoneyInput(venda);
   }
   calcMarkupLiquido();
@@ -4817,7 +4818,8 @@ function calcMarkupLiquido() {
   }
   const comissaoVlr = venda * (comissao / 100);
   const lucroLiq = venda - custo - comissaoVlr;
-  const pct = Math.round((lucroLiq / custo) * 10000) / 100;
+  // Lucro líquido sobre o preço de venda (ex.: custo 47, venda 79,90 → 32,90/79,90 = 41,18%)
+  const pct = Math.round((lucroLiq / venda) * 10000) / 100;
   elMl.value = pct.toFixed(2);
   if (hint) {
     hint.textContent = `Lucro líq. ${fmtMoeda(lucroLiq)} (após comissão ${comissao.toFixed(2)}%)`;

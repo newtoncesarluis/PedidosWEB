@@ -152,6 +152,16 @@ async function htmlToPdf(html, opts = {}) {
   const baseUrl = opts.baseUrl || process.env.APP_URL || process.env.PUBLIC_URL || '';
   let doc = inlineLocalUploadImages(html);
   doc = injectBaseHref(doc, baseUrl);
+  // margem_mm (modelo de impressão do usuário). O CSS do relatório traz @page{margin:...} e padding no body
+  // (p.ex. margem 0 para esconder o cabeçalho do navegador) e o Chromium dá prioridade a ele: por isso as
+  // margens antigas são removidas do HTML e a do usuário entra como a última regra, válida em todas as páginas.
+  const mmDoc = opts.margemMm && Number.isFinite(opts.margemMm.lat) && Number.isFinite(opts.margemMm.sup)
+    ? opts.margemMm : null;
+  if (mmDoc) {
+    doc = doc.replace(/@page\s*\{[^{}]*\}/gi, (m) => m.replace(/margin(?:-[a-z]+)?\s*:[^;}]*;?/gi, ''));
+    const css = `<style>@page{margin:${mmDoc.sup}mm ${mmDoc.lat}mm !important}@media print{body{padding:0 !important;margin:0 !important}}</style>`;
+    doc = /<\/head>/i.test(doc) ? doc.replace(/<\/head>/i, css + '</head>') : css + doc;
+  }
   const browser = await getBrowser();
   const page = await browser.newPage();
   try {
@@ -182,10 +192,15 @@ async function htmlToPdf(html, opts = {}) {
       ).catch(() => {});
     }
 
+    const mm = mmDoc;
     const pdf = await page.pdf({
       format: 'A4',
+      landscape: false,
       printBackground: true,
-      margin: { top: '10mm', bottom: '10mm', left: '12mm', right: '12mm' },
+      preferCSSPageSize: !!mm,
+      margin: mm
+        ? { top: '0', bottom: '0', left: '0', right: '0' }
+        : { top: '10mm', bottom: '10mm', left: '12mm', right: '12mm' },
     });
     return Buffer.from(pdf);
   } finally {

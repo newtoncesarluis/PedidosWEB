@@ -7,7 +7,7 @@
   'use strict';
 
   const S = {
-    view: 'colecoes', // colecoes | refs | detalhe | editar | carrinho | prepedido | pendentes | sucesso
+    view: 'colecoes', // inicio | colecoes | refs | detalhe | editar | carrinho | prepedido | pendentes | sucesso
     catalogos: [],
     fabricas: [],
     tabelas: [],
@@ -47,9 +47,13 @@
       tipo_pedido: 'PEDIDO',
       id_tipopedido: null,
       obs: '',
+      data_entrega: '',
+      ped_compras: '',
       id_tabela: '',
     },
     lastPedidos: [],
+    pularInicio: false,
+    cartFiltro: '',
     _cliTimer: null,
   };
 
@@ -296,15 +300,15 @@
     const tot = lineTotal(it);
     const foto = String(it.foto_principal || '').trim();
     const thumb = foto
-      ? `<div class="afv-cart-thumb"><img src="${esc(foto)}" alt="" loading="lazy" onerror="this.parentNode.innerHTML='<span class=\\'afv-cart-thumb-ph\\' aria-hidden=\\'true\\'>∎</span>'"></div>`
-      : `<div class="afv-cart-thumb"><span class="afv-cart-thumb-ph" aria-hidden="true">∎</span></div>`;
+      ? `<div class="afv-cart-thumb"><img src="${esc(foto)}" alt="" loading="lazy" onerror="this.parentNode.innerHTML='<span class=\\'afv-cart-thumb-ph\\' aria-hidden=\\'true\\'>—</span>'"></div>`
+      : `<div class="afv-cart-thumb"><span class="afv-cart-thumb-ph" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="M21 16l-5-5-8 9"/></svg></span></div>`;
     return `<article class="afv-cart-row">
       ${thumb}
       <div class="afv-cart-meta">
         <div class="afv-cart-sku">${esc(sku)}</div>
         <div class="afv-cart-name">${esc(nome)}</div>
         <div class="afv-cart-price-row">
-          <span class="afv-cart-price">${q} × ${money(it.vlr_venda)}</span>
+          <span class="afv-cart-price">${q} un. × ${money(it.vlr_venda)}</span>
           <span class="afv-cart-line">${money(tot)}</span>
         </div>
         ${gradeChipsHtml(it.grade_resumo)}
@@ -313,6 +317,16 @@
         ${ico('x')}
       </button>
     </article>`;
+  }
+
+  // Card compacto (sem foto de capa): iniciais coloridas + nome + seta
+  function tileCard(tipo, { id, nome, sub, cor, extra }) {
+    const rotulo = { colecao: 'Coleção', fabrica: 'Fábrica', tabela: 'Tabela de preço' }[tipo] || '';
+    return `<div class="afv-tile" data-tipo="${tipo}" data-id="${esc(id)}"${extra || ''}>
+      <span class="afv-tile-av" style="background:${esc(cor || '#1f2937')}">${esc(iniciaisMarca(nome))}</span>
+      <span class="afv-tile-tx"><b>${esc(nome)}</b><small>${esc(sub || rotulo)}</small></span>
+      <span class="afv-tile-go" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
+    </div>`;
   }
 
   // Card das secoes da home do Showroom (colecao / fabrica / tabela)
@@ -372,6 +386,7 @@
 .afv-chip{height:36px;padding:0 14px;border:1px solid var(--card-border,#e2e8f0);border-radius:999px;background:var(--card,#fff);font:inherit;font-size:12px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;color:var(--content-text,#334155);transition:border-color .15s,background .15s}
 .afv-chip:hover{border-color:var(--afv-accent);background:var(--afv-soft)}
 .afv-sort{display:flex;gap:4px;justify-content:flex-end;background:var(--content-bg,#f1f5f9);padding:3px;border-radius:10px;width:fit-content;margin-left:auto}
+.afv-sort-lbl{align-self:center;font-size:11px;font-weight:700;color:var(--text2,#64748b);padding:0 6px 0 8px}
 .afv-sort-btn{border:none;background:transparent;font:inherit;font-size:11px;font-weight:800;color:var(--text2,#94a3b8);cursor:pointer;letter-spacing:.02em;padding:6px 12px;border-radius:8px}
 .afv-sort-btn.is-on{color:var(--content-text,#0f172a);background:var(--card,#fff);box-shadow:0 1px 3px rgba(15,23,42,.08)}
 .afv-body{flex:1;overflow:auto;padding:14px max(14px,calc((100% - 1400px)/2)) calc(14px + env(safe-area-inset-bottom));min-height:0;scrollbar-width:thin}
@@ -419,12 +434,12 @@
   position:absolute;top:11px;left:13px;z-index:2;
   width:17px;height:17px;color:rgba(255,255,255,.8);
 }
-.afv-grid-ref{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.afv-grid-ref{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px}
 .afv-ref{position:relative;background:var(--card,#fff);border:1px solid var(--card-border,#e2e8f0);border-radius:14px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;transition:border-color .15s,box-shadow .15s,transform .15s;text-align:left;font:inherit;color:inherit;padding:0;width:100%;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 .afv-ref:hover{border-color:var(--afv-accent);box-shadow:0 8px 20px rgba(15,23,42,.08);transform:translateY(-2px)}
 .afv-ref:active{transform:scale(.98)}
 .afv-ref:focus-visible{outline:2px solid var(--afv-accent);outline-offset:2px}
-.afv-ref-img{aspect-ratio:1;background:var(--content-bg,#f8fafc);display:flex;align-items:center;justify-content:center;overflow:hidden;padding:12px;box-sizing:border-box}
+.afv-ref-img{position:relative;aspect-ratio:1;background:var(--content-bg,#f8fafc);display:flex;align-items:center;justify-content:center;overflow:hidden;padding:8px;box-sizing:border-box}
 .afv-ref-img img,.afv-ref-empty,.afv-ref-badge{pointer-events:none;-webkit-user-drag:none;user-select:none}
 .afv-ref.is-opening{opacity:.55;pointer-events:none}
 .afv-ref-img img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;object-position:center}
@@ -433,6 +448,11 @@
 .afv-ref-code{font-size:11px;font-weight:800;color:var(--text2,#64748b);line-height:1.25;word-break:break-word}
 .afv-ref-nome{font-size:12px;font-weight:600;color:var(--content-text,#0f172a);line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .afv-ref-preco{font-size:13px;font-weight:800;color:var(--afv-accent);margin-top:auto;padding-top:4px}
+.afv-count{display:flex;align-items:center;gap:8px;margin:0 0 12px;font-size:12.5px;font-weight:700;color:var(--text2,#64748b)}
+.afv-count b{color:var(--content-text,#0f172a)}
+.afv-count-cart{padding:2px 10px;border-radius:999px;background:var(--afv-soft);color:var(--afv-accent);font-weight:800}
+.afv-ref--cart{border-color:var(--afv-accent);box-shadow:0 0 0 1px var(--afv-accent)}
+.afv-ref-incart{position:absolute;left:8px;bottom:8px;display:inline-flex;align-items:center;gap:4px;background:var(--afv-accent);color:#fff;font-size:10.5px;font-weight:800;padding:3px 9px;border-radius:999px;pointer-events:none}
 .afv-ref-badge{position:absolute;top:8px;right:8px;background:rgba(15,23,42,.82);color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;backdrop-filter:blur(4px)}
 .afv-empty{padding:56px 20px;text-align:center;color:var(--text2,#64748b);font-size:14px;line-height:1.5}
 /* miniaturas embaixo da foto (padrao de loja) em vez de uma coluna lateral
@@ -505,6 +525,77 @@
 .afv-gbtn.minus{background:var(--content-bg,#f1f5f9);color:var(--content-text,#334155);border:1px solid var(--card-border,#e2e8f0)}
 .afv-gbtn.minus:hover{border-color:var(--afv-accent);color:var(--afv-accent)}
 .afv-gqtd{font-size:18px;font-weight:900;min-height:24px;color:var(--content-text,#0f172a)}
+.afv-gqtd-in{width:64px;height:34px;text-align:center;font-size:17px;font-weight:900;border:1.5px solid var(--card-border,#e2e8f0);border-radius:8px;background:var(--card,#fff);color:var(--content-text,#0f172a);-moz-appearance:textfield}
+.afv-gqtd-in::-webkit-outer-spin-button,.afv-gqtd-in::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.afv-tools{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.afv-tools .afv-search{flex:1 1 300px;min-width:0}
+.afv-secoes{display:block}
+.afv-sec{display:block;max-width:none;min-width:0;margin:0 0 26px}
+.afv-sec-title{display:flex;align-items:center;gap:8px;font-size:13px;letter-spacing:.05em;margin:0 0 12px}
+.afv-sec-count{font-size:11px;font-weight:800;padding:1px 8px;border-radius:999px;background:var(--content-bg,#f1f5f9);color:var(--text2,#64748b);letter-spacing:0}
+.afv-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.afv-banners{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+.afv-tile{display:flex;align-items:center;gap:14px;padding:14px 16px;border:1px solid var(--card-border,#e2e8f0);border-radius:16px;background:var(--card,#fff);cursor:pointer;transition:border-color .15s,box-shadow .15s,transform .15s;min-width:0}
+.afv-tile:hover{border-color:var(--afv-accent);box-shadow:0 6px 20px rgba(15,23,42,.1);transform:translateY(-2px)}
+.afv-tile:active{transform:translateY(0)}
+.afv-tile-av{width:48px;height:48px;border-radius:14px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:16px;letter-spacing:.02em}
+.afv-tile-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.afv-tile-tx b{font-size:14px;font-weight:800;line-height:1.25;color:var(--content-text,#0f172a);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.afv-tile-tx small{font-size:11.5px;font-weight:600;color:var(--text2,#64748b)}
+.afv-tile-go{flex-shrink:0;color:var(--text2,#94a3b8);display:flex}
+.afv-tile:hover .afv-tile-go{color:var(--afv-accent)}
+.afv-ctx{display:flex;align-items:center;gap:10px;padding:8px 14px;background:var(--afv-soft);border-bottom:1px solid var(--card-border,#e2e8f0);flex-shrink:0;font-size:13px;color:var(--content-text,#0f172a)}
+.afv-ctx[hidden]{display:none}
+.afv-ctx-ico{display:flex;color:var(--afv-accent);flex-shrink:0}
+.afv-ctx-txt{min-width:0;flex:1;display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px}
+.afv-ctx-txt b{font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.afv-ctx-txt small{font-size:11.5px;font-weight:600;color:var(--text2,#64748b)}
+.afv-ctx-btn{flex:0 0 auto;height:32px;padding:0 14px;border:1.5px solid var(--afv-accent);border-radius:10px;background:var(--card,#fff);color:var(--afv-accent);font:inherit;font-size:12px;font-weight:800;cursor:pointer}
+.afv-ctx--vazio{background:#fef3c7;color:#92400e}
+.afv-ctx--vazio .afv-ctx-ico{color:#b45309}
+.afv-ctx--vazio .afv-ctx-btn{border-color:#b45309;color:#92400e}
+.afv-abas{display:flex;gap:0;border-bottom:2px solid var(--card-border,#e2e8f0);margin:0 auto 14px;max-width:720px;width:100%}
+.afv-aba{flex:1;padding:12px 8px;border:none;background:transparent;font-size:12px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--text2,#64748b);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px}
+.afv-abas--dados{max-width:880px}
+.afv-dados{max-width:880px;padding:18px 20px 0;gap:16px}
+.afv-dados-resumo{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.afv-dados-total{font-size:18px;font-weight:800;color:var(--afv-accent);letter-spacing:-.02em}
+.afv-dados-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.afv-dados-full{grid-column:1/-1}
+.afv-dados textarea{height:64px}
+.afv-dados-bar{position:sticky;bottom:0;z-index:5;display:flex;justify-content:flex-end;gap:10px;margin:0 -20px;padding:12px 20px calc(12px + env(safe-area-inset-bottom));background:var(--card,#fff);border-top:1px solid var(--card-border,#e2e8f0);border-radius:0 0 16px 16px}
+.afv-dados-back{flex:0 0 auto;min-width:160px}
+.afv-dados-bar .afv-save{flex:0 0 auto;min-width:160px;height:42px}
+@media(max-width:640px){.afv-dados-bar .afv-save{flex:1 1 auto}}
+@media(max-width:640px){.afv-dados-grid{grid-template-columns:1fr}}
+.afv-abas--wide{max-width:1100px}
+.afv-cart--compact{max-width:1100px}
+.afv-cart--compact .afv-cart-rows{grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:8px}
+.afv-cart--compact .afv-cart-row{grid-template-columns:52px 1fr auto;gap:10px;padding:8px 10px;border-radius:12px}
+.afv-cart--compact .afv-cart-thumb{width:52px;height:52px;border-radius:10px}
+.afv-cart--compact .afv-cart-name{font-size:12.5px;-webkit-line-clamp:1}
+.afv-cart--compact .afv-cart-line{font-size:14px}
+.afv-cart--compact .afv-cart-grades{margin-top:2px;gap:4px}
+.afv-cart--compact .afv-cart-gchip{padding:2px 6px;font-size:10.5px}
+.afv-cart--compact .afv-cart-rm{width:36px;height:36px;min-width:36px;min-height:36px;border-radius:10px}
+.afv-cart-find{display:flex;align-items:center;gap:10px;margin:0 0 10px}
+.afv-cart-find input{flex:1;height:40px;border:1.5px solid var(--card-border,#e2e8f0);border-radius:12px;padding:0 12px;font:inherit;font-size:14px;background:var(--card,#fff);color:var(--content-text,#0f172a);box-sizing:border-box}
+.afv-cart-find span{font-size:12px;font-weight:700;color:var(--text2,#64748b);white-space:nowrap}
+@media(max-width:820px){.afv-cart--compact .afv-cart-rows{grid-template-columns:1fr}}
+.afv-aba.on{color:var(--afv-accent);border-bottom-color:var(--afv-accent)}
+.afv-ini{margin-top:24px;padding:26px 24px}
+.afv-ini-ico{width:56px;height:56px;margin:0 auto;border-radius:50%;background:var(--afv-soft);color:var(--afv-accent);display:flex;align-items:center;justify-content:center}
+.afv-ini h3{text-align:center;font-size:18px}
+.afv-ini-sub{margin:-6px 0 4px;text-align:center;font-size:12.5px;color:var(--text2,#64748b)}
+.afv-ini label{font-size:11px}
+.afv-ini-skip{background:none;border:none;color:var(--text2,#64748b);cursor:pointer;font:inherit;font-size:12.5px;font-weight:600;justify-self:center;padding:6px 10px}
+.afv-ini-skip:hover{color:var(--afv-accent);text-decoration:underline}
+.afv-ini .afv-save{justify-self:center;min-width:180px;height:42px}
+.afv-mult{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;justify-content:center;margin:2px 0 4px}
+.afv-mult-f{display:flex;flex-direction:column;gap:4px;min-width:110px}
+.afv-mult-f input{height:40px;text-align:center;font-size:16px;font-weight:800;border:1.5px solid var(--card-border,#e2e8f0);border-radius:10px;background:var(--card,#fff);color:var(--content-text,#0f172a)}
+.afv-mult-f input[readonly]{background:var(--content-bg,#f1f5f9)}
+.afv-mult-btn{height:40px;padding:0 16px;border:1.5px solid var(--afv-accent);border-radius:10px;background:transparent;color:var(--afv-accent);font-weight:800;font-size:12px;letter-spacing:.04em;text-transform:uppercase;cursor:pointer}
 .afv-glbl{font-size:11px;font-weight:700;color:var(--text2,#64748b)}
 .afv-qtd-wrap{display:flex;align-items:center;justify-content:center;gap:14px;margin:0}
 .afv-qtd-wrap .afv-gbtn{width:44px;height:44px;font-size:20px}
@@ -514,18 +605,18 @@
 .afv-foot-total b{font-size:19px;font-weight:800;color:var(--content-text,#0f172a);letter-spacing:-.02em}
 .afv-foot-total span{font-size:11px;font-weight:700;color:var(--text2,#94a3b8)}
 .afv-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:auto;padding-top:16px;border-top:1px solid var(--card-border,#e2e8f0)}
-.afv-save{height:48px;padding:0 22px;border:none;border-radius:12px;background:var(--afv-accent);color:#fff;font:inherit;font-weight:800;cursor:pointer;letter-spacing:.02em;transition:background .15s,transform .12s}
+.afv-save{height:42px;padding:0 22px;border:none;border-radius:12px;background:var(--afv-accent);color:#fff;font:inherit;font-weight:800;cursor:pointer;letter-spacing:.02em;transition:background .15s,transform .12s}
 .afv-save:hover{background:var(--afv-accent-h)}
 .afv-save:active{transform:scale(.98)}
 .afv-save:disabled{opacity:.55;cursor:not-allowed}
 .afv-more{display:block;margin:16px auto;height:40px;padding:0 20px;border-radius:12px;border:1.5px solid var(--card-border,#e2e8f0);background:var(--card,#fff);color:var(--content-text,#334155);font:inherit;font-weight:700;cursor:pointer}
 .afv-cart-list{display:grid;gap:12px;max-width:720px;margin:0 auto;width:100%}
 .afv-cart{display:flex;flex-direction:column;gap:0;max-width:720px;margin:0 auto;width:100%;min-height:min(100%,calc(100dvh - 120px))}
-.afv-cart-rows{display:grid;gap:12px;flex:1 1 auto;padding-bottom:8px}
+.afv-cart-rows{display:grid;gap:12px;flex:1 1 auto;align-content:start;padding-bottom:8px}
 .afv-cart-row{display:grid;grid-template-columns:72px 1fr auto;gap:12px;align-items:start;background:var(--card,#fff);border:1px solid var(--card-border,#e2e8f0);border-radius:16px;padding:12px;box-shadow:0 1px 2px rgba(15,23,42,.04)}
 .afv-cart-thumb{width:72px;height:72px;border-radius:12px;background:var(--content-bg,#f8fafc);border:1px solid var(--card-border,#e2e8f0);overflow:hidden;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .afv-cart-thumb img{width:100%;height:100%;object-fit:contain;object-position:center;padding:4px;box-sizing:border-box}
-.afv-cart-thumb-ph{font-size:22px;opacity:.45;line-height:1}
+.afv-cart-thumb-ph{display:flex;opacity:.4;line-height:1;color:var(--text2,#64748b)}
 .afv-cart-meta{min-width:0;display:flex;flex-direction:column;gap:4px;color:var(--content-text,#334155)}
 .afv-cart-sku{font-size:11px;font-weight:700;color:var(--text2,#64748b);letter-spacing:.02em}
 .afv-cart-name{font-size:13px;font-weight:800;line-height:1.35;color:var(--content-text,#0f172a);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
@@ -544,12 +635,12 @@
 .afv-cart-summary-meta span{font-size:12px;font-weight:600;color:var(--text2,#64748b)}
 .afv-cart-summary-meta strong{font-size:13px;font-weight:800;color:var(--content-text,#0f172a)}
 .afv-cart-summary-total{font-size:18px;font-weight:800;color:var(--afv-accent);letter-spacing:-.02em;white-space:nowrap}
-.afv-cart-actions{display:flex;gap:10px;align-items:stretch}
-.afv-cart-btn{min-height:48px;height:48px;border-radius:14px;font:inherit;font-size:14px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0 18px;-webkit-tap-highlight-color:transparent;touch-action:manipulation;transition:background .15s,transform .12s,border-color .15s}
+.afv-cart-actions{display:flex;gap:10px;align-items:stretch;justify-content:flex-end}
+.afv-cart-btn{min-height:42px;height:42px;border-radius:14px;font:inherit;font-size:14px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0 18px;-webkit-tap-highlight-color:transparent;touch-action:manipulation;transition:background .15s,transform .12s,border-color .15s}
 .afv-cart-btn:active{transform:scale(.98)}
-.afv-cart-btn-ghost{flex:0 0 auto;min-width:108px;border:1.5px solid var(--card-border,#e2e8f0);background:var(--card,#fff);color:var(--content-text,#334155)}
+.afv-cart-btn-ghost{flex:0 0 auto;min-width:140px;border:1.5px solid var(--card-border,#e2e8f0);background:var(--card,#fff);color:var(--content-text,#334155)}
 .afv-cart-btn-ghost:hover{border-color:color-mix(in srgb,var(--afv-accent) 45%,var(--card-border,#e2e8f0));color:var(--afv-accent)}
-.afv-cart-btn-primary{flex:1 1 auto;border:none;background:var(--afv-accent);color:#fff;box-shadow:0 6px 16px color-mix(in srgb,var(--afv-accent) 35%,transparent)}
+.afv-cart-btn-primary{flex:0 0 auto;min-width:140px;border:none;background:var(--afv-accent);color:#fff;box-shadow:0 6px 16px color-mix(in srgb,var(--afv-accent) 35%,transparent)}
 .afv-cart-btn-primary:hover{background:var(--afv-accent-h)}
 .afv-cart-foot{display:flex;flex-wrap:nowrap;align-items:center;gap:8px;margin-top:8px;padding-top:0;border:none}
 .afv-cart-foot .afv-chip{flex:0 0 auto;height:40px;min-height:40px;padding:0 14px;width:auto}
@@ -570,6 +661,14 @@
 .afv-cli-sel button{margin-left:auto;border:none;background:none;color:var(--afv-accent);font:inherit;font-weight:700;cursor:pointer}
 .afv-resumo{font-size:13px;color:var(--content-text,#334155);background:var(--content-bg,#f8fafc);border-radius:12px;padding:12px 14px;line-height:1.5}
 .afv-ok{max-width:480px;margin:40px auto;text-align:center;background:var(--card,#fff);border-radius:16px;border:1px solid var(--card-border,#e2e8f0);padding:32px 22px}
+.afv-ok-ico{width:64px;height:64px;margin:0 auto 14px;border-radius:50%;background:rgba(22,163,74,.12);color:#16a34a;display:flex;align-items:center;justify-content:center}
+.afv-ok-sub{margin:0 0 22px;font-size:14px;line-height:1.5;color:var(--text2,#475569)}
+.afv-ok-num{display:inline-block;padding:1px 10px;border-radius:999px;background:var(--content-bg,#f1f5f9);color:var(--content-text,#0f172a);font-weight:800}
+.afv-ok-btns{display:flex;flex-wrap:wrap;justify-content:center;gap:10px}
+.afv-ok-main{flex:0 0 auto;min-width:160px;height:42px;font-size:13px}
+.afv-ok-row{display:contents}
+.afv-ok-sec{min-width:160px;padding:0 16px;height:42px;border:1.5px solid var(--card-border,#e2e8f0);border-radius:12px;background:var(--card,#fff);color:var(--content-text,#334155);font:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:border-color .15s,color .15s}
+.afv-ok-sec:hover{border-color:var(--afv-accent);color:var(--afv-accent)}
 .afv-ok h3{margin:0 0 8px;color:#16a34a}
 .afv-pend-list{display:grid;gap:10px;max-width:900px;margin:0 auto}
 .afv-pend-row{display:flex;gap:12px;align-items:flex-start;justify-content:space-between;background:var(--card,#fff);border:1px solid var(--card-border,#e2e8f0);border-radius:14px;padding:14px;cursor:pointer;flex-wrap:wrap;transition:border-color .15s}
@@ -616,6 +715,7 @@
   .afv-cart-line{font-size:16px}
   .afv-cart-btn{min-height:52px;height:52px;font-size:15px;border-radius:14px}
   .afv-cart-btn-ghost{min-width:96px}
+  .afv-cart-btn-primary{flex:1 1 auto}
   .afv-cart-summary{padding:14px}
   .afv-cart-summary-total{font-size:20px}
   .afv-cart-bar{padding-bottom:calc(12px + env(safe-area-inset-bottom))}
@@ -681,6 +781,7 @@
             <button type="button" class="afv-icon-btn" id="afvClose" title="Fechar">${ico('x')}</button>
           </div>
         </header>
+        <div class="afv-ctx" id="afvCtx" hidden></div>
         <div class="afv-tools" id="afvTools">
           <div class="afv-search">
             ${ico('search')}
@@ -691,6 +792,7 @@
             <button type="button" class="afv-chip" data-acao="completo">${ico('grid')} Catálogo completo</button>
           </div>
           <div class="afv-sort" id="afvSort">
+            <span class="afv-sort-lbl">Ordenar por</span>
             <button type="button" class="afv-sort-btn" data-sort="cadastro">Cadastro</button>
             <button type="button" class="afv-sort-btn is-on" data-sort="nome">Nome</button>
           </div>
@@ -818,6 +920,7 @@
   }
 
   function voltar() {
+    if (S.view === 'inicio' && S._voltaDe) { S.view = S._voltaDe; S._voltaDe = null; render(); return; }
     if (S.view === 'sucesso') { S.view = 'colecoes'; render(); return; }
     if (S.view === 'pendentes') { S.view = 'colecoes'; render(); return; }
     if (S.view === 'prepedido') { S.view = 'carrinho'; render(); return; }
@@ -950,6 +1053,7 @@
       carregarCondicoes(),
       carregarTiposPedido(),
     ]);
+    if (!S.cart.length && !S.pre.cod_cliente && !S.pularInicio) S.view = 'inicio';
     render();
   }
 
@@ -1219,9 +1323,107 @@
   }
 
   function filtrarBusca(list, fields) {
-    const q = (S.busca || '').toLowerCase();
-    if (!q) return list;
-    return list.filter((x) => fields(x).toLowerCase().includes(q));
+    const norm = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const termos = norm(S.busca).split(/\s+/).filter(Boolean);
+    if (!termos.length) return list;
+    return list.filter((x) => {
+      const h = norm(fields(x));
+      return termos.every((t) => h.includes(t));
+    });
+  }
+
+  function condOptsHtml() {
+    return S.condicoes.map((c) => {
+      const id = c.id || c.id_forma || c.id_condicao;
+      const desc = c.descricao || c.nome || '';
+      const sel = String(S.pre.id_condicaopagto || '') === String(id) || S.pre.condicao_pagto === desc ? ' selected' : '';
+      return `<option value="${esc(desc)}" data-id="${id || ''}"${sel}>${esc(desc)}</option>`;
+    }).join('');
+  }
+
+  function tipoOptsHtml() {
+    return S.tiposPedido.length
+      ? S.tiposPedido.map((t) => {
+          const desc = String(t.tipo_pedido || t.descricao || t.nome || 'PEDIDO').toUpperCase();
+          const sel = S.pre.tipo_pedido === desc || String(S.pre.id_tipopedido) === String(t.id) ? ' selected' : '';
+          return `<option value="${esc(desc)}" data-id="${t.id}"${sel}>${esc(t.tipo_pedido || t.descricao || t.nome)}</option>`;
+        }).join('')
+      : `<option value="PEDIDO"${S.pre.tipo_pedido === 'PEDIDO' ? ' selected' : ''}>PEDIDO</option>
+         <option value="ORCAMENTO"${S.pre.tipo_pedido === 'ORCAMENTO' || S.pre.tipo_pedido === 'ORÇAMENTO' ? ' selected' : ''}>ORÇAMENTO</option>`;
+  }
+
+  /** Abas do fechamento: Itens do pedido | Dados do pedido. */
+  function abasHtml(ativa) {
+    const cls = ativa === 'dados' ? ' afv-abas--dados' : (S.cart.length > 6 ? ' afv-abas--wide' : '');
+    return `<div class="afv-abas${cls}">
+      <button type="button" class="afv-aba${ativa === 'itens' ? ' on' : ''}" data-aba="carrinho">Itens do pedido (${S.cart.length})</button>
+      <button type="button" class="afv-aba${ativa === 'dados' ? ' on' : ''}" data-aba="prepedido">Dados do pedido</button>
+    </div>`;
+  }
+
+  function bindAbas(body) {
+    body.querySelectorAll('.afv-aba').forEach((b) => {
+      b.onclick = () => {
+        if (b.dataset.aba === S.view) return;
+        limparConfirmResiduais();
+        S.view = b.dataset.aba;
+        render();
+      };
+    });
+  }
+
+  /** Ao escolher o cliente, sugere a tabela de preço liberada para ele. */
+  async function sugerirTabelaCliente() {
+    if (!S.pre.cod_cliente || S.pre.id_tabela) return;
+    try {
+      const d = await apiJson('/api/tabela-precos/ativa-para/' + encodeURIComponent(S.pre.cod_cliente) + '/0/' + (userId() || 0));
+      if (d && d.id_tabela && !S.pre.id_tabela) {
+        S.pre.id_tabela = String(d.id_tabela);
+        if (!S.tabelas.some((t) => String(t.id) === String(d.id_tabela))) {
+          S.tabelas.push({ id: d.id_tabela, descricao: d.descricao || ('Tabela ' + d.id_tabela) });
+        }
+        if (S.view === 'inicio') render();
+      }
+    } catch (_) {}
+  }
+
+  function bindCliente() {
+    document.getElementById('afvCliLimpar')?.addEventListener('click', () => {
+      S.pre.cod_cliente = '';
+      S.pre.nome_cliente = '';
+      S.pre.cnpj = '';
+      render();
+    });
+    const busca = document.getElementById('afvCliBusca');
+    if (busca) {
+      busca.oninput = (e) => {
+        clearTimeout(S._cliTimer);
+        S._cliTimer = setTimeout(() => buscarClientes(e.target.value), 280);
+      };
+    }
+  }
+
+  /** Faixa fixa com cliente/tabela/condição durante toda a navegação. */
+  function atualizarCtx() {
+    const el = document.getElementById('afvCtx');
+    if (!el) return;
+    if (['inicio', 'prepedido', 'sucesso', 'pendentes'].includes(S.view)) { el.hidden = true; return; }
+    const tab = S.tabelas.find((t) => String(t.id) === String(S.pre.id_tabela));
+    const ico = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.8"/><path d="M4.5 20.5c0-4 3.4-6.5 7.5-6.5s7.5 2.5 7.5 6.5"/></svg>';
+    if (S.pre.cod_cliente) {
+      const det = [tab ? 'Tabela: ' + tab.descricao : 'Preço de cadastro', S.pre.condicao_pagto ? 'Cond.: ' + S.pre.condicao_pagto : ''].filter(Boolean).join(' · ');
+      el.className = 'afv-ctx';
+      el.innerHTML = `<span class="afv-ctx-ico">${ico}</span><span class="afv-ctx-txt"><b>${esc(S.pre.nome_cliente)}</b><small>${esc(det)}</small></span><button type="button" class="afv-ctx-btn" id="afvCtxTrocar">Trocar</button>`;
+    } else {
+      el.className = 'afv-ctx afv-ctx--vazio';
+      el.innerHTML = `<span class="afv-ctx-ico">${ico}</span><span class="afv-ctx-txt"><b>Nenhum cliente selecionado</b></span><button type="button" class="afv-ctx-btn" id="afvCtxTrocar">Escolher</button>`;
+    }
+    el.hidden = false;
+    document.getElementById('afvCtxTrocar').onclick = () => {
+      S._voltaDe = S.view;
+      S.view = 'inicio';
+      render();
+    };
   }
 
   function render() {
@@ -1231,7 +1433,10 @@
     const body = document.getElementById('afvBody');
     const sort = document.getElementById('afvSort');
     if (!body) return;
+    // troca de tela (ex.: abas Itens/Dados) começa no topo, sem herdar a rolagem anterior
+    if (S._lastView !== S.view) { body.scrollTop = 0; S._lastView = S.view; }
     atualizarBadge();
+    atualizarCtx();
 
     if (S.view === 'colecoes') {
       title.textContent = 'Showroom';
@@ -1252,7 +1457,7 @@
       };
 
       const colCards = filtrarBusca(S.catalogos, (c) => `${c.nome} ${c.subtitulo || ''} ${c.nome_fornecedor || ''}`)
-        .map((c) => bannerCard('colecao', {
+        .map((c) => (c.imagem_capa ? bannerCard : tileCard)('colecao', {
           id: c.id,
           nome: c.nome,
           sub: c.subtitulo || ((c.qtd_itens || 0) + ' referências'),
@@ -1261,7 +1466,7 @@
         }));
       // o titulo da secao ja diz que sao fabricas: repetir isso em cada card so poluia
       const fabCards = filtrarBusca(S.fabricas, (f) => `${f.nome || ''} ${f.id}`).slice(0, 12)
-        .map((f, i) => bannerCard('fabrica', {
+        .map((f, i) => tileCard('fabrica', {
           id: f.id,
           nome: f.nome || ('#' + f.id),
           sub: '',
@@ -1269,7 +1474,7 @@
           extra: ` data-nome="${esc(f.nome || '')}"`,
         }));
       const tabCards = filtrarBusca(S.tabelas, (t) => `${t.descricao || ''} ${t.id}`).slice(0, 8)
-        .map((t, i) => bannerCard('tabela', {
+        .map((t, i) => tileCard('tabela', {
           id: t.id,
           nome: t.descricao || ('Tabela ' + t.id),
           sub: '',
@@ -1285,30 +1490,20 @@
       const nome = userNome();
       let heroOff = false;
       try { heroOff = localStorage.getItem('afv_hero_off') === '1'; } catch (_) {}
-      const hero = heroOff ? '' : `<div class="afv-home-hero">
-        <div class="afv-home-greet">${nome ? `Olá, ${esc(nome.split(' ')[0])}` : 'Showroom'}</div>
-        <div class="afv-home-hint">Mostre as fotos ao cliente, escolha a cor e monte o pedido.</div>
-        <button type="button" class="afv-hero-x" id="afvHeroX" title="Não mostrar mais" aria-label="Dispensar">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="13" height="13"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-      </div>`;
-      const MAX_LADO_A_LADO = 6;
-      const sec = (titulo, cards) => {
+      const hero = '';
+      const sec = (titulo, cards, tipoGrid) => {
         if (!cards.length) return '';
-        // limita o que a secao reserva, senao duas secoes medias nunca cabem
-        // na mesma linha; o grid interno se reorganiza dentro do que sobrar
-        const base = cards.length > MAX_LADO_A_LADO
-          ? '100%'
-          : `min(calc(${cards.length} * 222px), 62%)`;
-        return `<section class="afv-sec" style="flex-basis:${base}">
-          <h2 class="afv-sec-title">${titulo}</h2>
-          <div class="afv-grid-col">${cards.join('')}</div>
+        return `<section class="afv-sec">
+          <h2 class="afv-sec-title">${titulo}<span class="afv-sec-count">${cards.length}</span></h2>
+          <div class="${tipoGrid === 'banner' ? 'afv-banners' : 'afv-tiles'}">${cards.join('')}</div>
         </section>`;
       };
+      const colBanners = colCards.filter((h) => h.includes('afv-banner'));
+      const colTiles = colCards.filter((h) => !h.includes('afv-banner'));
       body.innerHTML = hero + `<div class="afv-secoes">`
-        + sec('Coleções', colCards) + sec('Fábricas', fabCards) + sec('Tabelas de preço', tabCards)
+        + sec('Coleções', colBanners, 'banner') + sec(colBanners.length ? 'Outras coleções' : 'Coleções', colTiles) + sec('Fábricas', fabCards) + sec('Tabelas de preço', tabCards)
         + `</div>`;
-      body.querySelectorAll('.afv-banner').forEach(bindBanner);
+      body.querySelectorAll('.afv-banner,.afv-tile').forEach(bindBanner);
       const heroX = document.getElementById('afvHeroX');
       if (heroX) heroX.onclick = () => {
         try { localStorage.setItem('afv_hero_off', '1'); } catch (_) {}
@@ -1338,7 +1533,20 @@
         ? `<button type="button" class="afv-more" id="afvMore">${S.loadingMore ? 'Carregando…' : 'Carregar mais'}</button>`
         : '';
       const emptyFoto = `<svg class="afv-ref-empty" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7a2 2 0 012-2h2.5l1.2-1.8A1 1 0 019.5 3h5a1 1 0 01.8.4L16.5 5H19a2 2 0 012 2v11a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/><circle cx="12" cy="13" r="3.5"/></svg>`;
-      body.innerHTML = `<div class="afv-grid-ref">${list.map((it) => {
+      // quanto de cada referência (mãe + cores) já está no carrinho
+      const noCart = new Map();
+      S.cart.forEach((c) => {
+        const q = parseFloat(c.quantidade) || 0;
+        [c.cod_produto, c.id_referencia].forEach((k) => {
+          const key = parseInt(k, 10);
+          if (key) noCart.set(key, (noCart.get(key) || 0) + q);
+        });
+      });
+      const nRefsCart = list.filter((it) => noCart.has(parseInt(it.cod_produto, 10))).length;
+      const totRefs = (S.fonte?.tipo !== 'colecao' && S.fonte?.tipo !== 'favoritos' && S.total != null) ? S.total : list.length;
+      const contador = `<div class="afv-count"><span><b>${totRefs}</b> referência${totRefs === 1 ? '' : 's'}</span>${nRefsCart ? `<span class="afv-count-cart">${nRefsCart} no carrinho</span>` : ''}</div>`;
+      body.innerHTML = contador + `<div class="afv-grid-ref">${list.map((it) => {
+        const qCart = noCart.get(parseInt(it.cod_produto, 10)) || 0;
         const fotoHtml = it.foto_principal
           ? `<img src="${esc(it.foto_principal)}" alt="" loading="lazy" decoding="async">`
           : emptyFoto;
@@ -1351,8 +1559,9 @@
         const nome = it.desc_produto
           ? `<div class="afv-ref-nome">${esc(it.desc_produto)}</div>`
           : '';
-        return `<button type="button" class="afv-ref" data-id="${it.cod_produto}" aria-label="Abrir ${esc(it.desc_produto || it.cod_fabricante || it.cod_produto)}">
-          <div class="afv-ref-img">${fotoHtml}${badge}</div>
+        const incart = qCart > 0 ? `<span class="afv-ref-incart">✓ ${Math.round(qCart)} un. no carrinho</span>` : '';
+        return `<button type="button" class="afv-ref${qCart > 0 ? ' afv-ref--cart' : ''}" data-id="${it.cod_produto}" aria-label="Abrir ${esc(it.desc_produto || it.cod_fabricante || it.cod_produto)}">
+          <div class="afv-ref-img">${fotoHtml}${badge}${incart}</div>
           <div class="afv-ref-body">
             <div class="afv-ref-code">${esc(it.cod_fabricante || it.cod_produto)}</div>
             ${nome}
@@ -1467,6 +1676,12 @@
       tools.style.display = 'none';
       const temGrade = !!(S.habilitaGrade === 'S' && (S.gradeIdSelecionada || p.tipograde) && S.gradeItens.length);
       let mid = '';
+      const multEmb = parseInt(p.multiplo_venda, 10) || 1;
+      const multHtml = `<div class="afv-mult">
+          <div class="afv-mult-f"><span class="afv-edit-lbl">Embalagem</span><input type="text" readonly value="${multEmb}"></div>
+          <div class="afv-mult-f"><span class="afv-edit-lbl">Múltiplos (caixas)</span><input type="number" inputmode="numeric" min="1" id="afvMultCx" value="${S.multCx || 1}"></div>
+          <button type="button" class="afv-mult-btn" id="afvMultGerar">Gerar múltiplos</button>
+        </div>`;
       if (temGrade) {
         const escolhaHtml = (S.gradesDisponiveis.length > 1)
           ? `<div style="margin-bottom:10px">
@@ -1487,16 +1702,16 @@
           return `<div class="afv-gcell">
             <button type="button" class="afv-gbtn plus" data-gid="${g.id}" data-d="1">+</button>
             <div class="afv-glbl">${esc(g.nome)}</div>
-            <div class="afv-gqtd">${q}</div>
+            <input type="number" inputmode="numeric" min="0" class="afv-gqtd-in" data-gid="${g.id}" value="${q || ''}" placeholder="0">
             <button type="button" class="afv-gbtn minus" data-gid="${g.id}" data-d="-1">−</button>
           </div>`;
-        }).join('')}</div>`;
+        }).join('')}</div>` + multHtml;
       } else {
         mid = `<div class="afv-qtd-wrap">
           <button type="button" class="afv-gbtn minus" id="afvQMinus">−</button>
           <input type="number" id="afvQtd" min="0" value="${S.qtdSimples}">
           <button type="button" class="afv-gbtn plus" id="afvQPlus">+</button>
-        </div>`;
+        </div>` + multHtml;
       }
       const totalQtd = temGrade
         ? S.gradeItens.reduce((s, g) => s + (parseFloat(S.gradeQtd[g.id]) || 0), 0)
@@ -1548,7 +1763,21 @@
             const id = parseInt(btn.dataset.gid, 10);
             const d = parseInt(btn.dataset.d, 10);
             S.gradeQtd[id] = Math.max(0, (parseFloat(S.gradeQtd[id]) || 0) + d);
+            S.gradeBase = null;
             render();
+          };
+        });
+        body.querySelectorAll('.afv-gqtd-in').forEach((inp) => {
+          inp.onfocus = () => inp.select();
+          inp.onchange = () => {
+            S.gradeQtd[parseInt(inp.dataset.gid, 10)] = Math.max(0, parseInt(inp.value, 10) || 0);
+            S.gradeBase = null;
+            // sem render(): redesenhar no blur engole o toque em "Adicionar"
+            const tq = S.gradeItens.reduce((acc, g) => acc + (parseFloat(S.gradeQtd[g.id]) || 0), 0);
+            const fb = body.querySelector('.afv-foot-total b');
+            const fs = body.querySelector('.afv-foot-total span');
+            if (fb) fb.textContent = money(tq * (parseFloat(p.vlr_venda) || 0));
+            if (fs) fs.textContent = tq + (tq === 1 ? ' item' : ' itens');
           };
         });
       } else {
@@ -1556,8 +1785,81 @@
         document.getElementById('afvQPlus').onclick = () => { S.qtdSimples = (parseFloat(S.qtdSimples) || 0) + 1; render(); };
         document.getElementById('afvQtd').onchange = (e) => { S.qtdSimples = Math.max(0, parseFloat(e.target.value) || 0); };
       }
+      const cxInp = document.getElementById('afvMultCx');
+      if (cxInp) cxInp.onchange = () => { S.multCx = Math.max(1, parseInt(cxInp.value, 10) || 1); };
+      const gerarBtn = document.getElementById('afvMultGerar');
+      if (gerarBtn) gerarBtn.onclick = () => {
+        const cx = Math.max(1, parseInt(cxInp?.value, 10) || 1);
+        S.multCx = cx;
+        if (temGrade) {
+          // base = grade digitada; "gerar" sempre multiplica a base (não acumula)
+          if (!S.gradeBase) S.gradeBase = { ...S.gradeQtd };
+          const tot = Object.values(S.gradeBase).reduce((a, v) => a + (parseFloat(v) || 0), 0);
+          if (tot <= 0) { toast('Digite a grade primeiro', 'warn'); return; }
+          S.gradeItens.forEach((g) => { S.gradeQtd[g.id] = (parseFloat(S.gradeBase[g.id]) || 0) * cx; });
+        } else {
+          S.qtdSimples = multEmb * cx;
+        }
+        render();
+      };
       document.getElementById('afvObs').oninput = (e) => { S.obsItem = e.target.value; };
       document.getElementById('afvSalvar').onclick = adicionarAoCarrinho;
+      return;
+    }
+
+    if (S.view === 'inicio') {
+      title.textContent = 'Novo carrinho';
+      setSub('Cliente, tabela e condição antes de abrir o catálogo');
+      tools.style.display = 'none';
+      const tabOpts = '<option value="">Preço de cadastro (sem tabela)</option>' + S.tabelas.map((t) =>
+        `<option value="${esc(t.id)}"${String(S.pre.id_tabela) === String(t.id) ? ' selected' : ''}>${esc(t.descricao)}</option>`
+      ).join('');
+      const cliSel = S.pre.cod_cliente
+        ? `<div class="afv-cli-sel" id="afvCliSel"><span>#${esc(S.pre.cod_cliente)} — ${esc(S.pre.nome_cliente)}</span>
+            <button type="button" id="afvCliLimpar">Trocar</button></div>`
+        : '';
+      body.innerHTML = `<div class="afv-pre afv-ini">
+        <div class="afv-ini-ico"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="7" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><path d="M19 8v6M16 11h6"/></svg></div>
+        <h3>Selecione um cliente para iniciar o carrinho</h3>
+        <p class="afv-ini-sub">A tabela de preço e as condições já entram prontas no catálogo.</p>
+        <div>
+          <label>Cliente *</label>
+          <div class="afv-ac">
+            <input type="search" id="afvCliBusca" placeholder="Buscar nome, apelido ou CPF/CNPJ…" autocomplete="off" ${S.pre.cod_cliente ? 'style="display:none"' : ''}>
+            <div id="afvCliList" class="afv-ac-list"></div>
+            ${cliSel}
+          </div>
+        </div>
+        <div><label>Tabela de preço</label><select id="afvIniTab">${tabOpts}</select></div>
+        <div><label>Condição de pagamento</label><select id="afvCond"><option value="">—</option>${condOptsHtml()}</select></div>
+        <div><label>Tipo do pedido</label><select id="afvTipo">${tipoOptsHtml()}</select></div>
+        ${S.cart.length ? '<p class="afv-ini-sub">Os itens que já estão no carrinho mantêm o preço em que foram adicionados.</p>' : ''}
+        <button type="button" class="afv-save" id="afvCriarCarrinho">${S._voltaDe ? 'Confirmar' : 'Criar carrinho'}</button>
+        <button type="button" class="afv-ini-skip" id="afvPularInicio">${S._voltaDe ? 'Voltar' : 'Só navegar no catálogo'}</button>
+      </div>`;
+      bindCliente();
+      document.getElementById('afvIniTab').onchange = (e) => { S.pre.id_tabela = e.target.value; };
+      document.getElementById('afvCond').onchange = (e) => {
+        const opt = e.target.selectedOptions[0];
+        S.pre.condicao_pagto = e.target.value;
+        S.pre.id_condicaopagto = opt?.dataset?.id ? parseInt(opt.dataset.id, 10) : null;
+      };
+      document.getElementById('afvTipo').onchange = (e) => {
+        const opt = e.target.selectedOptions[0];
+        S.pre.tipo_pedido = e.target.value;
+        S.pre.id_tipopedido = opt?.dataset?.id ? parseInt(opt.dataset.id, 10) : null;
+      };
+      const sairInicio = () => {
+        S.pularInicio = true;
+        S.view = S._voltaDe || 'colecoes';
+        S._voltaDe = null;
+        render();
+      };
+      document.getElementById('afvCriarCarrinho').onclick = () => {
+        if (!S.pre.cod_cliente) { toast('Selecione o cliente', 'warn'); return; }
+        sairInicio();
+      };
+      document.getElementById('afvPularInicio').onclick = sairInicio;
       return;
     }
 
@@ -1573,9 +1875,23 @@
       }
       const nItens = S.cart.length;
       const pcs = Math.round(cartQtd()) || 0;
-      body.innerHTML = `<div class="afv-cart">
-        <div class="afv-cart-rows">
-          ${S.cart.map((it, idx) => cartRowHtml(it, idx)).join('')}
+      const compacto = nItens > 6;
+      const comBusca = nItens > 8;
+      const normC = (t) => String(t || '').normalize('NFD').replace(new RegExp('[' + String.fromCharCode(768) + '-' + String.fromCharCode(879) + ']', 'g'), '').toLowerCase();
+      const rowsHtml = () => {
+        const termos = normC(S.cartFiltro).split(/\s+/).filter(Boolean);
+        const linhas = [];
+        S.cart.forEach((it, idx) => {
+          const h = normC(`${it.cod_fabricante || ''} ${it.cod_produto || ''} ${it.desc_produto || ''} ${it.cor1 || ''} ${it.nome_fornecedor || ''}`);
+          if (termos.every((t) => h.includes(t))) linhas.push(cartRowHtml(it, idx));
+        });
+        return linhas.length ? linhas.join('') : '<div class="afv-empty" style="grid-column:1/-1">Nenhum item encontrado.</div>';
+      };
+      if (!comBusca) S.cartFiltro = '';
+      body.innerHTML = abasHtml('itens') + `<div class="afv-cart${compacto ? ' afv-cart--compact' : ''}">
+        ${comBusca ? `<div class="afv-cart-find"><input type="search" id="afvCartFind" placeholder="Buscar no carrinho (referência, descrição, cor)…" autocomplete="off" value="${esc(S.cartFiltro)}"><span>${nItens} itens</span></div>` : ''}
+        <div class="afv-cart-rows" id="afvCartRows">
+          ${rowsHtml()}
         </div>
         <div class="afv-cart-bar">
           <div class="afv-cart-summary">
@@ -1591,7 +1907,8 @@
           </div>
         </div>
       </div>`;
-      body.querySelectorAll('.afv-cart-rm').forEach((btn) => {
+      bindAbas(body);
+      const bindRm = () => body.querySelectorAll('.afv-cart-rm').forEach((btn) => {
         btn.onclick = () => {
           limparConfirmResiduais();
           S.cart.splice(parseInt(btn.dataset.idx, 10), 1);
@@ -1599,6 +1916,15 @@
           render();
         };
       });
+      bindRm();
+      const findInp = document.getElementById('afvCartFind');
+      if (findInp) {
+        findInp.oninput = () => {
+          S.cartFiltro = findInp.value;
+          document.getElementById('afvCartRows').innerHTML = rowsHtml();
+          bindRm();
+        };
+      }
       const limparBtn = document.getElementById('afvLimparCart');
       limparBtn.onclick = () => {
         limparConfirmResiduais();
@@ -1618,20 +1944,8 @@
       title.textContent = 'Pré-pedido';
       setSub('Cliente e condições — pedido fica PENDENTE');
       tools.style.display = 'none';
-      const condOpts = S.condicoes.map((c) => {
-        const id = c.id || c.id_forma || c.id_condicao;
-        const desc = c.descricao || c.nome || '';
-        const sel = String(S.pre.id_condicaopagto || '') === String(id) || S.pre.condicao_pagto === desc ? ' selected' : '';
-        return `<option value="${esc(desc)}" data-id="${id || ''}"${sel}>${esc(desc)}</option>`;
-      }).join('');
-      const tipoOpts = S.tiposPedido.length
-        ? S.tiposPedido.map((t) => {
-            const desc = String(t.tipo_pedido || t.descricao || t.nome || 'PEDIDO').toUpperCase();
-            const sel = S.pre.tipo_pedido === desc || String(S.pre.id_tipopedido) === String(t.id) ? ' selected' : '';
-            return `<option value="${esc(desc)}" data-id="${t.id}"${sel}>${esc(t.tipo_pedido || t.descricao || t.nome)}</option>`;
-          }).join('')
-        : `<option value="PEDIDO"${S.pre.tipo_pedido === 'PEDIDO' ? ' selected' : ''}>PEDIDO</option>
-           <option value="ORCAMENTO"${S.pre.tipo_pedido === 'ORCAMENTO' || S.pre.tipo_pedido === 'ORÇAMENTO' ? ' selected' : ''}>ORÇAMENTO</option>`;
+      const condOpts = condOptsHtml();
+      const tipoOpts = tipoOptsHtml();
       const formaOpts = FORMAS.map((f) =>
         `<option value="${f.v}"${S.pre.forma_pagto === f.v ? ' selected' : ''}>${f.l}</option>`
       ).join('');
@@ -1639,10 +1953,12 @@
         ? `<div class="afv-cli-sel" id="afvCliSel"><span>#${esc(S.pre.cod_cliente)} — ${esc(S.pre.nome_cliente)}</span>
             <button type="button" id="afvCliLimpar">Trocar</button></div>`
         : '';
-      body.innerHTML = `<div class="afv-pre">
-        <h3>Dados do pré-pedido</h3>
-        <p style="margin:0;font-size:12px;color:#64748b">Informe o cliente e as condições. Ao finalizar, o pedido entra como <strong>PENDENTE</strong> na tela de Pedidos.</p>
-        <div class="afv-resumo"><strong>${S.cart.length}</strong> itens · Total <strong>${money(cartTotal())}</strong></div>
+      const pcsPre = Math.round(cartQtd()) || 0;
+      body.innerHTML = abasHtml('dados') + `<div class="afv-pre afv-dados">
+        <div class="afv-resumo afv-dados-resumo">
+          <span><strong>${S.cart.length}</strong> ${S.cart.length === 1 ? 'item' : 'itens'} · <strong>${pcsPre}</strong> un.</span>
+          <span class="afv-dados-total">${money(cartTotal())}</span>
+        </div>
         <div>
           <label>Cliente *</label>
           <div class="afv-ac">
@@ -1651,27 +1967,38 @@
             ${cliSel}
           </div>
         </div>
-        <div>
-          <label>Condição de pagamento</label>
-          <select id="afvCond">${condOpts || '<option value="">—</option>'}</select>
+        <div class="afv-dados-grid">
+          <div>
+            <label>Condição de pagamento</label>
+            <select id="afvCond"><option value="">— Selecione —</option>${condOpts}</select>
+          </div>
+          <div>
+            <label>Forma de pagamento</label>
+            <select id="afvForma">${formaOpts}</select>
+          </div>
+          <div>
+            <label>Tipo do pedido</label>
+            <select id="afvTipo">${tipoOpts}</select>
+          </div>
+          <div>
+            <label>Data de entrega</label>
+            <input type="date" id="afvDataEntrega" value="${esc(S.pre.data_entrega || '')}">
+          </div>
+          <div class="afv-dados-full">
+            <label>Ordem de compra</label>
+            <input type="text" id="afvOrdemCompra" maxlength="100" autocomplete="off" placeholder="Opcional" value="${esc(S.pre.ped_compras || '')}">
+          </div>
+          <div class="afv-dados-full">
+            <label>Observação</label>
+            <textarea id="afvObsPed" placeholder="Opcional">${esc(S.pre.obs)}</textarea>
+          </div>
         </div>
-        <div>
-          <label>Forma de pagamento</label>
-          <select id="afvForma">${formaOpts}</select>
-        </div>
-        <div>
-          <label>Tipo do pedido</label>
-          <select id="afvTipo">${tipoOpts}</select>
-        </div>
-        <div>
-          <label>Observação</label>
-          <textarea id="afvObsPed" placeholder="Opcional">${esc(S.pre.obs)}</textarea>
-        </div>
-        <div class="afv-foot" style="border:none;padding-top:4px">
-          <button type="button" class="afv-chip" id="afvVoltarCart">← Carrinho</button>
+        <div class="afv-dados-bar">
+          <button type="button" class="afv-ok-sec afv-dados-back" id="afvVoltarCart">← Itens</button>
           <button type="button" class="afv-save" id="afvFinalizar">Finalizar pedido pendente</button>
         </div>
       </div>`;
+      bindAbas(body);
       bindPrePedido();
       return;
     }
@@ -1732,20 +2059,32 @@
       setSub('Pronto — você pode acompanhar em Pendentes');
       tools.style.display = 'none';
       const nums = (S.lastPedidos || []).map((p) => '#' + (p.numero || p.id)).join(', ');
+      const nPed = (S.lastPedidos || []).length;
       body.innerHTML = `<div class="afv-ok">
+        <div class="afv-ok-ico"><svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
         <h3>Pré-pedido gravado!</h3>
-        <p style="font-size:14px;color:var(--text2,#475569);line-height:1.5">Pedido(s) <strong>${esc(nums || 'criado')}</strong> com status <strong>PENDENTE</strong>.</p>
-        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:18px">
-          <button type="button" class="afv-save" id="afvVerPendentes">Ver pendentes</button>
-          <button type="button" class="afv-chip" id="afvVerPedidos">Abrir Pedidos</button>
-          <button type="button" class="afv-chip" id="afvNovoShow">Novo showroom</button>
+        <p class="afv-ok-sub">${nPed > 1 ? 'Pedidos' : 'Pedido'} <span class="afv-ok-num">${esc(nums || 'criado')}</span> enviado${nPed > 1 ? 's' : ''} com status <strong>PENDENTE</strong></p>
+        <div class="afv-ok-btns">
+          <button type="button" class="afv-save afv-ok-main" id="afvVerPendentes">Ver pendentes</button>
+          <div class="afv-ok-row">
+            <button type="button" class="afv-ok-sec" id="afvVerPedidos">Abrir Pedidos</button>
+            <button type="button" class="afv-ok-sec" id="afvNovoShow">Novo showroom</button>
+          </div>
         </div>
       </div>`;
       document.getElementById('afvVerPendentes').onclick = () => abrirPendentes();
       document.getElementById('afvVerPedidos').onclick = () => irPedidos(true);
       document.getElementById('afvNovoShow').onclick = () => {
-        S.view = 'colecoes';
         S.lastPedidos = [];
+        S.pre.cod_cliente = '';
+        S.pre.nome_cliente = '';
+        S.pre.cnpj = '';
+        S.pre.id_tabela = '';
+        S.pre.obs = '';
+        S.pre.data_entrega = '';
+        S.pre.ped_compras = '';
+        S.pularInicio = false;
+        S.view = 'inicio';
         render();
       };
     }
@@ -1766,19 +2105,9 @@
       S.pre.id_tipopedido = opt?.dataset?.id ? parseInt(opt.dataset.id, 10) : null;
     };
     document.getElementById('afvObsPed').oninput = (e) => { S.pre.obs = e.target.value; };
-    document.getElementById('afvCliLimpar')?.addEventListener('click', () => {
-      S.pre.cod_cliente = '';
-      S.pre.nome_cliente = '';
-      S.pre.cnpj = '';
-      render();
-    });
-    const busca = document.getElementById('afvCliBusca');
-    if (busca) {
-      busca.oninput = (e) => {
-        clearTimeout(S._cliTimer);
-        S._cliTimer = setTimeout(() => buscarClientes(e.target.value), 280);
-      };
-    }
+    document.getElementById('afvDataEntrega').onchange = (e) => { S.pre.data_entrega = e.target.value || ''; };
+    document.getElementById('afvOrdemCompra').oninput = (e) => { S.pre.ped_compras = e.target.value; };
+    bindCliente();
   }
 
   async function buscarClientes(q) {
@@ -1811,6 +2140,7 @@
           S.pre.cnpj = el.dataset.cnpj || '';
           list.classList.remove('show');
           render();
+          sugerirTabelaCliente();
         };
       });
     } catch (e) {
@@ -1900,9 +2230,16 @@
               fetchGradesProduto: async (prodId) => apiJson('/api/produtos/' + prodId + '/grades'),
               onConfirm: async (selecoes) => {
                 let adicionados = 0;
-                for (const s of selecoes) {
+                setAfvBusy(true, 'Adicionando ao carrinho…');
+                let lote = null;
+                try {
+                  lote = await precarregarPrecos(selecoes.map((x) => x.cod_produto));
+                  let feitos = 0;
+                  for (const s of selecoes) {
+                  feitos += 1;
+                  if (selecoes.length > 1) setAfvBusy(true, `Adicionando ao carrinho… ${feitos}/${selecoes.length}`);
                   const codCor = parseInt(s.cod_produto, 10);
-                  await selecionarCorSku(codCor, { silent: true });
+                  await selecionarCorSku(codCor, { silent: true, lote });
                   // Garante o SKU da cor (no celular a busca de preço pode falhar e o add sumia)
                   if (!S.produto || parseInt(S.produto.cod_produto, 10) !== codCor) {
                     const fromVar = S.variacoesCores.find((c) => parseInt(c.cod_produto, 10) === codCor);
@@ -1939,6 +2276,9 @@
                   if (S.cart.length > antes || S.cart.some((c) => parseInt(c.cod_produto, 10) === codCor)) {
                     adicionados += 1;
                   }
+                }
+                } finally {
+                  setAfvBusy(false);
                 }
                 if (adicionados > 0) {
                   toast(adicionados === 1 ? '1 item adicionado' : `${adicionados} itens adicionados`, 'ok');
@@ -1989,7 +2329,31 @@
    * Troca o SKU ativo para a cor escolhida (pedido continua no filho).
    * Busca preço da tabela atual sem agrupar (para achar a cor).
    */
-  async function selecionarCorSku(codProduto, { silent } = {}) {
+  /** Preço de várias cores numa só consulta (ids em lote) → Map cod_produto → linha. */
+  async function precarregarPrecos(cods) {
+    const mapa = new Map();
+    const ids = [...new Set(cods.map((c) => parseInt(c, 10)).filter(Boolean))].slice(0, 80);
+    if (!ids.length) return mapa;
+    try {
+      const params = new URLSearchParams({ catalogo: '1', ids: ids.join(','), limit: String(ids.length) });
+      if (S.fonte?.tipo === 'fabrica') {
+        params.set('id_fornecedor', S.fonte.id);
+        if (S.pre.id_tabela) params.set('id_tabela', S.pre.id_tabela);
+      } else if (S.fonte?.tipo === 'tabela') {
+        params.set('id_tabela', S.fonte.id);
+      } else if (S.pre.id_tabela) {
+        params.set('id_tabela', S.pre.id_tabela);
+      }
+      const d = await apiJson('/api/pedidos/produtos/busca?' + params.toString());
+      (d.data || []).forEach((r) => {
+        const k = parseInt(r.cod_produto || r.id, 10);
+        if (k) mapa.set(k, r);
+      });
+    } catch (_) { /* sem lote: cai no preço já carregado da variação */ }
+    return mapa;
+  }
+
+  async function selecionarCorSku(codProduto, { silent, lote } = {}) {
     const cod = parseInt(codProduto, 10);
     if (!cod) return;
     let next = S.variacoesCores.find((c) => parseInt(c.cod_produto, 10) === cod);
@@ -1997,6 +2361,14 @@
       next = normItem(S.variacoesMae, S.produto?.cod_fornecedor);
     }
     if (!next) return;
+
+    // Lote: preço já veio numa única consulta — sem busca nem imagens por cor
+    if (lote) {
+      const row = lote.get(cod);
+      if (row) next = { ...next, ...normItem(row, next.cod_fornecedor) };
+      S.produto = next;
+      return;
+    }
 
     // Preço da tabela / fábrica atual (sem agrupar_referencia para achar o filho)
     try {
@@ -2026,6 +2398,7 @@
 
   async function carregarGradeShowroom(idGrade) {
     S.gradeIdSelecionada = idGrade || null;
+    S.gradeBase = null;
     S.gradeItens = [];
     S.gradeQtd = {};
     if (!idGrade) return;
@@ -2049,6 +2422,8 @@
     S.gradeQtd = {};
     S.gradesDisponiveis = [];
     S.gradeIdSelecionada = null;
+    S.gradeBase = null;
+    S.multCx = 1;
     const mv = parseInt(p.multiplo_venda, 10) || 1;
     const qmin = parseInt(p.qtd_minima_pedido, 10) || 0;
     S.qtdSimples = Math.max(mv, qmin, 1);
@@ -2141,8 +2516,8 @@
     saveCart();
     if (!opts.quiet) toast('Adicionado ao carrinho', 'ok');
     if (!opts.quiet) {
-      S.view = 'refs';
-      S.produto = null;
+      // volta ao detalhe da referência para o cliente escolher outra cor
+      S.view = 'detalhe';
       render();
     }
   }
@@ -2289,6 +2664,8 @@
             total_peso: 0,
             origem: 'SHOWROOM',
             obs: (S.pre.obs || '').trim() || 'Pré-pedido Showroom',
+            data_entrega: S.pre.data_entrega || null,
+            ped_compras: (S.pre.ped_compras || '').trim(),
           },
           itens: itensBody,
           parcelas: [{

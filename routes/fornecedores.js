@@ -163,6 +163,19 @@ async function ensureColumns(pool) {
     await pool.query(`ALTER TABLE fornecedores ADD COLUMN habilita_feirinha CHAR(1) NOT NULL DEFAULT 'N'`).catch(() => {});
     _colunasCache = null;
   }
+  const flexCols = {
+    habilita_flex: "CHAR(1) NOT NULL DEFAULT 'N'",
+    flex_lancar_em: "VARCHAR(10) NOT NULL DEFAULT 'APROVAR'",
+    flex_saldo_insuficiente: "VARCHAR(10) NOT NULL DEFAULT 'AVISAR'",
+    flex_validade: "VARCHAR(10) NOT NULL DEFAULT 'NUNCA'",
+    flex_gera_credito: "CHAR(1) NOT NULL DEFAULT 'S'",
+  };
+  for (const [col, def] of Object.entries(flexCols)) {
+    if (!cols.has(col)) {
+      await pool.query(`ALTER TABLE fornecedores ADD COLUMN ${col} ${def}`).catch(() => {});
+      _colunasCache = null;
+    }
+  }
   if (!cols.has('layout_impressao')) {
     await pool.query(`ALTER TABLE fornecedores ADD COLUMN layout_impressao VARCHAR(20) DEFAULT 'PADRAO'`).catch(() => {});
     _colunasCache = null;
@@ -728,6 +741,7 @@ router.post('/', async (req, res) => {
       'ipi_frete_base','com_sobre_ipi','com_sobre_st','com_tipo','tipo_num_pedido','base_conciliacao',
       'min_cx_pedido','recalc_comissao_fatur','enviar_pedido_fabrica','formato_anexo_fabrica',
       'copia_email_cliente','copia_email_vendedor','habilita_feirinha',
+      'habilita_flex','flex_lancar_em','flex_saldo_insuficiente','flex_validade','flex_gera_credito',
       'layout_impressao','mostrar_vlr_desc_pedido','frete_padrao','alertar_tabela_desatualizada',
       'habilita_kit_pedido','kit_desconto_pct','desconto_primeira_compra_pct',
       'promo_primeira_compra_exige_kit','promo_condicao_pagto','promo_texto_banner',
@@ -793,6 +807,7 @@ router.put('/:id', async (req, res) => {
       'ipi_frete_base','com_sobre_ipi','com_sobre_st','com_tipo','tipo_num_pedido','base_conciliacao',
       'min_cx_pedido','recalc_comissao_fatur','enviar_pedido_fabrica','formato_anexo_fabrica',
       'copia_email_cliente','copia_email_vendedor','habilita_feirinha',
+      'habilita_flex','flex_lancar_em','flex_saldo_insuficiente','flex_validade','flex_gera_credito',
       'layout_impressao','mostrar_vlr_desc_pedido','frete_padrao','alertar_tabela_desatualizada',
       'habilita_kit_pedido','kit_desconto_pct','desconto_primeira_compra_pct',
       'promo_primeira_compra_exige_kit','promo_condicao_pagto','promo_texto_banner',

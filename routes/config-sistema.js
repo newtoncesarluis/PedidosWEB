@@ -5,6 +5,7 @@ const path = require('path');
 const { getPool, createPool, getBoundChave, customerDbFromLicense } = require('../config/database');
 const { logError } = require('../config/logger');
 const { invalidateSistemaCarteiraCache, getSistemaCarteiraConfig } = require('../config/carteira-politica');
+const { invalidateComissaoFatCache } = require('../config/comissao-faturamento');
 
 const ENV_PATH = path.join(process.cwd(), '.env');
 
@@ -33,7 +34,8 @@ async function ensureSistemasColumns(pool, body) {
         
         let type = 'VARCHAR(255) NULL';
         // Campos específicos
-        if (key === 'corpoemailpadrao' || key === 'modelo_impress_texto_cabecalho' || key === 'modelo_impress_texto_rodape') type = 'TEXT NULL';
+        if (key === 'corpoemailpadrao' || key === 'modelo_impress_texto_cabecalho' || key === 'modelo_impress_texto_rodape' || key === 'comissao_fat_cnpjs') type = 'TEXT NULL';
+        else if (key === 'comissao_fat_pct_escritorio') type = 'DECIMAL(5,2) NULL DEFAULT 30.00';
         else if ([
           'limitexibepedido', 'qt_padraopedido', 'casadecimais', 'limitebusca', 
           'diasavisareventos', 'diasavisoclientesemcompra'
@@ -78,6 +80,7 @@ router.post('/sistema', async (req, res) => {
     }
 
     const { senha_admin, ...body } = req.body;
+    if (body.comissao_fat_pct_escritorio === '') body.comissao_fat_pct_escritorio = null;
 
     // Garante que todas as colunas enviadas existam na tabela
     await ensureSistemasColumns(pool, body);
@@ -135,6 +138,7 @@ router.post('/sistema', async (req, res) => {
       }
 
       invalidateSistemaCarteiraCache();
+      invalidateComissaoFatCache();
       res.json({ ok: true, acao: 'update', id: existing[0].id });
     } else {
       // INSERT com os campos enviados
@@ -185,6 +189,7 @@ router.post('/sistema', async (req, res) => {
       }
 
       invalidateSistemaCarteiraCache();
+      invalidateComissaoFatCache();
       res.status(201).json({ ok: true, acao: 'insert', id: result.insertId });
     }
   } catch (err) {

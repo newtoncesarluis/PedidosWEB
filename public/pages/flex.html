@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Conta Flex</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<script src="/assets/confirm-dialog.js"></script>
+<style>
+  :root { --fx-accent: #0d9488; --fx-accent-soft: rgba(13,148,136,.10); --fx-neg: #dc2626; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--font, 'Inter', 'Segoe UI', sans-serif); font-size: 13px;
+         background: var(--bg, #f1f5f9); color: var(--text, #1e293b); }
+  .fx-toolbar { position: sticky; top: 0; z-index: 20; background: var(--card, #fff);
+                border-bottom: 1px solid var(--border, #e2e8f0); padding: 12px 16px; }
+  .fx-title h1 { font-size: 16px; font-weight: 800; margin: 0; }
+  .fx-title .sub { font-size: 11px; color: var(--text2, #64748b); margin-bottom: 10px; }
+  .fx-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; align-items: end; }
+  .fx-filters label, .fx-modal label { display: block; font-size: 10px; font-weight: 700; text-transform: uppercase;
+                      color: var(--text2, #64748b); margin-bottom: 4px; letter-spacing: .03em; }
+  .fx-filters input, .fx-filters select, .fx-modal input, .fx-modal select { width: 100%; height: 36px; padding: 0 10px; border-radius: 8px;
+      border: 1.5px solid var(--input-border, var(--border, #cbd5e1)); background: var(--card, #fff);
+      color: var(--text, #1e293b); font-family: inherit; font-size: 12px; outline: none; }
+  .fx-filters select option, .fx-modal select option { color: var(--text, #1e293b); background: var(--card, #fff); }
+  .fx-filters input:focus, .fx-filters select:focus, .fx-modal input:focus, .fx-modal select:focus { border-color: var(--fx-accent); }
+  .fx-actions { display: flex; gap: 8px; flex-wrap: wrap; grid-column: 1 / -1; }
+  .fx-actions .sp { flex: 1; }
+  .btn { height: 36px; padding: 0 14px; border-radius: 8px; border: 1.5px solid var(--border, #e2e8f0);
+         background: var(--card, #fff); color: var(--text, #1e293b); font-family: inherit; font-size: 12px;
+         font-weight: 700; cursor: pointer; white-space: nowrap; }
+  .btn-primary { background: var(--fx-accent); border-color: var(--fx-accent); color: #fff; }
+  .btn-sm { height: 26px; padding: 0 8px; font-size: 11px; }
+  .fx-tabs { display: flex; gap: 4px; margin-top: 12px; }
+  .fx-tab { padding: 8px 14px; border-radius: 8px 8px 0 0; border: none; background: transparent; cursor: pointer;
+            font-family: inherit; font-size: 12px; font-weight: 700; color: var(--text2, #64748b);
+            border-bottom: 2.5px solid transparent; }
+  .fx-tab.active { color: var(--fx-accent); border-bottom-color: var(--fx-accent); background: var(--fx-accent-soft); }
+  .fx-body { padding: 14px 16px 40px; }
+  .fx-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .kpi { background: var(--card, #fff); border: 1px solid var(--border, #e2e8f0); border-radius: 12px; padding: 12px 14px; }
+  .kpi .l { font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--text2, #64748b); }
+  .kpi .v { font-size: 18px; font-weight: 800; margin-top: 4px; }
+  .fx-card { background: var(--card, #fff); border: 1px solid var(--border, #e2e8f0); border-radius: 12px; overflow: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th { position: sticky; top: 0; background: var(--bg, #f8fafc); text-align: left; font-size: 10px; font-weight: 800;
+       text-transform: uppercase; color: var(--text2, #64748b); padding: 9px 10px; border-bottom: 1px solid var(--border, #e2e8f0); white-space: nowrap; }
+  td { padding: 8px 10px; border-bottom: 1px solid var(--border, #eef2f7); white-space: nowrap; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr.tot td { font-weight: 800; background: var(--bg, #f8fafc); }
+  .neg { color: var(--fx-neg); }
+  .pos { color: var(--fx-accent); }
+  .badge { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 6px; background: rgba(245,158,11,.15); color: #b45309; }
+  .fx-empty { padding: 40px 16px; text-align: center; color: var(--text2, #64748b); }
+  .fx-modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; align-items: center; justify-content: center; z-index: 50; padding: 16px; }
+  .fx-modal-bg.on { display: flex; }
+  .fx-modal { background: var(--card, #fff); border-radius: 14px; padding: 18px; width: 100%; max-width: 420px;
+              border: 1px solid var(--border, #e2e8f0); display: grid; gap: 12px; }
+  .fx-modal h2 { margin: 0; font-size: 15px; }
+  .fx-modal .hint { font-size: 11px; color: var(--text2, #64748b); }
+  @media (max-width: 640px) { .fx-toolbar { padding: 10px 12px; } .fx-body { padding: 10px 12px 30px; } .fx-actions .btn { flex: 1; } }
+</style>
+</head>
+<body>
+
+<div class="fx-toolbar">
+  <div class="fx-title">
+    <h1>Conta Flex</h1>
+    <div class="sub">Saldo de flex por vendedor e fábrica: vender acima da tabela gera crédito; abaixo da tabela consome.</div>
+  </div>
+  <div class="fx-filters">
+    <div><label for="f_ini">De</label><input type="date" id="f_ini" autocomplete="off"></div>
+    <div><label for="f_fim">Até</label><input type="date" id="f_fim" autocomplete="off"></div>
+    <div><label for="f_forn">Fábrica</label><select id="f_forn"><option value="">Todas</option></select></div>
+    <div id="wrap_vend"><label for="f_vend">Vendedor</label><select id="f_vend"></select></div>
+    <div class="fx-actions">
+      <button class="btn btn-primary" type="button" onclick="carregar()">Buscar</button>
+      <button class="btn" type="button" id="btnAjuste" style="display:none" onclick="abrirAjuste()">+ Ajuste manual</button>
+      <span class="sp"></span>
+      <button class="btn" type="button" onclick="exportarCsv()">CSV</button>
+    </div>
+  </div>
+  <div class="fx-tabs">
+    <button class="fx-tab active" type="button" data-tab="saldos">Saldos</button>
+    <button class="fx-tab" type="button" data-tab="extrato">Extrato</button>
+  </div>
+</div>
+
+<div class="fx-body">
+  <div class="fx-kpis" id="kpis"></div>
+  <div class="fx-card"><div id="tabela"><div class="fx-empty">Carregando…</div></div></div>
+</div>
+
+<div class="fx-modal-bg" id="modalAjuste">
+  <div class="fx-modal" role="dialog" aria-modal="true" aria-labelledby="ajTitulo">
+    <h2 id="ajTitulo">Ajuste manual de flex</h2>
+    <div><label for="aj_vend">Vendedor</label><select id="aj_vend"></select></div>
+    <div><label for="aj_forn">Fábrica</label><select id="aj_forn"></select></div>
+    <div>
+      <label for="aj_valor">Valor (R$)</label>
+      <input type="number" id="aj_valor" step="0.01" placeholder="Ex.: 50 (crédito) ou -30 (débito)" autocomplete="off">
+      <div class="hint">Positivo = crédito para o vendedor. Negativo = débito.</div>
+    </div>
+    <div><label for="aj_obs">Motivo (obrigatório)</label><input type="text" id="aj_obs" maxlength="200" autocomplete="off"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn" type="button" onclick="fecharAjuste()">Cancelar</button>
+      <button class="btn btn-primary" type="button" onclick="salvarAjuste()">Lançar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const _tk = () => sessionStorage.getItem('token') || localStorage.getItem('token') || '';
+const api = (url, opts = {}) => fetch(url, { ...opts, headers: { Authorization: 'Bearer ' + _tk(), 'Content-Type': 'application/json', ...(opts.headers || {}) } });
+const fmtCur = v => (parseFloat(v) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const fmtData = s => { const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}/${m[1]}` : '—'; };
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const cls = v => (v < 0 ? 'neg' : (v > 0 ? 'pos' : ''));
+const _isoLocal = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+let _tab = 'saldos';
+let _cfg = { pode_ver_todos: false, pode_ajustar: false, id_usuario: null };
+let _resumo = [];
+let _extrato = { rows: [], total: 0 };
+let _lookups = { fornecedores: [], vendedores: [] };
+
+function renderSaldos() {
+  const tot = _resumo.reduce((s, r) => s + (parseFloat(r.saldo) || 0), 0);
+  const cred = _resumo.reduce((s, r) => s + (parseFloat(r.creditos_total) || 0), 0);
+  const deb = _resumo.reduce((s, r) => s + (parseFloat(r.debitos_total) || 0), 0);
+  document.getElementById('kpis').innerHTML = [
+    ['Saldo atual', `<span class="${cls(tot)}">${fmtCur(tot)}</span>`],
+    ['Créditos gerados', fmtCur(cred)],
+    ['Descontos concedidos', fmtCur(deb)],
+  ].map(([l, v]) => `<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div></div>`).join('');
+  const el = document.getElementById('tabela');
+  if (!_resumo.length) { el.innerHTML = '<div class="fx-empty">Nenhum lançamento de flex ainda.</div>'; return; }
+  const valLbl = { NUNCA: 'não expira', SEMANAL: 'semanal', MENSAL: 'mensal' };
+  el.innerHTML = `<table><thead><tr><th>Vendedor</th><th>Fábrica</th><th>Validade</th>
+    <th class="num">Créditos</th><th class="num">Débitos</th><th class="num">Saldo atual</th><th></th></tr></thead><tbody>` +
+    _resumo.map(r => `<tr>
+      <td>${esc(r.nome_vendedor || ('#' + r.id_usuario))}</td><td>${esc(r.nome_fornecedor || ('#' + r.cod_fornecedor))}</td>
+      <td>${valLbl[r.validade] || r.validade}</td>
+      <td class="num">${fmtCur(r.creditos_total)}</td><td class="num">${fmtCur(r.debitos_total)}</td>
+      <td class="num"><strong class="${cls(r.saldo)}">${fmtCur(r.saldo)}</strong></td>
+      <td><button class="btn btn-sm" type="button" onclick="verExtrato(${r.id_usuario},${r.cod_fornecedor})">Extrato</button></td>
+    </tr>`).join('') +
+    `<tr class="tot"><td colspan="5">Total</td><td class="num ${cls(tot)}">${fmtCur(tot)}</td><td></td></tr></tbody></table>`;
+}
+
+function renderExtrato() {
+  const rows = _extrato.rows || [];
+  document.getElementById('kpis').innerHTML = [
+    ['Saldo do período', `<span class="${cls(_extrato.total)}">${fmtCur(_extrato.total)}</span>`],
+    ['Lançamentos', String(rows.length)],
+  ].map(([l, v]) => `<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div></div>`).join('');
+  const el = document.getElementById('tabela');
+  if (!rows.length) { el.innerHTML = '<div class="fx-empty">Nenhum lançamento no período.</div>'; return; }
+  el.innerHTML = `<table><thead><tr><th>Data</th><th>Fábrica</th><th>Pedido</th><th>Produto / motivo</th>
+    <th class="num">Valor</th><th></th></tr></thead><tbody>` +
+    rows.map(r => {
+      const ajuste = r.tipo === 'AJUSTE';
+      const desc = ajuste ? `<span class="badge">ajuste</span> ${esc(r.obs)}` : esc(r.descricao);
+      const del = ajuste && _cfg.pode_ajustar
+        ? `<button class="btn btn-sm" type="button" onclick="removerAjuste(${r.id})">Remover</button>` : '';
+      return `<tr><td>${fmtData(r.data_lancamento)}</td><td>${esc(r.nome_fornecedor)}</td>
+        <td>${esc(r.numero_pedido || '—')}</td><td>${desc}</td>
+        <td class="num"><strong class="${cls(r.valor)}">${fmtCur(r.valor)}</strong></td><td>${del}</td></tr>`;
+    }).join('') +
+    `<tr class="tot"><td colspan="4">Total</td><td class="num ${cls(_extrato.total)}">${fmtCur(_extrato.total)}</td><td></td></tr></tbody></table>`;
+}
+
+function render() { return _tab === 'saldos' ? renderSaldos() : renderExtrato(); }
+
+function _vendSel() { return document.getElementById('f_vend').value; }
+
+async function carregar() {
+  document.getElementById('tabela').innerHTML = '<div class="fx-empty">Carregando…</div>';
+  const forn = document.getElementById('f_forn').value;
+  try {
+    if (_tab === 'saldos') {
+      const r = await api('/api/flex/resumo' + (forn ? `?cod_fornecedor=${forn}` : ''));
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Erro ao carregar');
+      const vend = _vendSel();
+      _resumo = (d.rows || []).filter(x => !vend || String(x.id_usuario) === vend);
+    } else {
+      const qs = new URLSearchParams();
+      const vend = _vendSel();
+      if (vend) qs.set('id_usuario', vend);
+      if (forn) qs.set('cod_fornecedor', forn);
+      const ini = document.getElementById('f_ini').value, fim = document.getElementById('f_fim').value;
+      if (ini) qs.set('de', ini);
+      if (fim) qs.set('ate', fim);
+      const r = await api('/api/flex/extrato?' + qs.toString());
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Erro ao carregar');
+      _extrato = d;
+    }
+    render();
+  } catch (e) {
+    document.getElementById('tabela').innerHTML = `<div class="fx-empty">${esc(e.message)}</div>`;
+  }
+}
+
+function verExtrato(idUsuario, codFornecedor) {
+  document.getElementById('f_vend').value = String(idUsuario);
+  document.getElementById('f_forn').value = String(codFornecedor);
+  setTab('extrato');
+}
+
+function setTab(t) {
+  _tab = t;
+  document.querySelectorAll('.fx-tab').forEach(x => x.classList.toggle('active', x.dataset.tab === t));
+  carregar();
+}
+
+function exportarCsv() {
+  const linhas = [];
+  if (_tab === 'saldos') {
+    linhas.push(['Vendedor', 'Fábrica', 'Créditos', 'Débitos', 'Saldo']);
+    _resumo.forEach(r => linhas.push([r.nome_vendedor, r.nome_fornecedor, r.creditos_total, r.debitos_total, r.saldo]));
+  } else {
+    linhas.push(['Data', 'Fábrica', 'Pedido', 'Descrição', 'Valor']);
+    (_extrato.rows || []).forEach(r => linhas.push([fmtData(r.data_lancamento), r.nome_fornecedor, r.numero_pedido, r.tipo === 'AJUSTE' ? r.obs : r.descricao, r.valor]));
+  }
+  const csv = linhas.map(l => l.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(';')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = `conta-flex-${_tab}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function abrirAjuste() {
+  const v = _vendSel();
+  if (v) document.getElementById('aj_vend').value = v;
+  const f = document.getElementById('f_forn').value;
+  if (f) document.getElementById('aj_forn').value = f;
+  document.getElementById('aj_valor').value = '';
+  document.getElementById('aj_obs').value = '';
+  document.getElementById('modalAjuste').classList.add('on');
+}
+function fecharAjuste() { document.getElementById('modalAjuste').classList.remove('on'); }
+
+async function salvarAjuste() {
+  const body = {
+    id_usuario: parseInt(document.getElementById('aj_vend').value, 10),
+    cod_fornecedor: parseInt(document.getElementById('aj_forn').value, 10),
+    valor: parseFloat(document.getElementById('aj_valor').value),
+    obs: document.getElementById('aj_obs').value.trim(),
+  };
+  try {
+    const r = await api('/api/flex/ajuste', { method: 'POST', body: JSON.stringify(body) });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Erro ao lançar');
+    fecharAjuste();
+    carregar();
+  } catch (e) { SysRepConfirm.avisar('Não foi possível lançar', e.message); }
+}
+
+async function removerAjuste(id) {
+  const ok = await SysRepConfirm.ask({ titulo: 'Remover ajuste', mensagem: 'Remover este ajuste manual do extrato?' });
+  if (!ok) return;
+  try {
+    const r = await api('/api/flex/ajuste/' + id, { method: 'DELETE' });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Erro ao remover');
+    carregar();
+  } catch (e) { SysRepConfirm.avisar('Não foi possível remover', e.message); }
+}
+
+async function init() {
+  const hoje = new Date();
+  document.getElementById('f_ini').value = _isoLocal(new Date(hoje.getFullYear(), hoje.getMonth(), 1));
+  document.getElementById('f_fim').value = _isoLocal(hoje);
+  document.querySelectorAll('.fx-tab').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
+
+  try { _cfg = await (await api('/api/flex/config')).json(); } catch (_) {}
+  try { _lookups = await (await api('/api/pedidos/lookups')).json(); } catch (_) {}
+
+  const optF = (_lookups.fornecedores || []).map(o => `<option value="${o.id}">${esc(o.nome)}</option>`).join('');
+  document.getElementById('f_forn').insertAdjacentHTML('beforeend', optF);
+  document.getElementById('aj_forn').innerHTML = optF;
+
+  if (_cfg.pode_ver_todos) {
+    const optV = (_lookups.vendedores || []).map(o => `<option value="${o.id}">${esc(o.nome)}</option>`).join('');
+    document.getElementById('f_vend').innerHTML = '<option value="">Todos</option>' + optV;
+    document.getElementById('aj_vend').innerHTML = optV;
+    document.getElementById('btnAjuste').style.display = _cfg.pode_ajustar ? '' : 'none';
+  } else {
+    document.getElementById('wrap_vend').style.display = 'none';
+    document.getElementById('f_vend').innerHTML = `<option value="${_cfg.id_usuario || ''}"></option>`;
+  }
+  carregar();
+}
+init();
+</script>
+</body>
+</html>

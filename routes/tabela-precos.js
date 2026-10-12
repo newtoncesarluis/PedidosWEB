@@ -31,6 +31,7 @@ async function _produtoCustoMargemSelect(pool, tb = 'produto', alias = 'p') {
   parts.push(cols.has('vlr_custo') ? `IFNULL(${a}.vlr_custo, 0) AS vlr_custo` : `0 AS vlr_custo`);
   parts.push(cols.has('vlr_custofinal') ? `IFNULL(${a}.vlr_custofinal, 0) AS vlr_custofinal` : `0 AS vlr_custofinal`);
   parts.push(cols.has('margem') ? `IFNULL(${a}.margem, 0) AS margem` : `0 AS margem`);
+  parts.push(cols.has('comissao') ? `IFNULL(${a}.comissao, 0) AS comissao` : `0 AS comissao`);
   return parts.join(', ');
 }
 

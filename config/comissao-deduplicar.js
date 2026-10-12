@@ -13,8 +13,9 @@ async function _metaPedido(conn, pedidoNum) {
 }
 
 async function _listarComissoesPedido(conn, pedidoNum) {
-  const [rows] = await conn.query(
-    `SELECT pc.id, pc.pedido, pc.cod_user, pc.id_preposto, pc.id_parcela, pc.vlr_pago, pc.status,
+  // Linhas da comissão por faturamento (id_faturamento) são 1 por NF — várias NFs
+  // no mesmo pedido são legítimas, nunca duplicata.
+  const sql = (filtroFat) => `SELECT pc.id, pc.pedido, pc.cod_user, pc.id_preposto, pc.id_parcela, pc.vlr_pago, pc.status,
             COALESCE(rec.parcela, 0) AS parcela,
             CASE WHEN rec.id IS NOT NULL THEN 1 ELSE 0 END AS parc_valida
      FROM pagtocomissao pc
@@ -22,10 +23,10 @@ async function _listarComissoesPedido(conn, pedidoNum) {
      WHERE pc.pedido = ? AND COALESCE(pc.excluido, 'N') = 'N'
        AND pc.status IN ('P', 'C', 'I')
        AND COALESCE(pc.observacao,'') NOT LIKE '%gerente%'
-       AND COALESCE(pc.observacao,'') NOT LIKE '%preposto%'
-     ORDER BY pc.cod_user, COALESCE(pc.id_preposto, 0), COALESCE(rec.parcela, 999), pc.id`,
-    [pedidoNum]
-  );
+       AND COALESCE(pc.observacao,'') NOT LIKE '%preposto%'${filtroFat}
+     ORDER BY pc.cod_user, COALESCE(pc.id_preposto, 0), COALESCE(rec.parcela, 999), pc.id`;
+  const [rows] = await conn.query(sql(' AND pc.id_faturamento IS NULL'), [pedidoNum])
+    .catch(() => conn.query(sql(''), [pedidoNum]));
   return rows;
 }
 

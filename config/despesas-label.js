@@ -60,7 +60,18 @@ function resetDespesasLabelCache() {
   _cache = null;
 }
 
+/**
+ * Colunas que recebem o texto da despesa ao gravar. Se existirem `nome` e `descricao`
+ * (ex.: banco legado Delphi + `descricao NOT NULL` trazida do modelo pela validação de
+ * estrutura), grava nas duas — senão a que ficar de fora estoura "doesn't have a default value".
+ */
+async function despesasWriteColumns(pool) {
+  const col = await resolveDespesasLabelColumn(pool);
+  return _cache && _cache.hasNome && _cache.hasDesc ? ['nome', 'descricao'] : [col];
+}
+
 module.exports = {
+  despesasWriteColumns,
   resolveDespesasLabelColumn,
   despesasLabelExpr,
   despesasLabelColumnName,

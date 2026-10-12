@@ -19,6 +19,7 @@ const MIGRATIONS = [
   { table: 'pedidos', column: 'vlrtotalitens',       type: "DECIMAL(15,2) DEFAULT 0" },
   { table: 'pedidos', column: 'qt_parcelas',         type: "INT DEFAULT 1" },
   { table: 'pedidos', column: 'prazo_pagto',         type: "VARCHAR(100)" },
+  { table: 'pedidos', column: 'tipo_prazo',          type: "VARCHAR(1) DEFAULT NULL" },
   { table: 'pedidos', column: 'nome_transp',         type: "VARCHAR(100)" },
   { table: 'pedidos', column: 'uf',                  type: "VARCHAR(2)" },
   { table: 'pedidos', column: 'coduser_digitacao',   type: "INT" },
@@ -117,6 +118,13 @@ const MIGRATIONS = [
   { table: 'sistemas', column: 'habilitarestoque',               type: "VARCHAR(1) DEFAULT 'N'" },
   { table: 'sistemas', column: 'tipo_pedido_padrao',             type: "VARCHAR(50) DEFAULT NULL" },
   { table: 'sistemas', column: 'habilita_tipodoc',               type: "VARCHAR(255) DEFAULT NULL" },
+  { table: 'sistemas', column: 'habilita_descricao_pdf',         type: "VARCHAR(1) DEFAULT 'N'" },
+  { table: 'sistemas', column: 'obs_maiuscula',                  type: "VARCHAR(1) DEFAULT 'N'" },
+  { table: 'sistemas', column: 'rel_empresa_alinhamento',        type: "VARCHAR(10) DEFAULT 'left'" },
+  { table: 'sistemas', column: 'rel_empresa_quebra',             type: "VARCHAR(255) DEFAULT NULL" },
+  { table: 'sistemas', column: 'rel_empresa_linha_pct',          type: "INT DEFAULT 80" },  // Vitrine: S = 1 pedido único (mistura fábricas); N = 1 pedido por fábrica/tabela
+  { table: 'sistemas', column: 'vitrine_pedido_unico',           type: "VARCHAR(1) DEFAULT 'N'" },
+  { table: 'pedidos',  column: 'descricao_pdf',                  type: 'VARCHAR(100) NULL DEFAULT NULL' },
   { table: 'sistemas', column: 'exibecorpedgrades',              type: "VARCHAR(1) DEFAULT 'S'" },
   { table: 'sistemas', column: 'tiporelgrade',                   type: "VARCHAR(20) DEFAULT 'SIMPLES'" },
   { table: 'sistemas', column: 'layoutimpressaograde',           type: "VARCHAR(20) DEFAULT 'CORES'" },
@@ -149,6 +157,10 @@ const MIGRATIONS = [
   { table: 'pagtocomissao', column: 'excluido',            type: "VARCHAR(1) DEFAULT 'N'" },
   { table: 'pagtocomissao', column: 'id_preposto',       type: 'INT NULL DEFAULT NULL' },
   { table: 'pagtocomissao', column: 'vlr_pago_original', type: 'DECIMAL(15,4) DEFAULT NULL' },
+  // Comissão por faturamento (opt-in por CNPJ — config/comissao-faturamento.js)
+  { table: 'pagtocomissao', column: 'id_faturamento',    type: 'INT NULL DEFAULT NULL' },
+  { table: 'pedidos',       column: 'saldo_faturar',     type: 'DECIMAL(15,2) NULL DEFAULT NULL' },
+  { table: 'usuarios',      column: 'comissao_fat_pct_rep', type: 'DECIMAL(5,2) NULL DEFAULT NULL' },
 
   // ── FORNECEDORES ──────────────────────────────────────────────────────────
   { table: 'fornecedores', column: 'tipo_desconto',          type: "VARCHAR(20) DEFAULT 'PERCENTUAL'" },
@@ -297,6 +309,13 @@ const MIGRATIONS = [
   // ── FORNECEDORES — módulo Kit Feirinha / preço médio de revenda ─────────────
   { table: 'fornecedores', column: 'habilita_feirinha', type: "CHAR(1) NOT NULL DEFAULT 'N'" },
 
+  // ── FORNECEDORES — Flex de preço (conta corrente do vendedor) ───────────────
+  { table: 'fornecedores', column: 'habilita_flex', type: "CHAR(1) NOT NULL DEFAULT 'N'" },
+  { table: 'fornecedores', column: 'flex_lancar_em', type: "VARCHAR(10) NOT NULL DEFAULT 'APROVAR'" },
+  { table: 'fornecedores', column: 'flex_saldo_insuficiente', type: "VARCHAR(10) NOT NULL DEFAULT 'AVISAR'" },
+  { table: 'fornecedores', column: 'flex_validade', type: "VARCHAR(10) NOT NULL DEFAULT 'NUNCA'" },
+  { table: 'fornecedores', column: 'flex_gera_credito', type: "CHAR(1) NOT NULL DEFAULT 'S'" },
+
   // ── PEDIDOS — campanha Feirinha vinculada ───────────────────────────────────
   { table: 'pedidos', column: 'id_campanha_feirinha', type: 'INT NULL DEFAULT NULL' },
   { table: 'pedidos', column: 'preco_medio_feirinha', type: 'DECIMAL(15,4) NULL DEFAULT NULL' },
@@ -361,7 +380,7 @@ const MIGRATIONS = [
   { table: 'fornecedores', column: 'desconto_primeira_compra_pct',  type: 'DECIMAL(5,2) NULL DEFAULT NULL' },
   { table: 'fornecedores', column: 'promo_primeira_compra_exige_kit', type: "CHAR(1) NOT NULL DEFAULT 'N'" },
   { table: 'fornecedores', column: 'promo_condicao_pagto',          type: "VARCHAR(50) NULL DEFAULT NULL" },
-  { table: 'fornecedores', column: 'promo_texto_banner',            type: "VARCHAR(200) NULL DEFAULT NULL" },
+  { table: 'fornecedores', column: 'promo_texto_banner',           type: "VARCHAR(200) NULL DEFAULT NULL" },
   { table: 'fornecedores', column: 'aparece_showroom',              type: "CHAR(1) NOT NULL DEFAULT 'N'" },
 
   // ── CONTROLE DE ACESSOS — localização (Geo-IP + GPS) ─────────────────────────

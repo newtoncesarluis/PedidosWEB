@@ -11,37 +11,45 @@ function produtoBuscaOrSql(alias, q, opts = {}) {
   const qTrim = String(q || '').trim();
   if (!qTrim) return { fragment: '1=1', params: [], isBarcodeLike: false, qTrim: '' };
 
-  const lk = `%${qTrim}%`;
-  const parts = [
-    `${a}.descricao LIKE ?`,
-    `${a}.cod_fabricante LIKE ?`,
-    `${a}.cod_barras LIKE ?`,
-  ];
-  const params = [lk, lk, lk];
+  // Estilo Google: cada palavra precisa aparecer em algum campo (qualquer ordem).
+  const termos = qTrim.split(/\s+/).filter(Boolean).slice(0, 6);
+  const isBarcodeLike = termos.length === 1 && /^\d{8,}$/.test(qTrim);
 
-  if (opts.includeSegmento !== false) {
-    parts.push(`${a}.segmento LIKE ?`);
-    params.push(lk);
-  }
-  if (opts.includeApelido) {
-    parts.push(`${a}.apelido LIKE ?`);
-    params.push(lk);
-  }
-  if (opts.includeId && /^\d+$/.test(qTrim)) {
-    parts.push(`CAST(${a}.ID AS CHAR) LIKE ?`);
-    params.push(lk);
-  }
+  const blocos = [];
+  const params = [];
+  termos.forEach((t) => {
+    const lk = `%${t}%`;
+    const parts = [
+      `${a}.descricao LIKE ?`,
+      `${a}.cod_fabricante LIKE ?`,
+      `${a}.cod_barras LIKE ?`,
+    ];
+    const ps = [lk, lk, lk];
+    if (opts.includeSegmento !== false) {
+      parts.push(`${a}.segmento LIKE ?`);
+      ps.push(lk);
+    }
+    if (opts.includeApelido) {
+      parts.push(`${a}.apelido LIKE ?`);
+      ps.push(lk);
+    }
+    if (opts.includeId && /^\d+$/.test(t)) {
+      parts.push(`CAST(${a}.ID AS CHAR) LIKE ?`);
+      ps.push(lk);
+    }
+    blocos.push(`(${parts.join(' OR ')})`);
+    params.push(...ps);
+  });
 
-  const isBarcodeLike = /^\d{8,}$/.test(qTrim);
   if (isBarcodeLike) {
     return {
-      fragment: `(${a}.cod_barras = ? OR ${a}.cod_fabricante = ? OR ${parts.join(' OR ')})`,
+      fragment: `(${a}.cod_barras = ? OR ${a}.cod_fabricante = ? OR ${blocos[0]})`,
       params: [qTrim, qTrim, ...params],
       isBarcodeLike: true,
       qTrim,
     };
   }
-  return { fragment: `(${parts.join(' OR ')})`, params, isBarcodeLike: false, qTrim };
+  return { fragment: `(${blocos.join(' AND ')})`, params, isBarcodeLike: false, qTrim };
 }
 
 function andProdutoBuscaSql(alias, q, opts = {}) {
@@ -66,7 +74,9 @@ function matchProdutoBuscaLocal(p, q) {
       || String(p.cod_fabricante) === qTrim
       || fields.some((h) => h.includes(qt));
   }
-  return fields.some((h) => h.includes(qt));
+  const termos = qt.split(/\s+/).filter(Boolean);
+  const todos = fields.join(' ');
+  return termos.every((t) => todos.includes(t));
 }
 
 module.exports = { produtoBuscaOrSql, andProdutoBuscaSql, matchProdutoBuscaLocal };

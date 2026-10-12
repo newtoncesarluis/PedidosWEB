@@ -1182,6 +1182,9 @@
     border-color: rgba(251, 146, 60, .36);
     color: #fed7aa;
   }
+  /* Vitrine aberta no app: some a barra flutuante (a própria vitrine tem botão voltar no cabeçalho) */
+  body.ms-vitrine-open #ms-float-bar,
+  body.ms-vitrine-open #ms-btn-back { display: none !important; }
   html[data-theme="dark"] .ms-conn-pill.pack-ready {
     background: rgba(6, 78, 59, .45);
     border-color: rgba(52, 211, 153, .32);
@@ -1995,8 +1998,17 @@ window.msToast = function (msg, type) {
     }
   }
 
+  function isVitrinePage() {
+    try {
+      return (frame.contentWindow.location.pathname || '').toLowerCase().indexOf('/vitrine/') === 0;
+    } catch (_) {
+      return String(frame.src || '').toLowerCase().indexOf('/vitrine/') >= 0;
+    }
+  }
+
   function updateShowroomShell() {
     var on = isShowroomPage();
+    document.body.classList.toggle('ms-vitrine-open', isVitrinePage());
     document.body.classList.toggle('ms-showroom-open', on);
     if (on) {
       // Banner offline não deve cobrir o Showroom
@@ -3401,6 +3413,7 @@ window.msToast = function (msg, type) {
     resetPedidosShellState();
     // Some Início/nav já no clique — não espera o load do iframe
     document.body.classList.toggle('ms-showroom-open', String(href || '').toLowerCase().indexOf('comercial-showroom') >= 0);
+    document.body.classList.toggle('ms-vitrine-open', String(href || '').toLowerCase().indexOf('/vitrine/') === 0);
     frame.src = href + (href.indexOf('?') >= 0 ? '&' : '?') + '_ms=' + Date.now();
     setActiveNav(href);
     document.getElementById('ms-title').textContent = label || 'SysRep Mobile';
@@ -3769,6 +3782,10 @@ window.msToast = function (msg, type) {
     }
     if (data.type === 'offline-queue-changed') {
       if (typeof atualizarBotaoSync === 'function') atualizarBotaoSync();
+      return;
+    }
+    if (data.type === 'ms-vitrine-voltar') {
+      shellGoBack();
       return;
     }
     if (data.type === 'ms-chrome-state') {
@@ -4921,6 +4938,62 @@ window.msToast = function (msg, type) {
 }
 #modalVitrineShell .vitrine-actions { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
 #modalVitrineShell .vitrine-err { padding: 24px; color: #dc2626; font-size: 13px; }
+#modalVitrineShell .vitrine-panel { max-height: 92vh; max-height: 92dvh; }
+#modalVitrineShell .vitrine-panel-head { position: sticky; top: 0; z-index: 2; background: var(--ms-surface,#fff); }
+#modalVitrineShell .vsh { padding: 14px 16px 20px; display: flex; flex-direction: column; gap: 12px; }
+#modalVitrineShell .vsh button { font-family: inherit; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+#modalVitrineShell .vsh-exp { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--ms-border,#e2e8f0); border-radius: 12px; background: var(--ms-surface-soft,#f8fafc); }
+#modalVitrineShell .vsh-exp-ico { width: 32px; height: 32px; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: rgba(14,165,233,.14); color: #0284c7; flex-shrink: 0; }
+#modalVitrineShell .vsh-exp.warn .vsh-exp-ico { background: rgba(245,158,11,.16); color: #b45309; }
+#modalVitrineShell .vsh-exp-ico svg { width: 18px; height: 18px; }
+#modalVitrineShell .vsh-exp-txt { display: flex; flex-direction: column; min-width: 0; }
+#modalVitrineShell .vsh-exp-txt strong { font-size: 14px; }
+#modalVitrineShell .vsh-exp-txt small { font-size: 11px; color: var(--ms-muted,#64748b); }
+#modalVitrineShell .vsh-info { font-size: 11px; line-height: 1.45; padding: 8px 10px; border-radius: 10px; background: rgba(14,165,233,.1); border: 1px solid rgba(14,165,233,.28); color: var(--ms-fg,#0f172a); }
+#modalVitrineShell .vsh-linkrow { display: flex; gap: 8px; align-items: stretch; }
+#modalVitrineShell .vsh-input { flex: 1; min-width: 0; height: 42px; padding: 0 12px; box-sizing: border-box; border: 1.5px solid var(--ms-border,#e2e8f0); border-radius: 10px; background: var(--ms-surface-soft,#f8fafc); color: var(--ms-fg,#0f172a); font-size: 12px; outline: none; }
+#modalVitrineShell .vsh-copy { flex-shrink: 0; height: 42px; padding: 0 14px; display: inline-flex; align-items: center; gap: 6px; border: none; border-radius: 10px; background: var(--ms-accent,#0ea5e9); color: #fff; font-size: 13px; font-weight: 700; }
+#modalVitrineShell .vsh-copy svg { width: 16px; height: 16px; }
+#modalVitrineShell .vsh-acts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+#modalVitrineShell .vsh-act { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 6px 2px; border: none; background: none; color: var(--ms-fg,#0f172a); font-size: 11px; font-weight: 600; }
+#modalVitrineShell .vsh-act-ico { width: 46px; height: 46px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 1px solid var(--ms-border,#e2e8f0); background: var(--ms-surface-soft,#f8fafc); }
+#modalVitrineShell .vsh-act-ico.wa { background: rgba(37,211,102,.15); border-color: rgba(37,211,102,.4); color: #15803d; }
+#modalVitrineShell .vsh-act-ico svg { width: 20px; height: 20px; }
+#modalVitrineShell .vsh-qr { text-align: center; padding: 12px; border: 1px solid var(--ms-border,#e2e8f0); border-radius: 12px; }
+#modalVitrineShell .vsh-qr > div { display: inline-block; padding: 8px; background: #fff; border-radius: 10px; }
+#modalVitrineShell .vsh-qr > span { display: block; margin-top: 6px; font-size: 11px; color: var(--ms-muted,#64748b); }
+#modalVitrineShell .vsh-warn { padding: 10px 12px; border-radius: 12px; background: rgba(245,158,11,.12); border: 1px solid rgba(245,158,11,.35); }
+#modalVitrineShell .vsh-warn p { margin: 0 0 8px; font-size: 12px; line-height: 1.4; }
+#modalVitrineShell .vsh-warn > div { display: flex; gap: 8px; justify-content: flex-end; }
+#modalVitrineShell .vsh-btn-pri, #modalVitrineShell .vsh-btn-sec { height: 36px; padding: 0 14px; border-radius: 9px; font-size: 12px; font-weight: 700; border: 1px solid var(--ms-border,#e2e8f0); }
+#modalVitrineShell .vsh-btn-pri { background: var(--ms-accent,#0ea5e9); color: #fff; border-color: var(--ms-accent,#0ea5e9); }
+#modalVitrineShell .vsh-btn-sec { background: var(--ms-surface-soft,#f1f5f9); color: var(--ms-fg,#334155); }
+#modalVitrineShell .vsh-card { padding: 12px; border: 1px solid var(--ms-border,#e2e8f0); border-radius: 12px; }
+#modalVitrineShell .vsh-lbl { font-size: 12px; font-weight: 700; margin-bottom: 8px; }
+#modalVitrineShell .vsh-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 12px; background: var(--ms-surface-soft,#f1f5f9); }
+#modalVitrineShell .vsh-seg button { height: 38px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: none; border-radius: 9px; background: transparent; color: var(--ms-muted,#64748b); font-size: 13px; font-weight: 700; }
+#modalVitrineShell .vsh-seg button.on { background: var(--ms-accent,#0ea5e9); color: #fff; }
+#modalVitrineShell .vsh-seg svg { width: 14px; height: 14px; }
+#modalVitrineShell .vsh-hint { margin-top: 8px; font-size: 11px; color: var(--ms-muted,#64748b); line-height: 1.4; }
+#modalVitrineShell .vsh-hint.warn { color: #b45309; }
+#modalVitrineShell .vsh-tabs { padding: 0; overflow: hidden; }
+#modalVitrineShell .vsh-tabs-head { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 13px 12px; border: none; background: none; color: var(--ms-fg,#0f172a); text-align: left; }
+#modalVitrineShell .vsh-tabs-title { font-size: 13px; font-weight: 700; display: flex; flex-direction: column; gap: 2px; }
+#modalVitrineShell .vsh-tabs-title small { font-size: 11px; font-weight: 600; color: var(--ms-muted,#64748b); }
+#modalVitrineShell .vsh-chev svg { width: 18px; height: 18px; transition: transform .15s; }
+#modalVitrineShell .vsh-tabs-head.open .vsh-chev svg { transform: rotate(180deg); }
+#modalVitrineShell .vsh-tabs-body { padding: 0 12px 12px; border-top: 1px solid var(--ms-border,#e2e8f0); }
+#modalVitrineShell .vsh-tabs-body .vsh-input { width: 100%; flex: none; margin-top: 10px; }
+#modalVitrineShell .vsh-tabs-tools { display: flex; gap: 8px; margin: 8px 0; }
+#modalVitrineShell .vsh-tabs-tools button { flex: 1; height: 34px; border: 1px solid var(--ms-border,#e2e8f0); border-radius: 9px; background: var(--ms-surface-soft,#f1f5f9); color: var(--ms-fg,#334155); font-size: 12px; font-weight: 700; }
+#modalVitrineShell .vsh-tabs-list { max-height: 38vh; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; border: 1px solid var(--ms-border,#e2e8f0); border-radius: 10px; }
+#modalVitrineShell .vsh-tab-item { display: flex; align-items: center; gap: 10px; padding: 0 12px; min-height: 44px; border-bottom: 1px solid var(--ms-border,#e2e8f0); cursor: pointer; }
+#modalVitrineShell .vsh-tab-item:last-child { border-bottom: none; }
+#modalVitrineShell .vsh-tab-item input { width: 20px; height: 20px; flex-shrink: 0; accent-color: var(--ms-accent,#0ea5e9); }
+#modalVitrineShell .vsh-av { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 11px; font-weight: 800; }
+#modalVitrineShell .vsh-tab-name { font-size: 13px; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#modalVitrineShell .vsh-tabs-empty { padding: 14px; font-size: 12px; color: var(--ms-muted,#64748b); }
+#modalVitrineShell .vsh-tabs-msg { min-height: 18px; margin-top: 8px; font-size: 11px; color: var(--ms-muted,#64748b); }
 #modalVitrineShell .vitrine-spin {
   width: 28px; height: 28px; margin: 32px auto; border: 3px solid #e2e8f0;
   border-top-color: #0ea5e9; border-radius: 50%; animation: vitrineShellSpin .7s linear infinite;
@@ -4987,13 +5060,242 @@ window.msToast = function (msg, type) {
     bodyEl.innerHTML = '<div class="vitrine-spin" role="status" aria-label="Gerando link"></div>';
   }
 
+  // ── Estado do link exibido (para tema, tabelas e "novo link") ──
+  var _ctx = { id_cliente: null, aberto: false, token: '', tema: 'DIA' };
+  var _tabSaveTimer = null;
+
+  function jwt() { return sessionStorage.getItem('token') || localStorage.getItem('token') || ''; }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  }
+  function parseIso(v) {
+    var t = String(v || '').trim(), m = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return m[1] + '-' + m[2] + '-' + m[3];
+    m = t.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+    return m ? m[3] + '-' + m[2] + '-' + m[1] : null;
+  }
+  function expiraInfo(expira) {
+    var iso = parseIso(expira), val = '—', warn = false, br = '';
+    if (iso) {
+      br = iso.split('-').reverse().join('/');
+      var dias = Math.ceil((new Date(iso + 'T23:59:59').getTime() - Date.now()) / 86400000);
+      if (dias < 0) { val = 'Expirado'; warn = true; }
+      else if (dias === 0) { val = 'Expira hoje'; warn = true; }
+      else if (dias === 1) { val = 'Expira em 1 dia'; warn = true; }
+      else { val = 'Expira em ' + dias + ' dias'; warn = dias <= 7; }
+    }
+    return { val: val, br: br, warn: warn };
+  }
+  function ico(paths) {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + paths + '</svg>';
+  }
+  function hue(nome) {
+    var h = 0, t = String(nome || '');
+    for (var i = 0; i < t.length; i++) h = ((h << 5) - h) + t.charCodeAt(i);
+    return Math.abs(h) % 360;
+  }
+
+  function temaHtml() {
+    var noite = _ctx.tema === 'NOITE';
+    return '<div class="vsh-lbl">Aparência do catálogo</div>' +
+      '<div class="vsh-seg" role="group" aria-label="Aparência Dia ou Noite">' +
+        '<button type="button" data-tema="DIA" class="' + (!noite ? 'on' : '') + '">' +
+          ico('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M5 5l1.5 1.5M17.5 17.5L19 19M2 12h2M20 12h2M5 19l1.5-1.5M17.5 6.5L19 5"/>') + ' Dia</button>' +
+        '<button type="button" data-tema="NOITE" class="' + (noite ? 'on' : '') + '">' +
+          ico('<path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>') + ' Noite</button>' +
+      '</div>' +
+      '<div class="vsh-hint' + (noite ? ' warn' : '') + '">' + (noite
+        ? 'Atenção: fotos com fundo branco podem perder contraste no modo Noite.'
+        : 'Fotos de produto com fundo branco ficam melhor no modo Dia.') + '</div>';
+  }
+
+  function trocarTema(tema) {
+    if (tema === _ctx.tema) return;
+    if (!_ctx.token) { toast('Gere o link antes de escolher a aparência.'); return; }
+    fetch('/api/vitrine/' + _ctx.token + '/tema', {
+      method: 'PATCH',
+      headers: { Authorization: 'Bearer ' + jwt(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tema: tema })
+    }).then(function (r) {
+      if (!r.ok) throw new Error('Não foi possível trocar a aparência.');
+      _ctx.tema = tema;
+      var box = document.getElementById('vshTema');
+      if (box) { box.innerHTML = temaHtml(); bindTema(); }
+      toast(tema === 'NOITE' ? 'Catálogo no modo Noite' : 'Catálogo no modo Dia');
+    }).catch(function (e) { toast(e.message || 'Não foi possível trocar a aparência.'); });
+  }
+  function bindTema() {
+    var btns = bodyEl.querySelectorAll('#vshTema [data-tema]');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].addEventListener('click', function (e) { e.preventDefault(); trocarTema(this.getAttribute('data-tema')); });
+    }
+  }
+
+  function toggleQr(link) {
+    var wrap = document.getElementById('vshQr');
+    if (!wrap) return;
+    var open = wrap.style.display !== 'block';
+    wrap.style.display = open ? 'block' : 'none';
+    if (!open) return;
+    var el = document.getElementById('vshQrImg');
+    el.innerHTML = '';
+    var draw = function () {
+      try { new QRCode(el, { text: link, width: 160, height: 160, correctLevel: QRCode.CorrectLevel.M }); } catch (_) {}
+    };
+    if (typeof QRCode !== 'undefined') { draw(); return; }
+    var sc = document.createElement('script');
+    sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+    sc.onload = draw;
+    document.head.appendChild(sc);
+  }
+
+  // ── Seletor de tabelas do link (lista com checkbox, recolhida por padrão) ──
+  function carregarTabelas() {
+    var box = document.getElementById('vshTabelas');
+    if (!box || !_ctx.token) return;
+    var url = (_ctx.id_cliente
+      ? '/api/vitrine/tabelas-cliente/' + encodeURIComponent(_ctx.id_cliente)
+      : '/api/vitrine/tabelas') + '?token=' + encodeURIComponent(_ctx.token);
+    fetch(url, { headers: { Authorization: 'Bearer ' + jwt() } })
+      .then(function (r) { return r.ok ? r.json() : []; })
+      .then(function (tabs) { if (Array.isArray(tabs) && tabs.length >= 2) montarTabelas(box, tabs); })
+      .catch(function () {});
+  }
+
+  function montarTabelas(box, tabs) {
+    var token = _ctx.token;
+    var sel = {};
+    var nSel = 0;
+    tabs.forEach(function (t) { if (t.selecionada !== false) { sel[t.id_tabela] = true; nSel++; } });
+    var termo = '';
+
+    box.innerHTML =
+      '<div class="vsh-card vsh-tabs">' +
+        '<button type="button" class="vsh-tabs-head" id="vshTabToggle" aria-expanded="false">' +
+          '<span class="vsh-tabs-title">Tabelas neste link<small id="vshTabCount"></small></span>' +
+          '<span class="vsh-chev">' + ico('<polyline points="6 9 12 15 18 9"/>') + '</span>' +
+        '</button>' +
+        '<div class="vsh-tabs-body" id="vshTabBody" style="display:none">' +
+          '<input type="search" id="vshTabSearch" class="vsh-input" placeholder="Buscar tabela…" autocomplete="off">' +
+          '<div class="vsh-tabs-tools">' +
+            '<button type="button" id="vshTabAll">Marcar todas</button>' +
+            '<button type="button" id="vshTabNone">Limpar</button>' +
+          '</div>' +
+          '<div class="vsh-tabs-list" id="vshTabList"></div>' +
+          '<div class="vsh-tabs-msg" id="vshTabMsg"></div>' +
+        '</div>' +
+      '</div>';
+
+    var list = box.querySelector('#vshTabList');
+    var msg = box.querySelector('#vshTabMsg');
+    var count = box.querySelector('#vshTabCount');
+
+    function visiveis() {
+      var q = termo.trim().toLowerCase();
+      return q ? tabs.filter(function (t) { return String(t.descricao || '').toLowerCase().indexOf(q) >= 0; }) : tabs;
+    }
+    function atualizaContagem() {
+      count.textContent = nSel === tabs.length ? 'Todas (' + nSel + ')' : nSel + ' de ' + tabs.length;
+    }
+    function desenha() {
+      var arr = visiveis();
+      atualizaContagem();
+      if (!arr.length) { list.innerHTML = '<div class="vsh-tabs-empty">Nenhuma tabela encontrada.</div>'; return; }
+      list.innerHTML = arr.map(function (t) {
+        var nome = String(t.descricao || '#' + t.id_tabela);
+        return '<label class="vsh-tab-item">' +
+          '<input type="checkbox" data-id="' + esc(t.id_tabela) + '"' + (sel[t.id_tabela] ? ' checked' : '') + '>' +
+          '<span class="vsh-av" style="background:hsl(' + hue(nome) + ',42%,42%)">' + esc(nome.charAt(0).toUpperCase()) + '</span>' +
+          '<span class="vsh-tab-name">' + esc(nome) + '</span>' +
+        '</label>';
+      }).join('');
+    }
+    function salvar() {
+      clearTimeout(_tabSaveTimer);
+      if (nSel === 0) { msg.textContent = 'Marque ao menos uma tabela.'; return; }
+      msg.textContent = 'Salvando…';
+      _tabSaveTimer = setTimeout(function () {
+        var ids = tabs.filter(function (t) { return sel[t.id_tabela]; }).map(function (t) { return Number(t.id_tabela); });
+        fetch('/api/vitrine/' + token + '/tabelas', {
+          method: 'PATCH',
+          headers: { Authorization: 'Bearer ' + jwt(), 'Content-Type': 'application/json' },
+          // todas marcadas = sem restrição (NULL no servidor)
+          body: JSON.stringify({ ids_tabelas: ids.length === tabs.length ? [] : ids })
+        }).then(function (r) {
+          msg.textContent = r.ok
+            ? (ids.length === tabs.length ? 'Todas as tabelas neste link.' : ids.length + ' tabela(s) neste link.')
+            : 'Não foi possível salvar.';
+        }).catch(function () { msg.textContent = 'Não foi possível salvar.'; });
+      }, 350);
+    }
+
+    box.querySelector('#vshTabToggle').addEventListener('click', function () {
+      var body = box.querySelector('#vshTabBody');
+      var open = body.style.display === 'none';
+      body.style.display = open ? 'block' : 'none';
+      this.setAttribute('aria-expanded', open ? 'true' : 'false');
+      this.classList.toggle('open', open);
+    });
+    box.querySelector('#vshTabSearch').addEventListener('input', function () { termo = this.value; desenha(); });
+    list.addEventListener('change', function (e) {
+      var cb = e.target;
+      if (!cb || cb.type !== 'checkbox') return;
+      var id = cb.getAttribute('data-id');
+      if (cb.checked && !sel[id]) { sel[id] = true; nSel++; }
+      else if (!cb.checked && sel[id]) { delete sel[id]; nSel--; }
+      atualizaContagem();
+      salvar();
+    });
+    box.querySelector('#vshTabAll').addEventListener('click', function () {
+      visiveis().forEach(function (t) { if (!sel[t.id_tabela]) { sel[t.id_tabela] = true; nSel++; } });
+      desenha(); salvar();
+    });
+    box.querySelector('#vshTabNone').addEventListener('click', function () {
+      visiveis().forEach(function (t) { if (sel[t.id_tabela]) { delete sel[t.id_tabela]; nSel--; } });
+      desenha(); salvar();
+    });
+    desenha();
+  }
+
+  // ── "Novo link": invalida o anterior, por isso pede confirmação inline ──
+  function novoLink() {
+    renderLoading();
+    var body = _ctx.id_cliente
+      ? { id_cliente: _ctx.id_cliente, dias_validade: 60, forcar_novo: true }
+      : { link_aberto: true, dias_validade: 60, forcar_novo: true };
+    var aberto = _ctx.aberto, idCli = _ctx.id_cliente;
+    fetch('/api/vitrine/gerar', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + jwt(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (res) {
+        if (!res.ok) throw new Error(res.d.erro || 'Erro ao gerar link');
+        var link = location.origin + res.d.link;
+        renderContent({
+          link: link, path: res.d.link, expira: res.d.expira, token: res.d.token, tema: res.d.tema,
+          id_cliente: idCli, link_aberto: aberto,
+          waUrl: 'https://wa.me/?text=' + encodeURIComponent((aberto
+            ? 'Olá! Confira nosso catálogo de produtos: '
+            : 'Olá! Acesse aqui o catálogo de produtos com seus preços: ') + link)
+        });
+        toast('Novo link gerado');
+      })
+      .catch(function (err) {
+        bodyEl.innerHTML = '<div class="vitrine-err"></div>';
+        bodyEl.querySelector('.vitrine-err').textContent = err.message || 'Erro ao gerar link';
+      });
+  }
+
   function renderContent(data) {
     var link = String(data.link || '');
-    var expira = String(data.expira || '');
     _vitrinePath = String(data.path || link.replace(location.origin, '') || '');
-    _vitrineWa = String(data.waUrl || '');
-    var esc = function (s) {
-      return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    _vitrineWa = String(data.waUrl || ('https://wa.me/?text=' + encodeURIComponent('Olá! Acesse o catálogo: ' + link)));
+    _ctx = {
+      id_cliente: data.id_cliente || null,
+      aberto: !!data.link_aberto,
+      token: String(data.token || (link.split('/vitrine/')[1] || '')).split(/[?#]/)[0],
+      tema: String(data.tema || 'DIA').toUpperCase() === 'NOITE' ? 'NOITE' : 'DIA'
     };
     var subEl = document.getElementById('vitrineShellSub');
     if (subEl) {
@@ -5001,20 +5303,31 @@ window.msToast = function (msg, type) {
         ? 'Link aberto — visitante informa nome e telefone no pedido'
         : 'Link de catálogo para o cliente';
     }
-    var desc = data.link_aberto
-      ? 'Link aberto válido até <strong>' + esc(expira) + '</strong>. Compartilhe em redes ou WhatsApp — quem abrir preenche nome e telefone ao enviar o pedido.'
-      : 'Link válido até <strong>' + esc(expira) + '</strong>. Compartilhe com o cliente para que ele consulte produtos e faça pedidos.';
+    var ex = expiraInfo(data.expira);
     bodyEl.innerHTML =
-      '<div class="vitrine-body">' +
-        '<p class="vitrine-desc">' + desc + '</p>' +
-        '<div class="vitrine-link-row">' +
-          '<input class="vitrine-link-input" id="mv-shell-link" readonly value="' + esc(link) + '">' +
-          '<button type="button" class="btn btn-primary" id="btnVitrineShellCopy">Copiar</button>' +
+      '<div class="vsh">' +
+        '<div class="vsh-exp' + (ex.warn ? ' warn' : '') + '">' +
+          '<span class="vsh-exp-ico">' + ico('<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>') + '</span>' +
+          '<span class="vsh-exp-txt"><strong>' + esc(ex.val) + '</strong>' + (ex.br ? '<small>Válido até ' + esc(ex.br) + '</small>' : '') + '</span>' +
         '</div>' +
-        '<div class="vitrine-actions">' +
-          '<button type="button" class="btn btn-ghost" id="btnVitrineShellOpen">Abrir vitrine</button>' +
-          '<button type="button" class="btn btn-ghost" id="btnVitrineShellWa">Enviar WhatsApp</button>' +
+        (data.reaproveitado ? '<div class="vsh-info">Este é o link que <strong>já está em uso</strong>. Se já enviou ao cliente, continua valendo.</div>' : '') +
+        '<div class="vsh-linkrow">' +
+          '<input class="vsh-input" id="mv-shell-link" readonly aria-label="Link da vitrine" value="' + esc(link) + '">' +
+          '<button type="button" class="vsh-copy" id="btnVitrineShellCopy">' + ico('<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>') + 'Copiar</button>' +
         '</div>' +
+        '<div class="vsh-acts">' +
+          '<button type="button" class="vsh-act" id="btnVitrineShellWa"><span class="vsh-act-ico wa">' + ico('<path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/>') + '</span>WhatsApp</button>' +
+          '<button type="button" class="vsh-act" id="btnVitrineShellOpen"><span class="vsh-act-ico">' + ico('<path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>') + '</span>Abrir</button>' +
+          '<button type="button" class="vsh-act" id="btnVitrineShellQr"><span class="vsh-act-ico">' + ico('<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/><rect x="18" y="18" width="3" height="3"/>') + '</span>QR Code</button>' +
+          '<button type="button" class="vsh-act" id="btnVitrineShellNovo"><span class="vsh-act-ico">' + ico('<polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/>') + '</span>Novo link</button>' +
+        '</div>' +
+        '<div class="vsh-qr" id="vshQr" style="display:none"><div id="vshQrImg"></div><span>Aponte a câmera do cliente</span></div>' +
+        '<div class="vsh-warn" id="vshNovoAviso" style="display:none">' +
+          '<p>O link atual vai parar de funcionar para quem já recebeu. Gerar um novo?</p>' +
+          '<div><button type="button" class="vsh-btn-sec" id="vshNovoNao">Cancelar</button><button type="button" class="vsh-btn-pri" id="vshNovoSim">Gerar novo</button></div>' +
+        '</div>' +
+        '<div class="vsh-card" id="vshTema">' + temaHtml() + '</div>' +
+        '<div id="vshTabelas"></div>' +
       '</div>';
 
     document.getElementById('btnVitrineShellCopy').addEventListener('click', function (e) {
@@ -5037,6 +5350,25 @@ window.msToast = function (msg, type) {
       e.preventDefault();
       abrirUrl(_vitrineWa);
     });
+    document.getElementById('btnVitrineShellQr').addEventListener('click', function (e) {
+      e.preventDefault();
+      toggleQr(link);
+    });
+    document.getElementById('btnVitrineShellNovo').addEventListener('click', function (e) {
+      e.preventDefault();
+      var av = document.getElementById('vshNovoAviso');
+      av.style.display = av.style.display === 'none' ? 'block' : 'none';
+    });
+    document.getElementById('vshNovoNao').addEventListener('click', function (e) {
+      e.preventDefault();
+      document.getElementById('vshNovoAviso').style.display = 'none';
+    });
+    document.getElementById('vshNovoSim').addEventListener('click', function (e) {
+      e.preventDefault();
+      novoLink();
+    });
+    bindTema();
+    carregarTabelas();
   }
 
   function abrir() {
@@ -5113,7 +5445,10 @@ window.msToast = function (msg, type) {
             expira: expira,
             path: res.d.link,
             waUrl: 'https://wa.me/?text=' + encodeURIComponent('Olá! Confira nosso catálogo de produtos: ' + link),
-            link_aberto: true
+            link_aberto: true,
+            token: res.d.token,
+            tema: res.d.tema,
+            reaproveitado: !!res.d.reaproveitado
           }
         }));
       })

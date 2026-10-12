@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { getPool } = require('../config/database');
 const { sanitizeEmpresaRow } = require('../services/empresa-logo');
+const { sanitizeObsPedidoHtml } = require('../config/obs-pedido-html');
 const { enrichProdutosComPromocao, parseOptInt, tabelaPromocoesExiste } = require('../config/promocoes-produto');
 const { listarReposicaoProdutos } = require('../config/reposicao-produtos');
 const { listarOportunidadesProdutos } = require('../config/oportunidades-produtos');
@@ -30,6 +31,8 @@ const {
   stripProdutosComissaoRep,
 } = require('../config/comissao-preposto-guard');
 const { buildXmlAnexoPedidoVenda, buildXlsAnexoPedidoVenda } = require('../config/pedido-xml-venda');
+const comFat = require('../config/comissao-faturamento');
+const flexPedido = require('../config/flex-pedido');
 const {
   listVendedoresVisiveis,
   resolveVendedorIdForFilter,
@@ -324,6 +327,24 @@ const PEDIDO_DATE_FIELDS = new Set(['data_entrega', 'data_faturado', 'data_fatur
 
 let _tablesEnsured = false;
 let _ensureTablesPromise = null;
+/**
+ * Garante `pedidos.tipo_prazo` (V = À Vista | P = A Prazo) em bases que ainda não rodaram a migração.
+ * Cacheado por banco: após a 1ª checagem não custa nada no save.
+ */
+const _tipoPrazoOk = new Set();
+async function ensureTipoPrazoColumn(conn) {
+  try {
+    const [[r]] = await conn.query('SELECT DATABASE() AS db');
+    const key = r?.db || 'default';
+    if (_tipoPrazoOk.has(key)) return;
+    const [c] = await conn.query("SHOW COLUMNS FROM pedidos LIKE 'tipo_prazo'");
+    if (!c.length) await conn.query("ALTER TABLE pedidos ADD COLUMN tipo_prazo VARCHAR(1) DEFAULT NULL");
+    _tipoPrazoOk.add(key);
+  } catch (e) {
+    console.warn('[pedidos] ensureTipoPrazoColumn:', e.message);
+  }
+}
+
 function ensureTablesOnce(pool) {
   if (!_ensureTablesPromise) _ensureTablesPromise = ensureTables(pool);
   return _ensureTablesPromise;
@@ -461,6 +482,7 @@ async function ensureTables(pool) {
         { name: 'vlrtotalitens',     type: 'DECIMAL(15,2) DEFAULT 0' },
         { name: 'qt_parcelas',       type: 'INT DEFAULT 1' },
         { name: 'prazo_pagto',       type: 'VARCHAR(100)' },
+        { name: 'tipo_prazo',        type: 'VARCHAR(1) DEFAULT NULL' }, // V = À Vista | P = A Prazo
         { name: 'nome_transp',       type: 'VARCHAR(100)' },
         { name: 'uf',                type: 'VARCHAR(2)' },
         { name: 'coduser_digitacao', type: 'INT' },
@@ -594,6 +616,9 @@ async function ensureTables(pool) {
 
     // ── tipo_pedidos ─────────────────────────────────────────────────────────
     pool.query(`ALTER TABLE tipo_pedidos ADD COLUMN padrao_vitrine CHAR(1) NOT NULL DEFAULT 'N'`).catch(() => {}),
+
+    // ── comissão por faturamento (pedido_faturamentos + pagtocomissao.id_faturamento) ──
+    comFat.ensureComissaoFaturamentoSchema(pool).catch(e => console.warn('[comissao-fat] schema:', e.message)),
   ]);
 }
 
@@ -798,7 +823,7 @@ function _validarItensComContexto(itens, ctx) {
 }
 
 function _aplicarNormalizeItens(itens, ctx) {
-  const { somaEmb, pesoExibir, prodMap } = ctx;
+  const { somaEmb, prodMap } = ctx;
   return itens.map((item) => {
     const prod = prodMap.get(parseInt(item.cod_produto, 10));
     const precopeso = item.precopeso || prod?.precopeso || 'N';
@@ -853,7 +878,8 @@ function _aplicarNormalizeItens(itens, ctx) {
         embalagem,
         kilo_embalagem: kiloCat,
         precopeso,
-        exibirPeso: pesoExibir,
+        // Persiste KG sempre que o produto tiver peso — a tela usa o total na grade/rodapé
+        exibirPeso: 'S',
       }),
     };
   });
@@ -1199,8 +1225,11 @@ async function _calcComissaoBackend(conn, codFornecedor, idUsuario, itens, idPre
   };
 }
 
-async function salvarParcelas(conn, num, pedidoId, pedido, parcelas) {
+async function salvarParcelas(conn, num, pedidoId, pedido, parcelas, opts = {}) {
   if (!parcelas || !parcelas.length) return;
+  // Comissão por faturamento: parcelas continuam indo p/ receber, mas a comissão
+  // só nasce no faturamento (1 linha por NF) — nada de provisão por parcela aqui.
+  const semProvisao = !!opts.comissaoPorFaturamento;
 
   const dataBase = pedido.data_abertura || hojeIsoBrasil();
   const pctGerenteFromPedido = parseFloat(pedido.comissaogerente) || 0;
@@ -1210,10 +1239,15 @@ async function salvarParcelas(conn, num, pedidoId, pedido, parcelas) {
   // serializa as queries (sem paralelismo de rede real), então só incluímos
   // aqui o que SEMPRE é necessário — o SUM de IPI/ST fica condicional abaixo.
   const [, , fcRes, grRes] = await Promise.all([
+    // Linhas de comissão geradas por faturamento (id_faturamento) nunca são apagadas aqui.
     conn.query(
+      `DELETE FROM pagtocomissao WHERE pedido = ? AND status IN ('P','I') AND COALESCE(excluido,'N') = 'N'
+         AND id_faturamento IS NULL`,
+      [num]
+    ).catch(() => conn.query(
       `DELETE FROM pagtocomissao WHERE pedido = ? AND status IN ('P','I') AND COALESCE(excluido,'N') = 'N'`,
       [num]
-    ).catch(() => {}),
+    ).catch(() => {})),
     conn.query(`DELETE FROM receber WHERE numero = ? AND id_pedido = ?`, [num, pedidoId]).catch(() => {}),
     pedido.cod_fornecedor
       ? conn.query(
@@ -1321,7 +1355,7 @@ async function salvarParcelas(conn, num, pedidoId, pedido, parcelas) {
       if (fornConfig.com_sobre_st  !== 'S') baseComissao -= totalSt  * prop;
       if (baseComissao < 0) baseComissao = 0;
     }
-    const vlrComissao = baseComissao * (pedido.comissao / 100);
+    const vlrComissao = semProvisao ? 0 : baseComissao * (pedido.comissao / 100);
     if (vlrComissao > 0) {
       if (fornConfig.com_tipo === 'UNICA') {
         comUnicaTotal += vlrComissao;
@@ -1336,7 +1370,7 @@ async function salvarParcelas(conn, num, pedidoId, pedido, parcelas) {
     }
 
     // Comissão do preposto (proporcional à parcela) — % resolvido fora do loop
-    if (idPrep) {
+    if (idPrep && !semProvisao) {
       const pctPrep = pctPrepGlobal;
       const vlrPrep = Math.round(baseComissao * pctPrep / 100 * 100) / 100;
       if (vlrPrep > 0) {
@@ -1414,6 +1448,30 @@ router.get('/lookups', async (req, res) => {
 });
 
 // GET /api/pedidos — Com Busca e Paginação
+// GET /api/pedidos/logo-padrao-b64 — logo padrão do sistema embutida (data URL) para o relatório/PDF.
+// O endereço é fixo no servidor (nada vem do cliente) e o resultado fica em cache na memória.
+const LOGO_SISTEMA_PADRAO_URL = 'https://cohrp.com.br/LogoPedidoWeb/pedidsoweb.jpeg';
+let _logoPadraoCache = null;
+router.get('/logo-padrao-b64', async (req, res) => {
+  try {
+    if (!_logoPadraoCache) {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 8000);
+      const r = await fetch(LOGO_SISTEMA_PADRAO_URL, { signal: ctrl.signal });
+      clearTimeout(t);
+      if (!r.ok) return res.status(502).json({ error: 'Logo padrão indisponível' });
+      const tipo = String(r.headers.get('content-type') || 'image/jpeg').split(';')[0];
+      if (!/^image\//i.test(tipo)) return res.status(502).json({ error: 'Resposta inválida' });
+      const buf = Buffer.from(await r.arrayBuffer());
+      if (!buf.length || buf.length > 2 * 1024 * 1024) return res.status(502).json({ error: 'Logo inválida' });
+      _logoPadraoCache = `data:${tipo};base64,${buf.toString('base64')}`;
+    }
+    res.json({ data: _logoPadraoCache });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
 router.get('/', async (req, res) => {
   try {
     const pool = getPool();
@@ -3066,6 +3124,12 @@ async function getComissoesFaturamentoHandler(req, res) {
       nota_ipi: fornConfig.com_sobre_ipi !== 'S'
     }, req, ped.id_preposto);
 
+    // Modo comissão por faturamento (CNPJ no parâmetro): histórico de NFs + saldo + divisão
+    if (req.user?.tipo_usuario !== 'PREPOSTO') {
+      payload.comissao_faturamento = await _dadosComissaoFaturamento(pool, req, ped)
+        .catch(() => ({ ativo: false }));
+    }
+
     res.json(payload);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -3173,6 +3237,312 @@ router.post('/:id/marcar-enviado', async (req, res) => {
   }
 });
 
+// ─── COMISSÃO POR FATURAMENTO (opt-in por CNPJ — config/comissao-faturamento.js) ───
+// Cada faturamento: 1 registro em pedido_faturamentos + 1 linha em pagtocomissao
+// (parte do representante) na data do faturamento. Nunca parcela a comissão.
+
+async function _carregarPedidoFat(db, id) {
+  const [rows] = await db.query(
+    `SELECT p.id, p.numero, p.situacao_pedido, p.vlrtotalpedido, p.comissao,
+            p.cod_fornecedor, p.cod_cliente, p.id_usuario, p.informado_faturamento,
+            p.nome_cliente, p.nome_fornecedor, COALESCE(u.nomeusu, p.nome_vendedor, '') AS nome_vendedor
+       FROM pedidos p
+       LEFT JOIN usuarios u ON u.idusuario = p.id_usuario
+      WHERE p.id = ? AND COALESCE(p.excluido,'N') = 'N' LIMIT 1`,
+    [id]
+  );
+  return rows[0] || null;
+}
+
+async function _listarFaturamentosPedido(db, idPedido) {
+  const [rows] = await db.query(
+    `SELECT id, data_faturamento, numeronf, serie_nf, nf_fabrica, saldo_anterior, vlr_faturado,
+            diferenca, destino_diferenca, pct_comissao_pedido, pct_comissao, vlr_comissao,
+            pct_escritorio, vlr_escritorio, pct_representante, vlr_representante, obs, criado_em
+       FROM pedido_faturamentos
+      WHERE id_pedido = ? AND excluido = 'N'
+      ORDER BY data_faturamento, id`,
+    [idPedido]
+  );
+  return rows;
+}
+
+/** Recalcula vlr_faturado / saldo / NF / situação do pedido a partir dos faturamentos ativos. */
+async function _sincronizarPedidoFaturamentos(conn, ped, situacaoSemFat) {
+  const tot = await comFat.totaisFaturamentoPedido(conn, ped.id);
+  if (!tot.qtd) {
+    const sit = situacaoSemFat || ped.situacao_pedido;
+    await conn.query(
+      `UPDATE pedidos SET saldo_faturar = NULL, vlr_faturado = 0, informado_faturamento = 'N',
+              data_faturado = NULL, numeronf = NULL, situacao_pedido = ?
+        WHERE id = ?`,
+      [sit, ped.id]
+    );
+    return { ...tot, saldo: parseFloat(ped.vlrtotalpedido) || 0, situacao: sit };
+  }
+  const saldo = comFat.calcSaldo(ped.vlrtotalpedido, tot);
+  const [[ult]] = await conn.query(
+    `SELECT data_faturamento, numeronf, serie_nf, nf_fabrica FROM pedido_faturamentos
+      WHERE id_pedido = ? AND excluido = 'N' ORDER BY data_faturamento DESC, id DESC LIMIT 1`,
+    [ped.id]
+  );
+  // Com saldo pendente o pedido segue na situação de antes do 1º faturamento
+  // (aceita novos faturamentos); sem saldo vira FATURADO.
+  const [[primeiro]] = await conn.query(
+    `SELECT situacao_anterior FROM pedido_faturamentos WHERE id_pedido = ? AND excluido = 'N' ORDER BY id LIMIT 1`,
+    [ped.id]
+  );
+  let sitAberta = primeiro?.situacao_anterior || ped.situacao_pedido || 'ENVIADO';
+  if (String(sitAberta).toUpperCase() === 'FATURADO') sitAberta = 'ENVIADO';
+  const situacao = saldo > 0.009 ? sitAberta : 'FATURADO';
+  await conn.query(
+    `UPDATE pedidos SET saldo_faturar = ?, vlr_faturado = ?, informado_faturamento = 'S',
+            data_faturado = ?, numeronf = ?, serie_nf = ?, nf_fabrica = ?, situacao_pedido = ?
+      WHERE id = ?`,
+    [saldo, tot.faturado, ult.data_faturamento, ult.numeronf || null, ult.serie_nf || null,
+     ult.nf_fabrica || null, situacao, ped.id]
+  );
+  await flexPedido.sincronizarFlexPedido(conn, ped.id).catch(e => console.warn('[flex] faturamento:', e.message));
+  return { ...tot, saldo, situacao };
+}
+
+async function _dadosComissaoFaturamento(pool, req, ped) {
+  const cfg = await comFat.getComissaoFatConfig(pool, req);
+  if (!cfg.ativo) return { ativo: false };
+  const faturamentos = await _listarFaturamentosPedido(pool, ped.id);
+  const tot = await comFat.totaisFaturamentoPedido(pool, ped.id);
+  const pctRep = await comFat.getPctRepresentante(pool, ped.id_usuario, cfg.pctEscritorio);
+  return {
+    ativo: true,
+    pct_escritorio_padrao: cfg.pctEscritorio,
+    pct_representante_padrao: pctRep,
+    vlr_pedido: parseFloat(ped.vlrtotalpedido) || 0,
+    pct_comissao_pedido: parseFloat(ped.comissao) || 0,
+    total_faturado: tot.faturado,
+    total_cancelado: tot.cancelado,
+    total_comissao: tot.comissao,
+    saldo: tot.qtd ? comFat.calcSaldo(ped.vlrtotalpedido, tot) : (parseFloat(ped.vlrtotalpedido) || 0),
+    faturamentos,
+  };
+}
+
+// GET /api/pedidos/:id/faturamentos — histórico + saldo (modo comissão por faturamento)
+router.get('/:id/faturamentos', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ error: 'ID inválido' });
+    const pool = getPool();
+    await comFat.ensureComissaoFaturamentoSchema(pool);
+    const ped = await _carregarPedidoFat(pool, id);
+    if (!ped) return res.status(404).json({ error: 'Pedido não encontrado' });
+    res.json(await _dadosComissaoFaturamento(pool, req, ped));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+async function _registrarFaturamentoComissao(req, res, id) {
+  const pool = getPool();
+  const b = req.body || {};
+  const ped = await _carregarPedidoFat(pool, id);
+  if (!ped) return res.status(404).json({ error: 'Pedido não encontrado' });
+  if (String(ped.situacao_pedido || '').toUpperCase() === 'CANCELADO') {
+    return res.status(400).json({ error: 'Pedido cancelado não pode ser faturado' });
+  }
+
+  const dataFat = _toMysqlDate(b.data_faturado) || hojeIsoBrasil();
+  // usar_saldo (faturamento em lote): fatura exatamente o saldo pendente do pedido
+  const usarSaldo = b.usar_saldo === true || b.usar_saldo === 'S';
+  let vlrFat = comFat.round2(b.vlr_faturado);
+  if (!usarSaldo && !(vlrFat > 0)) return res.status(400).json({ error: 'Informe o valor efetivamente faturado' });
+
+  const pctCom = b.pct_comissao != null && b.pct_comissao !== ''
+    ? parseFloat(b.pct_comissao)
+    : (parseFloat(ped.comissao) || 0);
+  if (!Number.isFinite(pctCom) || pctCom < 0 || pctCom > 100) {
+    return res.status(400).json({ error: '% de comissão inválido' });
+  }
+
+  const cfg = await comFat.getComissaoFatConfig(pool, req);
+  const pctRep = b.pct_representante != null && b.pct_representante !== ''
+    ? parseFloat(b.pct_representante)
+    : await comFat.getPctRepresentante(pool, ped.id_usuario, cfg.pctEscritorio);
+  if (!Number.isFinite(pctRep) || pctRep < 0 || pctRep > 100) {
+    return res.status(400).json({ error: '% do representante inválido' });
+  }
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    // Trava o pedido: dois faturamentos simultâneos não podem partir do mesmo saldo
+    await conn.query(`SELECT id FROM pedidos WHERE id = ? FOR UPDATE`, [id]);
+    const totAntes = await comFat.totaisFaturamentoPedido(conn, id);
+    const saldoAntes = totAntes.qtd
+      ? comFat.calcSaldo(ped.vlrtotalpedido, totAntes)
+      : (parseFloat(ped.vlrtotalpedido) || 0);
+    if (totAntes.qtd && saldoAntes <= 0.009) {
+      await conn.rollback();
+      return res.status(400).json({ error: 'Este pedido não tem saldo a faturar' });
+    }
+    // Faturado no modelo antigo (antes de ligar o modo): refaturar duplicaria comissão/estoque
+    if (!totAntes.qtd && (String(ped.situacao_pedido || '').toUpperCase() === 'FATURADO'
+        || String(ped.informado_faturamento || '').toUpperCase() === 'S')) {
+      await conn.rollback();
+      return res.status(409).json({
+        error: 'Este pedido já foi faturado antes da comissão por faturamento ser ativada. Ajuste a comissão em Gestão de Comissões.',
+      });
+    }
+    if (usarSaldo) vlrFat = saldoAntes;
+    if (!(vlrFat > 0)) {
+      await conn.rollback();
+      return res.status(400).json({ error: 'Informe o valor efetivamente faturado' });
+    }
+
+    const calc = comFat.calcularFaturamento({
+      saldoAnterior: saldoAntes, vlrFaturado: vlrFat, pctComissao: pctCom, pctRepresentante: pctRep,
+    });
+    let destino = null;
+    if (calc.diferenca > 0.009) {
+      destino = String(b.destino_diferenca || '').toUpperCase();
+      if (!['CANCELADA', 'SALDO'].includes(destino)) {
+        await conn.rollback();
+        return res.status(400).json({ error: 'Informe o destino da diferença: Cancelada ou Saldo para próxima fatura' });
+      }
+    }
+
+    // 1º faturamento: remove provisões por parcela (pedidos lançados antes do modo ser ligado)
+    if (!totAntes.qtd) {
+      await conn.query(
+        `DELETE FROM pagtocomissao WHERE pedido = ? AND status IN ('P','I') AND id_faturamento IS NULL`,
+        [String(ped.numero)]
+      );
+    }
+
+    const nf = String(b.numeronf || '').trim();
+    const [ins] = await conn.query(
+      `INSERT INTO pedido_faturamentos
+         (id_pedido, numpedido, cod_fornecedor, cod_cliente, id_representante, id_empresa,
+          data_faturamento, numeronf, serie_nf, nf_fabrica, vlr_pedido, saldo_anterior, vlr_faturado,
+          diferenca, destino_diferenca, pct_comissao_pedido, pct_comissao, vlr_comissao,
+          pct_escritorio, vlr_escritorio, pct_representante, vlr_representante,
+          situacao_anterior, obs, id_usuario_cad)
+       VALUES (?,?,?,?,?,?, ?,?,?,?,?,?,?, ?,?,?,?,?, ?,?,?,?, ?,?,?)`,
+      [id, String(ped.numero), ped.cod_fornecedor || null, ped.cod_cliente || null, ped.id_usuario || null,
+       req.user?.id_empresa || null,
+       dataFat, nf || null, String(b.serie_nf || '').trim() || null, String(b.nf_fabrica || '').trim() || null,
+       parseFloat(ped.vlrtotalpedido) || 0, saldoAntes, calc.vlr_faturado,
+       calc.diferenca, destino, parseFloat(ped.comissao) || 0, calc.pct_comissao, calc.vlr_comissao,
+       calc.pct_escritorio, calc.vlr_escritorio, calc.pct_representante, calc.vlr_representante,
+       ped.situacao_pedido || null, String(b.info_adicional || '').trim() || null, req.user?.id || null]
+    );
+    const idFat = ins.insertId;
+
+    // Uma única linha de comissão do representante, na data do faturamento
+    if (calc.vlr_representante > 0 && ped.id_usuario) {
+      await conn.query(
+        `INSERT INTO pagtocomissao
+           (data_lancamento, data_movimento, data_pagar, data_pagamento, data_confirmacao,
+            vlr_pago, vlr_pago_original, cod_user, pedido, id_parcela, status, observacao, id_faturamento)
+         VALUES (CURDATE(), ?, ?, ?, CURDATE(), ?, ?, ?, ?, NULL, 'P', ?, ?)`,
+        [dataFat, dataFat, dataFat, calc.vlr_representante, calc.vlr_representante, ped.id_usuario,
+         String(ped.numero),
+         `Comissão faturamento${nf ? ' NF ' + nf : ''} — ${calc.pct_representante}% de R$ ${calc.vlr_comissao.toFixed(2)}`,
+         idFat]
+      );
+    }
+
+    const sync = await _sincronizarPedidoFaturamentos(conn, ped);
+    await conn.query(
+      `UPDATE pedidos SET notarecebida = ? WHERE id = ?`,
+      [b.notarecebida === 'S' ? 'S' : 'N', id]
+    ).catch(() => {});
+    await conn.query(
+      `INSERT INTO logs_pedidos (id_pedido, id_usuario, acao, status_antigo, status_novo, detalhes)
+       VALUES (?, ?, 'FATURAMENTO', ?, ?, ?)`,
+      [id, req.user?.id || 0, ped.situacao_pedido, sync.situacao,
+       JSON.stringify({ id_faturamento: idFat, modo: 'COMISSAO_FATURAMENTO', data: dataFat, nf: nf || null, ...calc, destino })]
+    ).catch(() => {});
+    await conn.commit();
+
+    if (!totAntes.qtd) {
+      // Estorno + novo faturamento não pode debitar o estoque de novo (estorno não credita)
+      const [jaDebitou] = await pool.query(
+        `SELECT 1 FROM movimento_estoque WHERE id_pedido = ? AND tipo_movimento = 'PEDIDO' LIMIT 1`, [id]
+      ).catch(() => [[]]);
+      if (!jaDebitou.length) {
+        const { debitarEstoquesPedido } = require('../config/estoque-movimentacao');
+        debitarEstoquesPedido(pool, id, req.user?.id, req.user?.name || req.user?.nomeusu || req.user?.nome)
+          .catch(e => console.warn('[estoque] faturamento:', e.message));
+      }
+    }
+
+    res.json({
+      ok: true, modo: 'COMISSAO_FATURAMENTO', id_faturamento: idFat, ...calc,
+      destino_diferenca: destino, saldo: sync.saldo, situacao_pedido: sync.situacao,
+    });
+  } catch (err) {
+    await conn.rollback().catch(() => {});
+    throw err;
+  } finally {
+    conn.release();
+  }
+}
+
+// DELETE /api/pedidos/:id/faturamentos/:fid — estorna um faturamento (só se a comissão ainda não foi baixada)
+router.delete('/:id/faturamentos/:fid', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const fid = parseInt(req.params.fid, 10);
+  if (!id || !fid) return res.status(400).json({ error: 'ID inválido' });
+  if (req.user?.permissoes?.faturar_pedido === 'N') {
+    return res.status(403).json({ error: 'Sem permissão para faturar/estornar pedidos' });
+  }
+  const pool = getPool();
+  let conn;
+  try {
+    await comFat.ensureComissaoFaturamentoSchema(pool);
+    const ped = await _carregarPedidoFat(pool, id);
+    if (!ped) return res.status(404).json({ error: 'Pedido não encontrado' });
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+    const [[fat]] = await conn.query(
+      `SELECT id, situacao_anterior FROM pedido_faturamentos
+        WHERE id = ? AND id_pedido = ? AND excluido = 'N' FOR UPDATE`,
+      [fid, id]
+    );
+    if (!fat) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'Faturamento não encontrado' });
+    }
+    const [[baixada]] = await conn.query(
+      `SELECT COUNT(*) AS n FROM pagtocomissao
+        WHERE id_faturamento = ? AND COALESCE(excluido,'N') = 'N' AND status NOT IN ('P','I')`,
+      [fid]
+    );
+    if (baixada.n > 0) {
+      await conn.rollback();
+      return res.status(409).json({ error: 'A comissão deste faturamento já foi conferida/paga. Estorne a comissão antes.' });
+    }
+    await conn.query(`DELETE FROM pagtocomissao WHERE id_faturamento = ? AND status IN ('P','I')`, [fid]);
+    await conn.query(
+      `UPDATE pedido_faturamentos SET excluido = 'S', id_usuario_exc = ?, excluido_em = NOW() WHERE id = ?`,
+      [req.user?.id || null, fid]
+    );
+    const sync = await _sincronizarPedidoFaturamentos(conn, ped, fat.situacao_anterior);
+    await conn.query(
+      `INSERT INTO logs_pedidos (id_pedido, id_usuario, acao, status_antigo, status_novo, detalhes)
+       VALUES (?, ?, 'ESTORNO_FATURAMENTO', ?, ?, ?)`,
+      [id, req.user?.id || 0, ped.situacao_pedido, sync.situacao, JSON.stringify({ id_faturamento: fid })]
+    ).catch(() => {});
+    await conn.commit();
+    res.json({ ok: true, saldo: sync.saldo, situacao_pedido: sync.situacao });
+  } catch (err) {
+    if (conn) await conn.rollback().catch(() => {});
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
 // POST /api/pedidos/:id/faturar — registra faturamento sem reprocessar itens/parcelas
 router.post('/:id/faturar', async (req, res) => {
   try {
@@ -3185,6 +3555,10 @@ router.post('/:id/faturar', async (req, res) => {
     } = req.body || {};
     const pool = getPool();
     const id_usuario_log = req.user?.id || 0;
+
+    // Empresa com CNPJ no parâmetro → comissão por faturamento (1 linha por NF, sem parcelar)
+    const cfgComFat = await comFat.getComissaoFatConfig(pool, req).catch(() => ({ ativo: false }));
+    if (cfgComFat.ativo) return await _registrarFaturamentoComissao(req, res, id);
 
     const [atual] = await pool.query(
       `SELECT p.situacao_pedido, p.numero, p.vlrtotalpedido, p.cod_fornecedor, p.id_usuario,
@@ -3222,6 +3596,8 @@ router.post('/:id/faturar', async (req, res) => {
         id
       ]
     );
+
+    await flexPedido.sincronizarFlexPedido(pool, id).catch(e => console.warn('[flex] faturamento:', e.message));
 
     // Débito automático de estoque ao faturar
     const { debitarEstoquesPedido } = require('../config/estoque-movimentacao');
@@ -3860,6 +4236,28 @@ router.get('/retornos-resumo', async (req, res) => {
   }
 });
 
+// GET /api/pedidos/por-numero/:numero — id real do pedido pelo número exibido (ex.: 007612)
+router.get('/por-numero/:numero', async (req, res) => {
+  try {
+    const numero = String(req.params.numero || '').trim().replace(/^#/, '');
+    if (!numero) return res.status(400).json({ error: 'Informe o número do pedido' });
+    const pool = getPool();
+    const [rows] = await pool.query(
+      `SELECT id, numero
+       FROM pedidos
+       WHERE (excluido = 'N' OR excluido IS NULL OR excluido = '')
+         AND CAST(numero AS CHAR) = ?
+       ORDER BY id DESC
+       LIMIT 1`,
+      [numero]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Pedido não encontrado' });
+    res.json({ id: rows[0].id, numero: rows[0].numero });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/pedidos/:id
 router.get('/:id', async (req, res) => {
   try {
@@ -3885,6 +4283,12 @@ router.get('/:id', async (req, res) => {
     // Garante colunas web-only antes da query de itens — necessário em bases Delphi legadas
     // onde runMigrations nunca rodou (ex: tenants novos no Oracle multi-tenant)
     await ensureProdutoColunas(pool).catch(() => {});
+
+    let corSel = "'' AS cor1_produto";
+    try {
+      const [corCols] = await pool.query(`SHOW COLUMNS FROM ${_ptb} LIKE 'cor1'`);
+      if (corCols.length) corSel = "IFNULL(p.cor1, '') AS cor1_produto";
+    } catch (_) {}
 
     let custoSel = '0 AS vlr_custo_produto';
     let refMaeSel = 'NULL AS id_referencia, NULL AS cod_fabricante_mae';
@@ -3912,6 +4316,7 @@ router.get('/:id', async (req, res) => {
                 IFNULL(p.multiplo_venda, 1) AS multiplo_venda_produto,
                 IFNULL(p.qtd_minima_pedido, 0) AS qtd_minima_pedido_produto,
                 ${custoSel},
+                ${corSel},
                 ${refMaeSel}
          FROM itensped i
          LEFT JOIN ${_ptb} p ON i.cod_produto = p.id
@@ -3978,7 +4383,11 @@ router.get('/:id', async (req, res) => {
           cliente.codigo_na_fabrica_marca = marcaProp.codigo_na_fabrica;
         }
       } catch (_) { /* opt-in: falha silenciosa */ }
-    }
+      // Código do cliente na fábrica (relatório: «Fornecedor / Cod. Nº») — independe de marca própria
+      try {
+        const representadasSvc = require('../modules/clientes/sub/representadas.service');
+        cliente.codigo_cliente_fabrica = await representadasSvc.buscarCodigoClienteFabrica(codCli, codFornPed, pool);
+      } catch (_) { cliente.codigo_cliente_fabrica = null; }    }
 
     const empresa = empRows[0] ? await sanitizeEmpresaRow(pool, empRows[0]) : {};
 
@@ -4118,6 +4527,7 @@ router.post('/', async (req, res) => {
     const idDigitador = nPedidoId(pedido.coduser_digitacao) ?? nPedidoId(req.user?.id) ?? 0;
     const nomeVendedorPed = up(pedido.nome_vendedor || req.user?.nome || 'ADMIN');
 
+    await ensureTipoPrazoColumn(conn);
     const [pResult] = await conn.query(
       `INSERT INTO pedidos (
         numero, data_abertura, hora_abertura,
@@ -4127,7 +4537,7 @@ router.post('/', async (req, res) => {
         cod_transportadora, nome_transportadora,
         id_frete, tipo_frete,
         id_tipopedido, tipo_pedido, tipo_documento,
-        id_condicaopagto, condicao_pagto, forma_pagto, prazo_pagto,
+        id_condicaopagto, condicao_pagto, forma_pagto, prazo_pagto, tipo_prazo,
         ped_compras, Comprador, data_entrega,
         vlrsubtotal, vlrtotalitens, vlrdesconto, vlrtotalimposto,
         vlrtotalbruto, vlrfrete, vlrjuros, vlrtotalpedido,
@@ -4148,7 +4558,7 @@ router.post('/', async (req, res) => {
         ?, ?,
         ?, ?,
         ?, ?, ?,
-        ?, ?, ?, ?,
+        ?, ?, ?, ?, ?,
         ?, ?, ?,
         ?, ?, ?, ?,
         ?, ?, ?, ?,
@@ -4171,6 +4581,7 @@ router.post('/', async (req, res) => {
         pedido.id_frete || null, up(pedido.tipo_frete),
         pedido.id_tipopedido || null, up(pedido.tipo_pedido) || 'PEDIDO', up(pedido.tipo_documento),
         pedido.id_condicaopagto || null, up(pedido.condicao_pagto), up(pedido.forma_pagto), up(pedido.prazo_pagto),
+        ['V', 'P'].includes(String(pedido.tipo_prazo || '').toUpperCase()) ? String(pedido.tipo_prazo).toUpperCase() : null,
         up(pedido.ped_compras), up(pedido.comprador), pedido.data_entrega || null,
         nPedidoField(pedido.vlrsubtotal), nPedidoField(pedido.vlrtotalitens !== undefined ? pedido.vlrtotalitens : pedido.vlrsubtotal),
         nPedidoField(pedido.vlrdesconto), nPedidoField(pedido.vlrtotalimposto),
@@ -4181,7 +4592,7 @@ router.post('/', async (req, res) => {
         nPedidoField(pedido.comissao), nPedidoField(pedido.vlrcomissao),
         nPedidoField(pedido.vlr_comissaonormal), nPedidoField(pedido.vlr_total_comissao),
         nPedidoField(pedido.comissaogerente), pedido.compartilhacomissao || 'N', up(pedido.origem_comissao) || 'FORNECEDOR',
-        sit, sit, pedido.obs || '', pedido.puxada || 'N',
+        sit, sit, sanitizeObsPedidoHtml(pedido.obs || ''), pedido.puxada || 'N',
         pedido.origem || 'PEDIDO DE VENDA', (pedido.sincronizar === 'S' ? 'S' : 'N'), pedido.statuspedweb || 'S', pedido.numero_off || null,
         idEmpresaPed, idEmpresaPed,
         up(pedido.nome_empresa),
@@ -4233,6 +4644,14 @@ router.post('/', async (req, res) => {
       ).catch(() => {});
     }
 
+    if (pedido.descricao_pdf !== undefined) {
+      const descPdf = String(pedido.descricao_pdf ?? '').trim().slice(0, 100) || null;
+      await conn.query(
+        `UPDATE pedidos SET descricao_pdf=? WHERE id=?`,
+        [descPdf, pedidoId]
+      ).catch(() => {});
+    }
+
     if (itensNormSave && itensNormSave.length > 0) {
       await Promise.all([ensureItenspedPromoColumns(conn), ensureItenspedObsitemColumn(conn)]);
       _mk(`ensure colunas itensped (${itensNormSave.length} itens)`);      // [DIAG-SAVE]
@@ -4246,7 +4665,8 @@ router.post('/', async (req, res) => {
       _mk('insertItenspedBatch');                                         // [DIAG-SAVE]
     }
 
-    await salvarParcelas(conn, num, pedidoId, pedido, parcelas);
+    const _cfgComFat = await comFat.getComissaoFatConfig(getPool(), req, pedido.id_empresa).catch(() => ({ ativo: false }));
+    await salvarParcelas(conn, num, pedidoId, pedido, parcelas, { comissaoPorFaturamento: _cfgComFat.ativo });
     _mk(`salvarParcelas (${parcelas?.length || 0} parc)`);                // [DIAG-SAVE]
 
     if (pedido.obs_proximo_pedido !== undefined) {
@@ -4255,6 +4675,8 @@ router.post('/', async (req, res) => {
     if (pedido.obs_proximo_consumir_id) {
       await _consumirObsProximo(conn, pedido.obs_proximo_consumir_id, pedido.cod_cliente, pedido.cod_fornecedor);
     }
+
+    await flexPedido.sincronizarFlexPedido(conn, pedidoId);
 
     await conn.commit();
     _mk('COMMIT — FIM');                                                  // [DIAG-SAVE]
@@ -4271,7 +4693,7 @@ router.post('/', async (req, res) => {
     });
   } catch (err) {
     await conn.rollback();
-    res.status(500).json({ error: err.message });
+    res.status(err.flexBloqueio ? 400 : 500).json({ error: err.message });
   } finally {
     if (_numLockName) { try { await conn.query('SELECT RELEASE_LOCK(?)', [_numLockName]); } catch (_) {} }
     conn.release();
@@ -4341,6 +4763,7 @@ router.post('/bulk-update', async (req, res) => {
         vals.push(id);
         await conn.query(`UPDATE pedidos SET ${sets.join(', ')} WHERE id = ?`, vals);
         updated++;
+        await flexPedido.sincronizarFlexPedido(conn, id);
         await conn.query(`
           INSERT INTO logs_pedidos (id_pedido, id_usuario, acao, status_antigo, status_novo, detalhes)
           VALUES (?, ?, 'ALTERACAO_MASSA', ?, ?, ?)
@@ -4358,7 +4781,7 @@ router.post('/bulk-update', async (req, res) => {
     res.json({ ok: true, count: updated });
   } catch (err) {
     await conn.rollback();
-    res.status(500).json({ error: err.message });
+    res.status(err.flexBloqueio ? 400 : 500).json({ error: err.message });
   } finally {
     conn.release();
   }
@@ -4468,6 +4891,7 @@ router.post('/:id', async (req, res) => {
       }
       const sets = [];
       const vals = [];
+      if (pedido.tipo_prazo !== undefined) await ensureTipoPrazoColumn(conn);
       const allowedFields = [
         'situacao_pedido', 'tipo_pedido', 'id_tipopedido', 'tipo_documento',
         'vlrtotalpedido', 'vlrsubtotal', 'vlrtotalitens', 'vlrtotalbruto',
@@ -4475,7 +4899,7 @@ router.post('/:id', async (req, res) => {
         'qt_parcelas', 'total_qt', 'total_peso',
         'vlrtotalitenspuxada', 'vlr_totpuxada',
         'obs', 'data_entrega', 'data_abertura',
-        'id_condicaopagto', 'condicao_pagto', 'forma_pagto', 'prazo_pagto',
+        'id_condicaopagto', 'condicao_pagto', 'forma_pagto', 'prazo_pagto', 'tipo_prazo',
         'id_frete', 'tipo_frete',
         'ped_compras', 'comprador',
         'cod_cliente', 'cnpj', 'nome_cliente',
@@ -4495,6 +4919,7 @@ router.post('/:id', async (req, res) => {
         'obs_proximo_pedido', 'obs_proximo_consumido',
         'descontos_cascata',
         'previsao',
+        'descricao_pdf',
       ];
 
       for (const key of allowedFields) {
@@ -4508,6 +4933,13 @@ router.post('/:id', async (req, res) => {
             else if (typeof v === 'string' && !String(v).trim()) v = null;
           } else if (key === 'previsao') {
             v = String(v ?? '').trim().slice(0, 255) || null;
+          } else if (key === 'tipo_prazo') {
+            const tp = String(v ?? '').toUpperCase();
+            v = (tp === 'V' || tp === 'P') ? tp : null;
+          } else if (key === 'descricao_pdf') {
+            v = String(v ?? '').trim().slice(0, 100) || null;
+          } else if (key === 'obs') {
+            v = sanitizeObsPedidoHtml(v ?? '');
           }
           vals.push(v);
         }
@@ -4578,7 +5010,9 @@ router.post('/:id', async (req, res) => {
       pedidoAtual.id_usuario      = pedidoAtual.id_usuario      ?? pedidoRow.id_usuario;
       pedidoAtual.data_abertura   = pedidoAtual.data_abertura   ?? pedidoRow.data_abertura;
       // salvarParcelas já faz DELETE receber por numero+id_pedido — sem DELETE extra.
-      await salvarParcelas(conn, pedidoRow.numero, parseInt(id, 10), pedidoAtual, parcelas);
+      const _cfgComFat = await comFat.getComissaoFatConfig(getPool(), req).catch(() => ({ ativo: false }));
+      await salvarParcelas(conn, pedidoRow.numero, parseInt(id, 10), pedidoAtual, parcelas,
+        { comissaoPorFaturamento: _cfgComFat.ativo });
       _mk(`salvarParcelas (${parcelas.length} parc)`);                    // [DIAG-SAVE]
     }
 
@@ -4592,6 +5026,8 @@ router.post('/:id', async (req, res) => {
       }
     }
 
+    await flexPedido.sincronizarFlexPedido(conn, id);
+
     await conn.commit();
     _mk('COMMIT — FIM');                                                  // [DIAG-SAVE]
     releasePedidoEditLock(pedidoEditTenantKey(req), id, req.user?.id);
@@ -4599,7 +5035,7 @@ router.post('/:id', async (req, res) => {
   } catch (err) {
     await conn.rollback();
     console.error('ERRO UPDATE PEDIDO:', err);
-    res.status(500).json({ error: err.message });
+    res.status(err.flexBloqueio ? 400 : 500).json({ error: err.message });
   } finally {
     conn.release();
   }
@@ -4693,6 +5129,10 @@ router.delete('/:id', async (req, res) => {
 
     // 3. Exclui provisões de comissão geradas por este pedido
     await conn.query(`DELETE FROM pagtocomissao WHERE pedido = ? AND status = 'P'`, [numPedido]).catch(() => {});
+    await conn.query(
+      `UPDATE pedido_faturamentos SET excluido = 'S', excluido_em = NOW() WHERE numpedido = ? AND excluido = 'N'`,
+      [String(numPedido)]
+    ).catch(() => {});
 
     // 4. Exclusão lógica do pedido
     const _dtExc = new Date();
@@ -4702,6 +5142,7 @@ router.delete('/:id', async (req, res) => {
       `UPDATE pedidos SET excluido = 'S', dataexclusao = ?, horaexclusao = ?, id_userexclusao = ? WHERE id = ?`,
       [_dataExc, _horaExc, id_usuario_log, id]
     );
+    await flexPedido.sincronizarFlexPedido(conn, id); // pedido excluído → estorna flex
 
     // 5. Registra log de auditoria
     await conn.query(`
@@ -4788,14 +5229,18 @@ router.post('/:id/pdf-share-url', async (req, res) => {
 // Recebe HTML do front, gera PDF, devolve base64
 router.post('/:id/pdf-generate', async (req, res) => {
   try {
-    const { html, base_url: baseUrlBody } = req.body;
+    const { html, base_url: baseUrlBody, margem_mm: margemBody } = req.body;
     if (!html) return res.status(400).json({ error: 'HTML não informado' });
     const baseUrl = baseUrlBody
       || process.env.APP_URL
       || process.env.PUBLIC_URL
       || `${req.protocol}://${req.get('host')}`;
     const t0 = Date.now();
-    const pdf = await htmlToPdf(html, { baseUrl });
+    const _lat = parseFloat(margemBody && margemBody.lat), _sup = parseFloat(margemBody && margemBody.sup);
+    const margemMm = (Number.isFinite(_lat) && Number.isFinite(_sup) && _lat >= 0 && _sup >= 0)
+      ? { lat: Math.min(40, _lat), sup: Math.min(40, _sup) } : null;
+    const pdf = await htmlToPdf(html, { baseUrl, margemMm });
+    console.log(`[pdf-generate] pedido ${req.params.id}: ${Date.now() - t0} ms (html ${(String(html).length / 1024).toFixed(0)} KB)`);
     if (!pdf.length || pdf[0] !== 0x25 || pdf[1] !== 0x50) {
       return res.status(500).json({ error: 'PDF gerado está vazio ou inválido' });
     }

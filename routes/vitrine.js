@@ -339,6 +339,26 @@ router.post('/gerar', authMiddleware, async (req, res) => {
   }
 });
 
+// Lista para o seletor do modal: com ?token= (link do próprio usuário) marca as
+// tabelas já escolhidas no link; sem restrição salva (NULL) todas vêm marcadas.
+async function _marcarSelecionadas(pool, req, tabelas) {
+  let sel = [];
+  const token = String(req.query.token || '');
+  if (token) {
+    const userId = req.user.id || req.user.idusuario;
+    const [[tk]] = await pool.query(
+      `SELECT ids_tabelas FROM vitrine_tokens WHERE token = ? AND id_usuario = ? LIMIT 1`,
+      [token, userId]
+    ).catch(() => [[null]]);
+    sel = _selIdsFromToken(tk);
+  }
+  return tabelas.map((t) => ({
+    id_tabela: t.id_tabela,
+    descricao: t.descricao,
+    selecionada: !sel.length || sel.includes(Number(t.id_tabela)),
+  }));
+}
+
 // ── GET /api/vitrine/tabelas  (auth) ─────────────────────────────────────────
 // Tabelas liberadas na vitrine — link aberto (sem cliente)
 router.get('/tabelas', authMiddleware, async (req, res) => {
@@ -346,7 +366,7 @@ router.get('/tabelas', authMiddleware, async (req, res) => {
     const pool = getPool();
     await ensureTable(pool);
     const tabelas = await getTabelasVitrineCliente(pool, null);
-    res.json(tabelas.map((t) => ({ id_tabela: t.id_tabela, descricao: t.descricao })));
+    res.json(await _marcarSelecionadas(pool, req, tabelas));
   } catch (err) {
     console.error('[vitrine/tabelas]', err);
     res.status(500).json({ erro: err.message });
@@ -360,7 +380,7 @@ router.get('/tabelas-cliente/:id_cliente', authMiddleware, async (req, res) => {
     const pool = getPool();
     await ensureTable(pool);
     const tabelas = await getTabelasVitrineCliente(pool, req.params.id_cliente);
-    res.json(tabelas.map((t) => ({ id_tabela: t.id_tabela, descricao: t.descricao })));
+    res.json(await _marcarSelecionadas(pool, req, tabelas));
   } catch (err) {
     console.error('[vitrine/tabelas-cliente]', err);
     res.status(500).json({ erro: err.message });
@@ -501,10 +521,21 @@ router.get('/:token', async (req, res) => {
         produtos = rows;
       }
 
-      const [[sis]] = await pool.query(
-        `SELECT COALESCE(soma_embalagempedido, 'N') AS soma_embalagempedido
-           FROM sistemas ORDER BY id DESC LIMIT 1`
-      ).catch(() => [[{ soma_embalagempedido: 'N' }]]);
+      let sis = { soma_embalagempedido: 'N', vitrine_pedido_unico: 'N' };
+      try {
+        const [[row]] = await pool.query(
+          `SELECT COALESCE(soma_embalagempedido, 'N') AS soma_embalagempedido,
+                  COALESCE(vitrine_pedido_unico, 'N') AS vitrine_pedido_unico
+             FROM sistemas ORDER BY id DESC LIMIT 1`
+        );
+        if (row) sis = row;
+      } catch (_) {
+        const [[row]] = await pool.query(
+          `SELECT COALESCE(soma_embalagempedido, 'N') AS soma_embalagempedido
+             FROM sistemas ORDER BY id DESC LIMIT 1`
+        ).catch(() => [[{ soma_embalagempedido: 'N' }]]);
+        if (row) sis = { ...sis, ...row };
+      }
 
       const lista = produtos
         .map(p => ({ ...p, precos: precosPorProduto[String(p.id)] || {} }))
@@ -586,6 +617,7 @@ router.get('/:token', async (req, res) => {
         })),
         minimos: minimos,
         soma_embalagempedido: sis?.soma_embalagempedido || 'N',
+        vitrine_pedido_unico: String(sis?.vitrine_pedido_unico || 'N').toUpperCase() === 'S' ? 'S' : 'N',
         produtos: lista,
         catalogo_vazio_motivo,
       });
@@ -641,69 +673,100 @@ router.post('/:token/pedido', async (req, res) => {
         }
       }
 
-      // Tabela escolhida pelo cliente — uma só por pedido (sem mistura de preços)
+      // Tabelas liberadas no link — carrinho pode misturar várias (1 pedido por tabela+fábrica)
       let tabelasCliente = await getTabelasVitrineCliente(pool, tk.id_cliente);
       const _selPed = _selIdsFromToken(tk);
       if (_selPed.length) tabelasCliente = tabelasCliente.filter((t) => _selPed.includes(Number(t.id_tabela)));
       if (!tabelasCliente.length) {
         throw Object.assign(new Error('Nenhuma tabela de preços liberada para este link'), { status: 422 });
       }
-      let tabela = null;
-      const idTabReq = parseInt(req.body.id_tabela, 10);
-      if (Number.isFinite(idTabReq)) {
-        // Escolha explícita: se não está mais liberada, NÃO substitui em silêncio
-        tabela = tabelasCliente.find(t => Number(t.id_tabela) === idTabReq) || null;
-        if (!tabela) {
-          throw Object.assign(new Error('A tabela de preços selecionada não está mais disponível. Recarregue a página.'), { status: 422 });
+      const mapaTabelas = new Map(tabelasCliente.map((t) => [String(t.id_tabela), t]));
+      const idTabFallback = (() => {
+        const idTabReq = parseInt(req.body.id_tabela, 10);
+        if (Number.isFinite(idTabReq) && mapaTabelas.has(String(idTabReq))) return idTabReq;
+        if (tabelasCliente.length === 1) return tabelasCliente[0].id_tabela;
+        return null;
+      })();
+
+      // Flag: S = 1 pedido único (mistura fábricas); N = 1 pedido por fábrica/tabela
+      let pedidoUnico = false;
+      try {
+        const [[sisFlag]] = await pool.query(
+          `SELECT COALESCE(vitrine_pedido_unico, 'N') AS vitrine_pedido_unico
+             FROM sistemas ORDER BY id DESC LIMIT 1`
+        );
+        pedidoUnico = String(sisFlag?.vitrine_pedido_unico || 'N').toUpperCase() === 'S';
+      } catch (_) { /* coluna ainda não migrada → default N (por fábrica) */ }
+
+      // Resolve tabela de cada item (id_tabela no item > body.id_tabela > única liberada)
+      const itensComTabela = itens.map((i) => {
+        const tid = parseInt(i.id_tabela, 10);
+        const idTab = Number.isFinite(tid) ? tid : idTabFallback;
+        if (!Number.isFinite(idTab) || !mapaTabelas.has(String(idTab))) {
+          throw Object.assign(
+            new Error('Selecione a tabela de preços (ou recarregue — alguma tabela do carrinho não está mais disponível).'),
+            { status: 422 }
+          );
         }
-      } else if (tabelasCliente.length === 1) {
-        tabela = tabelasCliente[0];
-      } else {
-        throw Object.assign(new Error('Selecione a tabela de preços'), { status: 422 });
+        return { ...i, id_tabela: idTab };
+      });
+
+      const idsTabelasUsadas = [...new Set(itensComTabela.map((i) => i.id_tabela))];
+
+      // Condição de pagamento por tabela (cache)
+      const pagtoPorTabela = {};
+      for (const tid of idsTabelasUsadas) {
+        const tab = mapaTabelas.get(String(tid));
+        let condDesc = '';
+        let prazoPadrao = '0';
+        let formaPagto = 'BOLETO';
+        if (tab.cond_pagamento) {
+          const [[fp]] = await pool.query(
+            `SELECT descricao, prazopadrao, forma FROM forma_pagto WHERE id = ? LIMIT 1`,
+            [tab.cond_pagamento]
+          ).catch(() => [[null]]);
+          condDesc = fp?.descricao || '';
+          prazoPadrao = String(fp?.prazopadrao || '').trim()
+            || (/^\d+(\/\d+)*$/.test(condDesc) ? condDesc : '0');
+          formaPagto = fp?.forma || 'BOLETO';
+        }
+        pagtoPorTabela[String(tid)] = {
+          condDesc,
+          prazoPadrao,
+          formaPagto,
+          infoTabela: `Tabela: ${tab.descricao}${condDesc ? ` · Pagamento: ${condDesc}` : ''}`,
+        };
       }
 
-      // Rastreia a tabela escolhida (e a condição de pagamento) no pedido, via obs
-      let _condDesc = '';
-      let _prazoPadrao = '0';
-      let _formaPagto = 'BOLETO';
-      if (tabela.cond_pagamento) {
-        const [[fp]] = await pool.query(
-          `SELECT descricao, prazopadrao, forma FROM forma_pagto WHERE id = ? LIMIT 1`,
-          [tabela.cond_pagamento]
-        ).catch(() => [[null]]);
-        _condDesc = fp?.descricao || '';
-        _prazoPadrao = String(fp?.prazopadrao || '').trim()
-          || (/^\d+(\/\d+)*$/.test(_condDesc) ? _condDesc : '0');
-        _formaPagto = fp?.forma || 'BOLETO';
-      }
-      const _infoTabela = `Tabela: ${tabela.descricao}${_condDesc ? ` · Pagamento: ${_condDesc}` : ''}`;
       let obsBase = String(obs || '').trim();
       if (!tk.id_cliente) {
         const tel = String(contato.telefone || '').trim();
         const extra = `[Vitrine web] Contato: ${nomeCliente} · Tel: ${tel}`;
         obsBase = obsBase ? `${obsBase}\n${extra}` : extra;
       }
-      let obsFinal = obsBase ? `${obsBase} · ${_infoTabela}` : _infoTabela;
       const _obsMax = await getPedidoObsMaxLen(pool);
-      if (obsFinal.length > _obsMax) obsFinal = obsFinal.slice(0, _obsMax);
 
-      // Revalida preços contra a tabela escolhida — não confia nos valores do frontend
+      // Revalida preços contra CADA tabela usada — não confia nos valores do frontend
       const [precosBd] = await pool.query(`
-        SELECT cod_produto, COALESCE(valor_tabela, preco_venda) AS preco
+        SELECT id_tabela, cod_produto, COALESCE(valor_tabela, preco_venda) AS preco
         FROM tabela_preco_itens
-        WHERE id_tabela = ? AND excluido = 'N' AND (ativo = 'S' OR ativo IS NULL)
+        WHERE id_tabela IN (?) AND excluido = 'N' AND (ativo = 'S' OR ativo IS NULL)
           AND COALESCE(valor_tabela, preco_venda) > 0
-      `, [tabela.id_tabela]);
+      `, [idsTabelasUsadas]);
 
-      const mapaPrecos = {};
-      precosBd.forEach(p => { mapaPrecos[String(p.cod_produto)] = parseFloat(p.preco); });
+      const mapaPrecosPorTabela = {};
+      precosBd.forEach((p) => {
+        const tk2 = String(p.id_tabela);
+        if (!mapaPrecosPorTabela[tk2]) mapaPrecosPorTabela[tk2] = {};
+        mapaPrecosPorTabela[tk2][String(p.cod_produto)] = parseFloat(p.preco);
+      });
 
       // Busca fornecedor + peso/embalagem de cada produto pelo banco (não confia no frontend)
       const prodTb  = await detectProdTable(pool);
       const hasForn = await detectProdFornCol(pool, prodTb);
       const mapaProd = {};
       {
-        const prodIds = itens.map(i => i.id);
+        const prodIds = itensComTabela.map(i => i.id);
         const fornSel = hasForn
           ? `, p.cod_fornecedorpadrao AS cod_fornecedor, f.nome AS nome_fornecedor`
           : `, NULL AS cod_fornecedor, '' AS nome_fornecedor`;
@@ -748,13 +811,20 @@ router.post('/:token/pedido', async (req, res) => {
       ).catch(() => [[{ soma_embalagempedido: 'N' }]]);
       const somaEmb = sisEmb?.soma_embalagempedido || 'N';
 
-      const itensValidados = itens.map(i => {
-        const precoReal = mapaPrecos[String(i.id)];
-        if (!precoReal) throw Object.assign(new Error(`Produto ${i.id} sem preço autorizado`), { status: 422 });
+      const itensValidados = itensComTabela.map(i => {
+        const precoReal = (mapaPrecosPorTabela[String(i.id_tabela)] || {})[String(i.id)];
+        if (!precoReal) {
+          const tab = mapaTabelas.get(String(i.id_tabela));
+          throw Object.assign(
+            new Error(`Produto ${i.descricao || i.id} sem preço na tabela "${tab?.descricao || i.id_tabela}"`),
+            { status: 422 }
+          );
+        }
         const meta = mapaProd[String(i.id)] || {};
         const enriched = {
           ...i,
           preco: precoReal,
+          id_tabela: i.id_tabela,
           cod_fornecedor: meta.cod_fornecedor || null,
           nome_fornecedor: meta.nome_fornecedor || '',
           precopeso: meta.precopeso || 'N',
@@ -777,21 +847,75 @@ router.post('/:token/pedido', async (req, res) => {
       const id_tipopedido   = tp?.id || null;
       const tipo_pedido_str = tp?.descricao || 'ORÇAMENTO';
 
-      // Agrupa itens por fornecedor — 1 pedido por fornecedor
+      // S = 1 pedido com tudo; N = 1 pedido por tabela+fábrica
       const grupos = new Map();
-      for (const item of itensValidados) {
-        const key = item.cod_fornecedor ?? '__sem_forn__';
-        if (!grupos.has(key)) grupos.set(key, { cod_fornecedor: item.cod_fornecedor, nome_fornecedor: item.nome_fornecedor, itens: [] });
-        grupos.get(key).itens.push(item);
+      if (pedidoUnico) {
+        const tidRef = Number.isFinite(idTabFallback)
+          ? idTabFallback
+          : itensValidados[0].id_tabela;
+        const tabela = mapaTabelas.get(String(tidRef));
+        const pagto = pagtoPorTabela[String(tidRef)] || {
+          condDesc: '', prazoPadrao: '0', formaPagto: 'BOLETO', infoTabela: '',
+        };
+        const infos = [...new Set(
+          idsTabelasUsadas.map((tid) => pagtoPorTabela[String(tid)]?.infoTabela).filter(Boolean)
+        )];
+        let obsFinal = obsBase
+          ? `${obsBase} · ${infos.join(' · ') || pagto.infoTabela}`
+          : (infos.join(' · ') || pagto.infoTabela);
+        if (obsFinal.length > _obsMax) obsFinal = obsFinal.slice(0, _obsMax);
+        const forns = [...new Set(itensValidados.map((i) => i.cod_fornecedor).filter(Boolean))];
+        let cod_fornecedor = null;
+        let nome_fornecedor = '';
+        if (forns.length === 1) {
+          const ref = itensValidados.find((i) => i.cod_fornecedor === forns[0]);
+          cod_fornecedor = forns[0];
+          nome_fornecedor = ref?.nome_fornecedor || '';
+        } else if (forns.length > 1) {
+          nome_fornecedor = 'Várias fábricas';
+        }
+        grupos.set('unico', {
+          cod_fornecedor,
+          nome_fornecedor,
+          tabela,
+          pagto,
+          obsFinal,
+          itens: itensValidados,
+        });
+      } else {
+        for (const item of itensValidados) {
+          const key = `${item.id_tabela}|${item.cod_fornecedor ?? '__sem_forn__'}`;
+          if (!grupos.has(key)) {
+            const tabela = mapaTabelas.get(String(item.id_tabela));
+            const pagto = pagtoPorTabela[String(item.id_tabela)];
+            let obsFinal = obsBase ? `${obsBase} · ${pagto.infoTabela}` : pagto.infoTabela;
+            if (obsFinal.length > _obsMax) obsFinal = obsFinal.slice(0, _obsMax);
+            grupos.set(key, {
+              cod_fornecedor: item.cod_fornecedor,
+              nome_fornecedor: item.nome_fornecedor,
+              tabela,
+              pagto,
+              obsFinal,
+              itens: [],
+            });
+          }
+          grupos.get(key).itens.push(item);
+        }
       }
 
-      // Regras do fornecedor (quando a tabela escolhida pede): mínimo de faturamento,
-      // mínimo da condição e mínimo de caixas — bloqueia o pedido antes de gravar
-      if (String(tabela.usar_regras_fornecedor).toUpperCase() === 'S') {
-        const fornIds = [...grupos.keys()].filter(k => k !== '__sem_forn__');
-        const minForn = {}, minCond = {}, minCxMap = {};
-        if (fornIds.length) {
-          // min_cx_pedido pode não existir em bases antigas — não pode derrubar o mínimo de R$
+      // Regras do fornecedor (mínimos) — sempre por fábrica, mesmo em pedido único
+      {
+        const fornIdsAll = [...new Set(
+          itensValidados
+            .filter((i) => {
+              const tab = mapaTabelas.get(String(i.id_tabela));
+              return String(tab?.usar_regras_fornecedor || '').toUpperCase() === 'S' && i.cod_fornecedor;
+            })
+            .map((i) => i.cod_fornecedor)
+        )];
+        const minForn = {};
+        const minCxMap = {};
+        if (fornIdsAll.length) {
           let rowsF = [];
           try {
             const [r] = await pool.query(
@@ -799,49 +923,77 @@ router.post('/:token/pedido', async (req, res) => {
                       COALESCE(vlr_minimofaturamento, 0) AS minimo,
                       COALESCE(min_cx_pedido, 0) AS min_cx
                  FROM fornecedores WHERE id IN (?)`,
-              [fornIds]
+              [fornIdsAll]
             );
             rowsF = r || [];
           } catch (_) {
             const [r] = await pool.query(
               `SELECT id, COALESCE(vlr_minimofaturamento, 0) AS minimo
                  FROM fornecedores WHERE id IN (?)`,
-              [fornIds]
+              [fornIdsAll]
             ).catch(() => [[]]);
             rowsF = (r || []).map((x) => ({ ...x, min_cx: 0 }));
           }
-          rowsF.forEach(r => {
+          rowsF.forEach((r) => {
             minForn[String(r.id)] = parseFloat(r.minimo) || 0;
             minCxMap[String(r.id)] = parseInt(r.min_cx, 10) || 0;
           });
-
-          if (tabela.cond_pagamento) {
-            const [rowsC] = await pool.query(
-              `SELECT id_fornecedor, COALESCE(valor_minimo, 0) AS minimo
-               FROM fornecedor_condicoes_pagamento
-               WHERE id_condicao = ? AND excluido = 'N' AND id_fornecedor IN (?)`,
-              [tabela.cond_pagamento, fornIds]
-            ).catch(() => [[]]);
-            rowsC.forEach(r => { minCond[String(r.id_fornecedor)] = parseFloat(r.minimo) || 0; });
+        }
+        const minCondPorTab = {};
+        for (const tid of idsTabelasUsadas) {
+          const tab = mapaTabelas.get(String(tid));
+          if (String(tab?.usar_regras_fornecedor || '').toUpperCase() !== 'S' || !tab.cond_pagamento) continue;
+          const fornIds = [...new Set(
+            itensValidados
+              .filter((i) => Number(i.id_tabela) === Number(tid) && i.cod_fornecedor)
+              .map((i) => i.cod_fornecedor)
+          )];
+          if (!fornIds.length) continue;
+          const [rowsC] = await pool.query(
+            `SELECT id_fornecedor, COALESCE(valor_minimo, 0) AS minimo
+             FROM fornecedor_condicoes_pagamento
+             WHERE id_condicao = ? AND excluido = 'N' AND id_fornecedor IN (?)`,
+            [tab.cond_pagamento, fornIds]
+          ).catch(() => [[]]);
+          minCondPorTab[String(tid)] = {};
+          rowsC.forEach((r) => {
+            minCondPorTab[String(tid)][String(r.id_fornecedor)] = parseFloat(r.minimo) || 0;
+          });
+        }
+        // Subconjuntos por tabela+fábrica (também no pedido único)
+        const subMin = new Map();
+        for (const item of itensValidados) {
+          const tab = mapaTabelas.get(String(item.id_tabela));
+          if (String(tab?.usar_regras_fornecedor || '').toUpperCase() !== 'S') continue;
+          const key = `${item.id_tabela}|${item.cod_fornecedor ?? '__sem_forn__'}`;
+          if (!subMin.has(key)) {
+            subMin.set(key, {
+              tabela: tab,
+              cod_fornecedor: item.cod_fornecedor,
+              nome_fornecedor: item.nome_fornecedor,
+              itens: [],
+            });
           }
+          subMin.get(key).itens.push(item);
         }
         const violacoes = [];
-        for (const [key, grupo] of grupos) {
-          const total = grupo.itens.reduce((s, i) => s + (parseFloat(i.vlrtotal) || 0), 0);
-          const minimo = Math.max(minForn[key] || 0, minCond[key] || 0);
+        for (const [, sub] of subMin) {
+          const key = String(sub.cod_fornecedor || '');
+          const total = sub.itens.reduce((s, i) => s + (parseFloat(i.vlrtotal) || 0), 0);
+          const minCond = (minCondPorTab[String(sub.tabela.id_tabela)] || {})[key] || 0;
+          const minimo = Math.max(minForn[key] || 0, minCond);
+          const rotulo = sub.nome_fornecedor || sub.tabela.descricao || 'Fornecedor';
           if (minimo > 0 && total < minimo - 0.005) {
-            violacoes.push(`${grupo.nome_fornecedor || 'Fornecedor'}: ${_fmtBRL(total)} (mínimo ${_fmtBRL(minimo)})`);
+            violacoes.push(`${rotulo}: ${_fmtBRL(total)} (mínimo ${_fmtBRL(minimo)})`);
           }
           const minCx = minCxMap[key] || 0;
           if (minCx > 0) {
-            const totalCx = grupo.itens.reduce((s, i) => {
+            const totalCx = sub.itens.reduce((s, i) => {
               const mult = parseInt(i.multiplo_venda, 10) || 1;
               return s + ((parseFloat(i.quantidade) || 0) / mult);
             }, 0);
             if (totalCx < minCx) {
-              violacoes.push(
-                `${grupo.nome_fornecedor || 'Fornecedor'}: ${Math.floor(totalCx)} cx (mínimo ${minCx} cx)`
-              );
+              violacoes.push(`${rotulo}: ${Math.floor(totalCx)} cx (mínimo ${minCx} cx)`);
             }
           }
         }
@@ -869,6 +1021,8 @@ router.post('/:token/pedido', async (req, res) => {
           );
           const numero     = seq.proximo;
           const totalGrupo = parseFloat(grupo.itens.reduce((s, i) => s + (parseFloat(i.vlrtotal) || 0), 0).toFixed(2));
+          const { condDesc, formaPagto, prazoPadrao } = grupo.pagto;
+          const tabela = grupo.tabela;
 
           const [pRes] = await conn.query(
             `INSERT INTO pedidos (
@@ -889,10 +1043,10 @@ router.post('/:token/pedido', async (req, res) => {
               codCliente, cnpjCliente, (nomeCliente || '').toUpperCase(),
               grupo.cod_fornecedor || null, grupo.nome_fornecedor || '',
               id_tipopedido, tipo_pedido_str, 'PENDENTE', 'PENDENTE',
-              tabela.cond_pagamento || null, _condDesc, _formaPagto, 1,
+              tabela.cond_pagamento || null, condDesc, formaPagto, 1,
               totalGrupo, totalGrupo, totalGrupo, 0, 0, totalGrupo,
               tk.id_empresa || null, tk.id_empresa || null, tk.nome_empresa || '',
-              obsFinal, 'VITRINE', 'N'
+              grupo.obsFinal, 'VITRINE', 'N'
             ]
           );
           const pedidoId = pRes.insertId;
@@ -925,12 +1079,13 @@ router.post('/:token/pedido', async (req, res) => {
             dataAbertura: dataAb,
             codFornecedor: grupo.cod_fornecedor,
             nomeFornecedor: grupo.nome_fornecedor,
-            formaPagto: _formaPagto,
-            prazoPadrao: _prazoPadrao,
+            formaPagto,
+            prazoPadrao,
           });
 
+          const rotuloFab = grupo.nome_fornecedor || tabela.descricao || '';
           pedidosCriados.push({
-            numero, pedido_id: pedidoId, fornecedor: grupo.nome_fornecedor || '',
+            numero, pedido_id: pedidoId, fornecedor: rotuloFab,
             total: totalGrupo, nome_cliente: nomeCliente,
           });
         }

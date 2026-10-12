@@ -107,6 +107,14 @@ tbody td { padding:10px 12px; vertical-align:middle; }
 .margem-resumo .mr-ok { color: var(--success, #16a34a); font-weight: 700; }
 .margem-resumo .mr-abaixo { color: #b45309; font-weight: 700; }
 .margem-resumo .mr-prejuizo { color: var(--danger, #dc2626); font-weight: 700; }
+.markup-toggle {
+  display: inline-flex; align-items: center; gap: 6px; margin-right: 4px;
+  font-size: 11px; font-weight: 700; color: var(--text2); text-transform: uppercase;
+  cursor: pointer; user-select: none; white-space: nowrap;
+}
+.markup-toggle input { accent-color: var(--accent); cursor: pointer; }
+.col-markup { display: none; }
+#formSection.exibir-markup .col-markup { display: table-cell; }
 .regras-table { width: 100%; border-collapse: collapse; font-size: 11px; min-width:1200px; }
 .regras-table thead th { position: sticky; top: 0; z-index: 10; background: #f9fafb; padding: 10px 12px; border-bottom: 2px solid var(--border); text-align:left; color:var(--text2); }
 .regras-table td { padding: 6px 10px; border-bottom: 1px solid #f3f4f6; }
@@ -302,7 +310,11 @@ tbody td { padding:10px 12px; vertical-align:middle; }
       <div class="regras-container">
         <div class="regras-header">
           <span class="regras-title">Itens da Tabela (Produtos)</span>
-          <div style="display:flex;gap:8px">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <label class="markup-toggle" title="Mostra o mark-up líquido do Vlr. Tabela: (preço − custo − comissão) ÷ custo. A marcação fica salva neste navegador.">
+              <input type="checkbox" id="chkExibirMarkup" onchange="toggleExibirMarkup(this.checked)">
+              Exibir mark-up
+            </label>
             <button class="btn btn-ghost btn-mini" onclick="abrirManutencaoLote()">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
               Manutenção Lote
@@ -335,6 +347,7 @@ tbody td { padding:10px 12px; vertical-align:middle; }
                 <th style="width:100px">Vlr Desc.</th>
                 <th style="width:110px">Vlr. Tabela</th>
                 <th style="width:120px" title="Compara o Vlr. Tabela com o custo e a margem % do cadastro do produto">Margem</th>
+                <th class="col-markup" style="width:100px" title="Mark-up líquido do Vlr. Tabela, após a comissão % do cadastro">Mark-up</th>
                 <th style="width:60px">Ativo?</th>
                 <th style="width:130px">Vigência</th>
                 <th style="width:50px"></th>
@@ -814,25 +827,34 @@ function exportarExcelTabela() {
     return;
   }
 
-  const rows = _itensTabela.map((it, idx) => ({
-    Seq: idx + 1,
-    'Cod. Produto': it.cod_produto ?? '',
-    'Cod. Fabricante': it.cod_fabricante || '',
-    Descricao: it.descricao || '',
-    Unidade: it.unidade || 'UN',
-    'Preco Custo': Number(it.vlr_custo) || 0,
-    'Custo Final': Number(it.vlr_custofinal) || 0,
-    'Preco Base': Number(it.preco_base) || 0,
-    'Preco Venda': Number(it.preco_venda) || 0,
-    'Tipo Desc.': it.tipo_desconto || 'R',
-    'Vlr Desc.': Number(it.vlr_desconto) || 0,
-    'Vlr Tabela': Number(it.valor_tabela) || 0,
-    'Margem %': (() => { const a = _analiseMargemItem(it); return a.pct == null ? '' : a.pct; })(),
-    'Margem Meta %': Number(it.margem) || 0,
-    'Analise Margem': _analiseMargemItem(it).label,
-    Ativo: it.ativo === 'N' ? 'N' : 'S',
-    Vigencia: it.vigencia ? String(it.vigencia).split('T')[0] : ''
-  }));
+  const rows = _itensTabela.map((it, idx) => {
+    const a = _analiseMargemItem(it);
+    const mk = _markupLiquidoItem(it);
+    const row = {
+      Seq: idx + 1,
+      'Cod. Produto': it.cod_produto ?? '',
+      'Cod. Fabricante': it.cod_fabricante || '',
+      Descricao: it.descricao || '',
+      Unidade: it.unidade || 'UN',
+      'Preco Custo': Number(it.vlr_custo) || 0,
+      'Custo Final': Number(it.vlr_custofinal) || 0,
+      'Preco Base': Number(it.preco_base) || 0,
+      'Preco Venda': Number(it.preco_venda) || 0,
+      'Tipo Desc.': it.tipo_desconto || 'R',
+      'Vlr Desc.': Number(it.vlr_desconto) || 0,
+      'Vlr Tabela': Number(it.valor_tabela) || 0,
+      'Margem %': a.pct == null ? '' : a.pct,
+      'Margem Meta %': Number(it.margem) || 0,
+      'Analise Margem': a.label,
+      Ativo: it.ativo === 'N' ? 'N' : 'S',
+      Vigencia: it.vigencia ? String(it.vigencia).split('T')[0] : ''
+    };
+    if (_querExibirMarkup()) {
+      row['Mark-up %'] = mk.pct == null ? '' : mk.pct;
+      row['Comissao %'] = Number(it.comissao) || 0;
+    }
+    return row;
+  });
 
   const ws = XLSX.utils.json_to_sheet(rows);
   ws['!cols'] = [
@@ -878,6 +900,7 @@ function _novoItemTabela(p) {
     vlr_custo: _numPrecoTabela(p.vlr_custo, 0),
     vlr_custofinal: _numPrecoTabela(p.vlr_custofinal, 0),
     margem: _numPrecoTabela(p.margem, 0),
+    comissao: _numPrecoTabela(p.comissao, 0),
     preco_base: preco,
     preco_venda: preco,
     tipo_desconto: 'R',
@@ -968,6 +991,51 @@ function _htmlBadgeMargem(it) {
   return `<span class="margem-badge ${a.status}" title="${String(a.title).replace(/"/g, '&quot;')}">${a.label}</span>`;
 }
 
+const LS_EXIBIR_MARKUP = 'sysrep_tabela_exibir_markup';
+
+function _querExibirMarkup() {
+  try { return localStorage.getItem(LS_EXIBIR_MARKUP) === 'S'; } catch (_) { return false; }
+}
+
+function toggleExibirMarkup(on) {
+  try { localStorage.setItem(LS_EXIBIR_MARKUP, on ? 'S' : 'N'); } catch (_) {}
+  _aplicarExibirMarkup();
+  renderItens();
+}
+
+function _aplicarExibirMarkup() {
+  const on = _querExibirMarkup();
+  const form = document.getElementById('formSection');
+  if (form) form.classList.toggle('exibir-markup', on);
+  const chk = document.getElementById('chkExibirMarkup');
+  if (chk && chk.checked !== on) chk.checked = on;
+}
+
+/** Mark-up líquido % = (Vlr. Tabela − custo − comissão) ÷ custo × 100. */
+function _markupLiquidoItem(it) {
+  const custo = _custoParaAnalise(it);
+  const preco = _numPrecoTabela(it.valor_tabela, 0);
+  const comissao = _numPrecoTabela(it.comissao, 0);
+  if (custo <= 0 || preco <= 0) {
+    return { pct: null, label: '—', title: 'Sem custo ou preço para calcular o mark-up' };
+  }
+  const comissaoVlr = preco * (comissao / 100);
+  const lucroLiq = preco - custo - comissaoVlr;
+  const pct = Math.round((lucroLiq / custo) * 10000) / 100;
+  const moeda = (n) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+  return {
+    pct,
+    label: `${pct.toFixed(1)}%`,
+    title: `Mark-up líquido ${pct.toFixed(1)}% sobre o custo. Lucro R$ ${moeda(lucroLiq)} após comissão ${comissao.toFixed(2)}% (R$ ${moeda(comissaoVlr)}).`,
+  };
+}
+
+function _htmlMarkup(it) {
+  const m = _markupLiquidoItem(it);
+  const cor = m.pct == null ? 'var(--text2)' : (m.pct < 0 ? 'var(--danger, #dc2626)' : 'var(--text)');
+  return `<span style="font-weight:700;color:${cor}" title="${String(m.title).replace(/"/g, '&quot;')}">${m.label}</span>`;
+}
+
 function _atualizarResumoMargem() {
   const el = document.getElementById('margemResumo');
   if (!el) return;
@@ -997,8 +1065,9 @@ function _atualizarResumoMargem() {
 
 function renderItens() {
   const tbody = document.getElementById('itensBody');
+  const colspan = _querExibirMarkup() ? 16 : 15;
   if (!_itensTabela.length) {
-    tbody.innerHTML = '<tr><td colspan="15" style="text-align:center;padding:30px;color:var(--text2)">Nenhum item adicionado. Use o botão acima para adicionar produtos.</td></tr>';
+    tbody.innerHTML = `<tr><td colspan="${colspan}" style="text-align:center;padding:30px;color:var(--text2)">Nenhum item adicionado. Use o botão acima para adicionar produtos.</td></tr>`;
     _atualizarResumoMargem();
     return;
   }
@@ -1022,6 +1091,7 @@ function renderItens() {
       <td><input type="number" step="0.01" value="${it.vlr_desconto}" onchange="updateItemFieldValue(${idx}, 'vlr_desconto', this.value)"></td>
       <td class="readonly-cell" style="color:var(--accent)">R$ <span class="vlr-tabela-span">${_numPrecoTabela(it.valor_tabela, 0).toLocaleString('pt-BR', {minimumFractionDigits:2})}</span></td>
       <td class="margem-cell">${_htmlBadgeMargem(it)}</td>
+      <td class="col-markup markup-cell readonly-cell">${_htmlMarkup(it)}</td>
       <td><input type="checkbox" ${it.ativo==='S'?'checked':''} onchange="updateItemFieldValue(${idx}, 'ativo', this.checked?'S':'N')"></td>
       <td><input type="date" value="${it.vigencia ? it.vigencia.split('T')[0] : ''}" onchange="updateItemFieldValue(${idx}, 'vigencia', this.value)"></td>
       <td style="text-align:center"><button class="btn-remove" onclick="removerItem(${idx})">✕</button></td>
@@ -1049,6 +1119,8 @@ function updateItemFieldValue(idx, field, val) {
       if (vt) vt.textContent = parseFloat(it.valor_tabela).toLocaleString('pt-BR', {minimumFractionDigits:2});
       const mc = row.querySelector('.margem-cell');
       if (mc) mc.innerHTML = _htmlBadgeMargem(it);
+      const mkCell = row.querySelector('.markup-cell');
+      if (mkCell) mkCell.innerHTML = _htmlMarkup(it);
     }
     _atualizarResumoMargem();
   }
@@ -1539,6 +1611,7 @@ async function executarManutencao() {
 
 // Start — não depender só de cad-perm-ready (evita ficar "Carregando...")
 (function bootTabelaPrecos() {
+  _aplicarExibirMarkup();
   carregarLookups();
   if (typeof carregar === 'function') carregar();
 })();

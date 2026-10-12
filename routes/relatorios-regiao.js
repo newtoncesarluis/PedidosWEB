@@ -813,7 +813,7 @@ router.get('/carteira-compras', async (req, res) => {
 
     const [rows] = await pool.query(
       `SELECT
-         p.id,
+         p.id AS id_pedido,
          p.numero,
          p.data_abertura,
          p.tipo_pedido,
@@ -856,7 +856,7 @@ router.get('/carteira-compras', async (req, res) => {
     );
 
     const data = rows.map((r) => ({
-      id: r.id,
+      id: r.id_pedido,
       numero: r.numero,
       data: r.data_abertura ? String(r.data_abertura).slice(0, 10) : null,
       tipo_pedido: r.tipo_pedido || '',

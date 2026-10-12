@@ -104,6 +104,18 @@
             color: white;
         }
 
+        /* Barra de filtros: campos com largura mínima (não espreme datas/combos) e botões do mesmo tamanho */
+        .rc-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 12px; }
+        .rc-f { display: flex; flex-direction: column; flex: 1 1 150px; min-width: 140px; }
+        .rc-f.rc-f-lg { flex: 2 1 220px; min-width: 200px; }
+        .rc-f.rc-f-date { flex: 0 0 156px; min-width: 156px; }
+        .rc-f.rc-f-base { flex: 1 1 190px; min-width: 180px; }
+        .rc-f .form-modern { height: 38px; width: 100%; }
+        .rc-actions { display: flex; gap: 8px; margin-left: auto; flex: 0 0 auto; }
+        .rc-actions .btn-premium { height: 38px; padding: 0 16px; white-space: nowrap; }
+        .rc-actions .btn-outline-modern { background: #fff; color: var(--secondary); border: 1px solid #cbd5e1; }
+        .rc-actions .btn-outline-modern:hover { background: #f8fafc; border-color: #94a3b8; color: var(--dark); }
+
         .report-paper {
             background: #fff;
             max-width: 1100px;
@@ -206,43 +218,43 @@
 
 <div class="report-controls no-print">
     <div class="container-fluid">
-        <div class="row align-items-end g-2">
-            <div class="col-md-3">
+        <div class="rc-filters">
+            <div class="rc-f rc-f-lg">
                 <label class="filter-label">Vendedor</label>
                 <select class="form-select form-modern" id="filter_vendedor"><option value="">Selecione...</option></select>
             </div>
-            <div class="col-md-2">
+            <div class="rc-f">
                 <label class="filter-label">Fábrica</label>
                 <select class="form-select form-modern" id="filter_fornecedor"><option value="">Todas</option></select>
             </div>
-            <div class="col-md-2">
+            <div class="rc-f">
                 <label class="filter-label">Cliente</label>
                 <select class="form-select form-modern" id="filter_cliente"><option value="">Todos</option></select>
             </div>
-            <div class="col-md-1">
+            <div class="rc-f rc-f-date">
                 <label class="filter-label">Início</label>
                 <input type="date" class="form-control form-modern" id="filter_inicio">
             </div>
-            <div class="col-md-1">
+            <div class="rc-f rc-f-date">
                 <label class="filter-label">Fim</label>
                 <input type="date" class="form-control form-modern" id="filter_fim">
             </div>
-            <div class="col-md-1">
+            <div class="rc-f rc-f-base">
                 <label class="filter-label">Base de Data</label>
                 <select class="form-select form-modern" id="filter_tipo_data">
                     <option value="pedido">Data Pedido</option>
                     <option value="recebimento" selected>Liquidação (Parcela)</option>
                 </select>
             </div>
-            <div class="col-md-2 d-flex gap-2">
-                <button class="btn btn-premium btn-primary-gradient flex-grow-1" onclick="loadReport()">
-                    <i class="fas fa-sync"></i> Gerar Relatório
+            <div class="rc-actions">
+                <button class="btn btn-premium btn-primary-gradient" onclick="loadReport()">
+                    <i class="fas fa-sync"></i> Gerar relatório
                 </button>
-                <button class="btn btn-premium btn-dark-modern" onclick="window.print()" title="Imprimir">
-                    <i class="fas fa-print"></i>
+                <button class="btn btn-premium btn-dark-modern" onclick="window.print()" title="Imprimir ou salvar em PDF">
+                    <i class="fas fa-print"></i> Imprimir
                 </button>
-                <a href="comissoes_dash.html" class="btn btn-premium btn-secondary-modern" title="Fechar">
-                    <i class="fas fa-times"></i>
+                <a href="comissoes.html" class="btn btn-premium btn-outline-modern" title="Fechar e voltar" onclick="fecharRelatorioComissoes(event)">
+                    <i class="fas fa-times"></i> Fechar
                 </a>
             </div>
         </div>
@@ -329,6 +341,23 @@
 <script src="/assets/comissao-preposto-ui.js"></script>
 <script src="/assets/comissao-status-ui.js"></script>
 
+<script>
+/** Fechar: volta para a tela que abriu (?from=gestao|dash); se foi aberto direto pelo menu, fecha a aba. */
+function fecharRelatorioComissoes(ev) {
+  if (ev) ev.preventDefault();
+  var from = '';
+  try { from = new URLSearchParams(location.search).get('from') || ''; } catch (_) {}
+  if (from === 'gestao') { location.href = 'comissoes.html'; return; }
+  if (from === 'dash') { location.href = 'comissoes_dash.html'; return; }
+  try {
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: 'ms-shell-go-back' }, '*');
+      return;
+    }
+  } catch (_) {}
+  location.href = 'comissoes.html';
+}
+</script>
 <script>
     async function apiRelatorio(url) {
         if (window.ComissaoPrepostoUi && ComissaoPrepostoUi.apiFetch) {

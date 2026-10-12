@@ -1470,11 +1470,10 @@ html.ms-embedded-tech.ms-page-clientes #btnNovoClienteFloat:not(.cli-show-inclui
   display: none !important;
 }
 
-/* Embed mobile: Vitrine Digital TOTALMENTE removida da tela de clientes.
-   Esconde todos os pontos de acesso e o modal legado (que o scanner do shell
-   conseguia forçar visível). No desktop nada muda. */
+/* Embed mobile: Vitrine Digital volta pelo botão do card (.cli-qbtn-vit); o modal
+   é o do shell (postMessage). Escondemos só os pontos legados duplicados e o modal
+   local (que o scanner do shell conseguia forçar visível). */
 html.sysrep-ms-embed .btn-vitrine,
-html.sysrep-ms-embed .cli-qbtn-vit,
 html.sysrep-ms-embed .qv-btn-vitrine,
 html.sysrep-ms-embed #modalVitrine { display: none !important; }
 
@@ -1482,15 +1481,30 @@ html.sysrep-ms-embed .cli-card-quick-wrap {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 12px 0 2px;
+  padding: 10px 0 0;
   border-top: 1px solid var(--border, #eef2f6);
-  margin-top: 10px;
+  margin-top: 6px;
 }
+html.sysrep-ms-embed .cli-qbtn svg { width: 18px; height: 18px; flex-shrink: 0; }
+/* Redesign do card (app vendedor) */
+html.sysrep-ms-embed .cli-card { border-radius: 18px; padding: 16px; gap: 12px; }
+html.sysrep-ms-embed .cli-card:hover { transform: none; }
+html.sysrep-ms-embed .cli-card .cli-avatar { width: 44px; height: 44px; border-radius: 14px; font-size: 15px; font-weight: 800; }
+html.sysrep-ms-embed .cli-card-title { font-size: 15px; line-height: 1.25; }
+html.sysrep-ms-embed .cli-card-head { align-items: flex-start; }
+html.sysrep-ms-embed .cli-card-head .badge { flex-shrink: 0; font-size: 11.5px; padding: 3px 9px; border-radius: 999px; }
+html.sysrep-ms-embed .cli-card-row { font-size: 13px; font-weight: 600; }
+html.sysrep-ms-embed .cli-card-row svg { width: 15px; height: 15px; }
 html.sysrep-ms-embed .cli-qbtn {
   flex: 1;
   min-width: 0;
-  padding: 9px 4px;
+  height: 40px;
+  padding: 0 6px;
   border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   border: none;
   font-size: 12px;
   font-weight: 600;
@@ -1505,10 +1519,22 @@ html.sysrep-ms-embed .cli-qbtn {
   -webkit-tap-highlight-color: transparent;
 }
 html.sysrep-ms-embed .cli-qbtn:active { filter: brightness(.93); }
-html.sysrep-ms-embed .cli-qbtn-pedido { background: rgba(99,102,241,.13); color: #4338ca; }
+html.sysrep-ms-embed .cli-qbtn-pedido { background: var(--accent); color: #fff; font-size: 13px; font-weight: 700; }
+html.sysrep-ms-embed .cli-qbtn-pedido svg { width: 16px; height: 16px; }
+html.sysrep-ms-embed .cli-qbtn-ic     { flex: 0 0 40px; padding: 0; }
 html.sysrep-ms-embed .cli-qbtn-wa     { background: rgba(37,211,102,.15); color: #15803d; }
+html.sysrep-ms-embed .cli-qbtn-more   { background: var(--accent-soft); color: var(--text); }
+html.sysrep-ms-embed .cli-more-wrap   { position: relative; flex: 0 0 40px; display: flex; }
+html.sysrep-ms-embed .cli-more-wrap .cli-qbtn { flex: 1 1 auto; }
+html.sysrep-ms-embed .cli-more-menu {
+  position: absolute; right: 0; bottom: calc(100% + 6px); z-index: 30; min-width: 190px;
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: 0 10px 28px rgba(0,0,0,.28); padding: 4px;
+}
+html.sysrep-ms-embed .cli-more-menu .dropdown-item { min-height: 44px; font-size: 13px; width: 100%; text-align: left; }
 html.sysrep-ms-embed .cli-qbtn-vis    { background: rgba(16,185,129,.13); color: #047857; }
 html.sysrep-ms-embed .cli-qbtn-map    { background: rgba(37,99,235,.10);  color: #1d4ed8; }
+html.sysrep-ms-embed .cli-qbtn-hist   { background: var(--accent-soft); color: var(--accent-hover); }
 /* esconde os ícones do rodapé no embed (evita duplicação) */
 html.sysrep-ms-embed .cli-card-foot .btn-historico,
 html.sysrep-ms-embed .cli-card-foot .btn-sm-delete { display: none !important; }
@@ -7225,26 +7251,64 @@ function _cliCardQuickEmbed(c) {
   const telDigits = (typeof _foneWaCliente === 'function' ? _foneWaCliente(c) : '')
     || (c.foneprincipal || c.celular || '').replace(/\D/g, '');
   const visitQ = `/pages/visitas.html?novo=1&cliente_id=${c.id}&cliente_nome=${encodeURIComponent(c.nome || '')}`;
-  const mapQ = `/pages/clientes.html?mapa=1&id=${c.id}`;
   const nomeJs = (c.nome || '').replace(/'/g, "\\'");
+  const ico = (d, w) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w || 2}" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+  const icoCart = ico('<path d="M6 6h15l-1.5 9h-12z"/><path d="M6 6L5 3H2"/><circle cx="9" cy="20" r="1.3"/><circle cx="18" cy="20" r="1.3"/>', 2.2);
+  const icoWa   = ico('<path d="M21 11.5a8.5 8.5 0 0 1-12.6 7.4L3 20.5l1.6-5.2A8.5 8.5 0 1 1 21 11.5z"/>');
+  const icoVis  = ico('<rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M8 3v4M16 3v4M3.5 10h17M9 15l2 2 4-4"/>');
+  const icoHist = ico('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>');
+
+  const icoMore = `<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>`;
+
+  // Linha única: Novo pedido (flexível) + só ícones; Mapa, Vitrine e Excluir ficam no menu ⋯
   const btns = [
-    `<button type="button" class="cli-qbtn cli-qbtn-pedido" onclick="abrirNovoPedidoCliente(${c.id},'${nomeJs}')">Pedido</button>`
+    `<button type="button" class="cli-qbtn cli-qbtn-pedido" onclick="abrirNovoPedidoCliente(${c.id},'${nomeJs}')">${icoCart}Novo pedido</button>`
   ];
   if (telDigits.length >= 10) {
-    btns.push(`<button type="button" class="cli-qbtn cli-qbtn-wa" onclick="abrirWhatsAppCliente(${c.id},'${telDigits}')">WhatsApp</button>`);
+    btns.push(`<button type="button" class="cli-qbtn cli-qbtn-ic cli-qbtn-wa" aria-label="Conversar no WhatsApp" title="WhatsApp" onclick="abrirWhatsAppCliente(${c.id},'${telDigits}')">${icoWa}</button>`);
   }
   btns.push(
-    `<button type="button" class="cli-qbtn cli-qbtn-vis" onclick="msNavCliente('${visitQ}','Visita')">Visita</button>`,
-    `<button type="button" class="cli-qbtn cli-qbtn-map" onclick="msNavCliente('${mapQ}','Mapa')">Mapa</button>`
+    `<button type="button" class="cli-qbtn cli-qbtn-ic cli-qbtn-vis" aria-label="Registrar visita" title="Visita" onclick="msNavCliente('${visitQ}','Visita')">${icoVis}</button>`,
+    `<button type="button" class="cli-qbtn cli-qbtn-ic cli-qbtn-hist" aria-label="Histórico de pedidos" title="Histórico" onclick="abrirHistorico(${c.id},'${nomeJs}',event)">${icoHist}</button>`,
+    `<div class="cli-more-wrap"><button type="button" class="cli-qbtn cli-qbtn-ic cli-qbtn-more" aria-label="Mais opções: mapa, vitrine, excluir" title="Mais" aria-haspopup="true" onclick="abrirMenuMaisCard(${c.id},'${nomeJs}',event)">${icoMore}</button></div>`
   );
-  const n = btns.length;
-  const icoHist = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`;
-  const icoDel  = `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>`;
-  return `<div class="cli-card-quick-wrap" onclick="event.stopPropagation()">
-    ${btns.join('')}
-    <button type="button" class="btn-sm btn-historico" onclick="abrirHistorico(${c.id},'${nomeJs}',event)" title="Histórico de Pedidos">${icoHist}</button>
-    ${podeExcluirClientes() ? `<button type="button" class="btn-sm btn-sm-delete" onclick="excluirClienteLinha(${c.id},'${nomeJs}',event)" title="Excluir">${icoDel}</button>` : ''}
-  </div>`;
+  return `<div class="cli-card-quick-wrap" onclick="event.stopPropagation()">${btns.join('')}</div>`;
+}
+
+// Menu ⋯ do card no app mobile: Mapa, Vitrine Digital e Excluir.
+// Fica DENTRO do card (position:absolute, abre para cima do botão) — não usa position:fixed
+// com coordenadas da tela, que errava a posição quando a lista estava rolada (menu «sumia»).
+function fecharMenusMaisCard() {
+  document.querySelectorAll('.cli-more-menu').forEach(m => m.remove());
+}
+
+function abrirMenuMaisCard(id, nome, evt) {
+  if (evt) { evt.preventDefault(); evt.stopPropagation(); }
+  const btn = evt?.currentTarget;
+  const wrap = btn?.closest('.cli-more-wrap');
+  if (!wrap) return;
+  const jaAberto = !!wrap.querySelector('.cli-more-menu');
+  fecharMenusMaisCard();
+  if (jaAberto) return; // segundo toque no ⋯ fecha
+  const nomeJs = String(nome || '').replace(/'/g, "\\'");
+  const svg = (d) => `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${d}"/></svg>`;
+  const items = [
+    `<button type="button" class="dropdown-item" onclick="fecharMenusMaisCard();msNavCliente('/pages/clientes.html?mapa=1&id=${id}','Mapa')">${svg('M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z M15 11a3 3 0 11-6 0 3 3 0 016 0z')}Mapa</button>`,
+    `<button type="button" class="dropdown-item" onclick="fecharMenusMaisCard();gerarVitrine(${id}, event, true)">${svg('M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1')}Vitrine Digital</button>`
+  ];
+  if (podeExcluirClientes()) {
+    items.push(
+      `<hr style="border:none;border-top:1px solid var(--border);margin:3px 0">`,
+      `<button type="button" class="dropdown-item danger" onclick="fecharMenusMaisCard();excluirClienteLinha(${id},'${nomeJs}',null)">${svg('M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16')}Excluir</button>`
+    );
+  }
+  const menu = document.createElement('div');
+  menu.className = 'cli-more-menu';
+  menu.setAttribute('role', 'menu');
+  menu.innerHTML = items.join('');
+  menu.addEventListener('click', (e) => e.stopPropagation());
+  wrap.appendChild(menu);
+  setTimeout(() => document.addEventListener('click', fecharMenusMaisCard, { once: true }), 0);
 }
 
 function _cliStatusRotaLabel(s) {
@@ -7347,8 +7411,9 @@ function renderCards(rows, offset) {
     const isNovo = c.dtcadastro && (agora - new Date(c.dtcadastro)) < 7*24*60*60*1000;
     const sel    = _selecionados.has(c.id);
 
-    const quickRow = document.documentElement.classList.contains('sysrep-ms-embed')
-      ? _cliCardQuickEmbed(c) : '';
+    const isEmbed  = document.documentElement.classList.contains('sysrep-ms-embed');
+    const quickRow = isEmbed ? _cliCardQuickEmbed(c) : '';
+    const badgeHtml = `<span class="badge ${statusBadge}">${statusLabel}${c.venda_suspensa==='S'?' · Suspenso':''}</span>`;
 
     return `<div class="cli-card ${sel?'row-selected':''}" data-cliente-id="${c.id}" onclick="abrirEdicao(${c.id})">
       <div class="cli-card-head">
@@ -7357,6 +7422,7 @@ function renderCards(rows, offset) {
           <div class="cli-card-title">${escHtml(c.nome)}${isNovo?'<span class="badge-new" style="margin-left:5px">novo</span>':''}</div>
           ${c.apelido ? `<div class="cli-card-sub">${escHtml(c.apelido)}</div>` : ''}
         </div>
+        ${isEmbed ? badgeHtml : ''}
         <input type="checkbox" class="row-chk" data-id="${c.id}"
                onchange="toggleSelect(${c.id},this)" onclick="event.stopPropagation()"
                ${sel?'checked':''}
@@ -7399,8 +7465,8 @@ function renderCards(rows, offset) {
 
       ${_cliCardSignals(c)}
       ${quickRow}
-      <div class="cli-card-foot">
-        <span class="badge ${statusBadge}">${statusLabel}${c.venda_suspensa==='S'?' · Suspenso':''}</span>
+      ${isEmbed ? '' : `<div class="cli-card-foot">
+        ${badgeHtml}
         <div style="display:flex;gap:5px;align-items:center" onclick="event.stopPropagation()">
           ${!document.documentElement.classList.contains('sysrep-ms-embed') ? `<button class="btn-sm btn-vitrine"
               onclick="gerarVitrine(${c.id}, event)"
@@ -7426,7 +7492,7 @@ function renderCards(rows, offset) {
             </svg>
           </button>` : ''}
         </div>
-      </div>
+      </div>`}
     </div>`;
   }).join('');
 
@@ -9940,8 +10006,6 @@ let _vitrineUltimoFechamento = 0;
 const _vitrinePageLoadTs = Date.now();
 async function gerarVitrine(idCliente, evt, fromMenu) {
   if (evt) { evt.preventDefault(); evt.stopPropagation(); }
-  // Vitrine Digital desativada no app mobile (embed) — sem ponto de acesso na tela de clientes
-  if (document.documentElement.classList.contains('sysrep-ms-embed')) return;
   // Bloqueia se já em andamento
   if (_gerarVitrineInProgress) return;
   // Bloqueia ghost click de navegação: tablet/iOS propaga toque do shell para o iframe recém-carregado
@@ -9973,7 +10037,7 @@ async function gerarVitrine(idCliente, evt, fromMenu) {
     );
 
     if (usarModalPai) {
-      _postVitrineShell({ type: 'ms-vitrine-show', link, path: d.link, expira, waUrl, id_cliente: idCliente });
+      _postVitrineShell({ type: 'ms-vitrine-show', link, path: d.link, expira, waUrl, id_cliente: idCliente, token: d.token, tema: d.tema, reaproveitado: !!d.reaproveitado });
     } else {
       _renderModalVitrineConteudo(link, d.link, expira, waUrl);
     }

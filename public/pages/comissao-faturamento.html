@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Comissão por Faturamento</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<script src="/assets/confirm-dialog.js"></script>
+<style>
+  :root { --cf-accent: #0d9488; --cf-accent-soft: rgba(13,148,136,.10); }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--font, 'Inter', 'Segoe UI', sans-serif); font-size: 13px;
+         background: var(--bg, #f1f5f9); color: var(--text, #1e293b); }
+  .cf-toolbar { position: sticky; top: 0; z-index: 20; background: var(--card, #fff);
+                border-bottom: 1px solid var(--border, #e2e8f0); padding: 12px 16px; }
+  .cf-title { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .cf-title h1 { font-size: 16px; font-weight: 800; margin: 0; }
+  .cf-title .sub { font-size: 11px; color: var(--text2, #64748b); }
+  .cf-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; align-items: end; }
+  .cf-filters label { display: block; font-size: 10px; font-weight: 700; text-transform: uppercase;
+                      color: var(--text2, #64748b); margin-bottom: 4px; letter-spacing: .03em; }
+  .cf-filters input, .cf-filters select { width: 100%; height: 36px; padding: 0 10px; border-radius: 8px;
+      border: 1.5px solid var(--input-border, var(--border, #cbd5e1)); background: var(--card, #fff);
+      color: var(--text, #1e293b); font-family: inherit; font-size: 12px; outline: none; }
+  .cf-filters select option { color: var(--text, #1e293b); background: var(--card, #fff); }
+  .cf-filters input:focus, .cf-filters select:focus { border-color: var(--cf-accent); }
+  .cf-actions { display: flex; gap: 8px; flex-wrap: wrap; grid-column: 1 / -1; }
+  .cf-actions .sp { flex: 1; }
+  .btn { height: 36px; padding: 0 14px; border-radius: 8px; border: 1.5px solid var(--border, #e2e8f0);
+         background: var(--card, #fff); color: var(--text, #1e293b); font-family: inherit; font-size: 12px;
+         font-weight: 700; cursor: pointer; white-space: nowrap; }
+  .btn-primary { background: var(--cf-accent); border-color: var(--cf-accent); color: #fff; }
+  .cf-tabs { display: flex; gap: 4px; margin-top: 12px; }
+  .cf-tab { padding: 8px 14px; border-radius: 8px 8px 0 0; border: none; background: transparent; cursor: pointer;
+            font-family: inherit; font-size: 12px; font-weight: 700; color: var(--text2, #64748b);
+            border-bottom: 2.5px solid transparent; }
+  .cf-tab.active { color: var(--cf-accent); border-bottom-color: var(--cf-accent); background: var(--cf-accent-soft); }
+  .cf-body { padding: 14px 16px 40px; }
+  .cf-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .kpi { background: var(--card, #fff); border: 1px solid var(--border, #e2e8f0); border-radius: 12px; padding: 12px 14px; }
+  .kpi .l { font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--text2, #64748b); }
+  .kpi .v { font-size: 18px; font-weight: 800; margin-top: 4px; }
+  .cf-card { background: var(--card, #fff); border: 1px solid var(--border, #e2e8f0); border-radius: 12px; overflow: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th { position: sticky; top: 0; background: var(--bg, #f8fafc); text-align: left; font-size: 10px; font-weight: 800;
+       text-transform: uppercase; color: var(--text2, #64748b); padding: 9px 10px; border-bottom: 1px solid var(--border, #e2e8f0); white-space: nowrap; }
+  td { padding: 8px 10px; border-bottom: 1px solid var(--border, #eef2f7); white-space: nowrap; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr.grp td { background: var(--cf-accent-soft); font-weight: 800; color: var(--text, #1e293b); }
+  tr.sub td { font-weight: 800; border-bottom: 2px solid var(--border, #e2e8f0); }
+  tr.tot td { font-weight: 800; font-size: 13px; background: var(--bg, #f8fafc); }
+  .badge { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 6px; }
+  .b-saldo { background: rgba(245,158,11,.15); color: #b45309; }
+  .b-canc { background: rgba(239,68,68,.12); color: #b91c1c; }
+  .b-ok { background: rgba(16,185,129,.14); color: #047857; }
+  .cf-empty { padding: 40px 16px; text-align: center; color: var(--text2, #64748b); }
+  .cf-aviso { margin: 16px; padding: 14px 16px; border-radius: 12px; border: 1px solid rgba(245,158,11,.4);
+              background: rgba(245,158,11,.10); color: var(--text, #1e293b); line-height: 1.5; }
+  .cf-faixa { margin: 12px 16px 0; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border, #e2e8f0);
+              background: var(--card, #fff); color: var(--text, #1e293b); }
+  .cf-faixa strong { display: block; margin-bottom: 4px; }
+  .cf-faixa .bar { height: 8px; margin-top: 8px; border-radius: 99px; background: var(--bg, #e2e8f0); overflow: hidden; }
+  .cf-faixa .bar > span { display: block; height: 100%; width: 0; background: var(--cf-accent, #0d9488); }
+  .print-head { display: none; }
+  @media (max-width: 640px) {
+    .cf-toolbar { padding: 10px 12px; }
+    .cf-body { padding: 10px 12px 30px; }
+    .cf-actions { grid-column: 1 / -1; }
+    .cf-actions .btn { flex: 1; }
+  }
+  @media print {
+    @page { size: A4 landscape; margin: 10mm; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .cf-toolbar, #faixaAcao, #aviso { display: none !important; }
+    body { background: #fff; color: #000; font-size: 10px; }
+    .cf-body { padding: 0; }
+    .print-head { display: block; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 2px solid #000; font-size: 12px; line-height: 1.5; }
+    .print-head small { color: #444; font-size: 10px; }
+    .cf-kpis { grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 8px; }
+    .kpi { border: 1px solid #999; border-radius: 4px; padding: 5px 8px; background: #fff; }
+    .kpi .l { color: #333; }
+    .kpi .v { font-size: 12px; margin-top: 2px; }
+    .cf-card { border: none; overflow: visible; background: #fff; }
+    th { position: static; background: #eee; color: #000; }
+    td { color: #000; border-bottom: 1px solid #ccc; white-space: normal; }
+    tr { break-inside: avoid; }
+    thead { display: table-header-group; }
+    td, th { padding: 3px 6px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="cf-toolbar">
+  <div class="cf-title">
+    <div>
+      <h1>Comissão por Faturamento</h1>
+      <div class="sub">Conferência das comissões recebidas das fábricas e repasse aos representantes</div>
+    </div>
+  </div>
+  <div class="cf-filters">
+    <div><label for="f_ini">Faturado de</label><input type="date" id="f_ini" autocomplete="off"></div>
+    <div><label for="f_fim">Até</label><input type="date" id="f_fim" autocomplete="off"></div>
+    <div><label for="f_forn">Fábrica</label><select id="f_forn"><option value="">Todas</option></select></div>
+    <div><label for="f_rep">Representante</label><select id="f_rep"><option value="">Todos</option></select></div>
+    <div><label for="f_busca">Cliente / NF</label><input type="text" id="f_busca" placeholder="Filtrar…" autocomplete="off"></div>
+    <div class="cf-actions">
+      <button class="btn btn-primary" type="button" onclick="carregar()">Buscar</button>
+      <button class="btn" type="button" id="btnAplicarFaturados" style="display:none" onclick="aplicarJaFaturados()">Aplicar nos já faturados</button>
+      <button class="btn" type="button" id="btnReverterFaturados" style="display:none" onclick="reverterJaFaturados()">Reverter aplicação</button>
+      <span class="sp"></span>
+      <button class="btn" type="button" onclick="window.print()" title="Imprimir ou salvar como PDF (escolha «Salvar como PDF» no destino)">🖨 Imprimir / PDF</button>
+      <button class="btn" type="button" onclick="exportarCsv()">CSV</button>
+    </div>
+  </div>
+  <div class="cf-tabs">
+    <button class="cf-tab active" type="button" data-tab="fabricas">Conferência Fábricas</button>
+    <button class="cf-tab" type="button" data-tab="representantes">Comissão Representantes</button>
+  </div>
+</div>
+
+<div id="faixaAcao" class="cf-faixa" hidden></div>
+<div id="aviso"></div>
+<div class="cf-body">
+  <div class="print-head" id="print_head"></div>
+  <div class="cf-kpis" id="kpis"></div>
+  <div class="cf-card"><div id="tabela"><div class="cf-empty">Carregando…</div></div></div>
+</div>
+
+<script>
+const _tk = () => sessionStorage.getItem('token') || localStorage.getItem('token') || '';
+const api = (url) => fetch(url, { headers: { Authorization: 'Bearer ' + _tk() } });
+const fmtCur = v => (parseFloat(v) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const fmtPct = v => (parseFloat(v) || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 }) + '%';
+const fmtData = s => { const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}/${m[1]}` : '—'; };
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+let _rows = [];
+let _tab = 'fabricas';
+
+function _isoLocal(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function _filtrados() {
+  const t = document.getElementById('f_busca').value.trim().toLowerCase();
+  if (!t) return _rows;
+  return _rows.filter(r => [r.cliente, r.numeronf, r.nf_fabrica, r.numpedido]
+    .some(v => String(v || '').toLowerCase().includes(t)));
+}
+
+function _destinoBadge(r) {
+  if (!(parseFloat(r.diferenca) > 0)) return '';
+  return r.destino_diferenca === 'SALDO'
+    ? `<span class="badge b-saldo" title="Diferença mantida como saldo">saldo ${fmtCur(r.diferenca)}</span>`
+    : `<span class="badge b-canc" title="Diferença cancelada">cancel. ${fmtCur(r.diferenca)}</span>`;
+}
+
+function renderKpis(rows) {
+  const s = k => rows.reduce((a, r) => a + (parseFloat(r[k]) || 0), 0);
+  const saldo = rows.filter(r => r.destino_diferenca === 'SALDO').reduce((a, r) => a + (parseFloat(r.diferenca) || 0), 0);
+  document.getElementById('kpis').innerHTML = [
+    ['Valor faturado', fmtCur(s('vlr_faturado'))],
+    ['Comissão recebida', fmtCur(s('vlr_comissao'))],
+    ['Escritório', fmtCur(s('vlr_escritorio'))],
+    ['Representantes', fmtCur(s('vlr_representante'))],
+    ['Diferenças em saldo', fmtCur(saldo)],
+  ].map(([l, v]) => `<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div></div>`).join('');
+}
+
+function _agrupar(rows, key) {
+  const map = new Map();
+  for (const r of rows) {
+    const k = r[key] || '—';
+    if (!map.has(k)) map.set(k, []);
+    map.get(k).push(r);
+  }
+  return [...map.entries()].sort((a, b) => String(a[0]).localeCompare(String(b[0]), 'pt-BR'));
+}
+
+function renderFabricas(rows) {
+  const head = `<tr><th>Fábrica</th><th>Cliente</th><th>Representante</th><th>Data fat.</th><th>NF</th><th>Pedido</th>
+    <th class="num">Valor faturado</th><th class="num">% comissão</th><th class="num">Valor comissão</th><th>Diferença</th></tr>`;
+  let body = '';
+  let tF = 0, tC = 0;
+  for (const [fab, lista] of _agrupar(rows, 'fabrica')) {
+    let sF = 0, sC = 0;
+    body += `<tr class="grp"><td colspan="10">${esc(fab)}</td></tr>`;
+    for (const r of lista) {
+      sF += parseFloat(r.vlr_faturado) || 0; sC += parseFloat(r.vlr_comissao) || 0;
+      body += `<tr>
+        <td>${esc(r.fabrica)}</td><td>${esc(r.cliente)}</td><td>${esc(r.representante)}</td>
+        <td>${fmtData(r.data_faturamento)}</td><td>${esc(r.numeronf || r.nf_fabrica || '—')}</td><td>${esc(r.numpedido)}</td>
+        <td class="num">${fmtCur(r.vlr_faturado)}</td>
+        <td class="num" title="% do pedido: ${fmtPct(r.pct_comissao_pedido)}">${fmtPct(r.pct_comissao)}</td>
+        <td class="num">${fmtCur(r.vlr_comissao)}</td><td>${_destinoBadge(r)}</td></tr>`;
+    }
+    body += `<tr class="sub"><td colspan="6">Subtotal ${esc(fab)}</td><td class="num">${fmtCur(sF)}</td><td></td><td class="num">${fmtCur(sC)}</td><td></td></tr>`;
+    tF += sF; tC += sC;
+  }
+  body += `<tr class="tot"><td colspan="6">Total geral</td><td class="num">${fmtCur(tF)}</td><td></td><td class="num">${fmtCur(tC)}</td><td></td></tr>`;
+  return `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+}
+
+function renderRepresentantes(rows) {
+  const head = `<tr><th>Representante</th><th>Fábrica</th><th>Cliente</th><th>Data fat.</th>
+    <th class="num">Valor faturado</th><th class="num">% comissão</th><th class="num">Comissão total</th>
+    <th class="num">% rep.</th><th class="num">Comissão rep.</th><th>Status</th></tr>`;
+  let body = '';
+  let tF = 0, tR = 0;
+  for (const [rep, lista] of _agrupar(rows, 'representante')) {
+    let sF = 0, sR = 0;
+    body += `<tr class="grp"><td colspan="10">${esc(rep)}</td></tr>`;
+    for (const r of lista) {
+      sF += parseFloat(r.vlr_faturado) || 0; sR += parseFloat(r.vlr_representante) || 0;
+      const stMap = { C: ['b-ok', 'conferida'], R: ['b-ok', 'paga'], I: ['b-canc', 'bloqueada'] };
+      const [stCls, stTxt] = stMap[String(r.status_comissao_rep || '').toUpperCase()]
+        || (r.status_comissao_rep ? ['b-saldo', 'a pagar'] : ['b-canc', 'sem lançamento']);
+      const st = `<span class="badge ${stCls}">${stTxt}</span>`;
+      body += `<tr>
+        <td>${esc(r.representante)}</td><td>${esc(r.fabrica)}</td><td>${esc(r.cliente)}</td>
+        <td>${fmtData(r.data_faturamento)}</td><td class="num">${fmtCur(r.vlr_faturado)}</td>
+        <td class="num">${fmtPct(r.pct_comissao)}</td><td class="num">${fmtCur(r.vlr_comissao)}</td>
+        <td class="num">${fmtPct(r.pct_representante)}</td><td class="num"><strong>${fmtCur(r.vlr_representante)}</strong></td>
+        <td>${st}</td></tr>`;
+    }
+    body += `<tr class="sub"><td colspan="4">Subtotal ${esc(rep)}</td><td class="num">${fmtCur(sF)}</td><td colspan="3"></td><td class="num">${fmtCur(sR)}</td><td></td></tr>`;
+    tF += sF; tR += sR;
+  }
+  body += `<tr class="tot"><td colspan="4">Total geral</td><td class="num">${fmtCur(tF)}</td><td colspan="3"></td><td class="num">${fmtCur(tR)}</td><td></td></tr>`;
+  return `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+}
+
+function render() {
+  const rows = _filtrados();
+  renderKpis(rows);
+  const ini = fmtData(document.getElementById('f_ini').value);
+  const fim = fmtData(document.getElementById('f_fim').value);
+  const selTxt = id => { const s = document.getElementById(id); return s.value ? s.options[s.selectedIndex].text : ''; };
+  const busca = document.getElementById('f_busca').value.trim();
+  const filtros = [
+    selTxt('f_forn') && `Fábrica: ${selTxt('f_forn')}`,
+    selTxt('f_rep') && `Representante: ${selTxt('f_rep')}`,
+    busca && `Filtro: ${busca}`,
+  ].filter(Boolean).map(esc).join(' · ');
+  document.getElementById('print_head').innerHTML =
+    `<strong>${_tab === 'fabricas' ? 'Conferência de comissões — Fábricas' : 'Comissão dos representantes'}</strong><br>
+     Faturado de ${ini} até ${fim}${filtros ? ' · ' + filtros : ''}<br>
+     <small>Emitido em ${new Date().toLocaleString('pt-BR')}</small>`;
+  const el = document.getElementById('tabela');
+  if (!rows.length) { el.innerHTML = '<div class="cf-empty">Nenhum faturamento no período.</div>'; return; }
+  el.innerHTML = _tab === 'fabricas' ? renderFabricas(rows) : renderRepresentantes(rows);
+}
+
+async function carregar() {
+  const qs = new URLSearchParams();
+  const ini = document.getElementById('f_ini').value, fim = document.getElementById('f_fim').value;
+  if (ini) qs.set('dt_ini', ini);
+  if (fim) qs.set('dt_fim', fim);
+  const forn = document.getElementById('f_forn').value, rep = document.getElementById('f_rep').value;
+  if (forn) qs.set('id_fornecedor', forn);
+  if (rep) qs.set('id_representante', rep);
+  document.getElementById('tabela').innerHTML = '<div class="cf-empty">Carregando…</div>';
+  try {
+    const r = await api('/api/comissao-faturamento/relatorio?' + qs.toString());
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Erro ao carregar');
+    _rows = d.rows || [];
+    render();
+  } catch (e) {
+    document.getElementById('tabela').innerHTML = `<div class="cf-empty">${esc(e.message)}</div>`;
+  }
+}
+
+function exportarCsv() {
+  const rows = _filtrados();
+  if (!rows.length) { window.SysRepConfirm?.avisar('Exportar CSV', 'Nada para exportar no filtro atual.'); return; }
+  const n = v => (parseFloat(v) || 0).toFixed(2).replace('.', ',');
+  const cols = _tab === 'fabricas'
+    ? [['Fábrica', r => r.fabrica], ['Cliente', r => r.cliente], ['Representante', r => r.representante],
+       ['Data faturamento', r => fmtData(r.data_faturamento)], ['NF', r => r.numeronf || r.nf_fabrica || ''],
+       ['Pedido', r => r.numpedido], ['Valor faturado', r => n(r.vlr_faturado)], ['% comissão', r => n(r.pct_comissao)],
+       ['Valor comissão', r => n(r.vlr_comissao)], ['Diferença', r => n(r.diferenca)], ['Destino diferença', r => r.destino_diferenca || '']]
+    : [['Representante', r => r.representante], ['Fábrica', r => r.fabrica], ['Cliente', r => r.cliente],
+       ['Data faturamento', r => fmtData(r.data_faturamento)], ['Valor faturado', r => n(r.vlr_faturado)],
+       ['% comissão', r => n(r.pct_comissao)], ['Comissão total', r => n(r.vlr_comissao)],
+       ['% representante', r => n(r.pct_representante)], ['Comissão representante', r => n(r.vlr_representante)]];
+  const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const csv = [cols.map(c => q(c[0])).join(';'), ...rows.map(r => cols.map(c => q(c[1](r))).join(';'))].join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = `comissao-faturamento-${_tab}.csv`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+let _rodandoAcao = false;
+
+function mostrarFaixa(titulo, texto, pct) {
+  const el = document.getElementById('faixaAcao');
+  if (!el) return;
+  const barra = pct == null ? '' : `<div class="bar"><span style="width:${Math.max(0, Math.min(100, pct))}%"></span></div>`;
+  el.hidden = false;
+  el.innerHTML = `<strong>${esc(titulo)}</strong><div>${esc(texto)}</div>${barra}`;
+  el.scrollIntoView({ block: 'nearest' });
+}
+
+function mostrarConvertidos() {
+  const ini = document.getElementById('f_ini');
+  const fim = document.getElementById('f_fim');
+  if (ini) ini.value = '';
+  if (fim) fim.value = '';
+  carregar();
+}
+
+async function aplicarJaFaturados() {
+  if (_rodandoAcao) {
+    mostrarFaixa('Aguarde', 'A aplicação ainda está em andamento. O contador acima mostra até onde chegou.', null);
+    return;
+  }
+  _rodandoAcao = true;
+  const btn = document.getElementById('btnAplicarFaturados');
+  const rev = document.getElementById('btnReverterFaturados');
+  if (btn) btn.disabled = true;
+  if (rev) rev.disabled = true;
+  mostrarFaixa('Consultando', 'Procurando os pedidos já faturados que ainda estão no modelo antigo…', null);
+  let resumo;
+  try {
+    const r = await api('/api/comissao-faturamento/aplicar-faturados/resumo');
+    resumo = await r.json();
+    if (!r.ok) throw new Error(resumo.error || 'Não foi possível consultar os pedidos.');
+  } catch (e) {
+    mostrarFaixa('Não foi possível consultar', e.message || 'Erro ao procurar os pedidos.', null);
+    _rodandoAcao = false;
+    if (btn) btn.disabled = false;
+    if (rev) rev.disabled = false;
+    return;
+  }
+  if (!resumo.qtd) {
+    const ja = parseInt(resumo.ja_convertidos, 10) || 0;
+    const extra = resumo.ignorados_baixados
+      ? ` ${resumo.ignorados_baixados} ficaram de fora porque a comissão já foi baixada.`
+      : '';
+    mostrarFaixa(
+      ja ? 'Já aplicado' : 'Nada para aplicar',
+      ja
+        ? `${ja} pedido(s) já estão neste modelo.${extra} A lista estava filtrada neste mês, por isso eles não apareciam. Mostrando todos.`
+        : 'Não há pedido já faturado fora deste modelo.' + extra,
+      100
+    );
+    if (ja) mostrarConvertidos();
+    _rodandoAcao = false;
+    if (btn) btn.disabled = false;
+    if (rev) rev.disabled = false;
+    return;
+  }
+  const fora = resumo.ignorados_baixados
+    ? ` ${resumo.ignorados_baixados} pedido(s) com comissão já baixada ficam como estão.`
+    : '';
+  mostrarFaixa('Confirme para começar', `${resumo.qtd} pedido(s) podem entrar neste modelo.${fora}`, 0);
+  const ok = await SysRepConfirm.ask({
+    titulo: 'Aplicar nos pedidos já faturados?',
+    mensagem:
+      `Isso converte ${resumo.qtd} pedido(s) que já foram faturados no modelo antigo. ` +
+      'A faixa nesta tela mostra o andamento. A comissão em aberto de cada um vira uma linha só, na data do faturamento já gravada. ' +
+      'O estoque não é movimentado de novo.' + fora,
+    okTexto: 'Aplicar',
+    cancelTexto: 'Cancelar',
+    perigo: true,
+  });
+  if (!ok) {
+    mostrarFaixa('Cancelado', 'Nenhum pedido foi alterado.', null);
+    _rodandoAcao = false;
+    if (btn) btn.disabled = false;
+    if (rev) rev.disabled = false;
+    return;
+  }
+  let convertidos = 0;
+  let total = resumo.qtd;
+  const erros = [];
+  try {
+    while (true) {
+      mostrarFaixa('Aplicando', `Convertendo ${convertidos} de ${total}. Não feche esta tela.`, total ? (convertidos / total) * 100 : 0);
+      const r = await fetch('/api/comissao-faturamento/aplicar-faturados', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + _tk(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ limite: 40 }),
+      });
+      const out = await r.json();
+      if (!r.ok) throw new Error(out.error || 'Não foi possível aplicar.');
+      if (out.ocupado) {
+        mostrarFaixa('Aguarde', 'Outra aplicação ainda está gravando. Tentando de novo…', null);
+        await new Promise(res => setTimeout(res, 800));
+        continue;
+      }
+      convertidos = out.convertidos || convertidos;
+      total = out.total || total;
+      if (out.ultimo) {
+        mostrarFaixa('Aplicando', `Pedido ${out.ultimo} · ${out.feitos || convertidos} de ${total}.`, total ? ((out.feitos || convertidos) / total) * 100 : 0);
+      }
+      if (Array.isArray(out.erros)) erros.splice(0, erros.length, ...out.erros);
+      if (!out.restantes || !(out.aplicados_lote > 0) && !out.erros?.length && out.feitos >= total) break;
+      if (!out.restantes) break;
+    }
+    const falhas = erros.length ? ` ${erros.length} pedido(s) não converteram.` : '';
+    mostrarFaixa('Concluído', `${convertidos} pedido(s) passaram para a comissão por nota.${falhas} A lista abaixo mostra todos, sem o filtro deste mês.`, 100);
+    mostrarConvertidos();
+  } catch (e) {
+    mostrarFaixa('Parou', e.message || 'Não foi possível aplicar. O que já foi gravado permanece.', null);
+  } finally {
+    _rodandoAcao = false;
+    if (btn) btn.disabled = false;
+    if (rev) rev.disabled = false;
+  }
+}
+
+async function reverterJaFaturados() {
+  if (_rodandoAcao) {
+    mostrarFaixa('Aguarde', 'Ainda há uma ação em andamento. O contador acima mostra até onde chegou.', null);
+    return;
+  }
+  _rodandoAcao = true;
+  const btn = document.getElementById('btnAplicarFaturados');
+  const rev = document.getElementById('btnReverterFaturados');
+  if (btn) btn.disabled = true;
+  if (rev) rev.disabled = true;
+  mostrarFaixa('Consultando', 'Procurando os pedidos desta aplicação que ainda podem voltar…', null);
+  let resumo;
+  try {
+    const r = await api('/api/comissao-faturamento/reverter-faturados/resumo');
+    resumo = await r.json();
+    if (!r.ok) throw new Error(resumo.error || 'Não foi possível consultar a aplicação.');
+  } catch (e) {
+    mostrarFaixa('Não foi possível consultar', e.message || 'Erro ao procurar a aplicação.', null);
+    _rodandoAcao = false;
+    if (btn) btn.disabled = false;
+    if (rev) rev.disabled = false;
+    return;
+  }
+  if (!resumo.qtd) {
+    const fora = [];
+    if (resumo.bloqueados_baixados) fora.push(`${resumo.bloqueados_baixados} com comissão já baixada`);
+    if (resumo.bloqueados_posteriores) fora.push(`${resumo.bloqueados_posteriores} com outra nota lançada depois`);
+    mostrarFaixa(
+      'Nada para reverter',
+      fora.length ? 'Nenhum pedido pode voltar agora. Fora: ' + fora.join('; ') + '.' : 'Não há pedido convertido por este botão para desfazer.',
+      100
+    );
+    _rodandoAcao = false;
+    if (btn) btn.disabled = false;
+    if (rev) rev.disabled = false;
+    return;
+  }
+  mostrarFaixa('Confirme para reverter', `${resumo.qtd} pedido(s) podem voltar ao modelo anterior.`, 0);
+  const ok = await SysRepConfirm.ask({
+    titulo: 'Reverter a aplicação?',
+    mensagem:
+      `Isso devolve ${resumo.qtd} pedido(s) ao modelo de comissão por parcela. ` +
+      'A faixa nesta tela mostra o andamento. A comissão da nota é retirada, desde que ainda não tenha sido baixada.',
+    okTexto: 'Reverter',
+    cancelTexto: 'Cancelar',
+    perigo: true,
+  });
+  if (!ok) {
+    mostrarFaixa('Cancelado', 'Nenhum pedido foi alterado.', null);
+    _rodandoAcao = false;
+    if (btn) btn.disabled = false;
+    if (rev) rev.disabled = false;
+    return;
+  }
+  let revertidos = 0;
+  let total = resumo.qtd;
+  try {
+    while (true) {
+      mostrarFaixa('Revertendo', `Devolvendo ${revertidos} de ${total}. Não feche esta tela.`, total ? (revertidos / total) * 100 : 0);
+      const r = await fetch('/api/comissao-faturamento/reverter-faturados', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + _tk(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ limite: 40 }),
+      });
+      const out = await r.json();
+      if (!r.ok) throw new Error(out.error || 'Não foi possível reverter.');
+      if (out.ocupado) {
+        await new Promise(res => setTimeout(res, 800));
+        continue;
+      }
+      revertidos = out.revertidos || revertidos;
+      total = out.total || total;
+      if (out.ultimo) {
+        mostrarFaixa('Revertendo', `Pedido ${out.ultimo} · ${out.feitos || revertidos} de ${total}.`, total ? ((out.feitos || revertidos) / total) * 100 : 0);
+      }
+      if (!out.restantes) break;
+    }
+    mostrarFaixa('Concluído', `${revertidos} pedido(s) voltaram ao modelo anterior. A lista abaixo foi atualizada.`, 100);
+    carregar();
+  } catch (e) {
+    mostrarFaixa('Parou', e.message || 'Não foi possível reverter. O que já voltou permanece.', null);
+  } finally {
+    _rodandoAcao = false;
+    if (btn) btn.disabled = false;
+    if (rev) rev.disabled = false;
+  }
+}
+
+async function init() {
+  const hoje = new Date();
+  document.getElementById('f_ini').value = _isoLocal(new Date(hoje.getFullYear(), hoje.getMonth(), 1));
+  document.getElementById('f_fim').value = _isoLocal(hoje);
+
+  document.querySelectorAll('.cf-tab').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('.cf-tab').forEach(x => x.classList.toggle('active', x === b));
+    _tab = b.dataset.tab;
+    render();
+  }));
+  document.getElementById('f_busca').addEventListener('input', render);
+
+  try {
+    const r = await api('/api/comissao-faturamento/config');
+    const cfg = await r.json();
+    if (!cfg.ativo) {
+      document.getElementById('aviso').innerHTML = `<div class="cf-aviso"><strong>Modo não habilitado para esta empresa.</strong><br>
+        Para usar a comissão por faturamento, informe o CNPJ da empresa em <em>Sistema → Configuração do Sistema → Comissão por Faturamento</em>.
+        Os faturamentos já registrados continuam aparecendo abaixo.</div>`;
+    } else if (cfg.pode_aplicar) {
+      const btn = document.getElementById('btnAplicarFaturados');
+      const rev = document.getElementById('btnReverterFaturados');
+      if (btn) btn.style.display = '';
+      if (rev) rev.style.display = '';
+    }
+  } catch (_) {}
+
+  try {
+    const r = await api('/api/pedidos/lookups');
+    const d = await r.json();
+    const fill = (id, lista) => {
+      const sel = document.getElementById(id);
+      sel.insertAdjacentHTML('beforeend', (lista || []).map(o => `<option value="${o.id}">${esc(o.nome)}</option>`).join(''));
+    };
+    fill('f_forn', d.fornecedores);
+    fill('f_rep', d.vendedores);
+  } catch (_) {}
+
+  carregar();
+}
+init();
+</script>
+</body>
+</html>

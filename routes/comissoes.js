@@ -167,12 +167,31 @@ router.get('/admin/vendedores', async (req, res) => {
   }
 });
 
+/** Cache por base: existem pedido_faturamentos + pagtocomissao.id_faturamento? (criados sob demanda) */
+const _fatSchemaCache = new Map();
+async function temSchemaFaturamento(pool) {
+  try {
+    const [[db]] = await pool.query('SELECT DATABASE() AS d');
+    const key = db && db.d;
+    if (_fatSchemaCache.get(key) === true) return true;
+    const [t] = await pool.query(`SHOW TABLES LIKE 'pedido_faturamentos'`);
+    const [c] = await pool.query(`SHOW COLUMNS FROM pagtocomissao LIKE 'id_faturamento'`);
+    const ok = t.length > 0 && c.length > 0;
+    if (ok) _fatSchemaCache.set(key, true); // só cacheia positivo: a tabela pode ser criada depois
+    return ok;
+  } catch (_) {
+    return false;
+  }
+}
+
 // ─── Rota /admin/extrato — visão do gestor, filtrável por vendedor ────────────
 router.get('/admin/extrato', async (req, res) => {
   const pool = getPool();
   const { status, dt_ini, dt_fim, id_fornecedor, q_cliente, id_pedido, limit } = req.query;
   const dtIni = dt_ini || '2000-01-01';
   const dtFim = dt_fim || '2100-01-01';
+  // campo_data=pagamento → período pela data do pagamento (relatório de pagas); padrão = lançamento
+  const dtCol = req.query.campo_data === 'pagamento' ? 'DATE(pc.data_pagamento)' : 'pc.data_lancamento';
 
   // Filtro por vendedor conforme permissão (preposto → id_preposto via buildPagtoComissaoFilter)
   let userFilter = { clause: '', params: [], isPrep: false };
@@ -185,7 +204,7 @@ router.get('/admin/extrato', async (req, res) => {
   const isPrep = userFilter.isPrep;
 
   const params = [dtIni, dtFim];
-  let where = `pc.excluido = 'N' AND pc.data_lancamento BETWEEN ? AND ?${userFilter.clause}`;
+  let where = `pc.excluido = 'N' AND ${dtCol} BETWEEN ? AND ?${userFilter.clause}`;
   params.push(...userFilter.params);
   if (id_fornecedor) { where += ' AND ped.cod_fornecedor = ?'; params.push(id_fornecedor); }
   if (q_cliente) { where += ' AND ped.nome_cliente LIKE ?'; params.push('%' + q_cliente + '%'); }
@@ -220,9 +239,12 @@ router.get('/admin/extrato', async (req, res) => {
   ` : '';
 
   try {
+    const comFat = await temSchemaFaturamento(pool);
     const [rows] = await pool.query(`
       SELECT
         pc.id,
+        ${comFat ? 'pf.data_faturamento' : 'NULL'}                    AS data_fatura,
+        ${comFat ? 'pf.vlr_faturado' : 'NULL'}                        AS vlr_fatura,
         ${nomeVendSel},
         ped.nome_cliente,
         ped.nome_fornecedor,
@@ -240,6 +262,7 @@ router.get('/admin/extrato', async (req, res) => {
         COALESCE(rec.valor, pc.vlr_pago, 0)                AS valor_parcela,
         pc.vlr_pago                                        AS vlr_comissao,
         pc.status                                          AS status_comissao,
+        pc.data_pagamento                                  AS data_pagamento,
         ped.data_abertura                                  AS data_pedido,
         ${origemSel},
         COALESCE(forn.com_tipo, 'PARCELADA')   AS com_tipo,
@@ -249,6 +272,7 @@ router.get('/admin/extrato', async (req, res) => {
       JOIN pedidos ped ON pc.pedido = ped.numero
       JOIN usuarios u ON pc.cod_user = u.idusuario
       LEFT JOIN receber rec ON pc.id_parcela = rec.id
+      ${comFat ? 'LEFT JOIN pedido_faturamentos pf ON pf.id = pc.id_faturamento' : ''}
       LEFT JOIN fornecedores forn ON forn.id = ped.cod_fornecedor
       LEFT JOIN empresa emp ON emp.id_empresa = COALESCE(ped.id_empresa, ped.id_filial)
         AND COALESCE(emp.excluido, 'N') = 'N'
@@ -259,7 +283,14 @@ router.get('/admin/extrato', async (req, res) => {
     `, params);
 
     const statsParams = [dtIni, dtFim, ...userFilter.params];
-    const statsWhere = `pc.excluido = 'N' AND pc.data_lancamento BETWEEN ? AND ?${userFilter.clause}`;
+    let statsWhere = `pc.excluido = 'N' AND ${dtCol} BETWEEN ? AND ?${userFilter.clause}`;
+    // cards de totais acompanham os filtros de fábrica e cliente da listagem
+    if (id_fornecedor || q_cliente) {
+      let sub = 'ped2.numero = pc.pedido';
+      if (id_fornecedor) { sub += ' AND ped2.cod_fornecedor = ?'; statsParams.push(id_fornecedor); }
+      if (q_cliente) { sub += ' AND ped2.nome_cliente LIKE ?'; statsParams.push('%' + q_cliente + '%'); }
+      statsWhere += ` AND EXISTS (SELECT 1 FROM pedidos ped2 WHERE ${sub})`;
+    }
 
     const [[stats]] = await pool.query(`
       SELECT
@@ -725,6 +756,21 @@ router.post('/admin/recalcular/:id', async (req, res) => {
       WHERE pc.id = ? LIMIT 1
     `, [req.params.id]);
     if (!pc) return res.status(404).json({ ok: false, error: 'Comissão não encontrada' });
+
+    // Comissão por faturamento: valor = parte do representante gravada no faturamento
+    // (a fórmula por parcela abaixo recalcularia sobre o pedido inteiro, errado).
+    const [[fatLinha]] = await pool.query(
+      `SELECT pf.vlr_representante, pf.pct_comissao, pf.vlr_faturado
+         FROM pagtocomissao pc JOIN pedido_faturamentos pf ON pf.id = pc.id_faturamento
+        WHERE pc.id = ? LIMIT 1`,
+      [req.params.id]
+    ).catch(() => [[null]]);
+    if (fatLinha) {
+      const vlr = Math.round((parseFloat(fatLinha.vlr_representante) || 0) * 100) / 100;
+      await pool.query(`UPDATE pagtocomissao SET vlr_pago = ? WHERE id = ?`, [vlr, pc.id]);
+      return res.json({ ok: true, vlr_pago: vlr, base_calculada: parseFloat(fatLinha.vlr_faturado) || 0,
+        perc: parseFloat(fatLinha.pct_comissao) || 0, tipo: 'FATURAMENTO' });
+    }
 
     let fornConfig = { com_sobre_ipi: 'S', com_sobre_st: 'S', com_tipo: 'PARCELADA' };
     if (pc.cod_fornecedor) {

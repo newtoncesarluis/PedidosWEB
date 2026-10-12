@@ -21,6 +21,8 @@ const {
 } = require('../config/natureza-label');
 const {
   resolveDespesasLabelColumn,
+  despesasWriteColumns,
+  resetDespesasLabelCache,
   despesasLabelExpr,
   despesasOrderExpr,
 } = require('../config/despesas-label');
@@ -344,6 +346,7 @@ async function ensureUsuarioColumns(pool) {
     ['data_conexao', 'DATETIME NULL DEFAULT NULL'],
     ['tipo_usuario', "VARCHAR(20) NOT NULL DEFAULT 'REPRESENTANTE'"],
     ['comissao_preposto_pct', 'DECIMAL(5,2) NOT NULL DEFAULT 6.00'],
+    ['comissao_fat_pct_rep', 'DECIMAL(5,2) NULL DEFAULT NULL'],
     ['id_gerente', 'INT DEFAULT NULL'],
     ['excluido', "VARCHAR(1) DEFAULT 'N'"],
     ['SITUACAO', "VARCHAR(20) DEFAULT 'ATIVO'"],
@@ -697,6 +700,10 @@ async function _updateUsuarioOpcional(pool, id, body) {
     vlr_meta: body.vlr_meta||0,
     tipo_usuario: body.tipo_usuario||'REPRESENTANTE',
     comissao_preposto_pct: parseFloat(body.comissao_preposto_pct)||6,
+    ...(body.comissao_fat_pct_rep !== undefined ? {
+      comissao_fat_pct_rep: body.comissao_fat_pct_rep === '' || body.comissao_fat_pct_rep == null
+        ? null : Math.min(100, Math.max(0, parseFloat(body.comissao_fat_pct_rep) || 0)),
+    } : {}),
     emailpedsmtp: body.emailpedsmtp||null,
     emailpedporta: body.emailpedporta||null,
     emailpedemail: body.emailpedemail||null,
@@ -1298,6 +1305,98 @@ router.delete('/formas-pagamento/:id', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// TIPO DE PAGAMENTO — tabela: tipo_pagamento (Boleto, PIX, Cartão, Cheque…)
+// Alimenta o combo do cadastro de Formas de Pagamento e a «Forma Pagto Padrão» do pedido.
+// O que é gravado nos registros é o **codigo** (ex.: BOLETO) — por isso o código não muda após criado.
+// ─────────────────────────────────────────────────────────────────────────────
+const {
+  ensureTipoPagamentoReady,
+  codigoFromDescricao: codigoTipoPagto,
+  DEFAULTS: TIPO_PAGTO_DEFAULTS,
+} = require('../config/tipo-pagamento-migrate');
+const _permTipoPagto = (req) => permCrud(req, { incluir: 'incluir_formas_pagamento', alterar: 'alterar_formas_pagamento', excluir: 'excluir_formas_pagamento' });
+
+router.get('/tipo-pagamento', async (req, res) => {
+  try {
+    const pool = getPool();
+    await ensureTipoPagamentoReady(pool);
+    const soAtivos = String(req.query.ativos || '') === '1';
+    const [rows] = await pool.query(
+      `SELECT id, codigo, descricao, ordem, status
+       FROM tipo_pagamento
+       WHERE COALESCE(excluido,'N')='N' ${soAtivos ? "AND COALESCE(status,'A')='A'" : ''}
+       ORDER BY ordem, descricao`
+    );
+    res.json({ tipos: rows });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/tipo-pagamento', async (req, res) => {
+  try {
+    if (_permTipoPagto(req).incluir !== 'S') return negarCad(res, 'Sem permissão para incluir tipos de pagamento');
+    const pool = getPool();
+    await ensureTipoPagamentoReady(pool);
+    const descricao = String(req.body.descricao || '').trim();
+    if (!descricao) return res.status(400).json({ error: 'Descrição é obrigatória' });
+    const codigo = codigoTipoPagto(req.body.codigo || descricao);
+    if (!codigo) return res.status(400).json({ error: 'Código inválido' });
+    const ordem = Number(req.body.ordem) || 0;
+    const status = _normStatusSegmento(req.body.status);
+    const [dup] = await pool.query(
+      `SELECT id, excluido FROM tipo_pagamento WHERE UPPER(TRIM(codigo))=? LIMIT 1`, [codigo]
+    );
+    if (dup.length) {
+      if (String(dup[0].excluido || 'N') !== 'S') return res.status(400).json({ error: 'Já existe um tipo com este nome/código' });
+      // reativa o excluído com o mesmo código
+      await pool.query(`UPDATE tipo_pagamento SET descricao=?, ordem=?, status=?, excluido='N' WHERE id=?`, [descricao, ordem, status, dup[0].id]);
+      return res.status(201).json({ ok: true, id: dup[0].id, codigo });
+    }
+    const [r] = await pool.query(
+      `INSERT INTO tipo_pagamento (codigo, descricao, ordem, status, excluido) VALUES (?,?,?,?,'N')`,
+      [codigo, descricao, ordem, status]
+    );
+    res.status(201).json({ ok: true, id: r.insertId, codigo });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.put('/tipo-pagamento/:id', async (req, res) => {
+  try {
+    if (_permTipoPagto(req).alterar !== 'S') return negarCad(res, 'Sem permissão para alterar tipos de pagamento');
+    const pool = getPool();
+    await ensureTipoPagamentoReady(pool);
+    const descricao = String(req.body.descricao || '').trim();
+    if (!descricao) return res.status(400).json({ error: 'Descrição é obrigatória' });
+    const [r] = await pool.query(
+      `UPDATE tipo_pagamento SET descricao=?, ordem=?, status=? WHERE id=? AND COALESCE(excluido,'N')='N'`,
+      [descricao, Number(req.body.ordem) || 0, _normStatusSegmento(req.body.status), req.params.id]
+    );
+    if (!r.affectedRows) return res.status(404).json({ error: 'Tipo não encontrado' });
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.delete('/tipo-pagamento/:id', async (req, res) => {
+  try {
+    if (_permTipoPagto(req).excluir !== 'S') return negarCad(res, 'Sem permissão para excluir tipos de pagamento');
+    const pool = getPool();
+    await ensureTipoPagamentoReady(pool);
+    const [[t]] = await pool.query(`SELECT codigo FROM tipo_pagamento WHERE id=? AND COALESCE(excluido,'N')='N'`, [req.params.id]);
+    if (!t) return res.status(404).json({ error: 'Tipo não encontrado' });
+    if (TIPO_PAGTO_DEFAULTS.some((d) => d.codigo === String(t.codigo).toUpperCase())) {
+      return res.status(400).json({ error: 'Tipo padrão do sistema não pode ser excluído — inative-o se não quiser usar.' });
+    }
+    try {
+      const [[u]] = await pool.query(
+        `SELECT COUNT(*) AS n FROM forma_pagto WHERE UPPER(TRIM(tipo_pagto))=? AND (excluido='N' OR excluido IS NULL)`, [String(t.codigo).toUpperCase()]
+      );
+      if (u && u.n > 0) return res.status(400).json({ error: `Em uso por ${u.n} forma(s) de pagamento — inative em vez de excluir.` });
+    } catch { /* ok */ }
+    await pool.query(`UPDATE tipo_pagamento SET excluido='S' WHERE id=?`, [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // BANCOS
 // Legado Delphi: numero_banco / obs (não num_banco / observacao).
 // Sem isso o INSERT quebra com "Unknown column 'num_banco'".
@@ -1523,14 +1622,23 @@ router.post('/despesas', async (req, res) => {
     if (pc.incluir !== 'S') return negarCad(res, 'Sem permissão para incluir despesas');
     const pool = getPool();
     await ensureDespesasTable(pool);
-    const col = await resolveDespesasLabelColumn(pool);
     const { descricao, tipo, id_planoconta, status } = req.body;
     if (!descricao) return res.status(400).json({ error: 'Descrição é obrigatória' });
     const idPc = parseInt(id_planoconta, 10) || null;
-    const [r] = await pool.query(
-      `INSERT INTO despesas (\`${col}\`, tipo, id_planoconta, status, excluido) VALUES (?,?,?,?,'N')`,
-      [descricao, tipo || 'FIXA', idPc, status || 'A']
-    );
+    const gravar = async () => {
+      const cols = await despesasWriteColumns(pool);
+      return pool.query(
+        `INSERT INTO despesas (${cols.map((c) => `\`${c}\``).join(', ')}, tipo, id_planoconta, status, excluido) VALUES (${cols.map(() => '?').join(',')},?,?,?,'N')`,
+        [...cols.map(() => descricao), tipo || 'FIXA', idPc, status || 'A']
+      );
+    };
+    let r;
+    try { [r] = await gravar(); } catch (e) {
+      // Coluna criada depois do cache de colunas (ex.: validação de estrutura): relê e tenta de novo.
+      if (e.code !== 'ER_NO_DEFAULT_FOR_FIELD') throw e;
+      resetDespesasLabelCache();
+      [r] = await gravar();
+    }
     res.status(201).json({ ok: true, id: r.insertId });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -1540,12 +1648,12 @@ router.put('/despesas/:id', async (req, res) => {
     const pc = permCrud(req, { incluir: 'incluir_despesas', alterar: 'alterar_despesas', excluir: 'excluir_despesas' });
     if (pc.alterar !== 'S') return negarCad(res, 'Sem permissão para alterar despesas');
     const pool = getPool();
-    const col = await resolveDespesasLabelColumn(pool);
+    const cols = await despesasWriteColumns(pool);
     const { descricao, tipo, id_planoconta, status } = req.body;
     const idPc = parseInt(id_planoconta, 10) || null;
     await pool.query(
-      `UPDATE despesas SET \`${col}\`=?, tipo=?, id_planoconta=?, status=? WHERE id=?`,
-      [descricao, tipo || 'FIXA', idPc, status || 'A', req.params.id]
+      `UPDATE despesas SET ${cols.map((c) => `\`${c}\`=?`).join(', ')}, tipo=?, id_planoconta=?, status=? WHERE id=?`,
+      [...cols.map(() => descricao), tipo || 'FIXA', idPc, status || 'A', req.params.id]
     );
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }

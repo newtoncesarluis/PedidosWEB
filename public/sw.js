@@ -32,6 +32,7 @@ const STATIC = [
   '/assets/offline-login.js',
   '/assets/pedido-rascunho.js',
   '/assets/pedido-item-regras.js',
+  '/assets/obs-pedido-editor.js',
   '/assets/fornecedor-kit-pedido.js',
   '/assets/vendas-duplicar-item.js',
   '/assets/pwa-install.js',

@@ -1219,7 +1219,7 @@
   let verificado   = false;
 
   const CURRENCIES   = [{code:'BRL',locale:'pt-BR',label:'R$ BRL'},{code:'USD',locale:'en-US',label:'$ USD'},{code:'EUR',locale:'de-DE',label:'€ EUR'}];
-  const MONEY_KEYWORDS = ['valor','value','price','preco','preço','custo','cost','total','subtotal','receita','revenue','despesa','expense','salario','salary','wage','pagamento','payment','fee','taxa','tarifa','lucro','profit','discount','desconto','amount','montante','saldo','balance','venda','sale','compra','purchase','comissao','commission','tab','tabela','vlr','pvp','pvl'];
+  const MONEY_KEYWORDS = ['valor','value','price','preco','preço','custo','cost','total','subtotal','receita','revenue','despesa','expense','salario','salary','wage','pagamento','payment','fee','taxa','tarifa','lucro','profit','discount','desconto','amount','montante','saldo','balance','venda','sale','compra','purchase','tab','tabela','vlr','pvp','pvl'];
 
   let fornecedorSelecionado = { id: null, nome: null, descontos: null, precoprincipal: '' };
   let importPrecoCtx = null;
@@ -2547,7 +2547,7 @@
 
   // ── Valores monetários (leitura + exibição) ────────────────────────────────
   /** Valor numérico real da célula — evita perder centavos quando o Excel formata com 1 decimal. */
-  function parseNumeroMoeda(val) {
+  function parseNumeroMoeda(val, aplicarDivisor = true) {
     if (val == null || val === '') return NaN;
     if (typeof val === 'number') return isFinite(val) ? val : NaN;
     let s = String(val).trim().replace(/\s/g, '');
@@ -2565,18 +2565,46 @@
     }
     const n = parseFloat(s);
     if (!isFinite(n)) return NaN;
-    return currentDivisor > 1 ? n / currentDivisor : n;
+    return aplicarDivisor && currentDivisor > 1 ? n / currentDivisor : n;
   }
 
   const COD_KEYWORDS = ['cod','codigo','código','ref','referencia','referência','codfab','codigofab','codprod','idprod','idproduto','ean','barras','codb','numitem','item','seq','sequencia','sequência'];
   // Colunas de quantidade/estoque/inteiros nunca são monetárias mesmo que o Excel formate como moeda
   const QTD_KEYWORDS = ['estoque','stock','qty','qtd','quantidade','multiplo','múltiplo','multiple','embalagem','embmaster','unidade','unid','peso','weight','kilo','kg','gramas'];
 
+  function normHeader(header) {
+    return String(header || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[_\-\s\.%]/g, '');
+  }
+
+  /** Comissão do produto é percentual — não entra na formatação R$. */
+  function isColunaComissao(header, ci) {
+    const h = normHeader(header);
+    if (h.includes('comissao') || h.includes('commission')) return true;
+    const map = colMapping[ci];
+    return !!(map && map.nome_campo === 'comissao');
+  }
+
+  function formatComissaoCelula(raw) {
+    if (raw == null || String(raw).trim() === '') return '';
+    const n = parseNumeroMoeda(raw, false);
+    if (!isFinite(n) || n === 0) return '';
+    const num = new Intl.NumberFormat('pt-BR', {
+      minimumFractionDigits: currentDecimals,
+      maximumFractionDigits: currentDecimals
+    }).format(n);
+    return num + '%';
+  }
+
   function detectCurrencyCols(sheetName, headers, rows) {
     const sheet = workbook.Sheets[sheetName];
     const detected = new Set();
     headers.forEach((header, ci) => {
-      const h = String(header).toLowerCase().replace(/[_\-\s\.]/g, '');
+      const h = normHeader(header);
+      if (isColunaComissao(header, ci)) return;
       // Colunas de código/referência nunca são monetárias
       if (COD_KEYWORDS.some((kw) => h === kw || h.startsWith(kw))) return;
       // Colunas de quantidade/estoque/inteiros nunca são monetárias
@@ -2984,8 +3012,12 @@
         const auxStatus = (isAuxCol && st.auxiliares)
           ? (st.auxiliares[auxKey] || st.auxiliares[mapCampo] || '')
           : '';
-        const isMoney=currencyCols.has(ci); const n=parseNumeroMoeda(raw);
-        if(isMoney&&!isNaN(n)&&raw!==''){
+        const isMoney=currencyCols.has(ci) && !isColunaComissao(headers[ci], ci); const n=parseNumeroMoeda(raw);
+        if (isColunaComissao(headers[ci], ci)) {
+          const fmt = formatComissaoCelula(raw);
+          td.title = fmt;
+          td.innerHTML = (q && fmt.toLowerCase().includes(q)) ? highlight(fmt, q) : escHtml(fmt);
+        } else if(isMoney&&!isNaN(n)&&raw!==''){
           const fmt=formatCurrency(n);
           td.classList.add(n<0?'currency-neg':'currency'); td.title=String(n);
           td.innerHTML=(q&&fmt.toLowerCase().includes(q))?highlight(fmt,q):fmt;

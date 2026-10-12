@@ -10,6 +10,487 @@
  */
 module.exports = [
   {
+    versao: '1.1.5.0',
+    tipo: 'NOVO',
+    titulo: 'Showroom: múltiplos de grade, novo carrinho e busca estilo Google',
+    descricao:
+      'Na quantidade, digite a grade uma vez, informe as caixas e toque em Gerar múltiplos (usa a embalagem do cadastro); os tamanhos podem ser digitados. ' +
+      'Nova tela inicial «Novo carrinho» (cliente, tabela, condição e tipo), volta ao detalhe da referência após adicionar (para escolher outra cor) ' +
+      'e fechamento em abas Itens / Dados do pedido. A busca aceita várias palavras em qualquer ordem, sem acento.',
+    data_lancamento: '2026-10-12',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'BUG',
+    titulo: 'Importação de preços: comissão em percentual',
+    descricao:
+      'Na pré-visualização da planilha, a coluna Comissão deixou de aparecer como R$. ' +
+      'O valor é mostrado em percentual e fica em branco quando a célula está vazia ou zerada.',
+    data_lancamento: '2026-10-12',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'NOVO',
+    titulo: 'Tipos de Pagamento cadastráveis + atalhos no pedido',
+    descricao:
+      'Nova tela Financeiro › Cadastros Financeiros › Tipos de Pagamento (Boleto, PIX, Cartão, Cheque…). ' +
+      'O combo da Forma de Pagamento e o da Forma Pagto Padrão do pedido passam a usar esse cadastro. ' +
+      'No pedido, o botão + ao lado de Forma Pagto Padrão e de Condição Pagto cria um novo na hora, sem sair da tela.',
+    data_lancamento: '2026-10-08',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'NOVO',
+    titulo: 'Pedidos: visualizar impresso, nome do PDF automático e observações em maiúsculas',
+    descricao:
+      'Botão Visualizar no topo do pedido abre a impressão sem salvar. A Descrição do PDF vira o nome do produto (1 item) ou «carga mista» (2+). ' +
+      'Observações podem sair em MAIÚSCULAS e o nome da empresa no relatório aceita quebra de linha e alinhamento (Configuração do Sistema). ' +
+      'O título «Observação» não aparece mais duas vezes. Na home, ⚙ Personalizar escolhe o que exibir e liga a lista de últimos pedidos.',
+    data_lancamento: '2026-10-08',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'MELHORIA',
+    titulo: 'Ajuda: senha de app do Gmail e erros de envio de e-mail',
+    descricao:
+      'Na Ajuda de Usuários (E-mail SMTP) há o passo a passo para gerar a senha de app do Gmail, ' +
+      'o que fazer quando o Google diz que a configuração não está disponível e a explicação dos erros mais comuns de envio.',
+    data_lancamento: '2026-10-08',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'MELHORIA',
+    titulo: 'Peso total e quantidade ao editar item',
+    descricao:
+      'Na janela do item do pedido, o rodapé mostra a quantidade (sacas) e o peso total em kg, ' +
+      'atualizando enquanto você digita.',
+    data_lancamento: '2026-10-08',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'MELHORIA',
+    titulo: 'Logo do pedido no tamanho do cadastro',
+    descricao:
+      'Com a logo antes do nome, a imagem da empresa usa o tamanho P, M ou G do cadastro, e não sai pequena. ' +
+      'No modelo de impressão, aba Cabeçalho, dá para colocar o nome no meio da logo, em cima ou embaixo.',
+    data_lancamento: '2026-10-08',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'BUG',
+    titulo: 'Relatório usa a logo da tela inicial',
+    descricao:
+      'Se a empresa não tiver logo que abra no cadastro, o relatório usa a mesma logo que aparece na tela inicial, ao lado de SysPed WEB. ' +
+      'Com «Antes do nome da empresa», ela fica à esquerda do nome.',
+    data_lancamento: '2026-10-08',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'NOVO',
+    titulo: 'Modelo de impressão em abas e título como foi escrito',
+    descricao:
+      'Configurar modelo de impressão ficou em abas: Aparência, Cabeçalho, Cliente, Itens e Blocos. ' +
+      'O título de cada bloco sai no papel do jeito que você digitou, com maiúscula e minúscula. ' +
+      'Na aba Cabeçalho dá para colocar a logo antes do nome e ajustar o tamanho do texto da faixa colorida.',
+    data_lancamento: '2026-10-08',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'NOVO',
+    titulo: 'Observação do pedido com formatação (negrito, cor…)',
+    descricao:
+      'Na aba Observações do pedido há uma barra de formatação: negrito, itálico, sublinhado e cor do texto. ' +
+      'Selecione trechos e formate direto no pedido, sem ir no cadastro do fornecedor. A formatação aparece no relatório/PDF.',
+    data_lancamento: '2026-10-07',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'MELHORIA',
+    titulo: 'Relatório do pedido: seções opcionais no modelo',
+    descricao:
+      'No modelo de impressão do pedido há a opção «Separar por seções» (desligada por padrão). ' +
+      'Quando ligada, o relatório destaca Dados do pedido, Cliente, Pagamento, Observação, Totais e Parcelas em blocos com título.',
+    data_lancamento: '2026-10-07',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'MELHORIA',
+    titulo: 'Relatório do pedido: forma de pagamento, prazo e hora',
+    descricao:
+      'No relatório/PDF do pedido o cabeçalho mostra Forma Pagto (boleto, PIX, cartão, etc.), se é À vista ou A prazo e a condição. ' +
+      'A tabela de Parcelas só aparece se estiver marcada no modelo de impressão (vale à vista e a prazo). ' +
+      'A Data de Emissão passa a incluir a hora (ex.: 07/10/2026 16:07).',
+    data_lancamento: '2026-10-07',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'MELHORIA',
+    titulo: 'Pedido: quantidade em sacas e total de KGs',
+    descricao:
+      'Na aba Itens do pedido, cada mercadoria com peso cadastrado (kg da embalagem) mostra a quantidade e, abaixo, quantos KG deu (ex.: 640 SCS → 32.000 kg). ' +
+      'No rodapé dos totais aparece também o Total de KGs do pedido, ao lado do Total de Quantidade.',
+    data_lancamento: '2026-10-07',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'NOVO',
+    titulo: 'Flex de preço: conta corrente do vendedor por fábrica',
+    descricao:
+      'Em Fornecedores → Preferências, ligue «Flex de preço». Vender acima do preço de tabela gera crédito na conta flex do vendedor; ' +
+      'vender abaixo consome o saldo. No pedido aparece o flex gerado/consumido e o saldo do vendedor. ' +
+      'Você define quando lançar (salvar, aprovar ou faturar), o que fazer com saldo insuficiente (avisar, bloquear ou permitir negativo) e a validade do saldo. ' +
+      'Cada vendedor tem o seu saldo. Veja saldos, extrato e ajustes em Financeiro → Gestão de Comissão → Conta Flex.',
+    data_lancamento: '2026-10-07',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'NOVO',
+    titulo: 'Vitrine: parâmetro pedido único ou por fábrica',
+    descricao:
+      'Em Sistema → Configuração do Sistema → Pedidos há a opção «Vitrine: pedido único». ' +
+      'Com Sim, o carrinho inteiro vira um único pedido, mesmo misturando fábricas. ' +
+      'Com Não (padrão), ao enviar nasce um pedido separado por fábrica/tabela.',
+    data_lancamento: '2026-10-07',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'BUG',
+    titulo: 'Vitrine: trocar de fábrica não remove mais o carrinho',
+    descricao:
+      'Na Vitrine Digital, ao mudar de tabela/fábrica (ex.: de ALFAPARF para AVLON) o carrinho permanece com os itens já escolhidos. ' +
+      'Você continua comprando em outras fábricas sem perder o que já estava no carrinho.',
+    data_lancamento: '2026-10-07',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'BUG',
+    titulo: 'Logo da empresa: nunca mais trocado por logo de outra empresa',
+    descricao:
+      'O sistema não procura mais outro arquivo de logo na pasta quando o logo cadastrado some: ele usa só o que está gravado no cadastro da empresa. ' +
+      'Isso evita que o logo de outra empresa apareça no login e nos relatórios.',
+    data_lancamento: '2026-10-06',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'BUG',
+    titulo: 'App mobile: menu «⋯» do cliente abre sempre no lugar certo',
+    descricao:
+      'O menu do cliente (Mapa, Vitrine Digital, Excluir) agora abre ancorado no próprio card, mesmo com a lista rolada até o fim. ' +
+      'Antes ele podia piscar e não aparecer em clientes mais abaixo na lista.',
+    data_lancamento: '2026-10-06',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'MELHORIA',
+    titulo: 'Vitrine no celular: filtros compactos e sem botão flutuante',
+    descricao:
+      'Na Vitrine Digital, a busca e os filtros (menor preço, maior preço, A→Z, itens por página e total) agora ocupam só duas linhas no celular, ' +
+      'sobrando mais espaço para os produtos. Dentro do app do vendedor, o botão flutuante «Início» deu lugar a uma seta de voltar no cabeçalho.',
+    data_lancamento: '2026-10-06',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'MELHORIA',
+    titulo: 'App mobile: Vitrine Digital completa (tabelas, aparência e QR Code)',
+    descricao:
+      'O modal da Vitrine no app agora tem o mesmo conteúdo do computador, organizado para o celular: validade do link, copiar, WhatsApp, abrir, QR Code, ' +
+      'novo link, aparência Dia/Noite e escolha das tabelas liberadas no link (lista recolhida com busca e caixas de seleção).',
+    data_lancamento: '2026-10-06',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'MELHORIA',
+    titulo: 'App mobile: novo visual da lista de clientes + botão Vitrine',
+    descricao:
+      'Os cards de clientes no app ficaram mais claros e compactos: uma única linha com «Novo pedido» e ícones de WhatsApp, Visita e Histórico. ' +
+      'No menu «⋯» do card ficam Mapa, Vitrine Digital (gerar o link do catálogo para o cliente) e Excluir.',
+    data_lancamento: '2026-10-06',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'BUG',
+    titulo: 'Vitrine: seletor de tabelas do link e busca de cliente',
+    descricao:
+      'Ao reabrir o modal de um link já gerado, o seletor agora mostra as tabelas realmente liberadas nele (antes aparecia tudo marcado). ' +
+      'Marcar todas volta a significar «sem restrição». Clientes com aspas no nome agora podem ter o link gerado normalmente.',
+    data_lancamento: '2026-10-06',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'MELHORIA',
+    titulo: 'Vitrine: trocar de tabela/fábrica mantém o carrinho',
+    descricao:
+      'Ao trocar a tabela de preços na Vitrine Digital, o carrinho não é mais zerado: os itens são mantidos e recalculados com o preço da nova tabela. ' +
+      'Só os itens que não existem na nova tabela são removidos (com aviso antes de confirmar).',
+    data_lancamento: '2026-10-06',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'MELHORIA',
+    titulo: 'Baixar PDF do pedido: escolher pasta e lembrar o último local',
+    descricao:
+      'Ao clicar em Baixar PDF (Chrome/Edge no computador), abre o diálogo «Salvar como» para escolher a pasta. ' +
+      'Na próxima vez o sistema já sugere o último local usado. No celular ou em navegadores sem esse recurso, o download continua como antes.',
+    data_lancamento: '2026-10-06',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'BUG',
+    titulo: 'Relatório do pedido: desmarcar Vlr Venda e outras colunas no painel',
+    descricao:
+      'Em Colunas dos itens, a caixa «Relatório» de Vlr Venda (e também Acréscimo, Vlr Final, Total, IPI, ST e Vlr c/ Imposto) ' +
+      'agora pode ser desmarcada e some do PDF. Antes ficava travada e o Vlr Venda continuava saindo pelo modelo («Preço unitário»). ' +
+      'No modelo de impressão o item passou a se chamar «Vlr Venda (preço unitário)».',
+    data_lancamento: '2026-10-06',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'NOVO',
+    titulo: 'Pedido: Descrição do PDF na aba Entrega',
+    descricao:
+      'Em Sistema → Configuração do Sistema → Pedidos, a opção «Descrição do PDF no Pedido» libera o campo na aba Entrega. ' +
+      'O texto livre (ex.: carga mista) entra no nome do arquivo ao baixar o PDF, no formato: número + cidade do cliente + descrição + FN + código do fornecedor + data (ex.: 006494 BARRETOS carga mista FN 01 05102026.pdf). ' +
+      'FN é fixo (Fornecedor); o número após FN é o código (ID) da fábrica.',
+    data_lancamento: '2026-10-06',
+  },
+  {
+    versao: '1.1.3.173',
+    tipo: 'NOVO',
+    titulo: 'Relatório do pedido: renomear colunas, ocultar Descrição e novas colunas',
+    descricao:
+      'Em Colunas dos itens, cada coluna do relatório agora tem o campo «Nome no relatório» (ex.: Peso Total → Kilos); Item, Código, Descrição, Unid. e Quant. podem ser renomeadas em «Renomear colunas fixas». ' +
+      'Em Configurar modelo de impressão, a Descrição do produto pode ser ocultada. ' +
+      'Vlr Puxada, Total Puxada e Vlr Comissão ganharam a opção «No relatório» (dados internos, vêm desligados e com aviso; a comissão nunca sai para preposto). ' +
+      'Os nomes ficam salvos por usuário.',
+    data_lancamento: '2026-10-06',
+  },
+  {
+    versao: '1.1.3.173',
+    tipo: 'MELHORIA',
+    titulo: 'Impressão do pedido: linha entre os itens e observação no topo',
+    descricao:
+      'Em Configurar modelo de impressão há duas novas opções: «Linha divisória entre os itens» e «Observação no topo» (logo abaixo dos dados do cliente). ' +
+      'Ambas ficam desligadas por padrão, cada usuário/impressão escolhe a sua.',
+  },
+  {
+    versao: '1.1.3.173',
+    tipo: 'MELHORIA',
+    titulo: 'Relatório do pedido: «Fornecedor / Cod. Nº» mostra o código (ID) do fornecedor',
+    descricao:
+      'A linha «Fornecedor / Cod. Nº» do relatório do pedido (opção em Configurar modelo de impressão) agora imprime o código (ID) do fornecedor do pedido, ' +
+      'identificando a fábrica sem expor o nome.',
+    data_lancamento: '2026-10-03',
+  },
+  {
+    versao: '1.1.3.173',
+    tipo: 'MELHORIA',
+    titulo: 'Impressão do pedido: tipo e tamanho da letra, e dados da empresa com cores',
+    descricao:
+      'Em Configurar modelo de impressão agora é possível escolher o tipo de letra (Arial, Georgia, Courier etc.) e o tamanho de todo o relatório (de 85% a 130%), além de um tamanho próprio para a tabela de itens e as cores do número do pedido e do cabeçalho da tabela. ' +
+      'O bloco «Dados da empresa no topo» ficou compacto (CNPJ/I.E. e contatos na mesma linha, endereço abaixo). ' +
+      'Em Configurar modelo de impressão agora é possível escolher a cor da letra e a cor do fundo desse bloco.',
+    data_lancamento: '2026-10-03',
+  },
+  {
+    versao: '1.1.3.173',
+    tipo: 'BUG',
+    titulo: 'Comissões: botão Fechar do relatório volta para a Gestão',
+    descricao:
+      'Na página Relatório de Conferência, o botão Fechar (X) levava para o Analytics de Comissões e não havia como voltar à Gestão sem fechar a aba. ' +
+      'Agora volta para a tela de onde o relatório foi aberto (Gestão ou Analytics) ou fecha a aba, se foi aberto direto pelo menu. ' +
+      'A barra de filtros do Relatório de Conferência foi refeita (campos sem cortar datas e opções) e os botões ganharam texto e o mesmo tamanho. ' +
+      'Ao voltar à Gestão, os filtros, a lista e a posição da rolagem são restaurados sem refazer a consulta. A janela do novo Relatório / PDF da Gestão ganhou botões Imprimir e Fechar e a opção «Mostrar colunas» (Vlr parcela e Dt. pagto saem por padrão; a Dt. pagto já vem marcada nos relatórios de pagas).',
+    data_lancamento: '2026-10-03',
+  },
+  {
+    versao: '1.1.3.173',
+    tipo: 'MELHORIA',
+    titulo: 'Gestão de Comissões: grade em destaque e botão Quitar novo',
+    descricao:
+      'A grade agora ocupa a altura da tela, com cabeçalho fixo e rolagem só nela (linhas alternadas e mais compactas). ' +
+      'O botão Ocultar/Mostrar filtros passou a funcionar e lembra a escolha. O campo Cliente ganhou largura para não cortar o nome ' +
+      'e o botão Quitar virou um botão verde com ✓.',
+    data_lancamento: '2026-10-03',
+  },
+  {
+    versao: '1.1.3.173',
+    tipo: 'NOVO',
+    titulo: 'Relatório do pedido: dados da empresa no topo (opcional)',
+    descricao:
+      'Em Configurar modelo de impressão → Informações do pedido, a opção «Dados da empresa no topo» imprime, de forma discreta abaixo do título, ' +
+      'CNPJ, inscrição estadual, endereço, telefones e e-mail da empresa (cadastro de Empresas). Vem desligada; cada usuário escolhe.',
+    data_lancamento: '2026-10-02',
+  },
+  {
+    versao: '1.1.3.173',
+    tipo: 'NOVO',
+    titulo: 'Relatório do pedido: Fornecedor / Cod. Nº e Peso Total (KG)',
+    descricao:
+      'Em Configurar modelo de impressão → Totais, duas opções para o rodapé do relatório/PDF: «Fornecedor / Cod. Nº» (código do cliente na fábrica, cadastrado no cliente em Representadas) ' +
+      'e «Peso Total (KG)», no formato Peso Total - KG: 6.000,00. O peso total passou a sair com vírgula decimal (antes saía como 310.000 para 310 kg).',
+    data_lancamento: '2026-10-02',
+  },
+  {
+    versao: '1.1.3.173',
+    tipo: 'NOVO',
+    titulo: 'Pedidos: colunas Kilos, Valor/KG e Valor/Saca no relatório e PDF',
+    descricao:
+      'Em Colunas dos itens, as colunas Peso Total (Kilos), Valor Kilo e a nova Valor por Embalagem (Saca) agora aparecem na impressão/PDF quando marcadas em «No relatório», ' +
+      'na ordem escolhida. O painel foi redesenhado (tabela única, busca, «Só marcadas», atalho «Preço por peso» e paginação automática conforme a altura da tela, sem barra de rolagem). ' +
+      'Colunas já controladas pelo modelo de impressão ficam com a caixa desabilitada, explicando o motivo.',
+    data_lancamento: '2026-10-02',
+  },
+  {
+    versao: '1.1.3.173',
+    tipo: 'BUG',
+    titulo: 'Clonar pedido: itens com grade agora mantêm os tamanhos',
+    descricao:
+      'Ao clonar um pedido com produto de grade, o sistema acusava «exige grade» ao salvar e era preciso excluir e incluir o item de novo. ' +
+      'Agora o clone copia as quantidades por tamanho junto com o item.',
+    data_lancamento: '2026-10-02',
+  },
+  {
+    versao: '1.1.3.173',
+    tipo: 'NOVO',
+    titulo: 'Comissões: relatório de comissões a pagar / pagas (PDF)',
+    descricao:
+      'Na tela Comissões, o botão Relatório / PDF gera o relatório agrupado por representante, com subtotal e total geral. ' +
+      'Status «A pagar» = comissões pendentes; «Pagas» = pago + conferido, com a data do pagamento. ' +
+      'Novo campo «Período por» permite filtrar as datas pelo lançamento ou pela data do pagamento. Também é possível filtrar por Fábrica e por Cliente (busca com sugestões enquanto digita, estilo Google), e os cartões de totais acompanham esses filtros. No relatório, a coluna Vencimento foi substituída por «Valor da fatura» (valor faturado da nota), ao lado da data da «Fatura», e o campo Pedido mostra só o número, sem a parcela (ex.: 1/4).',
+    data_lancamento: '2026-10-02',
+  },
+  {
+    versao: '1.1.3.173',
+    tipo: 'MELHORIA',
+    titulo: 'Comissão por faturamento: imprimir / PDF do relatório',
+    descricao:
+      'Os botões Imprimir / PDF e CSV agora ficam visíveis em uma linha própria. ' +
+      'O relatório impresso (A4 paisagem) traz período, fábrica, representante, totais e data de emissão, ' +
+      'tanto na Conferência de Fábricas quanto na Comissão dos Representantes. Para PDF, escolha «Salvar como PDF» na impressão.',
+    data_lancamento: '2026-10-02',
+  },
+  {
+    versao: '1.1.3.173',
+    tipo: 'MELHORIA',
+    titulo: 'Comissão por faturamento: acompanhar a aplicação',
+    descricao:
+      'Ao clicar em Aplicar nos já faturados, a tela mostra quantos pedidos foram encontrados e o andamento, pedido a pedido. ' +
+      'No fim, a lista deixa o filtro deste mês e mostra os faturamentos convertidos. ' +
+      'Se já tinha aplicado, o segundo clique avisa e abre essa lista.',
+    data_lancamento: '2026-10-01',
+  },
+  {
+    versao: '1.1.3.172',
+    tipo: 'NOVO',
+    titulo: 'Reverter comissão nos pedidos já faturados',
+    descricao:
+      'Em Financeiro → Comissão por Faturamento, o administrador usa Reverter aplicação se tiver aplicado o modelo por engano. ' +
+      'O pedido volta à comissão por parcela, desde que a comissão da nota ainda não tenha sido baixada.',
+    data_lancamento: '2026-10-01',
+  },
+  {
+    versao: '1.1.3.171',
+    tipo: 'NOVO',
+    titulo: 'Comissão por faturamento nos pedidos já faturados',
+    descricao:
+      'Em Financeiro → Comissão por Faturamento, o administrador usa Aplicar nos já faturados. ' +
+      'Os pedidos que já tinham nota passam para a comissão por NF, sem baixar o estoque de novo. ' +
+      'Pedido com comissão já baixada não é alterado.',
+    data_lancamento: '2026-10-01',
+  },
+  {
+    versao: '1.1.3.170',
+    tipo: 'MELHORIA',
+    titulo: 'Pedidos: aviso enquanto o pedido abre',
+    descricao:
+      'Ao usar Abrir no Pedidos na Carteira, a tela já entra no pedido com a mensagem Abrindo pedido…, ' +
+      'em vez de ficar na lista até os dados carregarem.',
+    data_lancamento: '2026-10-01',
+  },
+  {
+    versao: '1.1.3.169',
+    tipo: 'BUG',
+    titulo: 'Carteira: Abrir no Pedidos mostra o pedido',
+    descricao:
+      'Abrir no Pedidos na Carteira Operacional mudava para a lista e o pedido ficava fora da área visível da aba. ' +
+      'Agora o formulário desse pedido abre na tela de Pedidos, ocupando a aba.',
+    data_lancamento: '2026-10-01',
+  },
+  {
+    versao: '1.1.3.168',
+    tipo: 'BUG',
+    titulo: 'Carteira: Visualizar mostra o pedido na hora',
+    descricao:
+      'Visualizar, Imprimir e PDF na Carteira Operacional abriam a lista de Pedidos e o documento ficava escondido. ' +
+      'Agora a folha do pedido aparece por cima da carteira, com Fechar para voltar.',
+    data_lancamento: '2026-10-01',
+  },
+  {
+    versao: '1.1.3.167',
+    tipo: 'MELHORIA',
+    titulo: 'Carteira: pedido completo e impressão igual à tela de Pedidos',
+    descricao:
+      'Ao clicar no número na Carteira Operacional, o painel mostra cliente, comercial, logística, valores, todos os itens, parcelas e observação. ' +
+      'Visualizar, Imprimir e PDF usam a mesma rotina da tela de Pedidos. Os tamanhos da grade só aparecem quando a opção de grade está ativa.',
+    data_lancamento: '2026-10-01',
+  },
+  {
+    versao: '1.1.3.166',
+    tipo: 'BUG',
+    titulo: 'Pedidos: último filtro avançado permanece ao reabrir',
+    descricao:
+      'As datas De/Até (e vendedor ou fábrica) aplicadas em Filtros Avançados deixavam de valer ao sair e voltar na lista, ' +
+      'porque o período da barra recolocava os últimos 30 dias. Agora o intervalo que você aplicou é o que a lista usa na próxima vez.',
+    data_lancamento: '2026-09-30',
+  },
+  {
+    versao: '1.1.3.166',
+    tipo: 'BUG',
+    titulo: 'Carteira Operacional: abre o pedido que você clicou',
+    descricao:
+      'No mapa de compras, clicar no número abria outro pedido (ou o que já estava na aba Pedidos). ' +
+      'O atalho passa a abrir exatamente o pedido da linha, inclusive em Abrir no Pedidos.',
+    data_lancamento: '2026-09-30',
+  },
+  {
+    versao: '1.1.3.165',
+    tipo: 'NOVO',
+    titulo: 'Comissão por faturamento (1 comissão por NF + repasse ao representante)',
+    descricao:
+      'Para empresas habilitadas (CNPJ em Configuração do Sistema), a comissão passa a nascer no faturamento: ' +
+      'valor efetivamente faturado × % (editável no faturamento), em uma única linha na data da NF — sem dividir pelas parcelas. ' +
+      'A diferença entre pedido e faturado pode ser Cancelada ou mantida como Saldo para a próxima fatura, e a comissão é dividida ' +
+      'entre escritório e representante (padrão 30/70). Novo relatório em Financeiro › Comissão por Faturamento (conferência com as fábricas e comissão dos representantes).',
+    data_lancamento: '2026-09-29',
+  },
+  {
+    versao: '1.1.3.160',
+    tipo: 'BUG',
+    titulo: 'Produto: Mark-up Líquido calculado sobre o preço de venda',
+    descricao:
+      'O Mark-up Líquido (%) no cadastro de produto usava o custo como base e podia ficar maior que a margem. ' +
+      'Agora é o lucro líquido (venda − custo − comissão) dividido pelo valor de venda. Ex.: custo 47,00 e venda 79,90 = 41,18%.',
+    data_lancamento: '2026-09-28',
+  },
+  {
+    versao: '1.1.3.160',
+    tipo: 'MELHORIA',
+    titulo: 'Produto: Margem (%) calculada sobre o preço de venda',
+    descricao:
+      'No cadastro de produto, a Margem (%) agora é aplicada sobre a venda: Vlr. Venda = Custo final ÷ (1 − Margem%). ' +
+      'Ex.: custo 47,00 e margem 41,18% = venda 79,90. Antes era aplicada sobre o custo (mark-up).',
+    data_lancamento: '2026-09-28',
+  },
+  {
+    versao: '1.1.3.160',
+    tipo: 'BUG',
+    titulo: 'Pedido: cor do cadastro aparece na grade de itens',
+    descricao:
+      'Itens cuja cor está no cadastro do produto (Cor) não mostravam essa cor na grade do pedido. ' +
+      'A grade passa a exibir a cor do produto quando o campo Cores do item está vazio.',
+    data_lancamento: '2026-09-28',
+  },
+  {
     versao: '1.1.3.160',
     tipo: 'NOVO',
     titulo: 'Pedido: referência da mãe nas cores',
@@ -2699,5 +3180,14 @@ module.exports = [
       'Ao montar a tabela, cada item mostra se o Vlr. Tabela está ok, abaixo da margem % do cadastro ou em prejuízo em relação ao custo. ' +
       'Há um resumo no topo (ok / abaixo / prejuízo) e a análise também vai no Excel exportado.',
     data_lancamento: '2026-09-24',
+  },
+  {
+    versao: '1.1.3.160',
+    tipo: 'MELHORIA',
+    titulo: 'Tabela de preços: exibir mark-up',
+    descricao:
+      'Na grade da tabela de preços, marque Exibir mark-up para ver o mark-up líquido de cada item ' +
+      '(preço da tabela menos custo e comissão). A marcação fica salva neste navegador e o Excel também leva a coluna.',
+    data_lancamento: '2026-09-28',
   },
 ];

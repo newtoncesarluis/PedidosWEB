@@ -293,6 +293,26 @@ tr:last-child td{border-bottom:none}
   background:var(--card);border-left:1px solid var(--border);
   box-shadow:-8px 0 24px rgba(0,0,0,.12);padding:0;display:flex;flex-direction:column;
 }
+#ovPedido .drawer{width:min(760px,100%)}
+.ped-sec{border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--card)}
+.ped-sec h4{
+  margin:0;padding:8px 12px;font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--text2);background:color-mix(in oklab, var(--bg) 70%, var(--card));border-bottom:1px solid var(--border);
+}
+.ped-sec .kv{padding:8px 12px}
+.ped-itens{max-height:none}
+.ped-item{padding:8px 12px;border-bottom:1px solid var(--border);font-size:12.5px}
+.ped-item:last-child{border-bottom:none}
+.ped-item-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.ped-item-top b{font-weight:700}
+.ped-item-meta{color:var(--text2);font-size:12px;margin-top:2px}
+.ped-grades{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.ped-grade{
+  font-size:11px;font-weight:700;padding:2px 7px;border-radius:999px;
+  background:var(--accent-soft);color:var(--accent);border:1px solid color-mix(in oklab, var(--accent) 35%, var(--border));
+}
+.ped-obs{padding:8px 12px;font-size:12.5px;white-space:pre-wrap;color:var(--text)}
+.ped-total{font-size:16px;font-weight:800;color:var(--accent)}
 .drawer-head{
   padding:14px 16px;border-bottom:1px solid var(--border);
   display:flex;align-items:flex-start;justify-content:space-between;gap:10px;
@@ -546,9 +566,16 @@ tr:last-child td{border-bottom:none}
     <div class="drawer-body" id="pedBody"></div>
     <div class="drawer-foot">
       <button class="btn btn-ghost" type="button" onclick="fecharDrawers()">Fechar</button>
+      <button class="btn btn-ghost" type="button" id="btnPedVisualizar" disabled title="Mesma visualização da tela de Pedidos">Visualizar</button>
+      <button class="btn btn-ghost" type="button" id="btnPedImprimir" disabled title="Mesma impressão da tela de Pedidos">Imprimir</button>
+      <button class="btn btn-ghost" type="button" id="btnPedPdf" disabled title="Mesmo PDF da tela de Pedidos">PDF</button>
       <button class="btn btn-primary" type="button" id="btnAbrirPedidoFull">Abrir no Pedidos</button>
     </div>
   </div>
+</div>
+
+<div id="ovPreviewPedido" class="overlay" style="z-index:420;flex-direction:column;align-items:stretch;justify-content:stretch;background:var(--bg)">
+  <iframe id="framePreviewPedido" title="Visualização do pedido" style="flex:1;width:100%;height:100%;border:0;background:var(--card)"></iframe>
 </div>
 
 <!-- Modal anotação -->
@@ -1102,10 +1129,10 @@ function rowHtml(r) {
   const uc = r.ultima_compra;
   const up = r.ultimo_pedido;
   const compraCell = uc
-    ? `${fmtData(uc.data)}${uc.valor != null ? '<br><span class="num">' + esc(fmtMoeda(uc.valor)) + '</span>' : ''}${uc.id ? '<br><button type="button" class="link-pedido" onclick="verPedido(' + uc.id + ')">#' + esc(uc.numero || uc.id) + '</button>' : ''}`
+    ? `${fmtData(uc.data)}${uc.valor != null ? '<br><span class="num">' + esc(fmtMoeda(uc.valor)) + '</span>' : ''}${uc.id ? '<br>' + btnPedidoHtml(uc.id, uc.numero) : ''}`
     : '<span style="color:var(--text2)">—</span>';
   const pedidoCell = up
-    ? `<button type="button" class="link-pedido" onclick="verPedido(${up.id})">#${esc(up.numero || up.id)}</button>
+    ? `${btnPedidoHtml(up.id, up.numero)}
        <div style="font-size:11px;color:var(--text2);margin-top:2px">${fmtData(up.data)} · ${esc(fmtMoeda(up.valor))}</div>`
     : '<span style="color:var(--text2)">—</span>';
   const checked = _selected.has(Number(r.id)) ? ' checked' : '';
@@ -1417,7 +1444,7 @@ function renderCompras() {
           <td class="no-print" style="width:36px"></td>
           <td class="num">${fmtData(p.data)}</td>
           <td>${esc(p.tipo_pedido || 'PEDIDO')}</td>
-          <td><button type="button" class="link-pedido" onclick="verPedido(${p.id})">#${esc(p.numero || p.id)}</button>
+          <td>${btnPedidoHtml(p.id, p.numero)}
             ${p.situacao ? `<div style="font-size:10px;color:var(--text2)">${esc(p.situacao)}</div>` : ''}</td>
           <td>${esc(p.nome_fornecedor || '—')}</td>
           <td class="hide-m">${esc(p.nome_vendedor || '—')}</td>
@@ -1555,51 +1582,243 @@ async function carregar() {
   }
 }
 
-async function verPedido(id) {
+function btnPedidoHtml(id, numero) {
+  if (id == null || id === '') return '';
+  return `<button type="button" class="link-pedido" data-pedido-id="${esc(id)}" data-pedido-num="${esc(numero || '')}">#${esc(numero || id)}</button>`;
+}
+
+function normPedidoNum(v) {
+  return String(v == null ? '' : v).trim().replace(/^#/, '');
+}
+
+let _carteiraGrades = null;
+async function garantirFlagGrades() {
+  if (_carteiraGrades === 'S' || _carteiraGrades === 'N') return _carteiraGrades === 'S';
+  try {
+    const cfg = await api('/api/config/sistema');
+    _carteiraGrades = String(cfg.habilitapedidograde || 'N').toUpperCase() === 'S' ? 'S' : 'N';
+  } catch (_) {
+    _carteiraGrades = 'N';
+  }
+  return _carteiraGrades === 'S';
+}
+
+function pedLinha(rotulo, valor) {
+  const v = valor == null ? '' : String(valor).trim();
+  if (!v || v === '—' || v === 'undefined') return '';
+  return `<div class="k">${esc(rotulo)}</div><div class="v">${esc(v)}</div>`;
+}
+
+function pedSecao(titulo, linhasHtml) {
+  const body = String(linhasHtml || '').trim();
+  if (!body) return '';
+  return `<section class="ped-sec"><h4>${esc(titulo)}</h4><div class="kv">${body}</div></section>`;
+}
+
+function htmlGradeItem(item, gradesOn) {
+  if (!gradesOn) return '';
+  const grades = Array.isArray(item.grade_qtd) ? item.grade_qtd.filter((g) => Number(g.quantidade) > 0) : [];
+  if (grades.length) {
+    return `<div class="ped-grades">${grades.map((g) =>
+      `<span class="ped-grade">${esc(g.nome_grade || g.descricao || 'Tam.')} ${esc(fmtNum(g.quantidade))}</span>`
+    ).join('')}</div>`;
+  }
+  const resumo = String(item.grade_resumo || '').trim();
+  if (!resumo) return '';
+  return `<div class="ped-grades"><span class="ped-grade">${esc(resumo)}</span></div>`;
+}
+
+function htmlPedidoCompleto(payload, gradesOn) {
+  const h = payload.pedido || payload;
+  const cli = payload.cliente || {};
+  const itens = payload.itens || [];
+  const parcelas = payload.parcelas || [];
+  const cidade = [cli.cidade || h.cidade, cli.uf || h.uf].filter(Boolean).join(' / ');
+  const fone = cli.fonesecundario || cli.celularcomprador || cli.foneprincipal || h.fone || '';
+  const docCli = cli.cpf || h.cnpj || '';
+  const itensHtml = itens.map((i) => {
+    const qtd = i.quantidade || i.qtd || 0;
+    const unit = i.valor_unitario || i.vlr_venda || 0;
+    const total = i.vlrtotal_itens != null ? i.vlrtotal_itens : (Number(qtd) * Number(unit));
+    const cod = i.cod_fabricante || i.cod_produto || '';
+    const obs = String(i.obsitem || '').trim();
+    return `<div class="ped-item">
+      <div class="ped-item-top">
+        <b>${esc(i.desc_prod || i.desc_produto || i.descricao || ('Prod ' + (i.cod_produto || '')))}</b>
+        <b>${fmtMoeda(total)}</b>
+      </div>
+      <div class="ped-item-meta">${esc(fmtNum(qtd))} ${esc(i.unidade || 'UN')} × ${fmtMoeda(unit)}${cod ? ' · Cód. ' + esc(cod) : ''}</div>
+      ${obs ? `<div class="ped-item-meta">${esc(obs)}</div>` : ''}
+      ${htmlGradeItem(i, gradesOn)}
+    </div>`;
+  }).join('');
+  const parcHtml = parcelas.map((parc) => {
+    const ven = parc.vencimento || parc.data_vencimento || parc.dtvencimento;
+    const valor = parc.valor != null ? parc.valor : parc.vlr_parcela;
+    return `<div class="ped-item">
+      <div class="ped-item-top"><b>${esc(fmtData(ven))}</b><b>${fmtMoeda(valor)}</b></div>
+      <div class="ped-item-meta">${esc(parc.forma_pagto || parc.condicao_pagto || '')}${parc.status ? ' · ' + esc(parc.status) : ''}</div>
+    </div>`;
+  }).join('');
+  const obs = String(h.obs || '').trim();
+  return [
+    pedSecao('Pedido', [
+      pedLinha('Data', h.data_abertura ? (fmtData(h.data_abertura) + (h.hora_abertura ? ' ' + String(h.hora_abertura).slice(0, 5) : '')) : ''),
+      pedLinha('Entrega', fmtData(h.data_entrega) === '—' ? '' : fmtData(h.data_entrega)),
+      pedLinha('Situação', h.situacao_pedido),
+      pedLinha('Tipo', h.tipo_pedido),
+      pedLinha('Origem', h.origem),
+      pedLinha('Empresa', h.nome_empresa),
+      pedLinha('Grade', gradesOn ? 'Ativa neste pedido' : 'Desligada na configuração'),
+    ].join('')),
+    pedSecao('Cliente', [
+      pedLinha('Nome', cli.nome || h.nome_cliente),
+      pedLinha('CNPJ/CPF', docCli),
+      pedLinha('Cidade', cidade),
+      pedLinha('Fone', fone),
+      pedLinha('Comprador', h.Comprador || h.comprador),
+    ].join('')),
+    pedSecao('Comercial', [
+      pedLinha('Vendedor', h.nome_vendedor),
+      pedLinha('Digitado por', h.nome_digitador),
+      pedLinha('Fábrica', h.nome_fornecedor),
+      pedLinha('OC', h.ped_compras),
+      pedLinha('Condição', h.condicao_pagto),
+      pedLinha('Forma', h.forma_pagto),
+      pedLinha('Prazo', h.prazo_pagto),
+    ].join('')),
+    pedSecao('Logística', [
+      pedLinha('Transportadora', h.nome_transportadora),
+      pedLinha('Frete', h.tipo_frete),
+      pedLinha('Peso', h.total_peso != null && Number(h.total_peso) ? fmtNum(h.total_peso) + ' kg' : ''),
+      pedLinha('Quantidade', h.total_qt != null && Number(h.total_qt) ? fmtNum(h.total_qt) : ''),
+    ].join('')),
+    pedSecao('Valores', [
+      pedLinha('Subtotal', h.vlrsubtotal != null ? fmtMoeda(h.vlrsubtotal) : ''),
+      pedLinha('Desconto', h.vlrdesconto != null && Number(h.vlrdesconto) ? fmtMoeda(h.vlrdesconto) : ''),
+      pedLinha('Frete', h.vlrfrete != null && Number(h.vlrfrete) ? fmtMoeda(h.vlrfrete) : ''),
+      pedLinha('Impostos', h.vlrtotalimposto != null && Number(h.vlrtotalimposto) ? fmtMoeda(h.vlrtotalimposto) : ''),
+      `<div class="k">Total</div><div class="v ped-total">${fmtMoeda(h.vlrtotalpedido)}</div>`,
+    ].join('')),
+    `<section class="ped-sec"><h4>Itens (${fmtNum(itens.length)})</h4>${itensHtml || '<div class="ped-obs">Sem itens</div>'}</section>`,
+    parcHtml ? `<section class="ped-sec"><h4>Parcelas (${fmtNum(parcelas.length)})</h4>${parcHtml}</section>` : '',
+    obs ? `<section class="ped-sec"><h4>Observação</h4><div class="ped-obs">${esc(obs)}</div></section>` : '',
+  ].join('');
+}
+
+function ligarAcoesImpressaoPedido() {
+  const map = [
+    ['btnPedVisualizar', 'visualizar'],
+    ['btnPedImprimir', 'imprimir'],
+    ['btnPedPdf', 'pdf'],
+  ];
+  map.forEach(([id, acao]) => {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    btn.disabled = !_ctxPedidoId;
+    btn.onclick = () => dispararAcaoPedido(acao);
+  });
+}
+
+function dispararAcaoPedido(acao) {
+  const id = String(_ctxPedidoId == null ? '' : _ctxPedidoId).trim();
   if (!id) return;
+  const url = '/pages/pedidos.html?id=' + encodeURIComponent(id)
+    + '&acao=' + encodeURIComponent(acao)
+    + '&embed=carteira';
+  const ov = document.getElementById('ovPreviewPedido');
+  const frame = document.getElementById('framePreviewPedido');
+  if (ov && frame) {
+    positionOverlay(ov);
+    ov.classList.add('open');
+    frame.src = url;
+    return;
+  }
+  location.href = '/pages/pedidos.html?id=' + encodeURIComponent(id) + '&acao=' + encodeURIComponent(acao);
+}
+
+function fecharPreviewPedido() {
+  const ov = document.getElementById('ovPreviewPedido');
+  const frame = document.getElementById('framePreviewPedido');
+  if (ov) ov.classList.remove('open');
+  if (frame) frame.src = 'about:blank';
+}
+
+window.addEventListener('message', (ev) => {
+  if (!ev.data || ev.data.type !== 'carteira-fechar-preview') return;
+  fecharPreviewPedido();
+});
+
+let _verPedidoSeq = 0;
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.link-pedido[data-pedido-id]');
+  if (!btn) return;
+  e.preventDefault();
+  verPedido(btn.getAttribute('data-pedido-id'), btn.getAttribute('data-pedido-num'));
+});
+
+async function verPedido(id, numero) {
+  id = String(id == null ? '' : id).trim();
+  numero = normPedidoNum(numero);
+  if (!id) return;
+  const seq = ++_verPedidoSeq;
   _ctxPedidoId = id;
   openOverlay('ovPedido');
   document.getElementById('pedTitulo').textContent = 'Carregando…';
   document.getElementById('pedSub').textContent = '';
   document.getElementById('pedBody').innerHTML = '<div class="loader-wrap"><div class="spin"></div></div>';
+  ['btnPedVisualizar', 'btnPedImprimir', 'btnPedPdf'].forEach((bid) => {
+    const b = document.getElementById(bid);
+    if (b) b.disabled = true;
+  });
   try {
-    const p = await api('/api/pedidos/' + id);
-    const h = p.pedido || p;
-    const cli = p.cliente || {};
+    let p = await api('/api/pedidos/' + encodeURIComponent(id));
+    if (seq !== _verPedidoSeq) return;
+    let h = p.pedido || p;
+    if (numero && normPedidoNum(h.numero) !== numero) {
+      try {
+        const achou = await api('/api/pedidos/por-numero/' + encodeURIComponent(numero));
+        if (seq !== _verPedidoSeq) return;
+        if (achou && achou.id != null && String(achou.id) !== String(h.id)) {
+          p = await api('/api/pedidos/' + encodeURIComponent(achou.id));
+          if (seq !== _verPedidoSeq) return;
+          h = p.pedido || p;
+        }
+      } catch (_) { /* mantém o que o id abriu */ }
+    }
+    _ctxPedidoId = h.id != null && h.id !== '' ? h.id : id;
+    const gradesOn = await garantirFlagGrades();
+    if (seq !== _verPedidoSeq) return;
     document.getElementById('pedTitulo').textContent = 'Pedido #' + (h.numero || id);
-    document.getElementById('pedSub').textContent = (h.situacao_pedido || '') + (h.tipo_pedido ? ' · ' + h.tipo_pedido : '');
-    const itens = p.itens || [];
-    const topItens = itens.slice(0, 8).map((i) =>
-      `<div style="font-size:12px;padding:4px 0;border-bottom:1px solid var(--border)">
-        <strong>${esc(i.desc_prod || i.desc_produto || i.descricao || ('Prod ' + i.cod_produto))}</strong>
-        <div style="color:var(--text2)">${fmtNum(i.quantidade || i.qtd || 0)} × ${fmtMoeda(i.valor_unitario || i.vlr_venda || 0)}</div>
-      </div>`
-    ).join('');
-    document.getElementById('pedBody').innerHTML = `
-      <div class="kv">
-        <div class="k">Cliente</div><div class="v">${esc(cli.nome || h.nome_cliente || '—')}</div>
-        <div class="k">Data</div><div class="v">${fmtData(h.data_abertura)}</div>
-        <div class="k">Valor</div><div class="v">${fmtMoeda(h.vlrtotalpedido)}</div>
-        <div class="k">Vendedor</div><div class="v">${esc(h.nome_vendedor || '—')}</div>
-        <div class="k">Situação</div><div class="v">${esc(h.situacao_pedido || '—')}</div>
-        <div class="k">Tipo</div><div class="v">${esc(h.tipo_pedido || '—')}</div>
-      </div>
-      <div>
-        <div style="font-size:11px;font-weight:800;text-transform:uppercase;color:var(--text2);margin-bottom:6px">Itens (${fmtNum(itens.length)})</div>
-        ${topItens || '<div style="color:var(--text2);font-size:12px">Sem itens</div>'}
-        ${itens.length > 8 ? '<div style="font-size:11px;color:var(--text2);margin-top:6px">+ ' + (itens.length - 8) + ' itens — abra no Pedidos</div>' : ''}
-      </div>`;
-    document.getElementById('btnAbrirPedidoFull').onclick = () => navegarPedido(id);
+    document.getElementById('pedSub').textContent = [
+      h.situacao_pedido || '',
+      h.tipo_pedido || '',
+      gradesOn ? 'Grade ativa' : 'Grade desligada',
+    ].filter(Boolean).join(' · ');
+    document.getElementById('pedBody').innerHTML = htmlPedidoCompleto(p, gradesOn);
+    document.getElementById('btnAbrirPedidoFull').onclick = () => navegarPedido(_ctxPedidoId);
+    ligarAcoesImpressaoPedido();
   } catch (e) {
     document.getElementById('pedBody').innerHTML = `<div style="color:var(--danger)">${esc(e.message)}</div>`;
   }
 }
 
 function navegarPedido(id) {
-  const url = '/pages/pedidos.html?id=' + id;
-  if (window.parent && window.parent !== window && typeof window.parent.openPage === 'function') {
-    window.parent.openPage(url);
-  } else if (window.self !== window.top) {
+  const raw = encodeURIComponent(String(id == null ? '' : id).trim());
+  if (!raw) return;
+  const btn = document.getElementById('btnAbrirPedidoFull');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Abrindo pedido…';
+  }
+  const url = '/pages/pedidos.html?id=' + raw;
+  try {
+    if (window.parent && window.parent !== window && typeof window.parent.openPedidosTab === 'function') {
+      window.parent.openPedidosTab('id=' + raw);
+      return;
+    }
+  } catch (_) {}
+  if (window.self !== window.top) {
     try { window.parent.postMessage({ type: 'navigate', url, label: 'Pedido' }, '*'); } catch (_) { location.href = url; }
   } else {
     location.href = url;

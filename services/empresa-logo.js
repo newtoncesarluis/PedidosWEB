@@ -26,21 +26,15 @@ function fsPathFromLogoRelatorio(rel) {
   return path.join(EMP_LOGO_BASE, m[1], m[2]);
 }
 
-/** Corrige logo_relatorio quando o arquivo do banco não existe mais (404 no browser). */
+/**
+ * Só devolve o logo que o BANCO aponta e que existe no disco.
+ * NÃO "adota" outro arquivo da pasta: id_empresa é 1 em quase todo cliente, então varrer
+ * public/uploads/empresas/<id>/ pegava o logo de outra empresa (ex.: o do dev, ao rodar
+ * o localhost ligado à base de um cliente) e ainda gravava no banco do cliente.
+ */
 function resolveEmpresaLogoRelatorio(idEmpresa, relFromDb) {
-  const id = String(idEmpresa);
   const fp = fsPathFromLogoRelatorio(relFromDb);
   if (fp && fs.existsSync(fp)) return relFromDb || null;
-
-  for (const base of empLogoBaseDirs()) {
-    const dir = path.join(base, id);
-    if (!fs.existsSync(dir)) continue;
-    const files = fs.readdirSync(dir)
-      .filter(f => /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(f))
-      .sort((a, b) => b.localeCompare(a));
-    if (!files.length) continue;
-    return webPathEmpresaLogo(id, files[0]);
-  }
   return null;
 }
 

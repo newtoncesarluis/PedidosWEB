@@ -102,9 +102,25 @@ body{background:var(--bg)}
 .vt-search-clear.show{display:flex}
 .vt-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-left:auto}
 @media (max-width:520px){
-  .vt-sort-chips{width:100%;order:-1}
-  .vt-sort-chip{flex:1;text-align:center;padding:0 8px}
+  /* Mobile compacto: busca + UMA linha rolável (atalhos, Exibir, total) em vez de ~4 linhas */
+  #vt-filters{padding-top:8px}
+  .vt-search-row{gap:8px;margin-bottom:8px}
+  .vt-search{flex:1 1 100%;height:40px}
+  .vt-toolbar{width:100%;margin-left:0;flex-wrap:nowrap;gap:6px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .vt-toolbar::-webkit-scrollbar{display:none}
+  .vt-sort-chips{flex-wrap:nowrap;flex:0 0 auto}
+  .vt-sort-chip{flex:0 0 auto;height:30px;padding:0 11px}
+  .vt-per-ordem{display:none}
+  .vt-toolbar .vt-per-wrap{flex:0 0 auto;height:30px;padding:0 10px;border-radius:999px}
+  .vt-toolbar .vt-per-wrap label{font-size:10px}
+  .vt-toolbar .vt-per-wrap select{font-size:12px}
+  .vt-result-count{flex:0 0 auto;padding:0 4px;border:none;background:none;font-size:11px}
+  #vt-tabs{padding-bottom:8px}
+  .vt-tab{padding:6px 12px}
 }
+/* Botão voltar: só quando a vitrine roda dentro do app do vendedor (o botão flutuante do shell some) */
+.vt-shell-back{display:none;flex-shrink:0;width:36px;height:36px;border-radius:50%;border:1px solid var(--border);background:var(--card);color:var(--text);align-items:center;justify-content:center;cursor:pointer;padding:0}
+html.vt-in-app .vt-shell-back{display:flex}
 .vt-per-wrap{
   display:flex;align-items:center;gap:6px;height:44px;padding:0 12px;
   background:#f8fafc;border:1.5px solid var(--border);border-radius:12px;
@@ -454,6 +470,17 @@ body{background:var(--bg)}
 .vt-ci-name{font-size:12px;font-weight:700;line-height:1.3}
 .vt-ci-price{font-size:11px;color:var(--text2);margin-top:2px}
 .vt-ci-remove{width:32px;height:32px;border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--text3);cursor:pointer;display:flex;align-items:center;justify-content:center}
+.vt-cart-grupo{margin-top:4px}
+.vt-cart-grupo-hd{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  font-size:11px;font-weight:800;color:var(--accent-deep);letter-spacing:.02em;
+  padding:6px 2px 2px;text-transform:uppercase;
+}
+.vt-cart-grupo-hd span:last-child{font-weight:700;color:var(--text2);text-transform:none;letter-spacing:0}
+.vt-cart-split-aviso{
+  font-size:11px;line-height:1.4;color:var(--text2);background:var(--accent-soft);
+  border:1px solid #a7f3d0;border-radius:10px;padding:8px 10px;margin-bottom:4px;
+}
 #vt-cart-obs{width:100%;border:1.5px solid var(--border);border-radius:12px;padding:10px 12px;font:inherit;font-size:13px;resize:none;outline:none;height:68px;margin-bottom:12px;background:#f8fafc}
 #vt-cart-obs:focus{border-color:var(--accent)}
 .vt-cart-total{display:flex;justify-content:space-between;padding:10px 0;border-top:1px solid var(--border);margin-bottom:10px}
@@ -622,6 +649,9 @@ body{background:var(--bg)}
 <div class="vt-wrap">
   <header id="vt-header">
     <div class="vt-header-inner">
+      <button type="button" class="vt-shell-back" id="vt-shell-back" aria-label="Voltar" title="Voltar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
       <div class="vt-logo" title="PedidosWeb">
         <img src="/favicon.svg" alt="PedidosWeb" width="34" height="34">
       </div>
@@ -659,7 +689,7 @@ body{background:var(--bg)}
           <button type="button" class="vt-sort-chip" data-sort="maior_preco">Maior preço</button>
           <button type="button" class="vt-sort-chip" data-sort="az">A → Z</button>
         </div>
-        <div class="vt-per-wrap">
+        <div class="vt-per-wrap vt-per-ordem">
           <label for="vt-sort">Ordem</label>
           <select id="vt-sort" title="Ordenar por">
             <option value="padrao">Padrão</option>
@@ -876,6 +906,7 @@ body{background:var(--bg)}
 <script src="/assets/preco-peso-produto.js"></script>
 <script src="/assets/produto-cores-picker.js?v=20260921h"></script>
 <script src="/assets/grade-fechada-pack.js?v=20260917a"></script>
+<script src="/assets/confirm-dialog.js"></script>
 <script>
 (function () {
   const token = location.pathname.split('/vitrine/')[1] || '';
@@ -904,6 +935,7 @@ body{background:var(--bg)}
   let _produtosMaster = [];   // produtos com mapa de preços por tabela
   let _tabelas      = [];     // tabelas liberadas para o cliente escolher
   let _tabelaAtiva  = null;   // id_tabela selecionada
+  let _pedidoUnico = false;   // sistemas.vitrine_pedido_unico === 'S' → 1 pedido; N → por fábrica
   let _cart      = {};
   let _pendingQty = {};
   let _grupo     = 'Todos';
@@ -1334,6 +1366,7 @@ body{background:var(--bg)}
       _produtosMaster = _dados.produtos || [];
       _tabelas = _dados.tabelas || [];
       _somaEmbalagem = _dados.soma_embalagempedido || 'N';
+      _pedidoUnico = String(_dados.vitrine_pedido_unico || 'N').toUpperCase() === 'S';
       _tabelaAtiva = _tabelas.length ? _tabelas[0].id_tabela : null;
       aplicarTabela();
       render();
@@ -1507,16 +1540,11 @@ body{background:var(--bg)}
     renderGrid();
   }
 
-  function trocarTabela(novoId) {
+  async function trocarTabela(novoId) {
     if (String(novoId) === String(_tabelaAtiva)) return;
-    if (Object.keys(_cart).length &&
-        !confirm('Trocar a tabela de preços vai limpar o carrinho. Continuar?')) {
-      return;
-    }
+    const tinhaCarrinho = Object.keys(_cart).length > 0;
+    // Só troca o catálogo; o carrinho permanece nos dois modos
     _tabelaAtiva = novoId;
-    _cart = {};
-    _pendingQty = {};
-    updateBadge();
     _pagina = 1; _grupo = 'Todos'; _busca = '';
     document.getElementById('vt-busca').value = '';
     document.getElementById('vt-clear-btn').classList.remove('show');
@@ -1525,6 +1553,14 @@ body{background:var(--bg)}
     renderTabs();
     renderGrid();
     renderSugestoes();
+    if (tinhaCarrinho) {
+      avisar(
+        'Carrinho mantido',
+        _pedidoUnico
+          ? 'Os itens continuam no carrinho. Ao enviar, tudo será um único pedido (todas as fábricas juntas).'
+          : 'Os itens continuam no carrinho. Ao enviar, será gerado um pedido separado por fábrica/tabela.'
+      );
+    }
   }
 
   function render() {
@@ -1676,8 +1712,16 @@ body{background:var(--bg)}
     if (!p) return;
     const multi = Math.max(1, parseInt(p.multiplo_venda) || 1);
     const addQty = qtyOverride != null ? Math.max(multi, parseInt(qtyOverride) || multi) : multi;
-    if (_cart[id]) _cart[id].quantidade += (qtyOverride != null ? addQty : multi);
-    else _cart[id] = { produto: p, quantidade: addQty };
+    if (_cart[id]) {
+      _cart[id].quantidade += (qtyOverride != null ? addQty : multi);
+    } else {
+      // Guarda a tabela ativa no momento da inclusão — preço e pedido ficam dessa fábrica/tabela
+      _cart[id] = {
+        produto: p,
+        quantidade: addQty,
+        id_tabela: _tabelaAtiva,
+      };
+    }
     delete _pendingQty[id];
     updateBadge(); renderGrid(); renderSugestoes();
     if (_detProd?.id === id) refreshDetModal();
@@ -1712,6 +1756,11 @@ body{background:var(--bg)}
     }
   }
 
+  function cartTabelaLabel(tid) {
+    const t = _tabelas.find(x => String(x.id_tabela) === String(tid));
+    return t?.descricao || ('Tabela ' + tid);
+  }
+
   function renderCart() {
     const items = Object.values(_cart);
     const el = document.getElementById('vt-cart-items');
@@ -1720,9 +1769,29 @@ body{background:var(--bg)}
       document.getElementById('vt-total-val').textContent = fmt(0);
       return;
     }
-    el.innerHTML = items.map(({produto:p, quantidade:q}) =>
-      `<div class="vt-cart-item">${cartThumbHtml(p)}<div class="vt-ci-info"><div class="vt-ci-name">${esc(p.descricao)}</div><div class="vt-ci-price">${q}× ${fmt(p.preco)} = <strong>${fmt(lineTotalVt(p, q))}</strong></div></div><button class="vt-ci-remove" data-id="${p.id}" title="Remover"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg></button></div>`
-    ).join('');
+    // Agrupa por tabela/fábrica para leitura; o aviso depende do parâmetro
+    const grupos = new Map();
+    items.forEach(it => {
+      const tid = String(it.id_tabela || _tabelaAtiva || '');
+      if (!grupos.has(tid)) grupos.set(tid, []);
+      grupos.get(tid).push(it);
+    });
+    const multiFab = grupos.size > 1;
+    let html = '';
+    if (multiFab) {
+      html = _pedidoUnico
+        ? `<div class="vt-cart-split-aviso">Itens de ${grupos.size} fábricas — serão enviados em um único pedido.</div>`
+        : `<div class="vt-cart-split-aviso">Itens de ${grupos.size} tabelas/fábricas — ao enviar serão gerados ${grupos.size} pedidos separados.</div>`;
+    }
+    for (const [tid, lista] of grupos) {
+      const sub = lista.reduce((s, { produto: p, quantidade: q }) => s + lineTotalVt(p, q), 0);
+      html += `<div class="vt-cart-grupo"><div class="vt-cart-grupo-hd"><span>${esc(cartTabelaLabel(tid))}</span><span>${fmt(sub)}</span></div>`;
+      html += lista.map(({ produto: p, quantidade: q }) =>
+        `<div class="vt-cart-item">${cartThumbHtml(p)}<div class="vt-ci-info"><div class="vt-ci-name">${esc(p.descricao)}</div><div class="vt-ci-price">${q}× ${fmt(p.preco)} = <strong>${fmt(lineTotalVt(p, q))}</strong></div></div><button class="vt-ci-remove" data-id="${p.id}" title="Remover"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg></button></div>`
+      ).join('');
+      html += '</div>';
+    }
+    el.innerHTML = html;
     el.querySelectorAll('.vt-ci-thumb-btn').forEach(b =>
       b.addEventListener('click', e => {
         e.stopPropagation();
@@ -1740,16 +1809,17 @@ body{background:var(--bg)}
   async function enviarPedido() {
     const btn = document.getElementById('vt-send-btn');
     const errEl = document.getElementById('vt-send-err');
-    const itens = Object.values(_cart).map(({produto:p, quantidade:q}) => ({
+    const itens = Object.values(_cart).map(({produto:p, quantidade:q, id_tabela}) => ({
       id:p.id, descricao:p.descricao, unidade:p.unidade||'UN', preco:p.preco, quantidade:q,
-      precopeso: p.precopeso, kilo_embalagem: p.kilo_embalagem
+      precopeso: p.precopeso, kilo_embalagem: p.kilo_embalagem,
+      id_tabela: id_tabela || _tabelaAtiva,
     }));
     if (!itens.length) return;
     const aberto = _dados.link_aberto || !_dados.cliente;
     const body = {
       itens,
       obs: document.getElementById('vt-cart-obs').value.trim(),
-      id_tabela: _tabelaAtiva,
+      id_tabela: _tabelaAtiva, // fallback p/ itens sem id_tabela (legado)
     };
     if (aberto) {
       body.contato = {
@@ -1865,6 +1935,16 @@ body{background:var(--bg)}
   document.getElementById('vt-per-page').addEventListener('change', e => { _porPagina = parseInt(e.target.value); _pagina = 1; renderGrid(); });
   document.getElementById('vt-pg-prev').addEventListener('click', () => { if (_pagina > 1) { _pagina--; renderGrid(); document.getElementById('vt-filters').scrollIntoView({behavior:'smooth'}); } });
   document.getElementById('vt-pg-next').addEventListener('click', () => { _pagina++; renderGrid(); document.getElementById('vt-filters').scrollIntoView({behavior:'smooth'}); });
+  // Dentro do app do vendedor (iframe do mobile-shell): mostra o botão voltar do cabeçalho
+  try {
+    if (window.self !== window.top && /mobile-shell/i.test(window.parent.location.pathname || '')) {
+      document.documentElement.classList.add('vt-in-app');
+      document.getElementById('vt-shell-back').addEventListener('click', () => {
+        window.parent.postMessage({ type: 'ms-vitrine-voltar' }, '*');
+      });
+    }
+  } catch (_) {}
+
   document.getElementById('vt-back-btn').addEventListener('click', () => { document.getElementById('vt-success').style.display = 'none'; renderGrid(); renderSugestoes(); });
 
   document.getElementById('vt-photo-close').addEventListener('click', closePhotoModal);
