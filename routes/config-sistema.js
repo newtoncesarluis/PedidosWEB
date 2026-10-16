@@ -6,6 +6,7 @@ const { getPool, createPool, getBoundChave, customerDbFromLicense } = require('.
 const { logError } = require('../config/logger');
 const { invalidateSistemaCarteiraCache, getSistemaCarteiraConfig } = require('../config/carteira-politica');
 const { invalidateComissaoFatCache } = require('../config/comissao-faturamento');
+const { invalidateOcultarReceberPedido } = require('../config/receber-oculta-pedido');
 
 const ENV_PATH = path.join(process.cwd(), '.env');
 
@@ -139,6 +140,7 @@ router.post('/sistema', async (req, res) => {
 
       invalidateSistemaCarteiraCache();
       invalidateComissaoFatCache();
+      invalidateOcultarReceberPedido();
       res.json({ ok: true, acao: 'update', id: existing[0].id });
     } else {
       // INSERT com os campos enviados
@@ -190,6 +192,7 @@ router.post('/sistema', async (req, res) => {
 
       invalidateSistemaCarteiraCache();
       invalidateComissaoFatCache();
+      invalidateOcultarReceberPedido();
       res.status(201).json({ ok: true, acao: 'insert', id: result.insertId });
     }
   } catch (err) {

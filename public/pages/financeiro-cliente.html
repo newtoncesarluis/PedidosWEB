@@ -35,6 +35,7 @@ body { font-family: var(--font); background: var(--content-bg); color: var(--con
 .kpi strong { display: block; font-size: 16px; margin-top: 3px; font-weight: 700; }
 .kpi-atraso strong { color: #dc2626; }
 .kpi-aberto strong { color: var(--accent); }
+.kpi-pago strong { color: #16a34a; }
 .list { padding: 0 12px 80px; display: flex; flex-direction: column; gap: 8px; }
 .card {
   background: var(--card-bg); border: 1px solid var(--card-border);
@@ -65,6 +66,7 @@ body { font-family: var(--font); background: var(--content-bg); color: var(--con
   <div class="tabs">
     <button class="tab active" data-status="ABERTA">Em aberto</button>
     <button class="tab" data-status="EM ATRASO">Vencidas</button>
+    <button class="tab" data-status="LIQUIDADO">Pagas</button>
     <button class="tab" data-status="T">Todas</button>
   </div>
 </div>
@@ -78,6 +80,10 @@ body { font-family: var(--font); background: var(--content-bg); color: var(--con
     <small>Vencidas</small>
     <strong id="kpi-atraso">—</strong>
   </div>
+  <div class="kpi kpi-pago">
+    <small>Recebido</small>
+    <strong id="kpi-pago">—</strong>
+  </div>
 </div>
 
 <div id="lista" class="list">
@@ -85,7 +91,17 @@ body { font-family: var(--font); background: var(--content-bg); color: var(--con
 </div>
 
 <script>
-var _tkn = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+function getToken() {
+  try {
+    if (window.parent && window.parent !== window) {
+      var pt = window.parent.sessionStorage.getItem('token') || window.parent.localStorage.getItem('token');
+      if (pt) return pt;
+    }
+  } catch (_) {}
+  return sessionStorage.getItem('token') || localStorage.getItem('token') || '';
+}
+var _tkn = getToken();
+var _reqSeq = 0;
 var _params = new URLSearchParams(window.location.search);
 var _codCliente = _params.get('cod_cliente') || _params.get('id') || '';
 var _nome = _params.get('nome') || '';
@@ -131,9 +147,16 @@ function render(rows) {
     return '<div class="card">' +
       '<div class="card-top">' +
         '<div>' +
-          '<div class="card-doc">' + escHtml(p.doc || p.numero || '—') + '</div>' +
+          '<div class="card-doc">' + escHtml(p.doc || p.numero || '—') + (Number(p.qt_parcelas) > 1 ? escHtml(' · ' + p.parcela + '/' + p.qt_parcelas) : '') + '</div>' +
           '<div class="card-info">Venc: ' + fmtData(p.vencimento) + '</div>' +
-          (p.obs ? '<div class="card-info">' + escHtml(p.obs) + '</div>' : '') +
+          (badgeLabel(st) === 'Pago'
+            ? '<div class="card-info">Pago em: ' + fmtData(p.data_pagto) +
+              (p.forma_pagto ? ' · ' + escHtml(p.forma_pagto) : '') +
+              (p.banco_nome ? ' · ' + escHtml(p.banco_nome) : '') + '</div>'
+            : ((p.forma_pagto || p.banco_nome)
+              ? '<div class="card-info">Cobrança: ' + escHtml([p.forma_pagto, p.banco_nome].filter(Boolean).join(' · ')) + '</div>' : '')) +
+          (p.parcela && Number(p.qt_parcelas) > 1 ? '<div class="card-info">Parcela ' + escHtml(p.parcela) + '/' + escHtml(p.qt_parcelas) + '</div>' : '') +
+          (p.obs ? '<div class="card-info">' + escHtml(String(p.obs).split(/\r?\n/)[0]) + '</div>' : '') +
         '</div>' +
         '<div style="text-align:right">' +
           '<div class="card-valor">' + fmtMoeda(p.valor) + '</div>' +
@@ -144,35 +167,60 @@ function render(rows) {
   }).join('');
 }
 
-function carregar(status) {
-  if (!_codCliente) {
-    document.getElementById('lista').innerHTML = '<div class="empty">Cliente não identificado</div>';
-    return;
-  }
-  document.getElementById('lista').innerHTML = '<div class="spinner">Carregando…</div>';
-  var url = '/api/receber?limit=100&cod_cliente=' + encodeURIComponent(_codCliente) +
-    (status && status !== 'T' ? '&status=' + encodeURIComponent(status) : '');
-  fetch(url, { headers: { 'Authorization': 'Bearer ' + _tkn } })
-    .then(function(r) { return r.json(); })
-    .then(function(data) { render(data.rows || data); })
-    .catch(function() {
-      document.getElementById('lista').innerHTML = '<div class="empty">Erro ao carregar títulos</div>';
+function linhasApi(d) { return Array.isArray(d) ? d : (d && (d.data || d.rows)) || []; }
+
+function erroLista(msg) {
+  document.getElementById('lista').innerHTML = '<div class="empty">' + escHtml(msg) + '</div>';
+}
+
+function buscarTitulos(status) {
+  var url = '/api/receber?limit=200&cod_cliente=' + encodeURIComponent(_codCliente) +
+    '&status=' + encodeURIComponent(status || 'T');
+  return fetch(url, { headers: { 'Authorization': 'Bearer ' + _tkn }, cache: 'no-store' })
+    .then(function(r) {
+      return r.json().catch(function() { return {}; }).then(function(d) {
+        if (!r.ok) throw new Error(r.status === 401 ? 'Sessão expirada. Faça login novamente.' : (d.error || 'Erro ao carregar títulos'));
+        return d;
+      });
     });
+}
+
+function carregar(status) {
+  if (!_codCliente) { erroLista('Cliente não identificado'); return; }
+  var seq = ++_reqSeq; // ignora respostas antigas se o usuário trocar de aba rápido
+  document.getElementById('lista').innerHTML = '<div class="spinner">Carregando…</div>';
+  buscarTitulos(status)
+    .then(function(data) {
+      if (seq !== _reqSeq) return;
+      var rows = linhasApi(data);
+      if (status === 'LIQUIDADO') {
+        rows = rows.slice().sort(function(a, b) { return String(b.data_pagto || '').localeCompare(String(a.data_pagto || '')); });
+      }
+      render(rows);
+      if (data && data.total > rows.length) {
+        document.getElementById('lista').insertAdjacentHTML('beforeend',
+          '<div class="empty" style="padding:12px">Exibindo ' + rows.length + ' de ' + data.total + ' títulos.</div>');
+      }
+    })
+    .catch(function(e) { if (seq === _reqSeq) erroLista(e.message || 'Erro ao carregar títulos'); });
 }
 
 function carregarKpis() {
   if (!_codCliente) return;
-  var base = '/api/receber?limit=500&cod_cliente=' + encodeURIComponent(_codCliente);
-  var hdrs = { 'Authorization': 'Bearer ' + _tkn };
-  Promise.all([
-    fetch(base + '&status=ABERTA',        { headers: hdrs }).then(function(r){ return r.json(); }),
-    fetch(base + '&status=EM%20ATRASO',   { headers: hdrs }).then(function(r){ return r.json(); })
-  ]).then(function(results) {
-    var somaAberto = 0, somaAtraso = 0;
-    (results[0].rows || results[0] || []).forEach(function(r){ somaAberto += Number(r.valor || 0); });
-    (results[1].rows || results[1] || []).forEach(function(r){ somaAtraso += Number(r.valor || 0); });
-    document.getElementById('kpi-aberto').textContent = fmtMoeda(somaAberto);
-    document.getElementById('kpi-atraso').textContent = fmtMoeda(somaAtraso);
+  buscarTitulos('T').then(function(d) {
+    var somaAberto = 0, somaAtraso = 0, somaPago = 0;
+    linhasApi(d).forEach(function(r) {
+      var st = r.status_display || r.status || '';
+      if (badgeLabel(st) === 'Pago') somaPago += Number(r.valor_pago || r.valor || 0);
+      else {
+        somaAberto += Number(r.valor || 0);
+        if (st === 'EM ATRASO') somaAtraso += Number(r.valor || 0);
+      }
+    });
+    var parcial = d && d.total > linhasApi(d).length ? ' ≈' : '';
+    document.getElementById('kpi-aberto').textContent = fmtMoeda(somaAberto) + parcial;
+    document.getElementById('kpi-atraso').textContent = fmtMoeda(somaAtraso) + parcial;
+    document.getElementById('kpi-pago').textContent = fmtMoeda(somaPago) + parcial;
   }).catch(function(){});
 }
 

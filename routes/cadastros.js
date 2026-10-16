@@ -1609,7 +1609,7 @@ router.get('/despesas', async (req, res) => {
               p.descricao AS planoconta_nome, p.numero AS planoconta_numero
        FROM despesas d
        LEFT JOIN plano_contas p ON p.id = d.id_planoconta
-       WHERE d.excluido='N'
+       WHERE (d.excluido='N' OR d.excluido IS NULL OR d.excluido='')
        ORDER BY ${orderBy}`
     );
     res.json({ despesas: rows });

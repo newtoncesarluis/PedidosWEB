@@ -46,6 +46,40 @@ function vencimentoComRecorrencia(isoBase, indiceMes) {
   return `${y}-${String(mo + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 
+/**
+ * Vencimento da parcela `indice` (0 = primeira) a partir de uma data base.
+ * unidade: DIAS | SEMANAS | MESES | ANOS; intervalo = nº de unidades entre parcelas.
+ * Dias/semanas usam UTC puro (sem deslocar fuso); meses/anos reaproveitam a regra de fim de mês.
+ */
+function vencimentoParcela(isoBase, indice, intervalo = 1, unidade = 'MESES') {
+  const s = extrairDataIso(isoBase);
+  if (!s || indice <= 0) return s;
+  const n = Math.max(1, parseInt(intervalo, 10) || 1) * indice;
+  const un = String(unidade || 'MESES').toUpperCase();
+  if (un === 'MESES') return vencimentoComRecorrencia(s, n);
+  if (un === 'ANOS') return vencimentoComRecorrencia(s, n * 12);
+  const dias = un === 'SEMANAS' ? n * 7 : n;
+  const [y, m, d] = s.split('-').map((x) => parseInt(x, 10));
+  const dt = new Date(Date.UTC(y, m - 1, d + dias));
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
+}
+
+/** Soma dias a YYYY-MM-DD (carência antes da 1ª parcela). */
+function somarDiasIso(isoBase, dias) {
+  return vencimentoParcela(isoBase, parseInt(dias, 10) > 0 ? 1 : 0, parseInt(dias, 10) || 0, 'DIAS');
+}
+
+/**
+ * Nº do documento por parcela: "3681" -> "3681/1", "3681/2"... (só quando há mais de 1 parcela).
+ * `max` = tamanho da coluna (pagar.numeronf = 25, receber.doc = 15); o texto digitado é cortado para caber.
+ */
+function numeroDocParcela(base, indice, total, max) {
+  const b = String(base == null ? '' : base).trim();
+  if (!b || !(total > 1)) return b || null;
+  const suf = '/' + (indice + 1);
+  return b.slice(0, Math.max(1, max - suf.length)) + suf;
+}
+
 function mapPagarRow(r) {
   if (!r || typeof r !== 'object') return r;
   const br = r.vencimento_br && String(r.vencimento_br).trim() ? String(r.vencimento_br).trim() : null;
@@ -69,5 +103,8 @@ module.exports = {
   extrairDataIso,
   normalizarDataCampo,
   vencimentoComRecorrencia,
+  vencimentoParcela,
+  somarDiasIso,
+  numeroDocParcela,
   mapPagarRow,
 };

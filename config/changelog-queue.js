@@ -11,6 +11,105 @@
 module.exports = [
   {
     versao: '1.1.5.0',
+    tipo: 'MELHORIA',
+    titulo: 'Parcelamento gera a sequência do documento (NF/1, NF/2, NF/3) e Pagar ganha forma de pagamento',
+    descricao:
+      'Ao parcelar um título informando o Nº do documento/NF, o sistema grava cada parcela com a sequência (ex.: 3681/1, 3681/2, 3681/3) em Contas a Pagar e a Receber. ' +
+      'No Contas a Pagar, o lançamento ganhou o campo Forma de pagamento (boleto, cheque, PIX, dinheiro, cartão, transferência ou outros), que já vem preenchido na baixa.',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'MELHORIA',
+    titulo: 'Contas a Pagar/Receber: coluna Documento mostra o seu número + parcela',
+    descricao:
+      'Ao informar o Nº do Título / NF, a coluna Documento passa a exibir o número digitado seguido da parcela (ex.: 3681 · 2/4), ' +
+      'em vez do código interno gerado pelo sistema (P000010). Sem número digitado, continua aparecendo o código interno.',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'MELHORIA',
+    titulo: 'Financeiro no cadastro do cliente: veja o que está em aberto e o que já foi pago',
+    descricao:
+      'No cadastro de Clientes, o botão "Financeiro" (visão rápida e menu ⋮) abre os títulos a receber lançados para aquele cliente, ' +
+      'com vencimento, valor, parcela, forma/banco de cobrança e a data do pagamento quando já baixado. ' +
+      'Abas Em aberto, Vencidas, Pagas e Todas, com totais de em aberto, vencido e recebido. Ao dar baixa em Contas a Receber, o título já aparece como pago ali.',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'MELHORIA',
+    titulo: 'Contas a Receber: banco e tipo de cobrança no lançamento',
+    descricao:
+      'Ao lançar ou editar um título a receber, agora é possível informar o Tipo de cobrança (boleto em cobrança bancária, cheque, PIX, dinheiro etc.) ' +
+      'e o Banco / Conta onde o valor vai entrar. A lista mostra a coluna "Cobrança / Banco" e a baixa já abre com esses dados preenchidos. ' +
+      'O parcelamento agora aceita nº de parcelas, intervalo em dias/semanas/meses/anos, carência até a 1ª parcela (ex.: começar após 45 dias, de 30 em 30) e dividir o valor total ou repetir o valor de cada parcela. ' +
+      'Há também filtro por Banco / Conta na lista. No Contas a Pagar, o lançamento ganhou o campo Banco / Conta de pagamento e o mesmo parcelamento flexível. ' +
+      'Os campos são opcionais no lançamento; na baixa o banco também pode ficar em branco (cobrança em carteira): o sistema alerta que o valor não entrará no saldo de nenhuma conta.',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'MELHORIA',
+    titulo: 'Pedido com Puxada = Sim passa a funcionar como no sistema antigo',
+    descricao:
+      'Com Puxada = Sim, o item tem um único campo "Valor Cliente"; Total Puxada = peso × Valor Cliente (não altera o total do item). ' +
+      'O pedido grava o total puxada e a diferença para o total dos itens, e essa diferença soma na comissão total. ' +
+      'As colunas Valor Puxada e Total Puxada aparecem na grade de itens só com Puxada = Sim. ' +
+      'Ao imprimir, o sistema pergunta se deseja imprimir a puxada: o relatório mostra Preço Cliente, Preço Real, Valor Adic., ' +
+      'Total c/ Puxada, Vlr. Fornecedor, Total Puxada e comissão (como no sistema antigo).',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'MELHORIA',
+    titulo: 'Relatório do pedido: Total Descontos e nomes dos totais editáveis',
+    descricao:
+      'Em Configurar modelo de impressão > Blocos > Totais, nova opção "Total Descontos" e campos para renomear cada total do rodapé ' +
+      '(ex.: "Total Volumes", "Total Produtos", "Valor do Pedido"). Em branco, usa o nome padrão.',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'BUG',
+    titulo: 'Pedido: Tipo Documento agora é compartilhado com o sistema antigo',
+    descricao:
+      'O Tipo Documento do pedido passa a ser gravado e lido na mesma coluna do sistema antigo (Delphi). ' +
+      'Valores já informados na web são copiados automaticamente; pedidos antigos passam a mostrar o tipo no combo.',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'MELHORIA',
+    titulo: 'Lista de pedidos: coluna e filtro Puxada',
+    descricao:
+      'Com "Puxada" habilitada na Configuração do Sistema, a lista de pedidos ganha a coluna PUXADA (Sim/Não), ' +
+      'ativável pelo ícone de engrenagem (colunas), e o filtro Puxada nos Filtros avançados.',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'NOVO',
+    titulo: 'Opção de não exibir parcelas de pedidos no Contas a Receber',
+    descricao:
+      'Em Sistema > Configuração do Sistema, a opção "Ocultar parcelas de pedidos no Contas a Receber" mantém as parcelas geradas ' +
+      '(comissões e relatórios continuam funcionando), mas as remove da lista, dos totais e dos gráficos do Contas a Receber.',
+    data_lancamento: '2026-10-14',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'BUG',
+    titulo: 'Pedido: grade fechada já vem preenchida',
+    descricao:
+      'Ao escolher um produto com grade fechada (pronta), a quantidade por tamanho entra automaticamente com a distribuição do cadastro, ' +
+      'sem precisar digitar a numeração. Para vender mais, basta ajustar o total em múltiplos da grade.',
+    data_lancamento: '2026-10-13',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'MELHORIA',
+    titulo: 'Showroom: escolha de cores em galeria com fotos grandes',
+    descricao:
+      'Ao escolher as cores, as miniaturas ficam à esquerda e a cor aberta aparece em foto grande, com o preço no canto. ' +
+      'Quando a cor tem mais fotos, uma tira de ângulos permite trocar a imagem. A quantidade digitada aparece na miniatura de cada cor. ' +
+      'Adicionar várias cores ao carrinho ficou mais rápido e mostra o andamento na tela.',
+    data_lancamento: '2026-10-13',
+  },
+  {
+    versao: '1.1.5.0',
     tipo: 'NOVO',
     titulo: 'Showroom: múltiplos de grade, novo carrinho e busca estilo Google',
     descricao:
@@ -3189,5 +3288,24 @@ module.exports = [
       'Na grade da tabela de preços, marque Exibir mark-up para ver o mark-up líquido de cada item ' +
       '(preço da tabela menos custo e comissão). A marcação fica salva neste navegador e o Excel também leva a coluna.',
     data_lancamento: '2026-09-28',
+  },
+  {
+    versao: '1.1.3.160',
+    tipo: 'BUG',
+    titulo: 'Contas a Receber: Cliente/Pagador busca nos clientes',
+    descricao:
+      'Ao lançar uma receita (boletos), o campo Cliente / Pagador agora busca nos clientes cadastrados ' +
+      '(por nome, CNPJ/CPF ou código) em vez de fornecedores, e vincula o título ao cliente escolhido.',
+    data_lancamento: '2026-10-14',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'BUG',
+    titulo: 'Pedido: aviso de saldo Flex insuficiente agora mostra a mensagem',
+    descricao:
+      'Quando a fábrica bloqueia saldo Flex insuficiente, a janela «Não foi possível salvar» aparecia sem texto. ' +
+      'Agora informa quanto o pedido consome e qual é o saldo do vendedor. ' +
+      'Também permite ver o saldo do vendedor do pedido ao abrir um pedido já salvo.',
+    data_lancamento: '2026-10-16',
   },
 ];

@@ -1331,7 +1331,7 @@ html.ms-embedded-tech.ms-page-contas-pagar .slide-panel.open { right: 0 !importa
                     </select>
                 </div>
                 <div class="filter-group">
-                    <label for="filter_natureza">Natureza</label>
+                    <label for="filter_natureza">Natureza (Despesa)</label>
                     <select class="form-control" id="filter_natureza" title="Filtra por categoria de despesa (id_despesas)" autocomplete="off">
                         <option value="">Todas</option>
                     </select>
@@ -1456,8 +1456,25 @@ html.ms-embedded-tech.ms-page-contas-pagar .slide-panel.open { right: 0 !importa
             <input type="text" id="f_nome" class="form-control" placeholder="Digite nome, CNPJ ou código…" autocomplete="off">
         </div>
         <div class="form-group">
-            <label for="f_natureza">Natureza</label>
+            <label for="f_natureza">Natureza (Despesa)</label>
             <select id="f_natureza" class="form-control" autocomplete="off" title="Categoria de despesa (tabela despesas)" onchange="sugerirContaDaDespesa()"></select>
+        </div>
+        <div class="form-group">
+            <label for="f_forma">Forma de pagamento <span style="font-weight:500;text-transform:none;color:var(--text2)">(opcional)</span></label>
+            <select id="f_forma" class="form-control" autocomplete="off">
+                <option value="">Não informado</option>
+                <option value="BOLETO">Boleto</option>
+                <option value="CHEQUE">Cheque</option>
+                <option value="PIX">PIX</option>
+                <option value="DINHEIRO">Dinheiro</option>
+                <option value="CARTAO">Cartão</option>
+                <option value="TRANSFERENCIA">Transferência</option>
+                <option value="OUTROS">Outros</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="f_banco">Banco / Conta de pagamento <span style="font-weight:500;text-transform:none;color:var(--text2)">(opcional)</span></label>
+            <select id="f_banco" class="form-control" autocomplete="off"><option value="">Não informado</option></select>
         </div>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
             <div class="form-group">
@@ -1472,22 +1489,47 @@ html.ms-embedded-tech.ms-page-contas-pagar .slide-panel.open { right: 0 !importa
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
             <div class="form-group">
                 <label>Vencimento</label>
-                <input type="date" id="f_venc" class="form-control">
+                <input type="date" id="f_venc" class="form-control" oninput="atualizarPreviaParcelas()">
             </div>
             <div class="form-group">
                 <label>Valor (R$)</label>
-                <input type="number" step="0.01" id="f_valor" class="form-control">
+                <input type="number" step="0.01" id="f_valor" class="form-control" oninput="atualizarPreviaParcelas()">
             </div>
         </div>
 
         <!-- Recorrência (Apenas no Provisionamento) -->
         <div id="group_recorrencia" class="form-group" style="background:var(--accent-soft); padding:16px; border-radius:12px; border:1px solid var(--accent)">
-            <label style="color:var(--accent)">Repetir esta conta?</label>
-            <div style="display:flex; align-items:center; gap:12px; margin-top:8px">
-                <span>Provisionar por</span>
-                <input type="number" id="f_meses" class="form-control" style="width:70px" value="1" min="1">
-                <span>meses</span>
+            <label style="color:var(--accent)">Parcelamento</label>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:8px">
+                <div>
+                    <label style="font-size:11px">Nº de parcelas</label>
+                    <input type="number" id="f_meses" class="form-control" value="1" min="1" max="360" oninput="atualizarPreviaParcelas()">
+                </div>
+                <div>
+                    <label style="font-size:11px">O valor informado é</label>
+                    <select id="f_modo_valor" class="form-control" onchange="atualizarPreviaParcelas()">
+                        <option value="TOTAL">Total (dividir nas parcelas)</option>
+                        <option value="PARCELA">De cada parcela (repetir)</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size:11px">Intervalo entre parcelas</label>
+                    <div style="display:flex; gap:6px">
+                        <input type="number" id="f_intervalo_qtd" class="form-control" style="width:80px" value="1" min="1" oninput="atualizarPreviaParcelas()">
+                        <select id="f_intervalo_unidade" class="form-control" onchange="atualizarPreviaParcelas()">
+                            <option value="DIAS">dia(s)</option>
+                            <option value="SEMANAS">semana(s)</option>
+                            <option value="MESES" selected>mês(es)</option>
+                            <option value="ANOS">ano(s)</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label style="font-size:11px">Carência (dias) até a 1ª parcela</label>
+                    <input type="number" id="f_carencia" class="form-control" value="0" min="0" oninput="atualizarPreviaParcelas()" title="Soma dias à data de Vencimento para definir a 1ª parcela (ex.: 45)">
+                </div>
             </div>
+            <div id="f_previa_parcelas" style="font-size:11px; margin-top:8px; color:var(--text2)"></div>
         </div>
 
         <div class="form-group">
@@ -1578,6 +1620,7 @@ html.ms-embedded-tech.ms-page-contas-pagar .slide-panel.open { right: 0 !importa
                     <option style="background:#1e293b; color:#fff" value="TRANSFERENCIA">Transferência</option>
                     <option style="background:#1e293b; color:#fff" value="CARTAO">Cartão</option>
                     <option style="background:#1e293b; color:#fff" value="CHEQUE">Cheque</option>
+                    <option style="background:#1e293b; color:#fff" value="OUTROS">Outros</option>
                 </select>
             </div>
         </div>
@@ -1936,7 +1979,7 @@ function pagarCellHtml(col, row) {
             return `<div style="font-size:11px">${row.centrocusto_nome ? c + row.centrocusto_nome : '—'}</div>`;
         }
         case 'nome_despesa': return row.despesas || row.nome_despesa || '-';
-        case 'doc': return row.doc || row.numero || '-';
+        case 'doc': return docTitulo(row);
         case 'numero': return row.numero || '-';
         case 'valor': return `<span style="font-weight:800;color:var(--accent)">${fmtCur(row.valor)}</span>`;
         case 'status_display': return `<span class="badge ${stClass}">${row.status_display || row.status || '-'}</span>`;
@@ -2137,8 +2180,17 @@ function setPrintTheadPagas() {
     </tr>`;
 }
 
+/** Nº do documento digitado (numeronf) + parcela/total; sem digitar, cai no código gerado pelo sistema. */
+function docTitulo(r, vazio) {
+    const base = (r.numeronf && String(r.numeronf).trim()) || r.doc || (r.numero != null ? String(r.numero) : '');
+    if (!base) return vazio === undefined ? '-' : vazio;
+    const qt = parseInt(r.qt_parcelas, 10) || 0;
+    const pa = parseInt(r.parcela, 10) || 0;
+    return qt > 1 && pa > 0 && !base.endsWith('/' + pa) ? base + ' · ' + pa + '/' + qt : base;
+}
+
 function docPagarLabel(c) {
-    return c.doc || c.numeronf || (c.numero != null ? String(c.numero) : '') || '-';
+    return docTitulo(c);
 }
 
 function naturezaPagarLabel(c) {
@@ -2604,7 +2656,7 @@ function renderDesktopTable(rows) {
             <td>${displayVencimento(row)}</td>
             <td><div style="font-weight:700">${row.nome_fornecedor || '—'}</div></td>
             <td><div style="font-size:13px">${row.nome_natureza || row.nome_despesa || '—'}</div></td>
-            <td>${row.doc || row.numeronf || row.numero || '—'}</td>
+            <td>${docTitulo(row)}</td>
             <td style="text-align:right;font-weight:800;color:var(--accent)">${fmtCur(row.valor)}</td>
             <td><span class="badge ${stClass}">${row.status_display || row.status || '—'}</span></td>
             <td class="no-print pagar-td-acoes">
@@ -2639,7 +2691,7 @@ function renderMobileCards(rows) {
         const cor = COR[disp] || 'var(--text2)';
         const stClass = disp === 'LIQUIDADO' ? 'badge-pago' : (disp === 'EM ATRASO' ? 'badge-vencido' : 'badge-aberto');
         const natureza = row.nome_natureza || row.nome_despesa || '';
-        const doc = row.doc || row.numero || '';
+        const doc = docTitulo(row, '');
         const fornecedor = row.nome_fornecedor || '';
         let btnAcoes = '';
         if (isTituloLiquidado(row)) {
@@ -2795,12 +2847,63 @@ function resetForm() {
     document.getElementById('f_venc').value = hojeIsoLocal();
     document.getElementById('f_obs').value = '';
     document.getElementById('f_meses').value = 1;
+    document.getElementById('f_modo_valor').value = 'TOTAL';
+    document.getElementById('f_intervalo_qtd').value = 1;
+    document.getElementById('f_intervalo_unidade').value = 'MESES';
+    document.getElementById('f_carencia').value = 0;
+    atualizarPreviaParcelas();
     const selNat = document.getElementById('f_natureza');
     if (selNat) selNat.value = '';
     const selPc = document.getElementById('f_planoconta');
     const selCc = document.getElementById('f_centrocusto');
     if (selPc) { selPc.value = ''; selPc.dataset.manual = ''; }
     if (selCc) selCc.value = '';
+    const selForma = document.getElementById('f_forma');
+    if (selForma) selForma.value = '';
+    preencherFormBancoPagar('');
+}
+
+async function preencherFormBancoPagar(preferId) {
+    await carregarBancosLiquidacao(false);
+    const sel = document.getElementById('f_banco');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">Não informado</option>' + _bancosLiqCache.map((b) =>
+        '<option value="' + b.id + '">' + fmtSaldoBancoOpt(b).replace(/</g, '&lt;') + '</option>'
+    ).join('');
+    sel.value = preferId ? String(preferId) : '';
+}
+
+function addDiasIsoPag(iso, dias) {
+    const [y, m, d] = iso.split('-').map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d + dias));
+    return dt.getUTCFullYear() + '-' + String(dt.getUTCMonth() + 1).padStart(2, '0') + '-' + String(dt.getUTCDate()).padStart(2, '0');
+}
+function addMesesIsoPag(iso, n) {
+    const [y, m, d] = iso.split('-').map(Number);
+    const tot = (m - 1) + n, yy = y + Math.floor(tot / 12), mm = ((tot % 12) + 12) % 12;
+    const dd = Math.min(d, new Date(yy, mm + 1, 0).getDate());
+    return yy + '-' + String(mm + 1).padStart(2, '0') + '-' + String(dd).padStart(2, '0');
+}
+function atualizarPreviaParcelas() {
+    const el = document.getElementById('f_previa_parcelas');
+    if (!el) return;
+    const venc = document.getElementById('f_venc').value;
+    const qt = Math.min(Math.max(parseInt(document.getElementById('f_meses').value, 10) || 1, 1), 360);
+    if (qt <= 1 || !/^\d{4}-\d{2}-\d{2}$/.test(venc)) { el.textContent = ''; return; }
+    const iv = Math.max(1, parseInt(document.getElementById('f_intervalo_qtd').value, 10) || 1);
+    const un = document.getElementById('f_intervalo_unidade').value;
+    const car = Math.max(0, parseInt(document.getElementById('f_carencia').value, 10) || 0);
+    const base = car ? addDiasIsoPag(venc, car) : venc;
+    const datas = [];
+    for (let i = 0; i < qt; i++) {
+        const n = iv * i;
+        datas.push(un === 'MESES' ? addMesesIsoPag(base, n) : un === 'ANOS' ? addMesesIsoPag(base, n * 12) : addDiasIsoPag(base, un === 'SEMANAS' ? n * 7 : n));
+    }
+    const br = (x) => x.slice(8, 10) + '/' + x.slice(5, 7) + '/' + x.slice(0, 4);
+    const v = parseFloat(document.getElementById('f_valor').value) || 0;
+    const vp = document.getElementById('f_modo_valor').value === 'TOTAL' ? v / qt : v;
+    el.textContent = qt + ' parcela(s)' + (v ? ' de ~R$ ' + vp.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '') +
+        ' · ' + (qt > 4 ? br(datas[0]) + ', ' + br(datas[1]) + ' … ' + br(datas[qt - 1]) : datas.map(br).join(', '));
 }
 
 function sugerirContaDaDespesa() {
@@ -2882,7 +2985,9 @@ async function abrirModalLiquidar(id, isViewOnly = false) {
     
     const dp = conta.data_pagto ? String(conta.data_pagto).slice(0, 10) : '';
     document.getElementById('liq_data_pagto').value = dp || hojeIsoLocal();
-    document.getElementById('liq_forma').value = conta.forma_foipagto || 'PIX';
+    const selLiqF = document.getElementById('liq_forma');
+    selLiqF.value = (conta.forma_pagto && conta.forma_pagto !== 'DINHEIRO' ? conta.forma_pagto : '') || conta.forma_foipagto || 'PIX';
+    if (!selLiqF.value) selLiqF.value = 'PIX';
     document.getElementById('liq_juros').value = conta.juros || '';
     document.getElementById('liq_acrescimo').value = conta.vlracressimo || '';
     document.getElementById('liq_historico').value = conta.obs || 'PAGAMENTO EFETUADO';
@@ -3041,8 +3146,18 @@ async function abrirEditar(id) {
     document.getElementById('f_venc').value = vencIso;
     document.getElementById('f_valor').value = conta.valor || '';
     document.getElementById('f_obs').value = conta.obs || '';
-    
-    document.getElementById('group_recorrencia').style.display = 'none'; 
+    const selForma = document.getElementById('f_forma');
+    if (selForma) {
+        const fp = conta.forma_pagto || '';
+        selForma.querySelectorAll('option[data-legado]').forEach((o) => o.remove());
+        if (fp && ![...selForma.options].some((o) => o.value === fp)) {
+            const o = document.createElement('option'); o.value = fp; o.textContent = fp; o.dataset.legado = '1'; selForma.appendChild(o);
+        }
+        selForma.value = fp;
+    }
+    await preencherFormBancoPagar(conta.id_banco || '');
+
+    document.getElementById('group_recorrencia').style.display = 'none';
     document.getElementById('panel_form').classList.add('open');
 }
 
@@ -3063,9 +3178,15 @@ async function salvar() {
         despesas: despesasNome && despesasNome !== 'Selecione...' ? despesasNome : null,
         id_planoconta: document.getElementById('f_planoconta')?.value || null,
         id_centrocusto: document.getElementById('f_centrocusto')?.value || null,
+        id_banco: document.getElementById('f_banco')?.value || null,
+        forma_pagto: document.getElementById('f_forma')?.value || null,
         status: document.getElementById('f_status').value,
         obs: document.getElementById('f_obs').value,
-        recorrencia: document.getElementById('f_meses').value
+        recorrencia: document.getElementById('f_meses').value,
+        modo_valor: document.getElementById('f_modo_valor').value,
+        intervalo_qtd: document.getElementById('f_intervalo_qtd').value,
+        intervalo_unidade: document.getElementById('f_intervalo_unidade').value,
+        carencia_dias: document.getElementById('f_carencia').value
     };
 
     if (!/^\d{4}-\d{2}-\d{2}$/.test(venc)) {

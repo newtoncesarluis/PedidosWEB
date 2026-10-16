@@ -269,21 +269,54 @@ function renderLista(rows) {
   `).join('');
 }
 
+let _planoContasCarregando = null;
 async function loadPlanoContas() {
-  try {
-    const r = await fetch('/api/plano-contas?analiticas=1&grupo=DESPESA', { headers: authHeaders(), credentials: 'include' });
-    const d = await r.json();
-    const lista = d.plano_contas || [];
+  if (_planoContasCarregando) return _planoContasCarregando;
+  _planoContasCarregando = (async () => {
     const sel = document.getElementById('f_id_planoconta');
-    sel.innerHTML = '<option value="">Nenhum</option>' + lista.map(p =>
-      `<option value="${p.id}">${p.numero ? p.numero + ' — ' : ''}${p.descricao}</option>`
-    ).join('');
     const hint = document.getElementById('hint_planoconta');
-    if (hint) hint.style.display = lista.length ? 'none' : 'block';
-  } catch(e) {
-    const hint = document.getElementById('hint_planoconta');
-    if (hint) hint.style.display = 'block';
-  }
+    const buscar = async (qs) => {
+      const r = await fetch('/api/plano-contas?analiticas=1' + qs, { headers: authHeaders(), credentials: 'include', cache: 'no-store' });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+      return d.plano_contas || [];
+    };
+    const preencher = (lista) => {
+      const cur = sel.value;
+      // ordem natural (2.1.2 antes de 2.1.10) + recuo pelo nível da conta
+      const seg = (n) => String(n || '').split('.').filter(Boolean).map(x => parseInt(x, 10) || 0);
+      const ordenada = lista.slice().sort((a, b) => {
+        const A = seg(a.numero), B = seg(b.numero);
+        for (let i = 0; i < Math.max(A.length, B.length); i++) {
+          if ((A[i] ?? -1) !== (B[i] ?? -1)) return (A[i] ?? -1) - (B[i] ?? -1);
+        }
+        return String(a.descricao).localeCompare(String(b.descricao));
+      });
+      sel.innerHTML = '<option value="">Nenhum</option>' + ordenada.map(p => {
+        const nivel = Math.max(0, seg(p.numero).length - 1);
+        const recuo = '   '.repeat(nivel);
+        const num = p.numero ? String(p.numero).replace(/\.$/, '') + ' — ' : '';
+        return `<option value="${p.id}">${recuo}${num}${String(p.descricao || '').replace(/</g, '&lt;')}</option>`;
+      }).join('');
+      sel.value = cur || '';
+    };
+    try {
+      let lista = await buscar('&grupo=DESPESA');
+      let todas = false;
+      if (!lista.length) { lista = await buscar(''); todas = lista.length > 0; } // plano legado com grupo diferente de DESPESA
+      preencher(lista);
+      if (hint) {
+        hint.style.display = (!lista.length || todas) ? 'block' : 'none';
+        if (todas) hint.textContent = 'Nenhuma conta analítica do grupo Despesa; exibindo todas as contas analíticas. Ajuste o grupo no Plano de Contas se necessário.';
+      }
+    } catch (e) {
+      console.warn('plano de contas:', e);
+      if (hint) { hint.style.display = 'block'; hint.textContent = 'Não foi possível carregar o Plano de Contas (' + (e.message || 'erro') + '). Recarregue a página.'; }
+    } finally {
+      _planoContasCarregando = null;
+    }
+  })();
+  return _planoContasCarregando;
 }
 
 function toggleFiltroStatus(st) {
@@ -379,6 +412,7 @@ function toast(msg, tipo='ok') {
   setTimeout(()=>t.remove(), 3000);
 }
 
+document.addEventListener('DOMContentLoaded', () => { loadPlanoContas(); });
 document.addEventListener('cad-perm-ready', () => {
   loadPlanoContas();
   if (typeof aplicarUiPermissoesCad === 'function') aplicarUiPermissoesCad();

@@ -26,9 +26,8 @@ if not exist "%DIR%logs" mkdir "%DIR%logs"
 :: NÃO matar 3307/3308 — são túneis SSH do HeidiSQL e do sistema
 for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":3002 "') do taskkill /F /PID %%a >nul 2>&1
 
-timeout /t 2 /nobreak >nul
-
-start "" /B cmd /c "timeout /t 3 /nobreak >nul && start http://localhost:%PORT%"
+rem Abre o navegador assim que a porta responde (ate 60s), sem espera fixa
+start "" /B powershell.exe -NoProfile -WindowStyle Hidden -Command "for($i=0;$i -lt 120;$i++){ try{ $c=New-Object Net.Sockets.TcpClient; $c.Connect('127.0.0.1',%PORT%); $c.Close(); break }catch{ Start-Sleep -Milliseconds 500 } }; Start-Process 'http://localhost:%PORT%'"
 
 start "" /B powershell.exe -Sta -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%DIR%tray-icon.ps1" -Port %PORT%
 

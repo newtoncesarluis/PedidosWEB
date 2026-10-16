@@ -224,7 +224,7 @@ router.get('/despesas', async (req, res) => {
     const [rows] = await pool.query(
       `SELECT d.id AS id_despesas, ${labelSql} AS nome, d.id_planoconta
        FROM despesas d
-       WHERE d.excluido = 'N'
+       WHERE (d.excluido = 'N' OR d.excluido IS NULL OR d.excluido = '')
        ORDER BY ${orderSql}`
     );
     res.json(rows);

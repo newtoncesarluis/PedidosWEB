@@ -488,7 +488,7 @@ async function ensureTables(pool) {
         { name: 'coduser_digitacao', type: 'INT' },
         { name: 'id_empresa',        type: 'INT' },
         { name: 'puxada',            type: "VARCHAR(1) DEFAULT 'N'" },
-        { name: 'tipo_documento',    type: 'VARCHAR(20)' },
+        { name: 'tipodocumento',     type: 'VARCHAR(20)' },   // coluna do Delphi (NÃO usar tipo_documento)
         { name: 'dataexclusao',      type: 'DATE' },
         { name: 'horaexclusao',      type: 'TIME' },
         { name: 'id_userexclusao',   type: 'INT' },
@@ -504,6 +504,19 @@ async function ensureTables(pool) {
       ];
       for (const c of colsToAdd)
         await pool.query(`ALTER TABLE pedidos ADD COLUMN ${c.name} ${c.type}`).catch(() => {});
+
+      // Versão antiga da web criava `tipo_documento`; a oficial (Delphi) é `tipodocumento`.
+      // Copia o que ficou na coluna antiga (só onde a oficial está vazia) — não cria coluna nova.
+      try {
+        const [oldCol] = await pool.query(`SHOW COLUMNS FROM pedidos LIKE 'tipo_documento'`);
+        if (oldCol.length) {
+          await pool.query(
+            `UPDATE pedidos SET tipodocumento = tipo_documento
+             WHERE (tipodocumento IS NULL OR tipodocumento = '')
+               AND tipo_documento IS NOT NULL AND tipo_documento <> ''`
+          );
+        }
+      } catch (_) {}
 
       const colsToResize = [
         { name: 'numero',              type: 'VARCHAR(50)' },
@@ -547,6 +560,7 @@ async function ensureTables(pool) {
         { name: 'vlr_padrao',             type: 'DECIMAL(15,4) DEFAULT NULL' },
         { name: 'acrescimo',              type: 'DECIMAL(15,2) DEFAULT 0' },
         { name: 'valor_cliente',          type: 'DECIMAL(15,4) DEFAULT 0' },
+        { name: 'valor_totalpuxada',      type: 'DECIMAL(15,2) DEFAULT 0' },
         { name: 'vlrtotalcomimposto',     type: 'DECIMAL(15,3) DEFAULT 0' },
         { name: 'obsitem',                type: 'VARCHAR(100) DEFAULT NULL' },
       ];
@@ -622,6 +636,13 @@ async function ensureTables(pool) {
   ]);
 }
 
+/** Puxada (Delphi): total puxada do item = peso total × valor puxada (Valor Cliente). */
+function totalPuxadaItem(item) {
+  const vp = parseFloat(item?.valor_puxada) || 0;
+  const peso = parseFloat(item?.total_peso) || 0;
+  return vp > 0 ? Math.round(peso * vp * 100) / 100 : 0;
+}
+
 // ─── Helper: INSERT itensped (campos alinhados ao legado Delphi) ─────────────
 const ITENSPED_INSERT_COLS = [
   'numpedido', 'id_pedido', 'cod_produto', 'cod_fabricante', 'cod_fornecedor',
@@ -629,7 +650,7 @@ const ITENSPED_INSERT_COLS = [
   'vlrtotalcomimposto',
   'desconto', 'comissao', 'acrescimo',
   'st', 'vlr_st', 'ipi', 'vlr_ipi', 'icms', 'vlr_icms',
-  'valor_puxada', 'valor_cliente', 'total_peso', 'cores', 'obsitem',
+  'valor_puxada', 'valor_totalpuxada', 'valor_cliente', 'total_peso', 'cores', 'obsitem',
   'tipo_pedido', 'id_tipopedido',
   'sequencia', 'vlr_unitariosemimposto', 'vlr_totalsemimposto', 'vlr_descontototal', 'peso',
   'multiplo_sigla', 'multiplo_fator',
@@ -941,7 +962,7 @@ function buildItenspedInsertParams(item, ctx) {
     item.st_percentual || 0, item.vlr_st || 0,
     item.ipi_percentual || 0, item.vlr_ipi || 0,
     imp.icmsPct, imp.vlrIcms,
-    item.valor_puxada || 0, nPedidoField(item.valor_cliente), pesoItem,
+    item.valor_puxada || 0, totalPuxadaItem(item), nPedidoField(item.valor_cliente), pesoItem,
     item.cores_qt || '', imp.obsitem,
     (tipoPedido || '').toString().toUpperCase() || 'PEDIDO', idTipoPedido || null,
     seqItem + 1, vlrUnitSemImp, item.vlrtotal_itens || 0, vlrDescTotal, parseFloat(item.peso || 0),
@@ -1212,11 +1233,25 @@ async function _calcComissaoBackend(conn, codFornecedor, idUsuario, itens, idPre
     }
   }
 
+  // Puxada = SIM (como no Delphi): total puxada = Σ(peso × valor puxada); a DIFERENÇA para o total dos itens
+  // (vlr_totpuxada) é ganho extra e soma na comissão total. Puxada NÃO: tudo zerado.
+  const puxadaOn = String(opts.puxada || '').toUpperCase() === 'S' && (itens || []).length > 0;
+  let vlrTotItensPuxada = 0;
+  let vlrDifPuxada = 0;
+  if (puxadaOn) {
+    // Delphi: vlrtotalitenspuxada = Σ valor_totalpuxada (peso × valor puxada de cada item)
+    vlrTotItensPuxada = Math.round((itens || []).reduce((s, i) => s + totalPuxadaItem(i), 0) * 100) / 100;
+    const totItens = (itens || []).reduce((s, i) => s + (parseFloat(i.vlrtotal_itens) || 0), 0);
+    vlrDifPuxada = Math.round(Math.abs(vlrTotItensPuxada - totItens) * 100) / 100;
+  }
+
   return {
+    vlrtotalitenspuxada:    vlrTotItensPuxada,
+    vlr_totpuxada:          vlrDifPuxada,
     comissao:               Math.round(pct * 100) / 100,
     vlrcomissao:            vlrNormal,
     vlr_comissaonormal:     vlrNormal,
-    vlr_total_comissao:     Math.round((vlrNormal - vlrGerente) * 100) / 100,
+    vlr_total_comissao:     Math.round((vlrNormal - vlrGerente + vlrDifPuxada) * 100) / 100,
     comissaogerente:        pctGerente,
     compartilhacomissao:    compartilha ? 'S' : 'N',
     origem_comissao:        origLabel,
@@ -1480,7 +1515,7 @@ router.get('/', async (req, res) => {
     const {
       q, page = 1, limit = 50, status, tipo, dt_ini, dt_fim, id_vendedor,
       min_total, max_total, min_peso, max_peso,
-      comprador, ped_compras, nome_transp, origem, nome_empresa,
+      comprador, ped_compras, nome_transp, origem, nome_empresa, puxada,
       cod_cliente, id_cliente, cod_fornecedor, id_fornecedor,
       sort = 'p.id', dir = 'DESC',
       lat, lng, raio = 50,
@@ -1642,6 +1677,8 @@ router.get('/', async (req, res) => {
     if (comprador)   { whereClause += ` AND p.comprador LIKE ?`; whereClauseCards += ` AND p.comprador LIKE ?`; params.push(`%${comprador}%`); paramsCards.push(`%${comprador}%`); }
     if (ped_compras) { whereClause += ` AND p.ped_compras LIKE ?`; whereClauseCards += ` AND p.ped_compras LIKE ?`; params.push(`%${ped_compras}%`); paramsCards.push(`%${ped_compras}%`); }
     if (nome_transp) { whereClause += ` AND p.nome_transp LIKE ?`; whereClauseCards += ` AND p.nome_transp LIKE ?`; params.push(`%${nome_transp}%`); paramsCards.push(`%${nome_transp}%`); }
+    if (puxada === 'S') { whereClause += ` AND p.puxada = 'S'`; whereClauseCards += ` AND p.puxada = 'S'`; }
+    else if (puxada === 'N') { whereClause += ` AND (p.puxada IS NULL OR p.puxada <> 'S')`; whereClauseCards += ` AND (p.puxada IS NULL OR p.puxada <> 'S')`; }
     if (origem)      { whereClause += ` AND p.origem = ?`; whereClauseCards += ` AND p.origem = ?`; params.push(origem); paramsCards.push(origem); }
     if (nome_empresa){ whereClause += ` AND p.nome_empresa LIKE ?`; whereClauseCards += ` AND p.nome_empresa LIKE ?`; params.push(`%${nome_empresa}%`); paramsCards.push(`%${nome_empresa}%`); }
     
@@ -4490,7 +4527,7 @@ router.post('/', async (req, res) => {
     }
     const comissaoCalc = await _calcComissaoBackend(
       conn, pedido.cod_fornecedor, pedido.id_usuario, itensParaCom, idPreposto,
-      soTotais ? { baseTotal: baseTotais, pctManual } : {}
+      { ...(soTotais ? { baseTotal: baseTotais, pctManual } : {}), puxada: pedido.puxada }
     );
     if (comissaoCalc._nome_preposto) pedido.nome_preposto = comissaoCalc._nome_preposto;
     delete comissaoCalc._nome_preposto;
@@ -4536,7 +4573,7 @@ router.post('/', async (req, res) => {
         cod_fornecedor, nome_fornecedor,
         cod_transportadora, nome_transportadora,
         id_frete, tipo_frete,
-        id_tipopedido, tipo_pedido, tipo_documento,
+        id_tipopedido, tipo_pedido, tipodocumento,
         id_condicaopagto, condicao_pagto, forma_pagto, prazo_pagto, tipo_prazo,
         ped_compras, Comprador, data_entrega,
         vlrsubtotal, vlrtotalitens, vlrdesconto, vlrtotalimposto,
@@ -4579,7 +4616,7 @@ router.post('/', async (req, res) => {
         pedido.cod_fornecedor || null, up(pedido.nome_fornecedor),
         pedido.cod_transportadora || null, up(pedido.nome_transportadora),
         pedido.id_frete || null, up(pedido.tipo_frete),
-        pedido.id_tipopedido || null, up(pedido.tipo_pedido) || 'PEDIDO', up(pedido.tipo_documento),
+        pedido.id_tipopedido || null, up(pedido.tipo_pedido) || 'PEDIDO', up(pedido.tipodocumento ?? pedido.tipo_documento),
         pedido.id_condicaopagto || null, up(pedido.condicao_pagto), up(pedido.forma_pagto), up(pedido.prazo_pagto),
         ['V', 'P'].includes(String(pedido.tipo_prazo || '').toUpperCase()) ? String(pedido.tipo_prazo).toUpperCase() : null,
         up(pedido.ped_compras), up(pedido.comprador), pedido.data_entrega || null,
@@ -4860,7 +4897,7 @@ router.post('/:id', async (req, res) => {
       if ((itensParaCom && itensParaCom.length > 0) || soTotaisUpd) {
         const comissaoCalc = await _calcComissaoBackend(
           conn, pedido.cod_fornecedor, idVend, itensParaCom, idPrepostoUpd,
-          soTotaisUpd ? { baseTotal: baseTotais, pctManual } : {}
+          { ...(soTotaisUpd ? { baseTotal: baseTotais, pctManual } : {}), puxada: pedido.puxada }
         );
         if (comissaoCalc._nome_preposto) pedido.nome_preposto = comissaoCalc._nome_preposto;
         delete comissaoCalc._nome_preposto;
@@ -4892,8 +4929,12 @@ router.post('/:id', async (req, res) => {
       const sets = [];
       const vals = [];
       if (pedido.tipo_prazo !== undefined) await ensureTipoPrazoColumn(conn);
+      // A web envia `tipo_documento`; a coluna oficial (Delphi) é `tipodocumento`
+      if (pedido.tipodocumento === undefined && pedido.tipo_documento !== undefined) {
+        pedido.tipodocumento = pedido.tipo_documento;
+      }
       const allowedFields = [
-        'situacao_pedido', 'tipo_pedido', 'id_tipopedido', 'tipo_documento',
+        'situacao_pedido', 'tipo_pedido', 'id_tipopedido', 'tipodocumento',
         'vlrtotalpedido', 'vlrsubtotal', 'vlrtotalitens', 'vlrtotalbruto',
         'vlrdesconto', 'vlrtotalimposto', 'vlrfrete', 'vlrjuros',
         'qt_parcelas', 'total_qt', 'total_peso',

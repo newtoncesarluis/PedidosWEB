@@ -15,7 +15,8 @@ const {
   sqlStatusDisplay,
   truncFormaPagto,
 } = require('../config/receber-status');
-const { extrairDataIso, vencimentoComRecorrencia } = require('../config/pagar-dates');
+const { extrairDataIso, vencimentoComRecorrencia, vencimentoParcela, somarDiasIso, numeroDocParcela } = require('../config/pagar-dates');
+const { ocultarReceberPedidoAtivo, sqlSemParcelasPedido } = require('../config/receber-oculta-pedido');
 
 function mensagemErroReceber(err) {
   const msg = String(err?.message || err || '');
@@ -101,6 +102,7 @@ router.get('/', async (req, res) => {
 
   let where = SQL_EXCLUIDO;
   const params = [];
+  where += sqlSemParcelasPedido(await ocultarReceberPedidoAtivo(pool), 'p');
 
   // vencimento é DATE — sem DATE() para permitir uso de índice
   if (dt_inicio && dt_fim) {
@@ -149,6 +151,11 @@ router.get('/', async (req, res) => {
     where += ' AND p.id_centrocusto = ?';
     params.push(centroId);
   }
+  const bancoId = parseInt(req.query.id_banco, 10);
+  if (bancoId > 0) {
+    where += ' AND p.id_banco = ?';
+    params.push(bancoId);
+  }
 
   const p = parseInt(page) || 1;
   const lim = Math.min(Math.max(parseInt(limit) || 50, 1), 200);
@@ -159,6 +166,7 @@ router.get('/', async (req, res) => {
       resolveNaturezaLabelColumn(pool),
       ensureFinanceiroContabilCols(pool).catch(() => {}),
       ensureReceberListIndexes(pool).catch(() => {}),
+      ensureBancoMovimentoSchema(pool).catch(() => {}),
     ]);
     const natLabel = naturezaLabelExpr('n');
 
@@ -168,8 +176,9 @@ router.get('/', async (req, res) => {
         SELECT 
           p.id, p.numero, p.doc, p.tipo, p.vencimento, p.valor, p.status, p.obs,
           p.cod_fornecedor, p.nome_fornecedor, p.id_receitas, p.id_cliente, p.cod_vendedor,
-          p.data_pagto, p.valor_pago, p.forma_pagto, p.juros, p.vlrjuros, p.vlracressimo,
-          p.id_planoconta, p.id_centrocusto, p.excluido,
+          p.data_pagto, p.valor_pago, p.forma_pagto, p.parcela, p.qt_parcelas, p.juros, p.vlrjuros, p.vlracressimo,
+          p.id_planoconta, p.id_centrocusto, p.excluido, p.id_banco,
+          COALESCE(NULLIF(b.apelido, ''), b.nome) AS banco_nome,
           ${natLabel} AS nome_receita,
           COALESCE(p.id_planoconta, n.id_planoconta) AS id_planoconta_resolvido,
           pc.numero AS planoconta_numero,
@@ -181,8 +190,9 @@ router.get('/', async (req, res) => {
         LEFT JOIN natureza n ON p.id_receitas = n.id
         LEFT JOIN plano_contas pc ON pc.id = COALESCE(p.id_planoconta, n.id_planoconta)
         LEFT JOIN centro_custo cc ON cc.id = p.id_centrocusto
-        WHERE ${where} 
-        ORDER BY p.vencimento ASC 
+        LEFT JOIN bancos b ON b.id = p.id_banco
+        WHERE ${where}
+        ORDER BY p.vencimento ASC
         LIMIT ? OFFSET ?
       `, [...params, lim, offset]),
     ]);
@@ -200,6 +210,7 @@ router.get('/stats', async (req, res) => {
   const pool = getPool();
   try {
     await ensureReceberListIndexes(pool).catch(() => {});
+    const semPed = sqlSemParcelasPedido(await ocultarReceberPedidoAtivo(pool));
     const [rows] = await pool.query(`
       SELECT
         SUM(CASE WHEN ${SQL_ABERTO_COL} AND vencimento < CURDATE() THEN valor ELSE 0 END) as total_vencido,
@@ -207,7 +218,7 @@ router.get('/stats', async (req, res) => {
         SUM(CASE WHEN ${SQL_LIQUIDADO_COL} AND DATE(data_pagto) = CURDATE() THEN COALESCE(valor_pago, valor) ELSE 0 END) as total_recebido_hoje,
         COUNT(CASE WHEN ${SQL_ABERTO_COL} AND vencimento < CURDATE() THEN 1 END) as qtd_vencidos
       FROM receber
-      WHERE (excluido = 'N' OR excluido IS NULL OR excluido = '')
+      WHERE (excluido = 'N' OR excluido IS NULL OR excluido = '')${semPed}
     `);
     const s = rows[0] || {};
     res.json({
@@ -228,18 +239,20 @@ router.get('/dashboard', async (req, res) => {
   try {
     await resolveNaturezaLabelColumn(pool);
     const natLabel = naturezaLabelExpr('n');
+    const semPed = sqlSemParcelasPedido(await ocultarReceberPedidoAtivo(pool));
+    const semPedP = sqlSemParcelasPedido(await ocultarReceberPedidoAtivo(pool), 'p');
 
     const [topAbertas] = await pool.query(`
       SELECT nome_fornecedor as cliente, SUM(valor) as total 
       FROM receber 
-      WHERE ${SQL_ABERTO_COL} AND (excluido = 'N' OR excluido IS NULL OR excluido = '')
+      WHERE ${SQL_ABERTO_COL} AND (excluido = 'N' OR excluido IS NULL OR excluido = '')${semPed}
       GROUP BY nome_fornecedor ORDER BY total DESC LIMIT 10
     `);
 
     const [topRecebidos] = await pool.query(`
       SELECT nome_fornecedor as cliente, SUM(COALESCE(valor_pago, valor)) as total 
       FROM receber 
-      WHERE ${SQL_LIQUIDADO_COL} AND (excluido = 'N' OR excluido IS NULL OR excluido = '')
+      WHERE ${SQL_LIQUIDADO_COL} AND (excluido = 'N' OR excluido IS NULL OR excluido = '')${semPed}
       GROUP BY nome_fornecedor ORDER BY total DESC LIMIT 10
     `);
 
@@ -247,7 +260,7 @@ router.get('/dashboard', async (req, res) => {
       SELECT ${natLabel} as categoria, SUM(p.valor) as total
       FROM receber p
       LEFT JOIN natureza n ON p.id_receitas = n.id
-      WHERE (p.excluido = 'N' OR p.excluido IS NULL OR p.excluido = '')
+      WHERE (p.excluido = 'N' OR p.excluido IS NULL OR p.excluido = '')${semPedP}
       GROUP BY ${natLabel} ORDER BY total DESC LIMIT 5
     `);
 
@@ -257,7 +270,7 @@ router.get('/dashboard', async (req, res) => {
         MIN(vencimento) as data_inicio,
         SUM(valor) as total
       FROM receber
-      WHERE ${SQL_ABERTO_COL} AND (excluido = 'N' OR excluido IS NULL OR excluido = '') AND vencimento >= CURDATE()
+      WHERE ${SQL_ABERTO_COL} AND (excluido = 'N' OR excluido IS NULL OR excluido = '') AND vencimento >= CURDATE()${semPed}
       GROUP BY WEEK(vencimento)
       ORDER BY vencimento ASC
       LIMIT 4
@@ -280,8 +293,9 @@ router.get('/dashboard-financeiro', async (req, res) => {
     try {
         // KPIs principais
         const [saldoAtual] = await pool.query("SELECT SUM(valor) as saldo FROM caixa WHERE excluido = 'N'");
+        const semPed = sqlSemParcelasPedido(await ocultarReceberPedidoAtivo(pool));
         const [totalReceber] = await pool.query(
-          `SELECT SUM(valor) as total FROM receber WHERE ${SQL_ABERTO_COL} AND (excluido = 'N' OR excluido IS NULL OR excluido = '')`
+          `SELECT SUM(valor) as total FROM receber WHERE ${SQL_ABERTO_COL} AND (excluido = 'N' OR excluido IS NULL OR excluido = '')${semPed}`
         );
         const [totalPagar] = await pool.query("SELECT SUM(valor) as total FROM pagar WHERE status = 'ABERTA' AND excluido = 'N'");
 
@@ -346,7 +360,7 @@ router.post('/', validarEntradas, async (req, res) => {
     const nf = String(data.doc || data.numero || '').trim().slice(0, 25);
     // Auto-cadastra o cliente/pagador caso seja novo
     let finalCodFornecedor = data.cod_fornecedor || null;
-    if (!finalCodFornecedor && data.nome_fornecedor) {
+    if (!finalCodFornecedor && data.nome_fornecedor && !data.id_cliente) {
       const nomeTrim = data.nome_fornecedor.trim().toUpperCase();
       const [existing] = await pool.query(
         `SELECT id FROM fornecedores WHERE UPPER(nome) = ? AND (excluido='N' OR excluido IS NULL OR excluido='') LIMIT 1`,
@@ -363,18 +377,32 @@ router.post('/', validarEntradas, async (req, res) => {
       }
     }
 
+    // Parcelamento: intervalo + unidade (dias/semanas/meses/anos) e carência antes da 1ª parcela.
+    // Sem esses campos mantém o comportamento antigo (repete a cada 1 mês, mesmo valor).
+    const qtParc = Math.min(Math.max(numRecorrencias, 1), 360);
+    const intervalo = Math.max(1, parseInt(data.intervalo_qtd, 10) || 1);
+    const unidade = String(data.intervalo_unidade || 'MESES').toUpperCase();
+    const carencia = Math.max(0, parseInt(data.carencia_dias, 10) || 0);
+    const vencPrimeira = carencia > 0 ? somarDiasIso(vencBase, carencia) : vencBase;
+    const dividirTotal = String(data.modo_valor || '').toUpperCase() === 'TOTAL' && qtParc > 1;
+    const valorInformado = parseFloat(data.valor) || 0;
+    const valorParcelaBase = dividirTotal ? Math.floor((valorInformado / qtParc) * 100) / 100 : valorInformado;
+
     const results = [];
-    for (let i = 0; i < numRecorrencias; i++) {
-      const vencimento = vencimentoComRecorrencia(vencBase, i);
+    for (let i = 0; i < qtParc; i++) {
+      const vencimento = vencimentoParcela(vencPrimeira, i, intervalo, unidade);
       const status = statusReceberGravacao(data.status);
-      const vlr = parseFloat(data.valor) || 0;
+      // última parcela absorve os centavos da divisão
+      const vlr = dividirTotal && i === qtParc - 1
+        ? Math.round((valorInformado - valorParcelaBase * (qtParc - 1)) * 100) / 100
+        : valorParcelaBase;
       const liquidado = status === 'RECEBIDO' || status === 'LIQUIDADO';
-      const vlrPago = liquidado ? (parseFloat(data.valor_pago || data.valor) || vlr) : 0;
+      const vlrPago = liquidado ? (dividirTotal ? vlr : (parseFloat(data.valor_pago || data.valor) || vlr)) : 0;
       const dataPagto = liquidado ? (extrairDataIso(data.data_pagto) || vencimento) : null;
 
       let numero = nf && /^\d+$/.test(nf) ? parseInt(nf, 10) : 0;
       if (!numero) numero = await proximoNumeroReceber(pool);
-      const doc = (nf || ('R' + String(numero).padStart(6, '0'))).slice(0, 15);
+      const doc = (numeroDocParcela(nf, i, qtParc, 15) || ('R' + String(numero).padStart(6, '0'))).slice(0, 15);
 
       const [result] = await pool.query(`
         INSERT INTO receber (
@@ -383,23 +411,23 @@ router.post('/', validarEntradas, async (req, res) => {
           cod_fornecedor, nome_fornecedor, id_receitas,
           id_cliente, cod_vendedor, data_pagto, valor_pago,
           forma_pagto, juros, vlrjuros, vlracressimo, comissao,
-          id_planoconta, id_centrocusto, excluido
+          id_planoconta, id_centrocusto, id_banco, excluido
         ) VALUES (
-          ?, 'VENDA', 0, STR_TO_DATE(?, '%Y-%m-%d'), ?, 1, ?, ?, ?,
-          1, '', ?,
+          ?, 'VENDA', 0, STR_TO_DATE(?, '%Y-%m-%d'), ?, ?, ?, ?, ?,
+          ?, '', ?,
           ?, ?, ?,
           ?, ?, ?, ?,
           ?, ?, ?, ?, 0,
-          ?, ?, 'N'
+          ?, ?, ?, 'N'
         )
       `, [
-        numero, vencimento, vlr, status, data.obs || null, doc,
-        vlr,
+        numero, vencimento, vlr, i + 1, status, data.obs || null, doc,
+        qtParc, vlr,
         finalCodFornecedor, data.nome_fornecedor || null, idReceitas,
         data.id_cliente || null, data.cod_vendedor || null, dataPagto, vlrPago,
         data.forma_pagto ? truncFormaPagto(data.forma_pagto) : null,
         parseFloat(data.juros) || 0, parseFloat(data.vlrjuros) || 0, parseFloat(data.vlracressimo) || 0,
-        idPlano, idCentro
+        idPlano, idCentro, parseIdBanco(data.id_banco) || null
       ]);
       results.push(result.insertId);
     }
@@ -421,10 +449,8 @@ router.post('/lote/baixar', async (req, res) => {
 
   if (!idList.length) return res.status(400).json({ error: 'Nenhum título selecionado' });
 
+  // Banco opcional (cobrança em carteira): sem banco não gera movimento bancário
   const idBanco = parseIdBanco(id_banco);
-  if (!idBanco) {
-    return res.status(400).json({ error: 'Informe o banco/caixa para onde entra o recebimento.' });
-  }
 
   const conn = await pool.getConnection();
   try {
@@ -453,22 +479,24 @@ router.post('/lote/baixar', async (req, res) => {
 
     for (const t of abertos) {
       const vlr = parseFloat(t.valor) || 0;
-      await movimentarBanco(conn, {
-        id_banco: idBanco,
-        valor: vlr,
-        tipo: 'ENTRADA',
-        origem: 'RECEBER',
-        id_origem: t.id,
-        historico: `Recebimento título #${t.id}`,
-        data_mov: dtStr,
-      });
+      if (idBanco) {
+        await movimentarBanco(conn, {
+          id_banco: idBanco,
+          valor: vlr,
+          tipo: 'ENTRADA',
+          origem: 'RECEBER',
+          id_origem: t.id,
+          historico: `Recebimento título #${t.id}`,
+          data_mov: dtStr,
+        });
+      }
       await conn.query(`
         UPDATE receber SET
           status = 'RECEBIDO',
           data_pagto = ?,
           valor_pago = valor,
           forma_pagto = ?,
-          id_banco = ?,
+          id_banco = COALESCE(?, id_banco),
           obs = CONCAT(COALESCE(obs,''), '\\n--- Recebimento em lote em: ', NOW())
         WHERE id = ?
       `, [dt, forma, idBanco, t.id]);
@@ -531,10 +559,8 @@ router.put('/:id', validarEntradas, async (req, res) => {
     }
     if (data.baixar) {
       const forma = truncFormaPagto(data.forma_pagto || 'DINHEIRO');
+      // Banco opcional (cobrança em carteira): sem banco não gera movimento bancário
       const idBanco = parseIdBanco(data.id_banco);
-      if (!idBanco) {
-        return res.status(400).json({ error: 'Informe o banco/caixa para onde entra o recebimento.' });
-      }
       const dtPagto = data.data_pagto || new Date();
       const dtStr = typeof dtPagto === 'string'
         ? String(dtPagto).slice(0, 10)
@@ -558,15 +584,17 @@ router.put('/:id', validarEntradas, async (req, res) => {
           return res.status(404).json({ error: 'Título não encontrado.' });
         }
 
-        await movimentarBanco(conn, {
-          id_banco: idBanco,
-          valor: vlrPago,
-          tipo: 'ENTRADA',
-          origem: 'RECEBER',
-          id_origem: id,
-          historico: `Recebimento título #${id}`,
-          data_mov: dtStr,
-        });
+        if (idBanco) {
+          await movimentarBanco(conn, {
+            id_banco: idBanco,
+            valor: vlrPago,
+            tipo: 'ENTRADA',
+            origem: 'RECEBER',
+            id_origem: id,
+            historico: `Recebimento título #${id}`,
+            data_mov: dtStr,
+          });
+        }
 
         await conn.query(`
           UPDATE receber SET
@@ -574,7 +602,7 @@ router.put('/:id', validarEntradas, async (req, res) => {
             data_pagto = ?,
             valor_pago = ?,
             forma_pagto = ?,
-            id_banco = ?,
+            id_banco = COALESCE(?, id_banco),
             obs = CONCAT(COALESCE(obs,''), '\\n--- Recebimento em: ', NOW())
           WHERE id = ?
         `, [dtPagto, vlrPago, forma, idBanco, id]);
@@ -635,7 +663,9 @@ router.put('/:id', validarEntradas, async (req, res) => {
       const vals = [];
       
       // Auto-cadastra o cliente na edição caso não tenha ID
-      if (!data.cod_fornecedor && data.nome_fornecedor) {
+      if (data.cod_fornecedor === '' || data.cod_fornecedor === null) delete data.cod_fornecedor;
+      if (data.id_cliente !== undefined) data.id_cliente = parseInt(data.id_cliente, 10) || null;
+      if (!data.cod_fornecedor && data.nome_fornecedor && !data.id_cliente) {
         const nomeTrim = data.nome_fornecedor.trim().toUpperCase();
         const [existing] = await pool.query(
           `SELECT id FROM fornecedores WHERE UPPER(nome) = ? AND (excluido='N' OR excluido IS NULL OR excluido='') LIMIT 1`, 
@@ -661,6 +691,12 @@ router.put('/:id', validarEntradas, async (req, res) => {
       if (data.id_receitas !== undefined) {
         data.id_receitas = parseInt(data.id_receitas, 10) || null;
       }
+      if (data.id_banco !== undefined) {
+        data.id_banco = parseIdBanco(data.id_banco) || null;
+      }
+      if (data.forma_pagto !== undefined) {
+        data.forma_pagto = data.forma_pagto ? truncFormaPagto(data.forma_pagto) : null;
+      }
       if (data.vencimento !== undefined) {
         data.vencimento = extrairDataIso(data.vencimento) || data.vencimento;
       }
@@ -673,10 +709,10 @@ router.put('/:id', validarEntradas, async (req, res) => {
 
       const allowed = [
         'numero', 'vencimento', 'valor', 'status', 'obs', 'doc', 
-        'cod_fornecedor', 'nome_fornecedor', 'id_receitas', 
+        'cod_fornecedor', 'nome_fornecedor', 'id_receitas', 'id_cliente',
         'data_pagto', 'forma_pagto', 'valor_pago', 
         'juros', 'vlrjuros', 'vlracressimo',
-        'id_planoconta', 'id_centrocusto'
+        'id_planoconta', 'id_centrocusto', 'id_banco'
       ];
       
       allowed.forEach(field => {

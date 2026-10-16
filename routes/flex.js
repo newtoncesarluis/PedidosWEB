@@ -23,7 +23,18 @@ router.get('/saldo', async (req, res) => {
     const codFornecedor = parseInt(req.query.cod_fornecedor, 10);
     if (!codFornecedor) return res.json({ ativo: false });
     let idUsuario = parseInt(req.query.id_usuario, 10) || req.user?.id;
-    if (idUsuario !== req.user?.id && !_veTodos(req)) idUsuario = req.user?.id;
+    if (idUsuario !== req.user?.id && !_veTodos(req)) {
+      // Quem já abriu um pedido pode ver o saldo do vendedor DAQUELE pedido (ex.: dono fechando pedido da vendedora).
+      let ok = false;
+      const idPed = parseInt(req.query.ignorar_pedido, 10);
+      if (idPed) {
+        try {
+          const [[pd]] = await pool.query('SELECT id_usuario FROM pedidos WHERE id = ? LIMIT 1', [idPed]);
+          ok = !!pd && Number(pd.id_usuario) === idUsuario;
+        } catch (_) { /* segue com o usuário logado */ }
+      }
+      if (!ok) idUsuario = req.user?.id;
+    }
 
     const cfg = await flex.getConfigFornecedor(pool, codFornecedor);
     if (!cfg) return res.json({ ativo: false });

@@ -780,6 +780,12 @@ html.sysrep-ms-embed .receber-table-wrap { max-height: none; }
                     </select>
                 </div>
                 <div class="filter-group">
+                    <label for="filter_banco">Banco / Conta</label>
+                    <select class="form-control" id="filter_banco" autocomplete="off">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="filter-group">
                     <label for="f_dt_ini">Venc. de</label>
                     <input type="date" class="form-control" id="f_dt_ini" autocomplete="off">
                 </div>
@@ -810,6 +816,7 @@ html.sysrep-ms-embed .receber-table-wrap { max-height: none; }
                     <th>Cliente / Pagador</th>
                     <th>Receita / Natureza</th>
                     <th>Conta</th>
+                    <th>Cobrança / Banco</th>
                     <th>Documento</th>
                     <th>Valor</th>
                     <th>Status</th>
@@ -869,7 +876,8 @@ html.sysrep-ms-embed .receber-table-wrap { max-height: none; }
         <input type="hidden" id="f_id">
         <input type="hidden" id="f_status" value="ABERTA">
         <input type="hidden" id="f_cod_fornecedor">
-        
+        <input type="hidden" id="f_id_cliente">
+
         <div class="form-group">
             <label>Nº Documento / NF</label>
             <input type="text" id="f_num" class="form-control">
@@ -895,20 +903,62 @@ html.sysrep-ms-embed .receber-table-wrap { max-height: none; }
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
             <div class="form-group">
                 <label>Vencimento</label>
-                <input type="date" id="f_venc" class="form-control">
+                <input type="date" id="f_venc" class="form-control" oninput="atualizarPreviaParcelas()">
             </div>
             <div class="form-group">
                 <label>Valor (R$)</label>
-                <input type="number" step="0.01" id="f_valor" class="form-control">
+                <input type="number" step="0.01" id="f_valor" class="form-control" oninput="atualizarPreviaParcelas()">
             </div>
         </div>
+        <div class="form-group">
+            <label>Tipo de cobrança</label>
+            <select id="f_forma" class="form-control">
+                <option value="">Não informado</option>
+                <option value="BOLETO">Boleto – cobrança bancária</option>
+                <option value="CHEQUE">Cheque</option>
+                <option value="PIX">PIX</option>
+                <option value="DINHEIRO">Dinheiro</option>
+                <option value="CARTAO">Cartão</option>
+                <option value="TRANSFERENCIA">Transferência</option>
+                <option value="OUTROS">Outros</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Banco / Conta de recebimento</label>
+            <select id="f_banco" class="form-control"><option value="">Não informado</option></select>
+        </div>
         <div id="group_recorrencia" class="form-group" style="background:var(--accent-soft); padding:16px; border-radius:12px">
-            <label style="color:var(--accent)">Repetir este lançamento?</label>
-            <div style="display:flex; align-items:center; gap:12px; margin-top:8px">
-                <span>Por</span>
-                <input type="number" id="f_meses" class="form-control" style="width:70px" value="1" min="1">
-                <span>meses</span>
+            <label style="color:var(--accent)">Parcelamento</label>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:8px">
+                <div>
+                    <label style="font-size:11px">Nº de parcelas</label>
+                    <input type="number" id="f_meses" class="form-control" value="1" min="1" max="360" oninput="atualizarPreviaParcelas()">
+                </div>
+                <div>
+                    <label style="font-size:11px">O valor informado é</label>
+                    <select id="f_modo_valor" class="form-control" onchange="atualizarPreviaParcelas()">
+                        <option value="TOTAL">Total (dividir nas parcelas)</option>
+                        <option value="PARCELA">De cada parcela (repetir)</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size:11px">Intervalo entre parcelas</label>
+                    <div style="display:flex; gap:6px">
+                        <input type="number" id="f_intervalo_qtd" class="form-control" style="width:80px" value="1" min="1" oninput="atualizarPreviaParcelas()">
+                        <select id="f_intervalo_unidade" class="form-control" onchange="atualizarPreviaParcelas()">
+                            <option value="DIAS">dia(s)</option>
+                            <option value="SEMANAS">semana(s)</option>
+                            <option value="MESES" selected>mês(es)</option>
+                            <option value="ANOS">ano(s)</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label style="font-size:11px">Carência (dias) até a 1ª parcela</label>
+                    <input type="number" id="f_carencia" class="form-control" value="0" min="0" oninput="atualizarPreviaParcelas()" title="Soma dias à data de Vencimento para definir a 1ª parcela (ex.: 45)">
+                </div>
             </div>
+            <div id="f_previa_parcelas" style="font-size:11px; margin-top:8px; color:var(--text2)"></div>
         </div>
         <div class="form-group">
             <label>Observações</label>
@@ -945,6 +995,7 @@ html.sysrep-ms-embed .receber-table-wrap { max-height: none; }
                     <option value="BOLETO">Boleto</option><option value="TRANSFERENCIA">Transferência</option>
                     <option value="CARTAO">Cartão</option>
                     <option value="CHEQUE">Cheque</option>
+                    <option value="OUTROS">Outros</option>
                 </select>
             </div>
         </div>
@@ -959,8 +1010,8 @@ html.sysrep-ms-embed .receber-table-wrap { max-height: none; }
         </div>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
             <div class="form-group" style="grid-column:1/-1">
-                <label>Banco / Caixa *</label>
-                <select id="liq_banco" class="form-control"><option value="">Selecione para onde entra o valor...</option></select>
+                <label>Banco / Caixa</label>
+                <select id="liq_banco" class="form-control"><option value="">Sem banco (cobrança em carteira)</option></select>
                 <small style="color:var(--text2);font-size:11px">O saldo desta conta será creditado na confirmação.</small>
             </div>
             <div class="form-group"><label>Juros (%)</label><input type="number" step="0.01" id="liq_juros" class="form-control" oninput="calcReceber()"></div>
@@ -1002,8 +1053,8 @@ html.sysrep-ms-embed .receber-table-wrap { max-height: none; }
                 </select>
             </div>
             <div class="form-group">
-                <label>Banco / Caixa *</label>
-                <select id="lote_banco" class="form-control"><option value="">Selecione...</option></select>
+                <label>Banco / Caixa</label>
+                <select id="lote_banco" class="form-control"><option value="">Sem banco (cobrança em carteira)</option></select>
                 <small style="color:var(--text2);font-size:11px">O valor entra nesta conta e o saldo é atualizado.</small>
             </div>
         </div>
@@ -1106,6 +1157,8 @@ function limparFiltros() {
     const fCc = document.getElementById('filter_centrocusto');
     if (fPc) fPc.value = '';
     if (fCc) fCc.value = '';
+    const fBc = document.getElementById('filter_banco');
+    if (fBc) fBc.value = '';
     document.getElementById('f_dt_ini').value = '';
     document.getElementById('f_dt_fim').value = '';
     buscarReceber();
@@ -1117,6 +1170,8 @@ function qsFiltroContabil() {
     let s = '';
     if (pc) s += `&id_planoconta=${encodeURIComponent(pc)}`;
     if (cc) s += `&id_centrocusto=${encodeURIComponent(cc)}`;
+    const bc = document.getElementById('filter_banco')?.value || '';
+    if (bc) s += `&id_banco=${encodeURIComponent(bc)}`;
     return s;
 }
 
@@ -1212,7 +1267,7 @@ async function fetchData() {
         updatePagination(0, 50);
         const body = document.getElementById('table_body');
         if (body) {
-            body.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--danger)">Erro ao carregar: ${(e && e.message) || 'falha na API'}. Reinicie o servidor Node se acabou de atualizar o código.</td></tr>`;
+            body.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:24px;color:var(--danger)">Erro ao carregar: ${(e && e.message) || 'falha na API'}. Reinicie o servidor Node se acabou de atualizar o código.</td></tr>`;
         }
     }
 }
@@ -1248,7 +1303,7 @@ function renderDesktopTable(rows) {
     const list = Array.isArray(rows) ? rows : [];
     body.innerHTML = '';
     if (!list.length) {
-        body.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text2)">Nenhum lançamento encontrado para os filtros atuais</td></tr>';
+        body.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px;color:var(--text2)">Nenhum lançamento encontrado para os filtros atuais</td></tr>';
         return;
     }
     list.forEach(row => {
@@ -1264,7 +1319,8 @@ function renderDesktopTable(rows) {
             <td><div style="font-weight:700">${row.nome_fornecedor || 'Desconhecido'}</div></td>
             <td><div style="font-size:12px">${row.nome_receita || '-'}</div></td>
             <td><div style="font-size:11px" title="${contaTxt}">${contaTxt}</div></td>
-            <td>${row.numero || row.doc || '-'}</td>
+            <td><div style="font-size:11px">${[row.forma_pagto, row.banco_nome].filter(Boolean).join(' · ') || '—'}</div></td>
+            <td>${docTitulo(row)}</td>
             <td style="font-weight:800; color:var(--accent)">${fmtCur(row.valor)}</td>
             <td><span class="badge ${stClass}">${isRec ? 'RECEBIDO' : row.status_display}</span></td>
             <td>
@@ -1313,7 +1369,7 @@ function renderMobileCards(rows) {
             <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px">
               <div>
                 <div style="font-weight:800;font-size:13px;color:var(--content-text)">${row.nome_fornecedor || '-'}</div>
-                <div style="font-size:11px;color:var(--text2);margin-top:2px">${row.nome_receita || ''}${row.doc || row.numero ? ' · Doc: ' + (row.doc || row.numero) : ''}</div>
+                <div style="font-size:11px;color:var(--text2);margin-top:2px">${row.nome_receita || ''}${docTitulo(row, '') ? ' · Doc: ' + docTitulo(row, '') : ''}</div>
               </div>
               <span class="badge ${stClass}" style="white-space:nowrap;flex-shrink:0">${disp}</span>
             </div>
@@ -1379,6 +1435,7 @@ function abrirNovo() {
 function resetForm() {
     document.getElementById('f_id').value = '';
     document.getElementById('f_cod_fornecedor').value = '';
+    document.getElementById('f_id_cliente').value = '';
     document.getElementById('f_num').value = '';
     document.getElementById('f_nome').value = '';
     if (typeof _lookupFornReceber !== 'undefined' && _lookupFornReceber) _lookupFornReceber.clear();
@@ -1386,12 +1443,64 @@ function resetForm() {
     document.getElementById('f_venc').value = hojeIsoLocal();
     document.getElementById('f_obs').value = '';
     document.getElementById('f_meses').value = 1;
+    document.getElementById('f_modo_valor').value = 'TOTAL';
+    document.getElementById('f_intervalo_qtd').value = 1;
+    document.getElementById('f_intervalo_unidade').value = 'MESES';
+    document.getElementById('f_carencia').value = 0;
+    atualizarPreviaParcelas();
     const selNat = document.getElementById('f_natureza');
     if (selNat) selNat.value = '';
     const selPc = document.getElementById('f_planoconta');
     const selCc = document.getElementById('f_centrocusto');
     if (selPc) { selPc.value = ''; selPc.dataset.manual = ''; }
     if (selCc) selCc.value = '';
+    const selForma = document.getElementById('f_forma');
+    if (selForma) selForma.value = '';
+    preencherFormBancoRec('');
+}
+
+async function preencherFormBancoRec(preferId) {
+    await carregarBancosReceber(false);
+    const sel = document.getElementById('f_banco');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">Não informado</option>' + _bancosRecCache.map((b) =>
+        '<option value="' + b.id + '">' + fmtSaldoBancoRec(b).replace(/</g, '&lt;') + '</option>'
+    ).join('');
+    sel.value = preferId ? String(preferId) : '';
+}
+
+function addDiasIsoRec(iso, dias) {
+    const [y, m, d] = iso.split('-').map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d + dias));
+    return dt.getUTCFullYear() + '-' + String(dt.getUTCMonth() + 1).padStart(2, '0') + '-' + String(dt.getUTCDate()).padStart(2, '0');
+}
+function addMesesIsoRec(iso, n) {
+    const [y, m, d] = iso.split('-').map(Number);
+    const tot = (m - 1) + n, yy = y + Math.floor(tot / 12), mm = ((tot % 12) + 12) % 12;
+    const dd = Math.min(d, new Date(yy, mm + 1, 0).getDate());
+    return yy + '-' + String(mm + 1).padStart(2, '0') + '-' + String(dd).padStart(2, '0');
+}
+function atualizarPreviaParcelas() {
+    const el = document.getElementById('f_previa_parcelas');
+    if (!el) return;
+    const venc = document.getElementById('f_venc').value;
+    const qt = Math.min(Math.max(parseInt(document.getElementById('f_meses').value, 10) || 1, 1), 360);
+    if (qt <= 1 || !/^\d{4}-\d{2}-\d{2}$/.test(venc)) { el.textContent = ''; return; }
+    const iv = Math.max(1, parseInt(document.getElementById('f_intervalo_qtd').value, 10) || 1);
+    const un = document.getElementById('f_intervalo_unidade').value;
+    const car = Math.max(0, parseInt(document.getElementById('f_carencia').value, 10) || 0);
+    const base = car ? addDiasIsoRec(venc, car) : venc;
+    const datas = [];
+    for (let i = 0; i < qt; i++) {
+        const n = iv * i;
+        datas.push(un === 'MESES' ? addMesesIsoRec(base, n) : un === 'ANOS' ? addMesesIsoRec(base, n * 12) : addDiasIsoRec(base, un === 'SEMANAS' ? n * 7 : n));
+    }
+    const br = (x) => x.slice(8, 10) + '/' + x.slice(5, 7) + '/' + x.slice(0, 4);
+    const v = parseFloat(document.getElementById('f_valor').value) || 0;
+    const tot = document.getElementById('f_modo_valor').value === 'TOTAL';
+    const vp = tot ? v / qt : v;
+    el.textContent = qt + ' parcela(s)' + (v ? ' de ~R$ ' + vp.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '') +
+        ' · ' + (qt > 4 ? br(datas[0]) + ', ' + br(datas[1]) + ' … ' + br(datas[qt - 1]) : datas.map(br).join(', '));
 }
 
 function sugerirContaDaNatureza() {
@@ -1428,6 +1537,7 @@ async function salvar() {
         numero: numRaw,
         doc: numRaw ? numRaw.slice(0, 15) : null,
         cod_fornecedor: document.getElementById('f_cod_fornecedor').value,
+        id_cliente: document.getElementById('f_id_cliente').value || null,
         nome_fornecedor: nome,
         vencimento: venc,
         valor: valor,
@@ -1435,8 +1545,14 @@ async function salvar() {
         id_planoconta: document.getElementById('f_planoconta')?.value || null,
         id_centrocusto: document.getElementById('f_centrocusto')?.value || null,
         status: document.getElementById('f_status').value,
+        forma_pagto: document.getElementById('f_forma')?.value || null,
+        id_banco: document.getElementById('f_banco')?.value || null,
         obs: document.getElementById('f_obs').value,
-        recorrencia: document.getElementById('f_meses').value
+        recorrencia: document.getElementById('f_meses').value,
+        modo_valor: document.getElementById('f_modo_valor').value,
+        intervalo_qtd: document.getElementById('f_intervalo_qtd').value,
+        intervalo_unidade: document.getElementById('f_intervalo_unidade').value,
+        carencia_dias: document.getElementById('f_carencia').value
     };
 
     const method = id ? 'PUT' : 'POST';
@@ -1471,7 +1587,7 @@ async function abrirEditar(id) {
     document.getElementById('f_nome').value = conta.nome_fornecedor || '';
     document.getElementById('f_cod_fornecedor').value = conta.cod_fornecedor || '';
     if (_lookupFornReceber) {
-        _lookupFornReceber.setValue(conta.cod_fornecedor || '', conta.nome_fornecedor || '');
+        _lookupFornReceber.setValue(conta.id_cliente || '', conta.nome_fornecedor || '');
     }
     document.getElementById('f_venc').value = isoDateInput(conta.vencimento);
     document.getElementById('f_valor').value = conta.valor;
@@ -1485,6 +1601,17 @@ async function abrirEditar(id) {
     }
     if (selCc) selCc.value = conta.id_centrocusto || '';
     document.getElementById('f_obs').value = conta.obs || '';
+    const selForma = document.getElementById('f_forma');
+    const formaAtual = conta.forma_pagto || '';
+    selForma.querySelectorAll('option[data-legado]').forEach((o) => o.remove());
+    if (formaAtual && ![...selForma.options].some((o) => o.value === formaAtual)) {
+        // forma vinda de base legada: mantém o valor para não apagar ao salvar
+        const o = document.createElement('option');
+        o.value = formaAtual; o.textContent = formaAtual; o.dataset.legado = '1';
+        selForma.appendChild(o);
+    }
+    selForma.value = formaAtual;
+    await preencherFormBancoRec(conta.id_banco || '');
     document.getElementById('group_recorrencia').style.display = 'none';
     document.getElementById('panel_form').classList.add('open');
 }
@@ -1537,8 +1664,10 @@ async function abrirModalReceber(id, viewOnly = false) {
     document.getElementById('liq_valor_base').value = conta.valor;
     document.getElementById('liq_fornecedor').textContent = conta.nome_fornecedor || 'Desconhecido';
     document.getElementById('liq_valor_original').textContent = fmtCur(conta.valor);
-    document.getElementById('liq_data_pagto').value = new Date().toISOString().split('T')[0];
-    document.getElementById('liq_forma').value = 'PIX';
+    document.getElementById('liq_data_pagto').value = hojeIsoLocal();
+    const selLiqForma = document.getElementById('liq_forma');
+    selLiqForma.value = conta.forma_pagto || 'PIX';
+    if (!selLiqForma.value) selLiqForma.value = 'PIX';
     document.getElementById('liq_juros').value = '';
     document.getElementById('liq_acrescimo').value = '';
     document.getElementById('liq_vlrpago').value = conta.valor;
@@ -1577,10 +1706,10 @@ function preencherSelectBancosRec(selId, preferId) {
   if (!sel) return;
   const prefer = preferId != null && preferId !== '' ? String(preferId) : (localStorage.getItem(LS_BANCO_RECEBER) || '');
   if (!_bancosRecCache.length) {
-    sel.innerHTML = '<option value="">Cadastre um banco/caixa em Financeiro → Bancos</option>';
+    sel.innerHTML = '<option value="">Sem banco (cobrança em carteira)</option>';
     return;
   }
-  sel.innerHTML = '<option value="">Selecione...</option>' + _bancosRecCache.map((b) =>
+  sel.innerHTML = '<option value="">Sem banco (cobrança em carteira)</option>' + _bancosRecCache.map((b) =>
     '<option value="' + b.id + '"' + (String(b.id) === String(prefer) ? ' selected' : '') + '>' +
     fmtSaldoBancoRec(b).replace(/</g, '&lt;') + '</option>'
   ).join('');
@@ -1598,7 +1727,12 @@ async function salvarRecebimento() {
     const id = document.getElementById('liq_id').value;
     const forma = document.getElementById('liq_forma').value;
     const idBancoRec = document.getElementById('liq_banco')?.value || '';
-    if (!idBancoRec) { receberAvisar('Atenção', 'Selecione o banco/caixa para onde entra o recebimento.'); return; }
+    if (!idBancoRec) {
+        const okSemBanco = await receberConfirmar('Recebimento sem banco',
+            'Nenhum banco/caixa foi informado. O valor será baixado como recebido, mas NÃO entrará no saldo de nenhuma conta (ex.: cobrança em carteira). Deseja continuar?',
+            { okTexto: 'Continuar sem banco', cancelTexto: 'Voltar' });
+        if (!okSemBanco) return;
+    }
     const body = {
         baixar: true,
         id_banco: idBancoRec,
@@ -1630,6 +1764,15 @@ async function salvarRecebimento() {
     try { localStorage.setItem(LS_BANCO_RECEBER, String(body.id_banco || '')); } catch (_) {}
     fecharModalReceber();
     fetchData();
+}
+
+/** Nº do documento digitado (doc) + parcela/total; sem digitar, usa o código gerado pelo sistema. */
+function docTitulo(r, vazio) {
+    const base = r.doc || (r.numero != null ? String(r.numero) : '');
+    if (!base) return vazio === undefined ? '-' : vazio;
+    const qt = parseInt(r.qt_parcelas, 10) || 0;
+    const pa = parseInt(r.parcela, 10) || 0;
+    return qt > 1 && pa > 0 && !base.endsWith('/' + pa) ? base + ' · ' + pa + '/' + qt : base;
 }
 
 function hojeIsoLocal() {
@@ -1679,7 +1822,12 @@ async function confirmarLote() {
     }
     try {
         const idBancoLote = document.getElementById('lote_banco')?.value || '';
-        if (!idBancoLote) { receberAvisar('Atenção', 'Selecione o banco/caixa para onde entra o recebimento.'); return; }
+        if (!idBancoLote) {
+            const okSemBanco = await receberConfirmar('Recebimento sem banco',
+                'Nenhum banco/caixa foi informado. Os títulos serão baixados como recebidos, mas o valor NÃO entrará no saldo de nenhuma conta (ex.: cobrança em carteira). Deseja continuar?',
+                { okTexto: 'Continuar sem banco', cancelTexto: 'Voltar' });
+            if (!okSemBanco) return;
+        }
         const r = await fetch('/api/receber/lote/baixar', {
             method: 'POST',
             headers: authHeaders({ 'Content-Type': 'application/json' }),
@@ -1778,6 +1926,18 @@ async function loadLookups() {
     fill('filter_natureza', nats);
 
     try {
+        await carregarBancosReceber(false);
+        const fBc = document.getElementById('filter_banco');
+        if (fBc) {
+            const curBc = fBc.value;
+            fBc.innerHTML = '<option value="">Todos</option>' + _bancosRecCache.map((b) =>
+                '<option value="' + b.id + '">' + (b.apelido || b.nome || ('Banco #' + b.id)).replace(/</g, '&lt;') + '</option>'
+            ).join('');
+            fBc.value = curBc || '';
+        }
+    } catch (_) {}
+
+    try {
         const [rpc, rcc] = await Promise.all([
             fetch('/api/plano-contas?analiticas=1&grupo=RECEITA', { headers: authHeaders() }),
             fetch('/api/centro-custo?analiticas=1&uso=RECEBER', { headers: authHeaders() }),
@@ -1828,8 +1988,8 @@ function initLookupPagadorReceber() {
     if (_lookupFornReceber || typeof SysRepLookup === 'undefined') return;
     _lookupFornReceber = SysRepLookup.attach({
         input: '#f_nome',
-        hiddenId: '#f_cod_fornecedor',
-        url: '/api/fornecedores/lookup?todostipos=true',
+        hiddenId: '#f_id_cliente',
+        url: '/api/clientes?status=A',
         minChars: 2,
         allowFreeText: true,
         placeholder: 'Digite nome, CNPJ ou código…',
@@ -1857,7 +2017,7 @@ async function imprimirTela() {
                     <td>${fmtDate(c.vencimento)}</td>
                     <td>${c.nome_fornecedor || 'Desconhecido'}</td>
                     <td>${c.nome_receita || '-'}</td>
-                    <td>${c.numero || c.doc || '-'}</td>
+                    <td>${docTitulo(c)}</td>
                     <td>${fmtCur(c.valor)}</td>
                     <td>${c.status_display}</td>
                 </tr>
@@ -1873,7 +2033,7 @@ async function imprimirTela() {
 function exportarCSV() {
     let csv = 'Vencimento;Cliente;Receita;Documento;Valor;Status\n';
     (_globalContas || []).forEach(c => {
-        csv += `${fmtDate(c.vencimento)};${c.nome_fornecedor};${c.nome_receita};${c.numero || c.doc};${c.valor};${c.status_display}\n`;
+        csv += `${fmtDate(c.vencimento)};${c.nome_fornecedor};${c.nome_receita};${docTitulo(c, '')};${c.valor};${c.status_display}\n`;
     });
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
@@ -1905,7 +2065,7 @@ function imprimirContasPagas() {
             <td>${fmtDate(c.vencimento)}</td>
             <td>${c.nome_fornecedor || '-'}</td>
             <td>${c.nome_receita || '-'}</td>
-            <td>${c.numero || c.doc || '-'}</td>
+            <td>${docTitulo(c)}</td>
             <td>${fmtCur(c.valor)}</td>
             <td>✅ RECEBIDO</td>
         </tr>`;
@@ -1926,7 +2086,7 @@ function _htmlRecibo(row) {
     const hoje = new Date().toLocaleDateString('pt-BR');
     const valor = parseFloat(row.valor || 0);
     const valorExt = valorExtenso(valor);
-    const numero = row.numero || row.doc || row.id || '';
+    const numero = docTitulo(row, '') || row.id || '';
     const dataVenc = fmtDate(row.vencimento);
     const dataPag  = row.data_pagamento ? fmtDate(row.data_pagamento) : hoje;
     return `

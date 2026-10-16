@@ -302,6 +302,17 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Usuário ou senha inválidos' });
     }
 
+    // Consultas independentes disparadas em paralelo (cada round trip remoto ~330ms em dev via túnel)
+    const painelP = (process.env.LICENCA_API_URL && chave_licenca)
+      ? licencaApi.verificarLicenca(chave_licenca).catch(() => null)
+      : Promise.resolve(null);
+    const parametrosP = (async () => {
+      try {
+        await parametroLocaisRouter.ensureParametroLocaisTable(pool);
+        return await parametroLocaisRouter.getParametroLocais(pool);
+      } catch (_) { return null; }
+    })();
+
     // Verifica mensalidade antes de liberar acesso
     const licCheck = await checkMensalidade(pool);
     if (licCheck.bloqueado) {
@@ -350,7 +361,7 @@ router.post('/login', async (req, res) => {
     // Registra acesso do terminal (InformacoesMaquina)
     const userAgent = req.headers['user-agent'] || '';
     const clientIp = req.ip || req.connection.remoteAddress;
-    await registrarTerminal(pool, clientIp, userAgent, user.idusuario, id_empresa);
+    registrarTerminal(pool, clientIp, userAgent, user.idusuario, id_empresa).catch(() => {});
 
     // Controle de acessos (resumo por aparelho + histórico) — não bloqueia o login
     registrarAcesso(pool, {
@@ -369,16 +380,17 @@ router.post('/login', async (req, res) => {
     }).catch(() => {});
 
     // Atualiza último acesso
-    await pool.query(
+    pool.query(
       `UPDATE usuarios SET dt_ultimoacesso = NOW() WHERE idusuario = ?`,
       [user.idusuario]
-    ).catch(() => {}); // silencioso se campo não existir
+    ).catch(() => {}); // silencioso se campo não existir (não bloqueia o login)
 
     // Verifica limite de sessões simultâneas no Painel (fail-open: erro não bloqueia login)
     let avisoPainel = null;
     if (process.env.LICENCA_API_URL && chave_licenca) {
       try {
-        const check = await licencaApi.verificarLicenca(chave_licenca);
+        const check = await painelP;
+        if (!check) throw new Error('painel indisponível');
         if (!check.valida) {
           return res.status(402).json({
             error: 'Limite de usuários simultâneos atingido',
@@ -417,13 +429,7 @@ router.post('/login', async (req, res) => {
       maxAge: 8 * 60 * 60 * 1000
     });
 
-    let parametros_locais = null;
-    try {
-      await parametroLocaisRouter.ensureParametroLocaisTable(pool);
-      parametros_locais = await parametroLocaisRouter.getParametroLocais(pool);
-    } catch (_) {
-      parametros_locais = null;
-    }
+    const parametros_locais = await parametrosP;
 
     res.json({
       ok: true,

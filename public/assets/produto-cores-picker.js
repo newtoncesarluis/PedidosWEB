@@ -135,10 +135,99 @@
 #${MODAL_ID} .pcp-row.pcp-err-row{border-color:#ea580c;box-shadow:0 0 0 2px rgba(234,88,12,.28)}
 #${MODAL_ID} .pcp-err-row .pcp-grade-aviso-mini{font-weight:800}
 
+/* ===== Modo galeria (Showroom): miniaturas à esquerda + foto grande ===== */
+#${MODAL_ID}.pcp-gal .pcp-card{width:min(1180px,100%);height:min(94vh,820px);height:min(94dvh,820px);max-height:94vh;
+  display:grid;grid-template-columns:156px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto}
+#${MODAL_ID}.pcp-gal .pcp-head,#${MODAL_ID}.pcp-gal .pcp-foot{grid-column:1/-1}
+#${MODAL_ID} .pcp-thumbs{display:none}
+#${MODAL_ID}.pcp-gal .pcp-thumbs{position:relative;display:flex;flex-direction:column;flex-wrap:nowrap;gap:8px;min-height:0;overflow:hidden;padding:10px;
+  background:var(--bg,#eef1f5);border-right:1px solid var(--border,#e5e7eb)}
+/* a coluna rola por SETAS (cima/baixo); a barra de rolagem fica escondida (toque/roda do mouse continuam funcionando) */
+#${MODAL_ID} .pcp-th-sc{position:relative;flex:1 1 auto;min-height:0;display:flex;flex-direction:column;gap:10px;
+  overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+#${MODAL_ID} .pcp-th-sc::-webkit-scrollbar{display:none;width:0;height:0}
+#${MODAL_ID} .pcp-th-arrow{position:absolute;left:10px;right:10px;z-index:3;height:30px;border:none;border-radius:10px;background:color-mix(in srgb,var(--card,#fff) 94%,transparent);color:var(--text,#111);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(15,23,42,.14);-webkit-tap-highlight-color:transparent}
+#${MODAL_ID} .pcp-th-up{top:10px}
+#${MODAL_ID} .pcp-th-dn{bottom:10px}
+#${MODAL_ID} .pcp-th-arrow[hidden]{display:none!important}
+#${MODAL_ID} .pcp-thumb{scroll-margin:44px 0}
+#${MODAL_ID} .pcp-th-arrow:hover{color:var(--accent,#0d9488)}
+#${MODAL_ID} .pcp-th-arrow:active{transform:scale(.97)}
+#${MODAL_ID} .pcp-th-arrow svg{width:18px;height:18px;pointer-events:none}
+#${MODAL_ID} .pcp-thumb{position:relative;display:block;flex:0 0 auto;width:100%;height:auto;padding:0;box-sizing:border-box;
+  border:2px solid transparent;border-radius:10px;background:var(--card,#fff);cursor:pointer;overflow:hidden;
+  box-shadow:0 1px 2px rgba(15,23,42,.08);transition:border-color .15s,box-shadow .15s,background .15s}
+/* cartão horizontal; a altura vem do padding (aspect-ratio deixava a linha menor e as miniaturas se sobrepunham) */
+#${MODAL_ID} .pcp-thumb::before{content:'';display:block;padding-top:74%}
+#${MODAL_ID} .pcp-thumb img{position:absolute;inset:4px;width:calc(100% - 8px);height:calc(100% - 8px);object-fit:contain;pointer-events:none}
+#${MODAL_ID} .pcp-thumb-ph{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:24px;color:var(--text2,#9ca3af);pointer-events:none}
+#${MODAL_ID} .pcp-thumb:hover{border-color:color-mix(in srgb,var(--accent,#0d9488) 35%,transparent)}
+#${MODAL_ID} .pcp-thumb.is-on{border-color:color-mix(in srgb,var(--accent,#0d9488) 55%,transparent);
+  background:color-mix(in srgb,var(--accent,#0d9488) 5%,var(--card,#fff));
+  box-shadow:inset 0 0 0 3px color-mix(in srgb,var(--accent,#0d9488) 14%,transparent),0 3px 12px rgba(15,23,42,.14)}
+#${MODAL_ID} .pcp-thumb-qtd{position:absolute;left:4px;bottom:4px;min-width:20px;padding:1px 6px;border-radius:999px;
+  background:var(--accent,#0d9488);color:#fff;font-size:11px;font-weight:800;line-height:1.5;text-align:center;pointer-events:none}
+#${MODAL_ID}.pcp-gal .pcp-list{display:flex;flex-direction:column;grid-column:2;padding:12px 18px;overflow-y:auto;scrollbar-width:none;min-height:0}
+#${MODAL_ID}.pcp-gal .pcp-row{display:none}
+#${MODAL_ID}.pcp-gal .pcp-row.pcp-gal-on{display:flex;flex-direction:column;flex:1 1 auto;min-height:0;width:100%;max-width:none;cursor:default;
+  border:none;border-radius:0;box-shadow:none;background:transparent;overflow:visible}
+#${MODAL_ID}.pcp-gal .pcp-row.pcp-gal-on.pcp-on,#${MODAL_ID}.pcp-gal .pcp-row.pcp-gal-on.pcp-off{box-shadow:none;background:transparent}
+#${MODAL_ID}.pcp-gal .pcp-row.pcp-gal-on.pcp-err-row{box-shadow:0 0 0 2px rgba(234,88,12,.4);border-radius:12px}
+#${MODAL_ID}.pcp-gal .pcp-card-top{flex:1 1 auto;min-height:0}
+#${MODAL_ID}.pcp-gal .pcp-media{position:relative;height:auto;flex:1 1 0;min-height:140px;padding:0;
+  background:#fff;border:1px solid var(--border,#e5e7eb);border-radius:14px;cursor:default}
+#${MODAL_ID}.pcp-gal .pcp-foto{position:absolute;inset:10px;width:calc(100% - 20px);height:calc(100% - 20px);max-width:none;max-height:none;object-fit:contain;cursor:default}
+#${MODAL_ID}.pcp-gal .pcp-foto-ph{font-size:64px;cursor:default}
+#${MODAL_ID} .pcp-angles{display:none}
+#${MODAL_ID}.pcp-gal .pcp-angles{display:flex;gap:8px;position:absolute;left:10px;bottom:10px;max-width:calc(100% - 170px);overflow-x:auto;padding:2px}
+#${MODAL_ID} .pcp-angle{flex:0 0 auto;width:58px;height:58px;padding:2px;box-sizing:border-box;background:var(--card,#fff);
+  border:2px solid var(--border,#e5e7eb);border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;overflow:hidden}
+#${MODAL_ID} .pcp-angle img{max-width:100%;max-height:100%;object-fit:contain;pointer-events:none}
+#${MODAL_ID} .pcp-angle.is-on{border-color:var(--accent,#0d9488)}
+#${MODAL_ID} .pcp-gal-price{display:none}
+#${MODAL_ID}.pcp-gal .pcp-gal-price{display:flex;flex-direction:column;align-items:flex-end;position:absolute;right:10px;bottom:10px;
+  padding:6px 14px;border-radius:12px;background:var(--card,#fff);border:1px solid var(--border,#e5e7eb);
+  box-shadow:0 4px 14px rgba(15,23,42,.12);font-size:20px;font-weight:800;color:var(--text,#111);letter-spacing:-.02em;line-height:1.15}
+#${MODAL_ID} .pcp-gal-price small{font-size:11px;font-weight:700;color:var(--text2,#6b7280);letter-spacing:0}
+#${MODAL_ID}.pcp-gal .pcp-card-caption{padding:10px 2px 4px;gap:4px;flex:0 0 auto}
+#${MODAL_ID}.pcp-gal .pcp-nome{font-size:16px;font-weight:800;-webkit-line-clamp:2}
+#${MODAL_ID}.pcp-gal .pcp-chk{width:22px;height:22px}
+#${MODAL_ID}.pcp-gal .pcp-meta,#${MODAL_ID}.pcp-gal .pcp-badges,#${MODAL_ID}.pcp-gal .pcp-head-actions{padding-left:30px}
+#${MODAL_ID}.pcp-gal .pcp-meta{font-size:12.5px}
+#${MODAL_ID}.pcp-gal .pcp-row.pcp-row-grade .pcp-body,
+#${MODAL_ID}.pcp-gal .pcp-row.pcp-row-grade.pcp-off .pcp-body,
+#${MODAL_ID}.pcp-gal .pcp-row.pcp-row-grade.pcp-on .pcp-body{display:block;flex:0 0 auto;padding:6px 4px 2px;border-top:none;background:transparent}
+#${MODAL_ID}.pcp-gal .pcp-sizes{gap:8px}
+#${MODAL_ID}.pcp-gal .pcp-size{min-width:54px}
+#${MODAL_ID}.pcp-gal .pcp-size-lbl{font-size:11.5px}
+#${MODAL_ID}.pcp-gal .pcp-size-qtd{width:54px;min-height:42px;font-size:16px;font-weight:800;border-radius:10px}
+#${MODAL_ID}.pcp-gal .pcp-qtd{max-width:180px;min-height:46px;font-size:18px;font-weight:800;text-align:center;margin-top:4px}
+@media (max-width: 900px) {
+  #${MODAL_ID}.pcp-gal .pcp-card{grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto minmax(0,1fr) auto;height:min(96vh,980px);height:min(96dvh,980px);max-height:96vh}
+  #${MODAL_ID}.pcp-gal .pcp-thumbs{flex-direction:row;overflow:hidden;border-right:none;border-bottom:1px solid var(--border,#e5e7eb);padding:8px 10px}
+  #${MODAL_ID}.pcp-gal .pcp-th-sc{flex-direction:row;overflow-x:auto;overflow-y:hidden;gap:8px}
+  #${MODAL_ID}.pcp-gal .pcp-th-arrow{display:none}
+  #${MODAL_ID}.pcp-gal .pcp-thumb{width:86px;flex:0 0 86px}
+  #${MODAL_ID}.pcp-gal .pcp-list{grid-column:1;padding:10px 12px}
+  #${MODAL_ID}.pcp-gal .pcp-media{min-height:120px}
+}
 @media (min-width: 1100px) {
   #${MODAL_ID} .pcp-row{flex-basis:176px;width:176px}
   #${MODAL_ID} .pcp-media{height:140px;flex-basis:140px}
   #${MODAL_ID} .pcp-foto{max-height:120px}
+}
+/* Monitores grandes: aproveita a tela */
+@media (min-width: 1600px) and (min-height: 900px) {
+  #${MODAL_ID}.pcp-gal .pcp-card{width:min(1480px,94vw);height:min(94vh,980px);height:min(94dvh,980px);max-height:94vh}
+  #${MODAL_ID}.pcp-gal .pcp-nome{font-size:18px}
+}
+@media (max-height: 760px) {
+  #${MODAL_ID}.pcp-gal .pcp-head{padding:8px 16px 6px}
+  #${MODAL_ID}.pcp-gal .pcp-foot{padding:8px 14px}
+  #${MODAL_ID}.pcp-gal .pcp-btn{min-height:38px;padding:8px 12px}
+  #${MODAL_ID}.pcp-gal .pcp-media{min-height:110px}
+  #${MODAL_ID}.pcp-gal .pcp-size-qtd{min-height:38px}
 }
 @media (max-width: 900px) {
   #${MODAL_ID}{padding:10px;align-items:flex-end}
@@ -149,6 +238,55 @@
   #${MODAL_ID} .pcp-list{gap:10px;padding:12px}
   #${MODAL_ID} .pcp-row{flex-basis:148px;width:148px}
   #${MODAL_ID} .pcp-size-qtd{width:44px;min-height:40px}
+}
+/* Celular em pé: libera altura para a foto */
+@media (max-width: 600px) {
+  #${MODAL_ID}.pcp-gal .pcp-head p{display:none}
+  #${MODAL_ID}.pcp-gal .pcp-sel-group{display:none}
+  #${MODAL_ID}.pcp-gal .pcp-foot{grid-template-areas:"err err" "cancel ok"}
+  #${MODAL_ID}.pcp-gal .pcp-thumbs{padding:6px 8px}
+  #${MODAL_ID}.pcp-gal .pcp-thumb{width:72px;flex:0 0 72px}
+  #${MODAL_ID}.pcp-gal .pcp-nome{font-size:15px}
+  #${MODAL_ID}.pcp-gal .pcp-sizes{gap:4px}
+  #${MODAL_ID}.pcp-gal .pcp-size{flex:1 1 calc(16.6% - 4px);min-width:0;max-width:56px}
+  #${MODAL_ID}.pcp-gal .pcp-size-qtd{width:100%;min-height:38px;font-size:15px}
+  #${MODAL_ID}.pcp-gal .pcp-card-caption{padding:8px 2px 2px}
+}
+/* Celular / tablet baixo DEITADO: miniaturas à esquerda e foto + tamanhos lado a lado */
+@media (max-height: 520px) and (min-width: 480px) {
+  #${MODAL_ID}.pcp-gal{padding:0;align-items:stretch;justify-content:stretch}
+  #${MODAL_ID}.pcp-gal .pcp-card{width:100%;max-width:100%;height:100vh;height:100dvh;max-height:100vh;border-radius:0;border:none;
+    grid-template-columns:98px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto}
+  #${MODAL_ID}.pcp-gal .pcp-head{padding:6px 12px 4px}
+  #${MODAL_ID}.pcp-gal .pcp-head h3{font-size:14px}
+  #${MODAL_ID}.pcp-gal .pcp-head p{display:none}
+  #${MODAL_ID}.pcp-gal .pcp-close{width:32px;height:32px}
+  #${MODAL_ID}.pcp-gal .pcp-thumbs{flex-direction:column;overflow:hidden;border-right:1px solid var(--border,#e5e7eb);border-bottom:none;padding:6px}
+  #${MODAL_ID}.pcp-gal .pcp-th-sc{flex-direction:column;overflow-x:hidden;overflow-y:auto;gap:8px}
+  #${MODAL_ID}.pcp-gal .pcp-th-arrow{display:flex;height:24px;left:6px;right:6px}
+  #${MODAL_ID}.pcp-gal .pcp-th-up{top:6px}
+  #${MODAL_ID}.pcp-gal .pcp-th-dn{bottom:6px}
+  #${MODAL_ID}.pcp-gal .pcp-thumb{scroll-margin:34px 0}
+  #${MODAL_ID}.pcp-gal .pcp-thumb{width:100%;flex:0 0 auto}
+  #${MODAL_ID}.pcp-gal .pcp-list{grid-column:2;padding:8px 12px}
+  #${MODAL_ID}.pcp-gal .pcp-row.pcp-gal-on{flex-direction:row;gap:14px;align-items:stretch}
+  #${MODAL_ID}.pcp-gal .pcp-card-top{flex:1 1 54%;min-width:0}
+  #${MODAL_ID}.pcp-gal .pcp-media{min-height:90px}
+  #${MODAL_ID}.pcp-gal .pcp-row.pcp-row-grade .pcp-body,
+  #${MODAL_ID}.pcp-gal .pcp-row.pcp-row-grade.pcp-off .pcp-body,
+  #${MODAL_ID}.pcp-gal .pcp-row.pcp-row-grade.pcp-on .pcp-body{flex:1 1 46%;min-width:0;overflow-y:auto;scrollbar-width:thin;padding:2px 2px 2px 0}
+  #${MODAL_ID}.pcp-gal .pcp-row:not(.pcp-row-grade) .pcp-card-caption{justify-content:center}
+  #${MODAL_ID}.pcp-gal .pcp-sizes{gap:5px}
+  #${MODAL_ID}.pcp-gal .pcp-size{min-width:42px}
+  #${MODAL_ID}.pcp-gal .pcp-size-lbl{font-size:10px}
+  #${MODAL_ID}.pcp-gal .pcp-size-qtd{width:42px;min-height:32px;font-size:14px;border-radius:8px}
+  #${MODAL_ID}.pcp-gal .pcp-card-caption{padding:6px 2px 2px;gap:2px}
+  #${MODAL_ID}.pcp-gal .pcp-grade-unica{margin-bottom:3px;padding:3px 6px}
+  #${MODAL_ID}.pcp-gal .pcp-foot{display:flex;flex-wrap:nowrap;position:static;padding:6px 12px;gap:8px;grid-template-areas:none}
+  #${MODAL_ID}.pcp-gal .pcp-sel-group{display:none}
+  #${MODAL_ID}.pcp-gal .pcp-err{grid-area:auto;width:auto;flex:1 1 auto;margin:0}
+  #${MODAL_ID}.pcp-gal .pcp-btn,#${MODAL_ID}.pcp-gal .pcp-btn-ghost,#${MODAL_ID}.pcp-gal .pcp-btn-ok{width:auto;min-height:36px;padding:6px 16px;font-size:13px;grid-area:auto}
+  #${MODAL_ID}.pcp-gal .pcp-foot .pcp-btn-ghost{margin-left:auto}
 }
 @media (max-width: 600px) {
   #${MODAL_ID}{padding:0;align-items:stretch;justify-content:flex-end}
@@ -267,7 +405,7 @@
   function ensureModal() {
     ensureCss();
     let el = document.getElementById(MODAL_ID);
-    if (el && (el.dataset.pcpVer !== MODAL_VER || !document.getElementById('pcpTodasGradesBtn') || !document.getElementById('pcpMarcarTodas') || !document.getElementById('pcpClose') || !document.getElementById('pcpErr'))) {
+    if (el && (el.dataset.pcpVer !== MODAL_VER || !document.getElementById('pcpTodasGradesBtn') || !document.getElementById('pcpMarcarTodas') || !document.getElementById('pcpClose') || !document.getElementById('pcpErr') || !document.getElementById('pcpThumbs') || !document.getElementById('pcpThSc'))) {
       el.remove();
       el = null;
     }
@@ -291,6 +429,11 @@
         </div>
         <button type="button" class="pcp-close" id="pcpClose" aria-label="Fechar">×</button>
       </div>
+      <div class="pcp-thumbs" id="pcpThumbs">
+        <button type="button" class="pcp-th-arrow pcp-th-up" id="pcpThUp" aria-label="Ver cores anteriores" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg></button>
+        <div class="pcp-th-sc" id="pcpThSc"></div>
+        <button type="button" class="pcp-th-arrow pcp-th-dn" id="pcpThDn" aria-label="Ver mais cores" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
+      </div>
       <div class="pcp-list" id="pcpList"></div>
       <div class="pcp-foot">
         <div class="pcp-err" id="pcpErr" role="alert"></div>
@@ -307,9 +450,18 @@
     el.addEventListener('click', (e) => {
       if (e.target === el) close();
     });
+    el.querySelector('#pcpThumbs').addEventListener('click', onThumbClick);
+    el.querySelector('#pcpThSc').addEventListener('scroll', galFades, { passive: true });
     return el;
   }
 
+  let _galeria = false;
+  let _galIdx = 0;
+  let _galLast = -1;
+  let _fetchImagens = null;
+  const _imgCache = new Map();
+  const _imgPend = new Set();
+  const _imgSel = {};
   let _onConfirm = null;
   let _cores = [];
   let _mae = null;
@@ -334,9 +486,19 @@
     if (el) {
       el.classList.remove('show');
       el.classList.remove('pcp-has-grade');
+      el.classList.remove('pcp-gal');
+      const th = document.getElementById('pcpThSc');
+      if (th) th.innerHTML = '';
       const err = document.getElementById('pcpErr');
       if (err) { err.classList.remove('show'); err.textContent = ''; }
     }
+    _galeria = false;
+    _galIdx = 0;
+    _galLast = -1;
+    _fetchImagens = null;
+    _imgCache.clear();
+    _imgPend.clear();
+    Object.keys(_imgSel).forEach((k) => delete _imgSel[k]);
     _onConfirm = null;
     _cores = [];
     _mae = null;
@@ -663,6 +825,111 @@
     return out.length ? out : base;
   }
 
+  /** Galeria: mostra as setas ↑/↓ da coluna de miniaturas só quando há mais cores para rolar. */
+  function galFades() {
+    const sc = document.getElementById('pcpThSc');
+    const up = document.getElementById('pcpThUp');
+    const dn = document.getElementById('pcpThDn');
+    if (!sc || !up || !dn) return;
+    const vertical = getComputedStyle(sc).flexDirection === 'column';
+    const max = sc.scrollHeight - sc.clientHeight;
+    up.hidden = !(vertical && max > 4 && sc.scrollTop > 4);
+    dn.hidden = !(vertical && max > 4 && sc.scrollTop < max - 4);
+  }
+
+  /** Galeria: fotos extras (ângulos) da cor aberta — carrega sob demanda e guarda em cache. */
+  function galAngulos() {
+    if (!_galeria) return;
+    const idx = _galIdx;
+    const c = _cores[idx];
+    if (!c) return;
+    const list = document.getElementById('pcpList');
+    const media = list?.querySelector(`.pcp-row[data-idx="${idx}"] .pcp-media`);
+    if (!media) return;
+    const cod = String(c.cod_produto || c.id || '');
+    const urls = _imgCache.get(cod);
+    if (!urls) {
+      if (_fetchImagens && cod && !_imgPend.has(cod)) {
+        _imgPend.add(cod);
+        Promise.resolve(_fetchImagens(cod)).then((arr) => {
+          const base = c.foto_principal ? [c.foto_principal] : [];
+          const todas = [...new Set([...base, ...(Array.isArray(arr) ? arr : [])].filter(Boolean))];
+          _imgCache.set(cod, todas);
+        }).catch(() => {
+          _imgCache.set(cod, c.foto_principal ? [c.foto_principal] : []);
+        }).finally(() => {
+          _imgPend.delete(cod);
+          if (_galeria && _galIdx === idx) galAngulos();
+        });
+      }
+      return;
+    }
+    media.querySelector('.pcp-angles')?.remove();
+    if (urls.length < 2) return;
+    const sel = Math.min(_imgSel[idx] || 0, urls.length - 1);
+    let foto = media.querySelector('.pcp-foto');
+    if (!foto) {
+      const ph = media.querySelector('.pcp-foto-ph');
+      if (ph) {
+        ph.outerHTML = '<img class="pcp-foto" alt="" decoding="async">';
+        foto = media.querySelector('.pcp-foto');
+      }
+    }
+    if (foto && foto.getAttribute('src') !== urls[sel]) foto.setAttribute('src', urls[sel]);
+    media.insertAdjacentHTML('beforeend', `<div class="pcp-angles">${urls.map((u, k) =>
+      `<button type="button" class="pcp-angle${k === sel ? ' is-on' : ''}" data-ang="${k}" aria-label="Foto ${k + 1}"><img src="${esc(u)}" alt="" loading="lazy" decoding="async"></button>`
+    ).join('')}</div>`);
+  }
+
+  /** Galeria: miniaturas à esquerda + só a cor ativa visível. */
+  function galSync() {
+    if (!_galeria) return;
+    const list = document.getElementById('pcpList');
+    const th = document.getElementById('pcpThSc');
+    if (!list || !th) return;
+    const scroll = th.scrollTop;
+    th.innerHTML = _cores.map((c, i) => {
+      const st = _rowState[i] || {};
+      const row = list.querySelector(`.pcp-row[data-idx="${i}"]`);
+      let q = 0;
+      if (st.usaGrade) q = somaGrade(st);
+      else q = parseFloat(row?.querySelector('.pcp-qtd')?.value) || 0;
+      const foto = c.foto_principal || '';
+      const img = foto
+        ? `<img src="${esc(foto)}" alt="" loading="lazy" decoding="async" onerror="this.outerHTML='<span class=\\'pcp-thumb-ph\\'>📷</span>'">`
+        : '<span class="pcp-thumb-ph">📷</span>';
+      return `<button type="button" class="pcp-thumb${i === _galIdx ? ' is-on' : ''}" data-gal="${i}" title="${esc(labelCor(c))}" aria-label="${esc(labelCor(c))}">${img}${q > 0 ? `<span class="pcp-thumb-qtd">${q}</span>` : ''}</button>`;
+    }).join('');
+    th.scrollTop = scroll;
+    if (_galLast !== _galIdx) {
+      _galLast = _galIdx;
+      const on = th.querySelector('.is-on');
+      if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    }
+    galFades();
+    list.querySelectorAll('.pcp-row').forEach((r) => {
+      r.classList.toggle('pcp-gal-on', parseInt(r.dataset.idx, 10) === _galIdx);
+    });
+    galAngulos();
+  }
+
+  function onThumbClick(e) {
+    const arrow = e.target.closest && e.target.closest('.pcp-th-arrow');
+    if (arrow) {
+      const sc = document.getElementById('pcpThSc');
+      if (sc) sc.scrollBy({ top: (arrow.id === 'pcpThUp' ? -1 : 1) * Math.max(120, sc.clientHeight * 0.8), behavior: 'smooth' });
+      return;
+    }
+    const b = e.target.closest && e.target.closest('.pcp-thumb');
+    if (!b) return;
+    const i = parseInt(b.dataset.gal, 10);
+    if (!(i >= 0) || i === _galIdx) return;
+    _galIdx = i;
+    galSync();
+    const list = document.getElementById('pcpList');
+    if (list) list.scrollTop = 0;
+  }
+
   function syncOkBtn() {
     const ok = document.getElementById('pcpOk');
     if (!ok) return;
@@ -676,6 +943,7 @@
       if (!st.selecionada && linhaTemQtd(st, row)) { tem = true; break; }
     }
     ok.disabled = !tem;
+    galSync();
   }
 
   function syncTodasGradesUi() {
@@ -841,6 +1109,21 @@
       if (idx >= 0) setSelecionada(idx, t.checked, { fillPack: true, rerender: true });
       return;
     }
+    const ang = t.closest ? t.closest('.pcp-angle') : null;
+    if (ang) {
+      const row = ang.closest('.pcp-row');
+      const i = parseInt(row?.dataset.idx, 10);
+      if (i >= 0) {
+        _imgSel[i] = parseInt(ang.dataset.ang, 10) || 0;
+        const foto = row.querySelector('.pcp-foto');
+        const urls = _imgCache.get(String(_cores[i]?.cod_produto || _cores[i]?.id || '')) || [];
+        if (foto && urls[_imgSel[i]]) foto.setAttribute('src', urls[_imgSel[i]]);
+        row.querySelectorAll('.pcp-angle').forEach((b) => b.classList.toggle('is-on', b === ang));
+      }
+      return;
+    }
+    // Galeria: foto grande não alterna seleção (só o checkbox / digitar a qtd)
+    if (_galeria && t.closest('.pcp-media')) return;
     // Controles de digitação / grade / checkbox: não alterna seleção pelo card
     if (t.closest('input, select, button, a, textarea, label, .pcp-chk-wrap, .pcp-sizes, .pcp-pack-mini, .pcp-grade-wrap, .pcp-body')) return;
     // No celular o toque cai em badge/meta/caption — marca/desmarca a cor inteira
@@ -1066,7 +1349,10 @@
         <input type="checkbox" class="pcp-chk" data-idx="${i}" ${on ? 'checked' : ''} aria-label="Selecionar ${esc(labelCor(c))}">
       </label>`;
       const usaGrade = st && st.usaGrade;
-      const rowCls = `pcp-row${usaGrade ? ' pcp-row-grade' : ''}${on ? ' pcp-on' : ' pcp-off'}`;
+      const rowCls = `pcp-row${usaGrade ? ' pcp-row-grade' : ''}${on ? ' pcp-on' : ' pcp-off'}${_galeria && i === _galIdx ? ' pcp-gal-on' : ''}`;
+      const precoTag = (_galeria && precoTxt)
+        ? `<div class="pcp-gal-price">${esc(precoTxt)}${fab ? `<small>${fab}</small>` : ''}</div>`
+        : '';
       const titleBlock = `<div class="pcp-title-row">
             ${chkHtml}
             <div class="pcp-nome" data-pcp-toggle="1" title="Clique para marcar/desmarcar">${esc(labelCor(c))}</div>
@@ -1076,7 +1362,7 @@
       if (usaGrade) {
         return `<div class="${rowCls}" data-idx="${i}">
           <div class="pcp-card-top">
-            <div class="pcp-media" data-pcp-toggle="1">${fotoHtml}</div>
+            <div class="pcp-media" data-pcp-toggle="1">${fotoHtml}${precoTag}</div>
             <div class="pcp-card-caption">
               ${titleBlock}
               <div class="pcp-head-actions">${renderTopoGradeHtml(i)}</div>
@@ -1087,7 +1373,7 @@
       }
       return `<div class="${rowCls}" data-idx="${i}">
         <div class="pcp-card-top">
-          <div class="pcp-media" data-pcp-toggle="1">${fotoHtml}</div>
+          <div class="pcp-media" data-pcp-toggle="1">${fotoHtml}${precoTag}</div>
           <div class="pcp-card-caption">
             ${titleBlock}
             <input type="number" class="pcp-qtd" min="0" step="1" inputmode="decimal" placeholder="Qtd" value="" aria-label="Quantidade ${esc(labelCor(c))}">
@@ -1096,6 +1382,7 @@
       </div>`;
     }).join('');
     ensureListDelegation(list);
+    galSync();
   }
 
   let _formatPreco = null;
@@ -1122,8 +1409,12 @@
     _incluirTodas = false;
     _gradesMae = [];
     _gradesListCache.clear();
+    _galeria = opts.estilo === 'galeria';
+    _galIdx = 0;
+    _fetchImagens = typeof opts.fetchImagens === 'function' ? opts.fetchImagens : null;
 
     const el = ensureModal();
+    el.classList.toggle('pcp-gal', _galeria);
     const mae = grupo.mae;
     const sku = mae.cod_fabricante || mae.id || '';
     const nome = mae.descricao || mae.desc_produto || '';
@@ -1218,6 +1509,7 @@
     // Mostra o modal NA HORA — no celular aguardar a API de grade antes do .show
     // fazia parecer que o toque «não fez nada» (só a capa ficava na tela).
     el.classList.add('show');
+    if (_galeria) { galFades(); requestAnimationFrame(galFades); }
 
     if (temAlgumaGrade) {
       try {

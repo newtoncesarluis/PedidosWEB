@@ -66,6 +66,7 @@ html.sysrep-embed-carteira #bulkBar { display: none !important; }
 <script src="/assets/ajuda-tours.js"></script>
 <script src="/assets/comissao-preposto-ui.js"></script>
 <script src="/assets/vendas-duplicar-item.js"></script>
+<script src="/assets/confirm-dialog.js"></script>
 <script src="/assets/produto-cores-picker.js?v=20260924a"></script>
 <script src="/assets/grade-tamanho-ordem.js?v=20260922a"></script>
 <script src="/assets/grade-fechada-pack.js?v=20260917a"></script>
@@ -6292,6 +6293,14 @@ html:not(.sysrep-ms-embed) #offlineQueueBadge { display: none !important; }
           <label>Nº Ped. Compras (OC)</label>
           <input type="text" id="f_ped_compras_filter" placeholder="Número da OC">
         </div>
+        <div class="f-field" id="wrap_f_puxada_filter" style="margin-top:15px;display:none">
+          <label>Puxada</label>
+          <select id="f_puxada_filter">
+            <option value="">Todas</option>
+            <option value="S">Sim</option>
+            <option value="N">Não</option>
+          </select>
+        </div>
       </div>
     </div>
     <div class="drawer-footer" style="background:var(--card); padding: 24px; border-top: 1px solid var(--border);">
@@ -7684,8 +7693,14 @@ const PEDIDOS_GRID_COL_DEFAULTS = [
   { id: 25, label: 'TIPO FRETE',      field: 'tfrete',    visible: false },
   { id: 26, label: 'TRANSPORTADORA',  field: 'transp',    visible: false },
   { id: 28, label: 'PREPOSTO',        field: 'preposto',  visible: false },
-  { id: 29, label: 'COM. PREPOSTO',   field: 'com_prep',  visible: false, align: 'right' }
+  { id: 29, label: 'COM. PREPOSTO',   field: 'com_prep',  visible: false, align: 'right' },
+  { id: 34, label: 'PUXADA',          field: 'puxada',    visible: false, width: 80, align: 'center' }
 ];
+
+/** Coluna PUXADA só existe quando habilita_puxada='S' na Configuração do Sistema. */
+function colGridDisponivel(c) {
+  return c.id !== 34 || _habilitaPuxada === 'S';
+}
 
 /** Colunas que sempre ficam visíveis (ordem livre — respeita o layout salvo pelo usuário). */
 const PEDIDOS_GRID_PIN_IDS = [1, 2, 7]; // NÚMERO, DATA, R$ TOTAL
@@ -8220,7 +8235,8 @@ const ADVANCED_FILTER_IDS = [
   'f_max_total',
   'f_nome_empresa',
   'f_comprador_filter',
-  'f_ped_compras_filter'
+  'f_ped_compras_filter',
+  'f_puxada_filter'
 ];
 
 function getAdvancedFiltersStorageKey() {
@@ -8425,6 +8441,8 @@ function getActiveFilters() {
   if (minTotal || maxTotal) filters.push({ label: 'Valor', value: `${minTotal || '0'} a ${maxTotal || '...'}` });
   if (comprador) filters.push({ label: 'Comprador', value: comprador });
   if (oc) filters.push({ label: 'OC', value: oc });
+  const puxadaF = _habilitaPuxada === 'S' ? getFilterValue('f_puxada_filter') : '';
+  if (puxadaF) filters.push({ label: 'Puxada', value: puxadaF === 'S' ? 'Sim' : 'Não' });
 
   return filters;
 }
@@ -10238,7 +10256,7 @@ function renderSkeletons() {
     for (let i = 0; i < 8; i++) {
       html += `<tr class="skeleton-row">
         <td style="text-align:center"><div class="skeleton skeleton-cell" style="width:14px;margin:0 auto"></div></td>
-        ${_cols.filter(c => c.visible).map((_, ci) =>
+        ${_cols.filter(c => c.visible && colGridDisponivel(c)).map((_, ci) =>
           `<td><div class="skeleton skeleton-cell" style="width:${widths[(i+ci)%widths.length]}"></div></td>`
         ).join('')}
         <td></td>
@@ -10460,6 +10478,7 @@ async function carregar(skipHeavy, opts) {
       min_total, max_total, min_peso, max_peso,
       nome_transp: transp, nome_empresa: empresa,
       comprador, ped_compras: oc, origem: origem,
+      puxada: _habilitaPuxada === 'S' ? (document.getElementById('f_puxada_filter')?.value || '') : '',
       cod_fornecedor: id_forn,
       sort, dir
     };
@@ -10896,7 +10915,7 @@ function renderTabela(rows, offset) {
       <td style="text-align:center"><input type="checkbox" class="row-chk" data-id="${p.id}" data-row-select="1" ${sel?'checked':''}></td>`;
 
     _cols.forEach(c => {
-      if(!c.visible) return;
+      if(!c.visible || !colGridDisponivel(c)) return;
       let val = '';
       let style = c.align ? `text-align:${c.align};` : '';
 
@@ -10977,6 +10996,7 @@ function renderTabela(rows, offset) {
         case 25: val = escHtml(p.tipo_frete || '—'); break;
         case 26: val = escHtml(p.nome_transp || '—'); break;
         case 28: val = escHtml(p.nome_preposto || '—'); break;
+        case 34: val = String(p.puxada || 'N').toUpperCase() === 'S' ? 'Sim' : 'Não'; break;
         case 29: val = p.vlr_comissao_preposto > 0 ? `<span style="color:var(--warn);font-weight:700">${fmtCur(p.vlr_comissao_preposto)}</span>` : '—'; break;
       }
       rowHtml += `<td class="col-${c.id}" style="${style}">${val}</td>`;
@@ -11156,7 +11176,7 @@ function renderHeaders() {
 
   let html = `<tr><th width="30" style="text-align:center"><input type="checkbox" id="chkAll"></th>`;
   _cols.forEach(c => {
-    if(!c.visible) return;
+    if(!c.visible || !colGridDisponivel(c)) return;
     const style = `${c.width ? `width:${c.width}px;` : ''} ${c.align ? `text-align:${c.align};` : ''}`;
     const sf = _sortFieldMap[c.id];
     const isActive = sf && sf === sortField;
@@ -11171,7 +11191,7 @@ function renderHeaders() {
 function renderChooser() {
   const list = document.getElementById('colChooserList');
   if(!list) return;
-  list.innerHTML = _cols.map((c, idx) => `
+  list.innerHTML = _cols.map((c, idx) => !colGridDisponivel(c) ? '' : `
     <div class="chooser-item-dynamic">
       <label><input type="checkbox" data-col-id="${c.id}" ${c.visible?'checked':''}><span>${c.label}</span></label>
       <div class="chooser-btns">
@@ -12505,7 +12525,7 @@ async function abrirEdicao(id) {
     if (elDescPdf) elDescPdf.value = p.descricao_pdf || '';
     atualizarPreviewDescricaoPdf();
     document.getElementById('f_puxada').value = p.puxada || 'N';
-    document.getElementById('f_tipo_documento').value = p.tipo_documento || '';
+    document.getElementById('f_tipo_documento').value = p.tipodocumento || p.tipo_documento || '';
     document.getElementById('f_condicao_pagto').value = p.condicao_pagto || '';
     {
     // Pedido novo: usa o gravado. Antigo (sem tipo_prazo): a condição decide; sem condição, 1 parcela = À Vista.
@@ -12841,7 +12861,7 @@ function applyPedidoLogisticaData(p = {}) {
 
 function applyPedidoFinanceiroData(p = {}) {
   const condicao = p.condicao_pagto || '';
-  document.getElementById('f_tipo_documento').value = p.tipo_documento || '';
+  document.getElementById('f_tipo_documento').value = p.tipodocumento || p.tipo_documento || '';
   document.getElementById('f_condicao_pagto').value = condicao;
   {
     // Pedido novo: usa o gravado. Antigo (sem tipo_prazo): a condição decide; sem condição, 1 parcela = À Vista.
@@ -13345,9 +13365,10 @@ function itensColValorRaw(item, colId) {
     case 'valor_totalpuxada': {
       const tp = parseFloat(item.valor_totalpuxada);
       if (Number.isFinite(tp) && tp > 0) return tp;
-      const q = parseFloat(item.quantidade) || 0;
+      // Delphi: total puxada = peso total × valor puxada
+      const peso = parseFloat(item.total_peso) || 0;
       const vp = parseFloat(item.valor_puxada) || 0;
-      return q * vp;
+      return peso * vp;
     }
     case 'valor_cliente': return parseFloat(item.valor_cliente) || 0;
     case 'vlr_comissao': {
@@ -13781,6 +13802,8 @@ function itensColCfg(id) {
 }
 
 function itensMostraColTela(id) {
+  // Delphi: colunas Valor Puxada / Total Puxada só aparecem com Puxada = SIM
+  if (id === 'valor_puxada' || id === 'valor_totalpuxada') return _puxadaPedidoAtiva();
   if (id === 'comissao' && _logadoTipoUsuario === 'PREPOSTO') return false;
   if (id === 'obsitem' && !fornecedorHabilitaObsItemPedido()) return false;
   return itensColCfg(id).tela !== false;
@@ -14119,7 +14142,7 @@ async function flexConferirAntesSalvar() {
   if (total >= 0 || apos >= -0.005) return true;
   const msg = `Este pedido consome ${fmtCur(Math.abs(total))} de flex e o saldo do vendedor é ${fmtCur(d.saldo)} (ficaria ${fmtCur(apos)}).`;
   if (d.saldoInsuficiente === 'BLOQUEAR') {
-    await mostrarModalValidacaoPedido([`Saldo Flex insuficiente. ${msg}`]);
+    await mostrarModalValidacaoPedido([{ message: `Saldo Flex insuficiente. ${msg}` }]);
     return false;
   }
   if (d.saldoInsuficiente === 'AVISAR') {
@@ -14817,7 +14840,7 @@ async function abrirSubrecForm(tipo, preservarTabela = false, autoAbrirBusca = t
     const wPx  = document.getElementById('wrap_puxada');
     const wEmb = document.getElementById('wrap_embalagem');
     if (wCli) wCli.style.display = isPuxada ? '' : 'none';
-    if (wPx)  wPx.style.display  = isPuxada && puxadaHabilitada ? '' : 'none';
+    if (wPx)  wPx.style.display  = 'none'; // campo único "Valor Cliente" (Delphi)
     syncEmbalagemSubrecUi(window._prodSubrecAtual);
 
     // Sincroniza a tabela de preço: popula as opções e exibe/oculta conforme disponibilidade
@@ -15683,8 +15706,12 @@ async function carregarGradeProduto(idGrade, nomeGrade) {
     const d = await r.json();
     _gradeModoAtual = (d.modo_grade === 'F') ? 'F' : 'A';
     _gradeMultiploAtual = parseInt(d.multiplo_grade, 10) || 0;
+    // Grade fechada (pronta): já entra com a distribuição do cadastro (qtd_minima por tamanho)
+    if (_gradeModoAtual === 'F' && window.SysRepGradePack) {
+      SysRepGradePack.aplicarSugestaoPackFechada(d.itens || [], 'F', _gradeQtdTemp);
+    }
     renderGradePanel(d.itens || [], nomeGrade || d.nome || '');
-    _atualizarAvisoMultiploGrade(0);
+    _atualizarAvisoMultiploGrade(null);
   } catch(e) {
     renderGradePanel([], '');
     toast('Não foi possível carregar a grade (tamanhos) deste produto. Verifique a conexão e tente novamente.', 'err');
@@ -17694,7 +17721,8 @@ function calcSubItem() {
                ? 0
                : (parseFloat(document.getElementById('sub_ipi').value) || 0);
   const icms = parseFloat(document.getElementById('sub_icms')?.value)      || 0;
-  const px   = parseFloat(document.getElementById('sub_puxada')?.value)    || 0;
+  // Puxada NÃO altera o total do item (Delphi): é separada — total puxada = peso × Valor Cliente
+  const px   = 0;
   const embEl = document.getElementById('sub_embalagem');
   const embVal = embEl?.value?.trim();
   const emb  = parseFloat(embVal) || 0;
@@ -18822,7 +18850,8 @@ async function _confirmarSubrecAsyncBody(tipo) {
       vlr_ipi: calc.tipi,
       vlr_icms: calc.ticms,
       obsitem: readSubObsitemFromForm(_editandoItemIdx),
-      valor_puxada: parseFloat(document.getElementById('sub_puxada').value),
+      // Puxada SIM (Delphi): Valor Cliente digitado vira valor_puxada; total puxada = peso × valor (abaixo)
+      valor_puxada: _puxadaPedidoAtiva() ? (parseFloat(document.getElementById('sub_vlr_cliente')?.value) || 0) : 0,
       vlrtotal_itens: calc.total,
       vlrtotal_com_imposto: calc.totalComImposto,
       foto_principal: document.getElementById('sub_foto').value || '',
@@ -18841,6 +18870,7 @@ async function _confirmarSubrecAsyncBody(tipo) {
       multiplo_grade: _gradeMultiploAtual || 0,
       grade_qtd:  _gradeItensAtual.length > 0 ? coletarGradeQtd() : []
     };
+    item.valor_totalpuxada = Math.round((parseFloat(item.total_peso) || 0) * (parseFloat(item.valor_puxada) || 0) * 100) / 100;
     await sincronizarPromocaoItemPedido(item, window._prodSubrecAtual);
   } else {
     item = {
@@ -19385,7 +19415,10 @@ function itemParaPayloadSalvar(i) {
     vlr_icms: i.vlr_icms || 0,
     vlrtotal_com_imposto: i.vlrtotal_com_imposto ?? i.vlrtotalcomimposto,
     vlrtotalcomimposto: i.vlrtotal_com_imposto ?? i.vlrtotalcomimposto,
-    valor_puxada: i.valor_puxada || 0,
+    valor_puxada: _puxadaPedidoAtiva() ? (i.valor_puxada || 0) : 0,
+    valor_totalpuxada: _puxadaPedidoAtiva()
+      ? (Math.round((parseFloat(i.total_peso) || 0) * (parseFloat(i.valor_puxada) || 0) * 100) / 100)
+      : 0,
     valor_cliente: i.valor_cliente,
     total_peso: i.total_peso || 0,
     peso: i.peso || 0,
@@ -19452,7 +19485,10 @@ async function _salvarPedidoImpl() {
   const vlrFrete      = parseFloat(document.getElementById('f_vlrfrete').value) || 0;
   const totalQt       = itensAtivos.reduce((s, i) => s + _n(i.quantidade), 0);
   const totalPeso     = itensAtivos.reduce((s, i) => s + _n(i.total_peso), 0);
-  const vlrPuxada     = Math.round(itensAtivos.reduce((s, i) => s + _n(i.valor_puxada) * _n(i.quantidade), 0) * 100) / 100;
+  // Delphi: vlrtotalitenspuxada = Σ total puxada dos itens; vlr_totpuxada = |Σ total puxada − total dos itens|
+  const puxadaOn      = _puxadaPedidoAtiva();
+  const vlrTotItensPux = !puxadaOn ? 0 : Math.round(itensAtivos.reduce((s, i) => s + _n(i.total_peso) * _n(i.valor_puxada), 0) * 100) / 100;
+  const vlrPuxada     = !puxadaOn ? 0 : Math.round(Math.abs(vlrTotItensPux - vlrSubtotal) * 100) / 100;
   const vlrtotalBruto = Math.round((vlrSubtotal + vlrImposto) * 100) / 100;
 
   const qtParcelas    = _subData.parcelas.filter(p => !p._delete).length || 1;
@@ -19508,7 +19544,7 @@ async function _salvarPedidoImpl() {
       status:              (document.getElementById('f_situacao_pedido').value || 'ENTREGAR').toUpperCase(),
       id_tipopedido:       idTipoPed,
       tipo_pedido:         document.getElementById('f_tipo_pedido').value,
-      tipo_documento:      document.getElementById('f_tipo_documento').value,
+      tipodocumento:       document.getElementById('f_tipo_documento').value,
       id_frete:            idFrete,
       tipo_frete:          document.getElementById('f_tipo_frete').value,
       cod_transportadora:  parseInt(document.getElementById('f_cod_transportadora').value) || null,
@@ -19536,7 +19572,7 @@ async function _salvarPedidoImpl() {
       qt_parcelas:         qtParcelas,
       total_qt:            totalQt,
       total_peso:          totalPeso,
-      vlrtotalitenspuxada: vlrPuxada,
+      vlrtotalitenspuxada: vlrTotItensPux,
       vlr_totpuxada:       vlrPuxada,
       ...comissao,
       situacao_pedido:     document.getElementById('f_situacao_pedido').value,
@@ -23332,15 +23368,21 @@ function htmlDadosEmpresaImpressao(emp, cfgX, h) {
   return `<div class="emp-dados" style="margin:0 0 12px;padding:6px 10px;background:${corFundo};border-bottom:1px solid rgba(100,116,139,.25);border-radius:0 0 4px 4px;font-size:${tam}px;line-height:1.5;${famCss}${estCss}color:${corTxt}">${linha1}${linha2}</div>`;
 }
 
+/** Rótulo (escapado) de um total do rodapé: nome personalizado no modelo (cfg.rot_tot) ou o padrão. */
+function rotTotal(cfgX, key, padrao) {
+  const custom = String((cfgX && cfgX.rot_tot && cfgX.rot_tot[key]) || '').trim().slice(0, 40);
+  return (custom || padrao).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 /** Linhas do bloco inferior esquerdo do relatório (código na fábrica + peso total). */
 function htmlBlocoPesoCodFabricaImpressao(cfgX, codFab, totalPesoKg, h) {
   const linhas = [];
   if (cfgX.tot_cod_fabrica) {
-    linhas.push(`<div style="font-weight:700;font-size:12px">Fornecedor / Cod. Nº : ${codFab ? h(codFab) : '—'}</div>`);
+    linhas.push(`<div style="font-weight:700;font-size:12px">${rotTotal(cfgX, 'codfab', 'Fornecedor / Cod. Nº')} : ${codFab ? h(codFab) : '—'}</div>`);
   }
   if (cfgX.tot_peso) {
     const kg = (parseFloat(totalPesoKg) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 3 });
-    linhas.push(`<div style="font-weight:700;font-size:12px">Peso Total - KG: ${kg}</div>`);
+    linhas.push(`<div style="font-weight:700;font-size:12px">${rotTotal(cfgX, 'peso', 'Peso Total - KG')}: ${kg}</div>`);
   }
   return linhas.join('');
 }
@@ -24399,6 +24441,115 @@ function htmlTotaisImpressao(cfg, leftHtml, totaisRows) {
   </div>`;
 }
 
+// ── Puxada na impressão (Delphi): pergunta "imprimir puxada?" e layout com Preço Cliente / Preço Real ──
+const _puxadaImprimirResp = {};
+
+function pedidoTemPuxadaImpressao(p, its) {
+  return _habilitaPuxada === 'S'
+    && String(p?.puxada || '').toUpperCase() === 'S'
+    && (its || []).length > 0;
+}
+
+/** true = imprimir o layout com puxada. `forcar` pergunta de novo; senão reaproveita a resposta do pedido. */
+async function resolverImprimirPuxada(p, its, { forcar = false } = {}) {
+  if (!pedidoTemPuxadaImpressao(p, its)) return false;
+  const key = String(p.id || p.numero || '0');
+  if (!forcar && key in _puxadaImprimirResp) return _puxadaImprimirResp[key];
+  let ok = false;
+  try {
+    ok = await SysRepConfirm.ask({
+      titulo: 'Imprimir puxada?',
+      mensagem: 'Este pedido tem puxada. Deseja imprimir o relatório com Preço Cliente, Preço Real e o total da puxada?',
+      okTexto: 'Sim, imprimir puxada',
+      cancelTexto: 'Não',
+      perigo: false,
+    });
+  } catch (_) { ok = false; }
+  _puxadaImprimirResp[key] = !!ok;
+  return !!ok;
+}
+
+/**
+ * Puxada na impressão — fórmulas IDÊNTICAS ao Delphi (UntPedidos.pas, SQL do relatório RelPedidosVendasPuxada):
+ *   Preço Cliente = valor_puxada | Preço Real = valor_unitario | Valor Adic. = ABS(valor_unitario − valor_puxada)
+ *   Vlr. Tot. c/ Puxada = valor_totalpuxada | Vlr. Fornecedor = valor_unitario × total_peso
+ */
+function totalPuxadaItemImpressao(i) {
+  const gravado = parseFloat(i.valor_totalpuxada);
+  if (Number.isFinite(gravado) && gravado > 0) return gravado;
+  return (parseFloat(i.total_peso) || 0) * (parseFloat(i.valor_puxada) || 0);
+}
+function vlrFornecedorPuxadaImpressao(i) {
+  return (parseFloat(i.valor_unitario) || 0) * (parseFloat(i.total_peso) || 0);
+}
+
+/** Layout do Delphi com puxada: tabela + blocos de totais/comissão. */
+function montarImpressaoPuxada(its, p, br, fmtQtd, h, cfgX = {}) {
+  const ehPreposto = _logadoTipoUsuario === 'PREPOSTO';
+  const num = (v, fb) => { const n = parseFloat(v); return Number.isFinite(n) ? n : fb; };
+  const fmtPeso = n => (parseFloat(n) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 3 });
+  const rows = its.map((i, idx) => {
+    const cliente = parseFloat(i.valor_puxada) || 0;
+    const real = parseFloat(i.valor_unitario) || 0;
+    const emb = parseFloat(i.embalagem ?? i.kilo_embalagem) || 0;
+    return `<tr class="${idx % 2 === 1 ? 'alt' : ''}">
+      <td class="tc">${fmtQtd(i.quantidade).replace(/,0+$/, '')}</td>
+      <td class="tc">${emb ? fmtQtd(emb).replace(/,0+$/, '') : ''}</td>
+      <td class="td">${h(i.desc_prod)}</td>
+      <td class="tr">${fmtPeso(i.total_peso)}</td>
+      <td class="tr">R$ ${br(cliente)}</td>
+      <td class="tr">R$ ${br(real)}</td>
+      <td class="tr">R$ ${br(Math.abs(real - cliente))}</td>
+      <td class="tr">R$ ${br(totalPuxadaItemImpressao(i))}</td>
+      <td class="tr">R$ ${br(vlrFornecedorPuxadaImpressao(i))}</td>
+    </tr>`;
+  }).join('');
+
+  const somaPux   = its.reduce((s, i) => s + totalPuxadaItemImpressao(i), 0);
+  const somaForn  = its.reduce((s, i) => s + vlrFornecedorPuxadaImpressao(i), 0);
+  const totItens  = num(p.vlrtotalitens, somaForn);
+  // Rodapé: campos gravados no pedido (como o relatório do Delphi lê de frxPedidosVendas)
+  const totQtd    = num(p.total_qt, its.reduce((s, i) => s + (parseFloat(i.quantidade) || 0), 0));
+  const totPeso   = num(p.total_peso, its.reduce((s, i) => s + (parseFloat(i.total_peso) || 0), 0));
+  const totPuxada = num(p.vlr_totpuxada, Math.abs(somaPux - totItens));
+  const totDesc   = num(p.vlrdesconto, 0);
+  const totPedido = num(p.vlrtotalpedido, totItens - totDesc);
+  const comNormal = num(p.vlr_comissaonormal ?? p.vlrcomissao, NaN);
+  const comTotal  = num(p.vlr_total_comissao, comNormal + totPuxada);
+  const comPct    = num(p.comissao, NaN);
+  const mostraCom = !ehPreposto && Number.isFinite(comNormal);
+
+  const th = (t, cls) => `<th class="${cls}" style="background:#e5e7eb;color:#111;border:1px solid #bbb">${t}</th>`;
+  const tableHtml = `<table><thead><tr>
+      ${th('Qtde.', 'tc')}${th('Un./kg', 'tc')}${th('Produto / Descrição', 'td')}${th('Peso Total', 'tr')}
+      ${th('Preço Cliente', 'tr')}${th('Preço Real', 'tr')}${th('Valor Adic.', 'tr')}${th('Vlr. Tot. c/ Puxada', 'tr')}${th('Vlr. Fornecedor', 'tr')}
+    </tr></thead><tbody>${rows}</tbody>
+    <tfoot><tr style="background:#d1d5db;font-weight:700">
+      <td colspan="7" style="padding:6px">Detalhes do Pedido${mostraCom && Number.isFinite(comPct) ? ` - Comissão: ${br(comPct)}` : ''}
+        <span style="float:right;margin-right:40px">Totais do Pedido</span></td>
+      <td class="tr">R$ ${br(somaPux)}</td><td class="tr">R$ ${br(somaForn)}</td>
+    </tr></tfoot></table>`;
+
+  const leftHtml = `<div style="display:flex;gap:40px;align-items:flex-start">
+      <div>
+        <div>${rotTotal(cfgX, 'qtd', 'Total Volumes')}: <b>${fmtQtd(totQtd).replace(/,0+$/, '')}</b></div>
+        <div>${rotTotal(cfgX, 'peso', 'Peso Total - KG')}: <b>${fmtPeso(totPeso)}</b></div>
+        <div>Total Puxada: <b>R$ ${br(totPuxada)}</b></div>
+      </div>
+      ${mostraCom ? `<div>
+        <div>Comissão Normal: <b>R$ ${br(comNormal)}</b></div>
+        <div>Total Comissão: <b>R$ ${br(comTotal)}</b></div>
+      </div>` : ''}
+    </div>`;
+  const rowsHtml = [
+    `<tr><td class="tot-label">${rotTotal(cfgX, 'itens', 'Total Produtos')} :</td><td class="tot-val">R$ ${br(totItens)}</td></tr>`,
+    `<tr><td class="tot-label">${rotTotal(cfgX, 'desc', 'Total Descontos')} :</td><td class="tot-val">R$ ${br(totDesc)}</td></tr>`,
+    `<tr class="total-final"><td class="tot-label">${rotTotal(cfgX, 'total', 'Valor do Pedido')} :</td><td class="tot-val">R$ ${br(totPedido)}</td></tr>`,
+  ].join('');
+  return { tableHtml, leftHtml, rowsHtml };
+}
+
+
 async function imprimirPedidoAtual(opts = {}) {
   const rascunho = !!(opts && opts.rascunho);
 
@@ -24605,17 +24756,20 @@ async function imprimirPedidoAtual(opts = {}) {
     showFoto: showFotoPDF,
     showCusto: showCustoPDF,
   }) : null;
-  const itensTableHtml = tabelaGrade
+  // Puxada = SIM: pergunta se imprime (como no Delphi) e troca tabela/totais pelo layout da puxada
+  const puxadaImp = (await resolverImprimirPuxada(p, its, { forcar: true })) ? montarImpressaoPuxada(its, p, br, fmtQtd, h, cfg) : null;
+  const itensTableHtml = puxadaImp ? puxadaImp.tableHtml : tabelaGrade
     ? tabelaGrade.html
     : `<table><thead><tr>${theadCells}</tr></thead><tbody>${itensTr}</tbody></table>`;
   const labelQtdTotal = tabelaGrade ? 'Total de Pares' : 'Qtd Total de Itens';
 
   // ── totais ───────────────────────────────────────────────────────
   const totaisRows = [
-    cfg.tot_itens ? `<tr><td class="tot-label">${showCustoPDF ? 'Total dos Itens (custo)' : 'Total dos Itens'}</td><td class="tot-val">R$ ${br(totalItens)}</td></tr>` : '',
-    (!showCustoPDF && cfg.tot_ipi) ? `<tr><td class="tot-label">Total IPI</td><td class="tot-val">R$ ${br(totalIpi)}</td></tr>` : '',
-    (!showCustoPDF && cfg.tot_st) ? `<tr><td class="tot-label">Subst. Tributária</td><td class="tot-val">R$ ${br(totalSt)}</td></tr>` : '',
-    cfg.tot_total ? `<tr class="total-final"><td class="tot-label">${showCustoPDF ? 'Total do Pedido (custo)' : tpImp.total}</td><td class="tot-val">R$ ${br(totalPed)}</td></tr>` : '',
+    cfg.tot_itens ? `<tr><td class="tot-label">${rotTotal(cfg, 'itens', 'Total dos Itens')}${showCustoPDF ? ' (custo)' : ''}</td><td class="tot-val">R$ ${br(totalItens)}</td></tr>` : '',
+    (!showCustoPDF && cfg.tot_desc) ? `<tr><td class="tot-label">${rotTotal(cfg, 'desc', 'Total Descontos')}</td><td class="tot-val">R$ ${br(parseFloat(p.vlrdesconto) || 0)}</td></tr>` : '',
+    (!showCustoPDF && cfg.tot_ipi) ? `<tr><td class="tot-label">${rotTotal(cfg, 'ipi', 'Total IPI')}</td><td class="tot-val">R$ ${br(totalIpi)}</td></tr>` : '',
+    (!showCustoPDF && cfg.tot_st) ? `<tr><td class="tot-label">${rotTotal(cfg, 'st', 'Subst. Tributária')}</td><td class="tot-val">R$ ${br(totalSt)}</td></tr>` : '',
+    cfg.tot_total ? `<tr class="total-final"><td class="tot-label">${cfg.rot_tot?.total ? rotTotal(cfg, 'total', '') + (showCustoPDF ? ' (custo)' : '') : (showCustoPDF ? 'Total do Pedido (custo)' : tpImp.total)}</td><td class="tot-val">R$ ${br(totalPed)}</td></tr>` : '',
   ].join('');
 
   let feirinhaPrintHtml = '';
@@ -24726,8 +24880,8 @@ async function imprimirPedidoAtual(opts = {}) {
     marcaPropriaHtml, suframaHtml,
     tituloItens: tpImp.itens,
     itensTableHtml,
-    totaisHtml: htmlTotaisImpressao(cfg,
-      `${cfg.tot_qtd ? `<div><span style="color:#555">${labelQtdTotal}:</span> <b>${fmtQtd(totalQtd)}</b></div>` : ''}${htmlBlocoPesoCodFabricaImpressao(cfg, codClienteFabrica, totalPeso, h)}`,
+    totaisHtml: puxadaImp ? htmlTotaisImpressao(cfg, puxadaImp.leftHtml, puxadaImp.rowsHtml) : htmlTotaisImpressao(cfg,
+      `${cfg.tot_qtd ? `<div><span style="color:#555">${cfg.rot_tot?.qtd ? rotTotal(cfg, 'qtd', '') : labelQtdTotal}:</span> <b>${fmtQtd(totalQtd)}</b></div>` : ''}${htmlBlocoPesoCodFabricaImpressao(cfg, codClienteFabrica, totalPeso, h)}`,
       totaisRows),
     parcelasHtml,
     obsHtml,
@@ -29660,7 +29814,10 @@ async function editarItem(realIdx) {
   if (_logadoTipoUsuario !== 'PREPOSTO') {
     setV('sub_comissao', parseFloat(item.comissao_percentual ?? item.comissao) || 0);
   }
-  setV('sub_vlr_cliente',  parseFloat(item.valor_cliente) || 0);
+  // Com puxada, "Valor Cliente" é o valor_puxada gravado (Delphi); senão mantém valor_cliente legado
+  setV('sub_vlr_cliente',  (_puxadaPedidoAtiva() && parseFloat(item.valor_puxada) > 0)
+    ? parseFloat(item.valor_puxada)
+    : (parseFloat(item.valor_cliente) || 0));
   setV('sub_st',           parseFloat(item.st_percentual ?? item.st) || 0);
   setV('sub_ipi',          _clienteConfig?.descontoIPIsuframaped === 'S' ? 0 : (parseFloat(item.ipi_percentual ?? item.ipi) || 0));
   setV('sub_icms',         parseFloat(item.icms_percentual ?? item.icms) || 0);
@@ -29848,12 +30005,19 @@ function removerAcrescimoLote() {
   toast('Acréscimo removido — preços restaurados', 'ok');
 }
 
+/** Igual ao Delphi: puxada só vale com o parâmetro habilitado E o combo do pedido em SIM. */
+function _puxadaPedidoAtiva() {
+  return _habilitaPuxada === 'S' && document.getElementById('f_puxada')?.value === 'S';
+}
+
 function onChangePuxada() {
-  const isPuxada = _habilitaPuxada === 'S' && document.getElementById('f_puxada')?.value === 'S';
+  const isPuxada = _puxadaPedidoAtiva();
   const wCli  = document.getElementById('wrap_vlr_cliente');
   const wPx   = document.getElementById('wrap_puxada');
   if (wCli) wCli.style.display = isPuxada ? '' : 'none';
-  if (wPx)  wPx.style.display  = isPuxada ? '' : 'none';
+  if (wPx)  wPx.style.display  = 'none'; // Delphi tem um campo só: "Valor Cliente"
+  // Colunas Valor Puxada / Total Puxada da grade aparecem só com SIM (como no Delphi)
+  try { if (typeof renderSubrec === 'function') renderSubrec('itens'); } catch (_) {}
 }
 
 window.addEventListener('load', async () => {
@@ -29891,6 +30055,9 @@ window.addEventListener('load', async () => {
     // Oculta campo Puxada no form principal se não habilitado
     const wFormPux = document.getElementById('wrap_form_puxada');
     if (wFormPux) wFormPux.style.display = _habilitaPuxada === 'S' ? '' : 'none';
+    try { renderChooser(); renderHeaders(); } catch (_) {}
+    const wFiltPux = document.getElementById('wrap_f_puxada_filter');
+    if (wFiltPux) wFiltPux.style.display = _habilitaPuxada === 'S' ? '' : 'none';
     // Oculta combo Tipo Documento se não habilitado em Configuração do Sistema
     const wTipoDoc = document.getElementById('wrap_tipo_documento');
     if (wTipoDoc) wTipoDoc.style.display = _habilitaTipoDoc === 'S' ? '' : 'none';
@@ -31651,16 +31818,19 @@ async function gerarHtmlImpressao() {
     showFoto: showFotosPDF,
     showCusto: showCustoPDF2,
   }) : null;
-  const itensTableHtml2 = tabelaGrade2
+  // Puxada = SIM: reaproveita a resposta de "imprimir puxada?" ou pergunta (como no Delphi)
+  const puxadaImp2 = (await resolverImprimirPuxada(p, its)) ? montarImpressaoPuxada(its, p, br, fmtQtd2, h, cfg2) : null;
+  const itensTableHtml2 = puxadaImp2 ? puxadaImp2.tableHtml : tabelaGrade2
     ? tabelaGrade2.html
     : `<table><thead><tr>${theadCells2}</tr></thead><tbody>${itensTr}</tbody></table>`;
   const labelQtdTotal2 = tabelaGrade2 ? 'Total de Pares' : 'Qtd Total de Itens';
 
   const totaisRows2 = [
-    cfg2.tot_itens ? `<tr><td class="tot-label">${showCustoPDF2 ? 'Total dos Itens (custo)' : 'Total dos Itens'}</td><td class="tot-val">R$ ${br(totalItens)}</td></tr>` : '',
-    (!showCustoPDF2 && cfg2.tot_ipi) ? `<tr><td class="tot-label">Total IPI</td><td class="tot-val">R$ ${br(totalIpi)}</td></tr>` : '',
-    (!showCustoPDF2 && cfg2.tot_st) ? `<tr><td class="tot-label">Subst. Tributária</td><td class="tot-val">R$ ${br(totalSt)}</td></tr>` : '',
-    cfg2.tot_total ? `<tr class="total-final"><td class="tot-label">${showCustoPDF2 ? 'Total do Pedido (custo)' : tpImp2.total}</td><td class="tot-val">R$ ${br(totalPed)}</td></tr>` : '',
+    cfg2.tot_itens ? `<tr><td class="tot-label">${rotTotal(cfg2, 'itens', 'Total dos Itens')}${showCustoPDF2 ? ' (custo)' : ''}</td><td class="tot-val">R$ ${br(totalItens)}</td></tr>` : '',
+    (!showCustoPDF2 && cfg2.tot_desc) ? `<tr><td class="tot-label">${rotTotal(cfg2, 'desc', 'Total Descontos')}</td><td class="tot-val">R$ ${br(parseFloat(p.vlrdesconto) || 0)}</td></tr>` : '',
+    (!showCustoPDF2 && cfg2.tot_ipi) ? `<tr><td class="tot-label">${rotTotal(cfg2, 'ipi', 'Total IPI')}</td><td class="tot-val">R$ ${br(totalIpi)}</td></tr>` : '',
+    (!showCustoPDF2 && cfg2.tot_st) ? `<tr><td class="tot-label">${rotTotal(cfg2, 'st', 'Subst. Tributária')}</td><td class="tot-val">R$ ${br(totalSt)}</td></tr>` : '',
+    cfg2.tot_total ? `<tr class="total-final"><td class="tot-label">${cfg2.rot_tot?.total ? rotTotal(cfg2, 'total', '') + (showCustoPDF2 ? ' (custo)' : '') : (showCustoPDF2 ? 'Total do Pedido (custo)' : tpImp2.total)}</td><td class="tot-val">R$ ${br(totalPed)}</td></tr>` : '',
   ].join('');
 
   const parcs = dados.parcelas || [];
@@ -31738,8 +31908,8 @@ ${htmlMioloRelatorioPedido({
   marcaPropriaHtml: marcaPropriaHtml2, suframaHtml: suframaHtml2,
   tituloItens: tpImp2.itens,
   itensTableHtml: itensTableHtml2,
-  totaisHtml: htmlTotaisImpressao(cfg2,
-    `${cfg2.tot_qtd ? `<div><span style="color:#555">${labelQtdTotal2}:</span> <b>${fmtQtd2(totalQtd2)}</b></div>` : ''}${htmlBlocoPesoCodFabricaImpressao(cfg2, codClienteFabrica2, totalPeso2, h)}`,
+  totaisHtml: puxadaImp2 ? htmlTotaisImpressao(cfg2, puxadaImp2.leftHtml, puxadaImp2.rowsHtml) : htmlTotaisImpressao(cfg2,
+    `${cfg2.tot_qtd ? `<div><span style="color:#555">${cfg2.rot_tot?.qtd ? rotTotal(cfg2, 'qtd', '') : labelQtdTotal2}:</span> <b>${fmtQtd2(totalQtd2)}</b></div>` : ''}${htmlBlocoPesoCodFabricaImpressao(cfg2, codClienteFabrica2, totalPeso2, h)}`,
     totaisRows2),
   parcelasHtml,
   obsHtml,
@@ -34113,7 +34283,7 @@ const _CMP_DEFAULT = {
   emp_fabrica:true, emp_ordem_compra:true, emp_data_emissao:true, emp_data_fatura:true,
   emp_dados:false, emp_dados_cor_texto:'#64748b', emp_dados_cor_fundo:'#f8fafc', emp_dados_tam:9, emp_dados_fonte:'', emp_dados_estilo:'normal', fonte_familia:'inter', fonte_escala:100, fonte_escala_itens:0, cor_destaque:'', cor_cabecalho_tabela:'', emp_vendedor:true, emp_comprador:true, emp_cond_pagto:true, emp_prazo_tipo:true, emp_forma_pagto:true, emp_previsao:true,
   cli_endereco:true, cli_email:true, cli_telefone:true, cli_cnpj:true, cli_ie:true, cli_transportadora:true, cli_fantasia:false,
-  tot_itens:true, tot_ipi:true, tot_st:true, tot_total:true, tot_qtd:false, tot_peso:false, tot_cod_fabrica:false,
+  tot_itens:true, tot_ipi:true, tot_st:true, tot_total:true, tot_qtd:false, tot_peso:false, tot_cod_fabrica:false, tot_desc:false, rot_tot:{},
   col_descricao:true,
   sec_obs:true, sec_parcelas:true, sec_assinatura:false, obs_topo:false, itens_linha_divisoria:false,
   sec_blocos:false,
@@ -34124,6 +34294,8 @@ const _CMP_DEFAULT = {
   header_text:'', footer_text:''
 };
 let _cmpConfig = null;
+/** Totais do rodapé cujo nome pode ser personalizado no modelo (cfg.rot_tot). */
+const _CMP_ROT_TOT_KEYS = ['itens', 'desc', 'ipi', 'st', 'total', 'qtd', 'peso', 'codfab'];
 const _CMP_FONTES = {
   inter:   "'Inter','Segoe UI',Arial,sans-serif",
   arial:   "Arial,Helvetica,sans-serif",
@@ -34189,7 +34361,7 @@ function _cmpAplicarTipografia(html, cfg) {
 const _CMP_KEYS_BOOL = ['col_seq','col_cod','col_descricao','col_unidade','col_quantidade','col_preco_unit','col_vlr_desc_unit','col_vlrtotal','col_subtotal','col_ipi','col_ipi_pct','col_st','col_st_pct','col_desconto','col_acrescimo',
   'emp_dados','emp_fabrica','emp_ordem_compra','emp_data_emissao','emp_data_fatura','emp_vendedor','emp_comprador','emp_cond_pagto','emp_prazo_tipo','emp_forma_pagto','emp_previsao',
   'cli_endereco','cli_email','cli_telefone','cli_cnpj','cli_ie','cli_transportadora','cli_fantasia',
-  'tot_itens','tot_ipi','tot_st','tot_total','tot_qtd','tot_peso','tot_cod_fabrica','sec_obs','sec_parcelas','sec_assinatura','obs_topo','itens_linha_divisoria','sec_blocos','layout_borda'];
+  'tot_itens','tot_ipi','tot_st','tot_total','tot_qtd','tot_peso','tot_cod_fabrica','tot_desc','sec_obs','sec_parcelas','sec_assinatura','obs_topo','itens_linha_divisoria','sec_blocos','layout_borda'];
 
 function _cmpLoad() {
   if (_cmpConfig) return _cmpResolverTextosModelo(_cmpConfig);
@@ -34263,7 +34435,7 @@ function _cmpAplicarUiTextoPolitica() {
 function _cmpPopularForm(cfg) {
   const resolved = _cmpResolverTextosModelo(cfg);
   // sec_blocos e outras flags default=false: só marca se === true (evita virar "ligado" por undefined)
-  const _CMP_DEFAULT_FALSE = new Set(['sec_blocos', 'sec_assinatura', 'obs_topo', 'itens_linha_divisoria', 'layout_borda', 'cli_fantasia', 'tot_qtd', 'tot_peso', 'tot_cod_fabrica', 'emp_dados', 'col_vlr_desc_unit', 'col_ipi_pct', 'col_st_pct', 'col_desconto', 'col_acrescimo']);
+  const _CMP_DEFAULT_FALSE = new Set(['sec_blocos', 'sec_assinatura', 'obs_topo', 'itens_linha_divisoria', 'layout_borda', 'cli_fantasia', 'tot_qtd', 'tot_peso', 'tot_cod_fabrica', 'tot_desc', 'emp_dados', 'col_vlr_desc_unit', 'col_ipi_pct', 'col_st_pct', 'col_desconto', 'col_acrescimo']);
   _CMP_KEYS_BOOL.forEach(k => {
     const el = document.getElementById('cmp_' + k);
     if (!el) return;
@@ -34300,6 +34472,7 @@ function _cmpPopularForm(cfg) {
       || (resolved.itens_linha_divisoria ? 'horizontal' : 'nenhuma');
   }
   renderListaOrdemBlocos(resolved.blocos_ordem, resolved.titulos);
+  _CMP_ROT_TOT_KEYS.forEach(k => _setV('cmp_rot_tot_' + k, (resolved.rot_tot || {})[k]));
   document.getElementById('cmp_header_text').value = resolved.header_text || '';
   document.getElementById('cmp_footer_text').value = resolved.footer_text || '';
   _cmpAplicarUiTextoPolitica();
@@ -34413,6 +34586,11 @@ async function salvarConfigurarModelo() {
   cfg.itens_linha_divisoria = cfg.itens_linhas === 'horizontal' || cfg.itens_linhas === 'grade';
   cfg.blocos_ordem = lerOrdemBlocosDoForm();
   cfg.titulos = lerTitulosBlocosDoForm();
+  cfg.rot_tot = {};
+  _CMP_ROT_TOT_KEYS.forEach(k => {
+    const v = (document.getElementById('cmp_rot_tot_' + k)?.value || '').trim().slice(0, 40);
+    if (v) cfg.rot_tot[k] = v;
+  });
   if (_cmpPodeEditarTextoModelo()) {
     cfg.header_text = document.getElementById('cmp_header_text').value || '';
     cfg.footer_text = document.getElementById('cmp_footer_text').value || '';
@@ -34753,6 +34931,18 @@ document.addEventListener('keydown', e => {
           <label class="cmp-row"><input type="checkbox" id="cmp_tot_qtd"> <span>Qtd Total de Itens</span></label>
           <label class="cmp-row"><input type="checkbox" id="cmp_tot_peso"> <span>Peso Total (KG)</span></label>
           <label class="cmp-row"><input type="checkbox" id="cmp_tot_cod_fabrica"> <span>Fornecedor / Cod. Nº (código/ID do fornecedor)</span></label>
+          <label class="cmp-row"><input type="checkbox" id="cmp_tot_desc"> <span>Total Descontos</span></label>
+        </div>
+        <div style="font-size:12px;color:var(--text2);margin:10px 0 6px">Nome de cada total no papel. Em branco, usa o nome padrão (entre parênteses).</div>
+        <div class="cmp-grid">
+          <label class="cmp-row"><span style="min-width:120px">Total dos Itens</span><input type="text" id="cmp_rot_tot_itens" maxlength="40" placeholder="Total dos Itens" autocomplete="off"></label>
+          <label class="cmp-row"><span style="min-width:120px">Total Descontos</span><input type="text" id="cmp_rot_tot_desc" maxlength="40" placeholder="Total Descontos" autocomplete="off"></label>
+          <label class="cmp-row"><span style="min-width:120px">Total IPI</span><input type="text" id="cmp_rot_tot_ipi" maxlength="40" placeholder="Total IPI" autocomplete="off"></label>
+          <label class="cmp-row"><span style="min-width:120px">Subst. Tributária</span><input type="text" id="cmp_rot_tot_st" maxlength="40" placeholder="Subst. Tributária" autocomplete="off"></label>
+          <label class="cmp-row"><span style="min-width:120px">Total do Pedido</span><input type="text" id="cmp_rot_tot_total" maxlength="40" placeholder="Total do Pedido" autocomplete="off"></label>
+          <label class="cmp-row"><span style="min-width:120px">Qtd Total de Itens</span><input type="text" id="cmp_rot_tot_qtd" maxlength="40" placeholder="Qtd Total de Itens" autocomplete="off"></label>
+          <label class="cmp-row"><span style="min-width:120px">Peso Total (KG)</span><input type="text" id="cmp_rot_tot_peso" maxlength="40" placeholder="Peso Total - KG" autocomplete="off"></label>
+          <label class="cmp-row"><span style="min-width:120px">Fornecedor / Cod. Nº</span><input type="text" id="cmp_rot_tot_codfab" maxlength="40" placeholder="Fornecedor / Cod. Nº" autocomplete="off"></label>
         </div>
       </div>
 

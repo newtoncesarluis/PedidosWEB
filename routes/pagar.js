@@ -3,7 +3,7 @@ const router = express.Router();
 const { getPool } = require('../config/database');
 const {
   SQL_VENCIMENTO_ISO, SQL_VENCIMENTO_BR, mapPagarRow,
-  extrairDataIso, vencimentoComRecorrencia,
+  extrairDataIso, vencimentoComRecorrencia, vencimentoParcela, somarDiasIso, numeroDocParcela,
 } = require('../config/pagar-dates');
 const {
   resolveDespesasLabelColumn,
@@ -189,6 +189,11 @@ router.get('/', async (req, res) => {
     where += ' AND p.id_centrocusto = ?';
     params.push(centroId);
   }
+  const bancoId = parseInt(req.query.id_banco, 10);
+  if (bancoId > 0) {
+    where += ' AND p.id_banco = ?';
+    params.push(bancoId);
+  }
 
   const p = parseInt(page, 10) || 1;
   const limReq = parseInt(limit, 10) || 50;
@@ -286,17 +291,32 @@ router.post('/', async (req, res) => {
       }
     }
 
+    // Parcelamento: intervalo + unidade e carência antes da 1ª parcela.
+    // Sem esses campos mantém o comportamento antigo (a cada 1 mês, mesmo valor).
+    const qtParc = Math.min(Math.max(numRecorrencias, 1), 360);
+    const intervalo = Math.max(1, parseInt(data.intervalo_qtd, 10) || 1);
+    const unidade = String(data.intervalo_unidade || 'MESES').toUpperCase();
+    const carencia = Math.max(0, parseInt(data.carencia_dias, 10) || 0);
+    const vencPrimeira = carencia > 0 ? somarDiasIso(vencBase, carencia) : vencBase;
+    const dividirTotal = String(data.modo_valor || '').toUpperCase() === 'TOTAL' && qtParc > 1;
+    const valorInformado = valorLancamentoPagar(data);
+    const valorParcelaBase = dividirTotal ? Math.floor((valorInformado / qtParc) * 100) / 100 : valorInformado;
+
+    const formaPagto = data.forma_pagto ? String(data.forma_pagto).trim().toUpperCase().slice(0, 15) : 'DINHEIRO';
     const results = [];
-    for (let i = 0; i < numRecorrencias; i++) {
-      const vencimento = vencimentoComRecorrencia(vencBase, i);
+    for (let i = 0; i < qtParc; i++) {
+      const vencimento = vencimentoParcela(vencPrimeira, i, intervalo, unidade);
       const status = data.status || 'ABERTA';
-      const vlrPago = status === 'LIQUIDADO' ? (data.vlrpago || data.valor) : 0;
+      // última parcela absorve os centavos da divisão
+      const vlr = dividirTotal && i === qtParc - 1
+        ? Math.round((valorInformado - valorParcelaBase * (qtParc - 1)) * 100) / 100
+        : valorParcelaBase;
+      const vlrPago = status === 'LIQUIDADO' ? (dividirTotal ? vlr : (data.vlrpago || data.valor)) : 0;
       const dataPagto = status === 'LIQUIDADO'
         ? (extrairDataIso(data.data_pagto) || hojeIsoBrasil())
         : null;
       const numero = await proximoNumeroPagar(pool);
       const doc = docFromNumeroPagar(numero);
-      const vlr = valorLancamentoPagar(data);
 
       const [result] = await pool.query(`
         INSERT INTO pagar (
@@ -305,17 +325,18 @@ router.post('/', async (req, res) => {
           cod_fornecedor, nome_fornecedor, data_lanc, id_natureza,
           id_despesas, despesas, cod_vendedor, data_pagto, vlrpago,
           forma_foipagto, juros, vlrjuros, vrljuros, vlracressimo,
-          id_planoconta, id_centrocusto, excluido
-        ) VALUES (?, 'PAGAR', STR_TO_DATE(?, '%Y-%m-%d'), ?, ?, ?, ?, ?, ?, ?, 1, 1, 'DINHEIRO', 1, 'PAGAMENTO EFETUADO', 'DINHEIRO',
-          ?, ?, NOW(), ?, ?, ?, ?, ?, ?, 'DINHEIRO', ?, ?, ?, ?, ?, ?, 'N')
+          id_planoconta, id_centrocusto, id_banco, excluido
+        ) VALUES (?, 'PAGAR', STR_TO_DATE(?, '%Y-%m-%d'), ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, 'PAGAMENTO EFETUADO', 'DINHEIRO',
+          ?, ?, NOW(), ?, ?, ?, ?, ?, ?, 'DINHEIRO', ?, ?, ?, ?, ?, ?, ?, 'N')
       `, [
         numero, vencimento, vlr, vlr, vlr,
-        status, data.obs || null, doc, numeronf,
+        status, data.obs || null, doc, numeroDocParcela(numeronf, i, qtParc, 25),
+        i + 1, formaPagto, qtParc,
         finalCodFornecedor, data.nome_fornecedor || null,
         null, idDesp, despesasTxt,
         data.cod_vendedor || null, dataPagto, vlrPago,
         parseFloat(data.juros) || 0, parseFloat(data.vlrjuros) || 0, parseFloat(data.vlrjuros) || 0, parseFloat(data.vlracressimo) || 0,
-        idPlano, idCentro
+        idPlano, idCentro, parseIdBanco(data.id_banco) || null
       ]);
       results.push(result.insertId);
     }
@@ -580,15 +601,18 @@ router.put('/:id', async (req, res) => {
       if (data.id_centrocusto !== undefined) {
         data.id_centrocusto = parseInt(data.id_centrocusto, 10) || null;
       }
+      if (data.id_banco !== undefined) {
+        data.id_banco = parseIdBanco(data.id_banco) || null;
+      }
 
       const allowed = [
         'vencimento', 'valor', 'valor_pagar', 'vlrcomjuros', 'status', 'obs', 'doc', 'numeronf',
         'cod_fornecedor', 'nome_fornecedor', 'id_despesas', 'despesas',
-        'data_pagto', 'forma_foipagto', 'vlrpago',
+        'data_pagto', 'forma_pagto', 'forma_foipagto', 'vlrpago',
         'juros', 'vlrjuros', 'vrljuros', 'vlracressimo',
-        'id_planoconta', 'id_centrocusto'
+        'id_planoconta', 'id_centrocusto', 'id_banco'
       ];
-      
+
       allowed.forEach(field => {
         if (data[field] !== undefined) {
           sets.push(`${field} = ?`);

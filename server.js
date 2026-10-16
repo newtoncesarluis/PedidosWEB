@@ -1050,9 +1050,12 @@ initCustomerDatabase()
   .then(startServer)
   .then(() => {
     try {
-      const nreInit = require('./config/db-nresolution').initNreConfigSchema();
-      const painelInit = require('./config/db-painel').initPainelSolicitacoesSchema();
-      Promise.all([nreInit, painelInit])
+      // Painel/nre usam a porta do túnel SSH em dev — esperar o túnel (aberto em background)
+      require('./config/database').ensureTunnelStarted()
+        .then(() => Promise.all([
+          require('./config/db-nresolution').initNreConfigSchema(),
+          require('./config/db-painel').initPainelSolicitacoesSchema(),
+        ]))
         .then(() => { try { require('./config/suporte-notificador').startNotificador(); } catch (e) { console.warn('[notificador]', e.message); } })
         .catch(e => console.warn('[painel-schema]', e.message));
     } catch (e) { console.warn('[painel-schema]', e.message); }

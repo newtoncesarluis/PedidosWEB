@@ -2224,6 +2224,14 @@
               },
               formatPreco: money,
               okTexto: 'Adicionar ao carrinho',
+              estilo: 'galeria',
+              fetchImagens: async (codCor) => {
+                const d = await apiJson('/api/produtos/' + codCor + '/imagens');
+                return (d.imagens || d || [])
+                  .map((x) => x.url || x.caminho || x.filename)
+                  .filter(Boolean)
+                  .map((u) => (String(u).startsWith('/') || String(u).startsWith('http') ? u : '/uploads/produtos/' + codCor + '/' + u));
+              },
               titulo: 'Escolher cores',
               habilitaGrade: S.habilitaGrade,
               fetchGrade: async (idGrade) => apiJson('/api/pedidos/grade/' + idGrade),

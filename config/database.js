@@ -108,15 +108,12 @@ async function createPoolFromLicenseBinding() {
   // Dev local: roteia pelo usuário da licença (Oracle direto ou túnel Hostinger).
   _applyDevHostRouting(cfg);
 
+  await _awaitTunnelIfRouted(cfg);
   const newPool = createPool(cfg, binding.chave_licenca);
 
   // Garante schema atualizado no banco recém-conectado
   try {
-    const { runMigrations, ensurePerfilCadastroColumns } = require('./schema-migrations');
-    const { syncChangelogQueue } = require('./changelog-sync');
-    await runMigrations(newPool);
-    await ensurePerfilCadastroColumns(newPool);
-    await syncChangelogQueue(newPool);
+    await require('./schema-migrations').runStartupMigrations(newPool);
   } catch (e) {
     console.warn('[DB] Aviso de migração:', e.message);
   }
@@ -166,9 +163,30 @@ async function _seedEmpresaFromLicense(targetPool, licRow) {
   }
 }
 
+// Túnel SSH em segundo plano: só bloqueia quem realmente usa a porta do túnel
+// (tenant sem DEV_DBHOST_<user>, ou painel). Tenant direto na Oracle sobe sem esperar o SSH.
+let _tunnelPromise = null;
+function ensureTunnelStarted() {
+  if (!getTunnelConfig()) return Promise.resolve(null);
+  if (!_tunnelPromise) {
+    _tunnelPromise = openTunnel().catch((e) => {
+      console.warn('[tunnel] falha ao abrir:', e.message);
+      _tunnelPromise = null;
+      return null;
+    });
+  }
+  return _tunnelPromise;
+}
+async function _awaitTunnelIfRouted(cfg) {
+  const tunnelPort = parseInt(process.env.TUNNEL_LOCAL_PORT || '0', 10);
+  if (tunnelPort && Number(cfg.port) === tunnelPort && ['127.0.0.1', 'localhost'].includes(String(cfg.host).toLowerCase())) {
+    await ensureTunnelStarted();
+  }
+}
+
 async function initCustomerDatabase() {
-  // Abre túnel SSH automaticamente se TUNNEL_SSH_HOST estiver no .env
-  if (getTunnelConfig()) await openTunnel();
+  // Abre túnel SSH automaticamente se TUNNEL_SSH_HOST estiver no .env (sem bloquear a subida)
+  ensureTunnelStarted();
 
   const boundChave = getBoundChave();
 
@@ -222,14 +240,11 @@ async function initCustomerDatabase() {
       console.log(`[DB] Bound mode — ${cfg.host}:${cfg.port}/${cfg.database} (user: ${cfg.user})`);
     }
     _boundCfg = { ...cfg };           // cache p/ reconexão segura (nunca via .env DB_NAME)
+    await _awaitTunnelIfRouted(cfg);
     createPool(cfg); // sem chave_licenca → pool global
     await pool.query('SELECT 1');
     try {
-      const { runMigrations, ensurePerfilCadastroColumns } = require('./schema-migrations');
-      const { syncChangelogQueue } = require('./changelog-sync');
-      await runMigrations(pool);
-      await ensurePerfilCadastroColumns(pool);
-      await syncChangelogQueue(pool);
+      await require('./schema-migrations').runStartupMigrations(pool);
     } catch (e) {
       console.warn('[DB] Migração:', e.message);
     }
@@ -243,11 +258,7 @@ async function initCustomerDatabase() {
     createPool();
     await pool.query('SELECT 1');
     try {
-      const { runMigrations, ensurePerfilCadastroColumns } = require('./schema-migrations');
-      const { syncChangelogQueue } = require('./changelog-sync');
-      await runMigrations(pool);
-      await ensurePerfilCadastroColumns(pool);
-      await syncChangelogQueue(pool);
+      await require('./schema-migrations').runStartupMigrations(pool);
     } catch (e) {
       console.warn('[DB] Migração:', e.message);
     }
@@ -611,6 +622,7 @@ module.exports = {
   runWithPool,
   testConnection,
   initCustomerDatabase,
+  ensureTunnelStarted,
   customerDbFromLicense,
   getBoundChave,
   readLicenseBinding,

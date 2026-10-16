@@ -25,7 +25,7 @@ const MIGRATIONS = [
   { table: 'pedidos', column: 'coduser_digitacao',   type: "INT" },
   { table: 'pedidos', column: 'id_empresa',          type: "INT" },
   { table: 'pedidos', column: 'puxada',              type: "VARCHAR(1) DEFAULT 'N'" },
-  { table: 'pedidos', column: 'tipo_documento',      type: "VARCHAR(20)" },
+  { table: 'pedidos', column: 'tipodocumento',       type: "VARCHAR(20)" },
   { table: 'pedidos', column: 'dataexclusao',        type: "DATE" },
   { table: 'pedidos', column: 'horaexclusao',        type: "TIME" },
   { table: 'pedidos', column: 'id_userexclusao',     type: "INT" },
@@ -1622,8 +1622,16 @@ const PERFIL_EXTRA_ENSURE = [
 ];
 
 /** Garante colunas S/N de cadastros no perfil (runtime, sem reiniciar o servidor). */
+const _perfilEnsuredPools = new WeakSet();
 async function ensurePerfilCadastroColumns(pool) {
   if (!pool?.query) return false;
+  // Já garantido neste pool (cada login repetia ~4 round trips de rede só pra isso)
+  if (_perfilEnsuredPools.has(pool)) return true;
+  const ok = await _ensurePerfilCadastroColumnsImpl(pool);
+  if (ok) _perfilEnsuredPools.add(pool);
+  return ok;
+}
+async function _ensurePerfilCadastroColumnsImpl(pool) {
   const { PERFIL_SN_CADASTRO } = require('./cadastros-permissoes');
   await ensureTableColumns(pool, 'perfil', PERFIL_SN_CADASTRO);
 
@@ -1795,4 +1803,45 @@ async function ensureCatalogosTables(pool) {
   }
 }
 
-module.exports = { runMigrations, ensurePromocoesCampanhaTables, ensureFeirinhaTables, ensureCatalogosTables, ensureTableColumns, ensurePerfilCadastroColumns, ensureItenspedPromoColumns, ensureItenspedObsitemColumn, ensurePedidoRetornoColumns, ensurePedidoObsProximoColumns, backfillItenspedObsitemLegado, ensureItenspedTipoPrecoWidth, ensureTabelaPrecoCondPagamentoNullable, ensureVitrineColumns, ensureTabelaPrecoItensDecimal };
+/**
+ * Migrações de startup com cache (só dev local): pula runMigrations/ensurePerfil/changelog quando
+ * o banco já foi migrado com a mesma versão dos arquivos de schema (mtime+size). Cada round trip via
+ * rede custa ~140ms, então re-checar tudo a cada início do servidor atrasava a subida em ~10s+.
+ * Em produção sempre roda (banco ao lado do servidor, custo desprezível).
+ */
+async function runStartupMigrations(pool) {
+  const fs = require('fs');
+  const path = require('path');
+  const { syncChangelogQueue } = require('./changelog-sync');
+  const run = async () => {
+    await runMigrations(pool);
+    await ensurePerfilCadastroColumns(pool);
+    await syncChangelogQueue(pool);
+  };
+  if (process.env.NODE_ENV === 'production' || process.env.FORCE_MIGRATIONS === '1') return run();
+
+  let key = '', sig = '', file = '';
+  try {
+    const cc = pool.pool.config.connectionConfig;
+    key = `${cc.host}:${cc.port}/${cc.database}`;
+    sig = ['schema-migrations.js', 'changelog-queue.js', 'cadastros-permissoes.js', 'changelog-sync.js']
+      .map((f) => { const s = fs.statSync(path.join(__dirname, f)); return `${s.size}-${Math.floor(s.mtimeMs)}`; })
+      .join('|');
+    file = path.join(process.cwd(), 'data', 'migrations-state.json');
+  } catch { return run(); }
+
+  let state = {};
+  try { state = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { /* sem cache */ }
+  if (state[key] === sig) {
+    console.log(`[schema] Migrações em dia (cache) — ${key}`);
+    return;
+  }
+  await run();
+  try {
+    state[key] = sig;
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify(state, null, 2));
+  } catch { /* cache é opcional */ }
+}
+
+module.exports = { runStartupMigrations, runMigrations, ensurePromocoesCampanhaTables, ensureFeirinhaTables, ensureCatalogosTables, ensureTableColumns, ensurePerfilCadastroColumns, ensureItenspedPromoColumns, ensureItenspedObsitemColumn, ensurePedidoRetornoColumns, ensurePedidoObsProximoColumns, backfillItenspedObsitemLegado, ensureItenspedTipoPrecoWidth, ensureTabelaPrecoCondPagamentoNullable, ensureVitrineColumns, ensureTabelaPrecoItensDecimal };
