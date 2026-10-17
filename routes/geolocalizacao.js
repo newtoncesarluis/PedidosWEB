@@ -59,8 +59,9 @@ const OSM_CATEGORIAS = [
   { re: /\bloja\b/, tags: ['shop'], label: 'Lojas' },
 ];
 const OVERPASS_URLS = [
-  'https://overpass-api.de/api/interpreter',
+  'https://overpass.openstreetmap.fr/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
+  'https://overpass-api.de/api/interpreter',
   'https://overpass.private.coffee/api/interpreter',
   'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
 ];
@@ -95,6 +96,61 @@ function overpassPost(endpoint, ql) {
     req.write(body);
     req.end();
   });
+}
+
+// Google Places (opcional) — cobertura bem maior que o OSM no Brasil, com telefone e horário.
+// Ative colocando GOOGLE_PLACES_KEY no .env (Places API (New) habilitada). É cobrado pelo Google.
+function googlePost(body, key) {
+  return new Promise((resolve, reject) => {
+    const data = JSON.stringify(body);
+    const req = https.request({
+      hostname: 'places.googleapis.com', path: '/v1/places:searchText', method: 'POST',
+      headers: {
+        'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data),
+        'X-Goog-Api-Key': key,
+        'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.location,places.nationalPhoneNumber,places.websiteUri,places.regularOpeningHours.weekdayDescriptions,places.businessStatus,nextPageToken',
+      },
+    }, (res) => {
+      let d = '';
+      res.on('data', c => d += c);
+      res.on('end', () => {
+        let j = null; try { j = JSON.parse(d); } catch (_) {}
+        if (res.statusCode !== 200) return reject(new Error('Google Places HTTP ' + res.statusCode + (j && j.error ? ' ' + j.error.message : '')));
+        resolve(j || {});
+      });
+    });
+    req.on('error', reject);
+    req.setTimeout(10000, () => { req.destroy(); reject(new Error('timeout')); });
+    req.write(data); req.end();
+  });
+}
+
+async function googleLugares(q, bbox, key) {
+  const elements = [];
+  let pageToken;
+  for (let pg = 0; pg < 3; pg++) {            // até 60 resultados
+    const body = {
+      textQuery: q, languageCode: 'pt-BR', regionCode: 'BR', pageSize: 20,
+      locationRestriction: { rectangle: { low: { latitude: bbox.s, longitude: bbox.w }, high: { latitude: bbox.n, longitude: bbox.e } } },
+    };
+    if (pageToken) body.pageToken = pageToken;
+    const j = await googlePost(body, key);
+    for (const p of (j.places || [])) {
+      if (p.businessStatus && p.businessStatus !== 'OPERATIONAL') continue;
+      elements.push({
+        type: 'google', id: p.id, lat: p.location && p.location.latitude, lon: p.location && p.location.longitude,
+        tags: {
+          name: p.displayName && p.displayName.text,
+          'addr:street': p.formattedAddress,
+          phone: p.nationalPhoneNumber, website: p.websiteUri,
+          opening_hours: p.regularOpeningHours && (p.regularOpeningHours.weekdayDescriptions || []).join(' | '),
+        },
+      });
+    }
+    pageToken = j.nextPageToken;
+    if (!pageToken) break;
+  }
+  return { elements };
 }
 
 // Consulta todos os espelhos ao mesmo tempo e usa o 1º que responder
@@ -140,7 +196,7 @@ async function nominatimLugares(termos, bbox) {
       elements.push({
         type: p.osm_type, id: p.osm_id, lat: parseFloat(p.lat), lon: parseFloat(p.lon),
         tags: {
-          name: p.name || (p.display_name || '').split(',')[0],
+          name: p.name || '',
           shop: p.category === 'shop' ? p.type : undefined,
           amenity: p.category === 'amenity' ? p.type : undefined,
           'addr:street': a.road, 'addr:housenumber': a.house_number,
@@ -196,17 +252,24 @@ router.get('/lugares', async (req, res) => {
     if (emCache && Date.now() - emCache.ts < CACHE_LUGARES_MS) { json = emCache.json; fonte = emCache.fonte || 'overpass'; }
     if (!json) {
       try {
-        if (Date.now() - _overpassFalhouEm < OVERPASS_PAUSA_MS) throw new Error('Overpass em pausa após falha recente');
-        json = await overpassAny(ql);
+        if (process.env.GOOGLE_PLACES_KEY) {
+          try { json = await googleLugares(q, bbox, process.env.GOOGLE_PLACES_KEY); fonte = 'google'; }
+          catch (eg) { console.warn('Google Places falhou, usando OSM:', eg.message); }
+        }
+        if (!json) {
+          if (Date.now() - _overpassFalhouEm < OVERPASS_PAUSA_MS) throw new Error('Overpass em pausa após falha recente');
+          json = await overpassAny(ql);
+        }
       }
       catch (e) {
         ultimoErro = e;
         if (!/em pausa/.test(e.message)) _overpassFalhouEm = Date.now();
         // Reserva: Nominatim (menos completo, mas costuma estar no ar)
         try {
-          const termos = [q];
-          if (cat && semAcento(cat.label.toLowerCase()) !== termo) termos.push(cat.label);
-          json = await nominatimLugares(termos.slice(0, 2), bbox);
+          // "[shop=bakery]" encontra por tipo (não depende de "padaria" estar no nome)
+          const porTipo = cat ? cat.tags.filter(t => t.includes('=')).slice(0, 3).map(t => '[' + t + ']') : [];
+          const termos = porTipo.length ? porTipo : [q];
+          json = await nominatimLugares(termos, bbox);
           fonte = 'nominatim';
         } catch (e2) { ultimoErro = new Error(e.message + ' | ' + e2.message); }
       }
@@ -239,8 +302,8 @@ router.get('/lugares', async (req, res) => {
       const ja = cadastrados.find(c => distKm(plat, plng, c.lat, c.lng) <= 0.08);
       return {
         osm_id: `${e.type}/${e.id}`,
-        nome: t.name || t.brand || t.operator || '(sem nome)',
-        categoria: cat ? cat.label : (t.shop || t.amenity || 'Estabelecimento'),
+        nome: t.name || t.brand || t.operator || `${cat ? cat.label : 'Estabelecimento'} (sem nome)`,
+        categoria: cat ? cat.label : (fonte === 'google' ? q : (t.shop || t.amenity || 'Estabelecimento')),
         endereco,
         bairro: t['addr:suburb'] || t['addr:neighbourhood'] || '',
         cidade: t['addr:city'] || '',
