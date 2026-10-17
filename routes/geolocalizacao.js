@@ -302,6 +302,7 @@ router.get('/lugares', async (req, res) => {
       const ja = cadastrados.find(c => distKm(plat, plng, c.lat, c.lng) <= 0.08);
       return {
         osm_id: `${e.type}/${e.id}`,
+        sem_nome: !(t.name || t.brand || t.operator),
         nome: t.name || t.brand || t.operator || `${cat ? cat.label : 'Estabelecimento'} (sem nome)`,
         categoria: cat ? cat.label : (fonte === 'google' ? q : (t.shop || t.amenity || 'Estabelecimento')),
         endereco,

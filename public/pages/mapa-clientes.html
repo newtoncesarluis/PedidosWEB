@@ -1288,14 +1288,17 @@ async function buscarLugares(raio) {
     );
     const data = await r.json();
     if (!r.ok) throw new Error(data.error || 'Erro na requisição');
-    clientesEncontrados = data.lugares;
+    // locais sem nome no OSM não servem para prospectar: ficam fora da lista
+    const nomeados = (data.lugares || []).filter(p => !p.sem_nome);
+    const semNome = (data.lugares || []).length - nomeados.length;
+    clientesEncontrados = nomeados;
     modoMapa = 'lugares';
     limparRota();
-    renderizarLugares(data.lugares);
+    renderizarLugares(nomeados);
     atualizarHeat();
-    atualizarInfoBar(data.total, raioUsado);
+    atualizarInfoBar(nomeados.length, raioUsado);
     salvarEstado();
-    toast(`${data.total} estabelecimentos encontrados`, data.total ? 'success' : 'info');
+    toast(`${nomeados.length} estabelecimentos encontrados` + (semNome ? ` (${semNome} sem nome cadastrado foram ocultados)` : ''), nomeados.length ? 'success' : 'info');
   } catch (err) {
     console.error('Erro:', err);
     toast(err.message || 'Erro ao buscar estabelecimentos', 'error');

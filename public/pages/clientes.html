@@ -10008,6 +10008,7 @@ function fecharMapa() {
 
 // ── BUSCA DE ESTABELECIMENTOS NO MAPA (prospecção — OpenStreetMap) ───────────
 let _lugarReq = 0;
+let _mostrarSemNome = false; // locais sem nome no OSM ficam ocultos por padrão
 let _lugarMarkers = [];
 let _lugarPinos = [];
 let _lugaresFonte = 'overpass';
@@ -10037,15 +10038,16 @@ function mapFecharBusca() {
 function _mapRenderLista(lugares) {
   const box = document.getElementById('mapLugarLista');
   box.innerHTML = lugares.map((p, i) => {
+    if (p._oculto) return '';
     const cor = p.cliente_id ? '#16a34a' : '#f97316';
     const st = p.cliente_id ? '✔ Cliente' : (_lugarLeadsSalvos.has(p.osm_id) ? '✔ Lead' : '');
     return `<button class="mbl-item" onclick="mapFocarLugar(${i})">
-      <span class="n" style="background:${cor}">${i + 1}</span>
+      <span class="n" style="background:${cor}">${p._n}</span>
       <span class="t"><b>${escHtml(p.nome)}</b><small>${escHtml(p.categoria)}${st ? ' · ' + st : ''}</small></span>
       <span class="d">${_fmtDist(p.distancia)}</span>
     </button>`;
   }).join('');
-  box.classList.toggle('tem', lugares.length > 0);
+  box.classList.toggle('tem', lugares.some(p => !p._oculto));
 }
 function mapFocarLugar(i) {
   const m = _lugarPinos[i];
@@ -10191,15 +10193,20 @@ function _mapRenderLugares(lugares, origem, manterZoom, fonte) {
   _lugarPinos = [];
   _lugaresRes = lugares;
   const st = document.getElementById('mapLugarStatus');
-  const novos = lugares.filter(p => !p.cliente_id && !_lugarLeadsSalvos.has(p.osm_id));
+  let seq = 0;
+  lugares.forEach(p => { p._oculto = !!p.sem_nome && !_mostrarSemNome; p._n = p._oculto ? 0 : ++seq; });
+  const visiveis = lugares.filter(p => !p._oculto);
+  const ocultos = lugares.length - visiveis.length;
+  const novos = visiveis.filter(p => !p.cliente_id && !_lugarLeadsSalvos.has(p.osm_id));
   if (!lugares.length) { st.textContent = 'Nenhum estabelecimento encontrado. Aumente o raio ou troque o termo.'; return; }
   if (fonte) _lugaresFonte = fonte;
 
   lugares.forEach((p, i) => {
+    if (p._oculto) return;
     const cor = p.cliente_id ? '#16a34a' : '#f97316';
     const icon = L.divIcon({
       className: 'custom-div-icon',
-      html: `<div class="mk" style="background:${cor}">${i + 1}</div>`,
+      html: `<div class="mk" style="background:${cor}">${p._n}</div>`,
       iconSize: [28, 28], iconAnchor: [14, 14]
     });
     const end = [p.endereco, p.bairro, p.cidade].filter(Boolean).join(', ');
@@ -10210,7 +10217,10 @@ function _mapRenderLugares(lugares, origem, manterZoom, fonte) {
       { cls: 'waze', ic: 'car', txt: 'Waze', attr: `onclick="window.open('https://waze.com/ul?ll=${p.latitude},${p.longitude}&navigate=yes&zoom=17','_blank')"` },
       tel.length >= 10
         ? { tag: 'a', cls: 'zap', ic: 'chat', txt: 'WhatsApp', attr: `href="https://wa.me/55${tel.replace(/^55/, '')}" target="_blank" rel="noopener"` }
-        : { tag: 'a', ic: 'search', txt: 'Achar fone', attr: `href="${buscaGoogle}" target="_blank" rel="noopener"` }
+        : (p.sem_nome
+          // sem nome no OSM: o Google Maps costuma mostrar o nome real do local pelas coordenadas
+          ? { tag: 'a', ic: 'search', txt: 'Ver no Google', attr: `href="https://www.google.com/maps/search/?api=1&query=${p.latitude},${p.longitude}" target="_blank" rel="noopener"` }
+          : { tag: 'a', ic: 'search', txt: 'Achar fone', attr: `href="${buscaGoogle}" target="_blank" rel="noopener"` })
     ];
     if (!p.cliente_id) {
       botoes.push({ cls: 'lead wide', ic: 'plus', txt: _lugarLeadsSalvos.has(p.osm_id) ? '✔ Lead salvo' : 'Salvar como lead',
@@ -10219,17 +10229,17 @@ function _mapRenderLugares(lugares, origem, manterZoom, fonte) {
     const m = L.marker([p.latitude, p.longitude], { icon, title: p.nome }).addTo(_map).bindPopup(_popupCard({
       cor: cor,
       avatar: _PC_IC.store,
-      titulo: escHtml(p.nome),
-      sub: escHtml(p.categoria),
+      titulo: p.sem_nome ? escHtml(p.categoria) + ' <span style="font-weight:600;color:var(--text2)">· nome não cadastrado</span>' : escHtml(p.nome),
+      sub: p.sem_nome ? 'Use "Ver no Google" para descobrir o nome' : escHtml(p.categoria),
       chip: p.cliente_id ? { txt: '✔ Já é cliente', cls: 'ok' } : { txt: 'Prospecto', cls: 'warn' },
       linhas: [
-        { ic: 'pin', txt: escHtml(end) + ' <b style="color:var(--accent)">· ' + _fmtDist(p.distancia) + '</b>' },
+        { ic: 'pin', txt: (end ? escHtml(end) + ' <b style="color:var(--accent)">· ' : '<b style="color:var(--accent)">a ') + _fmtDist(p.distancia) + '</b>' },
         { ic: 'phone', txt: escHtml(p.telefone || '') },
         { ic: 'clock', txt: escHtml(p.horario || '') }
       ],
       botoes
     }), { maxWidth: 320, minWidth: 300 });
-    m.bindTooltip(`${i + 1}. ${escHtml(p.nome)}`, { direction: 'top', offset: [0, -16] });
+    m.bindTooltip(`${p._n}. ${escHtml(p.nome)}`, { direction: 'top', offset: [0, -16] });
     _lugarMarkers.push(m);
     _lugarPinos[i] = m;
   });
@@ -10239,19 +10249,26 @@ function _mapRenderLugares(lugares, origem, manterZoom, fonte) {
   _lugarMarkers.push(L.circle([origem.lat, origem.lng], { radius: raioKm * 1000, color: '#2563eb', weight: 1.5, dashArray: '6 6', fillColor: '#2563eb', fillOpacity: 0.04, interactive: false }).addTo(_map));
   _mapRenderLista(lugares);
 
-  st.innerHTML = `<span><b>${lugares.length}</b> encontrado(s) · <b>${novos.length}</b> novo(s)</span>`
+  st.innerHTML = `<span><b>${visiveis.length}</b> encontrado(s) · <b>${novos.length}</b> novo(s)</span>`
     + (novos.length ? `<button onclick="mapSalvarLeads(null)">Salvar ${novos.length} como leads</button>` : '')
     + `<button class="mbl-lim" onclick="mapLimparLugares()">Limpar</button>`
+    + (ocultos ? `<button class="mbl-lim" onclick="mapToggleSemNome()">Mostrar ${ocultos} sem nome</button>` : '')
+    + (_mostrarSemNome && lugares.some(p => p.sem_nome) ? `<button class="mbl-lim" onclick="mapToggleSemNome()">Ocultar sem nome</button>` : '')
     + (_lugaresFonte === 'nominatim' ? `<div class="mbl-nota">Busca simplificada: o serviço principal de mapas está fora do ar, então podem faltar alguns locais.</div>` : '');
-  const pts = lugares.map(p => [p.latitude, p.longitude]);
+  const pts = visiveis.map(p => [p.latitude, p.longitude]);
   pts.push([origem.lat, origem.lng]);
   if (!manterZoom) _map.fitBounds(pts, { padding: [80, 80] });
+}
+
+function mapToggleSemNome() {
+  _mostrarSemNome = !_mostrarSemNome;
+  _mapRenderLugares(_lugaresRes, _mapOrigem(), true);
 }
 
 async function mapSalvarLeads(indices) {
   const idx = indices || _lugaresRes.map((_, i) => i);
   const alvo = idx.map(i => ({ i, p: _lugaresRes[i] }))
-    .filter(x => x.p && !x.p.cliente_id && !_lugarLeadsSalvos.has(x.p.osm_id));
+    .filter(x => x.p && !x.p._oculto && !x.p.cliente_id && !_lugarLeadsSalvos.has(x.p.osm_id));
   if (!alvo.length) { toast('Nada novo para salvar', 'warn'); return; }
   alvo.forEach(x => { const b = document.getElementById('mapLeadBtn_' + x.i); if (b) { b.disabled = true; b.textContent = 'Salvando...'; } });
   try {
