@@ -15,7 +15,7 @@ module.exports = [
     titulo: 'Busca de comércios muito mais completa: base aberta Overture Maps, com telefone',
     descricao:
       'A busca de estabelecimentos (açougue, padaria, mercado, farmácia...) passou a usar uma base aberta bem mais completa que o mapa colaborativo: em Bauru, por exemplo, são cerca de 67 padarias e 20 açougues num raio de 3 km, ' +
-      'a maioria com telefone. O telefone já vem preenchido ao salvar como lead. Se a base não estiver carregada, o sistema continua usando o OpenStreetMap automaticamente.',
+      'a maioria com telefone. O telefone já vem preenchido ao salvar como lead. Na primeira vez em uma região, o sistema prepara a base sozinho em segundo plano (cerca de 1 a 2 minutos); nesse tempo a busca usa o OpenStreetMap, e depois é só buscar de novo.',
   },
   {
     versao: '1.1.5.0',

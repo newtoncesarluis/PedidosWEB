@@ -9971,6 +9971,9 @@ function abrirMapaClientes() {
 
     const bounds = [];
     if (_filtrosAvancados.lat && _filtrosAvancados.lng) {
+      // prepara a base de comércios desta região em segundo plano (o usuário não precisa fazer nada)
+      fetch(`/api/geolocalizacao/lugares/preparar?lat=${_filtrosAvancados.lat}&lng=${_filtrosAvancados.lng}`,
+        { credentials: 'include', headers: _cliAuthHeaders() }).catch(() => {});
       const userMarker = L.marker([_filtrosAvancados.lat, _filtrosAvancados.lng], {
         icon: L.divIcon({ className: '', html: '<div class="you-dot"><span class="you-pulse"></span><span class="you-core"></span><b>Você</b></div>', iconSize: [20, 20], iconAnchor: [10, 10] }),
         zIndexOffset: 1000, title: 'Você está aqui'
@@ -10008,6 +10011,7 @@ function fecharMapa() {
 
 // ── BUSCA DE ESTABELECIMENTOS NO MAPA (prospecção — OpenStreetMap) ───────────
 let _lugarReq = 0;
+let _lugaresBase = 'indisponivel';
 let _mostrarSemNome = true;  // locais sem nome no OSM aparecem (o usuário identifica pelo Google Maps); dá para ocultar
 let _lugarMarkers = [];
 let _lugarPinos = [];
@@ -10174,7 +10178,7 @@ async function mapBuscarLugares(q) {
     const d = await r.json();
     if (minha !== _lugarReq) return; // chegou depois de outra busca: descarta
     if (!r.ok) throw new Error(d.error || 'Erro na busca');
-    _mapRenderLugares(d.lugares || [], o, false, d.fonte);
+    _mapRenderLugares(d.lugares || [], o, false, d.fonte, d.base);
   } catch (e) {
     if (minha !== _lugarReq) return;
     st.innerHTML = '';
@@ -10187,7 +10191,8 @@ async function mapBuscarLugares(q) {
   }
 }
 
-function _mapRenderLugares(lugares, origem, manterZoom, fonte) {
+function _mapRenderLugares(lugares, origem, manterZoom, fonte, base) {
+  if (base) _lugaresBase = base;
   _lugarMarkers.forEach(m => _map.removeLayer(m));
   _lugarMarkers = [];
   _lugarPinos = [];
@@ -10198,7 +10203,11 @@ function _mapRenderLugares(lugares, origem, manterZoom, fonte) {
   const visiveis = lugares.filter(p => !p._oculto);
   const ocultos = lugares.length - visiveis.length;
   const novos = visiveis.filter(p => !p.cliente_id && !_lugarLeadsSalvos.has(p.osm_id));
-  if (!lugares.length) { st.textContent = 'Nenhum estabelecimento encontrado. Aumente o raio ou troque o termo.'; return; }
+  if (!lugares.length) {
+    st.innerHTML = 'Nenhum estabelecimento encontrado. Aumente o raio ou troque o termo.'
+      + (_lugaresBase === 'carregando' ? '<div class="mbl-nota">Estamos preparando a lista completa da sua região. Em 1 ou 2 minutos, <a href="#" onclick="mapBuscarLugares();return false" style="color:inherit;font-weight:800">busque de novo</a>.</div>' : '');
+    return;
+  }
   if (fonte) _lugaresFonte = fonte;
 
   lugares.forEach((p, i) => {
@@ -10254,7 +10263,9 @@ function _mapRenderLugares(lugares, origem, manterZoom, fonte) {
     + `<button class="mbl-lim" onclick="mapLimparLugares()">Limpar</button>`
     + (ocultos ? `<button class="mbl-lim" onclick="mapToggleSemNome()">Mostrar ${ocultos} sem nome</button>` : '')
     + (_mostrarSemNome && lugares.some(p => p.sem_nome) ? `<button class="mbl-lim" onclick="mapToggleSemNome()">Ocultar sem nome</button>` : '')
-    + (_lugaresFonte === 'nominatim' ? `<div class="mbl-nota">Busca simplificada: o serviço principal de mapas está fora do ar, então podem faltar alguns locais.</div>` : '');
+    + (_lugaresBase === 'carregando'
+        ? `<div class="mbl-nota">Estamos preparando a lista completa da sua região (com telefones). Em 1 ou 2 minutos, <a href="#" onclick="mapBuscarLugares();return false" style="color:inherit;font-weight:800">busque de novo</a> para ver mais resultados.</div>`
+        : (_lugaresFonte === 'nominatim' ? `<div class="mbl-nota">Alguns comércios podem não aparecer agora. Tente de novo em instantes.</div>` : ''));
   const pts = visiveis.map(p => [p.latitude, p.longitude]);
   pts.push([origem.lat, origem.lng]);
   if (!manterZoom) _map.fitBounds(pts, { padding: [80, 80] });

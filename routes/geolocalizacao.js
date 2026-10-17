@@ -5,6 +5,7 @@ const router  = express.Router();
 const https   = require('https');
 const { getPool } = require('../config/database');
 const { buscarOverture } = require('../config/lugares-overture');
+const { statusRegiao } = require('../config/lugares-overture-auto');
 
 // ─── Utilitário: faz requisição HTTPS ────────────────────────────────────────
 function httpsGet(url) {
@@ -218,6 +219,12 @@ function distKm(lat1, lon1, lat2, lon2) {
 }
 
 // ─── GET /api/geolocalizacao/lugares?lat=&lng=&raio=km&q=açougue ────────────
+// GET /api/geolocalizacao/lugares/preparar?lat=&lng=  → { base: 'pronto' | 'carregando' | 'indisponivel' }
+router.get('/lugares/preparar', async (req, res) => {
+  const lat = parseFloat(req.query.lat), lng = parseFloat(req.query.lng);
+  res.json({ base: await statusRegiao(lat, lng) });
+});
+
 router.get('/lugares', async (req, res) => {
   try {
     const lat = parseFloat(req.query.lat);
@@ -249,8 +256,12 @@ router.get('/lugares', async (req, res) => {
     const ql = `[out:json][timeout:10][bbox:${bbox.s.toFixed(5)},${bbox.w.toFixed(5)},${bbox.n.toFixed(5)},${bbox.e.toFixed(5)}];(${partes.join('')});out center tags 400;`;
 
     let json = null, ultimoErro = null, fonte = 'overpass';
+    // situação da base completa (Overture) da região; dispara a carga automática em segundo plano se preciso
+    const base = await statusRegiao(lat, lng);
     const emCache = _cacheLugares.get(ql);
-    if (emCache && Date.now() - emCache.ts < CACHE_LUGARES_MS) { json = emCache.json; fonte = emCache.fonte || 'overpass'; }
+    const cacheServe = emCache && Date.now() - emCache.ts < CACHE_LUGARES_MS
+      && !(base === 'pronto' && emCache.fonte !== 'overture' && emCache.fonte !== 'google'); // base ficou pronta: não reaproveita resultado do OSM
+    if (cacheServe) { json = emCache.json; fonte = emCache.fonte || 'overpass'; }
     if (!json) {
       try {
         if (process.env.GOOGLE_PLACES_KEY) {
@@ -258,7 +269,7 @@ router.get('/lugares', async (req, res) => {
           catch (eg) { console.warn('Google Places falhou, usando OSM:', eg.message); }
         }
         // Overture Maps (base local importada por scripts/overture-importar.js): rápido, com telefone e bem mais completo que o OSM
-        if (!json) {
+        if (!json && base !== 'carregando') {
           const ovt = await buscarOverture({ bbox, q, catLabel: cat ? cat.label : null, centro: { lat, lng } });
           if (ovt && ovt.length) { json = { elements: ovt }; fonte = 'overture'; }
         }
@@ -326,7 +337,7 @@ router.get('/lugares', async (req, res) => {
       };
     }).filter(p => p && p.distancia <= raioKm + 0.05).sort((a, b) => a.distancia - b.distancia).slice(0, 150);
 
-    res.json({ raio_km: raioKm, categoria: cat ? cat.label : null, fonte, total: lugares.length, lugares });
+    res.json({ raio_km: raioKm, categoria: cat ? cat.label : null, fonte, base, total: lugares.length, lugares });
   } catch (err) {
     console.error('Erro geolocalizacao lugares:', err);
     res.status(500).json({ error: err.message });
