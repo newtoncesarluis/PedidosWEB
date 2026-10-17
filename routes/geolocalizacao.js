@@ -620,6 +620,8 @@ router.get('/geocode-endereco', async (req, res) => {
   }
 });
 
+const _cacheReverso = new Map(); // "lat,lng" (4 casas) -> resposta (evita bater no Nominatim toda hora)
+
 // ─── GET /api/geolocalizacao/reverse-geocode ────────────────────────────────
 // Descobre endereço a partir de coordenadas (usa Nominatim)
 router.get('/reverse-geocode', async (req, res) => {
@@ -629,27 +631,34 @@ router.get('/reverse-geocode', async (req, res) => {
       return res.status(400).json({ error: 'Latitude e longitude são obrigatórios' });
     }
 
-    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`;
+    const chave = Number(lat).toFixed(4) + ',' + Number(lng).toFixed(4);
+    const emCache = _cacheReverso.get(chave);
+    if (emCache) return res.json(emCache);
+
+    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}&addressdetails=1&zoom=18&accept-language=pt-BR`;
     const data = await httpsGet(url);
 
     if (data && data.lat) {
-      res.json({
+      const resposta = {
         lat: data.lat,
         lng: data.lon,
         display_name: data.display_name,
         endereco: data.address ? {
           road: data.address.road,
           house_number: data.address.house_number,
+          bairro: data.address.suburb || data.address.neighbourhood || data.address.quarter,
           neighbourhood: data.address.neighbourhood || data.address.suburb,
           city: data.address.city || data.address.town || data.address.village,
           state: data.address.state,
           postcode: data.address.postcode,
           country: data.address.country
         } : null
-      });
-    } else {
-      res.status(404).json({ error: 'Endereço não encontrado para estas coordenadas' });
+      };
+      if (_cacheReverso.size > 300) _cacheReverso.clear();
+      _cacheReverso.set(chave, resposta);
+      return res.json(resposta);
     }
+    res.status(404).json({ error: 'Endereço não encontrado para estas coordenadas' });
   } catch (err) {
     console.error('Erro reverse geocode:', err);
     res.status(500).json({ error: err.message });
