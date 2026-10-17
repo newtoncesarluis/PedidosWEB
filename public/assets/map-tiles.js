@@ -23,7 +23,9 @@
         attribution: ESRI + ' — Maxar, Earthstar Geographics', maxZoom: 19, maxNativeZoom: 18
       }),
       'Mapa (OSM)': L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors', maxZoom: 19
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors', maxZoom: 19,
+        // o OSM bloqueia (403) pedidos sem Referer; garante o envio da origem mesmo com política restritiva
+        referrerPolicy: 'strict-origin-when-cross-origin'
       })
     };
   }

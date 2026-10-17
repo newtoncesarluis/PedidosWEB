@@ -12,6 +12,14 @@ module.exports = [
   {
     versao: '1.1.5.0',
     tipo: 'NOVO',
+    titulo: 'Clientes Próximos: busque açougues, padarias e outros comércios no mapa e salve como lead',
+    descricao:
+      'No mapa de Clientes Próximos (Perto de Mim), digite ou toque numa categoria (açougue, padaria, mercado...) para ver estabelecimentos reais ao redor, mesmo que ainda não sejam seus clientes. ' +
+      'Cada ponto tem Google Maps, Waze, WhatsApp e Salvar como lead. O mapa ganhou visual de ruas parecido com o Google, com opção de Satélite.',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'NOVO',
     titulo: 'Mapa de prospecção: leads em lote, filtros da carteira, mapa de calor e acompanhamento em tempo real',
     descricao:
       'No Mapa de Clientes: selecione vários estabelecimentos e salve como leads de uma vez (sem duplicar); veja leads e clientes juntos no mapa; filtre clientes sem compra há 30/60/90/180 dias e por vendedor; ' +

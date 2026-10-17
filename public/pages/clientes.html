@@ -21,6 +21,7 @@
 <script src="/assets/clipboard-image-paste.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="/assets/map-tiles.js"></script>
 <style>
 * { margin:0;padding:0;box-sizing:border-box; }
 
@@ -1260,6 +1261,29 @@ html[data-theme="charcoal"] #modalVitrine .vitrine-panel {
 .leaflet-popup-content { margin: 0 !important; width: 280px !important; }
 .map-popup-img { height: 70px; background: linear-gradient(135deg, var(--accent, #4361ee), #4cc9f0); opacity: 0.8; }
 .map-popup-body { padding: 16px; }
+
+/* Busca de estabelecimentos sobre o mapa (funciona também no celular) */
+.map-busca-lugar {
+  position: absolute; top: 16px; left: 16px; right: 72px; z-index: 1000; max-width: 460px;
+  background: var(--card-bg, #fff); color: var(--text); border: 1px solid var(--border);
+  border-radius: 16px; box-shadow: 0 6px 20px rgba(0,0,0,.18); padding: 10px;
+}
+.map-busca-lugar .mbl-row { display: flex; gap: 6px; }
+.map-busca-lugar input, .map-busca-lugar select {
+  border: 1.5px solid var(--border); border-radius: 10px; padding: 9px 12px; font-size: 16px;
+  background: var(--bg, #fff); color: var(--text); min-height: 42px; font-family: inherit;
+}
+.map-busca-lugar input { flex: 1; min-width: 0; }
+.map-busca-lugar button.mbl-go { border: none; border-radius: 10px; padding: 0 14px; min-height: 42px; background: var(--accent); color: #fff; font-weight: 700; cursor: pointer; }
+.mbl-chips { display: flex; gap: 6px; flex-wrap: nowrap; overflow-x: auto; margin-top: 8px; padding-bottom: 2px; -webkit-overflow-scrolling: touch; }
+.mbl-chips button { flex-shrink: 0; border: 1px solid var(--border); background: var(--bg, #fff); color: var(--text); border-radius: 999px; padding: 6px 12px; font-size: 12px; font-weight: 700; cursor: pointer; min-height: 34px; }
+.mbl-status { margin-top: 8px; font-size: 12px; color: var(--text2); display: none; align-items: center; gap: 8px; flex-wrap: wrap; }
+.mbl-status button { border: none; border-radius: 8px; padding: 7px 12px; background: #16a34a; color: #fff; font-weight: 700; font-size: 12px; cursor: pointer; min-height: 34px; }
+.map-popup-actions3 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.map-popup-actions3 button, .map-popup-actions3 a { padding: 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--card-bg); color: var(--text); cursor: pointer; font-size: 12px; font-weight: 700; text-align: center; text-decoration: none; min-height: 42px; display: flex; align-items: center; justify-content: center; }
+.map-popup-actions3 .pri { background: var(--accent); color: #fff; border: none; }
+.map-popup-actions3 .waze { background: #33ccff; color: #052e3d; border: none; }
+.map-popup-actions3 .lead { grid-column: 1 / -1; background: #10b981; color: #fff; border: none; }
 
 /* Scrollbar Sidebar */
 .map-client-list::-webkit-scrollbar { width: 4px; }
@@ -9053,6 +9077,32 @@ async function enviarMsgWa(idCliente) {
     </div>
     
     <div id="mapContainer">
+      <div class="map-busca-lugar" id="mapBuscaLugar">
+        <div class="mbl-row">
+          <input type="text" id="mapLugarQ" placeholder="Buscar comércio perto: açougue, padaria..." autocomplete="off"
+                 onkeydown="if(event.key==='Enter')mapBuscarLugares()">
+          <select id="mapLugarRaio" title="Raio da busca">
+            <option value="1">1 km</option><option value="3">3 km</option><option value="5" selected>5 km</option>
+            <option value="10">10 km</option><option value="20">20 km</option>
+          </select>
+          <button class="mbl-go" onclick="mapBuscarLugares()">Buscar</button>
+        </div>
+        <div class="mbl-chips">
+          <button onclick="mapBuscarLugares('açougue')">Açougue</button>
+          <button onclick="mapBuscarLugares('padaria')">Padaria</button>
+          <button onclick="mapBuscarLugares('mercado')">Mercado</button>
+          <button onclick="mapBuscarLugares('mercearia')">Mercearia</button>
+          <button onclick="mapBuscarLugares('restaurante')">Restaurante</button>
+          <button onclick="mapBuscarLugares('lanchonete')">Lanchonete</button>
+          <button onclick="mapBuscarLugares('bar')">Bar</button>
+          <button onclick="mapBuscarLugares('farmácia')">Farmácia</button>
+          <button onclick="mapBuscarLugares('material de construção')">Mat. construção</button>
+          <button onclick="mapBuscarLugares('pet shop')">Pet shop</button>
+          <button onclick="mapBuscarLugares('roupas')">Roupas</button>
+          <button onclick="mapBuscarLugares('atacado')">Atacado</button>
+        </div>
+        <div class="mbl-status" id="mapLugarStatus"></div>
+      </div>
       <button class="map-close-btn" onclick="fecharMapa()" title="Fechar Mapa">
         <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
           <path d="M6 18L18 6M6 6l12 12"></path>
@@ -9763,16 +9813,15 @@ function abrirMapaClientes() {
   });
 
   setTimeout(() => {
-    // Usar Voyager por padrão para melhor legibilidade (mais parecido com Google Maps)
-    const tileUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-
     if (!_map) {
       _map = L.map('mapContainer', { zoomControl: false }).setView([-19.9167, -43.9333], 13);
-      L.tileLayer(tileUrl, { attribution: '© OpenStreetMap' }).addTo(_map);
+      // Base "Ruas" (estilo Google) sem chave de API; Satélite/OSM no seletor
+      SysRepMapTiles.init(_map);
+      SysRepMapTiles.addControl(_map, 'bottomleft');
       L.control.zoom({ position: 'bottomright' }).addTo(_map);
+      const caixa = document.getElementById('mapBuscaLugar');
+      if (caixa) { L.DomEvent.disableClickPropagation(caixa); L.DomEvent.disableScrollPropagation(caixa); }
     } else {
-      _map.eachLayer(layer => { if (layer instanceof L.TileLayer) _map.removeLayer(layer); });
-      L.tileLayer(tileUrl, { attribution: '© OpenStreetMap' }).addTo(_map);
       _map.invalidateSize();
     }
 
@@ -9808,15 +9857,10 @@ function abrirMapaClientes() {
                 ${escHtml(c.cidade)} - ${c.uf}<br>
                 ${escHtml(c.endereco || '')}, ${c.numero_end || ''}
               </div>
-              <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px">
-                <button onclick="fecharMapa(); abrirQuickView(${c.id})" 
-                  style="padding:10px; border-radius:10px; border:1px solid var(--border); background:var(--card-bg); color:var(--text); cursor:pointer; font-size:11px; font-weight:700">
-                  Cadastro
-                </button>
-                <a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}" target="_blank"
-                  style="padding:10px; border-radius:10px; border:none; background:var(--accent); color:#fff; cursor:pointer; font-size:11px; font-weight:700; text-align:center; text-decoration:none">
-                  Rota GPS
-                </a>
+              <div class="map-popup-actions3">
+                <button onclick="fecharMapa(); abrirQuickView(${c.id})">Cadastro</button>
+                <button class="pri" onclick="window.open('https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${lat},${lng}','_blank')">Google Maps</button>
+                <button class="waze" style="grid-column:1/-1" onclick="window.open('https://waze.com/ul?ll=${lat},${lng}&navigate=yes&zoom=17','_blank')">Waze</button>
               </div>
             </div>
           </div>
@@ -9833,6 +9877,132 @@ function abrirMapaClientes() {
 
 function fecharMapa() {
   document.getElementById('modalMapa').style.display = 'none';
+}
+
+// ── BUSCA DE ESTABELECIMENTOS NO MAPA (prospecção — OpenStreetMap) ───────────
+let _lugarMarkers = [];
+let _lugaresRes = [];
+const _lugarLeadsSalvos = new Set();
+
+function _mapOrigem() {
+  if (_filtrosAvancados.lat && _filtrosAvancados.lng) return { lat: _filtrosAvancados.lat, lng: _filtrosAvancados.lng };
+  const c = _map.getCenter();
+  return { lat: c.lat, lng: c.lng };
+}
+
+async function mapBuscarLugares(q) {
+  if (!_map) return;
+  const inp = document.getElementById('mapLugarQ');
+  if (typeof q === 'string' && q) inp.value = q;
+  const termo = inp.value.trim();
+  if (termo.length < 2) { toast('Digite o que procurar (ex.: açougue)', 'warn'); return; }
+  const o = _mapOrigem();
+  const raio = document.getElementById('mapLugarRaio').value;
+  const st = document.getElementById('mapLugarStatus');
+  st.style.display = 'flex';
+  st.textContent = 'Buscando estabelecimentos...';
+  try {
+    const r = await fetch(
+      `/api/geolocalizacao/lugares?lat=${o.lat}&lng=${o.lng}&raio=${raio}&q=${encodeURIComponent(termo)}`,
+      { credentials: 'include', headers: _cliAuthHeaders() }
+    );
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Erro na busca');
+    _mapRenderLugares(d.lugares || [], o);
+  } catch (e) {
+    st.textContent = e.message || 'Erro ao buscar estabelecimentos';
+    toast(e.message || 'Erro ao buscar estabelecimentos', 'err');
+  }
+}
+
+function _mapRenderLugares(lugares, origem, manterZoom) {
+  _lugarMarkers.forEach(m => _map.removeLayer(m));
+  _lugarMarkers = [];
+  _lugaresRes = lugares;
+  const st = document.getElementById('mapLugarStatus');
+  const novos = lugares.filter(p => !p.cliente_id && !_lugarLeadsSalvos.has(p.osm_id));
+  if (!lugares.length) { st.textContent = 'Nenhum estabelecimento encontrado. Aumente o raio ou troque o termo.'; return; }
+
+  lugares.forEach((p, i) => {
+    const cor = p.cliente_id ? '#16a34a' : '#f97316';
+    const icon = L.divIcon({
+      className: 'custom-div-icon',
+      html: `<div style="background:${cor};width:18px;height:18px;border-radius:5px;border:2.5px solid #fff;box-shadow:0 0 10px rgba(0,0,0,.45)"></div>`,
+      iconSize: [18, 18], iconAnchor: [9, 9]
+    });
+    const end = [p.endereco, p.bairro, p.cidade].filter(Boolean).join(', ');
+    const tel = (p.telefone || '').replace(/\D/g, '');
+    const buscaGoogle = 'https://www.google.com/search?q=' + encodeURIComponent([p.nome, p.cidade || p.bairro || '', 'telefone'].filter(Boolean).join(' '));
+    const m = L.marker([p.latitude, p.longitude], { icon, title: p.nome }).addTo(_map).bindPopup(`
+      <div class="map-popup-card">
+        <div class="map-popup-img" style="background:${cor}"></div>
+        <div class="map-popup-body">
+          <div style="font-weight:800;color:var(--text);margin-bottom:4px;font-size:14px">${escHtml(p.nome)}</div>
+          <div style="font-size:12px;color:var(--text2);line-height:1.5">
+            ${escHtml(p.categoria)} · ${p.distancia.toFixed(1)} km<br>
+            ${p.cliente_id ? '<b style="color:#16a34a">✔ Já é cliente</b><br>' : ''}
+            ${end ? escHtml(end) + '<br>' : ''}
+            ${p.telefone ? '📞 ' + escHtml(p.telefone) + '<br>' : ''}
+            ${p.horario ? '🕒 ' + escHtml(p.horario) : ''}
+          </div>
+          <div class="map-popup-actions3">
+            <button class="pri" onclick="window.open('https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${p.latitude},${p.longitude}','_blank')">Google Maps</button>
+            <button class="waze" onclick="window.open('https://waze.com/ul?ll=${p.latitude},${p.longitude}&navigate=yes&zoom=17','_blank')">Waze</button>
+            ${tel.length >= 10 ? `<a href="https://wa.me/55${tel.replace(/^55/, '')}" target="_blank" rel="noopener">WhatsApp</a>` : `<a href="${buscaGoogle}" target="_blank" rel="noopener">Achar telefone</a>`}
+            ${p.cliente_id ? '' : `<button class="lead" id="mapLeadBtn_${i}" onclick="mapSalvarLeads([${i}])">${_lugarLeadsSalvos.has(p.osm_id) ? '✔ Lead salvo' : 'Salvar como lead'}</button>`}
+          </div>
+        </div>
+      </div>`);
+    _lugarMarkers.push(m);
+  });
+
+  st.innerHTML = `<span><b>${lugares.length}</b> encontrado(s) · <b>${novos.length}</b> novo(s)</span>`
+    + (novos.length ? `<button onclick="mapSalvarLeads(null)">Salvar ${novos.length} como leads</button>` : '');
+  const pts = lugares.map(p => [p.latitude, p.longitude]);
+  pts.push([origem.lat, origem.lng]);
+  if (!manterZoom) _map.fitBounds(pts, { padding: [80, 80] });
+}
+
+async function mapSalvarLeads(indices) {
+  const idx = indices || _lugaresRes.map((_, i) => i);
+  const alvo = idx.map(i => ({ i, p: _lugaresRes[i] }))
+    .filter(x => x.p && !x.p.cliente_id && !_lugarLeadsSalvos.has(x.p.osm_id));
+  if (!alvo.length) { toast('Nada novo para salvar', 'warn'); return; }
+  alvo.forEach(x => { const b = document.getElementById('mapLeadBtn_' + x.i); if (b) { b.disabled = true; b.textContent = 'Salvando...'; } });
+  try {
+    const itens = alvo.map(({ p }) => ({
+      osm_id: p.osm_id, nome: p.nome, empresa: p.nome,
+      telefone: p.telefone || '', whatsapp: p.telefone || '',
+      endereco: p.endereco, bairro: p.bairro, cidade: p.cidade,
+      latitude: p.latitude, longitude: p.longitude,
+      segmento: p.categoria, origem: 'Mapa',
+      observacoes: [`Encontrado no mapa (OpenStreetMap ${p.osm_id}).`, p.horario ? `Horário: ${p.horario}` : '', p.site ? `Site: ${p.site}` : ''].filter(Boolean).join('\n')
+    }));
+    const r = await fetch('/api/leads/lote', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json', ..._cliAuthHeaders() },
+      body: JSON.stringify({ itens })
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Erro ao salvar');
+    const feitos = new Set([...d.criados, ...d.duplicados, ...d.ja_cliente].map(x => x.osm_id).filter(Boolean));
+    alvo.forEach(x => {
+      const ok = feitos.has(x.p.osm_id);
+      if (ok) _lugarLeadsSalvos.add(x.p.osm_id);
+      const b = document.getElementById('mapLeadBtn_' + x.i);
+      if (b) { b.disabled = ok; b.textContent = ok ? '✔ Lead salvo' : 'Salvar como lead'; }
+    });
+    const partes = [];
+    if (d.criados.length) partes.push(`${d.criados.length} salvo(s)`);
+    if (d.duplicados.length) partes.push(`${d.duplicados.length} já era(m) lead`);
+    if (d.ja_cliente.length) partes.push(`${d.ja_cliente.length} já é/são cliente`);
+    if (d.erros.length) partes.push(`${d.erros.length} com erro`);
+    toast(partes.join(' · ') || 'Concluído', d.erros.length ? 'warn' : 'ok');
+    _mapRenderLugares(_lugaresRes, _mapOrigem(), true);
+  } catch (e) {
+    alvo.forEach(x => { const b = document.getElementById('mapLeadBtn_' + x.i); if (b) { b.disabled = false; b.textContent = 'Salvar como lead'; } });
+    toast(e.message || 'Erro ao salvar leads', 'err');
+  }
 }
 
 // ─── GEOCODING ──────────────────────────────────────────────────────────────
