@@ -4,6 +4,7 @@ const express = require('express');
 const router  = express.Router();
 const https   = require('https');
 const { getPool } = require('../config/database');
+const { buscarOverture } = require('../config/lugares-overture');
 
 // ─── Utilitário: faz requisição HTTPS ────────────────────────────────────────
 function httpsGet(url) {
@@ -256,6 +257,11 @@ router.get('/lugares', async (req, res) => {
           try { json = await googleLugares(q, bbox, process.env.GOOGLE_PLACES_KEY); fonte = 'google'; }
           catch (eg) { console.warn('Google Places falhou, usando OSM:', eg.message); }
         }
+        // Overture Maps (base local importada por scripts/overture-importar.js): rápido, com telefone e bem mais completo que o OSM
+        if (!json) {
+          const ovt = await buscarOverture({ bbox, q, catLabel: cat ? cat.label : null, centro: { lat, lng } });
+          if (ovt && ovt.length) { json = { elements: ovt }; fonte = 'overture'; }
+        }
         if (!json) {
           if (Date.now() - _overpassFalhouEm < OVERPASS_PAUSA_MS) throw new Error('Overpass em pausa após falha recente');
           json = await overpassAny(ql);
@@ -304,12 +310,13 @@ router.get('/lugares', async (req, res) => {
         osm_id: `${e.type}/${e.id}`,
         sem_nome: !(t.name || t.brand || t.operator),
         nome: t.name || t.brand || t.operator || `${cat ? cat.label : 'Estabelecimento'} (sem nome)`,
-        categoria: cat ? cat.label : (fonte === 'google' ? q : (t.shop || t.amenity || 'Estabelecimento')),
+        categoria: cat ? cat.label : (t._cat || (fonte === 'google' ? q : (t.shop || t.amenity || 'Estabelecimento'))),
         endereco,
         bairro: t['addr:suburb'] || t['addr:neighbourhood'] || '',
         cidade: t['addr:city'] || '',
         telefone: t.phone || t['contact:phone'] || t['contact:mobile'] || '',
         site: t.website || t['contact:website'] || '',
+        email: t.email || t['contact:email'] || '',
         horario: t.opening_hours || '',
         latitude: plat,
         longitude: plng,
