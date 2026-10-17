@@ -9885,12 +9885,26 @@ async function salvarVisita() {
 let _map = null;
 let _mapMarkers = [];
 
-function abrirMapaClientes() {
+// "Perto de mim": busca os clientes num raio direto no servidor (não depende da página atual da lista,
+// que pode ainda não estar filtrada quando o mapa é aberto). Sem localização, usa a lista carregada.
+async function _clientesDoMapa() {
+  if (_filtrosAvancados.lat && _filtrosAvancados.lng) {
+    try {
+      const raio = _filtrosAvancados.raio || 50;
+      const r = await api(`/api/clientes?status=&q=&limit=500&offset=0&lat=${_filtrosAvancados.lat}&lng=${_filtrosAvancados.lng}&raio=${raio}`);
+      if (r.ok) { const d = await r.json(); return d.clientes || []; }
+    } catch (_) { /* cai para a lista carregada */ }
+  }
+  return _cacheRows;
+}
+
+async function abrirMapaClientes() {
   const modal = document.getElementById('modalMapa');
   modal.style.display = 'flex';
+  const perto = !!(_filtrosAvancados.lat && _filtrosAvancados.lng);
 
   // Se não houver dados em cache e estiver abrindo pela primeira vez, tenta aguardar ou forçar carga
-  if (_cacheRows.length === 0) {
+  if (!perto && _cacheRows.length === 0) {
     document.getElementById('mapCountInfo').textContent = 'Aguardando dados...';
     // Tenta novamente em 500ms, até 5 vezes
     if (!window._mapRetryCount) window._mapRetryCount = 0;
@@ -9905,7 +9919,12 @@ function abrirMapaClientes() {
   const listEl = document.getElementById('mapClientList');
   listEl.innerHTML = '';
   
-  const clientesComCoord = _cacheRows.filter(c => c.latitude && c.longitude);
+  document.getElementById('mapCountInfo').textContent = perto ? 'Buscando clientes perto de você...' : 'Carregando clientes...';
+  const linhasMapa = perto ? await _clientesDoMapa() : _cacheRows;
+  const clientesComCoord = linhasMapa.filter(c => c.latitude && c.longitude);
+  if (perto && !clientesComCoord.length) {
+    listEl.innerHTML = '<div style="padding:16px;color:var(--text2);font-size:13px;line-height:1.55">Nenhum cliente seu com localização num raio de ' + (_filtrosAvancados.raio || 50) + ' km.<br><br>Use <b>Buscar comércios</b> no mapa para encontrar possíveis clientes por perto.</div>';
+  }
   if (_filtrosAvancados.lat && _filtrosAvancados.lng) {
     const r = Math.PI / 180;
     clientesComCoord.forEach(c => {
@@ -10006,6 +10025,7 @@ function abrirMapaClientes() {
 }
 
 function fecharMapa() {
+  _pararContagem();
   document.getElementById('modalMapa').style.display = 'none';
 }
 
@@ -10029,6 +10049,46 @@ function mapChipsAtualizar() {
   document.getElementById('mapChipsPrev').disabled = el.scrollLeft <= 2;
   document.getElementById('mapChipsNext').disabled = el.scrollLeft + el.clientWidth >= el.scrollWidth - 2;
 }
+// Enquanto a base completa da região é preparada: contagem regressiva, confere a cada 5 s se já ficou
+// pronta e refaz a mesma busca sozinha (sem o usuário precisar fazer nada).
+let _timerBase = null;
+let _restanteBase = 0;
+let _tentativasBase = 0;
+function _fmtMMSS(s) { s = Math.max(0, s); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+function _notaPreparando() {
+  return '<div class="mbl-nota">⏳ Estamos preparando a lista completa da sua região (com telefones). '
+    + 'Nova busca automática em <b id="mapLugarContagem">' + _fmtMMSS(_restanteBase || 80) + '</b>.</div>';
+}
+function _pararContagem() { if (_timerBase) clearInterval(_timerBase); _timerBase = null; }
+function _iniciarContagem() {
+  if (_timerBase) return;                       // já contando
+  if (_tentativasBase === 0) _restanteBase = 80;
+  _timerBase = setInterval(async () => {
+    _restanteBase--;
+    const el = document.getElementById('mapLugarContagem');
+    if (el) el.textContent = _fmtMMSS(_restanteBase);
+    if (document.getElementById('modalMapa').style.display === 'none') { _pararContagem(); return; }
+    if (_restanteBase % 5 === 0 || _restanteBase <= 0) {
+      try {
+        const o = _mapOrigem();
+        const r = await fetch(`/api/geolocalizacao/lugares/preparar?lat=${o.lat}&lng=${o.lng}`, { credentials: 'include', headers: _cliAuthHeaders() });
+        const d = await r.json();
+        if (d.base === 'pronto') { _pararContagem(); _tentativasBase = 0; mapBuscarLugares(); return; }
+      } catch (_) { /* tenta no próximo ciclo */ }
+    }
+    if (_restanteBase <= 0) {
+      _tentativasBase++;
+      if (_tentativasBase > 8) {                // desiste com educação
+        _pararContagem(); _tentativasBase = 0;
+        const el2 = document.getElementById('mapLugarContagem');
+        if (el2 && el2.parentElement) el2.parentElement.textContent = 'A lista completa ainda está sendo preparada. Toque em Buscar novamente daqui a alguns minutos.';
+        return;
+      }
+      _restanteBase = 30;
+    }
+  }, 1000);
+}
+
 function mapAbrirBusca() {
   document.getElementById('mapBuscaLugar').classList.add('aberta');
   document.getElementById('mapLugarPill').classList.add('oculta');
@@ -10060,6 +10120,7 @@ function mapFocarLugar(i) {
   m.openPopup();
 }
 function mapLimparLugares() {
+  _pararContagem(); _tentativasBase = 0;
   _lugarMarkers.forEach(m => _map && _map.removeLayer(m));
   _lugarMarkers = [];
   _lugarPinos = [];
@@ -10205,7 +10266,8 @@ function _mapRenderLugares(lugares, origem, manterZoom, fonte, base) {
   const novos = visiveis.filter(p => !p.cliente_id && !_lugarLeadsSalvos.has(p.osm_id));
   if (!lugares.length) {
     st.innerHTML = 'Nenhum estabelecimento encontrado. Aumente o raio ou troque o termo.'
-      + (_lugaresBase === 'carregando' ? '<div class="mbl-nota">Estamos preparando a lista completa da sua região. Em 1 ou 2 minutos, <a href="#" onclick="mapBuscarLugares();return false" style="color:inherit;font-weight:800">busque de novo</a>.</div>' : '');
+      + (_lugaresBase === 'carregando' ? _notaPreparando() : '');
+    if (_lugaresBase === 'carregando') _iniciarContagem(); else _pararContagem();
     return;
   }
   if (fonte) _lugaresFonte = fonte;
@@ -10264,8 +10326,9 @@ function _mapRenderLugares(lugares, origem, manterZoom, fonte, base) {
     + (ocultos ? `<button class="mbl-lim" onclick="mapToggleSemNome()">Mostrar ${ocultos} sem nome</button>` : '')
     + (_mostrarSemNome && lugares.some(p => p.sem_nome) ? `<button class="mbl-lim" onclick="mapToggleSemNome()">Ocultar sem nome</button>` : '')
     + (_lugaresBase === 'carregando'
-        ? `<div class="mbl-nota">Estamos preparando a lista completa da sua região (com telefones). Em 1 ou 2 minutos, <a href="#" onclick="mapBuscarLugares();return false" style="color:inherit;font-weight:800">busque de novo</a> para ver mais resultados.</div>`
+        ? _notaPreparando()
         : (_lugaresFonte === 'nominatim' ? `<div class="mbl-nota">Alguns comércios podem não aparecer agora. Tente de novo em instantes.</div>` : ''));
+  if (_lugaresBase === 'carregando') _iniciarContagem(); else { _pararContagem(); _tentativasBase = 0; }
   const pts = visiveis.map(p => [p.latitude, p.longitude]);
   pts.push([origem.lat, origem.lng]);
   if (!manterZoom) _map.fitBounds(pts, { padding: [80, 80] });
