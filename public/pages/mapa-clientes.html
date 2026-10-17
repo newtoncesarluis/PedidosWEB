@@ -1288,9 +1288,9 @@ async function buscarLugares(raio) {
     );
     const data = await r.json();
     if (!r.ok) throw new Error(data.error || 'Erro na requisição');
-    // locais sem nome no OSM não servem para prospectar: ficam fora da lista
-    const nomeados = (data.lugares || []).filter(p => !p.sem_nome);
-    const semNome = (data.lugares || []).length - nomeados.length;
+    // locais sem nome no OSM também aparecem (o usuário confere o nome pelo Google Maps)
+    const nomeados = data.lugares || [];
+    const semNome = nomeados.filter(p => p.sem_nome).length;
     clientesEncontrados = nomeados;
     modoMapa = 'lugares';
     limparRota();
@@ -1298,7 +1298,7 @@ async function buscarLugares(raio) {
     atualizarHeat();
     atualizarInfoBar(nomeados.length, raioUsado);
     salvarEstado();
-    toast(`${nomeados.length} estabelecimentos encontrados` + (semNome ? ` (${semNome} sem nome cadastrado foram ocultados)` : ''), nomeados.length ? 'success' : 'info');
+    toast(`${nomeados.length} estabelecimentos encontrados` + (semNome ? ` (${semNome} sem nome cadastrado)` : ''), nomeados.length ? 'success' : 'info');
   } catch (err) {
     console.error('Erro:', err);
     toast(err.message || 'Erro ao buscar estabelecimentos', 'error');
@@ -1439,7 +1439,10 @@ function renderizarLugares(lugares) {
     });
     const end = [p.endereco, p.bairro, p.cidade].filter(Boolean).join(', ');
     const tel = (p.telefone || '').replace(/\D/g, '');
-    const buscaGoogle = 'https://www.google.com/search?q=' + encodeURIComponent([p.nome, p.cidade || p.bairro || '', 'telefone'].filter(Boolean).join(' '));
+    // Abre o Google Maps CENTRADO nas coordenadas do ponto (nome + cidade como busca; sem nome → a categoria).
+    // Assim o resultado é o estabelecimento daquele lugar e não outro de mesmo nome em outra cidade.
+    const _gq = p.sem_nome ? p.categoria : [p.nome, p.cidade || p.bairro].filter(Boolean).join(' ');
+    const buscaGoogle = `https://www.google.com/maps/search/${encodeURIComponent(_gq)}/@${p.latitude},${p.longitude},${p.sem_nome ? 20 : 18}z`;
     marker.bindPopup(`
       <div class="popup-header"><h4>${escHtml(p.nome)}</h4>
         <p>${escHtml(p.categoria)} · ${p.distancia.toFixed(1)} km</p></div>
@@ -1452,7 +1455,7 @@ function renderizarLugares(lugares) {
           <button class="popup-btn popup-btn-secondary" onclick="abrirGoogleMapsPonto(${p.latitude},${p.longitude})" style="flex:1 1 45%">Google Maps</button>
           <button class="popup-btn popup-btn-secondary" onclick="abrirWazePonto(${p.latitude},${p.longitude})" style="flex:1 1 45%">Waze</button>
           ${tel.length >= 10 ? `<a href="https://wa.me/55${tel.replace(/^55/, '')}" target="_blank" class="popup-btn popup-btn-primary" style="flex:1 1 45%">WhatsApp</a>` : ''}
-          ${p.telefone ? '' : `<a href="${buscaGoogle}" target="_blank" rel="noopener" class="popup-btn popup-btn-secondary" style="flex:1 1 45%">Buscar telefone no Google</a>`}
+          ${p.telefone ? '' : `<a href="${buscaGoogle}" target="_blank" rel="noopener" class="popup-btn popup-btn-secondary" style="flex:1 1 45%">${p.sem_nome ? 'Ver no Google (nome e fone)' : 'Buscar telefone no Google'}</a>`}
           ${p.cliente_id ? '' : `<button class="popup-btn popup-btn-visit" id="btnLead_${index}" onclick="salvarLeadLugar(${index})" style="flex:1 1 100%">${leadsSalvos.has(p.osm_id) ? '✔ Lead salvo' : 'Salvar como lead'}</button>`}
         </div>
       </div>`);

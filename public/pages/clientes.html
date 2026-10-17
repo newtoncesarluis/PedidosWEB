@@ -10008,7 +10008,7 @@ function fecharMapa() {
 
 // ── BUSCA DE ESTABELECIMENTOS NO MAPA (prospecção — OpenStreetMap) ───────────
 let _lugarReq = 0;
-let _mostrarSemNome = false; // locais sem nome no OSM ficam ocultos por padrão
+let _mostrarSemNome = true;  // locais sem nome no OSM aparecem (o usuário identifica pelo Google Maps); dá para ocultar
 let _lugarMarkers = [];
 let _lugarPinos = [];
 let _lugaresFonte = 'overpass';
@@ -10211,16 +10211,16 @@ function _mapRenderLugares(lugares, origem, manterZoom, fonte) {
     });
     const end = [p.endereco, p.bairro, p.cidade].filter(Boolean).join(', ');
     const tel = (p.telefone || '').replace(/\D/g, '');
-    const buscaGoogle = 'https://www.google.com/search?q=' + encodeURIComponent([p.nome, p.cidade || p.bairro || '', 'telefone'].filter(Boolean).join(' '));
+    // Abre o Google Maps CENTRADO nas coordenadas do ponto (nome + cidade como busca; sem nome → a categoria).
+    // Assim o resultado é o estabelecimento daquele lugar e não outro de mesmo nome em outra cidade.
+    const _gq = p.sem_nome ? p.categoria : [p.nome, p.cidade || p.bairro].filter(Boolean).join(' ');
+    const buscaGoogle = `https://www.google.com/maps/search/${encodeURIComponent(_gq)}/@${p.latitude},${p.longitude},${p.sem_nome ? 20 : 18}z`;
     const botoes = [
       { cls: 'maps', ic: 'nav', txt: 'Maps', attr: `onclick="window.open('https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${p.latitude},${p.longitude}','_blank')"` },
       { cls: 'waze', ic: 'car', txt: 'Waze', attr: `onclick="window.open('https://waze.com/ul?ll=${p.latitude},${p.longitude}&navigate=yes&zoom=17','_blank')"` },
       tel.length >= 10
         ? { tag: 'a', cls: 'zap', ic: 'chat', txt: 'WhatsApp', attr: `href="https://wa.me/55${tel.replace(/^55/, '')}" target="_blank" rel="noopener"` }
-        : (p.sem_nome
-          // sem nome no OSM: o Google Maps costuma mostrar o nome real do local pelas coordenadas
-          ? { tag: 'a', ic: 'search', txt: 'Ver no Google', attr: `href="https://www.google.com/maps/search/?api=1&query=${p.latitude},${p.longitude}" target="_blank" rel="noopener"` }
-          : { tag: 'a', ic: 'search', txt: 'Achar fone', attr: `href="${buscaGoogle}" target="_blank" rel="noopener"` })
+        : { tag: 'a', ic: 'search', txt: p.sem_nome ? 'Ver no Google' : 'Achar fone', attr: `href="${buscaGoogle}" target="_blank" rel="noopener"` }
     ];
     if (!p.cliente_id) {
       botoes.push({ cls: 'lead wide', ic: 'plus', txt: _lugarLeadsSalvos.has(p.osm_id) ? '✔ Lead salvo' : 'Salvar como lead',
@@ -10230,7 +10230,7 @@ function _mapRenderLugares(lugares, origem, manterZoom, fonte) {
       cor: cor,
       avatar: _PC_IC.store,
       titulo: p.sem_nome ? escHtml(p.categoria) + ' <span style="font-weight:600;color:var(--text2)">· nome não cadastrado</span>' : escHtml(p.nome),
-      sub: p.sem_nome ? 'Use "Ver no Google" para descobrir o nome' : escHtml(p.categoria),
+      sub: p.sem_nome ? 'Toque em "Ver no Google" para ver o nome e o telefone' : escHtml(p.categoria),
       chip: p.cliente_id ? { txt: '✔ Já é cliente', cls: 'ok' } : { txt: 'Prospecto', cls: 'warn' },
       linhas: [
         { ic: 'pin', txt: (end ? escHtml(end) + ' <b style="color:var(--accent)">· ' : '<b style="color:var(--accent)">a ') + _fmtDist(p.distancia) + '</b>' },
