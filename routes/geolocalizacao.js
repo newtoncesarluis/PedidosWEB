@@ -61,10 +61,13 @@ const OSM_CATEGORIAS = [
 const OVERPASS_URLS = [
   'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
+  'https://overpass.private.coffee/api/interpreter',
   'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
 ];
 const _cacheLugares = new Map(); // ql -> { ts, json }
 const CACHE_LUGARES_MS = 10 * 60 * 1000;
+let _overpassFalhouEm = 0;            // disjuntor: após falha, usa a reserva direto por 3 min
+const OVERPASS_PAUSA_MS = 3 * 60 * 1000;
 
 function semAcento(s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, ''); }
 
@@ -88,10 +91,66 @@ function overpassPost(endpoint, ql) {
       });
     });
     req.on('error', reject);
-    req.setTimeout(14000, () => { req.destroy(); reject(new Error('timeout')); });
+    req.setTimeout(6000, () => { req.destroy(); reject(new Error('timeout')); });
     req.write(body);
     req.end();
   });
+}
+
+// Consulta todos os espelhos ao mesmo tempo e usa o 1º que responder
+function overpassAny(ql) {
+  return Promise.any(OVERPASS_URLS.map(ep => overpassPost(ep, ql)))
+    .catch((agg) => { throw new Error('Overpass indisponível (' + ((agg.errors || []).map(e => e.message).join(' / ') || agg.message) + ')'); });
+}
+
+// Reserva: Nominatim (busca por texto dentro da área). Resultado no mesmo formato do Overpass.
+function nominatimGet(path) {
+  return new Promise((resolve, reject) => {
+    const req = https.get({
+      hostname: 'nominatim.openstreetmap.org', path,
+      headers: { 'User-Agent': 'SysRepWeb-Geoloc/1.0', 'Accept-Language': 'pt-BR' },
+    }, (res) => {
+      let data = '';
+      res.on('data', d => data += d);
+      res.on('end', () => {
+        if (res.statusCode !== 200) return reject(new Error('Nominatim HTTP ' + res.statusCode));
+        try { resolve(JSON.parse(data)); } catch (e) { reject(e); }
+      });
+    });
+    req.on('error', reject);
+    req.setTimeout(10000, () => { req.destroy(); reject(new Error('timeout')); });
+  });
+}
+
+async function nominatimLugares(termos, bbox) {
+  const vistos = new Set();
+  const elements = [];
+  let primeiro = true;
+  for (const termo of termos) {
+    if (!primeiro) await new Promise(r => setTimeout(r, 1100)); // política: 1 req/s
+    primeiro = false;
+    const path = '/search?format=jsonv2&limit=40&bounded=1&addressdetails=1&extratags=1&accept-language=pt-BR'
+      + `&viewbox=${bbox.w},${bbox.n},${bbox.e},${bbox.s}&q=${encodeURIComponent(termo)}`;
+    const lista = await nominatimGet(path);
+    for (const p of (lista || [])) {
+      const id = `${p.osm_type}/${p.osm_id}`;
+      if (vistos.has(id)) continue;
+      vistos.add(id);
+      const a = p.address || {}, x = p.extratags || {};
+      elements.push({
+        type: p.osm_type, id: p.osm_id, lat: parseFloat(p.lat), lon: parseFloat(p.lon),
+        tags: {
+          name: p.name || (p.display_name || '').split(',')[0],
+          shop: p.category === 'shop' ? p.type : undefined,
+          amenity: p.category === 'amenity' ? p.type : undefined,
+          'addr:street': a.road, 'addr:housenumber': a.house_number,
+          'addr:suburb': a.suburb || a.neighbourhood, 'addr:city': a.city || a.town || a.village || a.municipality,
+          phone: x.phone || x['contact:phone'], website: x.website || x['contact:website'], opening_hours: x.opening_hours,
+        },
+      });
+    }
+  }
+  return { elements };
 }
 
 function distKm(lat1, lon1, lat2, lon2) {
@@ -115,7 +174,10 @@ router.get('/lugares', async (req, res) => {
     const termo = semAcento(q.toLowerCase());
 
     const cat = OSM_CATEGORIAS.find(c => c.re.test(q.toLowerCase()) || c.re.test(termo));
-    const around = `(around:${metros},${lat},${lng})`;
+    const dLat = raioKm / 111;
+    const dLng = raioKm / (111 * Math.max(0.2, Math.cos(lat * Math.PI / 180)));
+    const bbox = { s: lat - dLat, n: lat + dLat, w: lng - dLng, e: lng + dLng };
+    const around = '';
     const nomeRe = q.replace(/[^\p{L}\p{N} ]/gu, '').trim();
     if (!cat && nomeRe.length < 2) return res.status(400).json({ error: 'Termo de busca inválido' });
     let partes;
@@ -127,20 +189,33 @@ router.get('/lugares', async (req, res) => {
     } else {
       partes = [`nwr["name"~"${nomeRe}",i]${around};`];
     }
-    const ql = `[out:json][timeout:20];(${partes.join('')});out center tags 400;`;
+    const ql = `[out:json][timeout:10][bbox:${bbox.s.toFixed(5)},${bbox.w.toFixed(5)},${bbox.n.toFixed(5)},${bbox.e.toFixed(5)}];(${partes.join('')});out center tags 400;`;
 
-    let json = null, ultimoErro = null;
+    let json = null, ultimoErro = null, fonte = 'overpass';
     const emCache = _cacheLugares.get(ql);
-    if (emCache && Date.now() - emCache.ts < CACHE_LUGARES_MS) json = emCache.json;
-    for (const ep of json ? [] : OVERPASS_URLS) {
-      try { json = await overpassPost(ep, ql); break; } catch (e) { ultimoErro = e; }
+    if (emCache && Date.now() - emCache.ts < CACHE_LUGARES_MS) { json = emCache.json; fonte = emCache.fonte || 'overpass'; }
+    if (!json) {
+      try {
+        if (Date.now() - _overpassFalhouEm < OVERPASS_PAUSA_MS) throw new Error('Overpass em pausa após falha recente');
+        json = await overpassAny(ql);
+      }
+      catch (e) {
+        ultimoErro = e;
+        if (!/em pausa/.test(e.message)) _overpassFalhouEm = Date.now();
+        // Reserva: Nominatim (menos completo, mas costuma estar no ar)
+        try {
+          const termos = [q];
+          if (cat && semAcento(cat.label.toLowerCase()) !== termo) termos.push(cat.label);
+          json = await nominatimLugares(termos.slice(0, 2), bbox);
+          fonte = 'nominatim';
+        } catch (e2) { ultimoErro = new Error(e.message + ' | ' + e2.message); }
+      }
+      if (json) {
+        if (_cacheLugares.size > 200) _cacheLugares.clear();
+        _cacheLugares.set(ql, { ts: Date.now(), json, fonte });
+      }
     }
-    const veioDoCache = emCache && emCache.json === json;
-    if (json && !veioDoCache) {
-      if (_cacheLugares.size > 200) _cacheLugares.clear();
-      _cacheLugares.set(ql, { ts: Date.now(), json });
-    }
-    if (!json) return res.status(502).json({ error: 'Serviço de mapas indisponível no momento. Tente novamente em instantes. (' + (ultimoErro && ultimoErro.message) + ')' });
+    if (!json) return res.status(502).json({ error: 'Serviço de mapas indisponível no momento. Tente novamente em instantes.', detalhe: ultimoErro && ultimoErro.message });
 
     // clientes já cadastrados (≤ 80 m de distância) para marcar "já é cliente"
     let cadastrados = [];
@@ -178,9 +253,9 @@ router.get('/lugares', async (req, res) => {
         cliente_id: ja ? ja.id : null,
         cliente_nome: ja ? ja.nome : null,
       };
-    }).filter(Boolean).sort((a, b) => a.distancia - b.distancia).slice(0, 150);
+    }).filter(p => p && p.distancia <= raioKm + 0.05).sort((a, b) => a.distancia - b.distancia).slice(0, 150);
 
-    res.json({ raio_km: raioKm, categoria: cat ? cat.label : null, total: lugares.length, lugares });
+    res.json({ raio_km: raioKm, categoria: cat ? cat.label : null, fonte, total: lugares.length, lugares });
   } catch (err) {
     console.error('Erro geolocalizacao lugares:', err);
     res.status(500).json({ error: err.message });

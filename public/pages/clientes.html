@@ -1268,7 +1268,20 @@ html[data-theme="charcoal"] #modalVitrine .vitrine-panel {
   background: var(--card-bg, #fff); color: var(--text); border: 1px solid var(--border);
   border-radius: 16px; box-shadow: 0 6px 20px rgba(0,0,0,.18); padding: 10px;
 }
-.map-busca-lugar .mbl-row { display: flex; gap: 6px; }
+.map-busca-lugar { display: none; }
+.map-busca-lugar.aberta { display: block; }
+.map-busca-lugar .mbl-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font-size: 14px; color: var(--text); }
+.map-busca-lugar .mbl-x { width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border); background: var(--bg, #fff); color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; }
+.map-busca-lugar .mbl-x:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+.mbl-pill { position: absolute; top: 16px; left: 16px; z-index: 1000; display: flex; align-items: center; gap: 8px;
+  border: none; border-radius: 999px; padding: 0 18px; min-height: 44px; background: var(--accent); color: #fff;
+  font-weight: 800; font-size: 13px; cursor: pointer; box-shadow: 0 6px 18px rgba(0,0,0,.28); font-family: inherit; }
+.mbl-pill.oculta { display: none; }
+.map-busca-lugar .mbl-row { display: flex; gap: 6px; align-items: stretch; }
+.map-busca-lugar input#mapLugarQ { flex: 1 1 auto !important; width: auto !important; min-width: 0 !important; }
+.map-busca-lugar select#mapLugarRaio { flex: 0 0 auto !important; width: 88px !important; padding: 0 8px !important; }
+.mbl-status .mbl-lim { background: var(--bg, #fff); color: var(--text); border: 1px solid var(--border); }
+.mbl-nota { font-size: 11px; color: #b45309; flex-basis: 100%; }
 .map-busca-lugar input, .map-busca-lugar select {
   border: 1.5px solid var(--border); border-radius: 10px; padding: 9px 12px; font-size: 16px;
   background: var(--bg, #fff); color: var(--text); min-height: 42px; font-family: inherit;
@@ -9077,7 +9090,17 @@ async function enviarMsgWa(idCliente) {
     </div>
     
     <div id="mapContainer">
+      <button class="mbl-pill" id="mapLugarPill" onclick="mapAbrirBusca()" title="Buscar comércios perto de você (açougue, padaria...)">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z"/></svg>
+        Buscar comércios
+      </button>
       <div class="map-busca-lugar" id="mapBuscaLugar">
+        <div class="mbl-head">
+          <strong>Comércios por perto</strong>
+          <button class="mbl-x" onclick="mapFecharBusca()" title="Minimizar (Esc)" aria-label="Minimizar busca">
+            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
         <div class="mbl-row">
           <input type="text" id="mapLugarQ" placeholder="Buscar comércio perto: açougue, padaria..." autocomplete="off"
                  onkeydown="if(event.key==='Enter')mapBuscarLugares()">
@@ -9790,6 +9813,16 @@ function abrirMapaClientes() {
   listEl.innerHTML = '';
   
   const clientesComCoord = _cacheRows.filter(c => c.latitude && c.longitude);
+  if (_filtrosAvancados.lat && _filtrosAvancados.lng) {
+    const r = Math.PI / 180;
+    clientesComCoord.forEach(c => {
+      const a = Math.sin((parseFloat(c.latitude) - _filtrosAvancados.lat) * r / 2) ** 2 +
+        Math.cos(_filtrosAvancados.lat * r) * Math.cos(parseFloat(c.latitude) * r) *
+        Math.sin((parseFloat(c.longitude) - _filtrosAvancados.lng) * r / 2) ** 2;
+      c._distKm = 6371 * 2 * Math.asin(Math.sqrt(a));
+    });
+    clientesComCoord.sort((x, y) => x._distKm - y._distKm);
+  }
   document.getElementById('mapCountInfo').textContent = `${clientesComCoord.length} clientes encontrados`;
 
   // Renderiza Sidebar
@@ -9797,7 +9830,7 @@ function abrirMapaClientes() {
     const item = document.createElement('div');
     item.className = 'map-client-item';
     item.innerHTML = `
-      <h4>${escHtml(c.nome)}</h4>
+      <h4>${escHtml(c.nome)}${c._distKm != null ? ` <span style="float:right;font-size:11px;font-weight:800;color:var(--accent)">${c._distKm < 1 ? Math.round(c._distKm * 1000) + ' m' : c._distKm.toFixed(1) + ' km'}</span>` : ''}</h4>
       <p>${escHtml(c.cidade)} - ${c.uf}<br>${escHtml(c.bairro || '')}</p>
     `;
     item.onclick = () => {
@@ -9819,8 +9852,11 @@ function abrirMapaClientes() {
       SysRepMapTiles.init(_map);
       SysRepMapTiles.addControl(_map, 'bottomleft');
       L.control.zoom({ position: 'bottomright' }).addTo(_map);
-      const caixa = document.getElementById('mapBuscaLugar');
-      if (caixa) { L.DomEvent.disableClickPropagation(caixa); L.DomEvent.disableScrollPropagation(caixa); }
+      ['mapBuscaLugar', 'mapLugarPill'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { L.DomEvent.disableClickPropagation(el); L.DomEvent.disableScrollPropagation(el); }
+      });
+      _map.on('popupopen', () => mapFecharBusca());
     } else {
       _map.invalidateSize();
     }
@@ -9881,8 +9917,33 @@ function fecharMapa() {
 
 // ── BUSCA DE ESTABELECIMENTOS NO MAPA (prospecção — OpenStreetMap) ───────────
 let _lugarMarkers = [];
+let _lugaresFonte = 'overpass';
 let _lugaresRes = [];
 const _lugarLeadsSalvos = new Set();
+
+function mapAbrirBusca() {
+  document.getElementById('mapBuscaLugar').classList.add('aberta');
+  document.getElementById('mapLugarPill').classList.add('oculta');
+  setTimeout(() => { const i = document.getElementById('mapLugarQ'); if (i && window.innerWidth > 700) i.focus(); }, 50);
+}
+function mapFecharBusca() {
+  document.getElementById('mapBuscaLugar').classList.remove('aberta');
+  document.getElementById('mapLugarPill').classList.remove('oculta');
+}
+function mapLimparLugares() {
+  _lugarMarkers.forEach(m => _map && _map.removeLayer(m));
+  _lugarMarkers = [];
+  _lugaresRes = [];
+  const st = document.getElementById('mapLugarStatus');
+  st.style.display = 'none';
+  st.innerHTML = '';
+}
+document.addEventListener('keydown', (ev) => {
+  if (ev.key !== 'Escape') return;
+  const modal = document.getElementById('modalMapa');
+  if (!modal || modal.style.display === 'none') return;
+  if (document.getElementById('mapBuscaLugar').classList.contains('aberta')) { mapFecharBusca(); ev.stopPropagation(); }
+});
 
 function _mapOrigem() {
   if (_filtrosAvancados.lat && _filtrosAvancados.lng) return { lat: _filtrosAvancados.lat, lng: _filtrosAvancados.lng };
@@ -9908,20 +9969,26 @@ async function mapBuscarLugares(q) {
     );
     const d = await r.json();
     if (!r.ok) throw new Error(d.error || 'Erro na busca');
-    _mapRenderLugares(d.lugares || [], o);
+    _mapRenderLugares(d.lugares || [], o, false, d.fonte);
   } catch (e) {
-    st.textContent = e.message || 'Erro ao buscar estabelecimentos';
-    toast(e.message || 'Erro ao buscar estabelecimentos', 'err');
+    st.innerHTML = '';
+    const msg = e.message || 'Erro ao buscar estabelecimentos';
+    st.append(msg + ' ');
+    const tentar = document.createElement('button');
+    tentar.textContent = 'Tentar de novo';
+    tentar.onclick = () => mapBuscarLugares();
+    st.appendChild(tentar);
   }
 }
 
-function _mapRenderLugares(lugares, origem, manterZoom) {
+function _mapRenderLugares(lugares, origem, manterZoom, fonte) {
   _lugarMarkers.forEach(m => _map.removeLayer(m));
   _lugarMarkers = [];
   _lugaresRes = lugares;
   const st = document.getElementById('mapLugarStatus');
   const novos = lugares.filter(p => !p.cliente_id && !_lugarLeadsSalvos.has(p.osm_id));
   if (!lugares.length) { st.textContent = 'Nenhum estabelecimento encontrado. Aumente o raio ou troque o termo.'; return; }
+  if (fonte) _lugaresFonte = fonte;
 
   lugares.forEach((p, i) => {
     const cor = p.cliente_id ? '#16a34a' : '#f97316';
@@ -9957,7 +10024,9 @@ function _mapRenderLugares(lugares, origem, manterZoom) {
   });
 
   st.innerHTML = `<span><b>${lugares.length}</b> encontrado(s) · <b>${novos.length}</b> novo(s)</span>`
-    + (novos.length ? `<button onclick="mapSalvarLeads(null)">Salvar ${novos.length} como leads</button>` : '');
+    + (novos.length ? `<button onclick="mapSalvarLeads(null)">Salvar ${novos.length} como leads</button>` : '')
+    + `<button class="mbl-lim" onclick="mapLimparLugares()">Limpar</button>`
+    + (_lugaresFonte === 'nominatim' ? `<div class="mbl-nota">Busca simplificada: o serviço principal de mapas está fora do ar, então podem faltar alguns locais.</div>` : '');
   const pts = lugares.map(p => [p.latitude, p.longitude]);
   pts.push([origem.lat, origem.lng]);
   if (!manterZoom) _map.fitBounds(pts, { padding: [80, 80] });
