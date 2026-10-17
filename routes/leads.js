@@ -671,6 +671,73 @@ router.post('/', async (req, res) => {
   }
 });
 
+// ─── POST /api/leads/lote ────────────────────────────────────────────────────
+// Salva vários leads vindos do mapa. Evita duplicar por:
+//  - mesmo ID do OpenStreetMap (gravado em tags como "osm:node/123"), ou
+//  - mesmo nome a ≤ ~90 m de um lead existente, ou
+//  - já existir como cliente a ≤ ~90 m com nome parecido/igual (retorna ja_cliente).
+router.post('/lote', async (req, res) => {
+  await ensureTable();
+  try {
+    const pool = getPool();
+    const user = req.user || {};
+    const itens = Array.isArray(req.body && req.body.itens) ? req.body.itens.slice(0, 100) : [];
+    if (!itens.length) return res.status(400).json({ error: 'Nenhum item informado' });
+
+    const resultado = { criados: [], duplicados: [], ja_cliente: [], erros: [] };
+    const GRAU = 0.0008; // ~90 m
+
+    for (const item of itens) {
+      try {
+        const payload = buildPayload(item, user);
+        if (!payload.nome) { resultado.erros.push({ nome: '', erro: 'Nome obrigatório' }); continue; }
+        const osmId = cleanString(item.osm_id, 40);
+        const lat = parseFloat(payload.latitude);
+        const lng = parseFloat(payload.longitude);
+        const temGeo = isFinite(lat) && isFinite(lng);
+
+        // 1) duplicado por ID do OSM ou nome + proximidade
+        const condGeo = temGeo
+          ? ` OR (LOWER(nome) = LOWER(?) AND latitude <> '' AND longitude <> ''
+                  AND ABS(CAST(latitude AS DECIMAL(10,6)) - ?) < ? AND ABS(CAST(longitude AS DECIMAL(10,6)) - ?) < ?)`
+          : '';
+        const params = [];
+        let sql = `SELECT id FROM leads WHERE excluido = 'N' AND (1=0`;
+        if (osmId) { sql += ` OR tags LIKE ?`; params.push(`%osm:${osmId}%`); }
+        if (temGeo) { sql += condGeo; params.push(payload.nome, lat, GRAU, lng, GRAU); }
+        sql += `) LIMIT 1`;
+        const [dup] = await pool.query(sql, params);
+        if (dup[0]) { resultado.duplicados.push({ nome: payload.nome, id: dup[0].id, osm_id: osmId }); continue; }
+
+        // 2) já é cliente (mesma posição e nome igual)
+        if (temGeo) {
+          const [cli] = await pool.query(
+            `SELECT id, nome FROM clientes
+              WHERE (excluido = 'N' OR excluido IS NULL) AND latitude IS NOT NULL AND latitude <> ''
+                AND longitude IS NOT NULL AND longitude <> ''
+                AND ABS(CAST(latitude AS DECIMAL(10,6)) - ?) < ? AND ABS(CAST(longitude AS DECIMAL(10,6)) - ?) < ?
+                AND LOWER(nome) = LOWER(?) LIMIT 1`,
+            [lat, GRAU, lng, GRAU, payload.nome]
+          ).catch(() => [[]]);
+          if (cli[0]) { resultado.ja_cliente.push({ nome: payload.nome, id_cliente: cli[0].id, osm_id: osmId }); continue; }
+        }
+
+        if (osmId) payload.tags = cleanString(`${payload.tags ? payload.tags + ',' : ''}osm:${osmId}`, 255);
+        payload.latitude = temGeo ? String(lat) : null;
+        payload.longitude = temGeo ? String(lng) : null;
+        const [ins] = await pool.query('INSERT INTO leads SET ?', [payload]);
+        await addHistory(pool, ins.insertId, payload.id_usuario, 'CRIACAO', 'Lead criado a partir do Mapa.');
+        resultado.criados.push({ nome: payload.nome, id: ins.insertId, osm_id: osmId });
+      } catch (e) {
+        resultado.erros.push({ nome: (item && item.nome) || '', erro: e.message });
+      }
+    }
+    res.status(201).json({ ok: true, ...resultado });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.put('/:id', async (req, res) => {
   await ensureTable();
   try {

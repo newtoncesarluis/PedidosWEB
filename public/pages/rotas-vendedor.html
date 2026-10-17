@@ -17,6 +17,7 @@
 <script src="/assets/ajuda-tours.js"></script>
 <script src="/assets/comissao-preposto-ui.js?v=1.1.3.24"></script>
 <script src="/assets/sysrep-api.js?v=1.1.3.24"></script>
+<script src="/assets/confirm-dialog.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
@@ -116,7 +117,11 @@ input:focus,select:focus,textarea:focus{border-color:var(--accent)}
 
 /* MAP */
 #map{width:100%;height:100%;z-index:1}
-@media(max-width:900px){#map{height:400px}}
+@media(max-width:900px){#map{height:min(400px,45vh)}
+  .btn-sm,.cli-acoes .btn{min-height:42px;min-width:42px}
+  #navMenu button{min-height:46px}
+  input,select,textarea{font-size:16px!important} /* iOS não dá zoom ao focar */
+}
 
 /* MAP LEGEND */
 .map-legend{position:absolute;bottom:30px;left:10px;z-index:10;background:var(--card);
@@ -551,12 +556,55 @@ input:focus,select:focus,textarea:focus{border-color:var(--accent)}
 <script>
 // ─── helpers ──────────────────────────────────────────────────────────────────
 function token(){ return SysRepApi.authToken(); }
+
+// Avisos/confirmações no padrão do projeto (sem alert/confirm nativos)
+function notificar(msg, titulo){
+  const t=String(msg==null?'':msg);
+  if(window.SysRepConfirm && SysRepConfirm.avisar) return SysRepConfirm.avisar(titulo||'Aviso', t);
+  window.alert(t);
+}
+function _confirmar(titulo, msg){
+  if(window.SysRepConfirm && SysRepConfirm.ask) return SysRepConfirm.ask({titulo, mensagem: msg});
+  return Promise.resolve(window.confirm(msg));
+}
+function _ehErroRede(e){ return (e instanceof TypeError) || navigator.onLine===false; }
+
+// ─── Modo offline: cache da rota + fila de visitas ───────────────────────────
+const FILA_KEY='rv_fila_visitas';
+function _salvarCacheRota(d){ try{ localStorage.setItem('rv_det_'+d.id, JSON.stringify(d)); }catch(_){} }
+function _lerCacheRota(id){ try{ return JSON.parse(localStorage.getItem('rv_det_'+id)||'null'); }catch(_){ return null; } }
+function _filaLer(){ try{ return JSON.parse(localStorage.getItem(FILA_KEY)||'[]'); }catch(_){ return []; } }
+function _filaGravar(f){ try{ localStorage.setItem(FILA_KEY, JSON.stringify(f)); }catch(_){} }
+let _sincronizando=false;
+async function sincronizarFilaVisitas(){
+  if(_sincronizando||navigator.onLine===false) return;
+  const fila=_filaLer(); if(!fila.length) return;
+  _sincronizando=true;
+  const resto=[]; let enviados=0, descartados=0;
+  for(const it of fila){
+    try{ await api(it.url,{method:'PATCH',body:JSON.stringify(it.body)}); enviados++; }
+    catch(e){ if(_ehErroRede(e)) resto.push(it); else descartados++; }
+  }
+  _filaGravar(resto); _sincronizando=false;
+  if(enviados||descartados){
+    notificar((enviados?enviados+' visita(s) registrada(s) no servidor. ':'')+(descartados?descartados+' não pôde(ram) ser enviada(s) (recusada(s) pelo servidor).':''),'Sincronização');
+    carregar(); if(rotaAtualId) abrirDetalhe(rotaAtualId);
+  }
+}
+window.addEventListener('online', sincronizarFilaVisitas);
+setTimeout(sincronizarFilaVisitas, 2500);
 async function api(url, opts={}){
   return SysRepApi.fetch(url, opts);
 }
 function fmt(date){ return date ? new Date(date.toString().substring(0,10)+'T12:00:00').toLocaleDateString('pt-BR') : '—'; }
 function fmtDt(dt){ return dt ? new Date(dt).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—'; }
-function escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/'/g,"\\'"); }
+// esc(): texto seguro dentro de innerHTML
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+// escHtml(): argumento string dentro de onclick="fn('…')" (escapa JS e depois o atributo HTML)
+function escHtml(s){
+  const js=String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/[\r\n]+/g,' ');
+  return js.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 
 // ─── Estado global ────────────────────────────────────────────────────────────
 let mapaVisivel=true, mapa=null, marcadores=[], polylinhas=[], _timer, filtroStatus='', rotaAtualId=null;
@@ -573,7 +621,7 @@ const STATUS_LABEL={PENDENTE:'Pendente',EM_ANDAMENTO:'Em Andamento',CONCLUIDA:'C
 // ─── MAPA ─────────────────────────────────────────────────────────────────────
 function initMapa(){
   mapa = L.map('map',{center:[-14.235,-51.9253],zoom:5});
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:19}).addTo(mapa);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{attribution:'© OpenStreetMap · © CARTO',subdomains:'abcd',maxZoom:19}).addTo(mapa);
 }
 function toggleMapa(){
   const m=document.getElementById('mainLayout');
@@ -645,7 +693,9 @@ async function pinClientes(clientes){
 
   // Polilinha com GPS exato (não distorce o trajeto com posições aproximadas)
   const ptsTrajeto=todos.filter(c=>!c._aprox).map(c=>[parseFloat(c.latitude),parseFloat(c.longitude)]);
-  if(ptsTrajeto.length>1)
+  if(_rotaGeometry&&_rotaGeometry.length>1)
+    polylinhas.push(L.polyline(_rotaGeometry,{color:'#0ea5e9',weight:4,opacity:.7}).addTo(mapa));
+  else if(ptsTrajeto.length>1)
     polylinhas.push(L.polyline(ptsTrajeto,{color:'#0ea5e9',weight:2,opacity:.4,dashArray:'6 6'}).addTo(mapa));
 
   // Marcadores na posição real (sobreposição resolvida depois do fitBounds)
@@ -658,13 +708,18 @@ async function pinClientes(clientes){
       html:`<div style="background:${cor};color:#fff;width:28px;height:28px;${forma};display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;${borda};box-shadow:0 2px 8px rgba(0,0,0,.3)">${i+1}</div>`,
       iconSize:[28,28],iconAnchor:[14,14],className:''
     });
-    const popup=`<strong style="font-size:12px">${c.nome}</strong>${aproxTag}<br>
-      <span style="font-size:11px;color:#666">${c.cidade||''}${c.uf?'/'+c.uf:''}</span><br>
-      Status: <strong style="color:${cor}">${VISIT_LABEL[c.status_visita]||c.status_visita||'Pendente'}</strong><br>
+    const la=parseFloat(c.latitude), lo=parseFloat(c.longitude);
+    const popup=`<strong style="font-size:12px">${esc(c.nome)}</strong>${aproxTag}<br>
+      <span style="font-size:11px;color:#666">${esc(c.cidade)}${c.uf?'/'+esc(c.uf):''}</span><br>
+      Status: <strong style="color:${cor}">${esc(VISIT_LABEL[c.status_visita]||c.status_visita||'Pendente')}</strong><br>
       ${c.data_hora_checkin?'Check-in: '+fmtDt(c.data_hora_checkin)+'<br>':''}
-      ${c.observacao?'Obs: '+c.observacao+'<br>':''}
-      ${c.motivo_nao_encontrado?'Motivo: '+c.motivo_nao_encontrado+'<br>':''}
-      Últ. compra: ${c.dtultimacompra?fmt(c.dtultimacompra):'—'}`;
+      ${c.observacao?'Obs: '+esc(c.observacao)+'<br>':''}
+      ${c.motivo_nao_encontrado?'Motivo: '+esc(c.motivo_nao_encontrado)+'<br>':''}
+      Últ. compra: ${c.dtultimacompra?fmt(c.dtultimacompra):'—'}
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <button onclick="navegarPara(${la},${lo},'maps')" style="flex:1;min-height:40px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;font-weight:700;font-size:12px;cursor:pointer">Google Maps</button>
+        <button onclick="navegarPara(${la},${lo},'waze')" style="flex:1;min-height:40px;border:none;border-radius:8px;background:#33ccff;color:#052e3d;font-weight:700;font-size:12px;cursor:pointer">Waze</button>
+      </div>`;
     const mk=L.marker([parseFloat(c.latitude),parseFloat(c.longitude)],{icon}).addTo(mapa);
     mk.bindPopup(popup,{maxWidth:240});
     marcadores.push(mk);
@@ -800,13 +855,13 @@ function renderRotas(rotas){
       <div class="rota-card-header">
         <div>
           ${r.id_regiao?`<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${corR};margin-right:5px;vertical-align:1px"></span>`:''}
-          <span class="rota-card-title">${r.descricao}</span>
+          <span class="rota-card-title">${esc(r.descricao)}</span>
         </div>
         <span class="badge ${STATUS_CLASS[r.status]||'badge-pendente'}">${STATUS_LABEL[r.status]||r.status}</span>
       </div>
       <div class="rota-card-meta">
-        ${r.nome_vendedor?`<strong>${r.nome_vendedor}</strong> · `:''}
-        ${r.nome_regiao?`${r.sigla_regiao||r.nome_regiao} · `:''}
+        ${r.nome_vendedor?`<strong>${esc(r.nome_vendedor)}</strong> · `:''}
+        ${r.nome_regiao?`${esc(r.sigla_regiao||r.nome_regiao)} · `:''}
         ${r.data_prevista?fmt(r.data_prevista):'Sem data'}
       </div>
       <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
@@ -831,11 +886,21 @@ async function abrirDetalhe(id){
   try{
     const d=await api(`/api/regiao-rota/rotas-vendedor/${id}`);
     _rotaDetalheCache=d;
+    _rotaGeometry=null;
+    _salvarCacheRota(d);
     document.getElementById('detalheTitle').textContent=d.descricao;
     pinClientes(d.clientes); // async — não bloqueia o detalhe
     renderDetalhe(d);
   }catch(e){
-    document.getElementById('detalheContent').innerHTML=`<div class="empty"><p>${e.message}</p></div>`;
+    const cache=_ehErroRede(e)?_lerCacheRota(id):null;
+    if(cache){
+      _rotaDetalheCache=cache; _rotaGeometry=null;
+      document.getElementById('detalheTitle').textContent=cache.descricao+' (offline)';
+      pinClientes(cache.clientes);
+      renderDetalhe(cache);
+    } else {
+      document.getElementById('detalheContent').innerHTML=`<div class="empty"><p>${esc(e.message)}</p></div>`;
+    }
   }
 }
 
@@ -850,10 +915,10 @@ function renderDetalhe(d){
   let html=`
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
       <span class="badge ${STATUS_CLASS[d.status]||'badge-pendente'}">${STATUS_LABEL[d.status]||d.status}</span>
-      ${d.nome_regiao?`<span class="badge badge-info">${d.nome_regiao}</span>`:''}
+      ${d.nome_regiao?`<span class="badge badge-info">${esc(d.nome_regiao)}</span>`:''}
       ${d.data_prevista?`<span style="font-size:11px;color:var(--text2);display:flex;align-items:center">${fmt(d.data_prevista)}</span>`:''}
     </div>
-    ${d.nome_vendedor?`<div style="font-size:12px;color:var(--text2);margin-bottom:10px">Vendedor: <strong>${d.nome_vendedor}</strong>${d.nome_criador?' · Criado por: <strong>'+d.nome_criador+'</strong>':''}</div>`:''}
+    ${d.nome_vendedor?`<div style="font-size:12px;color:var(--text2);margin-bottom:10px">Vendedor: <strong>${esc(d.nome_vendedor)}</strong>${d.nome_criador?' · Criado por: <strong>'+esc(d.nome_criador)+'</strong>':''}</div>`:''}
     <div style="margin-bottom:12px">
       <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text2);margin-bottom:4px">
         <span>Progresso</span><span>${visit}/${total} (${pct}%)</span>
@@ -903,10 +968,10 @@ function renderDetalhe(d){
         <div class="ordem">${c.ordem}</div>
         <div class="status-dot dot-${statusV}"></div>
         <div style="flex:1;min-width:0">
-          <div class="nome">${c.nome}${wppEnviado?'<span title="WhatsApp enviado" style="margin-left:4px;font-size:10px;color:#25d366">💬</span>':''}</div>
-          <div class="meta">${c.cidade||''}${c.uf?'/'+c.uf:''} · <span style="${risco}">${c.dias_sem_compra!=null?c.dias_sem_compra+'d sem compra':''}</span></div>
+          <div class="nome">${esc(c.nome)}${wppEnviado?'<span title="WhatsApp enviado" style="margin-left:4px;font-size:10px;color:#25d366">💬</span>':''}</div>
+          <div class="meta">${esc(c.cidade)}${c.uf?'/'+esc(c.uf):''} · <span style="${risco}">${c.dias_sem_compra!=null?c.dias_sem_compra+'d sem compra':''}</span></div>
           <div style="margin-top:3px"><span style="font-size:10px;font-weight:700;color:${corV}">${labelV}</span>${c.data_hora_checkin?`<span style="font-size:10px;color:var(--text2)"> · ${fmtDt(c.data_hora_checkin)}</span>`:''}</div>
-          ${c.motivo_nao_encontrado?`<div style="font-size:10px;color:#b91c1c;margin-top:2px">↪ ${c.motivo_nao_encontrado}</div>`:''}
+          ${c.motivo_nao_encontrado?`<div style="font-size:10px;color:#b91c1c;margin-top:2px">↪ ${esc(c.motivo_nao_encontrado)}</div>`:''}
           ${c.data_retorno?`<div style="font-size:10px;color:#b45309;margin-top:2px">📅 Retorno: ${fmt(c.data_retorno)}</div>`:''}
           ${c.id_pedido_vinculado?`<div style="font-size:10px;color:#0d9488;margin-top:2px">🛒 Pedido #${c.id_pedido_vinculado}</div>`:''}
           ${alertaGps}
@@ -925,7 +990,7 @@ function renderDetalhe(d){
       </div>`;
     }).join('');
   }
-  if(d.observacao) html+=`<div style="margin-top:12px;padding:10px;background:var(--bg);border-radius:8px;font-size:12px;color:var(--text2)">${d.observacao}</div>`;
+  if(d.observacao) html+=`<div style="margin-top:12px;padding:10px;background:var(--bg);border-radius:8px;font-size:12px;color:var(--text2)">${esc(d.observacao)}</div>`;
   document.getElementById('detalheContent').innerHTML=html;
 }
 
@@ -950,7 +1015,7 @@ async function mudarStatus(id, status){
   try{
     await api(`/api/regiao-rota/rotas-vendedor/${id}/status`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});
     abrirDetalhe(id); carregar();
-  }catch(e){ alert(e.message); }
+  }catch(e){ notificar(e.message); }
 }
 
 function fecharDetalhe(){ document.getElementById('detalheOverlay').classList.remove('open'); rotaAtualId=null; limparMapa(); fecharNavMenu(); }
@@ -975,56 +1040,123 @@ async function geocodificarCliente(idCliente, idRota, btn){
 }
 function editarRotaAtual(){ if(rotaAtualId){ editRotaId=rotaAtualId; document.getElementById('modalTitulo').textContent='Editar Rota'; abrirModal(rotaAtualId); } }
 async function excluirRotaAtual(){
-  if(!rotaAtualId||!confirm('Excluir esta rota?')) return;
-  try{ await api(`/api/regiao-rota/rotas-vendedor/${rotaAtualId}`,{method:'DELETE'}); fecharDetalhe(); carregar(); }catch(e){ alert(e.message); }
+  if(!rotaAtualId) return;
+  if(!(await _confirmar('Excluir rota','Excluir esta rota? Esta ação não pode ser desfeita.'))) return;
+  try{ await api(`/api/regiao-rota/rotas-vendedor/${rotaAtualId}`,{method:'DELETE'}); fecharDetalhe(); carregar(); }catch(e){ notificar(e.message); }
 }
 
 // ─── NAVEGAÇÃO / EXPORTAR ─────────────────────────────────────────────────────
 function _clientesComGeo(){ return (_rotaDetalheCache?.clientes||[]).filter(c=>c.latitude&&c.longitude); }
 
+const _FEITOS=['VISITADO','PEDIDO_REALIZADO','NAO_ENCONTRADO','CANCELADO'];
+function _jaFeito(c){ return _FEITOS.includes(c.status_visita); }
+function _pendentesComGeo(){ return _clientesComGeo().filter(c=>!_jaFeito(c)); }
+
+function navegarPara(lat,lng,app){
+  if(!isFinite(lat)||!isFinite(lng)) return;
+  const url = app==='waze'
+    ? `https://waze.com/ul?ll=${lat},${lng}&navigate=yes&zoom=17`
+    : `https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${lat},${lng}`;
+  window.open(url,'_blank');
+}
+
+// Google Maps: parte da posição atual (GPS) e visita só quem ainda falta, na ordem da rota.
+// Limite de URL: 10 paradas (destino + 9 intermediárias) — o resto vai no próximo clique.
 function abrirGoogleMaps(){
-  const pts=_clientesComGeo();
-  if(!pts.length){ alert('Nenhum cliente com coordenadas nesta rota.'); return; }
-  const stops=pts.slice(0,23).map(c=>`${c.latitude},${c.longitude}`).join('/');
-  window.open(`https://www.google.com/maps/dir/${stops}`,'_blank');
-  if(pts.length>23) alert(`Google Maps suporta até 23 paradas. Os primeiros 23 de ${pts.length} foram incluídos.`);
-}
-
-function abrirWaze(){
-  const pts=_clientesComGeo();
-  const prox=pts.find(c=>c.status_visita!=='VISITADO'&&c.status_visita!=='PEDIDO_REALIZADO')||pts[0];
-  if(!prox){ alert('Nenhum cliente com coordenadas disponível.'); return; }
-  window.open(`https://waze.com/ul?ll=${prox.latitude},${prox.longitude}&navigate=yes&zoom=17`,'_blank');
-}
-
-function otimizarTrajeto(){
-  if(!_rotaDetalheCache) return;
-  const otimizados=nearestNeighbor(_rotaDetalheCache.clientes);
-  _rotaDetalheCache.clientes=otimizados;
-  renderDetalhe(_rotaDetalheCache);
-  pinClientes(otimizados);
-  // Salva nova ordem
-  const ordem=otimizados.map((c,i)=>({id_cliente:c.id_cliente,ordem:i+1}));
-  api(`/api/regiao-rota/rotas-vendedor/${_rotaDetalheCache.id}/reordenar`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({ordem})}).catch(()=>{});
-  alert(`Trajeto otimizado! ${otimizados.filter(c=>c.latitude).length} clientes com GPS reordenados por proximidade.`);
-}
-
-function nearestNeighbor(clientes){
-  const comGeo=clientes.filter(c=>c.latitude&&c.longitude);
-  const semGeo=clientes.filter(c=>!c.latitude||!c.longitude);
-  if(comGeo.length<2) return clientes;
-  const result=[comGeo[0]];
-  const rest=[...comGeo.slice(1)];
-  while(rest.length){
-    const ultimo=result[result.length-1];
-    let bestIdx=0, bestDist=Infinity;
-    rest.forEach((c,i)=>{
-      const d=Math.hypot(parseFloat(c.latitude)-parseFloat(ultimo.latitude),parseFloat(c.longitude)-parseFloat(ultimo.longitude));
-      if(d<bestDist){bestDist=d;bestIdx=i;}
-    });
-    result.push(rest.splice(bestIdx,1)[0]);
+  let pts=_pendentesComGeo();
+  if(!pts.length){
+    if(_clientesComGeo().length) { notificar('Todos os clientes com GPS desta rota já foram atendidos.'); return; }
+    notificar('Nenhum cliente com coordenadas nesta rota.'); return;
   }
-  return [...result,...semGeo].map((c,i)=>({...c,ordem:i+1}));
+  const restam=Math.max(0,pts.length-10);
+  pts=pts.slice(0,10);
+  const coords=pts.map(c=>`${c.latitude},${c.longitude}`);
+  const destino=coords[coords.length-1];
+  const meio=coords.slice(0,-1).join('|');
+  let url=`https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${destino}`;
+  if(meio) url+=`&waypoints=${encodeURIComponent(meio)}`;
+  window.open(url,'_blank');
+  if(restam) notificar(`Enviadas as próximas 10 paradas pendentes. Restam ${restam}: abra novamente depois de atender estas.`);
+}
+
+// Waze navega um destino por vez: abre o próximo cliente pendente
+function abrirWaze(){
+  const prox=_pendentesComGeo()[0];
+  if(!prox){ notificar('Nenhum cliente pendente com coordenadas.'); return; }
+  navegarPara(parseFloat(prox.latitude),parseFloat(prox.longitude),'waze');
+}
+
+function _haversine(a,b){
+  const R=6371, r=Math.PI/180;
+  const dLat=(b.lat-a.lat)*r, dLon=(b.lng-a.lng)*r;
+  const h=Math.sin(dLat/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(h));
+}
+
+function _posicaoAtual(){
+  return new Promise(res=>{
+    if(!navigator.geolocation) return res(null);
+    navigator.geolocation.getCurrentPosition(
+      p=>res({lat:p.coords.latitude,lng:p.coords.longitude}),
+      ()=>res(null),
+      {timeout:6000,enableHighAccuracy:true,maximumAge:60000}
+    );
+  });
+}
+
+let _rotaGeometry=null;
+
+async function otimizarTrajeto(){
+  if(!_rotaDetalheCache) return;
+  const todos=_rotaDetalheCache.clientes;
+  const feitos=todos.filter(_jaFeito);
+  const alvo=todos.filter(c=>!_jaFeito(c)&&c.latitude&&c.longitude);
+  const semGeo=todos.filter(c=>!_jaFeito(c)&&(!c.latitude||!c.longitude));
+  if(alvo.length<2){ notificar('É preciso ter pelo menos 2 clientes pendentes com GPS para otimizar.'); return; }
+
+  const origem=await _posicaoAtual(); // parte de onde o vendedor está (se o GPS permitir)
+  let ordenados=null, info='';
+  _rotaGeometry=null;
+
+  // 1) Ordem pelas ruas (OSRM via servidor) — até 25 pontos
+  if(alvo.length<=(origem?24:25)){
+    try{
+      const pts=[];
+      if(origem) pts.push({lat:origem.lat,lng:origem.lng,origem:true});
+      alvo.forEach(c=>pts.push({lat:parseFloat(c.latitude),lng:parseFloat(c.longitude),id_cliente:c.id_cliente}));
+      const r=await api('/api/geolocalizacao/otimizar-rota?pontos='+encodeURIComponent(JSON.stringify(pts)));
+      if(r&&r.fonte==='ruas'&&r.rota&&r.rota.length){
+        const porId=new Map(alvo.map(c=>[c.id_cliente,c]));
+        ordenados=r.rota.filter(p=>!p.origem).map(p=>porId.get(p.id_cliente)).filter(Boolean);
+        if(ordenados.length!==alvo.length) ordenados=null;
+        else{
+          _rotaGeometry=r.geometry||null;
+          info=`${r.distanciaTotal.toFixed(1)} km · ~${r.duracaoMin} min de viagem (pelas ruas)`;
+        }
+      }
+    }catch(_){}
+  }
+  // 2) Fallback local: vizinho mais próximo em km reais (haversine)
+  if(!ordenados){
+    const rest=[...alvo]; ordenados=[];
+    let atual=origem||{lat:parseFloat(rest[0].latitude),lng:parseFloat(rest[0].longitude)};
+    if(!origem){ ordenados.push(rest.shift()); }
+    while(rest.length){
+      let bi=0,bd=Infinity;
+      rest.forEach((c,i)=>{ const d=_haversine(atual,{lat:parseFloat(c.latitude),lng:parseFloat(c.longitude)}); if(d<bd){bd=d;bi=i;} });
+      const prox=rest.splice(bi,1)[0]; ordenados.push(prox);
+      atual={lat:parseFloat(prox.latitude),lng:parseFloat(prox.longitude)};
+    }
+    info='ordem por proximidade (serviço de rotas indisponível)';
+  }
+
+  const final=[...feitos,...ordenados,...semGeo].map((c,i)=>({...c,ordem:i+1}));
+  _rotaDetalheCache.clientes=final;
+  renderDetalhe(_rotaDetalheCache);
+  pinClientes(final);
+  const ordem=final.map(c=>({id_cliente:c.id_cliente,ordem:c.ordem}));
+  api(`/api/regiao-rota/rotas-vendedor/${_rotaDetalheCache.id}/reordenar`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({ordem})}).catch(()=>{});
+  notificar(`Trajeto otimizado!\n${ordenados.length} pendentes reordenados${origem?' a partir da sua posição':''}.\n${info}${semGeo.length?`\n${semGeo.length} sem GPS ficaram no fim.`:''}`);
 }
 
 function imprimirRota(){
@@ -1032,19 +1164,19 @@ function imprimirRota(){
   if(!d) return;
   const area=document.getElementById('printArea');
   area.innerHTML=`
-    <div class="print-title">${d.descricao}</div>
+    <div class="print-title">${esc(d.descricao)}</div>
     <div class="print-sub">
-      Vendedor: ${d.nome_vendedor||'—'} · Data: ${fmt(d.data_prevista)} · ${d.clientes.length} cliente(s)
+      Vendedor: ${esc(d.nome_vendedor)||'—'} · Data: ${fmt(d.data_prevista)} · ${d.clientes.length} cliente(s)
     </div>
     ${d.clientes.map((c,i)=>`
       <div class="print-item">
         <div class="print-num">${i+1}</div>
         <div class="print-info">
-          <div class="print-nome">${c.nome}</div>
+          <div class="print-nome">${esc(c.nome)}</div>
           <div class="print-addr">
-            ${[c.endereco,c.bairro,c.cidade+(c.uf?'/'+c.uf:''),c.cep].filter(Boolean).join(' · ')}
+            ${esc([c.endereco,c.bairro,(c.cidade||'')+(c.uf?'/'+c.uf:''),c.cep].filter(Boolean).join(' · '))}
           </div>
-          <div class="print-addr">Tel: ${c.foneprincipal||'—'} · ${c.dias_sem_compra!=null?c.dias_sem_compra+'d sem compra':''}</div>
+          <div class="print-addr">Tel: ${esc(c.foneprincipal)||'—'} · ${c.dias_sem_compra!=null?c.dias_sem_compra+'d sem compra':''}</div>
         </div>
         <div style="width:80px;border-bottom:1px solid #ccc;margin-top:14px"></div>
       </div>
@@ -1057,7 +1189,7 @@ function baixarKML(){
   const d=_rotaDetalheCache;
   if(!d) return;
   const pts=_clientesComGeo();
-  if(!pts.length){ alert('Nenhum cliente com coordenadas para exportar.'); return; }
+  if(!pts.length){ notificar('Nenhum cliente com coordenadas para exportar.'); return; }
   const placemarks=pts.map((c,i)=>`
   <Placemark>
     <name>${i+1}. ${(c.nome||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')}</name>
@@ -1084,13 +1216,15 @@ async function notificarVendedor(){
   if(msg===null) return;
   try{
     await api(`/api/regiao-rota/rotas-vendedor/${d.id}/notificar-wpp`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mensagem:msg})});
-    alert('WhatsApp enviado ao vendedor com sucesso!');
-  }catch(e){ alert('Erro: '+e.message); }
+    notificar('WhatsApp enviado ao vendedor com sucesso!');
+  }catch(e){ notificar('Erro: '+e.message); }
 }
 
 // ─── REGISTRAR VISITA ─────────────────────────────────────────────────────────
 function abrirModalVisita(idRota, idCliente, nomeCliente){
   visitaIdRota=idRota; visitaIdCliente=idCliente; visitaStatus=null;
+  const _cli=(_rotaDetalheCache?.clientes||[]).find(c=>c.id_cliente===idCliente);
+  visitaCliGeo=(_cli&&_cli.latitude&&_cli.longitude)?{lat:parseFloat(_cli.latitude),lng:parseFloat(_cli.longitude)}:null;
   gpsCoords={lat:null,lng:null,autorizado:'N'};
   document.getElementById('visitaTitle').textContent='Registrar Visita — '+nomeCliente;
   document.getElementById('visitaObs').value='';
@@ -1105,6 +1239,11 @@ function abrirModalVisita(idRota, idCliente, nomeCliente){
 }
 function fecharModalVisita(){ document.getElementById('modalVisitaOverlay').classList.remove('open'); }
 
+let visitaCliGeo=null;
+function _distCliente(){
+  if(!visitaCliGeo||gpsCoords.lat==null) return null;
+  return _haversine({lat:gpsCoords.lat,lng:gpsCoords.lng}, visitaCliGeo);
+}
 function obterGPS(){
   const el=document.getElementById('gpsStatus');
   const txt=document.getElementById('gpsText');
@@ -1120,7 +1259,9 @@ function obterGPS(){
     pos=>{
       gpsCoords={lat:pos.coords.latitude,lng:pos.coords.longitude,autorizado:'S'};
       el.className='gps-status gps-ok';
-      txt.textContent=`GPS: ${gpsCoords.lat.toFixed(5)}, ${gpsCoords.lng.toFixed(5)}`;
+      const dk=_distCliente();
+      txt.textContent=`GPS: ${gpsCoords.lat.toFixed(5)}, ${gpsCoords.lng.toFixed(5)}`+(dk!=null?(dk<1?` · a ${Math.round(dk*1000)} m do cliente`:` · a ${dk.toFixed(1)} km do cliente`):'');
+      if(dk!=null&&dk>0.5) el.className='gps-status gps-warn';
     },
     err=>{
       gpsCoords={lat:null,lng:null,autorizado:'N'};
@@ -1147,25 +1288,43 @@ function selecionarStatus(status, btn){
 async function salvarVisita(){
   if(!visitaStatus) return;
   const btn=document.getElementById('btnSalvarVisita');
+  let obs=document.getElementById('visitaObs').value||'';
+  // Confere se o vendedor está perto do cliente ao marcar visita realizada
+  const dk=_distCliente();
+  if(dk!=null&&dk>0.5&&(visitaStatus==='VISITADO'||visitaStatus==='PEDIDO_REALIZADO')){
+    const ok=await _confirmar('Você está longe do cliente',`Pelo GPS você está a ${dk.toFixed(1)} km do endereço deste cliente. Registrar a visita mesmo assim?`);
+    if(!ok) return;
+    obs=(obs?obs+' ':'')+`[GPS a ${dk.toFixed(1)} km do cliente]`;
+  }
   btn.disabled=true;
+  const url=`/api/regiao-rota/rotas-vendedor/${visitaIdRota}/cliente/${visitaIdCliente}/status`;
+  const body={
+    status_visita: visitaStatus,
+    observacao: obs||null,
+    motivo_nao_encontrado: document.getElementById('visitaMotivo').value||null,
+    data_retorno: document.getElementById('visitaRetorno').value||null,
+    latitude: gpsCoords.lat,
+    longitude: gpsCoords.lng,
+    gps_autorizado: gpsCoords.autorizado,
+  };
   try{
-    await api(`/api/regiao-rota/rotas-vendedor/${visitaIdRota}/cliente/${visitaIdCliente}/status`,{
-      method:'PATCH',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        status_visita: visitaStatus,
-        observacao: document.getElementById('visitaObs').value||null,
-        motivo_nao_encontrado: document.getElementById('visitaMotivo').value||null,
-        data_retorno: document.getElementById('visitaRetorno').value||null,
-        latitude: gpsCoords.lat,
-        longitude: gpsCoords.lng,
-        gps_autorizado: gpsCoords.autorizado,
-      })
-    });
+    await api(url,{ method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
     fecharModalVisita();
     abrirDetalhe(visitaIdRota);
     carregar();
-  }catch(e){ alert('Erro: '+e.message); }
+  }catch(e){
+    if(_ehErroRede(e)){
+      // Sem sinal: guarda a visita e envia sozinho quando a conexão voltar
+      const fila=_filaLer(); fila.push({url,body,ts:Date.now()}); _filaGravar(fila);
+      const c=(_rotaDetalheCache?.clientes||[]).find(x=>x.id_cliente===visitaIdCliente);
+      if(c){ c.status_visita=visitaStatus; c.data_hora_checkin=new Date().toISOString(); c.observacao=obs||c.observacao; _salvarCacheRota(_rotaDetalheCache); }
+      fecharModalVisita();
+      if(_rotaDetalheCache){ renderDetalhe(_rotaDetalheCache); pinClientes(_rotaDetalheCache.clientes); }
+      notificar('Sem conexão: a visita foi guardada no aparelho e será enviada automaticamente quando o sinal voltar.','Visita guardada');
+    } else {
+      notificar('Erro: '+e.message);
+    }
+  }
   finally{ btn.disabled=false; }
 }
 
@@ -1189,8 +1348,8 @@ async function confirmarEnvioWpp(){
     });
     fecharModalWpp();
     abrirDetalhe(wppIdRota);
-    alert('WhatsApp enviado com sucesso!');
-  }catch(e){ alert('Erro: '+e.message); }
+    notificar('WhatsApp enviado com sucesso!');
+  }catch(e){ notificar('Erro: '+e.message); }
   finally{ btn.disabled=false; }
 }
 
@@ -1224,7 +1383,7 @@ async function abrirModal(id=null){
       atualizarContador();
       renderClientesModal(todosClientes);
       renderOrdemSelecionados();
-    }catch(e){ alert(e.message); }
+    }catch(e){ notificar(e.message); }
   }
 }
 function fecharModal(){ document.getElementById('modalOverlay').classList.remove('open'); }
@@ -1317,17 +1476,17 @@ function renderOrdemSelecionados(){
 }
 
 function otimizarOrdemModal(){
-  if(!clientesSelecionados.size){ alert('Selecione clientes primeiro.'); return; }
+  if(!clientesSelecionados.size){ notificar('Selecione clientes primeiro.'); return; }
   const items=[...clientesSelecionados.values()];
   const comGeo=items.filter(c=>c.latitude&&c.longitude);
   const semGeo=items.filter(c=>!c.latitude||!c.longitude);
-  if(comGeo.length<2){ alert('Pelo menos 2 clientes com coordenadas GPS são necessários para otimizar.'); return; }
+  if(comGeo.length<2){ notificar('Pelo menos 2 clientes com coordenadas GPS são necessários para otimizar.'); return; }
   const otimizados=nearestNeighborSimple(comGeo);
   clientesSelecionados.clear();
   [...otimizados,...semGeo].forEach(c=>clientesSelecionados.set(c.id_cliente,c));
   atualizarContador();
   renderOrdemSelecionados();
-  alert(`Ordem otimizada! ${comGeo.length} clientes com GPS reordenados.`);
+  notificar(`Ordem otimizada! ${comGeo.length} clientes com GPS reordenados.`);
 }
 
 function nearestNeighborSimple(items){
@@ -1375,7 +1534,7 @@ async function salvarRota(e){
     }
     fecharModal(); carregar();
     if(idRota) abrirDetalhe(idRota);
-  }catch(err){ alert('Erro: '+err.message); }
+  }catch(err){ notificar('Erro: '+err.message); }
   finally{ btn.disabled=false; }
 }
 

@@ -17,6 +17,7 @@
 <!-- Leaflet Routing Machine -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
 <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 
 <!-- Fontes -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -514,9 +515,9 @@ body {
 
 .route-stats {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .route-stat {
@@ -606,6 +607,28 @@ body {
   to { transform: rotate(360deg); }
 }
 
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips button { border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: 999px;
+  padding: 6px 12px; font-size: 12px; font-weight: 700; cursor: pointer; font-family: var(--font); min-height: 34px; }
+.chips button:active { background: var(--accent); color: #fff; }
+.lote-bar { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: 10px; padding: 8px 4px 10px;
+  background: var(--card); border-bottom: 1px solid var(--border); margin-bottom: 8px; }
+.client-item-header { align-items: flex-start; }
+.map-controls { max-height: calc(100% - 24px); overflow-y: auto; }
+/* Overlay de loading sem cor fixa (tema escuro) */
+.loading-overlay { background: color-mix(in srgb, var(--card) 82%, transparent); }
+.route-actions { flex-wrap: wrap; }
+
+/* ── MOBILE (app / embed): alvos de toque e iOS sem zoom no foco ── */
+html.sysrep-ms-embed .popup-btn { min-height: 44px !important; font-size: 12px !important; }
+html.sysrep-ms-embed .controls .control-input,
+html.sysrep-ms-embed .controls .control-select { font-size: 16px !important; min-height: 44px !important; }
+html.sysrep-ms-embed .map-ctrl-btn { width: 46px !important; height: 46px !important; }
+html.sysrep-ms-embed .route-actions .btn { min-height: 44px; }
+html.sysrep-ms-embed .sidebar { padding-bottom: env(safe-area-inset-bottom) !important; }
+html.sysrep-ms-embed .ms-map-fab { bottom: calc(76px + env(safe-area-inset-bottom)) !important; }
+details.avancado > summary { cursor: pointer; font-size: 12px; font-weight: 700; color: var(--text2); padding: 4px 0; }
+
 /* ── RESPONSIVE ── */
 @media (max-width: 900px) {
   .sidebar {
@@ -684,8 +707,9 @@ body {
         </div>
       </div>
 
-      <!-- Coordenadas -->
-      <div class="control-group">
+      <!-- Coordenadas (avançado) -->
+      <details class="avancado"><summary>Coordenadas manuais</summary>
+      <div class="control-group" style="margin-top:6px">
         <div style="flex:1">
           <label class="control-label" style="display:block;margin-bottom:4px">Latitude</label>
           <input type="text" id="inputLat" class="control-input" placeholder="-23.5505">
@@ -698,6 +722,7 @@ body {
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
         </button>
       </div>
+      </details>
 
       <!-- Raio de Busca -->
       <div class="control-group">
@@ -719,8 +744,53 @@ body {
         <label class="control-label">Buscar:</label>
         <select id="selectTipo" class="control-select">
           <option value="clientes">Clientes</option>
+          <option value="leads">Leads (prospectos salvos)</option>
+          <option value="misto">Clientes + Leads</option>
           <option value="pedidos">Pedidos</option>
+          <option value="lugares">Estabelecimentos (novos)</option>
         </select>
+      </div>
+
+      <!-- Filtros da carteira -->
+      <div class="control-group" id="grpCarteira">
+        <label class="control-label">Sem compra há:</label>
+        <select id="selectDias" class="control-select" onchange="if(userLocation)buscarClientesRaio()">
+          <option value="0">Qualquer prazo</option>
+          <option value="30">30+ dias</option>
+          <option value="60">60+ dias</option>
+          <option value="90">90+ dias</option>
+          <option value="180">180+ dias</option>
+        </select>
+      </div>
+      <div class="control-group" id="grpVendedor" style="display:none">
+        <label class="control-label">Vendedor:</label>
+        <select id="selectVendedor" class="control-select" onchange="if(userLocation)buscarClientesRaio()">
+          <option value="">Todos</option>
+        </select>
+      </div>
+
+      <!-- Busca de estabelecimentos (OpenStreetMap) -->
+      <div class="control-group" id="grpLugares" style="display:none;flex-direction:column;align-items:stretch;gap:4px">
+        <input type="text" id="inputLugar" class="control-input" autocomplete="off"
+               placeholder="Ex.: açougue, padaria, farmácia..." onkeydown="if(event.key==='Enter')buscarClientesRaio()">
+        <div class="chips">
+          <button type="button" onclick="buscarCategoria('açougue')">Açougue</button>
+          <button type="button" onclick="buscarCategoria('padaria')">Padaria</button>
+          <button type="button" onclick="buscarCategoria('mercado')">Mercado</button>
+          <button type="button" onclick="buscarCategoria('mercearia')">Mercearia</button>
+          <button type="button" onclick="buscarCategoria('restaurante')">Restaurante</button>
+          <button type="button" onclick="buscarCategoria('lanchonete')">Lanchonete</button>
+          <button type="button" onclick="buscarCategoria('bar')">Bar</button>
+          <button type="button" onclick="buscarCategoria('farmácia')">Farmácia</button>
+          <button type="button" onclick="buscarCategoria('material de construção')">Mat. construção</button>
+          <button type="button" onclick="buscarCategoria('pet shop')">Pet shop</button>
+          <button type="button" onclick="buscarCategoria('roupas')">Roupas</button>
+          <button type="button" onclick="buscarCategoria('atacado')">Atacado</button>
+          <button type="button" onclick="buscarCategoria('oficina')">Oficina</button>
+          <button type="button" onclick="buscarCategoria('clínica')">Clínica</button>
+          <button type="button" onclick="buscarCategoria('escola')">Escola</button>
+        </div>
+        <div style="font-size:11px;color:var(--text2)">Busca no mapa estabelecimentos que ainda não são seus clientes (máx. 30 km).</div>
       </div>
     </div>
 
@@ -755,6 +825,12 @@ body {
       <button class="map-ctrl-btn" id="btnClusters" onclick="toggleClusters()" title="Agrupar marcadores">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
       </button>
+      <button class="map-ctrl-btn" id="btnHeat" onclick="toggleHeat()" title="Mapa de calor (concentração de clientes)">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z"/></svg>
+      </button>
+      <button class="map-ctrl-btn" id="btnSeguir" onclick="toggleSeguir()" title="Seguir minha posição em tempo real">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 11l19-9-9 19-2-8-8-2z"/></svg>
+      </button>
       <button class="map-ctrl-btn" id="btnRota" onclick="toggleRota()" title="Otimizar rota">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 01-1.447-.894L15 9m0 11V9"/></svg>
       </button>
@@ -787,11 +863,19 @@ body {
           <div class="route-stat-label">Paradas</div>
           <div class="route-stat-value" id="routeStops">0</div>
         </div>
+        <div class="route-stat">
+          <div class="route-stat-label">Tempo</div>
+          <div class="route-stat-value" id="routeTempo">—</div>
+        </div>
       </div>
+      <div id="routeNota" style="font-size:11px;color:var(--text2);padding:0 2px 8px"></div>
       <div class="route-actions">
         <button class="btn btn-primary" onclick="abrirGoogleMaps()" style="flex:1;font-size:11px">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 01-1.447-.894L15 9m0 11V9"/></svg>
           Google Maps
+        </button>
+        <button class="btn btn-outline" onclick="abrirWazeProxima()" style="flex:1;font-size:11px" title="Waze navega uma parada por vez: abre a próxima da rota">
+          Waze (1ª parada)
         </button>
         <button class="btn btn-outline" onclick="fecharRota()" style="flex:1;font-size:11px">
           Fechar
@@ -818,6 +902,13 @@ let useClusters = false;
 let clientesEncontrados = [];
 let userLocation = null;
 let rotaOtimizada = [];
+let rotaLayer = null;
+let modoMapa = 'clientes'; // 'clientes' | 'pedidos' | 'lugares'
+
+function renderizarAtual() {
+  if (modoMapa === 'lugares') renderizarLugares(clientesEncontrados);
+  else renderizarClientes(clientesEncontrados);
+}
 
 // Token de autenticação
 const token = sessionStorage.getItem('token') || localStorage.getItem('token');
@@ -853,13 +944,17 @@ function restaurarEstado() {
       userMarker = L.circleMarker([userLocation.lat, userLocation.lng], {
         radius: 12, fillColor: '#4361ee', color: '#fff', weight: 3,
         opacity: 1, fillOpacity: 0.9, className: 'user-marker'
-      }).addTo(markersLayer).bindPopup('<b>Sua Localização</b>');
+      }).addTo(map).bindPopup('<b>Sua Localização</b>');
     }
     if (state.raio) document.getElementById('selectRaio').value = state.raio;
-    if (state.tipo) document.getElementById('selectTipo').value = state.tipo;
+    if (state.tipo) {
+      document.getElementById('selectTipo').value = state.tipo;
+      modoMapa = state.tipo;
+      aplicarTipoUI(state.tipo);
+    }
     if (state.clientes && state.clientes.length > 0) {
       clientesEncontrados = state.clientes;
-      renderizarClientes(state.clientes);
+      renderizarAtual();
       atualizarInfoBar(state.clientes.length, state.raio || '50');
       return true;
     }
@@ -871,6 +966,7 @@ function restaurarEstado() {
 document.addEventListener('DOMContentLoaded', () => {
   initMap();
   restaurarEstado();
+  carregarVendedores();
 
   document.getElementById('inputEndereco')?.addEventListener('keydown', function(e) {
     if (e.key === 'Enter') { e.preventDefault(); buscarEndereco(); }
@@ -897,6 +993,7 @@ function initMap() {
 
   // Camadas
   markersLayer = L.layerGroup().addTo(map);
+  rotaLayer = L.layerGroup().addTo(map);
   clusterLayer = L.markerClusterGroup({
     showCoverageOnHover: false,
     maxClusterRadius: 50,
@@ -915,7 +1012,7 @@ function definirLocalizacao(lat, lng, label, zoom) {
   userMarker = L.circleMarker([lat, lng], {
     radius: 12, fillColor: '#4361ee', color: '#fff', weight: 3,
     opacity: 1, fillOpacity: 0.9, className: 'user-marker'
-  }).addTo(markersLayer).bindPopup('<b>' + escHtml(label || 'Sua Localização') + '</b>');
+  }).addTo(map).bindPopup('<b>' + escHtml(label || 'Sua Localização') + '</b>');
 
   map.setView([lat, lng], zoom || 13);
 }
@@ -1038,11 +1135,17 @@ async function buscarClientesRaio() {
   const raio = document.getElementById('selectRaio').value;
   const tipo = document.getElementById('selectTipo').value;
 
+  if (tipo === 'lugares') return buscarLugares(raio);
+
   showLoading(true);
 
   try {
+    const dias = document.getElementById('selectDias')?.value || '0';
+    const vend = document.getElementById('selectVendedor')?.value || '';
+    const extras = (tipo === 'clientes' || tipo === 'misto')
+      ? `&dias_sem_compra=${encodeURIComponent(dias)}${vend ? '&vendedor=' + encodeURIComponent(vend) : ''}` : '';
     const response = await fetch(
-      `/api/geolocalizacao/raio?lat=${userLocation.lat}&lng=${userLocation.lng}&raio=${raio}&tipo=${tipo}`,
+      `/api/geolocalizacao/raio?lat=${userLocation.lat}&lng=${userLocation.lng}&raio=${raio}&tipo=${tipo}${extras}`,
       { headers: { 'Authorization': `Bearer ${token}` } }
     );
 
@@ -1050,17 +1153,326 @@ async function buscarClientesRaio() {
 
     const data = await response.json();
     clientesEncontrados = data;
+    modoMapa = tipo;
+    limparRota();
 
     renderizarClientes(data);
     atualizarInfoBar(data.length, raio);
+    atualizarHeat();
     salvarEstado();
-    toast(`${data.length} ${tipo} encontrados`, 'success');
+    const rotulo = { clientes: 'clientes', leads: 'leads', misto: 'clientes/leads', pedidos: 'pedidos' }[tipo] || tipo;
+    toast(`${data.length} ${rotulo} encontrados`, 'success');
   } catch (err) {
     console.error('Erro:', err);
     toast('Erro ao buscar clientes', 'error');
   } finally {
     showLoading(false);
   }
+}
+
+// ─── Estabelecimentos próximos (prospecção via OpenStreetMap) ───────────────
+let vendedoresVisivel = false;
+function aplicarTipoUI(tipo) {
+  const carteira = tipo === 'clientes' || tipo === 'misto';
+  document.getElementById('grpLugares').style.display = tipo === 'lugares' ? 'flex' : 'none';
+  document.getElementById('grpCarteira').style.display = carteira ? 'flex' : 'none';
+  document.getElementById('grpVendedor').style.display = carteira && vendedoresVisivel ? 'flex' : 'none';
+}
+document.getElementById('selectTipo').addEventListener('change', function () { aplicarTipoUI(this.value); });
+aplicarTipoUI(document.getElementById('selectTipo').value);
+
+async function carregarVendedores() {
+  try {
+    const r = await fetch('/api/geolocalizacao/vendedores', { headers: { 'Authorization': `Bearer ${token}` } });
+    if (!r.ok) return;
+    const d = await r.json();
+    if (!d.pode_escolher || !d.vendedores || d.vendedores.length < 2) return;
+    const sel = document.getElementById('selectVendedor');
+    d.vendedores.forEach(v => { const o = document.createElement('option'); o.value = v.id; o.textContent = v.nome; sel.appendChild(o); });
+    vendedoresVisivel = true;
+    aplicarTipoUI(document.getElementById('selectTipo').value);
+  } catch (_) { /* sem filtro de vendedor */ }
+}
+
+// ─── Mapa de calor ──────────────────────────────────────────────────────────
+let heatLayer = null;
+function _pontosCalor() {
+  return clientesEncontrados
+    .map(c => [parseFloat(c.latitude || c.lat), parseFloat(c.longitude || c.lng), 1])
+    .filter(p => isFinite(p[0]) && isFinite(p[1]));
+}
+function toggleHeat() {
+  const btn = document.getElementById('btnHeat');
+  if (heatLayer) { map.removeLayer(heatLayer); heatLayer = null; btn.classList.remove('active'); return; }
+  if (!L.heatLayer) { toast('Mapa de calor indisponível (sem conexão com a biblioteca)', 'warn'); return; }
+  const pts = _pontosCalor();
+  if (!pts.length) { toast('Faça uma busca primeiro', 'warn'); return; }
+  heatLayer = L.heatLayer(pts, { radius: 28, blur: 22, maxZoom: 14 }).addTo(map);
+  btn.classList.add('active');
+}
+function atualizarHeat() {
+  if (!heatLayer) return;
+  heatLayer.setLatLngs(_pontosCalor());
+}
+
+// ─── Seguir posição em tempo real ───────────────────────────────────────────
+let watchId = null;
+let proximaIdx = 0;
+
+function distKm(a, b) {
+  const r = Math.PI / 180;
+  const h = Math.sin((b.lat - a.lat) * r / 2) ** 2 +
+    Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin((b.lng - a.lng) * r / 2) ** 2;
+  return 6371 * 2 * Math.asin(Math.sqrt(h));
+}
+
+function atualizarProximaParada() {
+  if (!rotaOtimizada.length || !userLocation) return;
+  const paradas = paradasDaRota();
+  while (proximaIdx < paradas.length && distKm(userLocation, paradas[proximaIdx]) < 0.06) {
+    toast('Chegou em: ' + (paradas[proximaIdx].nome || 'parada'), 'success');
+    proximaIdx++;
+  }
+  const nota = document.getElementById('routeNota');
+  if (!nota) return;
+  if (proximaIdx >= paradas.length) { nota.textContent = '✔ Rota concluída.'; return; }
+  const p = paradas[proximaIdx];
+  const d = distKm(userLocation, p);
+  nota.textContent = `Próxima (${proximaIdx + 1}/${paradas.length}): ${p.nome || ''} · ${d < 1 ? Math.round(d * 1000) + ' m' : d.toFixed(1) + ' km'}`;
+}
+
+function pararSeguir() {
+  if (watchId != null) navigator.geolocation.clearWatch(watchId);
+  watchId = null;
+  document.getElementById('btnSeguir').classList.remove('active');
+}
+
+function toggleSeguir() {
+  if (watchId != null) { pararSeguir(); toast('Parou de seguir a posição', 'info'); return; }
+  if (!navigator.geolocation) { toast('GPS indisponível neste aparelho', 'warn'); return; }
+  document.getElementById('btnSeguir').classList.add('active');
+  toast('Acompanhando sua posição...', 'info');
+  watchId = navigator.geolocation.watchPosition(
+    (pos) => {
+      const lat = pos.coords.latitude, lng = pos.coords.longitude;
+      const primeira = !userLocation || !userMarker;
+      userLocation = { lat, lng };
+      if (primeira) { definirLocalizacao(lat, lng, 'Sua Localização', 16); }
+      else {
+        userMarker.setLatLng([lat, lng]);
+        if (!map.getBounds().pad(-0.3).contains([lat, lng])) map.panTo([lat, lng]);
+      }
+      atualizarProximaParada();
+    },
+    () => { toast('Não foi possível acompanhar o GPS. Verifique a permissão de localização.', 'warn'); pararSeguir(); },
+    { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 }
+  );
+}
+
+async function buscarLugares(raio) {
+  const q = document.getElementById('inputLugar').value.trim();
+  if (q.length < 2) { toast('Digite o que procurar (ex.: açougue)', 'warn'); return; }
+  const raioUsado = Math.min(parseFloat(raio) || 5, 30);
+  if (parseFloat(raio) > 30) toast('Para estabelecimentos o raio máximo é 30 km', 'info');
+
+  showLoading(true);
+  try {
+    const r = await fetch(
+      `/api/geolocalizacao/lugares?lat=${userLocation.lat}&lng=${userLocation.lng}&raio=${raioUsado}&q=${encodeURIComponent(q)}`,
+      { headers: { 'Authorization': `Bearer ${token}` } }
+    );
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Erro na requisição');
+    clientesEncontrados = data.lugares;
+    modoMapa = 'lugares';
+    limparRota();
+    renderizarLugares(data.lugares);
+    atualizarHeat();
+    atualizarInfoBar(data.total, raioUsado);
+    salvarEstado();
+    toast(`${data.total} estabelecimentos encontrados`, data.total ? 'success' : 'info');
+  } catch (err) {
+    console.error('Erro:', err);
+    toast(err.message || 'Erro ao buscar estabelecimentos', 'error');
+  } finally {
+    showLoading(false);
+  }
+}
+
+const leadsSalvos = new Set();   // osm_id já salvos como lead (nesta sessão)
+const lugaresSel = new Set();    // índices marcados na lista
+
+function jsArg(s) {
+  return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/[\r\n]+/g, ' ')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function abrirLeads() {
+  salvarEstado();
+  if (document.documentElement.classList.contains('sysrep-ms-embed')) {
+    window.parent.postMessage({ type: 'navigate', url: '/pages/leads.html' }, '*');
+  } else {
+    window.location.href = '/pages/leads.html';
+  }
+}
+
+function _payloadLead(p) {
+  const tel = p.telefone || '';
+  return {
+    osm_id: p.osm_id,
+    nome: p.nome, empresa: p.nome,
+    telefone: tel, whatsapp: tel,
+    endereco: p.endereco, bairro: p.bairro, cidade: p.cidade,
+    latitude: p.latitude, longitude: p.longitude,
+    segmento: p.categoria, origem: 'Mapa',
+    observacoes: [`Encontrado no mapa (OpenStreetMap ${p.osm_id}).`, p.horario ? `Horário: ${p.horario}` : '', p.site ? `Site: ${p.site}` : ''].filter(Boolean).join('\n')
+  };
+}
+
+function atualizarBarraLote() {
+  const qtd = document.getElementById('loteQtd');
+  const btn = document.getElementById('btnLote');
+  if (qtd) qtd.textContent = lugaresSel.size + ' selecionado(s)';
+  if (btn) btn.disabled = lugaresSel.size === 0;
+}
+
+function toggleLugarSel(index, marcado) {
+  if (marcado) lugaresSel.add(index); else lugaresSel.delete(index);
+  atualizarBarraLote();
+}
+
+function selecionarTodosLugares(marcado) {
+  document.querySelectorAll('.chk-lugar').forEach(chk => {
+    if (chk.disabled) return;
+    chk.checked = marcado;
+    toggleLugarSel(parseInt(chk.dataset.index, 10), marcado);
+  });
+}
+
+async function salvarLeadsLote(indices) {
+  const alvo = indices.map(i => ({ i, p: clientesEncontrados[i] }))
+    .filter(x => x.p && !x.p.cliente_id && !leadsSalvos.has(x.p.osm_id));
+  if (!alvo.length) { toast('Nada novo para salvar', 'info'); return; }
+  alvo.forEach(x => { const b = document.getElementById('btnLead_' + x.i); if (b) { b.disabled = true; b.textContent = 'Salvando...'; } });
+  showLoading(true);
+  try {
+    const r = await fetch('/api/leads/lote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ itens: alvo.map(x => _payloadLead(x.p)) })
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Erro ao salvar');
+    const feitos = new Set([...d.criados, ...d.duplicados, ...d.ja_cliente].map(x => x.osm_id).filter(Boolean));
+    alvo.forEach(x => {
+      const ok = feitos.has(x.p.osm_id);
+      if (ok) leadsSalvos.add(x.p.osm_id);
+      const b = document.getElementById('btnLead_' + x.i);
+      if (b) { b.disabled = ok; b.textContent = ok ? '✔ Lead salvo' : 'Salvar como lead'; }
+      const chk = document.querySelector(`.chk-lugar[data-index="${x.i}"]`);
+      if (chk && ok) { chk.checked = false; chk.disabled = true; }
+      if (ok) lugaresSel.delete(x.i);
+    });
+    atualizarBarraLote();
+    const partes = [];
+    if (d.criados.length) partes.push(`${d.criados.length} salvo(s)`);
+    if (d.duplicados.length) partes.push(`${d.duplicados.length} já era(m) lead`);
+    if (d.ja_cliente.length) partes.push(`${d.ja_cliente.length} já é/são cliente`);
+    if (d.erros.length) partes.push(`${d.erros.length} com erro`);
+    toast(partes.join(' · ') || 'Concluído', d.erros.length ? 'warn' : 'success');
+  } catch (err) {
+    alvo.forEach(x => { const b = document.getElementById('btnLead_' + x.i); if (b) { b.disabled = false; b.textContent = 'Salvar como lead'; } });
+    toast(err.message || 'Erro ao salvar leads', 'error');
+  } finally {
+    showLoading(false);
+  }
+}
+
+function salvarLeadLugar(index) { return salvarLeadsLote([index]); }
+function salvarSelecionadosLeads() { return salvarLeadsLote([...lugaresSel]); }
+
+function buscarCategoria(q) {
+  document.getElementById('inputLugar').value = q;
+  buscarClientesRaio();
+}
+
+function renderizarLugares(lugares) {
+  markersLayer.clearLayers();
+  clusterLayer.clearLayers();
+  lugaresSel.clear();
+  const list = document.getElementById('clientList');
+  list.innerHTML = '';
+
+  if (!lugares.length) {
+    list.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text2)">
+      <div style="font-weight:700">Nenhum estabelecimento encontrado</div>
+      <div style="font-size:12px;margin-top:4px">Aumente o raio ou tente outro termo</div></div>`;
+    return;
+  }
+
+  const novos = lugares.filter(p => !p.cliente_id).length;
+  const barra = document.createElement('div');
+  barra.className = 'lote-bar';
+  barra.innerHTML = `
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700"><input type="checkbox" onchange="selecionarTodosLugares(this.checked)"> Todos (${novos})</label>
+    <span id="loteQtd" style="font-size:11px;color:var(--text2);flex:1">0 selecionado(s)</span>
+    <button class="btn btn-primary" id="btnLote" onclick="salvarSelecionadosLeads()" disabled style="padding:8px 12px;font-size:12px">Salvar como leads</button>`;
+  list.appendChild(barra);
+
+  lugares.forEach((p, index) => {
+    const cor = p.cliente_id ? '#16a34a' : '#f97316';
+    const marker = L.marker([p.latitude, p.longitude], {
+      icon: L.divIcon({
+        className: 'custom-div-icon',
+        html: `<div class="custom-marker" style="background:${cor}"><svg class="custom-marker-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M3 9l1-5h16l1 5M5 9v11h14V9M9 20v-6h6v6"/></svg></div>`,
+        iconSize: [28, 35], iconAnchor: [14, 35], popupAnchor: [0, -35]
+      }),
+      title: p.nome
+    });
+    const end = [p.endereco, p.bairro, p.cidade].filter(Boolean).join(', ');
+    const tel = (p.telefone || '').replace(/\D/g, '');
+    const buscaGoogle = 'https://www.google.com/search?q=' + encodeURIComponent([p.nome, p.cidade || p.bairro || '', 'telefone'].filter(Boolean).join(' '));
+    marker.bindPopup(`
+      <div class="popup-header"><h4>${escHtml(p.nome)}</h4>
+        <p>${escHtml(p.categoria)} · ${p.distancia.toFixed(1)} km</p></div>
+      <div class="popup-body">
+        ${p.cliente_id ? `<div class="popup-row"><span class="popup-value" style="color:#16a34a;font-weight:700">✔ Já é cliente: ${escHtml(p.cliente_nome || '')}</span></div>` : ''}
+        ${end ? `<div class="popup-row"><span class="popup-label">Endereço</span><span class="popup-value">${escHtml(end)}</span></div>` : ''}
+        ${p.telefone ? `<div class="popup-row"><span class="popup-label">Telefone</span><span class="popup-value">${escHtml(p.telefone)}</span></div>` : ''}
+        ${p.horario ? `<div class="popup-row"><span class="popup-label">Horário</span><span class="popup-value">${escHtml(p.horario)}</span></div>` : ''}
+        <div class="popup-actions" style="flex-wrap:wrap">
+          <button class="popup-btn popup-btn-secondary" onclick="abrirGoogleMapsPonto(${p.latitude},${p.longitude})" style="flex:1 1 45%">Google Maps</button>
+          <button class="popup-btn popup-btn-secondary" onclick="abrirWazePonto(${p.latitude},${p.longitude})" style="flex:1 1 45%">Waze</button>
+          ${tel.length >= 10 ? `<a href="https://wa.me/55${tel.replace(/^55/, '')}" target="_blank" class="popup-btn popup-btn-primary" style="flex:1 1 45%">WhatsApp</a>` : ''}
+          ${p.telefone ? '' : `<a href="${buscaGoogle}" target="_blank" rel="noopener" class="popup-btn popup-btn-secondary" style="flex:1 1 45%">Buscar telefone no Google</a>`}
+          ${p.cliente_id ? '' : `<button class="popup-btn popup-btn-visit" id="btnLead_${index}" onclick="salvarLeadLugar(${index})" style="flex:1 1 100%">${leadsSalvos.has(p.osm_id) ? '✔ Lead salvo' : 'Salvar como lead'}</button>`}
+        </div>
+      </div>`);
+    (useClusters ? clusterLayer : markersLayer).addLayer(marker);
+
+    const salvo = leadsSalvos.has(p.osm_id);
+    const item = document.createElement('div');
+    item.className = 'client-item';
+    item.dataset.index = index;
+    item.innerHTML = `
+      <div class="client-item-header">
+        ${p.cliente_id ? '' : `<input type="checkbox" class="chk-lugar" data-index="${index}" ${salvo ? 'disabled' : ''} style="margin:2px 8px 0 0;width:18px;height:18px;flex-shrink:0" onclick="event.stopPropagation()" onchange="toggleLugarSel(${index}, this.checked)">`}
+        <div class="client-name">${escHtml(p.nome)}</div>
+        <div class="client-distance">${p.distancia.toFixed(1)} km</div>
+      </div>
+      <div class="client-address">${escHtml(end || p.categoria)}</div>
+      <div class="client-meta"><span style="color:${cor};font-weight:700">${p.cliente_id ? '✔ Já é cliente' : (salvo ? '✔ Lead salvo' : '● Prospecto')}</span><span>${escHtml(p.categoria)}</span></div>`;
+    item.onclick = () => {
+      document.querySelectorAll('.client-item').forEach(i => i.classList.remove('active'));
+      item.classList.add('active');
+      map.setView([p.latitude, p.longitude], 17);
+      marker.openPopup();
+      minimizarSheet();
+    };
+    list.appendChild(item);
+  });
+
+  map.fitBounds(lugares.map(p => [p.latitude, p.longitude]), { padding: [50, 50] });
 }
 
 // ─── Renderizar Clientes ────────────────────────────────────────────────────
@@ -1096,7 +1508,7 @@ function renderizarClientes(clientes) {
       const marker = L.marker([lat, lng], {
         icon: L.divIcon({
           className: 'custom-div-icon',
-          html: `<div class="custom-marker"><svg class="custom-marker-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg></div>`,
+          html: `<div class="custom-marker" style="${c._lead ? 'background:#7c3aed' : (c.dias_sem_compra >= 90 ? 'background:#ef4444' : '')}"><svg class="custom-marker-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg></div>`,
           iconSize: [28, 35],
           iconAnchor: [14, 35],
           popupAnchor: [0, -35]
@@ -1108,7 +1520,7 @@ function renderizarClientes(clientes) {
       const popupContent = `
       <div class="popup-header">
         <h4>${escHtml(c.nome || c.nome_cliente || 'Sem nome')}</h4>
-        <p>${(c.distancia || 0).toFixed(1)} km de distância</p>
+        <p>${c._lead ? '🟣 Lead · ' : ''}${(c.distancia || 0).toFixed(1)} km de distância</p>
       </div>
       <div class="popup-body">
         <div class="popup-row">
@@ -1120,19 +1532,18 @@ function renderizarClientes(clientes) {
           <span class="popup-value">${escHtml(c.cidade || '—')}</span>
         </div>
         ${c.telefone ? `<div class="popup-row"><span class="popup-label">Telefone</span><span class="popup-value">${escHtml(c.telefone)}</span></div>` : ''}
+        ${c.dias_sem_compra != null ? `<div class="popup-row"><span class="popup-label">Última compra</span><span class="popup-value" style="font-weight:700;color:${c.dias_sem_compra >= 90 ? '#ef4444' : 'inherit'}">há ${c.dias_sem_compra} dias</span></div>` : (!c._lead && c.dtultimacompra === null ? `<div class="popup-row"><span class="popup-label">Última compra</span><span class="popup-value">nunca comprou</span></div>` : '')}
         <div class="popup-actions" style="flex-wrap:wrap">
-          <button class="popup-btn popup-btn-primary" onclick="abrirHistoricoVendas(${c.id})" style="flex:1 1 45%">
+          ${c._lead ? `<button class="popup-btn popup-btn-primary" onclick="abrirLeads()" style="flex:1 1 100%">Abrir em Leads</button>` : `<button class="popup-btn popup-btn-primary" onclick="abrirHistoricoVendas(${c.id})" style="flex:1 1 45%">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:12px;height:12px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
             Histórico
-          </button>
-          <a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}" target="_blank" class="popup-btn popup-btn-secondary" onclick="minimizarSheet()" style="flex:1 1 45%">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:12px;height:12px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
-            Rotas
-          </a>
-          <button class="popup-btn popup-btn-visit" onclick="agendarVisita(${c.id}, '${escHtml(c.nome || c.nome_cliente || '').replace(/'/g, "\\'")}')" style="flex:1 1 100%">
+          </button>`}
+          <button class="popup-btn popup-btn-secondary" onclick="abrirGoogleMapsPonto(${lat},${lng})" style="flex:1 1 45%">Google Maps</button>
+          <button class="popup-btn popup-btn-secondary" onclick="abrirWazePonto(${lat},${lng})" style="flex:1 1 45%">Waze</button>
+          ${c._lead ? '' : `<button class="popup-btn popup-btn-visit" onclick="agendarVisita(${c.id}, '${jsArg(c.nome || c.nome_cliente || '')}')" style="flex:1 1 100%">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:12px;height:12px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
             Agendar Visita
-          </button>
+          </button>`}
         </div>
       </div>
     `;
@@ -1156,7 +1567,9 @@ function renderizarClientes(clientes) {
       </div>
       <div class="client-address">${escHtml(formatarEndereco(c))}</div>
       <div class="client-meta">
-        <span>📍 ${escHtml(c.cidade || '—')}${c.uf ? '/' + c.uf : ''}</span>
+        <span>📍 ${escHtml(c.cidade || '—')}${c.uf ? '/' + escHtml(c.uf) : ''}</span>
+        ${c._lead ? '<span style="color:#7c3aed;font-weight:700">Lead</span>' : ''}
+        ${c.dias_sem_compra != null ? `<span style="font-weight:700;color:${c.dias_sem_compra >= 90 ? '#ef4444' : 'inherit'}">${c.dias_sem_compra}d sem compra</span>` : ''}
         ${c.numero ? `<span>#${escHtml(c.numero)}</span>` : ''}
       </div>
     `;
@@ -1224,7 +1637,7 @@ function toggleClusters() {
   }
 
   // Re-renderizar
-  renderizarClientes(clientesEncontrados);
+  renderizarAtual();
 }
 
 // ─── Rota Otimizada ─────────────────────────────────────────────────────────
@@ -1246,16 +1659,17 @@ async function toggleRota() {
   btn.classList.add('active');
 
   try {
-    // Preparar pontos
+    // Pontos: 1º = sua localização (origem fixa); depois os 20 mais próximos
     const pontos = clientesEncontrados
       .filter(c => c.latitude || c.lat)
-      .slice(0, 20) // Limite de 20 pontos
+      .slice(0, 20)
       .map(c => ({
         lat: parseFloat(c.latitude || c.lat),
         lng: parseFloat(c.longitude || c.lng),
         id: c.id,
         nome: c.nome || c.nome_cliente
       }));
+    if (userLocation) pontos.unshift({ lat: userLocation.lat, lng: userLocation.lng, id: null, nome: 'Você (partida)', origem: true });
 
     // Chamar API de otimização
     const response = await fetch(
@@ -1268,47 +1682,102 @@ async function toggleRota() {
     if (data.rota && data.rota.length > 0) {
       rotaOtimizada = data.rota;
 
+      const paradas = data.rota.filter(p => !p.origem).length;
       document.getElementById('routeDist').textContent = data.distanciaTotal.toFixed(1) + ' km';
-      document.getElementById('routeStops').textContent = data.qtdPontos;
+      document.getElementById('routeStops').textContent = paradas;
+      document.getElementById('routeTempo').textContent = data.duracaoMin != null
+        ? (data.duracaoMin >= 60 ? Math.floor(data.duracaoMin / 60) + 'h' + String(data.duracaoMin % 60).padStart(2, '0') : data.duracaoMin + ' min')
+        : '—';
+      document.getElementById('routeNota').textContent = data.fonte === 'ruas'
+        ? 'Percurso pelas ruas, na ordem que reduz o deslocamento.'
+        : 'Serviço de rotas indisponível: distância em linha reta (aproximada).';
       panel.classList.add('show');
 
-      // Desenhar rota no mapa (linhas retas entre pontos)
-      const routeCoords = data.rota.map(p => [p.lat, p.lng]);
+      // Traçado: pelas ruas (OSRM) ou linha reta no fallback
+      rotaLayer.clearLayers();
+      const routeCoords = data.geometry && data.geometry.length ? data.geometry : data.rota.map(p => [p.lat, p.lng]);
       L.polyline(routeCoords, {
-        color: '#4361ee',
-        weight: 4,
-        opacity: 0.8,
-        dashArray: '10, 10'
-      }).addTo(markersLayer);
+        color: '#4361ee', weight: 5, opacity: 0.85,
+        dashArray: data.fonte === 'ruas' ? null : '10, 10'
+      }).addTo(rotaLayer);
 
-      // Ajustar zoom
+      // Paradas numeradas na ordem da visita
+      let n = 0;
+      data.rota.forEach(p => {
+        const rotulo = p.origem ? '★' : ++n;
+        L.marker([p.lat, p.lng], {
+          icon: L.divIcon({
+            className: 'custom-div-icon',
+            html: `<div style="width:26px;height:26px;border-radius:50%;background:${p.origem ? '#16a34a' : '#4361ee'};color:#fff;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;font:800 12px Inter,sans-serif">${rotulo}</div>`,
+            iconSize: [26, 26], iconAnchor: [13, 13]
+          }),
+          zIndexOffset: 1000
+        }).bindTooltip(`${rotulo === '★' ? '' : rotulo + '. '}${escHtml(p.nome || '')}`).addTo(rotaLayer);
+      });
+
       map.fitBounds(routeCoords, { padding: [50, 50] });
+      proximaIdx = 0;
+      if (watchId != null) atualizarProximaParada();
 
-      toast('Rota otimizada com sucesso!', 'success');
+      toast(data.fonte === 'ruas' ? 'Rota otimizada pelas ruas!' : 'Rota aproximada (linha reta)', data.fonte === 'ruas' ? 'success' : 'warn');
+    } else {
+      btn.classList.remove('active');
+      toast('Não foi possível montar a rota', 'warn');
     }
   } catch (err) {
     console.error('Erro:', err);
+    btn.classList.remove('active');
     toast('Erro ao otimizar rota', 'error');
   } finally {
     showLoading(false);
   }
 }
 
-function fecharRota() {
+function limparRota() {
+  proximaIdx = 0;
   document.getElementById('routePanel').classList.remove('show');
   document.getElementById('btnRota').classList.remove('active');
   rotaOtimizada = [];
-  // Re-renderizar para remover linha
-  renderizarClientes(clientesEncontrados);
+  if (rotaLayer) rotaLayer.clearLayers();
+}
+
+function fecharRota() {
+  limparRota();
+}
+
+function abrirGoogleMapsPonto(lat, lng) {
+  window.open(`https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${lat},${lng}`, '_blank');
+}
+
+function abrirWazePonto(lat, lng) {
+  window.open(`https://waze.com/ul?ll=${lat},${lng}&navigate=yes&zoom=17`, '_blank');
+}
+
+// Paradas da rota sem o ponto de partida (a partida = posição atual do aparelho)
+function paradasDaRota() {
+  return rotaOtimizada.filter(p => !p.origem);
 }
 
 function abrirGoogleMaps() {
-  if (rotaOtimizada.length === 0) return;
+  const paradas = paradasDaRota();
+  if (paradas.length === 0) return;
 
-  // Criar URL do Google Maps com múltiplas paradas
-  const coords = rotaOtimizada.map(p => `${p.lat},${p.lng}`).join(';');
-  const url = `https://www.google.com/maps/dir/${coords}/data=!4m2!4m3!1e0!2m1!3e3`;
+  // Sem "origin", o Google Maps parte da posição atual (GPS) do aparelho.
+  // Limite: destino + 9 paradas intermediárias.
+  let pts = paradas.map(p => `${p.lat},${p.lng}`);
+  if (pts.length > 10) { pts = pts.slice(0, 10); toast('Google Maps aceita até 10 paradas: enviadas as 10 primeiras', 'warn'); }
+  const destino = pts[pts.length - 1];
+  const meio = pts.slice(0, -1).join('|');
+  let url = `https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${destino}`;
+  if (meio) url += `&waypoints=${encodeURIComponent(meio)}`;
   window.open(url, '_blank');
+}
+
+// Waze não aceita várias paradas: navega até a próxima da rota
+function abrirWazeProxima() {
+  const paradas = paradasDaRota();
+  if (paradas.length === 0) return;
+  abrirWazePonto(paradas[0].lat, paradas[0].lng);
 }
 
 // ─── Utilitários ────────────────────────────────────────────────────────────
@@ -1421,9 +1890,13 @@ function showTopbarActions() {
   var origBuscar = window.buscarClientesRaio;
   window.buscarClientesRaio = async function() {
     await origBuscar.apply(this, arguments);
-    sidebar.classList.remove('collapsed');
     var sub = sidebar.querySelector('.sidebar-subtitle');
-    if (sub) sub.textContent = clientesEncontrados.length + ' clientes encontrados';
+    var nome = modoMapa === 'lugares' ? 'estabelecimentos' : (modoMapa === 'pedidos' ? 'pedidos' : 'clientes');
+    if (sub) sub.textContent = clientesEncontrados.length + ' ' + nome + ' · toque para ver a lista';
+    // Mostra o mapa primeiro (lista recolhida); abre só se ainda não há resultado
+    if (clientesEncontrados.length === 0) sidebar.classList.remove('collapsed');
+    else sidebar.classList.add('collapsed');
+    setTimeout(function() { if (map) map.invalidateSize(); }, 400);
   };
 
   // FAB "Minha Localização"

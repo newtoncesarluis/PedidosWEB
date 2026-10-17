@@ -11,6 +11,46 @@
 module.exports = [
   {
     versao: '1.1.5.0',
+    tipo: 'NOVO',
+    titulo: 'Mapa de prospecção: leads em lote, filtros da carteira, mapa de calor e acompanhamento em tempo real',
+    descricao:
+      'No Mapa de Clientes: selecione vários estabelecimentos e salve como leads de uma vez (sem duplicar); veja leads e clientes juntos no mapa; filtre clientes sem compra há 30/60/90/180 dias e por vendedor; ' +
+      'use o mapa de calor para ver a concentração da carteira; busque por categorias com um toque (açougue, padaria, atacado, oficina...); e acompanhe sua posição em tempo real com aviso da próxima parada da rota.',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'MELHORIA',
+    titulo: 'Rotas do vendedor: funciona sem sinal e avisa quando a visita é registrada longe do cliente',
+    descricao:
+      'Sem internet, a rota aberta continua disponível e as visitas registradas ficam guardadas no aparelho, sendo enviadas sozinhas quando o sinal voltar. ' +
+      'Ao marcar uma visita como realizada a mais de 500 m do cliente, o sistema pede confirmação e registra a distância na observação. Avisos e confirmações passaram a usar o padrão visual do sistema.',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'MELHORIA',
+    titulo: 'Rotas e Mapa no celular: botões Google Maps e Waze, trajeto otimizado a partir da sua posição',
+    descricao:
+      'No Mapa de Clientes e nas Rotas do Vendedor, cada cliente agora tem botões diretos para Google Maps e Waze. O Google Maps parte da sua posição e leva só os clientes ainda pendentes (10 por vez). ' +
+      'Otimizar trajeto passou a usar a distância real em km, parte de onde você está e desenha o caminho pelas ruas com tempo estimado. Botões maiores no celular e correção de nomes com aspas/símbolos nas telas de rota.',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'MELHORIA',
+    titulo: 'Mapa: rota otimizada parte da sua posição, segue pelas ruas e mostra tempo de viagem',
+    descricao:
+      'A rota do Mapa de Clientes agora começa onde você está, traça o caminho real pelas ruas (não mais uma linha reta), numera as paradas na ordem de visita e mostra distância e tempo estimado. ' +
+      'O botão Google Maps passou a abrir a rota completa com as paradas corretamente. A rota também funciona com os estabelecimentos encontrados na busca.',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'NOVO',
+    titulo: 'Mapa de Clientes: encontre estabelecimentos novos perto de você (açougue, padaria, farmácia...)',
+    descricao:
+      'No Mapa de Clientes, escolha "Estabelecimentos (novos)" em Buscar, digite o tipo de comércio (ex.: açougue) e veja no mapa os locais próximos que ainda não são seus clientes — ' +
+      'com telefone, rota e WhatsApp quando disponíveis. Estabelecimentos que já estão no seu cadastro aparecem marcados em verde.',
+  },
+  {
+    versao: '1.1.5.0',
     tipo: 'MELHORIA',
     titulo: 'Parcelamento gera a sequência do documento (NF/1, NF/2, NF/3) e Pagar ganha forma de pagamento',
     descricao:
