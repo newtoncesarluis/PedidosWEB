@@ -1377,7 +1377,13 @@ function selecionarTodosLugares(marcado) {
 async function salvarLeadsLote(indices) {
   const alvo = indices.map(i => ({ i, p: clientesEncontrados[i] }))
     .filter(x => x.p && !x.p.cliente_id && !leadsSalvos.has(x.p.osm_id));
-  if (!alvo.length) { toast('Nada novo para salvar', 'info'); return; }
+  if (!alvo.length) {
+    const ps = indices.map(i => clientesEncontrados[i]).filter(Boolean);
+    if (ps.length && ps.every(p => leadsSalvos.has(p.osm_id))) toast(ps.length === 1 ? '✔ Este comércio já está salvo nos seus Leads.' : '✔ Estes comércios já estão salvos nos seus Leads.', 'success');
+    else if (ps.length && ps.every(p => p.cliente_id)) toast('Este comércio já é seu cliente, não precisa salvar como lead.', 'warn');
+    else toast('Todos os comércios selecionados já foram salvos ou já são seus clientes.', 'warn');
+    return;
+  }
   alvo.forEach(x => { const b = document.getElementById('btnLead_' + x.i); if (b) { b.disabled = true; b.textContent = 'Salvando...'; } });
   showLoading(true);
   try {
@@ -1400,8 +1406,8 @@ async function salvarLeadsLote(indices) {
     });
     atualizarBarraLote();
     const partes = [];
-    if (d.criados.length) partes.push(`${d.criados.length} salvo(s)`);
-    if (d.duplicados.length) partes.push(`${d.duplicados.length} já era(m) lead`);
+    if (d.criados.length) partes.push(`✔ ${d.criados.length} salvo(s) nos seus Leads`);
+    if (d.duplicados.length) partes.push(`${d.duplicados.length} já estava(m) nos seus Leads`);
     if (d.ja_cliente.length) partes.push(`${d.ja_cliente.length} já é/são cliente`);
     if (d.erros.length) partes.push(`${d.erros.length} com erro`);
     toast(partes.join(' · ') || 'Concluído', d.erros.length ? 'warn' : 'success');
@@ -1473,7 +1479,7 @@ function renderizarLugares(lugares) {
           <button class="popup-btn popup-btn-secondary" onclick="abrirWazePonto(${p.latitude},${p.longitude})" style="flex:1 1 45%">Waze</button>
           ${tel.length >= 10 ? `<a href="https://wa.me/55${tel.replace(/^55/, '')}" target="_blank" class="popup-btn popup-btn-primary" style="flex:1 1 45%">WhatsApp</a>` : ''}
           ${p.telefone ? '' : `<a href="${buscaGoogle}" target="_blank" rel="noopener" class="popup-btn popup-btn-secondary" style="flex:1 1 45%">${p.sem_nome ? 'Ver no Google (nome e fone)' : 'Buscar telefone no Google'}</a>`}
-          ${p.cliente_id ? '' : `<button class="popup-btn popup-btn-visit" id="btnLead_${index}" onclick="salvarLeadLugar(${index})" style="flex:1 1 100%">${leadsSalvos.has(p.osm_id) ? '✔ Lead salvo' : 'Salvar como lead'}</button>`}
+          ${p.cliente_id ? '' : `<button class="popup-btn popup-btn-visit" id="btnLead_${index}" onclick="salvarLeadLugar(${index})" style="flex:1 1 100%">${leadsSalvos.has(p.osm_id) ? '✔ Já está nos seus Leads' : 'Salvar como lead'}</button>`}
         </div>
       </div>`);
     (useClusters ? clusterLayer : markersLayer).addLayer(marker);
