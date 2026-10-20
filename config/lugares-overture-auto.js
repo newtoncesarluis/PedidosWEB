@@ -107,11 +107,10 @@ function enfileirar(cel) {
  * Situação da região do ponto e, se preciso, dispara a carga em segundo plano.
  * Retorna 'pronto' | 'carregando' | 'indisponivel'. Nunca lança erro e responde rápido.
  */
-async function statusRegiao(lat, lng) {
+async function _statusCelula(cel) {
   try {
-    if (!isFinite(lat) || !isFinite(lng)) return 'indisponivel';
+    const lat = (cel.s + cel.n) / 2, lng = (cel.w + cel.e) / 2;
     if (lng < BRASIL.w || lng > BRASIL.e || lat < BRASIL.s || lat > BRASIL.n) return 'indisponivel';
-    const cel = celulaDe(lat, lng);
 
     const mem = _emMemoria.get(cel.key);
     if (mem && mem.ate > Date.now()) {
@@ -160,4 +159,38 @@ async function statusRegiao(lat, lng) {
   }
 }
 
-module.exports = { statusRegiao, celulaDe, duckdbDisponivel };
+// Células (blocos de ~28 km) que o raio de busca alcança, a do centro primeiro; no máximo MAX_CELULAS
+const MAX_CELULAS = 6;
+function celulasDaBusca(lat, lng, raioKm) {
+  const dLat = raioKm / 111, dLng = raioKm / (111 * Math.max(0.2, Math.cos(lat * Math.PI / 180)));
+  const x0 = Math.floor((lng - dLng + 180) / CELULA), x1 = Math.floor((lng + dLng + 180) / CELULA);
+  const y0 = Math.floor((lat - dLat + 90) / CELULA), y1 = Math.floor((lat + dLat + 90) / CELULA);
+  const lista = [];
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) lista.push(celulaDe((y + 0.5) * CELULA - 90, (x + 0.5) * CELULA - 180));
+  const centro = celulaDe(lat, lng).key;
+  const dist = (c) => Math.abs((c.s + c.n) / 2 - lat) + Math.abs((c.w + c.e) / 2 - lng);
+  lista.sort((a, b) => (a.key === centro ? -1 : b.key === centro ? 1 : dist(a) - dist(b)));
+  return lista.slice(0, MAX_CELULAS);
+}
+
+/**
+ * Situação da base para a BUSCA (centro + raio): 'carregando' se algum bloco ainda está sendo preparado,
+ * 'pronto' se os blocos estão prontos, 'indisponivel' se não há como usar (fora do Brasil, sem DuckDB/banco).
+ * Dispara a carga em segundo plano dos blocos que faltam. Nunca lança erro.
+ */
+async function statusRegiao(lat, lng, raioKm = 5) {
+  try {
+    if (!isFinite(lat) || !isFinite(lng)) return 'indisponivel';
+    const r = Math.min(Math.max(parseFloat(raioKm) || 5, 0.05), 30);
+    const sts = [];
+    for (const cel of celulasDaBusca(lat, lng, r)) sts.push(await _statusCelula(cel));
+    if (sts.includes('carregando')) return 'carregando';
+    if (sts.includes('pronto')) return 'pronto';
+    return 'indisponivel';
+  } catch (e) {
+    console.warn('[lugares-auto] statusRegiao:', e.message);
+    return 'indisponivel';
+  }
+}
+
+module.exports = { statusRegiao, celulaDe, celulasDaBusca, duckdbDisponivel };
