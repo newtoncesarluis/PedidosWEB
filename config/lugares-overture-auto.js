@@ -181,12 +181,17 @@ function celulasDaBusca(lat, lng, raioKm) {
 async function statusRegiao(lat, lng, raioKm = 5) {
   try {
     if (!isFinite(lat) || !isFinite(lng)) return 'indisponivel';
-    const r = Math.min(Math.max(parseFloat(raioKm) || 5, 0.05), 30);
+    const r = Math.min(Math.max(parseFloat(raioKm) || 5, 0.05), 100);
     const sts = [];
-    for (const cel of celulasDaBusca(lat, lng, r)) sts.push(await _statusCelula(cel));
-    if (sts.includes('carregando')) return 'carregando';
+    for (const cel of celulasDaBusca(lat, lng, r)) sts.push(await _statusCelula(cel));   // a do centro vem primeiro
+    if (sts[0] === 'carregando') return 'carregando';
+    if (sts[0] === 'pronto') {
+      // 'parcial' = o bloco do centro está pronto, mas o raio (até 15 km) alcança blocos vizinhos que ainda carregam:
+      // já usa a base e avisa que as bordas estão sendo completadas. Raio maior: sempre 'pronto' (mostra os 150 mais próximos).
+      return (r <= 15 && sts.includes('carregando')) ? 'parcial' : 'pronto';
+    }
     if (sts.includes('pronto')) return 'pronto';
-    return 'indisponivel';
+    return sts.includes('carregando') ? 'carregando' : 'indisponivel';
   } catch (e) {
     console.warn('[lugares-auto] statusRegiao:', e.message);
     return 'indisponivel';
