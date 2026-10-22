@@ -9,6 +9,7 @@
 <script src="/assets/mobile-app.js"></script>
 <script src="/assets/comissao-preposto-ui.js?v=1.1.3.24"></script>
 <script src="/assets/sysrep-api.js?v=1.1.3.24"></script>
+<script src="/assets/confirm-dialog.js"></script>
 <link rel="stylesheet" href="/assets/mobile-app.css">
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -17,22 +18,20 @@
   --card: var(--card-bg);
   --border: var(--card-border);
   --text: var(--content-text);
-  --text2: var(--text2);
-  --accent: var(--accent);
   --accent-soft: var(--accent-soft, rgba(13,148,136,.12));
-  --accent-hover: var(--accent-hover);
   --danger: #ef4444;
   --warn: #f59e0b;
   --success: #10b981;
 }
 body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; }
 .toolbar {
-  position: sticky; top: 0; z-index: 30; background: var(--card);
-  border-bottom: 1px solid var(--border); padding: 12px 18px;
-  display: flex; flex-direction: column; gap: 10px;
+  position: relative; background: var(--card);
+  border-bottom: 1px solid var(--border); padding: 10px 16px;
+  display: flex; flex-direction: column; gap: 8px;
 }
 .tb-top { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-.tb-actions { margin-left: auto; display: flex; gap: 8px; }
+.tb-actions { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+.tb-actions .btn { padding: 8px 12px; }
 .tb-filters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .tb-filters .input { flex: 1 1 180px; min-width: 160px; width: auto; }
 .tb-filters .select { flex: 0 1 150px; min-width: 120px; width: auto; }
@@ -40,12 +39,12 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .stats { display: flex; gap: 8px; flex-wrap: wrap; }
 .stat {
   border: 1px solid var(--border); background: var(--bg); border-radius: 12px;
-  padding: 6px 11px; min-width: 90px;
+  padding: 4px 10px; min-width: 72px;
 }
 .stat small { display: block; color: var(--text2); font-size: 10px; text-transform: uppercase; letter-spacing: .05em; }
-.stat strong { display: block; font-size: 17px; margin-top: 1px; }
+.stat strong { display: block; font-size: 15px; }
 .input, .select, .textarea {
-  width: 100%; padding: 9px 12px; border: 1.5px solid var(--border);
+  width: 100%; padding: 7px 10px; border: 1.5px solid var(--border);
   border-radius: 12px; background: var(--card); color: var(--text);
   font: inherit; outline: none;
 }
@@ -63,7 +62,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .btn-success { background: var(--success); color: #fff; border-color: var(--success); }
 .btn-danger { background: var(--danger); color: #fff; border-color: var(--danger); }
 .btn-toggle.active { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
-.content { padding: 16px; }
+.content { padding: 12px 16px 16px; }
 .summary-grid {
   display: grid; grid-template-columns: repeat(4, minmax(200px, 1fr));
   gap: 12px; margin-bottom: 14px;
@@ -128,9 +127,6 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .board-scroll-wrap.board-scrollable .board-scroll-hint { display: flex; }
 .board-scroll-wrap.board-scrollable .board-scroll-hint { display: block; }
 .board-scroll-wrap.board-scrollable .board {
-  padding-left: 44px;
-  padding-right: 44px;
-  scroll-padding-inline: 44px;
 }
 .board-scroll-wrap.board-scrollable::before,
 .board-scroll-wrap.board-scrollable::after {
@@ -151,7 +147,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
   background: linear-gradient(270deg, var(--bg) 20%, transparent);
 }
 .board {
-  display: grid; grid-template-columns: repeat(6, minmax(220px, 1fr)); gap: 12px;
+  display: grid; grid-template-columns: repeat(6, minmax(200px, 1fr)); gap: 10px;
   overflow-x: auto; padding-bottom: 4px;
   scroll-snap-type: x proximity;
   -webkit-overflow-scrolling: touch;
@@ -159,10 +155,10 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .board .col { scroll-snap-align: start; }
 .col {
   background: var(--card); border: 1px solid var(--border); border-radius: 18px;
-  min-height: 420px; display: flex; flex-direction: column;
+  min-height: 320px; max-height: calc(100vh - 170px); display: flex; flex-direction: column; min-width: 0;
 }
 .col-head {
-  padding: 14px 14px 10px; border-bottom: 1px solid var(--border);
+  padding: 10px 12px; border-bottom: 1px solid var(--border);
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
 }
 .col-head h3 { font-size: 13px; font-weight: 800; }
@@ -171,27 +167,34 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
   padding: 2px 8px; border-radius: 999px; background: var(--accent-soft);
   color: var(--accent); font-size: 11px; font-weight: 800;
 }
-.col-body { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.col-body { padding: 8px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; flex: 1; }
 .lead-card {
   border: 1px solid var(--border); border-left-width: 4px; border-radius: 16px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--card) 92%, var(--accent-soft)), var(--card));
-  padding: 12px; box-shadow: 0 10px 24px rgba(0,0,0,.04);
+  padding: 10px; box-shadow: 0 2px 8px rgba(0,0,0,.04);
 }
 .priority-high { border-left-color: var(--danger); }
 .priority-medium { border-left-color: var(--warn); }
 .priority-low { border-left-color: var(--accent); }
 .priority-done { border-left-color: var(--success); }
-.lead-title { font-weight: 800; font-size: 14px; }
+.lead-title { font-weight: 800; font-size: 13px; line-height: 1.25; word-break: break-word; }
 .lead-company { margin-top: 3px; font-size: 12px; color: var(--text2); }
-.lead-topline, .lead-footer { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
-.lead-meta { margin-top: 9px; display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--text2); }
+.lead-topline, .lead-footer { margin-top: 7px; display: flex; gap: 6px; flex-wrap: wrap; }
+.lead-meta { margin-top: 7px; display: flex; flex-direction: column; gap: 3px; font-size: 12px; word-break: break-word; color: var(--text2); }
 .lead-chip {
-  display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px;
-  border-radius: 999px; background: var(--bg); color: var(--text2); font-size: 11px; font-weight: 700;
+  display: inline-flex; align-items: center; gap: 5px; padding: 2px 7px;
+  border-radius: 999px; background: var(--bg); color: var(--text2); font-size: 10.5px; font-weight: 700;
 }
-.lead-actions { margin-top: 12px; display: flex; gap: 6px; flex-wrap: wrap; }
-.lead-actions .btn { padding: 8px 10px; font-size: 11px; border-radius: 10px; }
-.empty { padding: 18px 8px; text-align: center; color: var(--text2); font-size: 12px; }
+.lead-actions { margin-top: 8px; display: flex; gap: 5px; flex-wrap: wrap; }
+.lead-actions .btn, .lead-topline .btn { padding: 5px 9px; font-size: 11px; border-radius: 9px; text-decoration: none; }
+.lead-chip.t-quente { background: rgba(239,68,68,.14); color: var(--danger); }
+.lead-chip.t-morno { background: rgba(245,158,11,.16); color: var(--warn); }
+.lead-chip.t-atraso { background: rgba(239,68,68,.14); color: var(--danger); }
+.summary-wrap { margin: 0 0 10px; }
+.summary-wrap[hidden] { display: none; }
+.summary-wrap > summary { cursor: pointer; font-size: 12px; font-weight: 800; color: var(--text2); text-transform: uppercase; letter-spacing: .05em; padding: 8px 2px; }
+.summary-wrap .summary-grid { margin: 8px 0 0; }
+.empty { padding: 14px 8px; text-align: center; color: var(--text2); font-size: 12px; }
 .modal-backdrop {
   position: fixed; inset: 0; background: rgba(15,23,42,.48); display: none;
   align-items: center; justify-content: center; z-index: 90; padding: 20px;
@@ -214,6 +217,43 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 }
 .textarea { min-height: 120px; resize: vertical; }
 .cond-hidden { display: none; }
+.lead-tabs-wrap { display: flex; align-items: center; gap: 6px; margin-bottom: 14px; position: sticky; top: 0; z-index: 5; background: var(--card); padding-bottom: 6px; }
+.lead-tabs { display: flex; gap: 6px; flex: 1 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: none; scroll-behavior: smooth; -webkit-overflow-scrolling: touch; }
+.lead-tabs::-webkit-scrollbar { display: none; }
+.lead-tab { flex: 1 0 auto; border: 1px solid var(--border); background: var(--bg, var(--card)); color: var(--text2); border-radius: 999px;
+  padding: 10px 16px; min-height: 44px; font-size: 13px; font-weight: 800; cursor: pointer; white-space: nowrap; font-family: inherit; }
+.lead-tab.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.lead-tab-arrow { flex: 0 0 auto; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--border); background: var(--card); color: var(--text);
+  font-size: 22px; line-height: 1; cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center; }
+.lead-tab-arrow:disabled { opacity: .35; cursor: default; }
+.lead-sub { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+.lead-sub button { border: 1px solid var(--border); background: var(--card); color: var(--text2); border-radius: 10px; padding: 8px 12px; min-height: 40px;
+  font-size: 12.5px; font-weight: 800; cursor: pointer; font-family: inherit; flex: 1 1 auto; }
+.lead-sub button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.foto-acoes { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.foto-acoes small { color: var(--text2); font-size: 12px; }
+.foto-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
+.foto-item { position: relative; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--bg); aspect-ratio: 4 / 3; }
+.foto-item img { width: 100%; height: 100%; object-fit: cover; display: block; cursor: pointer; }
+.foto-item button { position: absolute; top: 6px; right: 6px; width: 32px; height: 32px; border-radius: 50%; border: none; background: rgba(15,23,42,.72); color: #fff; font-size: 16px; line-height: 1; cursor: pointer; }
+.lead-subpanel { display: none; }
+.lead-subpanel.on { display: block; }
+.sub-hint { display: none; color: var(--text2); font-size: 12px; padding: 10px 0; }
+#taskBox[style*="none"] + .sub-hint, #visitasBox[style*="none"] + .sub-hint { display: block; }
+.history-list.compact { max-height: 46vh; }
+.hist-more { width: 100%; margin-top: 8px; }
+.lead-panel { display: none; }
+.lead-panel.on { display: block; }
+@media (max-width: 600px) {
+  .grid { grid-template-columns: 1fr !important; }
+  .modal-body { padding: 12px; }
+  .lead-tab { padding: 10px 12px; font-size: 12.5px; }
+  .modal-foot { position: sticky; bottom: 0; background: var(--card); padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); }
+  .modal-foot .btn { flex: 1 1 calc(50% - 8px); min-height: 46px; }
+  .modal-foot #btnSave { flex: 1 1 100%; }
+  .modal-foot #btnCancel { display: none; } /* já existe «Fechar» no topo */
+  .modal .input, .modal .select, .modal .textarea { font-size: 16px; min-height: 44px; }
+}
 .modal-foot {
   padding: 16px 18px 18px; border-top: 1px solid var(--border);
   display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap;
@@ -287,7 +327,8 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
   .tb-actions { margin-left: 0; }
   .tb-filters .input { flex: 1 1 100%; }
   .tb-filters .select { flex: 1 1 calc(50% - 4px); }
-  .grid { grid-template-columns: 1fr; }
+  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .toolbar { position: sticky; top: 0; z-index: 30; }
 }
 /* ── App vendedor (iframe) ── */
 html.sysrep-ms-embed body:has(#st-total) .toolbar,
@@ -345,6 +386,10 @@ html.ms-embedded-tech.ms-page-leads .board {
   min-height: 52vh;
   padding-bottom: 8px;
 }
+html.sysrep-ms-embed body:has(#st-total) .summary-wrap,
+html.ms-embedded-tech.ms-page-leads .summary-wrap {
+  order: 2;
+}
 html.sysrep-ms-embed body:has(#st-total) .summary-grid,
 html.ms-embedded-tech.ms-page-leads .summary-grid {
   order: 2;
@@ -386,6 +431,28 @@ html.ms-embedded-tech.ms-page-leads .modal {
   border-radius: 16px 16px 0 0;
   margin-top: auto;
 }
+.lead-card { padding: 7px 9px !important; border-radius: 10px !important; box-shadow: none !important; }
+.lc-row { display: flex; align-items: center; gap: 6px; }
+.lc-ell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
+.lead-card .lead-title { font-size: 12.5px; }
+.lc-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.lc-sub { font-size: 11px; color: var(--text2); margin-top: 2px; }
+.lc-badges { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
+.lc-acts { display: flex; gap: 4px; margin-top: 6px; }
+.lc-acts .btn.ic { padding: 0; width: 28px; height: 26px; font-size: 13px; line-height: 1; border-radius: 8px;
+  display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+.lc-acts .lc-del { margin-left: auto; background: var(--card); color: var(--danger); border-color: var(--border); }
+.lc-acts .lc-del:hover { background: var(--danger); color: #fff; }
+.col-body { gap: 6px !important; }
+@media (min-width: 901px) {
+  html, body { height: 100%; }
+  body { display: flex; flex-direction: column; min-height: 0; height: 100vh; overflow: hidden; }
+  .content { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; padding-bottom: 10px; }
+  .summary-wrap { flex: 0 0 auto; max-height: 40vh; overflow: auto; }
+  .board-scroll-wrap { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+  .board { flex: 1 1 auto; min-height: 0; padding-bottom: 0; }
+  .board .col { max-height: none; min-height: 0; height: 100%; }
+}
 </style>
 </head>
 <body>
@@ -399,8 +466,10 @@ html.ms-embedded-tech.ms-page-leads .modal {
         <div class="stat"><small>Perdidos</small><strong id="st-lost">0</strong></div>
       </div>
       <div class="tb-actions">
+        <button class="btn btn-toggle" id="btnResumo" type="button" title="Retornos, conversão, vendedores e tarefas do dia">Resumo</button>
         <button class="btn" id="btnRefresh" type="button">Atualizar</button>
         <button class="btn" id="btnImport" type="button">Importar Excel</button>
+        <button class="btn" id="btnBuscador" type="button" title="Receber os leads do Buscador de Clientes">Buscador</button>
         <button class="btn" id="btnFormularios" type="button">Formulários</button>
         <button class="btn btn-primary" id="btnNovo" type="button">+ Novo Lead</button>
       </div>
@@ -442,9 +511,9 @@ html.ms-embedded-tech.ms-page-leads .modal {
         <option value="FRIO">Frio</option>
       </select>
       <select id="periodFilter" class="select">
-        <option value="0">Todo período</option>
+        <option value="0" selected>Todo período</option>
         <option value="7">Últimos 7 dias</option>
-        <option value="30" selected>Últimos 30 dias</option>
+        <option value="30">Últimos 30 dias</option>
         <option value="90">Últimos 90 dias</option>
       </select>
       <button class="btn btn-toggle" id="btnOverdue" type="button">Só atrasados</button>
@@ -452,6 +521,7 @@ html.ms-embedded-tech.ms-page-leads .modal {
   </div>
 
   <div class="content">
+    <div class="summary-wrap" id="summaryWrap" hidden>
     <div class="summary-grid">
       <section class="summary-card">
         <h3>Retornos pendentes</h3>
@@ -470,6 +540,7 @@ html.ms-embedded-tech.ms-page-leads .modal {
         <div id="todayTaskList" class="task-list" style="max-height:200px"><div class="summary-empty">Sem tarefas pendentes.</div></div>
       </section>
     </div>
+    </div>
     <div class="board-scroll-wrap" id="boardScrollWrap">
       <button type="button" class="board-scroll-btn board-scroll-prev" id="boardScrollPrev" aria-label="Estágio anterior" title="Estágio anterior">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
@@ -480,6 +551,7 @@ html.ms-embedded-tech.ms-page-leads .modal {
       </button>
       <p class="board-scroll-hint" id="boardScrollHint">Deslize ou use as setas para ver todos os estágios →</p>
     </div>
+
   </div>
 
   <div class="modal-backdrop" id="modalBack">
@@ -489,7 +561,17 @@ html.ms-embedded-tech.ms-page-leads .modal {
         <button class="btn" type="button" id="btnCloseTop">Fechar</button>
       </div>
       <div class="modal-body">
-        <div class="grid">
+        <div class="lead-tabs-wrap">
+          <button type="button" class="lead-tab-arrow" id="leadTabPrev" onclick="leadTabStep(-1)" aria-label="Etapa anterior">&#8249;</button>
+          <div class="lead-tabs" id="leadTabs" role="tablist">
+            <button type="button" class="lead-tab on" data-tab="0" onclick="leadTab(0)">1 · Contato</button>
+            <button type="button" class="lead-tab" data-tab="1" onclick="leadTab(1)">2 · Endereço</button>
+            <button type="button" class="lead-tab" data-tab="2" onclick="leadTab(2)">3 · Comercial</button>
+            <button type="button" class="lead-tab" data-tab="3" onclick="leadTab(3)">4 · Acompanhamento</button>
+          </div>
+          <button type="button" class="lead-tab-arrow" id="leadTabNext" onclick="leadTabStep(1)" aria-label="Próxima etapa">&#8250;</button>
+        </div>
+        <div class="lead-panel on" data-panel="0"><div class="grid">
           <div class="field"><label for="f_nome">Nome</label><input id="f_nome" class="input" type="text" maxlength="150"></div>
           <div class="field"><label for="f_empresa">Empresa</label><input id="f_empresa" class="input" type="text" maxlength="150"></div>
           <div class="field"><label for="f_cargo">Cargo</label><input id="f_cargo" class="input" type="text" maxlength="100"></div>
@@ -499,6 +581,8 @@ html.ms-embedded-tech.ms-page-leads .modal {
           <div class="field"><label for="f_instagram">Instagram</label><input id="f_instagram" class="input" type="text" maxlength="120"></div>
           <div class="field"><label for="f_facebook">Facebook</label><input id="f_facebook" class="input" type="text" maxlength="120"></div>
           <div class="field"><label for="f_segmento">Segmento</label><input id="f_segmento" class="input" type="text" maxlength="120"></div>
+        </div></div>
+        <div class="lead-panel" data-panel="1"><div class="grid">
           <div class="field full"><label for="f_endereco">Endereço</label><input id="f_endereco" class="input" type="text" maxlength="255" placeholder="Rua, número"></div>
           <div class="field"><label for="f_bairro">Bairro</label><input id="f_bairro" class="input" type="text" maxlength="100"></div>
           <div class="field"><label for="f_cep">CEP</label><input id="f_cep" class="input" type="text" maxlength="20"></div>
@@ -509,6 +593,8 @@ html.ms-embedded-tech.ms-page-leads .modal {
           <div class="field full" style="display:flex;align-items:flex-end">
             <button type="button" class="btn btn-outline" id="btnGeocodeLead" onclick="geocodeLeadForm()" style="width:100%">Buscar coordenadas pelo endereço</button>
           </div>
+        </div></div>
+        <div class="lead-panel" data-panel="2"><div class="grid">
           <div class="field">
             <label for="f_origem">Origem</label>
             <select id="f_origem" class="select">
@@ -568,8 +654,19 @@ html.ms-embedded-tech.ms-page-leads .modal {
           <div class="field"><label for="f_ultimo_contato">Último contato</label><input id="f_ultimo_contato" class="input" type="datetime-local"></div>
           <div class="field full"><label for="f_tags">Tags</label><input id="f_tags" class="input" type="text" maxlength="255" placeholder="Ex: atacado, urgente, proposta, revenda"></div>
           <div class="field full cond-hidden" id="grp_motivo_perda"><label for="f_motivo_perda">Motivo da perda</label><input id="f_motivo_perda" class="input" type="text" maxlength="255"></div>
+        </div></div>
+        <div class="lead-panel" data-panel="3">
+          <div class="lead-sub" id="leadSub">
+            <button type="button" class="on" data-sub="0" onclick="leadSub(0)">Observações</button>
+            <button type="button" data-sub="1" onclick="leadSub(1)">Tarefas</button>
+            <button type="button" data-sub="2" onclick="leadSub(2)">Visitas</button>
+            <button type="button" data-sub="3" onclick="leadSub(3)">Histórico <span id="histCount"></span></button>
+            <button type="button" data-sub="4" onclick="leadSub(4)">Fotos <span id="fotoCount"></span></button>
+          </div>
+          <div class="lead-subpanel on" data-sub="0"><div class="grid">
           <div class="field full"><label for="f_obs">Observações</label><textarea id="f_obs" class="textarea" placeholder="Anotações do contato, necessidades, objeções, próximos passos..."></textarea></div>
-        </div>
+          </div></div>
+          <div class="lead-subpanel" data-sub="1">
         <div class="task-box" id="taskBox" style="display:none">
           <h3>Tarefas / Follow-up <span id="taskBadgeModal"></span></h3>
           <div id="taskList" class="task-list"><div class="history-empty">Nenhuma tarefa.</div></div>
@@ -589,6 +686,9 @@ html.ms-embedded-tech.ms-page-leads .modal {
             </div>
           </div>
         </div>
+        <div class="sub-hint">Salve o lead para usar tarefas e visitas.</div>
+          </div>
+          <div class="lead-subpanel" data-sub="2">
         <div class="history-box" id="visitasBox" style="display:none">
           <h3>Visitas agendadas</h3>
           <div id="visitasList" class="history-list"><div class="history-empty">Nenhuma visita registrada.</div></div>
@@ -596,17 +696,30 @@ html.ms-embedded-tech.ms-page-leads .modal {
             <button class="btn btn-primary" type="button" id="btnNovaVisitaModal" style="font-size:11px;padding:7px 12px">+ Agendar nova visita</button>
           </div>
         </div>
-        <div class="history-box">
-          <h3>Histórico do lead</h3>
-          <div id="historyList" class="history-list"><div class="history-empty">Salve o lead para começar o histórico.</div></div>
-          <div class="history-compose">
+        <div class="sub-hint">Salve o lead (e converta em cliente) para agendar visitas.</div>
+          </div>
+          <div class="lead-subpanel" data-sub="3">
+        <div class="history-box" style="margin-top:0;border-top:0;padding-top:0">
+          <div class="history-compose" style="margin-top:0">
             <textarea id="f_nota" class="textarea" placeholder="Registrar contato, retorno, objeção, proposta enviada..."></textarea>
             <button class="btn" type="button" id="btnAddNote">Adicionar nota</button>
+          </div>
+          <div id="historyList" class="history-list"><div class="history-empty">Salve o lead para começar o histórico.</div></div>
+        </div>
+          </div>
+          <div class="lead-subpanel" data-sub="4">
+            <div class="foto-acoes">
+              <button class="btn btn-primary" type="button" id="btnAddFoto" onclick="leadFotoEscolher()">📷 Tirar / enviar foto</button>
+              <small>Foto da fachada do comércio. Fica salva neste lead.</small>
+            </div>
+            <div id="fotoGrid" class="foto-grid"><div class="history-empty">Salve o lead para anexar fotos.</div></div>
           </div>
         </div>
       </div>
       <div class="modal-foot">
         <button class="btn" type="button" id="btnCancel">Cancelar</button>
+        <button class="btn" type="button" id="btnTabPrev" onclick="leadTabStep(-1)">‹ Voltar</button>
+        <button class="btn" type="button" id="btnTabNext" onclick="leadTabStep(1)">Avançar ›</button>
         <button class="btn btn-primary" type="button" id="btnSave">Salvar Lead</button>
       </div>
     </div>
@@ -693,6 +806,49 @@ html.ms-embedded-tech.ms-page-leads .modal {
     </div>
   </div>
 
+  <!-- Modal Integração Buscador -->
+  <div class="modal-backdrop" id="buscBack">
+    <div class="modal" style="width:min(560px,100%)">
+      <div class="modal-head">
+        <h2>Integração com o Buscador de Clientes</h2>
+        <button class="btn" type="button" id="btnBuscClose">Fechar</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:13px;color:var(--text2);margin-bottom:14px">
+          Informe a <strong>licença do Buscador</strong>: o PedidosWeb busca os leads novos de lá e os coloca aqui, com origem “Buscador”.
+        </p>
+        <div class="field" style="margin-bottom:10px">
+          <label for="buscUrl">Endereço do Buscador</label>
+          <input type="text" id="buscUrl" class="input" autocomplete="off" placeholder="https://buscador.suaempresa.com.br">
+        </div>
+        <div class="field" style="margin-bottom:10px">
+          <label for="buscLic">Licença do Buscador</label>
+          <input type="text" id="buscLic" class="input" autocomplete="off" placeholder="XXXX-XXXX-XXXX-XXXX" style="text-transform:uppercase">
+          <small id="buscLicInfo" style="color:var(--text2)"></small>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+          <div class="field" style="flex:1 1 200px">
+            <label for="buscVend">Entregar os leads ao vendedor</label>
+            <select id="buscVend" class="input"></select>
+          </div>
+          <div class="field" style="flex:1 1 140px">
+            <label for="buscInt">Conferir a cada (min)</label>
+            <input type="number" id="buscInt" class="input" min="5" max="1440" value="30" autocomplete="off">
+          </div>
+        </div>
+        <label style="display:flex;gap:8px;align-items:center;font-size:13px;margin-bottom:10px">
+          <input type="checkbox" id="buscAtivo"> Buscar automaticamente ao abrir a tela de Leads
+        </label>
+        <div id="buscStatus" style="font-size:12px;color:var(--text2)"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" type="button" id="btnBuscTestar">Testar conexão</button>
+        <button class="btn" type="button" id="btnBuscSalvar">Salvar</button>
+        <button class="btn btn-primary" type="button" id="btnBuscSync">Buscar leads agora</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal Formulários de Captura -->
   <div class="modal-backdrop" id="capBackdrop" style="display:none">
     <div class="modal" style="width:min(860px,100%)">
@@ -771,7 +927,7 @@ const state = {
   vendedores: [],
   editingId: null,
   editingLead: null,
-  periodDays: 30,
+  periodDays: 0,
   onlyOverdue: false,
   wppConnected: false,
   emailConfigured: false,
@@ -846,20 +1002,31 @@ function normalizeTemp(value) {
   return ['QUENTE', 'MORNO', 'FRIO'].includes(t) ? t : '';
 }
 
+function leadAtraso(lead) {
+  if (!lead.data_proximo_contato || ['GANHO', 'PERDIDO'].includes(lead.status_funil)) return null;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const next = new Date(String(lead.data_proximo_contato).slice(0, 10) + 'T12:00:00'); next.setHours(0, 0, 0, 0);
+  if (Number.isNaN(next.getTime())) return null;
+  return Math.floor((today - next) / 86400000); // >0 atrasado, 0 hoje, <0 futuro
+}
+
 function getLeadPriority(lead) {
-  if (lead.status_funil === 'GANHO') return { key: 'done', label: 'Convertido' };
-  if (lead.status_funil === 'PERDIDO') return { key: 'done', label: 'Encerrado' };
-  if (lead.prioridade === 'ALTA') return { key: 'high', label: 'Prioridade alta' };
-  if (lead.data_proximo_contato) {
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    const next = new Date(lead.data_proximo_contato + 'T12:00:00'); next.setHours(0, 0, 0, 0);
-    const diff = Math.floor((next - today) / 86400000);
-    if (diff < 0) return { key: 'high', label: `${Math.abs(diff)}d atraso` };
-    if (diff === 0) return { key: 'high', label: 'Vence hoje' };
-    if (diff <= 2) return { key: 'medium', label: 'Próximo' };
+  if (lead.status_funil === 'GANHO' || lead.status_funil === 'PERDIDO') return { key: 'done', label: '' };
+  const atraso = leadAtraso(lead);
+  if (atraso !== null) {
+    if (atraso > 0) return { key: 'high', label: `${atraso}d atraso`, overdue: true };
+    if (atraso === 0) return { key: 'high', label: 'Vence hoje', overdue: true };
+    if (atraso >= -2) return { key: 'medium', label: 'Contato próximo' };
   }
-  if (lead.prioridade === 'MEDIA') return { key: 'medium', label: 'Prioridade média' };
-  return { key: 'low', label: 'Em dia' };
+  if (lead.prioridade === 'ALTA') return { key: 'high', label: '' };
+  if (lead.prioridade === 'MEDIA') return { key: 'medium', label: '' };
+  return { key: 'low', label: '' };
+}
+
+function cleanPhone(raw) {
+  let d = String(raw || '').replace(/\D/g, '');
+  if (d && !d.startsWith('55') && d.length <= 11) d = '55' + d;
+  return d;
 }
 
 function renderStats() {
@@ -974,75 +1141,70 @@ function renderBoard() {
 
 function renderCard(lead) {
   const priority = getLeadPriority(lead);
-  const next = lead.data_proximo_contato ? new Date(lead.data_proximo_contato + 'T12:00:00').toLocaleDateString('pt-BR') : 'Sem data';
+  const nextDate = lead.data_proximo_contato ? new Date(String(lead.data_proximo_contato).slice(0, 10) + 'T12:00:00').toLocaleDateString('pt-BR') : '';
   const canConvert = !lead.convertido_cliente_id && lead.status_funil !== 'PERDIDO';
   const canVisit = !!lead.convertido_cliente_id;
-  const temp = normalizeTemp(lead.temperatura_lead) || 'FRIO';
+  const temp = normalizeTemp(lead.temperatura_lead);
+  const nome = String(lead.nome || '').trim() || 'Lead sem nome';
+  const fone = lead.whatsapp || lead.telefone;
+  const local = [lead.cidade, lead.uf].filter(Boolean).join('/');
+  const sub = [fone, local].filter(Boolean).join(' · ');
+  const tip = [
+    lead.empresa && lead.empresa !== nome ? 'Empresa: ' + lead.empresa : '',
+    lead.email ? 'E-mail: ' + lead.email : '',
+    lead.origem ? 'Origem: ' + lead.origem : '',
+    lead.campanha ? 'Campanha: ' + lead.campanha : '',
+    lead.segmento ? 'Segmento: ' + lead.segmento : '',
+    lead.produto_interesse ? 'Produto: ' + lead.produto_interesse : '',
+    lead.tags ? 'Tags: ' + lead.tags : '',
+    lead.nome_vendedor ? 'Responsável: ' + lead.nome_vendedor : '',
+    nextDate ? 'Retorno: ' + nextDate : '',
+  ].filter(Boolean).join('\n');
+  const dot = temp === 'QUENTE' ? '#ef4444' : temp === 'MORNO' ? '#f59e0b' : temp === 'FRIO' ? '#60a5fa' : '';
+  const badges = [
+    priority.label ? `<span class="lead-chip t-atraso">${esc(priority.label)}</span>` : '',
+    lead.tarefas_vencidas > 0 ? `<span class="task-badge">${lead.tarefas_vencidas} vencida${lead.tarefas_vencidas > 1 ? 's' : ''}</span>` : '',
+    lead.tarefas_pendentes > 0 && !lead.tarefas_vencidas ? `<span class="task-badge ok">${lead.tarefas_pendentes} tarefa${lead.tarefas_pendentes > 1 ? 's' : ''}</span>` : '',
+    Number(lead.valor_estimado || 0) ? `<span class="lead-chip">${esc(formatMoney(lead.valor_estimado))}</span>` : '',
+    lead.nome_cliente_convertido ? `<span class="lead-chip">Cliente</span>` : '',
+  ].join('');
+  const ic = (cls, title, onclick, txt) => `<button class="btn ic ${cls}" type="button" title="${title}" onclick="${onclick}">${txt}</button>`;
   return `
-    <article class="lead-card priority-${priority.key}" draggable="true" ondragstart="dragStart(event,${lead.id})" ondragend="dragEnd(event)">
-      <div class="lead-title" style="display:flex;align-items:center;gap:7px">
-        ${esc(lead.nome)}
-        ${lead.tarefas_vencidas > 0 ? `<span class="task-badge">${lead.tarefas_vencidas} tarefa${lead.tarefas_vencidas > 1 ? 's' : ''} vencida${lead.tarefas_vencidas > 1 ? 's' : ''}</span>` : ''}
-        ${lead.tarefas_pendentes > 0 && !lead.tarefas_vencidas ? `<span class="task-badge ok">${lead.tarefas_pendentes} tarefa${lead.tarefas_pendentes > 1 ? 's' : ''}</span>` : ''}
+    <article class="lead-card priority-${priority.key}" draggable="true" title="${esc(tip)}" ondragstart="dragStart(event,${lead.id})" ondragend="dragEnd(event)">
+      <div class="lc-row">
+        <div class="lead-title lc-ell">${esc(nome)}</div>
+        ${dot ? `<span class="lc-dot" style="background:${dot}" title="${tempLabelOf(temp)}"></span>` : ''}
       </div>
-      <div class="lead-company">${esc(lead.empresa || 'Sem empresa informada')}</div>
-      <div class="lead-topline">
-        <span class="lead-chip">${esc(priority.label)}</span>
-        <span class="lead-chip">${esc(lead.prioridade || 'MEDIA')}</span>
-        <span class="lead-chip">${esc(temp)}</span>
-        ${Number(lead.score || 0) ? `<span class="lead-chip">Score ${esc(lead.score)}</span>` : ''}
-      </div>
-      <div class="lead-meta">
-        <div>${esc(lead.whatsapp || lead.telefone || 'Sem contato')}</div>
-        <div>${esc(lead.email || 'Sem e-mail')}</div>
-        <div>${esc([lead.cidade, lead.uf].filter(Boolean).join(' / ') || 'Local não informado')}</div>
-        <div>Origem: ${esc(lead.origem || 'Manual')}</div>
-        ${lead.campanha ? `<div>Campanha: ${esc(lead.campanha)}</div>` : ''}
-        ${lead.produto_interesse ? `<div>Produto: ${esc(lead.produto_interesse)}</div>` : ''}
-        <div>Próximo contato: ${esc(next)}</div>
-        ${lead.nome_vendedor ? `<div>Responsável: ${esc(lead.nome_vendedor)}</div>` : ''}
-      </div>
-      <div class="lead-footer">
-        ${lead.segmento ? `<span class="lead-chip">${esc(lead.segmento)}</span>` : ''}
-        ${lead.tags ? `<span class="lead-chip">${esc(lead.tags)}</span>` : ''}
-        ${Number(lead.valor_estimado || 0) ? `<span class="lead-chip">${esc(formatMoney(lead.valor_estimado))}</span>` : ''}
-        ${lead.nome_cliente_convertido ? `<span class="lead-chip">Cliente: ${esc(lead.nome_cliente_convertido)}</span>` : ''}
-      </div>
-      ${(lead.whatsapp || lead.telefone || lead.email) ? `
-      <div class="lead-topline" style="margin-top:10px">
-        ${(lead.whatsapp || lead.telefone) ? (
-          state.wppConnected
-            ? `<button class="btn" type="button" onclick="openWppCompose(${lead.id})">WhatsApp</button>`
-            : `<a class="btn" href="https://wa.me/55${(lead.whatsapp||lead.telefone).replace(/\D/g,'')}" target="_blank" rel="noopener">WhatsApp</a>`
-        ) : ''}
-        ${lead.email ? (
-          state.emailConfigured
-            ? `<button class="btn" type="button" onclick="openEmailCompose(${lead.id})">E-mail</button>`
-            : `<a class="btn" href="mailto:${esc(lead.email)}" target="_blank" rel="noopener">E-mail</a>`
-        ) : ''}
-      </div>` : ''}
-      <div class="lead-actions">
-        <button class="btn" type="button" onclick="openEdit(${lead.id})">Editar</button>
-        ${canConvert ? `<button class="btn btn-success" type="button" onclick="convertLead(${lead.id})">Converter</button>` : ''}
-        ${canVisit ? `<button class="btn btn-primary" type="button" onclick="newOrder(${lead.id})">Fazer pedido</button>` : ''}
-        ${canVisit ? `<button class="btn" type="button" onclick="scheduleVisit(${lead.id})">Agendar visita</button>` : ''}
-        ${canVisit ? `<button class="btn" type="button" onclick="openClient(${lead.convertido_cliente_id})">Abrir cliente</button>` : ''}
-        <button class="btn btn-danger" type="button" onclick="removeLead(${lead.id})">Excluir</button>
+      ${sub ? `<div class="lc-sub lc-ell">${esc(sub)}</div>` : ''}
+      ${badges ? `<div class="lc-badges">${badges}</div>` : ''}
+      <div class="lc-acts">
+        ${fone ? (state.wppConnected
+          ? ic('', 'WhatsApp', `openWppCompose(${lead.id})`, '💬')
+          : `<a class="btn ic" title="WhatsApp" href="https://wa.me/${cleanPhone(fone)}" target="_blank" rel="noopener">💬</a>`) : ''}
+        ${lead.email ? (state.emailConfigured ? ic('', 'E-mail', `openEmailCompose(${lead.id})`, '✉️') : `<a class="btn ic" title="E-mail" href="mailto:${esc(lead.email)}">✉️</a>`) : ''}
+        ${ic('', 'Editar', `openEdit(${lead.id})`, '✏️')}
+        ${canConvert ? ic('btn-success', 'Converter em cliente', `convertLead(${lead.id})`, '➜') : ''}
+        ${canVisit ? ic('btn-primary', 'Fazer pedido', `newOrder(${lead.id})`, '🛒') : ''}
+        ${canVisit ? ic('', 'Agendar visita', `scheduleVisit(${lead.id})`, '📅') : ''}
+        ${canVisit ? ic('', 'Abrir cliente', `openClient(${lead.convertido_cliente_id})`, '👤') : ''}
+        ${ic('btn-danger lc-del', 'Excluir lead', `removeLead(${lead.id})`, '🗑')}
       </div>
     </article>
   `;
 }
 
+function tempLabelOf(t) { return { QUENTE: 'Quente', MORNO: 'Morno', FRIO: 'Frio' }[t] || ''; }
+
 function applyClientFilters() {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   state.leads = (state.allLeads || []).filter(lead => {
-    if (state.periodDays > 0 && lead.dtcadastro) {
+    if (state.periodDays > 0 && lead.dtcadastro && !Number.isNaN(new Date(lead.dtcadastro).getTime())) {
       const base = new Date(lead.dtcadastro);
       const normalized = new Date(base.getFullYear(), base.getMonth(), base.getDate());
       const diff = Math.floor((today - normalized) / 86400000);
       if (diff > state.periodDays) return false;
     }
-    if (state.onlyOverdue && getLeadPriority(lead).key !== 'high') return false;
+    if (state.onlyOverdue && !getLeadPriority(lead).overdue) return false;
     return true;
   });
 }
@@ -1072,18 +1234,115 @@ async function loadLeads() {
   renderBoard();
 }
 
-function openModal() { document.getElementById('modalBack').style.display = 'flex'; }
+let _leadTabAtual = 0;
+function leadTab(n) {
+  const max = document.querySelectorAll('.lead-panel').length - 1;
+  _leadTabAtual = Math.max(0, Math.min(max, n));
+  document.querySelectorAll('.lead-panel').forEach(p => p.classList.toggle('on', +p.dataset.panel === _leadTabAtual));
+  document.querySelectorAll('.lead-tab').forEach(t => {
+    const on = +t.dataset.tab === _leadTabAtual;
+    t.classList.toggle('on', on);
+    if (on) { try { t.scrollIntoView({ block: 'nearest', inline: 'center' }); } catch (_) {} }
+  });
+  document.getElementById('leadTabPrev').disabled = _leadTabAtual === 0;
+  document.getElementById('leadTabNext').disabled = _leadTabAtual === max;
+  document.getElementById('btnTabPrev').style.display = _leadTabAtual === 0 ? 'none' : '';
+  document.getElementById('btnTabNext').style.display = _leadTabAtual === max ? 'none' : '';
+  const mb = document.querySelector('#modalBack .modal'); if (mb) mb.scrollTop = 0;
+}
+function leadTabStep(d) { leadTab(_leadTabAtual + d); }
+function openModal() { document.getElementById('modalBack').style.display = 'flex'; leadTab(0); leadSub(0); }
 function closeModal() { document.getElementById('modalBack').style.display = 'none'; state.editingId = null; }
 
-function renderHistory(items) {
+function leadFotoEscolher() {
+  if (!state.editingId) return toast('Salve o lead antes de anexar fotos.', 'err');
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'image/*'; inp.setAttribute('capture', 'environment'); inp.style.display = 'none';
+  inp.onchange = async () => {
+    const file = inp.files && inp.files[0];
+    inp.remove();
+    if (!file) return;
+    const btn = document.getElementById('btnAddFoto');
+    btn.disabled = true;
+    try {
+      const blob = await comprimirFoto(file, 1280, 0.8);
+      const fd = new FormData();
+      fd.append('arquivo', blob, 'fachada.jpg');
+      const tk = (window.SysRepApi && SysRepApi.authToken && SysRepApi.authToken()) || '';
+      const r = await fetch('/api/leads/' + state.editingId + '/fotos', { method: 'POST', credentials: 'include', headers: tk ? { Authorization: 'Bearer ' + tk } : {}, body: fd });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || 'Falha ao enviar a foto');
+      toast('Foto salva.', 'ok');
+      await loadFotos(state.editingId);
+    } catch (e) { toast(e.message || 'Erro ao enviar a foto', 'err'); }
+    finally { btn.disabled = false; }
+  };
+  document.body.appendChild(inp);
+  inp.click();
+}
+function comprimirFoto(file, max, q) {
+  return new Promise((resolve) => {
+    const fr = new FileReader();
+    fr.onerror = () => resolve(file);
+    fr.onload = () => {
+      const img = new Image();
+      img.onerror = () => resolve(file);
+      img.onload = () => {
+        const k = Math.min(1, max / Math.max(img.width, img.height));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        c.toBlob(b => resolve(b || file), 'image/jpeg', q);
+      };
+      img.src = fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+async function loadFotos(id) {
+  const grid = document.getElementById('fotoGrid');
+  const cnt = document.getElementById('fotoCount');
+  if (!id) { grid.innerHTML = '<div class="history-empty">Salve o lead para anexar fotos.</div>'; cnt.textContent = ''; return; }
+  try {
+    const d = await api('/api/leads/' + id + '/fotos', { headers: {} });
+    const fotos = d.fotos || [];
+    cnt.textContent = fotos.length ? '(' + fotos.length + ')' : '';
+    grid.innerHTML = fotos.length ? fotos.map(f => `
+      <div class="foto-item">
+        <img src="${esc(f.caminho)}" alt="Foto do lead" loading="lazy" onclick="window.open('${esc(f.caminho)}','_blank')">
+        <button type="button" aria-label="Excluir foto" onclick="leadFotoExcluir(${Number(f.id)})">&times;</button>
+      </div>`).join('') : '<div class="history-empty">Nenhuma foto ainda.</div>';
+  } catch (_) { grid.innerHTML = '<div class="history-empty">Não foi possível carregar as fotos.</div>'; }
+}
+async function leadFotoExcluir(fid) {
+  if (!(await SysRepConfirm.ask({ titulo: 'Excluir foto', mensagem: 'Remover esta foto do lead?', okTexto: 'Excluir', perigo: true }))) return;
+  try {
+    await api('/api/leads/' + state.editingId + '/fotos/' + fid, { method: 'DELETE', headers: {} });
+    await loadFotos(state.editingId);
+  } catch (e) { toast(e.message || 'Erro ao excluir', 'err'); }
+}
+function leadSub(n) {
+  document.querySelectorAll('.lead-subpanel').forEach(p => p.classList.toggle('on', +p.dataset.sub === n));
+  document.querySelectorAll('#leadSub button').forEach(b => b.classList.toggle('on', +b.dataset.sub === n));
+}
+let _histItems = [], _histLimite = 5;
+function histMais() { _histLimite += 10; renderHistory(_histItems, true); }
+function renderHistory(items, manter) {
+  if (!manter) { _histItems = items || []; _histLimite = 5; }
+  items = _histItems;
+  const hc = document.getElementById('histCount'); if (hc) hc.textContent = items.length ? '(' + items.length + ')' : '';
   const box = document.getElementById('historyList');
-  box.innerHTML = items && items.length ? items.map(item => `
+  box.classList.add('compact');
+  const total = items.length;
+  const vis = items.slice(0, _histLimite);
+  box.innerHTML = total ? vis.map(item => `
     <div class="history-item">
       <strong>${esc(item.tipo || 'NOTA')}</strong>
       <p>${esc(item.descricao || '')}</p>
       <small>${esc(item.nome_usuario || 'Sistema')} · ${esc(item.dtcadastro ? new Date(item.dtcadastro).toLocaleString('pt-BR') : '')}</small>
     </div>
-  `).join('') : '<div class="history-empty">Nenhuma anotação ainda.</div>';
+  `).join('') + (total > vis.length ? '<button type="button" class="btn hist-more" onclick="histMais()">Ver mais antigas (' + (total - vis.length) + ')</button>' : '')
+    : '<div class="history-empty">Nenhuma anotação ainda.</div>';
 }
 
 function clearForm() {
@@ -1110,6 +1369,7 @@ function clearForm() {
   document.getElementById('visitasList').innerHTML = '<div class="history-empty">Nenhuma visita registrada.</div>';
   syncLossField();
   renderHistory([]);
+  try { loadFotos(null); } catch (_) {}
 }
 
 function collectForm() {
@@ -1295,6 +1555,7 @@ async function openEdit(id) {
     state.editingLead = lead;
     // Tarefas (sempre exibe no modal de edição)
     await loadLeadTarefas(id);
+    loadFotos(id);
     // Visitas: só exibe se lead já foi convertido em cliente
     if (lead.convertido_cliente_id) {
       await Promise.all([loadHistory(id), loadLeadVisitas(lead.convertido_cliente_id, id)]);
@@ -1323,7 +1584,7 @@ async function addNote() {
 }
 
 async function convertLead(id) {
-  if (!confirm('Converter este lead em cliente?')) return;
+  if (!(await SysRepConfirm.ask({ titulo: 'Converter lead', mensagem: 'Converter este lead em cliente?', okTexto: 'Converter', perigo: false }))) return;
   try {
     const data = await api('/api/leads/' + id + '/converter', { method: 'POST', body: JSON.stringify({}) });
     toast('Lead convertido para cliente #' + data.cliente_id + '.', 'ok');
@@ -1356,7 +1617,7 @@ function openClient(id) {
 }
 
 async function removeLead(id) {
-  if (!confirm('Excluir este lead?')) return;
+  if (!(await SysRepConfirm.ask({ titulo: 'Excluir lead', mensagem: 'Excluir este lead?', okTexto: 'Excluir' }))) return;
   try {
     await api('/api/leads/' + id, { method: 'DELETE', body: JSON.stringify({}) });
     toast('Lead excluído.', 'ok');
@@ -1413,6 +1674,11 @@ document.getElementById('btnRefresh').addEventListener('click', () => loadLeads(
 document.getElementById('btnCancel').addEventListener('click', () => { closeModal(); clearForm(); });
 document.getElementById('btnCloseTop').addEventListener('click', () => { closeModal(); clearForm(); });
 document.getElementById('btnAddNote').addEventListener('click', addNote);
+document.getElementById('btnResumo').addEventListener('click', () => {
+  const w = document.getElementById('summaryWrap');
+  w.hidden = !w.hidden;
+  document.getElementById('btnResumo').classList.toggle('active', !w.hidden);
+});
 document.getElementById('btnOverdue').addEventListener('click', () => {
   state.onlyOverdue = !state.onlyOverdue;
   document.getElementById('btnOverdue').classList.toggle('active', state.onlyOverdue);
@@ -1515,7 +1781,7 @@ async function toggleTask(taskId, leadId, newStatus) {
 }
 
 async function deleteTask(taskId, leadId) {
-  if (!confirm('Remover esta tarefa?')) return;
+  if (!(await SysRepConfirm.ask({ titulo: 'Remover tarefa', mensagem: 'Remover esta tarefa?', okTexto: 'Remover' }))) return;
   try {
     await api(`/api/leads/tarefas/${taskId}`, { method: 'DELETE', body: JSON.stringify({}) });
     await loadLeadTarefas(leadId);
@@ -1874,7 +2140,7 @@ async function capToggle(id, ativo) {
 }
 
 async function capDelete(id) {
-  if (!confirm('Excluir este formulário? Os leads já capturados não serão afetados.')) return;
+  if (!(await SysRepConfirm.ask({ titulo: 'Excluir formulário', mensagem: 'Excluir este formulário? Os leads já capturados não serão afetados.', okTexto: 'Excluir' }))) return;
   try {
     await api(`/api/leads/capturas/${id}`, { method: 'DELETE' });
     toast('Formulário excluído.', 'ok');
@@ -1926,10 +2192,8 @@ document.getElementById('btnCapSalvar').addEventListener('click', capSalvar);
 
 function isLeadsMobileEmbed() {
   try {
-    if (window.self !== window.top) return true;
-  } catch (_) {
-    return true;
-  }
+    if (window.self !== window.top && window.matchMedia('(max-width: 900px)').matches) return true;
+  } catch (_) {}
   try {
     if (new URLSearchParams(window.location.search).has('_ms')) return true;
   } catch (_) {}
@@ -1970,6 +2234,73 @@ function initLeadsMobileEmbed() {
   }
 }
 
+// Integração com o Buscador de Clientes (o PedidosWeb puxa os leads novos usando a licença do Buscador)
+const busc = { cfg: null };
+function buscMsg(txt, erro) {
+  const el = document.getElementById('buscStatus');
+  el.style.color = erro ? '#dc2626' : 'var(--text2)';
+  el.textContent = txt || '';
+}
+async function buscCarregar() {
+  try {
+    busc.cfg = await api('/api/buscador/config', { headers: {} });
+    return true;
+  } catch (_) { return false; }   // 403 = usuário sem permissão de gestor
+}
+function buscPreencher() {
+  const c = busc.cfg || {};
+  document.getElementById('buscUrl').value = c.url || '';
+  document.getElementById('buscLic').value = '';
+  document.getElementById('buscLicInfo').textContent = c.tem_licenca ? 'Licença gravada: ' + c.licenca_mascarada + ' (deixe em branco para manter)' : '';
+  document.getElementById('buscInt').value = c.intervalo_min || 30;
+  document.getElementById('buscAtivo').checked = !!c.ativo;
+  document.getElementById('buscVend').innerHTML = ['<option value="">Quem importar</option>']
+    .concat(state.vendedores.map(v => `<option value="${v.id}">${esc(v.nome)}</option>`)).join('');
+  document.getElementById('buscVend').value = c.id_vendedor || '';
+  buscMsg(c.ultimo_sync ? 'Última busca: ' + new Date(c.ultimo_sync).toLocaleString('pt-BR') + ' — ' + (c.ultimo_resultado || '') : 'Ainda não buscou nenhum lead.');
+}
+async function buscSalvar() {
+  const body = {
+    url: document.getElementById('buscUrl').value.trim(),
+    licenca: document.getElementById('buscLic').value.trim(),
+    intervalo_min: parseInt(document.getElementById('buscInt').value, 10) || 30,
+    id_vendedor: document.getElementById('buscVend').value || null,
+    ativo: document.getElementById('buscAtivo').checked,
+  };
+  busc.cfg = await api('/api/buscador/config', { method: 'PUT', body: JSON.stringify(body) });
+  buscPreencher();
+}
+async function buscAcao(botao, fn) {
+  const txtOrig = botao.textContent;
+  botao.disabled = true; botao.textContent = 'Aguarde…';
+  try { await fn(); } catch (e) { buscMsg(e.message || 'Falha na operação', true); }
+  botao.disabled = false; botao.textContent = txtOrig;
+}
+document.getElementById('btnBuscador').addEventListener('click', async () => {
+  if (!(await buscCarregar())) { toast('Apenas administrador ou gerente configura o Buscador', 'error'); return; }
+  buscPreencher();
+  document.getElementById('buscBack').style.display = 'flex';
+});
+document.getElementById('btnBuscClose').addEventListener('click', () => { document.getElementById('buscBack').style.display = 'none'; });
+document.getElementById('buscBack').addEventListener('click', ev => {
+  if (ev.target.id === 'buscBack') document.getElementById('buscBack').style.display = 'none';
+});
+document.getElementById('btnBuscSalvar').addEventListener('click', ev => buscAcao(ev.currentTarget, async () => {
+  await buscSalvar(); toast('Configuração salva', 'ok');
+}));
+document.getElementById('btnBuscTestar').addEventListener('click', ev => buscAcao(ev.currentTarget, async () => {
+  await buscSalvar();
+  const r = await api('/api/buscador/testar', { method: 'POST', body: '{}' });
+  buscMsg(r.aviso || ('Conexão ok' + (r.empresa ? ' — ' + r.empresa : '') + ' · ' + r.total_leads + ' lead(s) no Buscador.'));
+}));
+document.getElementById('btnBuscSync').addEventListener('click', ev => buscAcao(ev.currentTarget, async () => {
+  await buscSalvar();
+  const r = await api('/api/buscador/sincronizar', { method: 'POST', body: '{}' });
+  buscMsg(r.resumo);
+  toast(r.resumo, r.importados ? 'ok' : '');
+  if (r.importados) await loadLeads();
+}));
+
 (async function init() {
   initLeadsMobileEmbed();
   clearForm();
@@ -1981,6 +2312,12 @@ function initLeadsMobileEmbed() {
   ]);
   // Verifica ?edit=X para abrir lead diretamente (vindo de visitas.html)
   const editId = new URLSearchParams(window.location.search).get('edit');
+  // busca automática no Buscador (só roda se estiver ligada e o intervalo venceu; falha não atrapalha a tela)
+  // o botão Buscador só existe com o módulo Localizador liberado na licença
+  let _loc = false;
+  try { _loc = !!(await api('/api/modulos/localizador', { headers: {} })).habilitado; } catch (_) {}
+  if (!_loc) { const bb = document.getElementById('btnBuscador'); if (bb) bb.style.display = 'none'; }
+  else { try { await api('/api/buscador/auto', { method: 'POST', body: '{}' }); } catch (_) {} }
   await Promise.all([loadLeads(), loadTodayTasks()]);
   if (editId) openEdit(parseInt(editId, 10));
 })();

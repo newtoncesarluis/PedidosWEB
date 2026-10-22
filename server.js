@@ -233,6 +233,21 @@ const _tenantUploadsDir = path.join(process.cwd(), 'public', 'uploads');
 app.use('/uploads', express.static(_tenantUploadsDir));
 
 // Arquivos estáticos do código (CSS/JS) + fallback de /uploads do compartilhado.
+// Mapa de Clientes: com o módulo Localizador liberado na licença abre o mapa novo (prospecção);
+// sem ele, o mapa simples de sempre. A flag mora no banco de licenças (só o painel do desenvolvedor liga).
+app.get('/pages/mapa-clientes.html', (req, res, next) => {
+  require('./middleware/auth').authMiddleware(req, res, async (err) => {
+    if (err) return next(err);
+    try {
+      const { localizadorHabilitado } = require('./config/modulo-localizador');
+      const { chaveDoRequest } = require('./config/modulo-marketplace');
+      const novo = await localizadorHabilitado(chaveDoRequest(req));
+      res.setHeader('Cache-Control', 'no-store');
+      res.sendFile(path.join(ROOT_DIR, 'public', 'pages', novo ? 'mapa-clientes.html' : 'mapa-clientes-simples.html'));
+    } catch (e) { next(e); }
+  });
+});
+
 app.use(express.static(path.join(ROOT_DIR, 'public')));
 
 // Rotas de setup (sem autenticação nem licença)
@@ -603,6 +618,17 @@ app.get('/api/modulos', authMiddleware, async (req, res) => {
   }
 });
 
+// GET /api/modulos/localizador — o módulo Localizador (mapa de prospecção) está liberado nesta licença?
+app.get('/api/modulos/localizador', authMiddleware, async (req, res) => {
+  try {
+    const { localizadorHabilitado } = require('./config/modulo-localizador');
+    const { chaveDoRequest } = require('./config/modulo-marketplace');
+    res.json({ habilitado: await localizadorHabilitado(chaveDoRequest(req)) });
+  } catch {
+    res.json({ habilitado: false });
+  }
+});
+
 // GET /api/modulos/marketplace — o add-on Marketplace está liberado nesta licença?
 // Fica FORA de /api/marketplace de propósito: o menu precisa consultar sem
 // esbarrar no gate (que responde 403 quando não está liberado).
@@ -648,6 +674,8 @@ app.use('/api/teleatendimento', authMiddleware, require('./routes/teleatendiment
 app.use('/api/visitas',      authMiddleware, require('./routes/visitas'));
 app.use('/api/geocoding',    authMiddleware, require('./routes/geocoding'));
 app.use('/api/geolocalizacao', authMiddleware, require('./routes/geolocalizacao'));
+app.use('/api/busca-profunda', authMiddleware, require('./config/modulo-localizador').exigeModuloLocalizador, require('./routes/busca-profunda'));
+app.use('/api/buscador', authMiddleware, require('./config/modulo-localizador').exigeModuloLocalizador, require('./routes/buscador-integracao'));
 app.use('/api/mapa-operacoes', authMiddleware, require('./routes/mapa-operacoes'));
 app.use('/api/panico-vendedor', authMiddleware, require('./routes/panico-vendedor'));
 app.use('/api/gamificacao',    authMiddleware, require('./routes/gamificacao'));

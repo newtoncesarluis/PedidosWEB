@@ -33,7 +33,15 @@ const DDL_REGIOES = `
 const _emMemoria = new Map();   // celula -> { status: 'pronto'|'carregando'|'erro', ate: ts }
 const _fila = [];
 let _rodando = false;
-let _tabelaRegioesOk = false;
+let _tabelaRegioesOk = new WeakSet();
+
+// Cada banco (tenant) tem a própria situação das regiões: a chave do cache inclui o pool.
+const _poolIds = new WeakMap();
+let _poolSeq = 0;
+function memKeyDe(pool, celKey) {
+  if (!_poolIds.has(pool)) _poolIds.set(pool, ++_poolSeq);
+  return `${_poolIds.get(pool)}:${celKey}`;
+}
 
 function duckdbDisponivel() {
   try { require.resolve('@duckdb/node-api'); return true; } catch (_) { return false; }
@@ -51,9 +59,9 @@ function celulaDe(lat, lng) {
 }
 
 async function garantirTabelaRegioes(pool) {
-  if (_tabelaRegioesOk) return;
+  if (_tabelaRegioesOk.has(pool)) return;
   await pool.query(DDL_REGIOES);
-  _tabelaRegioesOk = true;
+  _tabelaRegioesOk.add(pool);
 }
 
 async function processarFila() {
@@ -61,7 +69,7 @@ async function processarFila() {
   const cel = _fila.shift();
   if (!cel) return;
   _rodando = true;
-  const pool = getLugaresPool();
+  const pool = cel.pool;           // capturado na requisição (aqui não há contexto de tenant)
   const t0 = Date.now();
   try {
     console.log(`[lugares-auto] carregando ${cel.nome} [${cel.w}, ${cel.s}, ${cel.e}, ${cel.n}]...`);
@@ -77,11 +85,11 @@ async function processarFila() {
        ON DUPLICATE KEY UPDATE status='ok', linhas=VALUES(linhas), release_ver=VALUES(release_ver), erro='', atualizado_em=NOW()`,
       [cel.key, linhas, r.release]
     );
-    _emMemoria.set(cel.key, { status: 'pronto', ate: Date.now() + 10 * 60 * 1000 });
+    _emMemoria.set(cel.memKey, { status: 'pronto', ate: Date.now() + 10 * 60 * 1000 });
     console.log(`[lugares-auto] ${cel.nome} pronta: ${linhas} lugares em ${((Date.now() - t0) / 1000).toFixed(0)} s`);
   } catch (e) {
     console.warn(`[lugares-auto] falha em ${cel.nome}:`, e.message);
-    _emMemoria.set(cel.key, { status: 'erro', ate: Date.now() + ERRO_ESPERA_MS });
+    _emMemoria.set(cel.memKey, { status: 'erro', ate: Date.now() + ERRO_ESPERA_MS });
     try {
       await pool.query(
         `INSERT INTO overture_regioes (celula, status, erro, atualizado_em) VALUES (?, 'erro', ?, NOW())
@@ -95,11 +103,12 @@ async function processarFila() {
   }
 }
 
-function enfileirar(cel) {
-  if (_fila.some(c => c.key === cel.key)) return;
+function enfileirar(cel, pool) {
+  const memKey = memKeyDe(pool, cel.key);
+  if (_fila.some(c => c.memKey === memKey)) return;
   if (_fila.length >= MAX_FILA) return;
-  _emMemoria.set(cel.key, { status: 'carregando', ate: Date.now() + 30 * 60 * 1000 });
-  _fila.push(cel);
+  _emMemoria.set(memKey, { status: 'carregando', ate: Date.now() + 30 * 60 * 1000 });
+  _fila.push({ ...cel, pool, memKey });
   setImmediate(processarFila);
 }
 
@@ -112,16 +121,26 @@ async function _statusCelula(cel) {
     const lat = (cel.s + cel.n) / 2, lng = (cel.w + cel.e) / 2;
     if (lng < BRASIL.w || lng > BRASIL.e || lat < BRASIL.s || lat > BRASIL.n) return 'indisponivel';
 
-    const mem = _emMemoria.get(cel.key);
+    const pool = getLugaresPool();
+    const memKey = memKeyDe(pool, cel.key);
+    const mem = _emMemoria.get(memKey);
     if (mem && mem.ate > Date.now()) {
       if (mem.status === 'pronto') return 'pronto';
       if (mem.status === 'carregando') return 'carregando';
       if (mem.status === 'erro') return 'indisponivel';
     }
 
-    if (!duckdbDisponivel()) return 'indisponivel';
+    if (!duckdbDisponivel()) {
+      // este servidor não carrega dados (a carga é feita no Painel NC): usa o que já está no banco central
+      await garantirTabela(pool);
+      const [ja] = await pool.query(
+        'SELECT 1 FROM overture_lugares WHERE lat BETWEEN ? AND ? AND lng BETWEEN ? AND ? LIMIT 1',
+        [cel.s + 0.01, cel.n - 0.01, cel.w + 0.01, cel.e - 0.01]);
+      const st = ja.length ? 'pronto' : 'indisponivel';
+      _emMemoria.set(memKey, { status: st === 'pronto' ? 'pronto' : 'erro', ate: Date.now() + (st === 'pronto' ? 10 * 60 * 1000 : 2 * 60 * 1000) });
+      return st;
+    }
 
-    const pool = getLugaresPool();
     await garantirTabela(pool);
     await garantirTabelaRegioes(pool);
     const [rows] = await pool.query('SELECT status, atualizado_em FROM overture_regioes WHERE celula = ?', [cel.key]);
@@ -129,8 +148,8 @@ async function _statusCelula(cel) {
 
     if (r && r.status === 'ok') {
       const idadeDias = (Date.now() - new Date(r.atualizado_em).getTime()) / 86400000;
-      if (idadeDias > VALIDADE_DIAS) enfileirar(cel);          // atualiza em segundo plano, segue usando o que já tem
-      _emMemoria.set(cel.key, { status: 'pronto', ate: Date.now() + 10 * 60 * 1000 });
+      if (idadeDias > VALIDADE_DIAS) enfileirar(cel, pool);          // atualiza em segundo plano, segue usando o que já tem
+      _emMemoria.set(memKey, { status: 'pronto', ate: Date.now() + 10 * 60 * 1000 });
       return 'pronto';
     }
     if (r && r.status === 'erro') {
@@ -147,11 +166,11 @@ async function _statusCelula(cel) {
       await pool.query(
         `INSERT INTO overture_regioes (celula, status, linhas, atualizado_em) VALUES (?, 'ok', 0, NOW())
          ON DUPLICATE KEY UPDATE status='ok', atualizado_em=NOW()`, [cel.key]);
-      _emMemoria.set(cel.key, { status: 'pronto', ate: Date.now() + 10 * 60 * 1000 });
+      _emMemoria.set(memKey, { status: 'pronto', ate: Date.now() + 10 * 60 * 1000 });
       return 'pronto';
     }
 
-    enfileirar(cel);
+    enfileirar(cel, pool);
     return 'carregando';
   } catch (e) {
     console.warn('[lugares-auto] statusRegiao:', e.message);

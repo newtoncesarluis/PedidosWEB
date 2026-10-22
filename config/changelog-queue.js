@@ -11,6 +11,69 @@
 module.exports = [
   {
     versao: '1.1.5.0',
+    tipo: 'NOVO',
+    titulo: 'Módulo Localizador: mapa de prospecção liberado por licença',
+    descricao:
+      'O novo mapa de prospecção (busca de comércios, busca profunda, 1º toque no WhatsApp e integração com o Buscador) passa a ser um módulo liberado pelo suporte. Sem o módulo, o Mapa de Clientes continua o mapa simples de sempre.',
+    data_lancamento: '2026-10-22',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'MELHORIA',
+    titulo: 'Mapa de Clientes renovado: busca profunda, 1º toque no WhatsApp e histórico',
+    descricao:
+      'O mapa agora é o mesmo do Buscador de Clientes: busca de comércios mais precisa (indústrias por segmento, shopping, hotel, academia), busca profunda por CNAE com dados da Receita, mensagens prontas de 1º/2º/3º toque no WhatsApp, assistente de prospecção, histórico de pesquisas e de visitas, e exportação da lista.',
+    data_lancamento: '2026-10-22',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'NOVO',
+    titulo: 'Integração com o Buscador de Clientes',
+    descricao:
+      'Em Leads > Buscador, informe o endereço e a licença do Buscador: o PedidosWeb passa a buscar os leads novos de lá e a colocá-los na sua carteira, com origem "Buscador". Dá para buscar na hora ou deixar automático ao abrir a tela de Leads.',
+    data_lancamento: '2026-10-22',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'MELHORIA',
+    titulo: 'Prazo de pagamento do cliente vai direto para o pedido',
+    descricao:
+      'No cadastro do cliente (aba Comercial) o Prazo de Pagamento agora sugere as condições cadastradas. Ao escolher o cliente no pedido, a condição é preenchida automaticamente e aparece um aviso discreto com o prazo do cliente. Nova permissão no Perfil: "Alterar Prazo de Pagamento do Cliente" — sem ela o vendedor não muda o prazo no cadastro nem no pedido.',
+    data_lancamento: '2026-10-21',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'BUG',
+    titulo: 'Gestão de Comissões: % ajustado no faturamento agora aparece correto',
+    descricao:
+      'Quando a comissão era alterada na tela Faturar pedido, a Gestão de Comissões e o relatório voltavam a mostrar o % cadastrado na fábrica. Agora exibem o % realmente usado no faturamento.',
+    data_lancamento: '2026-10-21',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'NOVO',
+    titulo: 'Financeiro: Extrato Bancário por banco/caixa, com saldo corrente',
+    descricao:
+      'Nova tela Financeiro > Extrato Bancário: escolha o banco ou caixa e o período para ver saldo inicial, cada pagamento/recebimento baixado (com fornecedor/cliente e documento), saldo após cada lançamento e saldo final. ' +
+      'Estornos aparecem identificados. Dá para imprimir e exportar para CSV, e serve para conferir com o extrato do banco.',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'NOVO',
+    titulo: 'Produtos: escolha se a Margem (%) é calculada sobre o preço de venda ou sobre o custo',
+    descricao:
+      'Em Sistema > Configuração do Sistema surgiu a opção «Margem (%) do Produto calculada sobre». "Preço de venda" (padrão) mantém a conta atual: venda = custo ÷ (1 − margem). ' +
+      '"Custo" calcula como mark-up: venda = custo × (1 + margem); ex.: custo R$ 12,00 com 70% = R$ 20,40. O Mark-up Líquido do produto acompanha a mesma base.',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'MELHORIA',
+    titulo: 'Pedido: campo Embalagem do item já vem preenchido com o cadastro do produto',
+    descricao:
+      'Ao escolher o produto na inclusão de item do pedido, o campo Embalagem passa a ser preenchido automaticamente com o valor (Kg embalagem) do cadastro do produto; a pesquisa de produtos ganhou a coluna Emb. Novo parâmetro em Configuração do Sistema: «Destacar Embalagem no Pedido» (mostra/oculta o campo e a coluna, como no Delphi). A edição continua controlada pela permissão «Alterar Embalagem» do perfil. No cadastro do produto, o campo Peso por unidade (kg) aparece também quando a embalagem é somada/destacada.',
+  },
+  {
+    versao: '1.1.5.0',
     tipo: 'MELHORIA',
     titulo: 'Busca de comércios muito mais completa: base aberta Overture Maps, com telefone',
     descricao:
@@ -3363,5 +3426,87 @@ module.exports = [
       'Agora informa quanto o pedido consome e qual é o saldo do vendedor. ' +
       'Também permite ver o saldo do vendedor do pedido ao abrir um pedido já salvo.',
     data_lancamento: '2026-10-16',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'MELHORIA',
+    titulo: 'Mapa: filtrar pinos, montar rota e agendar visita',
+    descricao:
+      'Em Clientes Próximos, a legenda de baixo filtra o mapa: Todos, Você, seus clientes, comércios ou quem já é cliente. ' +
+      'Montar rota desenha o caminho pelos pontos visíveis e abre no Google Maps. ' +
+      'No pin, Agendar visita grava na agenda do sistema e, se a opção estiver marcada, abre o compromisso na Google Agenda.',
+    data_lancamento: '2026-10-17',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'MELHORIA',
+    titulo: 'Mapa: rota salva para o vendedor e filtro por tipo',
+    descricao:
+      'Depois de montar a rota em Clientes Próximos, escolha o vendedor e a data e salve. A rota entra em Rotas do vendedor, na ordem do mapa. ' +
+      'O filtro Tipo de cliente usa o mesmo campo do cadastro (aba Comercial). Cadastre padaria, açougue ou mercado em Tipo de Cliente para filtrar por eles.',
+    data_lancamento: '2026-10-17',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'MELHORIA',
+    titulo: 'Mapa: filtros num botão, sem cobrir o mapa',
+    descricao:
+      'Em Clientes Próximos os filtros e a rota abrem no botão «Filtros e rota». Os filtros ativos ficam como etiquetas no mapa, e o X de cada uma desfaz o filtro. ' +
+      'No celular o painel sobe de baixo e o botão de fechar o mapa foi para o canto de cima.',
+    data_lancamento: '2026-10-17',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'NOVO',
+    titulo: 'Clientes Próximos também no celular e no tablet (e mais tipos de comércio)',
+    descricao:
+      'No app, em Clientes, toque em «Perto de Mim» e depois em «Visualizar no Mapa». ' +
+      'O representante usa os mesmos filtros, a rota e o agendamento de visita que já existiam no computador. ' +
+      'A busca de comércios ganhou novos tipos: tintas, elétrica, bebidas, agropecuária, brinquedos, bazar, posto, papelaria, ótica, autopeças, móveis e outros. ' +
+      'Novo botão «Outra cidade» na busca: escolha o estado e digite a cidade ou o endereço para procurar comércios longe de onde você está. ' +
+      'No celular, Voltar e Início ficam numa faixa no topo, sem cobrir os botões, e o painel de filtros do mapa abre inteiro embaixo.',
+    data_lancamento: '2026-10-17',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'BUG',
+    titulo: 'Mapa no celular: botão de filtros e zoom corretos',
+    descricao:
+      'Em Clientes Próximos no celular, o mapa abria muito afastado e a barra «Filtros e rota» ficava escondida fora da tela. ' +
+      'Agora o mapa ocupa só a área visível, aproxima na sua posição e mostra os filtros embaixo, igual ao computador.',
+    data_lancamento: '2026-10-17',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'MELHORIA',
+    titulo: 'Leads: tela mais limpa, com os registros em primeiro lugar',
+    descricao:
+      'O quadro de leads agora aparece logo no topo, com as 6 etapas visíveis e rolagem dentro de cada coluna. ' +
+      'Os indicadores (retornos, conversão, vendedores, tarefas) ficam em «Resumo e indicadores», abaixo do quadro. ' +
+      'Os cards mostram só o que está preenchido, sem repetir nome/empresa/prioridade. ' +
+      'Corrigido: o filtro padrão de 30 dias escondia leads antigos (agora mostra todo o período), «Só atrasados» incluía leads sem atraso, ' +
+      'e o link do WhatsApp podia duplicar o DDI 55.',
+    data_lancamento: '2026-10-20',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'MELHORIA',
+    titulo: 'Leads: cadastro em etapas, fácil no celular e no tablet',
+    descricao:
+      'O cadastro do lead agora é dividido em 4 etapas (Contato, Endereço, Comercial e Acompanhamento), com setas ‹ › e botões Voltar/Avançar, sem a rolagem enorme de antes. ' +
+      'Funciona melhor no celular e no tablet. No mapa de comércios, o caminho agora é «Salvar como lead» e, depois de ter o CNPJ, «Converter em cliente» na tela de Leads.',
+    data_lancamento: '2026-10-20',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'NOVO',
+    titulo: 'Mapa de prospecção: mais ferramentas para o vendedor',
+    descricao:
+      'No mapa de Clientes Próximos: anel verde/vermelho nos clientes (comprou nos últimos 90 dias ou está sem comprar), camada «Meus leads», ' +
+      'resumo da região (quantos já são clientes, leads e novos), ordenação por prioridade de visita com destaque da melhor oportunidade, ' +
+      'WhatsApp com mensagem de apresentação pronta (com o seu nome e o da empresa) registrada no histórico do lead, ' +
+      'botão «＋ Rota» para escolher as paradas e montar o roteiro do dia, aviso quando você passa a menos de 300 m de um lead, ' +
+      'última busca guardada para consultar sem internet e foto da fachada anexada ao lead (aba Fotos do cadastro de leads).',
+    data_lancamento: '2026-10-20',
   },
 ];

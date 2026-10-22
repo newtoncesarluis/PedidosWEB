@@ -553,6 +553,26 @@ router.put('/license/remote/:id/modulo-marketplace', async (req, res) => {
   }
 });
 
+// PUT /api/licencas/license/remote/:id/modulo-localizador — liga/desliga o módulo Localizador (mapa de prospecção)
+router.put('/license/remote/:id/modulo-localizador', async (req, res) => {
+  try {
+    const licPool = getLicensePool();
+    const { ensureColunaModuloLocalizador, resetCacheModuloLocalizador } = require('../config/modulo-localizador');
+    await ensureColunaModuloLocalizador(licPool);
+    const habilitar = req.body?.habilitado === true || req.body?.habilitado === 1 || req.body?.habilitado === '1' ? 1 : 0;
+    await licPool.query('UPDATE sistema_licencas SET modulo_localizador = ? WHERE id = ?', [habilitar, req.params.id]);
+    const [[lic]] = await licPool.query('SELECT chave_licenca FROM sistema_licencas WHERE id = ?', [req.params.id]);
+    if (lic) resetCacheModuloLocalizador(lic.chave_licenca);
+    await licPool.query(
+      'INSERT INTO historico_licencas (licenca_id, acao, detalhes) VALUES (?, ?, ?)',
+      [req.params.id, 'modulo_localizador', JSON.stringify({ habilitado: !!habilitar })]
+    ).catch(() => {});
+    res.json({ sucesso: true, habilitado: !!habilitar });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/licencas/license/remote/:id/renew — renovar licença
 router.post('/license/remote/:id/renew', async (req, res) => {
   try {

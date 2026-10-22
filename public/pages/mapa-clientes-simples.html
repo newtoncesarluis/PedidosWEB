@@ -1,0 +1,1943 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mapa de Clientes · SysPed WEB</title>
+
+<!-- Leaflet CSS & JS -->
+<link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
+<script src="/vendor/leaflet/leaflet.js"></script>
+<script src="/assets/map-tiles.js"></script>
+
+<!-- Leaflet.markercluster -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+<script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+
+<!-- Leaflet Routing Machine -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+<script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+
+<!-- Fontes -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+<!-- Temas do Sistema -->
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<script src="/assets/mobile-app.js"></script>
+<link rel="stylesheet" href="/assets/mobile-app.css">
+
+<style>
+:root {
+  --bg: var(--content-bg, #f4f7fa);
+  --card: var(--card-bg, #ffffff);
+  --border: var(--table-border, #e2e8f0);
+  --text: var(--content-text, #1e293b);
+  --text2: var(--text-muted, #64748b);
+  --accent: var(--accent, #0ea5e9);
+  --accent-soft: rgba(14, 165, 233, 0.15);
+  --font: 'Inter', sans-serif; /* Alterado para Inter */
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── TOP BAR ── */
+.topbar {
+  background: var(--card);
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  z-index: 1000;
+}
+
+.topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-icon {
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  background: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+}
+
+.brand-icon svg { width: 20px; height: 20px; color: #fff; }
+
+.brand-name {
+  display: flex; flex-direction: column;
+}
+
+.brand-name strong { font-size: 14px; font-weight: 700; color: var(--text); }
+.brand-name small { font-size: 11px; color: var(--text2); }
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 8px 16px; border-radius: 10px; font-size: 13px; font-weight: 700;
+  cursor: pointer; transition: 0.2s; border: none; white-space: nowrap;
+  font-family: var(--font);
+}
+
+.btn svg { width: 16px; height: 16px; }
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent), #0284c7);
+  color: #fff;
+  box-shadow: 0 4px 14px var(--accent-soft);
+}
+
+.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px var(--accent-soft); }
+
+.btn-outline {
+  background: var(--card); color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.btn-outline:hover { background: var(--bg); }
+
+.btn-outline.active {
+  background: var(--accent); color: #fff; border-color: var(--accent);
+}
+
+/* ── MAIN LAYOUT ── */
+.main-layout {
+  display: flex;
+  height: calc(100vh - 56px);
+}
+
+/* ── SIDEBAR ── */
+.sidebar {
+  width: 380px;
+  background: var(--card);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  transition: width 0.3s ease;
+}
+
+.sidebar.collapsed { width: 0; overflow: hidden; border: none; }
+
+.sidebar-header {
+  padding: 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sidebar-title {
+  font-size: 16px; font-weight: 800; color: var(--text);
+  margin-bottom: 4px;
+}
+
+.sidebar-subtitle {
+  font-size: 12px; color: var(--text2);
+}
+
+/* ── CONTROLS ── */
+.controls {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.control-label {
+  font-size: 11px; font-weight: 700; color: var(--text2);
+  text-transform: uppercase; letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.control-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: var(--font);
+  outline: none;
+  transition: 0.2s;
+  background: var(--bg);
+}
+
+.control-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.control-select {
+  padding: 8px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: var(--font);
+  outline: none;
+  background: var(--bg);
+  cursor: pointer;
+}
+
+/* ── CLIENT LIST ── */
+.client-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.client-item {
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--bg);
+  border: 1px solid transparent;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.client-item:hover {
+  border-color: var(--border);
+  background: var(--card);
+}
+
+.client-item.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.client-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 6px;
+}
+
+.client-name {
+  font-size: 14px; font-weight: 700; color: var(--text);
+  flex: 1;
+}
+
+.client-distance {
+  font-size: 11px; font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 2px 8px; border-radius: 6px;
+}
+
+.client-address {
+  font-size: 12px; color: var(--text2); line-height: 1.4;
+}
+
+.client-meta {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.client-meta span {
+  font-size: 10px; font-weight: 600;
+  color: var(--text2);
+  background: var(--card);
+  padding: 2px 8px; border-radius: 4px;
+}
+
+/* ── MAP ── */
+.map-container {
+  flex: 1;
+  position: relative;
+}
+
+#map {
+  width: 100%;
+  height: 100%;
+}
+
+/* Custom Marker Styles */
+.custom-marker {
+  background-color: var(--accent);
+  width: 28px; height: 28px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  border: 3px solid #fff;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  display: flex; align-items: center; justify-content: center;
+}
+
+.custom-marker::after {
+  content: '';
+  width: 8px; height: 8px;
+  background: #fff;
+  border-radius: 50%;
+}
+
+.custom-marker-icon {
+  transform: rotate(45deg);
+  color: #fff;
+  font-size: 14px;
+}
+
+/* User Location Marker */
+.user-marker {
+  background-color: #4361ee;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 8px rgba(67, 97, 238, 0.2);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 8px rgba(67, 97, 238, 0.2); }
+  50% { box-shadow: 0 0 0 16px rgba(67, 97, 238, 0); }
+}
+
+/* Cluster Styles */
+.marker-cluster {
+  background: rgba(14, 165, 233, 0.3) !important;
+  border: 3px solid var(--accent) !important;
+}
+
+.marker-cluster div {
+  background: var(--accent) !important;
+  color: #fff !important;
+  font-weight: 800 !important;
+}
+
+/* Popup Styles */
+.leaflet-popup-content-wrapper {
+  border-radius: 14px !important;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.15) !important;
+  padding: 0 !important;
+  overflow: hidden;
+}
+
+.leaflet-popup-content {
+  margin: 0 !important;
+  width: 260px !important;
+}
+
+.popup-header {
+  background: linear-gradient(135deg, var(--accent), #0284c7);
+  color: #fff;
+  padding: 14px 18px;
+}
+
+.popup-header h4 {
+  font-size: 14px; font-weight: 800; margin-bottom: 2px;
+}
+
+.popup-header p {
+  font-size: 11px; opacity: 0.9;
+}
+
+.popup-body {
+  padding: 14px 18px;
+}
+
+.popup-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+.popup-row:last-child { margin-bottom: 0; }
+
+.popup-label {
+  color: var(--text2);
+  font-weight: 600;
+}
+
+.popup-value {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.popup-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.popup-btn {
+  flex: 1;
+  padding: 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  text-align: center;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-family: var(--font);
+}
+
+.popup-btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.popup-btn-secondary {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.popup-btn-visit {
+  background: #10b981;
+  color: #fff;
+}
+
+/* ── FLOATING CONTROLS ── */
+.map-controls {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.map-ctrl-btn {
+  width: 44px; height: 44px;
+  border-radius: 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: 0.2s;
+  color: var(--text2);
+}
+
+.map-ctrl-btn:hover {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.map-ctrl-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.map-ctrl-btn svg { width: 20px; height: 20px; }
+
+/* ── INFO BAR ── */
+.info-bar {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.info-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text2);
+}
+
+.info-item strong {
+  color: var(--text);
+}
+
+.info-item svg { width: 14px; height: 14px; }
+
+/* ── ROUTE PANEL ── */
+.route-panel {
+  position: absolute;
+  bottom: 80px;
+  left: 16px;
+  z-index: 1000;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+  min-width: 280px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+  display: none;
+}
+
+.route-panel.show { display: block; }
+
+.route-panel h4 {
+  font-size: 13px; font-weight: 800;
+  color: var(--text);
+  margin-bottom: 12px;
+  display: flex; align-items: center; gap: 8px;
+}
+
+.route-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.route-stat {
+  background: var(--bg);
+  padding: 10px;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.route-stat-label {
+  font-size: 10px; font-weight: 700;
+  color: var(--text2);
+  text-transform: uppercase;
+}
+
+.route-stat-value {
+  font-size: 16px; font-weight: 900;
+  color: var(--accent);
+  margin-top: 2px;
+}
+
+.route-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* ── TOAST ── */
+.toast-container {
+  position: fixed;
+  top: 72px;
+  right: 20px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.toast {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+  animation: slideIn 0.3s ease;
+  font-size: 13px;
+  font-weight: 600;
+  min-width: 250px;
+}
+
+.toast-success { border-left: 4px solid #10b981; }
+.toast-error { border-left: 4px solid #ef4444; }
+.toast-warn { border-left: 4px solid #f59e0b; }
+.toast-info { border-left: 4px solid var(--accent); }
+
+@keyframes slideIn {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+/* ── LOADING ── */
+.loading-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(255,255,255,0.8);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 500;
+}
+
+.loading-overlay.show { display: flex; }
+
+.spinner {
+  width: 40px; height: 40px;
+  border: 4px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips button { border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: 999px;
+  padding: 6px 12px; font-size: 12px; font-weight: 700; cursor: pointer; font-family: var(--font); min-height: 34px; }
+.chips button:active { background: var(--accent); color: #fff; }
+.lote-bar { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: 10px; padding: 8px 4px 10px;
+  background: var(--card); border-bottom: 1px solid var(--border); margin-bottom: 8px; }
+.client-item-header { align-items: flex-start; }
+.map-controls { max-height: calc(100% - 24px); overflow-y: auto; }
+.you-dot { position: relative; width: 20px; height: 20px; }
+.you-core { position: absolute; inset: 0; border-radius: 50%; background: #2563eb; border: 3px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,.5); }
+.you-pulse { position: absolute; inset: -10px; border-radius: 50%; background: rgba(37,99,235,.35); animation: youPulse 2s ease-out infinite; }
+.you-dot b { position: absolute; bottom: 26px; left: 50%; transform: translateX(-50%); background: #2563eb; color: #fff; font-size: 11px;
+  font-weight: 800; padding: 3px 9px; border-radius: 999px; white-space: nowrap; box-shadow: 0 2px 6px rgba(0,0,0,.35); }
+@keyframes youPulse { 0% { transform: scale(.5); opacity: .9; } 100% { transform: scale(1.6); opacity: 0; } }
+/* Overlay de loading sem cor fixa (tema escuro) */
+.loading-overlay { background: color-mix(in srgb, var(--card) 82%, transparent); }
+.route-actions { flex-wrap: wrap; }
+
+/* ── MOBILE (app / embed): alvos de toque e iOS sem zoom no foco ── */
+html.sysrep-ms-embed .popup-btn { min-height: 44px !important; font-size: 12px !important; }
+html.sysrep-ms-embed .controls .control-input,
+html.sysrep-ms-embed .controls .control-select { font-size: 16px !important; min-height: 44px !important; }
+html.sysrep-ms-embed .map-ctrl-btn { width: 46px !important; height: 46px !important; }
+html.sysrep-ms-embed .route-actions .btn { min-height: 44px; }
+html.sysrep-ms-embed .sidebar { padding-bottom: env(safe-area-inset-bottom) !important; }
+html.sysrep-ms-embed .ms-map-fab { bottom: calc(76px + env(safe-area-inset-bottom)) !important; }
+details.avancado > summary { cursor: pointer; font-size: 12px; font-weight: 700; color: var(--text2); padding: 4px 0; }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 900px) {
+  .sidebar {
+    position: absolute;
+    left: 0; top: 0;
+    height: 100%;
+    z-index: 999;
+    box-shadow: 4px 0 20px rgba(0,0,0,0.1);
+  }
+  .sidebar.collapsed { transform: translateX(-100%); }
+}
+</style>
+</head>
+<body>
+
+<!-- TOAST CONTAINER -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="topbar-brand">
+    <div class="brand-icon">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+      </svg>
+    </div>
+    <div class="brand-name">
+      <strong>Mapa de Clientes</strong>
+      <small>Geolocalização Avançada</small>
+    </div>
+  </div>
+
+<div class="topbar-actions" id="topbarActions">
+    <button class="btn btn-outline" onclick="toggleSidebar()" title="Mostrar/Ocultar painel">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+      Painel
+    </button>
+    <button class="btn btn-outline" onclick="voltarHome()">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+      Voltar
+    </button>
+  </div>
+</div>
+
+<!-- MAIN LAYOUT -->
+<div class="main-layout">
+  <!-- SIDEBAR -->
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-title">Filtros de Busca</div>
+      <div class="sidebar-subtitle">Encontre clientes por localização</div>
+    </div>
+
+    <div class="controls">
+      <!-- Localização Atual -->
+      <div class="control-group">
+        <button class="btn btn-primary" onclick="localizarUsuario()" style="flex:1">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          Minha Localização
+        </button>
+      </div>
+
+      <!-- Busca por cidade/endereço -->
+      <div class="control-group">
+        <div style="flex:1;position:relative">
+          <label class="control-label" style="display:block;margin-bottom:4px">Buscar por cidade/endereço</label>
+          <div style="display:flex;gap:6px">
+            <input type="text" id="inputEndereco" class="control-input" placeholder="Ex: Bauru, SP" style="flex:1" autocomplete="off">
+            <button class="btn btn-primary" onclick="buscarEndereco()" style="padding:8px 12px;flex-shrink:0" title="Buscar endereço">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Coordenadas (avançado) -->
+      <details class="avancado"><summary>Coordenadas manuais</summary>
+      <div class="control-group" style="margin-top:6px">
+        <div style="flex:1">
+          <label class="control-label" style="display:block;margin-bottom:4px">Latitude</label>
+          <input type="text" id="inputLat" class="control-input" placeholder="-23.5505">
+        </div>
+        <div style="flex:1">
+          <label class="control-label" style="display:block;margin-bottom:4px">Longitude</label>
+          <input type="text" id="inputLng" class="control-input" placeholder="-46.6333">
+        </div>
+        <button class="btn btn-outline" onclick="usarCoordenadasManuais()" style="align-self:flex-end;padding:8px 10px;margin-bottom:1px" title="Usar coordenadas">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+        </button>
+      </div>
+      </details>
+
+      <!-- Raio de Busca -->
+      <div class="control-group">
+        <label class="control-label">Raio (km):</label>
+        <input type="text" inputmode="decimal" id="selectRaio" class="control-input" value="50" list="raiosSug" autocomplete="off"
+               title="Digite o raio em km. Ex.: 0,25 = 250 metros" style="max-width:90px;text-align:center;font-weight:800"
+               onfocus="this.select()" onkeydown="if(event.key==='Enter')buscarClientesRaio()">
+        <datalist id="raiosSug"><option value="0,25"><option value="0,5"><option value="1"><option value="3"><option value="5"><option value="10"><option value="25"><option value="50"><option value="100"><option value="200"></datalist>
+        <button class="btn btn-primary" onclick="buscarClientesRaio()" style="padding:8px 12px">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        </button>
+      </div>
+
+      <!-- Tipo de Busca -->
+      <div class="control-group">
+        <label class="control-label">Buscar:</label>
+        <select id="selectTipo" class="control-select">
+          <option value="clientes">Clientes</option>
+          <option value="leads">Leads (prospectos salvos)</option>
+          <option value="misto">Clientes + Leads</option>
+          <option value="pedidos">Pedidos</option>
+          <option value="lugares">Estabelecimentos (novos)</option>
+        </select>
+      </div>
+
+      <!-- Filtros da carteira -->
+      <div class="control-group" id="grpCarteira">
+        <label class="control-label">Sem compra há:</label>
+        <select id="selectDias" class="control-select" onchange="if(userLocation)buscarClientesRaio()">
+          <option value="0">Qualquer prazo</option>
+          <option value="30">30+ dias</option>
+          <option value="60">60+ dias</option>
+          <option value="90">90+ dias</option>
+          <option value="180">180+ dias</option>
+        </select>
+      </div>
+      <div class="control-group" id="grpVendedor" style="display:none">
+        <label class="control-label">Vendedor:</label>
+        <select id="selectVendedor" class="control-select" onchange="if(userLocation)buscarClientesRaio()">
+          <option value="">Todos</option>
+        </select>
+      </div>
+
+      <!-- Busca de estabelecimentos (OpenStreetMap) -->
+      <div class="control-group" id="grpLugares" style="display:none;flex-direction:column;align-items:stretch;gap:4px">
+        <input type="text" id="inputLugar" class="control-input" autocomplete="off"
+               placeholder="Ex.: açougue, padaria, farmácia..." onkeydown="if(event.key==='Enter')buscarClientesRaio()">
+        <div class="chips">
+          <button type="button" onclick="buscarCategoria('açougue')">Açougue</button>
+          <button type="button" onclick="buscarCategoria('padaria')">Padaria</button>
+          <button type="button" onclick="buscarCategoria('mercado')">Mercado</button>
+          <button type="button" onclick="buscarCategoria('mercearia')">Mercearia</button>
+          <button type="button" onclick="buscarCategoria('restaurante')">Restaurante</button>
+          <button type="button" onclick="buscarCategoria('lanchonete')">Lanchonete</button>
+          <button type="button" onclick="buscarCategoria('bar')">Bar</button>
+          <button type="button" onclick="buscarCategoria('farmácia')">Farmácia</button>
+          <button type="button" onclick="buscarCategoria('material de construção')">Mat. construção</button>
+          <button type="button" onclick="buscarCategoria('pet shop')">Pet shop</button>
+          <button type="button" onclick="buscarCategoria('roupas')">Roupas</button>
+          <button type="button" onclick="buscarCategoria('atacado')">Atacado</button>
+          <button type="button" onclick="buscarCategoria('oficina')">Oficina</button>
+          <button type="button" onclick="buscarCategoria('clínica')">Clínica</button>
+          <button type="button" onclick="buscarCategoria('escola')">Escola</button>
+        </div>
+        <div style="font-size:11px;color:var(--text2)">Busca no mapa estabelecimentos que ainda não são seus clientes (máx. 100 km).</div>
+      </div>
+    </div>
+
+    <!-- Lista de Clientes -->
+    <div class="client-list" id="clientList">
+      <div style="text-align:center;padding:40px;color:var(--text2)">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:48px;height:48px;opacity:0.3;margin-bottom:12px">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+        </svg>
+        <div style="font-weight:700">Nenhum cliente encontrado</div>
+        <div style="font-size:12px;margin-top:4px">Use "Minha Localização" ou informe coordenadas</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAP CONTAINER -->
+  <div class="map-container">
+    <div id="map"></div>
+
+    <!-- Floating Controls -->
+    <div class="map-controls">
+      <button class="map-ctrl-btn" onclick="centralizarUsuario()" title="Centralizar em mim">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg>
+      </button>
+      <button class="map-ctrl-btn" onclick="zoomIn()" title="Aumentar zoom">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+      </button>
+      <button class="map-ctrl-btn" onclick="zoomOut()" title="Diminuir zoom">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/></svg>
+      </button>
+      <button class="map-ctrl-btn" id="btnClusters" onclick="toggleClusters()" title="Agrupar marcadores">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+      </button>
+      <button class="map-ctrl-btn" id="btnBase" onclick="trocarBase()" title="Trocar o tipo de mapa (Ruas / Satélite / OSM)">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2l9 5-9 5-9-5 9-5zM3 12l9 5 9-5M3 17l9 5 9-5"/></svg>
+      </button>
+      <button class="map-ctrl-btn" id="btnHeat" onclick="toggleHeat()" title="Mapa de calor (concentração de clientes)">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z"/></svg>
+      </button>
+      <button class="map-ctrl-btn" id="btnSeguir" onclick="toggleSeguir()" title="Seguir minha posição em tempo real">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 11l19-9-9 19-2-8-8-2z"/></svg>
+      </button>
+      <button class="map-ctrl-btn" id="btnRota" onclick="toggleRota()" title="Otimizar rota">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 01-1.447-.894L15 9m0 11V9"/></svg>
+      </button>
+    </div>
+
+    <!-- Info Bar -->
+    <div class="info-bar" id="infoBar" style="display:none">
+      <div class="info-item">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+        <strong id="infoTotal">0</strong> clientes
+      </div>
+      <div class="info-item">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        Raio: <strong id="infoRaio">50</strong> km
+      </div>
+    </div>
+
+    <!-- Route Panel -->
+    <div class="route-panel" id="routePanel">
+      <h4>
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:16px;height:16px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 01-1.447-.894L15 9m0 11V9"/></svg>
+        Rota Otimizada
+      </h4>
+      <div class="route-stats">
+        <div class="route-stat">
+          <div class="route-stat-label">Distância</div>
+          <div class="route-stat-value" id="routeDist">0 km</div>
+        </div>
+        <div class="route-stat">
+          <div class="route-stat-label">Paradas</div>
+          <div class="route-stat-value" id="routeStops">0</div>
+        </div>
+        <div class="route-stat">
+          <div class="route-stat-label">Tempo</div>
+          <div class="route-stat-value" id="routeTempo">—</div>
+        </div>
+      </div>
+      <div id="routeNota" style="font-size:11px;color:var(--text2);padding:0 2px 8px"></div>
+      <div class="route-actions">
+        <button class="btn btn-primary" onclick="abrirGoogleMaps()" style="flex:1;font-size:11px">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 01-1.447-.894L15 9m0 11V9"/></svg>
+          Google Maps
+        </button>
+        <button class="btn btn-outline" onclick="abrirWazeProxima()" style="flex:1;font-size:11px" title="Waze navega uma parada por vez: abre a próxima da rota">
+          Waze (1ª parada)
+        </button>
+        <button class="btn btn-outline" onclick="fecharRota()" style="flex:1;font-size:11px">
+          Fechar
+        </button>
+      </div>
+    </div>
+
+    <!-- Loading -->
+    <div class="loading-overlay" id="loadingOverlay">
+      <div class="spinner"></div>
+      <div style="font-size:13px;font-weight:700;color:var(--text2)">Carregando...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── Estado da Aplicação ────────────────────────────────────────────────────
+let map = null;
+let markersLayer = null;
+let clusterLayer = null;
+let userMarker = null;
+let routingControl = null;
+let useClusters = false;
+let clientesEncontrados = [];
+let userLocation = null;
+let rotaOtimizada = [];
+let rotaLayer = null;
+let baseMapa = null;
+function trocarBase() {
+  if (!baseMapa) return;
+  toast('Mapa: ' + baseMapa.cycle(), 'info');
+}
+let modoMapa = 'clientes'; // 'clientes' | 'pedidos' | 'lugares'
+
+function renderizarAtual() {
+  if (modoMapa === 'lugares') renderizarLugares(clientesEncontrados);
+  else renderizarClientes(clientesEncontrados);
+}
+
+// Token de autenticação
+const token = sessionStorage.getItem('token') || localStorage.getItem('token');
+
+// ─── Persistência de filtro ──────────────────────────────────────────────────
+const STORAGE_KEY = 'sysrep_mapa_state';
+
+function salvarEstado() {
+  try {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
+      clientes: clientesEncontrados,
+      location: userLocation,
+      raio: document.getElementById('selectRaio')?.value,
+      tipo: document.getElementById('selectTipo')?.value,
+      ts: Date.now()
+    }));
+  } catch (_) {}
+}
+
+function restaurarEstado() {
+  try {
+    var raw = sessionStorage.getItem(STORAGE_KEY);
+    if (!raw) return false;
+    var state = JSON.parse(raw);
+    if (Date.now() - state.ts > 30 * 60 * 1000) return false; // expira em 30 min
+
+    if (state.location) {
+      userLocation = state.location;
+      document.getElementById('inputLat').value = userLocation.lat.toFixed(6);
+      document.getElementById('inputLng').value = userLocation.lng.toFixed(6);
+
+      if (userMarker) map.removeLayer(userMarker);
+      userMarker = L.circleMarker([userLocation.lat, userLocation.lng], {
+        radius: 12, fillColor: '#4361ee', color: '#fff', weight: 3,
+        opacity: 1, fillOpacity: 0.9, className: 'user-marker'
+      }).addTo(map).bindPopup('<b>Sua Localização</b>');
+    }
+    if (state.raio) document.getElementById('selectRaio').value = state.raio;
+    if (state.tipo) {
+      document.getElementById('selectTipo').value = state.tipo;
+      modoMapa = state.tipo;
+      aplicarTipoUI(state.tipo);
+    }
+    if (state.clientes && state.clientes.length > 0) {
+      clientesEncontrados = state.clientes;
+      renderizarAtual();
+      atualizarInfoBar(state.clientes.length, state.raio || '50');
+      return true;
+    }
+    return false;
+  } catch (_) { return false; }
+}
+
+// ─── Inicialização ──────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  initMap();
+  restaurarEstado();
+  carregarVendedores();
+
+  document.getElementById('inputEndereco')?.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); buscarEndereco(); }
+  });
+});
+
+function initMap() {
+  // Criar mapa
+  map = L.map('map', {
+    center: [-23.5505, -46.6333], // São Paulo
+    zoom: 12,
+    zoomControl: false
+  });
+
+  // Base do mapa (Ruas estilo Google / Satélite / OSM) — sem chave de API; escolha fica salva
+  baseMapa = SysRepMapTiles.init(map);
+
+  // Controles de zoom
+  L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+  // Camadas
+  markersLayer = L.layerGroup().addTo(map);
+  rotaLayer = L.layerGroup().addTo(map);
+  clusterLayer = L.markerClusterGroup({
+    showCoverageOnHover: false,
+    maxClusterRadius: 50,
+    spiderfyOnMaxZoom: true,
+    removeOutsideVisibleBounds: false
+  });
+}
+
+// ─── Definir localização (comum) ────────────────────────────────────────────
+function definirLocalizacao(lat, lng, label, zoom) {
+  userLocation = { lat: lat, lng: lng };
+  document.getElementById('inputLat').value = lat.toFixed(6);
+  document.getElementById('inputLng').value = lng.toFixed(6);
+
+  if (userMarker) map.removeLayer(userMarker);
+  userMarker = L.marker([lat, lng], {
+    icon: L.divIcon({ className: '', html: '<div class="you-dot"><span class="you-pulse"></span><span class="you-core"></span><b>Você</b></div>', iconSize: [20, 20], iconAnchor: [10, 10] }),
+    zIndexOffset: 5000, title: 'Você está aqui'
+  }).addTo(map).bindPopup('<b>' + escHtml(label || 'Sua Localização') + '</b>');
+
+  map.setView([lat, lng], zoom || 13);
+  // prepara a base de comércios desta região em segundo plano (o usuário não precisa fazer nada)
+  fetch('/api/geolocalizacao/lugares/preparar?lat=' + lat + '&lng=' + lng, { headers: { 'Authorization': 'Bearer ' + token } }).catch(function () {});
+}
+
+// ─── Localização do Usuário ─────────────────────────────────────────────────
+function localizarUsuario() {
+  var isSecure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+
+  if (!isSecure || !navigator.geolocation) {
+    localizarPorIP();
+    return;
+  }
+
+  showLoading(true);
+
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      definirLocalizacao(pos.coords.latitude, pos.coords.longitude, 'Sua Localização', 13);
+      showLoading(false);
+      toast('Localização encontrada!', 'success');
+      buscarClientesRaio();
+    },
+    (err) => {
+      console.warn('Geolocation falhou, tentando fallback por IP:', err.message);
+      localizarPorIP();
+    },
+    { timeout: 10000, enableHighAccuracy: true }
+  );
+}
+
+// ─── Fallback: localização por IP ───────────────────────────────────────────
+async function localizarPorIP() {
+  showLoading(true);
+  try {
+    var ctrl = new AbortController();
+    var tmr = setTimeout(function() { ctrl.abort(); }, 8000);
+    var res = await fetch('https://ipapi.co/json/', { signal: ctrl.signal });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    var data = await res.json();
+    if (!data.latitude || !data.longitude) throw new Error('Sem coordenadas');
+
+    clearTimeout(tmr);
+    definirLocalizacao(data.latitude, data.longitude, (data.city || 'Sua região') + ' (aprox.)', 11);
+    showLoading(false);
+    toast('Localização aproximada por IP: ' + (data.city || data.region || ''), 'info');
+    buscarClientesRaio();
+  } catch (err) {
+    showLoading(false);
+    toast('Não foi possível obter a localização. Busque por cidade ou informe as coordenadas.', 'warn');
+  }
+}
+
+// ─── Buscar por endereço/cidade (Nominatim / OpenStreetMap) ─────────────────
+async function buscarEndereco() {
+  var q = (document.getElementById('inputEndereco')?.value || '').trim();
+  if (!q) {
+    toast('Digite uma cidade ou endereço', 'warn');
+    return;
+  }
+
+  showLoading(true);
+  try {
+    var ctrl2 = new AbortController();
+    var tmr2 = setTimeout(function() { ctrl2.abort(); }, 10000);
+    var res = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&q=' + encodeURIComponent(q), {
+      headers: { 'Accept-Language': 'pt-BR' },
+      signal: ctrl2.signal
+    });
+    var data = await res.json();
+    if (!data || data.length === 0) {
+      showLoading(false);
+      toast('Endereço não encontrado. Tente outra busca.', 'warn');
+      return;
+    }
+
+    clearTimeout(tmr2);
+    var r = data[0];
+    var lat = parseFloat(r.lat);
+    var lng = parseFloat(r.lon);
+    definirLocalizacao(lat, lng, r.display_name.split(',')[0], 12);
+    showLoading(false);
+    toast('Localização: ' + r.display_name.split(',').slice(0, 2).join(','), 'success');
+    buscarClientesRaio();
+  } catch (err) {
+    showLoading(false);
+    toast('Erro ao buscar endereço: ' + err.message, 'error');
+  }
+}
+
+// ─── Coordenadas manuais ────────────────────────────────────────────────────
+function usarCoordenadasManuais() {
+  var lat = parseFloat(document.getElementById('inputLat').value);
+  var lng = parseFloat(document.getElementById('inputLng').value);
+
+  if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    toast('Coordenadas inválidas. Informe latitude e longitude válidas.', 'warn');
+    return;
+  }
+
+  definirLocalizacao(lat, lng, 'Localização manual', 13);
+  toast('Localização definida manualmente', 'success');
+  buscarClientesRaio();
+}
+
+function centralizarUsuario() {
+  if (userLocation) {
+    map.setView([userLocation.lat, userLocation.lng], 14);
+  } else {
+    localizarUsuario();
+  }
+}
+
+// ─── Busca por Raio ─────────────────────────────────────────────────────────
+async function buscarClientesRaio() {
+  if (!userLocation) {
+    toast('Informe sua localização primeiro', 'warn');
+    return;
+  }
+
+  const raio = Math.min(Math.max(parseFloat(String(document.getElementById('selectRaio').value).replace(',', '.')) || 50, 0.05), 200);
+  const tipo = document.getElementById('selectTipo').value;
+
+  if (tipo === 'lugares') return buscarLugares(raio);
+
+  showLoading(true);
+
+  try {
+    const dias = document.getElementById('selectDias')?.value || '0';
+    const vend = document.getElementById('selectVendedor')?.value || '';
+    const extras = (tipo === 'clientes' || tipo === 'misto')
+      ? `&dias_sem_compra=${encodeURIComponent(dias)}${vend ? '&vendedor=' + encodeURIComponent(vend) : ''}` : '';
+    const response = await fetch(
+      `/api/geolocalizacao/raio?lat=${userLocation.lat}&lng=${userLocation.lng}&raio=${raio}&tipo=${tipo}${extras}`,
+      { headers: { 'Authorization': `Bearer ${token}` } }
+    );
+
+    if (!response.ok) throw new Error('Erro na requisição');
+
+    const data = await response.json();
+    clientesEncontrados = data;
+    modoMapa = tipo;
+    limparRota();
+
+    renderizarClientes(data);
+    atualizarInfoBar(data.length, raio);
+    atualizarHeat();
+    salvarEstado();
+    const rotulo = { clientes: 'clientes', leads: 'leads', misto: 'clientes/leads', pedidos: 'pedidos' }[tipo] || tipo;
+    toast(`${data.length} ${rotulo} encontrados`, 'success');
+  } catch (err) {
+    console.error('Erro:', err);
+    toast('Erro ao buscar clientes', 'error');
+  } finally {
+    showLoading(false);
+  }
+}
+
+// ─── Estabelecimentos próximos (prospecção via OpenStreetMap) ───────────────
+let vendedoresVisivel = false;
+function aplicarTipoUI(tipo) {
+  const carteira = tipo === 'clientes' || tipo === 'misto';
+  document.getElementById('grpLugares').style.display = tipo === 'lugares' ? 'flex' : 'none';
+  document.getElementById('grpCarteira').style.display = carteira ? 'flex' : 'none';
+  document.getElementById('grpVendedor').style.display = carteira && vendedoresVisivel ? 'flex' : 'none';
+}
+document.getElementById('selectTipo').addEventListener('change', function () { aplicarTipoUI(this.value); });
+aplicarTipoUI(document.getElementById('selectTipo').value);
+
+async function carregarVendedores() {
+  try {
+    const r = await fetch('/api/geolocalizacao/vendedores', { headers: { 'Authorization': `Bearer ${token}` } });
+    if (!r.ok) return;
+    const d = await r.json();
+    if (!d.pode_escolher || !d.vendedores || d.vendedores.length < 2) return;
+    const sel = document.getElementById('selectVendedor');
+    d.vendedores.forEach(v => { const o = document.createElement('option'); o.value = v.id; o.textContent = v.nome; sel.appendChild(o); });
+    vendedoresVisivel = true;
+    aplicarTipoUI(document.getElementById('selectTipo').value);
+  } catch (_) { /* sem filtro de vendedor */ }
+}
+
+// ─── Mapa de calor ──────────────────────────────────────────────────────────
+let heatLayer = null;
+function _pontosCalor() {
+  return clientesEncontrados
+    .map(c => [parseFloat(c.latitude || c.lat), parseFloat(c.longitude || c.lng), 1])
+    .filter(p => isFinite(p[0]) && isFinite(p[1]));
+}
+function toggleHeat() {
+  const btn = document.getElementById('btnHeat');
+  if (heatLayer) { map.removeLayer(heatLayer); heatLayer = null; btn.classList.remove('active'); return; }
+  if (!L.heatLayer) { toast('Mapa de calor indisponível (sem conexão com a biblioteca)', 'warn'); return; }
+  const pts = _pontosCalor();
+  if (!pts.length) { toast('Faça uma busca primeiro', 'warn'); return; }
+  heatLayer = L.heatLayer(pts, { radius: 28, blur: 22, maxZoom: 14 }).addTo(map);
+  btn.classList.add('active');
+}
+function atualizarHeat() {
+  if (!heatLayer) return;
+  heatLayer.setLatLngs(_pontosCalor());
+}
+
+// ─── Seguir posição em tempo real ───────────────────────────────────────────
+let watchId = null;
+let proximaIdx = 0;
+
+function distKm(a, b) {
+  const r = Math.PI / 180;
+  const h = Math.sin((b.lat - a.lat) * r / 2) ** 2 +
+    Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin((b.lng - a.lng) * r / 2) ** 2;
+  return 6371 * 2 * Math.asin(Math.sqrt(h));
+}
+
+function atualizarProximaParada() {
+  if (!rotaOtimizada.length || !userLocation) return;
+  const paradas = paradasDaRota();
+  while (proximaIdx < paradas.length && distKm(userLocation, paradas[proximaIdx]) < 0.06) {
+    toast('Chegou em: ' + (paradas[proximaIdx].nome || 'parada'), 'success');
+    proximaIdx++;
+  }
+  const nota = document.getElementById('routeNota');
+  if (!nota) return;
+  if (proximaIdx >= paradas.length) { nota.textContent = '✔ Rota concluída.'; return; }
+  const p = paradas[proximaIdx];
+  const d = distKm(userLocation, p);
+  nota.textContent = `Próxima (${proximaIdx + 1}/${paradas.length}): ${p.nome || ''} · ${d < 1 ? Math.round(d * 1000) + ' m' : d.toFixed(1) + ' km'}`;
+}
+
+function pararSeguir() {
+  if (watchId != null) navigator.geolocation.clearWatch(watchId);
+  watchId = null;
+  document.getElementById('btnSeguir').classList.remove('active');
+}
+
+function toggleSeguir() {
+  if (watchId != null) { pararSeguir(); toast('Parou de seguir a posição', 'info'); return; }
+  if (!navigator.geolocation) { toast('GPS indisponível neste aparelho', 'warn'); return; }
+  document.getElementById('btnSeguir').classList.add('active');
+  toast('Acompanhando sua posição...', 'info');
+  watchId = navigator.geolocation.watchPosition(
+    (pos) => {
+      const lat = pos.coords.latitude, lng = pos.coords.longitude;
+      const primeira = !userLocation || !userMarker;
+      userLocation = { lat, lng };
+      if (primeira) { definirLocalizacao(lat, lng, 'Sua Localização', 16); }
+      else {
+        userMarker.setLatLng([lat, lng]);
+        if (!map.getBounds().pad(-0.3).contains([lat, lng])) map.panTo([lat, lng]);
+      }
+      atualizarProximaParada();
+    },
+    () => { toast('Não foi possível acompanhar o GPS. Verifique a permissão de localização.', 'warn'); pararSeguir(); },
+    { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 }
+  );
+}
+
+async function buscarLugares(raio) {
+  const q = document.getElementById('inputLugar').value.trim();
+  if (q.length < 2) { toast('Digite o que procurar (ex.: açougue)', 'warn'); return; }
+  const raioUsado = Math.min(parseFloat(raio) || 5, 100);
+  if (parseFloat(raio) > 100) toast('Para estabelecimentos o raio máximo é 100 km', 'info');
+
+  showLoading(true);
+  try {
+    const r = await fetch(
+      `/api/geolocalizacao/lugares?lat=${userLocation.lat}&lng=${userLocation.lng}&raio=${raioUsado}&q=${encodeURIComponent(q)}`,
+      { headers: { 'Authorization': `Bearer ${token}` } }
+    );
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Erro na requisição');
+    // locais sem nome no OSM também aparecem (o usuário confere o nome pelo Google Maps)
+    const nomeados = data.lugares || [];
+    const semNome = nomeados.filter(p => p.sem_nome).length;
+    clientesEncontrados = nomeados;
+    modoMapa = 'lugares';
+    limparRota();
+    renderizarLugares(nomeados);
+    if (data.base === 'carregando') {
+      toast('Estamos preparando a lista completa de comércios da sua região. A busca será refeita sozinha em cerca de 1 min 20 s.', 'info');
+      clearTimeout(window._timerNovaBusca);
+      window._timerNovaBusca = setTimeout(() => {
+        if (document.getElementById('selectTipo').value === 'lugares') buscarClientesRaio();
+      }, 80000);
+    } else {
+      clearTimeout(window._timerNovaBusca);
+    }
+    atualizarHeat();
+    atualizarInfoBar(nomeados.length, raioUsado);
+    salvarEstado();
+    toast(`${nomeados.length} estabelecimentos encontrados` + (semNome ? ` (${semNome} sem nome cadastrado)` : ''), nomeados.length ? 'success' : 'info');
+  } catch (err) {
+    console.error('Erro:', err);
+    toast(err.message || 'Erro ao buscar estabelecimentos', 'error');
+  } finally {
+    showLoading(false);
+  }
+}
+
+const leadsSalvos = new Set();   // osm_id já salvos como lead (nesta sessão)
+const lugaresSel = new Set();    // índices marcados na lista
+
+function jsArg(s) {
+  return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/[\r\n]+/g, ' ')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function abrirLeads() {
+  salvarEstado();
+  if (document.documentElement.classList.contains('sysrep-ms-embed')) {
+    window.parent.postMessage({ type: 'navigate', url: '/pages/leads.html' }, '*');
+  } else {
+    window.location.href = '/pages/leads.html';
+  }
+}
+
+function _payloadLead(p) {
+  const tel = p.telefone || '';
+  return {
+    osm_id: p.osm_id,
+    nome: p.nome, empresa: p.nome,
+    telefone: tel, whatsapp: tel, email: p.email || '',
+    endereco: p.endereco, bairro: p.bairro, cidade: p.cidade,
+    latitude: p.latitude, longitude: p.longitude,
+    segmento: p.categoria, origem: 'Mapa',
+    observacoes: [`Encontrado no mapa (OpenStreetMap ${p.osm_id}).`, p.horario ? `Horário: ${p.horario}` : '', p.site ? `Site: ${p.site}` : ''].filter(Boolean).join('\n')
+  };
+}
+
+function atualizarBarraLote() {
+  const qtd = document.getElementById('loteQtd');
+  const btn = document.getElementById('btnLote');
+  if (qtd) qtd.textContent = lugaresSel.size + ' selecionado(s)';
+  if (btn) btn.disabled = lugaresSel.size === 0;
+}
+
+function toggleLugarSel(index, marcado) {
+  if (marcado) lugaresSel.add(index); else lugaresSel.delete(index);
+  atualizarBarraLote();
+}
+
+function selecionarTodosLugares(marcado) {
+  document.querySelectorAll('.chk-lugar').forEach(chk => {
+    if (chk.disabled) return;
+    chk.checked = marcado;
+    toggleLugarSel(parseInt(chk.dataset.index, 10), marcado);
+  });
+}
+
+async function salvarLeadsLote(indices) {
+  const alvo = indices.map(i => ({ i, p: clientesEncontrados[i] }))
+    .filter(x => x.p && !x.p.cliente_id && !leadsSalvos.has(x.p.osm_id));
+  if (!alvo.length) {
+    const ps = indices.map(i => clientesEncontrados[i]).filter(Boolean);
+    if (ps.length && ps.every(p => leadsSalvos.has(p.osm_id))) toast(ps.length === 1 ? '✔ Este comércio já está salvo nos seus Leads.' : '✔ Estes comércios já estão salvos nos seus Leads.', 'success');
+    else if (ps.length && ps.every(p => p.cliente_id)) toast('Este comércio já é seu cliente, não precisa salvar como lead.', 'warn');
+    else toast('Todos os comércios selecionados já foram salvos ou já são seus clientes.', 'warn');
+    return;
+  }
+  alvo.forEach(x => { const b = document.getElementById('btnLead_' + x.i); if (b) { b.disabled = true; b.textContent = 'Salvando...'; } });
+  showLoading(true);
+  try {
+    const r = await fetch('/api/leads/lote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ itens: alvo.map(x => _payloadLead(x.p)) })
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Erro ao salvar');
+    const feitos = new Set([...d.criados, ...d.duplicados, ...d.ja_cliente].map(x => x.osm_id).filter(Boolean));
+    alvo.forEach(x => {
+      const ok = feitos.has(x.p.osm_id);
+      if (ok) leadsSalvos.add(x.p.osm_id);
+      const b = document.getElementById('btnLead_' + x.i);
+      if (b) { b.disabled = ok; b.textContent = ok ? '✔ Lead salvo' : 'Salvar como lead'; }
+      const chk = document.querySelector(`.chk-lugar[data-index="${x.i}"]`);
+      if (chk && ok) { chk.checked = false; chk.disabled = true; }
+      if (ok) lugaresSel.delete(x.i);
+    });
+    atualizarBarraLote();
+    const partes = [];
+    if (d.criados.length) partes.push(`✔ ${d.criados.length} salvo(s) nos seus Leads`);
+    if (d.duplicados.length) partes.push(`${d.duplicados.length} já estava(m) nos seus Leads`);
+    if (d.ja_cliente.length) partes.push(`${d.ja_cliente.length} já é/são cliente`);
+    if (d.erros.length) partes.push(`${d.erros.length} com erro`);
+    toast(partes.join(' · ') || 'Concluído', d.erros.length ? 'warn' : 'success');
+  } catch (err) {
+    alvo.forEach(x => { const b = document.getElementById('btnLead_' + x.i); if (b) { b.disabled = false; b.textContent = 'Salvar como lead'; } });
+    toast(err.message || 'Erro ao salvar leads', 'error');
+  } finally {
+    showLoading(false);
+  }
+}
+
+function salvarLeadLugar(index) { return salvarLeadsLote([index]); }
+function salvarSelecionadosLeads() { return salvarLeadsLote([...lugaresSel]); }
+
+function buscarCategoria(q) {
+  document.getElementById('inputLugar').value = q;
+  buscarClientesRaio();
+}
+
+function renderizarLugares(lugares) {
+  markersLayer.clearLayers();
+  clusterLayer.clearLayers();
+  lugaresSel.clear();
+  const list = document.getElementById('clientList');
+  list.innerHTML = '';
+
+  if (!lugares.length) {
+    list.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text2)">
+      <div style="font-weight:700">Nenhum estabelecimento encontrado</div>
+      <div style="font-size:12px;margin-top:4px">Aumente o raio ou tente outro termo</div></div>`;
+    return;
+  }
+
+  const novos = lugares.filter(p => !p.cliente_id).length;
+  const barra = document.createElement('div');
+  barra.className = 'lote-bar';
+  barra.innerHTML = `
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700"><input type="checkbox" onchange="selecionarTodosLugares(this.checked)"> Todos (${novos})</label>
+    <span id="loteQtd" style="font-size:11px;color:var(--text2);flex:1">0 selecionado(s)</span>
+    <button class="btn btn-primary" id="btnLote" onclick="salvarSelecionadosLeads()" disabled style="padding:8px 12px;font-size:12px">Salvar como leads</button>`;
+  list.appendChild(barra);
+
+  lugares.forEach((p, index) => {
+    const cor = p.cliente_id ? '#16a34a' : '#f97316';
+    const marker = L.marker([p.latitude, p.longitude], {
+      icon: L.divIcon({
+        className: 'custom-div-icon',
+        html: `<div class="custom-marker" style="background:${cor}"><svg class="custom-marker-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M3 9l1-5h16l1 5M5 9v11h14V9M9 20v-6h6v6"/></svg></div>`,
+        iconSize: [28, 35], iconAnchor: [14, 35], popupAnchor: [0, -35]
+      }),
+      title: p.nome
+    });
+    const end = [p.endereco, p.bairro, p.cidade].filter(Boolean).join(', ');
+    const tel = (p.telefone || '').replace(/\D/g, '');
+    // Abre o Google Maps CENTRADO nas coordenadas do ponto (nome + cidade como busca; sem nome → a categoria).
+    // Assim o resultado é o estabelecimento daquele lugar e não outro de mesmo nome em outra cidade.
+    const _gq = p.sem_nome ? p.categoria : [p.nome, p.cidade || p.bairro].filter(Boolean).join(' ');
+    const buscaGoogle = `https://www.google.com/maps/search/${encodeURIComponent(_gq)}/@${p.latitude},${p.longitude},${p.sem_nome ? 20 : 18}z`;
+    marker.bindPopup(`
+      <div class="popup-header"><h4>${escHtml(p.nome)}</h4>
+        <p>${escHtml(p.categoria)} · ${p.distancia.toFixed(1)} km</p></div>
+      <div class="popup-body">
+        ${p.cliente_id ? `<div class="popup-row"><span class="popup-value" style="color:#16a34a;font-weight:700">✔ Já é cliente: ${escHtml(p.cliente_nome || '')}</span></div>` : ''}
+        ${end ? `<div class="popup-row"><span class="popup-label">Endereço</span><span class="popup-value">${escHtml(end)}</span></div>` : ''}
+        ${p.telefone ? `<div class="popup-row"><span class="popup-label">Telefone</span><span class="popup-value">${escHtml(p.telefone)}</span></div>` : ''}
+        ${p.horario ? `<div class="popup-row"><span class="popup-label">Horário</span><span class="popup-value">${escHtml(p.horario)}</span></div>` : ''}
+        <div class="popup-actions" style="flex-wrap:wrap">
+          <button class="popup-btn popup-btn-secondary" onclick="abrirGoogleMapsPonto(${p.latitude},${p.longitude})" style="flex:1 1 45%">Google Maps</button>
+          <button class="popup-btn popup-btn-secondary" onclick="abrirWazePonto(${p.latitude},${p.longitude})" style="flex:1 1 45%">Waze</button>
+          ${tel.length >= 10 ? `<a href="https://wa.me/55${tel.replace(/^55/, '')}" target="_blank" class="popup-btn popup-btn-primary" style="flex:1 1 45%">WhatsApp</a>` : ''}
+          ${p.telefone ? '' : `<a href="${buscaGoogle}" target="_blank" rel="noopener" class="popup-btn popup-btn-secondary" style="flex:1 1 45%">${p.sem_nome ? 'Ver no Google (nome e fone)' : 'Buscar telefone no Google'}</a>`}
+          ${p.cliente_id ? '' : `<button class="popup-btn popup-btn-visit" id="btnLead_${index}" onclick="salvarLeadLugar(${index})" style="flex:1 1 100%">${leadsSalvos.has(p.osm_id) ? '✔ Já está nos seus Leads' : 'Salvar como lead'}</button>`}
+        </div>
+      </div>`);
+    (useClusters ? clusterLayer : markersLayer).addLayer(marker);
+
+    const salvo = leadsSalvos.has(p.osm_id);
+    const item = document.createElement('div');
+    item.className = 'client-item';
+    item.dataset.index = index;
+    item.innerHTML = `
+      <div class="client-item-header">
+        ${p.cliente_id ? '' : `<input type="checkbox" class="chk-lugar" data-index="${index}" ${salvo ? 'disabled' : ''} style="margin:2px 8px 0 0;width:18px;height:18px;flex-shrink:0" onclick="event.stopPropagation()" onchange="toggleLugarSel(${index}, this.checked)">`}
+        <div class="client-name">${escHtml(p.nome)}</div>
+        <div class="client-distance">${p.distancia.toFixed(1)} km</div>
+      </div>
+      <div class="client-address">${escHtml(end || p.categoria)}</div>
+      <div class="client-meta"><span style="color:${cor};font-weight:700">${p.cliente_id ? '✔ Já é cliente' : (salvo ? '✔ Lead salvo' : '● Prospecto')}</span><span>${escHtml(p.categoria)}</span></div>`;
+    item.onclick = () => {
+      document.querySelectorAll('.client-item').forEach(i => i.classList.remove('active'));
+      item.classList.add('active');
+      map.setView([p.latitude, p.longitude], 17);
+      marker.openPopup();
+      minimizarSheet();
+    };
+    list.appendChild(item);
+  });
+
+  map.fitBounds(lugares.map(p => [p.latitude, p.longitude]), { padding: [50, 50] });
+}
+
+// ─── Renderizar Clientes ────────────────────────────────────────────────────
+function renderizarClientes(clientes) {
+  // Limpar marcadores
+  markersLayer.clearLayers();
+  clusterLayer.clearLayers();
+
+  // Limpar lista
+  const list = document.getElementById('clientList');
+  list.innerHTML = '';
+
+  if (clientes.length === 0) {
+    list.innerHTML = `
+      <div style="text-align:center;padding:40px;color:var(--text2)">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:48px;height:48px;opacity:0.3;margin-bottom:12px">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <div style="font-weight:700">Nenhum cliente encontrado</div>
+        <div style="font-size:12px;margin-top:4px">Aumente o raio de busca</div>
+      </div>
+    `;
+    return;
+  }
+
+  // Ícone personalizado
+    clientes.forEach((c, index) => {
+      const lat = parseFloat(c.latitude || c.lat);
+      const lng = parseFloat(c.longitude || c.lng);
+      if (!lat || !lng) return;
+
+      // Marcador no mapa
+      const marker = L.marker([lat, lng], {
+        icon: L.divIcon({
+          className: 'custom-div-icon',
+          html: `<div class="custom-marker" style="${c._lead ? 'background:#7c3aed' : (c.dias_sem_compra >= 90 ? 'background:#ef4444' : '')}"><svg class="custom-marker-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg></div>`,
+          iconSize: [28, 35],
+          iconAnchor: [14, 35],
+          popupAnchor: [0, -35]
+        }),
+        title: c.nome || c.nome_cliente || 'Sem nome' // Adiciona o nome do cliente como título (tooltip)
+      });
+
+      // Popup
+      const popupContent = `
+      <div class="popup-header">
+        <h4>${escHtml(c.nome || c.nome_cliente || 'Sem nome')}</h4>
+        <p>${c._lead ? '🟣 Lead · ' : ''}${(c.distancia || 0).toFixed(1)} km de distância</p>
+      </div>
+      <div class="popup-body">
+        <div class="popup-row">
+          <span class="popup-label">Endereço</span>
+          <span class="popup-value">${escHtml(formatarEndereco(c))}</span>
+        </div>
+        <div class="popup-row">
+          <span class="popup-label">Cidade</span>
+          <span class="popup-value">${escHtml(c.cidade || '—')}</span>
+        </div>
+        ${c.telefone ? `<div class="popup-row"><span class="popup-label">Telefone</span><span class="popup-value">${escHtml(c.telefone)}</span></div>` : ''}
+        ${c.dias_sem_compra != null ? `<div class="popup-row"><span class="popup-label">Última compra</span><span class="popup-value" style="font-weight:700;color:${c.dias_sem_compra >= 90 ? '#ef4444' : 'inherit'}">há ${c.dias_sem_compra} dias</span></div>` : (!c._lead && c.dtultimacompra === null ? `<div class="popup-row"><span class="popup-label">Última compra</span><span class="popup-value">nunca comprou</span></div>` : '')}
+        <div class="popup-actions" style="flex-wrap:wrap">
+          ${c._lead ? `<button class="popup-btn popup-btn-primary" onclick="abrirLeads()" style="flex:1 1 100%">Abrir em Leads</button>` : `<button class="popup-btn popup-btn-primary" onclick="abrirHistoricoVendas(${c.id})" style="flex:1 1 45%">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:12px;height:12px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+            Histórico
+          </button>`}
+          <button class="popup-btn popup-btn-secondary" onclick="abrirGoogleMapsPonto(${lat},${lng})" style="flex:1 1 45%">Google Maps</button>
+          <button class="popup-btn popup-btn-secondary" onclick="abrirWazePonto(${lat},${lng})" style="flex:1 1 45%">Waze</button>
+          ${c._lead ? '' : `<button class="popup-btn popup-btn-visit" onclick="agendarVisita(${c.id}, '${jsArg(c.nome || c.nome_cliente || '')}')" style="flex:1 1 100%">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:12px;height:12px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+            Agendar Visita
+          </button>`}
+        </div>
+      </div>
+    `;
+
+    marker.bindPopup(popupContent);
+
+    if (useClusters) {
+      clusterLayer.addLayer(marker);
+    } else {
+      markersLayer.addLayer(marker);
+    }
+
+    // Item na lista lateral
+    const item = document.createElement("div");
+    item.className = "client-item";
+    item.dataset.index = index;
+    item.innerHTML = `
+      <div class="client-item-header">
+        <div class="client-name">${escHtml(c.nome || c.nome_cliente || 'Sem nome')}</div>
+        <div class="client-distance">${(c.distancia || 0).toFixed(1)} km</div>
+      </div>
+      <div class="client-address">${escHtml(formatarEndereco(c))}</div>
+      <div class="client-meta">
+        <span>📍 ${escHtml(c.cidade || '—')}${c.uf ? '/' + escHtml(c.uf) : ''}</span>
+        ${c._lead ? '<span style="color:#7c3aed;font-weight:700">Lead</span>' : ''}
+        ${c.dias_sem_compra != null ? `<span style="font-weight:700;color:${c.dias_sem_compra >= 90 ? '#ef4444' : 'inherit'}">${c.dias_sem_compra}d sem compra</span>` : ''}
+        ${c.numero ? `<span>#${escHtml(c.numero)}</span>` : ''}
+      </div>
+    `;
+    item.onclick = () => {
+      document.querySelectorAll('.client-item').forEach(i => i.classList.remove('active'));
+      item.classList.add('active');
+      map.setView([lat, lng], 16);
+      marker.openPopup();
+      minimizarSheet();
+    };
+    list.appendChild(item);
+  });
+
+  // Ajustar zoom para caber todos os marcadores
+  if (clientes.length > 0) {
+    const bounds = clientes
+      .filter(c => c.latitude || c.lat)
+      .map(c => [parseFloat(c.latitude || c.lat), parseFloat(c.longitude || c.lng)]);
+    if (bounds.length > 0) {
+      map.fitBounds(bounds, { padding: [50, 50] });
+    }
+  }
+
+  // Listener para quando o popup é fechado (reexibir botões do topbar)
+  map.on('popupclose', function(e) {
+    showTopbarActions();
+  });
+}
+
+function formatarEndereco(c) {
+  const partes = [];
+  if (c.endereco) partes.push(c.endereco);
+  if (c.numero_end || c.numero) partes.push(c.numero_end || c.numero);
+  if (c.bairro) partes.push(c.bairro);
+  if (c.cidade) partes.push(c.cidade);
+  if (c.uf) partes.push(c.uf);
+  return partes.join(', ');
+}
+
+function selecionarCliente(index) {
+  const item = document.querySelector(`.client-item[data-index="${index}"]`);
+  if (item) item.click();
+}
+
+// ─── Controles do Mapa ──────────────────────────────────────────────────────
+function zoomIn() { map.zoomIn(); }
+function zoomOut() { map.zoomOut(); }
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('collapsed');
+  setTimeout(() => map.invalidateSize(), 350);
+}
+
+function toggleClusters() {
+  useClusters = !useClusters;
+  const btn = document.getElementById('btnClusters');
+  btn.classList.toggle('active', useClusters);
+
+  if (useClusters) {
+    map.removeLayer(markersLayer);
+    clusterLayer.addTo(map);
+  } else {
+    map.removeLayer(clusterLayer);
+    markersLayer.addTo(map);
+  }
+
+  // Re-renderizar
+  renderizarAtual();
+}
+
+// ─── Rota Otimizada ─────────────────────────────────────────────────────────
+async function toggleRota() {
+  const panel = document.getElementById('routePanel');
+  const btn = document.getElementById('btnRota');
+
+  if (panel.classList.contains('show')) {
+    fecharRota();
+    return;
+  }
+
+  if (clientesEncontrados.length < 2) {
+    toast('Selecione pelo menos 2 clientes para otimizar rota', 'warn');
+    return;
+  }
+
+  showLoading(true);
+  btn.classList.add('active');
+
+  try {
+    // Pontos: 1º = sua localização (origem fixa); depois os 20 mais próximos
+    const pontos = clientesEncontrados
+      .filter(c => c.latitude || c.lat)
+      .slice(0, 20)
+      .map(c => ({
+        lat: parseFloat(c.latitude || c.lat),
+        lng: parseFloat(c.longitude || c.lng),
+        id: c.id,
+        nome: c.nome || c.nome_cliente
+      }));
+    if (userLocation) pontos.unshift({ lat: userLocation.lat, lng: userLocation.lng, id: null, nome: 'Você (partida)', origem: true });
+
+    // Chamar API de otimização
+    const response = await fetch(
+      `/api/geolocalizacao/otimizar-rota?pontos=${encodeURIComponent(JSON.stringify(pontos))}`,
+      { headers: { 'Authorization': `Bearer ${token}` } }
+    );
+
+    const data = await response.json();
+
+    if (data.rota && data.rota.length > 0) {
+      rotaOtimizada = data.rota;
+
+      const paradas = data.rota.filter(p => !p.origem).length;
+      document.getElementById('routeDist').textContent = data.distanciaTotal.toFixed(1) + ' km';
+      document.getElementById('routeStops').textContent = paradas;
+      document.getElementById('routeTempo').textContent = data.duracaoMin != null
+        ? (data.duracaoMin >= 60 ? Math.floor(data.duracaoMin / 60) + 'h' + String(data.duracaoMin % 60).padStart(2, '0') : data.duracaoMin + ' min')
+        : '—';
+      document.getElementById('routeNota').textContent = data.fonte === 'ruas'
+        ? 'Percurso pelas ruas, na ordem que reduz o deslocamento.'
+        : 'Serviço de rotas indisponível: distância em linha reta (aproximada).';
+      panel.classList.add('show');
+
+      // Traçado: pelas ruas (OSRM) ou linha reta no fallback
+      rotaLayer.clearLayers();
+      const routeCoords = data.geometry && data.geometry.length ? data.geometry : data.rota.map(p => [p.lat, p.lng]);
+      L.polyline(routeCoords, {
+        color: '#4361ee', weight: 5, opacity: 0.85,
+        dashArray: data.fonte === 'ruas' ? null : '10, 10'
+      }).addTo(rotaLayer);
+
+      // Paradas numeradas na ordem da visita
+      let n = 0;
+      data.rota.forEach(p => {
+        const rotulo = p.origem ? '★' : ++n;
+        L.marker([p.lat, p.lng], {
+          icon: L.divIcon({
+            className: 'custom-div-icon',
+            html: `<div style="width:26px;height:26px;border-radius:50%;background:${p.origem ? '#16a34a' : '#4361ee'};color:#fff;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;font:800 12px Inter,sans-serif">${rotulo}</div>`,
+            iconSize: [26, 26], iconAnchor: [13, 13]
+          }),
+          zIndexOffset: 1000
+        }).bindTooltip(`${rotulo === '★' ? '' : rotulo + '. '}${escHtml(p.nome || '')}`).addTo(rotaLayer);
+      });
+
+      map.fitBounds(routeCoords, { padding: [50, 50] });
+      proximaIdx = 0;
+      if (watchId != null) atualizarProximaParada();
+
+      toast(data.fonte === 'ruas' ? 'Rota otimizada pelas ruas!' : 'Rota aproximada (linha reta)', data.fonte === 'ruas' ? 'success' : 'warn');
+    } else {
+      btn.classList.remove('active');
+      toast('Não foi possível montar a rota', 'warn');
+    }
+  } catch (err) {
+    console.error('Erro:', err);
+    btn.classList.remove('active');
+    toast('Erro ao otimizar rota', 'error');
+  } finally {
+    showLoading(false);
+  }
+}
+
+function limparRota() {
+  proximaIdx = 0;
+  document.getElementById('routePanel').classList.remove('show');
+  document.getElementById('btnRota').classList.remove('active');
+  rotaOtimizada = [];
+  if (rotaLayer) rotaLayer.clearLayers();
+}
+
+function fecharRota() {
+  limparRota();
+}
+
+function abrirGoogleMapsPonto(lat, lng) {
+  window.open(`https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${lat},${lng}`, '_blank');
+}
+
+function abrirWazePonto(lat, lng) {
+  window.open(`https://waze.com/ul?ll=${lat},${lng}&navigate=yes&zoom=17`, '_blank');
+}
+
+// Paradas da rota sem o ponto de partida (a partida = posição atual do aparelho)
+function paradasDaRota() {
+  return rotaOtimizada.filter(p => !p.origem);
+}
+
+function abrirGoogleMaps() {
+  const paradas = paradasDaRota();
+  if (paradas.length === 0) return;
+
+  // Sem "origin", o Google Maps parte da posição atual (GPS) do aparelho.
+  // Limite: destino + 9 paradas intermediárias.
+  let pts = paradas.map(p => `${p.lat},${p.lng}`);
+  if (pts.length > 10) { pts = pts.slice(0, 10); toast('Google Maps aceita até 10 paradas: enviadas as 10 primeiras', 'warn'); }
+  const destino = pts[pts.length - 1];
+  const meio = pts.slice(0, -1).join('|');
+  let url = `https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${destino}`;
+  if (meio) url += `&waypoints=${encodeURIComponent(meio)}`;
+  window.open(url, '_blank');
+}
+
+// Waze não aceita várias paradas: navega até a próxima da rota
+function abrirWazeProxima() {
+  const paradas = paradasDaRota();
+  if (paradas.length === 0) return;
+  abrirWazePonto(paradas[0].lat, paradas[0].lng);
+}
+
+// ─── Utilitários ────────────────────────────────────────────────────────────
+function showLoading(show) {
+  document.getElementById('loadingOverlay').classList.toggle('show', show);
+}
+
+function atualizarInfoBar(total, raio) {
+  document.getElementById('infoBar').style.display = 'flex';
+  document.getElementById('infoTotal').textContent = total;
+  document.getElementById('infoRaio').textContent = raio;
+}
+
+function toast(mensagem, tipo = 'info') {
+  const container = document.getElementById('toastContainer');
+  const el = document.createElement('div');
+  el.className = `toast toast-${tipo}`;
+  el.innerHTML = `
+    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:18px;height:18px;flex-shrink:0">
+      ${tipo === 'success' ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>' :
+        tipo === 'error' ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>' :
+        '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>'}
+    </svg>
+    <span>${escHtml(mensagem)}</span>
+  `;
+  container.appendChild(el);
+  setTimeout(() => el.remove(), 4000);
+}
+
+function escHtml(str) {
+  if (!str) return '';
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function voltarHome() {
+  window.location.href = '/home.html';
+}
+
+function minimizarSheet() {
+  var sidebar = document.getElementById('sidebar');
+  if (sidebar && !sidebar.classList.contains('collapsed')) {
+    sidebar.classList.add('collapsed');
+  }
+  map?.closePopup();
+}
+
+function abrirHistoricoVendas(clienteId) {
+  salvarEstado();
+  minimizarSheet();
+  if (document.documentElement.classList.contains('sysrep-ms-embed')) {
+    window.parent.postMessage({ type: 'navigate', url: '/pages/pedidos.html?cliente=' + clienteId }, '*');
+  } else {
+    window.location.href = '/pages/pedidos.html?cliente=' + clienteId;
+  }
+}
+
+function agendarVisita(clienteId, clienteNome) {
+  salvarEstado();
+  minimizarSheet();
+  if (document.documentElement.classList.contains('sysrep-ms-embed')) {
+    window.parent.postMessage({ type: 'navigate', url: '/pages/visitas.html?novo=1&cliente_id=' + clienteId + '&cliente_nome=' + encodeURIComponent(clienteNome) }, '*');
+  } else {
+    window.location.href = '/pages/visitas.html?novo=1&cliente_id=' + clienteId + '&cliente_nome=' + encodeURIComponent(clienteNome);
+  }
+}
+
+function hideTopbarActions() {
+  document.getElementById('topbarActions').style.display = 'none';
+}
+
+function showTopbarActions() {
+  document.getElementById('topbarActions').style.display = 'flex';
+}
+
+// ─── Mobile embed: bottom-sheet behavior ────────────────────────────────────
+(function initMobileMapUI() {
+  if (!document.documentElement.classList.contains('sysrep-ms-embed')) return;
+
+  const sidebar = document.getElementById('sidebar');
+  const header = sidebar?.querySelector('.sidebar-header');
+  if (!sidebar || !header) return;
+
+  // Se restaurou clientes, mostrar o sheet; senão, colapsar
+  var hasRestoredClients = clientesEncontrados.length > 0;
+  if (!hasRestoredClients) {
+    sidebar.classList.add('collapsed');
+  }
+
+  // Atualiza o subtítulo quando tem clientes restaurados
+  if (hasRestoredClients) {
+    var sub = sidebar.querySelector('.sidebar-subtitle');
+    if (sub) sub.textContent = clientesEncontrados.length + ' clientes encontrados';
+  }
+
+  header.addEventListener('click', function(e) {
+    e.stopPropagation();
+    sidebar.classList.toggle('collapsed');
+    setTimeout(function() { if (map) map.invalidateSize(); }, 400);
+  });
+
+  document.getElementById('map')?.addEventListener('click', function() {
+    if (!sidebar.classList.contains('collapsed')) {
+      sidebar.classList.add('collapsed');
+      setTimeout(function() { if (map) map.invalidateSize(); }, 400);
+    }
+  });
+
+  var origBuscar = window.buscarClientesRaio;
+  window.buscarClientesRaio = async function() {
+    await origBuscar.apply(this, arguments);
+    var sub = sidebar.querySelector('.sidebar-subtitle');
+    var nome = modoMapa === 'lugares' ? 'estabelecimentos' : (modoMapa === 'pedidos' ? 'pedidos' : 'clientes');
+    if (sub) sub.textContent = clientesEncontrados.length + ' ' + nome + ' · toque para ver a lista';
+    // Mostra o mapa primeiro (lista recolhida); abre só se ainda não há resultado
+    if (clientesEncontrados.length === 0) sidebar.classList.remove('collapsed');
+    else sidebar.classList.add('collapsed');
+    setTimeout(function() { if (map) map.invalidateSize(); }, 400);
+  };
+
+  // FAB "Minha Localização"
+  var fab = document.createElement('button');
+  fab.className = 'ms-map-fab';
+  fab.title = 'Minha Localização';
+  fab.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/><circle cx="12" cy="12" r="8"/></svg>';
+  fab.onclick = function() { localizarUsuario(); };
+  document.querySelector('.map-container')?.appendChild(fab);
+})();
+</script>
+</body>
+</html>

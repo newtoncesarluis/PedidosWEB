@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Mapa de Clientes · SysPed WEB</title>
+<script src="/assets/toque.js"></script>
+<script src="/assets/confirm-dialog.js"></script>
 
 <!-- Leaflet CSS & JS -->
 <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
@@ -329,97 +331,48 @@ body {
   font-weight: 800 !important;
 }
 
-/* Popup Styles */
+/* Popup (card do estabelecimento/cliente) — simples, na cor do tema */
 .leaflet-popup-content-wrapper {
-  border-radius: 14px !important;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.15) !important;
+  border-radius: 12px !important;
+  background: var(--card) !important;
+  color: var(--text) !important;
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 28px rgba(0,0,0,0.22) !important;
   padding: 0 !important;
   overflow: hidden;
 }
-
-.leaflet-popup-content {
-  margin: 0 !important;
-  width: 260px !important;
+.leaflet-popup-tip { background: var(--card) !important; border: 1px solid var(--border); }
+.leaflet-popup-content { margin: 0 !important; width: 272px !important; }
+/* botão fechar sempre visível */
+.leaflet-container a.leaflet-popup-close-button {
+  top: 9px !important; right: 9px !important; width: 28px !important; height: 28px !important;
+  border-radius: 50%; background: var(--bg); border: 1px solid var(--border);
+  color: var(--text) !important; font: 20px/25px Arial, sans-serif !important; text-align: center; padding: 0 !important;
 }
+.leaflet-container a.leaflet-popup-close-button:hover { background: var(--border); }
 
-.popup-header {
-  background: linear-gradient(135deg, var(--accent), #0284c7);
-  color: #fff;
-  padding: 14px 18px;
-}
+.popup-header { padding: 14px 46px 10px 16px; border-bottom: 1px solid var(--border); }
+.popup-header h4 { font-size: 15px; font-weight: 700; line-height: 1.25; margin: 0 0 3px; color: var(--text); }
+.popup-header p { font-size: 12px; color: var(--text2); margin: 0; }
 
-.popup-header h4 {
-  font-size: 14px; font-weight: 800; margin-bottom: 2px;
-}
-
-.popup-header p {
-  font-size: 11px; opacity: 0.9;
-}
-
-.popup-body {
-  padding: 14px 18px;
-}
-
-.popup-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-  font-size: 12px;
-}
-
+.popup-body { padding: 12px 16px 14px; }
+.popup-row { display: block; margin-bottom: 9px; font-size: 13px; }
 .popup-row:last-child { margin-bottom: 0; }
+.popup-label { display: block; font-size: 11px; color: var(--text2); font-weight: 600; margin-bottom: 1px; }
+.popup-value { display: block; font-weight: 500; color: var(--text); line-height: 1.35; }
 
-.popup-label {
-  color: var(--text2);
-  font-weight: 600;
-}
-
-.popup-value {
-  font-weight: 700;
-  color: var(--text);
-}
-
-.popup-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
-}
-
+.popup-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
 .popup-btn {
-  flex: 1;
-  padding: 8px;
-  border-radius: 8px;
-  font-size: 11px;
-  font-weight: 700;
-  cursor: pointer;
-  border: none;
-  text-align: center;
-  text-decoration: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  font-family: var(--font);
+  flex: 1 1 calc(50% - 4px); min-height: 36px; padding: 8px 10px; border-radius: 8px; font-size: 12px; font-weight: 600;
+  cursor: pointer; border: 1px solid transparent; text-align: center; text-decoration: none !important;
+  display: flex; align-items: center; justify-content: center; gap: 4px; font-family: var(--font);
 }
-
-.popup-btn-primary {
-  background: var(--accent);
-  color: #fff;
-}
-
-.popup-btn-secondary {
-  background: var(--bg);
-  color: var(--text);
-  border: 1px solid var(--border);
-}
-
-.popup-btn-visit {
-  background: #10b981;
-  color: #fff;
-}
+.popup-btn-primary, a.popup-btn-primary { background: var(--accent); color: #fff !important; }
+.popup-btn-secondary, a.popup-btn-secondary { background: transparent; color: var(--text) !important; border-color: var(--border); }
+.popup-btn-secondary:hover { background: var(--bg); }
+.popup-btn-wa, a.popup-btn-wa { background: #16a34a; color: #fff !important; }
+html body .leaflet-popup .popup-btn.popup-btn-visit { background: var(--accent) !important; color: #fff !important; }
+.popup-btn:disabled { opacity: .6; cursor: default; }
 
 /* ── FLOATING CONTROLS ── */
 .map-controls {
@@ -457,6 +410,25 @@ body {
 }
 
 .map-ctrl-btn svg { width: 20px; height: 20px; }
+
+/* ── BUSCAR NOS RESULTADOS ── */
+.busca-res { position: absolute; top: 16px; right: 72px; width: min(400px, calc(100% - 96px)); z-index: 1100; background: var(--card); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 8px 24px rgba(0,0,0,.18); padding: 10px; }
+.busca-res[hidden] { display: none; }
+.br-linha { display: flex; gap: 8px; align-items: center; }
+.busca-res input { flex: 1; min-width: 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font-size: 15px; font-family: inherit; background: var(--bg); color: var(--text); }
+.busca-res input:focus { outline: none; border-color: var(--accent); }
+.br-x { flex: none; width: 36px; height: 36px; border: 1px solid var(--border); background: transparent; color: var(--text2); border-radius: 10px; font-size: 18px; cursor: pointer; line-height: 1; }
+.br-lista { margin-top: 8px; max-height: min(46vh, 340px); overflow-y: auto; }
+.br-item { display: block; width: 100%; text-align: left; background: transparent; border: 0; border-radius: 8px; padding: 8px 10px; cursor: pointer; color: var(--text); font-family: inherit; font-size: 14px; }
+.br-item b { font-weight: 700; }
+.br-item small { display: block; color: var(--text2); font-size: 12px; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.br-item:hover, .br-item.sel { background: var(--accent-soft, rgba(14,165,233,.14)); }
+.br-vazio { padding: 12px 10px; color: var(--text2); font-size: 13px; }
+.br-rod { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 6px; font-size: 12px; color: var(--text2); }
+.br-rod button { border: 1px solid var(--border); background: transparent; color: var(--accent); border-radius: 8px; padding: 5px 9px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.chip-filtro-lista { margin: 0 0 8px; padding: 8px 10px; border: 1px solid var(--accent); border-radius: 10px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; gap: 8px; color: var(--text); }
+.chip-filtro-lista button { border: 0; background: transparent; color: var(--accent); font-weight: 700; cursor: pointer; font-size: 13px; font-family: inherit; }
+@media (max-width: 900px) { .busca-res { top: 12px; left: 12px; right: 68px; width: auto; } }
 
 /* ── INFO BAR ── */
 .info-bar {
@@ -612,8 +584,141 @@ body {
 .chips button { border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: 999px;
   padding: 6px 12px; font-size: 12px; font-weight: 700; cursor: pointer; font-family: var(--font); min-height: 34px; }
 .chips button:active { background: var(--accent); color: #fff; }
-.lote-bar { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: 10px; padding: 8px 4px 10px;
-  background: var(--card); border-bottom: 1px solid var(--border); margin-bottom: 8px; }
+.lote-bar { position: sticky; top: -12px; z-index: 5; display: flex; align-items: center; gap: 10px;
+  margin: -12px -12px 10px; padding: 12px 16px 10px;
+  background: var(--card); border-bottom: 1px solid var(--border); box-shadow: 0 6px 10px -8px rgba(0,0,0,.35); }
+
+/* Combo de tipos de comércio (seleção múltipla) */
+.combo-head { display: flex; gap: 6px; }
+.combo-lista-big { max-height: none !important; flex: 1; min-height: 120px; overflow-y: auto; padding: 4px 12px 8px; }
+.combo-lista-big label { padding: 12px 8px; font-size: 15px; }
+.combo-lista-big input { width: 20px; height: 20px; }
+.com-rodape { padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--border); background: var(--card); }
+.com-rodape .btn { width: 100%; min-height: 48px; justify-content: center; font-size: 15px; font-weight: 800; }
+.combo-x { flex: none; width: 44px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); font-size: 22px; line-height: 1; cursor: pointer; }
+.combo-x[hidden] { display: none; }
+.combo-x:hover { background: var(--border); }
+.combo-btn { flex: 1; min-width: 0; width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; text-align: left;
+  padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text);
+  font: 600 13px var(--font); cursor: pointer; min-height: 40px; }
+.combo-btn span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.combo-btn svg { width: 16px; height: 16px; flex: none; transition: transform .15s; }
+.combo.open .combo-btn svg { transform: rotate(180deg); }
+.combo-pop { margin-top: 6px; border: 1px solid var(--border); border-radius: 10px; background: var(--card); padding: 8px; }
+.combo-pop[hidden] { display: none; }
+.combo-pop input[type=search] { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font: 13px var(--font); margin-bottom: 6px; }
+.combo-acoes { display: flex; gap: 8px; margin-bottom: 4px; }
+.combo-acoes button { border: 0; background: transparent; color: var(--accent); font: 700 12px var(--font); cursor: pointer; padding: 4px 2px; }
+.combo-lista { max-height: 210px; overflow-y: auto; }
+.combo-lista label { display: flex; align-items: center; gap: 9px; padding: 8px 6px; border-radius: 8px; font-size: 13px; cursor: pointer; }
+.combo-lista label:hover { background: var(--bg); }
+.combo-lista input { width: 16px; height: 16px; accent-color: var(--accent); flex: none; }
+.btn-buscar-main { width: 100%; justify-content: center; padding: 12px; font-size: 14px; font-weight: 800; }
+.rel-bar { display: flex; gap: 6px; margin: 0 0 10px; padding: 4px; background: var(--bg); border: 1px solid var(--border); border-radius: 12px; }
+.rel-bar button { flex: 1; border: 0; background: transparent; color: var(--text2); font: 700 12px var(--font); padding: 9px 8px; border-radius: 9px; cursor: pointer; min-height: 38px; }
+.rel-bar button.on { background: var(--accent); color: #fff; }
+.rel-dica { font-size: 11px; color: var(--text2); margin: -4px 2px 10px; line-height: 1.4; }
+.match-tag { display: inline-block; font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 99px; margin-left: 6px; vertical-align: middle; }
+.match-exato { background: #dcfce7; color: #166534; }
+.match-nome { background: #dbeafe; color: #1e40af; }
+.match-parcial { background: #fef3c7; color: #92400e; }
+.match-categoria { background: var(--bg); color: var(--text2); border: 1px solid var(--border); }
+.resumo-reg { border: 1px solid var(--border); border-radius: 14px; background: var(--card); padding: 12px; margin: 0 0 12px; }
+.resumo-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; text-align: center; }
+.resumo-grid b { display: block; font-size: 18px; font-weight: 800; color: var(--text); }
+.resumo-grid span { display: block; font-size: 10px; color: var(--text2); line-height: 1.25; margin-top: 2px; }
+.resumo-cats { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.resumo-cats span { font-size: 11px; background: var(--bg); border: 1px solid var(--border); border-radius: 99px; padding: 3px 9px; }
+.resumo-dica { font-size: 11px; line-height: 1.45; color: var(--text2); margin-top: 10px; padding: 8px 10px; border-radius: 10px; background: var(--bg); }
+.resumo-dica b { color: var(--text); }
+.acoes-lista { display: flex; gap: 6px; width: 100%; flex-basis: 100%; }
+.acoes-lista button { flex: 1; border: 1px solid var(--border); background: var(--bg); color: var(--text); font: 700 11px var(--font); padding: 8px 6px; border-radius: 8px; cursor: pointer; min-height: 36px; }
+.acoes-lista button:hover { border-color: var(--accent); color: var(--accent); }
+.radar-tag { display: inline-block; font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 99px; margin-left: 6px; vertical-align: middle; cursor: help; }
+.radar-alta { background: #fef3c7; color: #92400e; }
+.radar-media { background: #e0e7ff; color: #3730a3; }
+.radar-baixa { background: var(--bg); color: var(--text2); border: 1px solid var(--border); }
+.combo-dica { font-size: 11px; color: var(--text2); padding: 2px 4px 6px; }
+.combo-dica[hidden] { display: none; }
+.hist-link { width: 100%; margin-top: 8px; border: 0; background: transparent; color: var(--accent); font: 700 13px var(--font); padding: 10px; cursor: pointer; border-radius: 10px; }
+.hist-link:hover { background: var(--bg); }
+.hist-ov { position: fixed; inset: 0; z-index: 3000; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.hist-ov[hidden] { display: none; }
+.hist-card { width: min(560px, 100%); max-height: min(720px, 92vh); display: flex; flex-direction: column; background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,.4); overflow: hidden; }
+.hist-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+.hist-head h3 { font-size: 16px; font-weight: 800; flex: 1; }
+.hist-x { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 22px; cursor: pointer; }
+.hist-tabs { display: flex; gap: 6px; padding: 10px 16px 0; }
+.hist-tabs button { flex: 1; border: 0; background: var(--bg); color: var(--text2); font: 700 13px var(--font); padding: 10px; border-radius: 10px; cursor: pointer; }
+.hist-tabs button.on { background: var(--accent); color: #fff; }
+.hist-corpo { overflow-y: auto; padding: 12px 16px 16px; flex: 1; }
+.hist-vazio { text-align: center; color: var(--text2); padding: 36px 10px; font-size: 13px; line-height: 1.5; }
+.hist-dia { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--text2); margin: 14px 2px 6px; }
+.hist-item { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; background: var(--bg); }
+.hist-item .t { font-weight: 700; font-size: 14px; }
+.hist-item .s { font-size: 12px; color: var(--text2); margin-top: 3px; line-height: 1.4; }
+.hist-item .acoes { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.hist-item .acoes button { border: 1px solid var(--border); background: var(--card); color: var(--text); font: 700 12px var(--font); padding: 8px 12px; border-radius: 8px; cursor: pointer; min-height: 38px; }
+.hist-item .acoes button.pri { background: var(--accent); color: #fff; border-color: var(--accent); }
+.st-pill { display: inline-block; font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 99px; margin-left: 6px; vertical-align: middle; }
+.st-ok { background: #dcfce7; color: #166534; }
+.st-pend { background: #fef3c7; color: #92400e; }
+.st-canc { background: var(--bg); color: var(--text2); border: 1px solid var(--border); }
+.lote-bar { flex-wrap: wrap; }
+.recom { border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 12px; background: var(--bg); padding: 10px 12px; margin-bottom: 10px; font-size: 13px; line-height: 1.5; }
+.recom b { color: var(--text); }
+.recom .recom-btn { margin-top: 8px; border: 1px solid var(--accent); background: transparent; color: var(--accent); font: 700 12px var(--font); padding: 0 12px; min-height: 34px; border-radius: 8px; cursor: pointer; }
+.recom .recom-btn:hover { background: var(--card); }
+.filtro-tipo { display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid var(--accent); border-radius: 12px; padding: 8px 12px; margin-bottom: 10px; font-size: 13px; }
+.filtro-tipo button { border: 0; background: transparent; color: var(--accent); font: 700 12px var(--font); cursor: pointer; padding: 6px 4px; min-height: 34px; }
+@media (max-width: 900px) { .recom .recom-btn, .filtro-tipo button { min-height: 40px; } }
+.ass-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.ass-chip { border: 1px solid var(--border); background: var(--bg); color: var(--text); font: 600 13px var(--font); padding: 0 14px; min-height: 40px; border-radius: 99px; cursor: pointer; }
+.ass-chip.on { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 0 1.5px var(--accent) inset; font-weight: 800; }
+.ass-q { margin-bottom: 18px; }
+.ass-q h4 { font-size: 14px; font-weight: 800; margin-bottom: 8px; }
+.ass-q h4 span { display: inline-block; width: 22px; height: 22px; line-height: 22px; text-align: center; border-radius: 50%; background: var(--accent); color: #fff; font-size: 12px; margin-right: 8px; }
+.ass-q small { display: block; font-size: 12px; color: var(--text2); margin-top: 6px; line-height: 1.4; }
+.ass-inp { width: 100%; min-height: 44px; padding: 8px 12px; font: 16px var(--font); border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); margin-top: 8px; }
+.ass-chk { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; line-height: 1.4; margin-top: 4px; }
+.ass-chk input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--accent); }
+.ass-rodape { display: flex; gap: 8px; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--border); background: var(--card); }
+.ass-rodape .btn { flex: 1; min-height: 46px; justify-content: center; font-weight: 700; }
+.ass-novo { font-size: 12px; line-height: 1.4; color: var(--text2); background: var(--bg); border: 1px dashed var(--border); border-radius: 10px; padding: 8px 10px; }
+.acoes-busca { display: flex; gap: 8px; }
+.acoes-busca .btn-buscar-main { flex: 1; width: auto; }
+.btn-limpar-main { flex: none; padding: 0 16px; font-weight: 700; }
+.info-limpar { border: 0; background: transparent; color: var(--text2); font: 700 12px var(--font); cursor: pointer; padding: 2px 4px; white-space: nowrap; border-left: 1px solid var(--border); padding-left: 12px; }
+.info-limpar:hover { color: var(--accent); }
+.btn-buscar-main:disabled { opacity: .65; cursor: wait; }
+
+/* Aviso "preparando a lista completa" com contagem */
+.prep-banner { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); z-index: 1200; width: min(440px, calc(100% - 24px));
+  background: var(--card); color: var(--text); border: 1px solid var(--border); border-left: 4px solid var(--accent);
+  border-radius: 14px; box-shadow: 0 12px 34px rgba(0,0,0,.28); padding: 14px 16px; }
+.prep-banner[hidden] { display: none; }
+.prof-opt { display: flex; align-items: flex-start; gap: 8px; margin-top: 10px; padding: 9px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--card); cursor: pointer; font-size: 13px; color: var(--text); line-height: 1.35; }
+.prof-opt input { width: 18px; height: 18px; margin: 1px 0 0; flex: none; accent-color: var(--accent); }
+.prof-opt small { display: block; color: var(--text2); font-size: 11.5px; margin-top: 2px; }
+.prof-opt:has(input:checked) { border-color: var(--accent); }
+.prof-cancel { margin-top: 10px; background: transparent; border: 1px solid var(--border); color: var(--text2); border-radius: 8px; padding: 5px 12px; font-size: 12px; cursor: pointer; }
+.client-cnpj { font-size: 11px; color: var(--text2); margin-top: 2px; }
+.prof-status { margin-top: 6px; font-size: 12px; color: var(--text2); line-height: 1.4; }
+.prof-status .pt { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: var(--border); }
+.prof-status .pt.ok { background: #16a34a; }
+.prof-status .pt.prep { background: var(--accent); }
+.prof-status .pt.off { background: #f59e0b; }
+.prof-status button { background: none; border: 0; padding: 0; color: var(--accent); font-weight: 600; font-size: 12px; cursor: pointer; text-decoration: underline; }
+.prof-aviso { margin-top: 6px; padding: 8px 10px; border: 1px solid var(--accent); border-radius: 8px; font-size: 12px; color: var(--text); line-height: 1.4; }
+.prof-opt.bloqueada { opacity: .55; cursor: not-allowed; }
+.prep-top { display: flex; align-items: center; gap: 12px; }
+.prep-spin { width: 26px; height: 26px; flex: none; border-radius: 50%; border: 3px solid var(--border); border-top-color: var(--accent); animation: prepGira 0.9s linear infinite; }
+@keyframes prepGira { to { transform: rotate(360deg); } }
+.prep-tit { font-weight: 800; font-size: 14px; }
+.prep-sub { font-size: 12px; color: var(--text2); margin-top: 2px; line-height: 1.4; }
+.prep-tempo { margin-left: auto; font: 800 20px var(--font); font-variant-numeric: tabular-nums; color: var(--accent); }
+.prep-barra { height: 5px; border-radius: 99px; background: var(--border); margin-top: 12px; overflow: hidden; }
+.prep-barra i { display: block; height: 100%; width: 0; background: var(--accent); transition: width 1s linear; }
 .client-item-header { align-items: flex-start; }
 .map-controls { max-height: calc(100% - 24px); overflow-y: auto; }
 .you-dot { position: relative; width: 20px; height: 20px; }
@@ -637,15 +742,147 @@ html.sysrep-ms-embed .ms-map-fab { bottom: calc(76px + env(safe-area-inset-botto
 details.avancado > summary { cursor: pointer; font-size: 12px; font-weight: 700; color: var(--text2); padding: 4px 0; }
 
 /* ── RESPONSIVE ── */
-@media (max-width: 900px) {
+/* Painel de filtros mais compacto */
+.sidebar-header { padding: 14px 56px 10px 16px; }
+.sidebar-title { font-size: 15px; }
+.sidebar-subtitle { font-size: 12px; margin-top: 1px; }
+.controls { padding: 12px 16px 14px; gap: 10px; }
+.info-i { position: relative; display: inline-block; margin-left: 4px; color: var(--accent); font-size: 14px; line-height: 1; cursor: help; text-transform: none; letter-spacing: 0; outline: none; }
+.info-i .tip { display: none; position: absolute; left: -4px; top: 150%; width: 230px; z-index: 30; padding: 8px 10px; border-radius: 10px;
+  background: var(--card); color: var(--text); border: 1px solid var(--border); box-shadow: 0 8px 24px rgba(0,0,0,.22);
+  font-size: 12px; font-weight: 500; line-height: 1.4; white-space: normal; }
+.info-i:hover .tip, .info-i:focus .tip, .info-i.aberta .tip { display: block; }
+.linha-dupla { display: grid; grid-template-columns: 96px 1fr; gap: 10px; }
+.campo-v { flex-direction: column; align-items: stretch; gap: 4px; }
+.campo-v .control-input, .campo-v .control-select { width: 100%; min-width: 0; }
+.avancado summary { padding: 2px 0; }
+.hist-link { margin-top: 2px; padding: 8px; }
+/* Mapa: no computador os filtros abrem por cima do mapa, sob demanda (botão "Filtros de busca") */
+.sidebar-header { position: relative; }
+.sidebar-close {
+  position: absolute; top: 12px; right: 12px; width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--card); color: var(--text); font-size: 20px; line-height: 1; cursor: pointer;
+}
+@media (min-width: 901px) {
+  .main-layout { position: relative; }
   .sidebar {
-    position: absolute;
-    left: 0; top: 0;
-    height: 100%;
-    z-index: 999;
-    box-shadow: 4px 0 20px rgba(0,0,0,0.1);
+    position: absolute; left: 0; top: 0; height: 100%; z-index: 999;
+    box-shadow: 6px 0 28px rgba(0,0,0,.22); transition: transform .25s ease;
   }
-  .sidebar.collapsed { transform: translateX(-100%); }
+  .sidebar.collapsed { width: 380px; transform: translateX(-100%); box-shadow: none; overflow: hidden; }
+}
+
+@media (max-width: 900px) {
+  .topbar { height: 52px; padding: 0 12px; }
+  .main-layout { position: relative; height: calc(100vh - 52px); }
+  /* filtros: gaveta que sobe de baixo (abre pelo botão "Filtros de busca") */
+  .sidebar {
+    position: fixed; left: 0; right: 0; bottom: 0; top: auto; width: 100% !important; max-width: none;
+    height: 88vh; z-index: 1500; border: 0; border-top: 1px solid var(--border); border-radius: 18px 18px 0 0;
+    box-shadow: 0 -10px 40px rgba(0,0,0,.30); overflow-y: auto; overflow-x: hidden;
+    -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+    transition: transform .28s ease; padding-bottom: env(safe-area-inset-bottom);
+  }
+  .sidebar.collapsed { width: 100% !important; transform: translateY(105%); box-shadow: none; overflow: hidden; border-top: 0; }
+  .sidebar-header { padding: 20px 64px 12px 16px; }
+  .sidebar-header::before { content: ''; position: absolute; top: 8px; left: 50%; width: 42px; height: 4px; margin-left: -21px; border-radius: 4px; background: var(--border); }
+  .sidebar-close { width: 42px; height: 42px; top: 12px; right: 12px; font-size: 24px; line-height: 38px; }
+  .controls { padding: 12px 16px 16px; overflow: visible; }
+  .client-list { flex: none; overflow: visible; padding: 10px 12px 28px; min-height: 140px; }
+  .lote-bar { top: 0; margin: -10px -12px 10px; }
+  /* toque confortável + 16px evita o zoom automático do iOS */
+  .controls .control-input, .controls .control-select, .combo-btn, .combo-pop input[type=search] { font-size: 16px; min-height: 46px; }
+  .controls .btn { min-height: 44px; }
+  .btn-buscar-main { min-height: 52px; font-size: 16px; }
+  .combo-lista { max-height: 260px; }
+  .combo-lista label { padding: 13px 8px; font-size: 15px; }
+  .combo-lista input { width: 20px; height: 20px; }
+  .map-ctrl-btn { width: 44px; height: 44px; }
+  .leaflet-popup-content { width: 244px !important; }
+  .popup-btn { min-height: 44px; }
+  /* barra de resultado vira botão "ver lista" */
+  .info-bar { bottom: 14px; padding: 8px 12px; gap: 10px; max-width: calc(100% - 84px); left: calc(50% + 26px); font-size: 11px; cursor: pointer; }
+  .info-lista { display: inline-flex !important; }
+  .fab-loc { display: flex !important; }
+}
+.info-lista { display: none; align-items: center; gap: 4px; font-weight: 800; color: var(--accent); white-space: nowrap; }
+.fab-loc {
+  display: none; position: absolute; left: 12px; bottom: 14px; z-index: 1000; width: 52px; height: 52px; border-radius: 50%;
+  align-items: center; justify-content: center; border: 0; cursor: pointer; color: #fff;
+  background: linear-gradient(135deg, var(--accent), #2563eb); box-shadow: 0 6px 18px rgba(0,0,0,.3);
+}
+.fab-loc svg { width: 24px; height: 24px; }
+
+/* Abas do painel: Filtros | Resultados (uma de cada vez, sem rolar por tudo) */
+.side-tabs { display: flex; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--border); background: var(--card); position: sticky; top: 0; z-index: 8; flex: none; }
+.side-tabs button { flex: 1; border: 0; background: var(--bg); color: var(--text2); font: 700 13px var(--font); padding: 10px; border-radius: 10px; cursor: pointer; min-height: 42px; }
+.side-tabs button.on { background: var(--accent); color: #fff; }
+.side-tabs button:disabled { opacity: .5; cursor: default; }
+.sidebar[data-tab="filtros"] .client-list { display: none; }
+.sidebar[data-tab="res"] .controls { display: none; }
+.sidebar[data-tab="res"] .client-list { display: block; }
+.hist-ico { position: absolute; top: 12px; right: 52px; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border); background: var(--card); font-size: 17px; line-height: 1; cursor: pointer; }
+.hist-ico:hover { background: var(--bg); }
+.sidebar-header { padding-right: 96px !important; }
+.lote-bar { position: static !important; margin: 0 0 10px !important; padding: 10px 12px !important; border: 1px solid var(--border); border-radius: 12px; box-shadow: none !important; background: var(--card); }
+@media (max-width: 900px) {
+  .hist-ico { right: 62px; width: 42px; height: 42px; font-size: 19px; }
+  .sidebar-header { padding-right: 112px !important; }
+}
+/* Botões do painel: menores e discretos (cor de destaque só no que está ativo) */
+.side-tabs { gap: 0; padding: 0 12px; background: var(--card); }
+.side-tabs button { background: transparent !important; color: var(--text2); border-radius: 0; min-height: 40px; padding: 8px 6px; font-size: 13px; font-weight: 600; border-bottom: 2px solid transparent; }
+.side-tabs button.on { background: transparent !important; color: var(--accent); font-weight: 800; border-bottom-color: var(--accent); }
+.rel-bar { padding: 3px; gap: 3px; border-radius: 10px; }
+.rel-bar button { min-height: 32px; padding: 6px 8px; font-size: 12px; font-weight: 600; border-radius: 8px; }
+.rel-bar button.on { background: var(--card); color: var(--accent); font-weight: 800; box-shadow: 0 0 0 1.5px var(--accent) inset; }
+.lote-bar { gap: 8px; }
+.lote-bar label { font-size: 12px; }
+#btnLote { padding: 6px 12px !important; font-size: 12px !important; font-weight: 700; border-radius: 8px; background: var(--accent) !important; box-shadow: none !important; min-height: 34px; }
+#btnLote:disabled { background: transparent !important; color: var(--text2) !important; border: 1px solid var(--border); opacity: 1; }
+.acoes-lista { gap: 6px; }
+.acoes-lista button { min-height: 32px; padding: 5px 6px; font-size: 11px; font-weight: 600; color: var(--text2); background: transparent; border-radius: 8px; }
+.resumo-reg { padding: 10px 12px; }
+.resumo-grid b { font-size: 16px; }
+.resumo-dica { font-size: 11px; padding: 6px 8px; margin-top: 8px; }
+@media (max-width: 900px) {
+  .side-tabs button { min-height: 44px; }
+  .rel-bar button { min-height: 38px; }
+  #btnLote { min-height: 38px; }
+  .acoes-lista button { min-height: 38px; }
+}
+.origem-linha { display: flex; align-items: center; gap: 6px; min-height: 32px; }
+.origem-txt { flex: 1; min-width: 0; font-size: 12px; font-weight: 600; color: var(--text2); line-height: 1.3; }
+.origem-btn { flex: none; width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--text); font-size: 15px; line-height: 1; cursor: pointer; }
+.origem-btn:hover { border-color: var(--accent); color: var(--accent); }
+@media (max-width: 900px) { .origem-btn { width: 40px; height: 40px; } .origem-txt { font-size: 13px; } }
+/* Filtros: botões do mesmo tamanho, discretos; localização compacta */
+.btn-loc { flex: none; align-self: flex-start; min-height: 38px; padding: 0 14px; font-size: 13px; font-weight: 700; border-radius: 10px;
+  background: transparent; color: var(--accent); border: 1.5px solid var(--accent); box-shadow: none; gap: 6px; }
+.btn-loc:hover { background: var(--bg); }
+.btn-loc svg { width: 16px; height: 16px; }
+.acoes-busca { align-items: stretch; gap: 10px; }
+.acoes-busca .btn { flex: 1 1 0; justify-content: center; min-height: 42px; padding: 0 14px; font-size: 14px; font-weight: 700; border-radius: 10px; box-shadow: none; }
+.acoes-busca .btn-buscar-main { background: var(--accent) !important; color: #fff; border: 1.5px solid var(--accent); }
+.acoes-busca .btn-limpar-main { background: transparent; color: var(--accent); border: 1.5px solid var(--accent); }
+.acoes-busca .btn svg { width: 17px; height: 17px; }
+@media (max-width: 900px) {
+  .controls .btn-loc { min-height: 42px; }
+  .controls .acoes-busca .btn { min-height: 46px !important; font-size: 15px !important; }
+}
+/* Tablet (600–900 px): a gaveta fica centralizada e com largura confortável, não esticada */
+@media (min-width: 600px) and (max-width: 900px) {
+  .sidebar { left: 50% !important; right: auto !important; width: min(560px, 100%) !important; transform: translateX(-50%); border-radius: 18px 18px 0 0; }
+  .sidebar.collapsed { width: min(560px, 100%) !important; transform: translate(-50%, 105%) !important; }
+  .info-bar { left: 50%; max-width: min(440px, calc(100% - 100px)); }
+}
+@media (max-width: 480px) {
+  .info-bar .info-item:nth-child(2) { display: none; }   /* o raio some no celular: o botão Limpar precisa caber */
+  .info-bar { gap: 8px; padding: 8px 10px; }
+}
+@media (max-width: 900px) {
+  /* a gaveta tem a altura do conteúdo (aba Filtros fica curta); a lista de resultados rola dentro dela */
+  .sidebar { height: auto !important; max-height: 88vh; }
 }
 </style>
 </head>
@@ -674,7 +911,7 @@ details.avancado > summary { cursor: pointer; font-size: 12px; font-weight: 700;
 <div class="topbar-actions" id="topbarActions">
     <button class="btn btn-outline" onclick="toggleSidebar()" title="Mostrar/Ocultar painel">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
-      Painel
+      Filtros de busca
     </button>
     <button class="btn btn-outline" onclick="voltarHome()">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
@@ -686,19 +923,24 @@ details.avancado > summary { cursor: pointer; font-size: 12px; font-weight: 700;
 <!-- MAIN LAYOUT -->
 <div class="main-layout">
   <!-- SIDEBAR -->
-  <div class="sidebar" id="sidebar">
+  <div class="sidebar" id="sidebar" data-tab="filtros">
     <div class="sidebar-header">
       <div class="sidebar-title">Filtros de Busca</div>
       <div class="sidebar-subtitle">Encontre clientes por localização</div>
+      <button type="button" class="hist-ico" onclick="abrirHistorico()" title="Histórico de pesquisas e visitas" aria-label="Histórico de pesquisas e visitas">🕘</button>
+      <button type="button" class="sidebar-close" onclick="toggleSidebar()" title="Fechar" aria-label="Fechar filtros">&times;</button>
+    </div>
+    <div class="side-tabs" role="tablist">
+      <button type="button" id="tabFiltros" class="on" role="tab" onclick="setAbaPainel('filtros')">Filtros</button>
+      <button type="button" id="tabRes" role="tab" onclick="setAbaPainel('res')">Resultados</button>
     </div>
 
     <div class="controls">
-      <!-- Localização Atual -->
-      <div class="control-group">
-        <button class="btn btn-primary" onclick="localizarUsuario()" style="flex:1">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-          Minha Localização
-        </button>
+      <!-- Origem da busca (o Buscar usa o endereço digitado ou, se vazio, o GPS) -->
+      <div class="origem-linha" id="origemLinha">
+        <span class="origem-txt" id="origemTxt">📍 Partindo de: sua localização (será pedida ao buscar)</span>
+        <button type="button" class="origem-btn" onclick="atualizarGPS()" title="Atualizar pelo GPS" aria-label="Atualizar pelo GPS">↻</button>
+        <button type="button" class="origem-btn" onclick="trocarOrigem()" title="Digitar outro endereço" aria-label="Digitar outro endereço">✎</button>
       </div>
 
       <!-- Busca por cidade/endereço -->
@@ -731,28 +973,26 @@ details.avancado > summary { cursor: pointer; font-size: 12px; font-weight: 700;
       </div>
       </details>
 
-      <!-- Raio de Busca -->
-      <div class="control-group">
+      <!-- Raio + tipo de busca na mesma linha -->
+      <div class="linha-dupla">
+      <div class="control-group campo-v campo-raio">
         <label class="control-label">Raio (km):</label>
         <input type="text" inputmode="decimal" id="selectRaio" class="control-input" value="50" list="raiosSug" autocomplete="off"
-               title="Digite o raio em km. Ex.: 0,25 = 250 metros" style="max-width:90px;text-align:center;font-weight:800"
+               title="Digite o raio em km. Ex.: 0,25 = 250 metros" style="max-width:none;width:100%;text-align:center;font-weight:800"
                onfocus="this.select()" onkeydown="if(event.key==='Enter')buscarClientesRaio()">
         <datalist id="raiosSug"><option value="0,25"><option value="0,5"><option value="1"><option value="3"><option value="5"><option value="10"><option value="25"><option value="50"><option value="100"><option value="200"></datalist>
-        <button class="btn btn-primary" onclick="buscarClientesRaio()" style="padding:8px 12px">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-        </button>
       </div>
 
       <!-- Tipo de Busca -->
-      <div class="control-group">
+      <div class="control-group campo-v campo-tipo">
         <label class="control-label">Buscar:</label>
         <select id="selectTipo" class="control-select">
+          <option value="lugares" selected>Comércios (prospecção)</option>
           <option value="clientes">Clientes</option>
           <option value="leads">Leads (prospectos salvos)</option>
           <option value="misto">Clientes + Leads</option>
-          <option value="pedidos">Pedidos</option>
-          <option value="lugares">Estabelecimentos (novos)</option>
         </select>
+      </div>
       </div>
 
       <!-- Filtros da carteira -->
@@ -774,28 +1014,42 @@ details.avancado > summary { cursor: pointer; font-size: 12px; font-weight: 700;
       </div>
 
       <!-- Busca de estabelecimentos (OpenStreetMap) -->
-      <div class="control-group" id="grpLugares" style="display:none;flex-direction:column;align-items:stretch;gap:4px">
-        <input type="text" id="inputLugar" class="control-input" autocomplete="off"
-               placeholder="Ex.: açougue, padaria, farmácia..." onkeydown="if(event.key==='Enter')buscarClientesRaio()">
-        <div class="chips">
-          <button type="button" onclick="buscarCategoria('açougue')">Açougue</button>
-          <button type="button" onclick="buscarCategoria('padaria')">Padaria</button>
-          <button type="button" onclick="buscarCategoria('mercado')">Mercado</button>
-          <button type="button" onclick="buscarCategoria('mercearia')">Mercearia</button>
-          <button type="button" onclick="buscarCategoria('restaurante')">Restaurante</button>
-          <button type="button" onclick="buscarCategoria('lanchonete')">Lanchonete</button>
-          <button type="button" onclick="buscarCategoria('bar')">Bar</button>
-          <button type="button" onclick="buscarCategoria('farmácia')">Farmácia</button>
-          <button type="button" onclick="buscarCategoria('material de construção')">Mat. construção</button>
-          <button type="button" onclick="buscarCategoria('pet shop')">Pet shop</button>
-          <button type="button" onclick="buscarCategoria('roupas')">Roupas</button>
-          <button type="button" onclick="buscarCategoria('atacado')">Atacado</button>
-          <button type="button" onclick="buscarCategoria('oficina')">Oficina</button>
-          <button type="button" onclick="buscarCategoria('clínica')">Clínica</button>
-          <button type="button" onclick="buscarCategoria('escola')">Escola</button>
+      <div class="control-group" id="grpLugares" style="display:none;flex-direction:column;align-items:stretch;gap:6px">
+        <label class="control-label">Tipo de comércio: <span class="info-i" tabindex="0" role="note" onclick="this.classList.toggle('aberta')" aria-label="Busca no mapa estabelecimentos que ainda não são seus clientes (máx. 100 km)">ⓘ<span class="tip">Busca no mapa estabelecimentos que ainda não são seus clientes (máx. 100 km).</span></span></label>
+        <div class="combo" id="comboCom">
+          <div class="combo-head">
+            <button type="button" class="combo-btn" id="comboComBtn" onclick="toggleComboCom()" aria-expanded="false">
+              <span id="comboComTxt">Selecione um ou mais tipos</span>
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+            <button type="button" class="combo-x" id="comboComX" onclick="limparCom()" title="Limpar tipos selecionados" aria-label="Limpar tipos selecionados" hidden>&times;</button>
+          </div>
         </div>
-        <div style="font-size:11px;color:var(--text2)">Busca no mapa estabelecimentos que ainda não são seus clientes (máx. 100 km).</div>
+        <input type="text" id="inputLugar" class="control-input" autocomplete="off"
+               placeholder="Outro termo (opcional): ex.: lavanderia, indústria química" onkeydown="if(event.key==='Enter')buscarClientesRaio()">
+        <!-- Busca profunda oculta no app do cliente: é rodada no painel (NC Sistemas). Remover o display:none para reativar. -->
+        <div style="display:none" aria-hidden="true">
+        <label class="prof-opt" for="chkProfunda" title="Consulta a base aberta da Receita Federal pelo CNAE (atividade oficial da empresa)">
+          <input type="checkbox" id="chkProfunda" autocomplete="off">
+          <span><b>Busca profunda</b> (CNAE da Receita)<small>Mais lenta. Traz só empresas que realmente são do ramo, com CNPJ. Ex.: fábricas de eletrônicos, sem as lojas.</small></span>
+        </label>
+        <div class="prof-status" id="profStatus" hidden></div>
+        <div class="prof-aviso" id="profAviso" hidden>&#9201; Esta busca leva de 1 a 3 minutos. Use quando precisar de empresas do ramo, com CNPJ. Para uma busca rápida, desmarque a opção.</div>
+        </div>
       </div>
+
+      <!-- Buscar: sempre depois de todos os filtros -->
+      <div class="acoes-busca">
+        <button type="button" class="btn btn-primary btn-buscar-main" id="btnBuscarMain" onclick="buscarClientesRaio()">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:18px;height:18px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          Buscar
+        </button>
+        <button type="button" class="btn btn-outline btn-limpar-main" id="btnLimparMain" onclick="limparBusca()" title="Limpar resultados do mapa">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:18px;height:18px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+          Limpar
+        </button>
+      </div>
+      <button type="button" class="hist-link" id="linkAssistente" onclick="abrirAssistente()">✨ Montar meu recorte (5 perguntas)</button>
     </div>
 
     <!-- Lista de Clientes -->
@@ -815,10 +1069,38 @@ details.avancado > summary { cursor: pointer; font-size: 12px; font-weight: 700;
   <div class="map-container">
     <div id="map"></div>
 
+    <div class="prep-banner" id="prepBanner" hidden role="status" aria-live="polite">
+      <div class="prep-top">
+        <div class="prep-spin"></div>
+        <div>
+          <div class="prep-tit">Preparando a lista completa de comércios</div>
+          <div class="prep-sub" id="prepSub">Só na primeira busca desta região. Aguarde — a busca é refeita sozinha.</div>
+        </div>
+        <div class="prep-tempo" id="prepTempo">0:40</div>
+      </div>
+      <div class="prep-barra"><i id="prepBarra"></i></div>
+    </div>
+
+    <div class="prep-banner" id="profBanner" hidden role="status" aria-live="polite">
+      <div class="prep-top">
+        <div class="prep-spin"></div>
+        <div>
+          <div class="prep-tit" id="profTit">Busca profunda em andamento</div>
+          <div class="prep-sub" id="profSub">Consultando a base da Receita...</div>
+        </div>
+        <div class="prep-tempo" id="profNum">0</div>
+      </div>
+      <div class="prep-barra"><i id="profBarra"></i></div>
+      <button type="button" class="prof-cancel" id="profCancel" onclick="cancelarProfunda()">Parar e mostrar o que achou</button>
+    </div>
+
     <!-- Floating Controls -->
     <div class="map-controls">
       <button class="map-ctrl-btn" onclick="centralizarUsuario()" title="Centralizar em mim">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg>
+      </button>
+      <button class="map-ctrl-btn" id="btnBuscaRes" onclick="abrirBuscaRes()" title="Procurar nos resultados" aria-label="Procurar nos resultados" style="display:none">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 10.5a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0z"/></svg>
       </button>
       <button class="map-ctrl-btn" onclick="zoomIn()" title="Aumentar zoom">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
@@ -843,11 +1125,21 @@ details.avancado > summary { cursor: pointer; font-size: 12px; font-weight: 700;
       </button>
     </div>
 
+    <!-- Buscar nos resultados -->
+    <div class="busca-res" id="buscaRes" hidden role="search">
+      <div class="br-linha">
+        <input id="brInput" type="text" autocomplete="off" placeholder="Procurar nos resultados: nome, rua, bairro, telefone…" aria-label="Procurar nos resultados">
+        <button type="button" class="br-x" onclick="fecharBuscaRes()" aria-label="Fechar">&times;</button>
+      </div>
+      <div class="br-lista" id="brLista"></div>
+      <div class="br-rod" id="brRod"></div>
+    </div>
+
     <!-- Info Bar -->
     <div class="info-bar" id="infoBar" style="display:none">
       <div class="info-item">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
-        <strong id="infoTotal">0</strong> clientes
+        <strong id="infoTotal">0</strong> <span id="infoRotulo">clientes</span>
       </div>
       <div class="info-item">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
@@ -876,6 +1168,7 @@ details.avancado > summary { cursor: pointer; font-size: 12px; font-weight: 700;
         </div>
       </div>
       <div id="routeNota" style="font-size:11px;color:var(--text2);padding:0 2px 8px"></div>
+      <button class="btn btn-primary" id="btnPlanoDia" onclick="salvarPlanoDia()" style="display:none;width:100%;margin-bottom:8px;font-size:12px">📅 Salvar visitas de hoje (leads + tarefas)</button>
       <div class="route-actions">
         <button class="btn btn-primary" onclick="abrirGoogleMaps()" style="flex:1;font-size:11px">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 01-1.447-.894L15 9m0 11V9"/></svg>
@@ -895,6 +1188,44 @@ details.avancado > summary { cursor: pointer; font-size: 12px; font-weight: 700;
       <div class="spinner"></div>
       <div style="font-size:13px;font-weight:700;color:var(--text2)">Carregando...</div>
     </div>
+  </div>
+</div>
+
+<div class="hist-ov" id="comboComPop" hidden onclick="if (event.target === this) toggleComboCom(false)">
+  <div class="hist-card" role="dialog" aria-modal="true" aria-label="Tipos de comércio">
+    <div class="hist-head"><h3>Tipo de comércio</h3><button type="button" class="hist-x" onclick="toggleComboCom(false)" aria-label="Fechar">&times;</button></div>
+    <div style="padding:12px 16px 0">
+      <input type="search" id="comboComFiltro" class="control-input" placeholder="Filtrar tipos..." autocomplete="off" oninput="renderComboCom()" style="width:100%;font-size:16px;min-height:44px">
+      <div class="combo-dica" id="comboDica" hidden style="margin-top:8px">★ tipos que já viraram cliente nos seus leads</div>
+      <div class="combo-acoes" style="margin-top:6px">
+        <button type="button" onclick="marcarTodosCom(true)">Marcar todos</button>
+        <button type="button" onclick="limparCom()">Limpar</button>
+      </div>
+    </div>
+    <div class="combo-lista combo-lista-big" id="comboComLista"></div>
+    <div class="com-rodape"><button type="button" class="btn btn-primary" id="comAplicar" onclick="toggleComboCom(false)">Aplicar</button></div>
+  </div>
+</div>
+
+<div class="hist-ov" id="assOv" hidden onclick="if (event.target === this) fecharAssistente()">
+  <div class="hist-card" role="dialog" aria-modal="true" aria-label="Montar meu recorte">
+    <div class="hist-head"><h3>✨ Montar meu recorte</h3><button type="button" class="hist-x" onclick="fecharAssistente()" aria-label="Fechar">&times;</button></div>
+    <div class="hist-corpo" id="assCorpo"></div>
+    <div class="ass-rodape">
+      <button type="button" class="btn btn-outline" onclick="aplicarAssistente(false)">Só aplicar</button>
+      <button type="button" class="btn btn-primary" onclick="aplicarAssistente(true)" style="background:var(--accent)">Aplicar e buscar</button>
+    </div>
+  </div>
+</div>
+
+<div class="hist-ov" id="histOv" hidden onclick="if (event.target === this) fecharHistorico()">
+  <div class="hist-card" role="dialog" aria-modal="true" aria-label="Histórico">
+    <div class="hist-head"><h3>🕘 Histórico</h3><button type="button" class="hist-x" onclick="fecharHistorico()" aria-label="Fechar">&times;</button></div>
+    <div class="hist-tabs">
+      <button type="button" id="tabPesq" class="on" onclick="trocarHist('pesq')">Pesquisas</button>
+      <button type="button" id="tabVis" onclick="trocarHist('vis')">Visitas</button>
+    </div>
+    <div class="hist-corpo" id="histCorpo"></div>
   </div>
 </div>
 
@@ -949,6 +1280,8 @@ function restaurarEstado() {
 
     if (state.location) {
       userLocation = state.location;
+      origemInfo = { tipo: 'historico', rotulo: 'local da última busca', chave: '' };
+      atualizarLinhaOrigem();
       document.getElementById('inputLat').value = userLocation.lat.toFixed(6);
       document.getElementById('inputLng').value = userLocation.lng.toFixed(6);
 
@@ -1011,8 +1344,23 @@ function initMap() {
 }
 
 // ─── Definir localização (comum) ────────────────────────────────────────────
-function definirLocalizacao(lat, lng, label, zoom) {
+// De onde a busca parte: 'gps' | 'endereco' | 'manual' | 'historico' (mostrado na linha de origem do painel)
+let origemInfo = { tipo: null, rotulo: '', chave: '' };
+let gpsCache = null;
+function atualizarLinhaOrigem() {
+  const el = document.getElementById('origemTxt');
+  if (!el) return;
+  const t = origemInfo.tipo;
+  el.textContent = t === 'gps' ? '📍 Partindo de: ' + (origemInfo.rotulo || 'sua localização')
+    : t === 'endereco' ? '📍 Partindo de: ' + origemInfo.rotulo
+    : t === 'manual' ? '📍 Partindo de: coordenadas informadas'
+    : t === 'historico' ? '📍 Partindo de: ' + (origemInfo.rotulo || 'local da última busca')
+    : '📍 Partindo de: sua localização (será pedida ao buscar)';
+}
+function definirLocalizacao(lat, lng, label, zoom, tipo, chave) {
   userLocation = { lat: lat, lng: lng };
+  origemInfo = { tipo: tipo || 'manual', rotulo: tipo === 'gps' ? (label && label !== 'Sua Localização' ? label : 'sua localização') : (label || ''), chave: chave || '' };
+  atualizarLinhaOrigem();
   document.getElementById('inputLat').value = lat.toFixed(6);
   document.getElementById('inputLng').value = lng.toFixed(6);
 
@@ -1028,88 +1376,121 @@ function definirLocalizacao(lat, lng, label, zoom) {
 }
 
 // ─── Localização do Usuário ─────────────────────────────────────────────────
-function localizarUsuario() {
-  var isSecure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-
-  if (!isSecure || !navigator.geolocation) {
-    localizarPorIP();
-    return;
-  }
-
-  showLoading(true);
-
-  navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      definirLocalizacao(pos.coords.latitude, pos.coords.longitude, 'Sua Localização', 13);
-      showLoading(false);
-      toast('Localização encontrada!', 'success');
-      buscarClientesRaio();
-    },
-    (err) => {
-      console.warn('Geolocation falhou, tentando fallback por IP:', err.message);
-      localizarPorIP();
-    },
-    { timeout: 10000, enableHighAccuracy: true }
-  );
+// GPS (com fallback por IP). Só localiza: quem chama decide se busca em seguida.
+function obterGPS() {
+  return new Promise((resolve) => {
+    const seguro = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+    if (!seguro || !navigator.geolocation) { localizarPorIP().then(resolve); return; }
+    showLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        gpsCache = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        definirLocalizacao(gpsCache.lat, gpsCache.lng, 'Sua Localização', 13, 'gps');
+        showLoading(false);
+        resolve(true);
+      },
+      (err) => {
+        console.warn('Geolocation falhou, tentando fallback por IP:', err.message);
+        showLoading(false);
+        localizarPorIP().then(resolve);
+      },
+      { timeout: 10000, enableHighAccuracy: true }
+    );
+  });
 }
 
-// ─── Fallback: localização por IP ───────────────────────────────────────────
+// Botões do mapa ("centralizar em mim"): atualiza o GPS e busca
+async function localizarUsuario() {
+  if (await obterGPS()) buscarClientesRaio();
+}
+// ↻ da linha de origem: descarta o endereço digitado e usa o GPS de novo
+async function atualizarGPS() {
+  const e = document.getElementById('inputEndereco');
+  if (e) e.value = '';
+  gpsCache = null;
+  if (await obterGPS()) { toast('Localização atualizada', 'success'); buscarClientesRaio(); }
+}
+// ✎ da linha de origem: leva o cursor para o campo de endereço
+function trocarOrigem() {
+  const e = document.getElementById('inputEndereco');
+  if (!e) return;
+  e.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  e.focus(); e.select();
+}
+
 async function localizarPorIP() {
   showLoading(true);
   try {
-    var ctrl = new AbortController();
-    var tmr = setTimeout(function() { ctrl.abort(); }, 8000);
-    var res = await fetch('https://ipapi.co/json/', { signal: ctrl.signal });
+    const ctrl = new AbortController();
+    const tmr = setTimeout(() => ctrl.abort(), 8000);
+    const res = await fetch('https://ipapi.co/json/', { signal: ctrl.signal });
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    var data = await res.json();
+    const data = await res.json();
     if (!data.latitude || !data.longitude) throw new Error('Sem coordenadas');
-
     clearTimeout(tmr);
-    definirLocalizacao(data.latitude, data.longitude, (data.city || 'Sua região') + ' (aprox.)', 11);
+    definirLocalizacao(data.latitude, data.longitude, (data.city || 'sua região') + ' (aproximado)', 11, 'gps');
     showLoading(false);
-    toast('Localização aproximada por IP: ' + (data.city || data.region || ''), 'info');
-    buscarClientesRaio();
+    toast('Usando localização aproximada: ' + (data.city || data.region || ''), 'info');
+    return true;
   } catch (err) {
     showLoading(false);
-    toast('Não foi possível obter a localização. Busque por cidade ou informe as coordenadas.', 'warn');
+    toast('Não consegui sua localização. Digite uma cidade ou endereço.', 'warn');
+    trocarOrigem();
+    return false;
   }
 }
 
-// ─── Buscar por endereço/cidade (Nominatim / OpenStreetMap) ─────────────────
-async function buscarEndereco() {
-  var q = (document.getElementById('inputEndereco')?.value || '').trim();
-  if (!q) {
-    toast('Digite uma cidade ou endereço', 'warn');
-    return;
-  }
-
+// Geocodifica o endereço digitado (sem buscar). Retorna true/false.
+async function geocodificar(q) {
   showLoading(true);
   try {
-    var ctrl2 = new AbortController();
-    var tmr2 = setTimeout(function() { ctrl2.abort(); }, 10000);
-    var res = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&q=' + encodeURIComponent(q), {
-      headers: { 'Accept-Language': 'pt-BR' },
-      signal: ctrl2.signal
+    const ctrl = new AbortController();
+    const tmr = setTimeout(() => ctrl.abort(), 10000);
+    const res = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&q=' + encodeURIComponent(q), {
+      headers: { 'Accept-Language': 'pt-BR' }, signal: ctrl.signal
     });
-    var data = await res.json();
-    if (!data || data.length === 0) {
-      showLoading(false);
-      toast('Endereço não encontrado. Tente outra busca.', 'warn');
-      return;
-    }
-
-    clearTimeout(tmr2);
-    var r = data[0];
-    var lat = parseFloat(r.lat);
-    var lng = parseFloat(r.lon);
-    definirLocalizacao(lat, lng, r.display_name.split(',')[0], 12);
+    const data = await res.json();
+    clearTimeout(tmr);
+    if (!data || data.length === 0) { showLoading(false); toast('Endereço não encontrado. Tente outra busca.', 'warn'); return false; }
+    const r = data[0];
+    definirLocalizacao(parseFloat(r.lat), parseFloat(r.lon), (q.length <= 32 ? q : r.display_name.split(',')[0].trim()), 12, 'endereco', q);
     showLoading(false);
-    toast('Localização: ' + r.display_name.split(',').slice(0, 2).join(','), 'success');
-    buscarClientesRaio();
+    return true;
   } catch (err) {
     showLoading(false);
     toast('Erro ao buscar endereço: ' + err.message, 'error');
+    return false;
   }
+}
+// Lupa ao lado do campo de endereço: localiza e busca
+async function buscarEndereco() {
+  const q = (document.getElementById('inputEndereco')?.value || '').trim();
+  if (!q) { toast('Digite uma cidade ou endereço', 'warn'); return; }
+  if (await geocodificar(q)) buscarClientesRaio();
+}
+
+// Decide de onde a busca parte: endereço digitado > (campo vazio) GPS. Reaproveita o que já foi obtido.
+async function garantirOrigem() {
+  const end = (document.getElementById('inputEndereco')?.value || '').trim();
+  if (end) {
+    if (origemInfo.tipo === 'endereco' && origemInfo.chave === end && userLocation) return true;
+    return await geocodificar(end);
+  }
+  if (userLocation && origemInfo.tipo !== 'endereco') return true;      // GPS, coordenadas ou pesquisa salva
+  if (gpsCache) { definirLocalizacao(gpsCache.lat, gpsCache.lng, 'Sua Localização', 13, 'gps'); return true; }
+  return await obterGPS();
+}
+// Se o aparelho já deu permissão, localiza em silêncio ao abrir (o ponto "Você" já aparece no mapa)
+function localizarSilencioso() {
+  if (userLocation || !navigator.geolocation || !navigator.permissions) return;
+  navigator.permissions.query({ name: 'geolocation' }).then((st) => {
+    if (st.state !== 'granted') return;
+    navigator.geolocation.getCurrentPosition((pos) => {
+      if (userLocation) return;
+      gpsCache = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      definirLocalizacao(gpsCache.lat, gpsCache.lng, 'Sua Localização', 13, 'gps');
+    }, () => {}, { timeout: 8000, enableHighAccuracy: false, maximumAge: 300000 });
+  }).catch(() => {});
 }
 
 // ─── Coordenadas manuais ────────────────────────────────────────────────────
@@ -1122,7 +1503,7 @@ function usarCoordenadasManuais() {
     return;
   }
 
-  definirLocalizacao(lat, lng, 'Localização manual', 13);
+  definirLocalizacao(lat, lng, 'Localização manual', 13, 'manual');
   toast('Localização definida manualmente', 'success');
   buscarClientesRaio();
 }
@@ -1137,10 +1518,11 @@ function centralizarUsuario() {
 
 // ─── Busca por Raio ─────────────────────────────────────────────────────────
 async function buscarClientesRaio() {
-  if (!userLocation) {
-    toast('Informe sua localização primeiro', 'warn');
+  if (preparoAtivo && _prepBloqueia && document.getElementById('selectTipo').value === 'lugares') {
+    toast(`Aguarde: a lista completa está sendo preparada (faltam ~${_mmss(_prepRestante)}). A busca é refeita sozinha.`, 'warn');
     return;
   }
+  if (!(await garantirOrigem())) return;
 
   const raio = Math.min(Math.max(parseFloat(String(document.getElementById('selectRaio').value).replace(',', '.')) || 50, 0.05), 200);
   const tipo = document.getElementById('selectTipo').value;
@@ -1279,20 +1661,199 @@ function toggleSeguir() {
   );
 }
 
+// (declarados antes do combo: renderComboCom() ja roda no carregamento)
+let insightsSeg = [];
+let ordemLista = 'perto';   // 'perto' | 'radar'
+function _norm(s) { return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim(); }
+
+const COMERCIOS = [
+  ['Açougue', 'açougue'], ['Padaria', 'padaria'], ['Supermercado / Mercado', 'mercado'], ['Mercearia', 'mercearia'],
+  ['Hortifruti', 'hortifruti'], ['Restaurante', 'restaurante'], ['Lanchonete', 'lanchonete'], ['Bar', 'bar'], ['Café', 'café'],
+  ['Bebidas / Adega', 'adega'], ['Farmácia', 'farmácia'], ['Material de construção', 'material de construção'],
+  ['Tintas', 'tintas'], ['Elétrica / Iluminação', 'iluminação'], ['Indústria / Fábrica (todas)', 'indústria'], ['↳ Indústria química', 'indústria química'], ['↳ Indústria eletrônica', 'indústria eletrônica'],
+  ['↳ Indústria alimentícia', 'indústria alimentícia'], ['↳ Indústria metalúrgica', 'indústria metalúrgica'], ['↳ Indústria têxtil / confecção', 'indústria têxtil'],
+  ['↳ Indústria de plástico / embalagem', 'indústria plástico'], ['↳ Indústria de madeira / móveis', 'indústria madeira'], ['↳ Indústria farmacêutica', 'indústria farmacêutica'],
+  ['↳ Indústria de papel / gráfica', 'indústria papel'], ['↳ Indústria de cerâmica / vidro / cimento', 'indústria cerâmica'],
+  ['Atacado / Distribuidor', 'atacado'], ['Pet shop', 'pet shop'], ['Agropecuária', 'agropecuária'],
+  ['Roupas', 'roupas'], ['Calçados', 'calçados'], ['Móveis', 'móveis'], ['Eletrônicos', 'eletrônicos'],
+  ['Cosméticos', 'cosméticos'], ['Salão / Beleza', 'salão'], ['Papelaria', 'papelaria'], ['Ótica', 'ótica'],
+  ['Autopeças', 'autopeças'], ['Oficina mecânica', 'oficina'], ['Posto de combustível', 'posto'],
+  ['Bazar / Armarinho', 'bazar'], ['Brinquedos', 'brinquedos'], ['Floricultura', 'floricultura'],
+  ['Shopping / Centro comercial', 'shopping'], ['Hotel / Pousada', 'hotel'], ['Academia', 'academia'],
+  ['Clínica / Saúde', 'clínica'], ['Escola', 'escola'],
+];
+const comSel = new Set();   // índices de COMERCIOS marcados
+
+function renderComboCom() {
+  const f = (document.getElementById('comboComFiltro').value || '').trim().toLowerCase();
+  const lista = document.getElementById('comboComLista');
+  lista.innerHTML = COMERCIOS.map((c, i) => [c, i]).filter(([c]) => !f || c[0].toLowerCase().includes(f))
+    .map(([c, i]) => { const t = taxaDoTipo(c[0]); const estrela = t && t.ganhos > 0 ? ' <span title="' + t.ganhos + ' de ' + t.total + ' leads viraram cliente" style="color:#d97706">★</span>' : ''; return `<label><input type="checkbox" value="${i}" ${comSel.has(i) ? 'checked' : ''} onchange="alternarCom(${i}, this.checked)"> ${escHtml(c[0])}${estrela}</label>`; }).join('')
+    || '<div style="padding:8px;font-size:12px;color:var(--text2)">Nenhum tipo encontrado</div>';
+  const n = comSel.size;
+  const ap = document.getElementById('comAplicar');
+  if (ap) ap.textContent = n ? `Aplicar (${n} selecionado${n > 1 ? 's' : ''})` : 'Aplicar';
+  const dc = document.getElementById('comboDica');
+  if (dc) dc.hidden = !insightsSeg.some(s => s.ganhos > 0);
+  document.getElementById('comboComX').hidden = n === 0;
+  document.getElementById('comboComTxt').textContent = n === 0 ? 'Selecione um ou mais tipos'
+    : n <= 2 ? [...comSel].map(i => COMERCIOS[i][0]).join(', ') : n + ' tipos selecionados';
+}
+function limparCom() {
+  comSel.clear();                                   // limpa TODOS (mesmo os fora do filtro digitado)
+  document.getElementById('comboComFiltro').value = '';
+  renderComboCom();
+}
+function alternarCom(i, on) { if (on) comSel.add(i); else comSel.delete(i); renderComboCom(); }
+function marcarTodosCom(on) {
+  const f = (document.getElementById('comboComFiltro').value || '').trim().toLowerCase();
+  COMERCIOS.forEach((c, i) => { if (!f || c[0].toLowerCase().includes(f)) { if (on) comSel.add(i); else comSel.delete(i); } });
+  renderComboCom();
+}
+function toggleComboCom(forcar) {
+  const pop = document.getElementById('comboComPop');
+  const abrir = typeof forcar === 'boolean' ? forcar : pop.hidden;
+  pop.hidden = !abrir;
+  document.getElementById('comboComBtn').setAttribute('aria-expanded', String(abrir));
+  if (abrir) {
+    renderComboCom();
+    // no celular não foca o campo (abriria o teclado por cima da lista)
+    if (!window.matchMedia('(max-width: 900px)').matches) setTimeout(() => document.getElementById('comboComFiltro').focus(), 50);
+  }
+}
+document.addEventListener('click', (e) => { document.querySelectorAll('.info-i.aberta').forEach(el => { if (!el.contains(e.target)) el.classList.remove('aberta'); }); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { toggleComboCom(false); fecharHistorico(); } });
+renderComboCom();
+
+// ─── Preparo da base completa: contagem, aguarda e refaz a busca sozinho ────
+let preparoAtivo = false;
+let _prepTimer = null, _prepRestante = 0, _prepTotal = 40, _prepTentativas = 0, _prepBloqueia = false;
+function _mmss(sg) { sg = Math.max(0, sg); return Math.floor(sg / 60) + ':' + String(sg % 60).padStart(2, '0'); }
+function _prepBotao(bloq) {
+  const b = document.getElementById('btnBuscarMain');
+  if (!b) return;
+  b.disabled = !!bloq;
+  b.dataset.txt = b.dataset.txt || b.innerHTML;
+  b.innerHTML = bloq ? 'Aguarde… preparando a lista' : b.dataset.txt;
+}
+function pararPreparo() {
+  clearInterval(_prepTimer); _prepTimer = null;
+  preparoAtivo = false; _prepTentativas = 0; _prepBloqueia = false;
+  document.getElementById('prepBanner').hidden = true;
+  _prepBotao(false);
+}
+function iniciarPreparo(base) {
+  _prepBloqueia = base === 'carregando';
+  document.getElementById('prepBanner').hidden = false;
+  document.getElementById('prepSub').textContent = base === 'parcial'
+    ? 'Mostrando o que já está pronto; estamos completando as bordas da região.'
+    : 'Só na primeira busca desta região. Aguarde — a busca é refeita sozinha.';
+  _prepBotao(_prepBloqueia);
+  if (preparoAtivo) return;
+  preparoAtivo = true;
+  _prepTentativas = 0; _prepTotal = 40; _prepRestante = 40;
+  _prepTimer = setInterval(async () => {
+    _prepRestante--;
+    document.getElementById('prepTempo').textContent = _mmss(_prepRestante);
+    document.getElementById('prepBarra').style.width = Math.min(100, ((_prepTotal - _prepRestante) / _prepTotal) * 100) + '%';
+    if (_prepRestante % 4 === 0 || _prepRestante <= 0) {
+      try {
+        const raio = Math.min(Math.max(parseFloat(String(document.getElementById('selectRaio').value).replace(',', '.')) || 5, 0.05), 100);
+        const r = await fetch(`/api/geolocalizacao/lugares/preparar?lat=${userLocation.lat}&lng=${userLocation.lng}&raio=${raio}`,
+          { headers: { 'Authorization': `Bearer ${token}` } });
+        const d = await r.json();
+        if (d.base === 'pronto') { pararPreparo(); toast('Lista completa pronta! Buscando de novo…', 'success'); buscarClientesRaio(); return; }
+      } catch (_) { /* tenta no próximo ciclo */ }
+    }
+    if (_prepRestante <= 0) {
+      _prepTentativas++;
+      if (_prepTentativas > 8) {
+        pararPreparo();
+        toast('A lista completa ainda está sendo preparada. Clique em Buscar de novo daqui a alguns minutos.', 'warn');
+        return;
+      }
+      _prepTotal = 30; _prepRestante = 30;
+    }
+  }, 1000);
+}
+
+function limparBusca() {
+  pararPreparo();
+  if (markersLayer) markersLayer.clearLayers();
+  if (clusterLayer) clusterLayer.clearLayers();
+  clientesEncontrados = [];
+  relInfo = null; baseTipos = null; tipoFiltro = null;
+  limparRota();
+  if (typeof atualizarHeat === 'function') atualizarHeat();
+  document.getElementById('infoBar').style.display = 'none';
+  const _bb2 = document.getElementById('btnBuscaRes'); if (_bb2) _bb2.style.display = 'none';
+  if (typeof fecharBuscaRes === 'function') fecharBuscaRes();
+  contarAbaRes(0);
+  setAbaPainel('filtros');
+  document.getElementById('clientList').innerHTML = `<div style="text-align:center;padding:40px;color:var(--text2)">
+      <div style="font-weight:700">Nenhum resultado</div>
+      <div style="font-size:12px;margin-top:4px">Escolha os filtros e toque em Buscar</div></div>`;
+  const sub = document.querySelector('.sidebar-subtitle');
+  if (sub) sub.textContent = 'Encontre clientes por localização';
+  try { sessionStorage.removeItem(STORAGE_KEY); } catch (_) {}
+  map.closePopup();
+  toast('Resultados limpos', 'info');
+}
+
+let relInfo = null;   // { melhores, todos, ativo } quando a busca foi por nome
+function alternarRel(ativo) {
+  if (!relInfo) return;
+  baseTipos = null; tipoFiltro = null;
+  relInfo.ativo = ativo;
+  const lista = ativo === 'top' ? relInfo.melhores : relInfo.todos;
+  clientesEncontrados = lista;
+  renderizarLugares(lista);
+  atualizarInfoBar(lista.length, relInfo.raio);
+}
+const MATCH_ROTULO = { exato: 'Nome idêntico', nome: 'Nome parecido', parcial: 'Nome parcial', categoria: 'Mesmo tipo' };
+
 async function buscarLugares(raio) {
-  const q = document.getElementById('inputLugar').value.trim();
-  if (q.length < 2) { toast('Digite o que procurar (ex.: açougue)', 'warn'); return; }
+  const livre = document.getElementById('inputLugar').value.trim();
+  const termos = [...comSel].map(i => COMERCIOS[i][1]);
+  if (livre.length >= 2) termos.push(livre);
+  if (!termos.length) { toast('Escolha ao menos um tipo de comércio (ou digite um termo)', 'warn'); toggleComboCom(true); return; }
+  if (termos.length > 8) { termos.length = 8; toast('Máximo de 8 tipos por busca — usei os 8 primeiros', 'info'); }
   const raioUsado = Math.min(parseFloat(raio) || 5, 100);
   if (parseFloat(raio) > 100) toast('Para estabelecimentos o raio máximo é 100 km', 'info');
 
+  if (document.getElementById('chkProfunda') && document.getElementById('chkProfunda').checked) return buscarProfunda(raioUsado, termos);
+
   showLoading(true);
   try {
-    const r = await fetch(
-      `/api/geolocalizacao/lugares?lat=${userLocation.lat}&lng=${userLocation.lng}&raio=${raioUsado}&q=${encodeURIComponent(q)}`,
-      { headers: { 'Authorization': `Bearer ${token}` } }
-    );
-    const data = await r.json();
-    if (!r.ok) throw new Error(data.error || 'Erro na requisição');
+    const resp = await Promise.allSettled(termos.map(async (t) => {
+      const r = await fetch(
+        `/api/geolocalizacao/lugares?lat=${userLocation.lat}&lng=${userLocation.lng}&raio=${raioUsado}&q=${encodeURIComponent(t)}`,
+        { headers: { 'Authorization': `Bearer ${token}` } }
+      );
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Erro na requisição');
+      return j;
+    }));
+    const ok = resp.filter(x => x.status === 'fulfilled').map(x => x.value);
+    if (!ok.length) throw resp[0].reason;
+    const vistos = new Map();
+    ok.forEach(j => (j.lugares || []).forEach(p => {
+      const o = vistos.get(p.osm_id);
+      if (!o || (p.relevancia || 0) > (o.relevancia || 0)) vistos.set(p.osm_id, p);
+    }));
+    // busca por NOME (ex.: "Bauru Shopping"): os que têm o nome parecido vêm primeiro e ficam sozinhos até o usuário pedir "Todos"
+    const refinar = ok.length > 0 && ok.every(j => j.especifica);
+    const todosOrdenados = [...vistos.values()]
+      .sort((a, b) => (refinar ? (b.relevancia || 0) - (a.relevancia || 0) : 0) || a.distancia - b.distancia).slice(0, 300);
+    const melhores = refinar ? todosOrdenados.filter(p => p.match === 'exato' || p.match === 'nome') : [];
+    baseTipos = null; tipoFiltro = null;
+    relInfo = melhores.length && melhores.length < todosOrdenados.length
+      ? { melhores, todos: todosOrdenados, ativo: 'top', raio: raioUsado } : null;
+    const data = {
+      lugares: relInfo ? melhores : todosOrdenados,
+      base: ok.some(j => j.base === 'carregando') ? 'carregando' : ok[0].base,
+    };
+    if (ok.length < resp.length) toast('Algum tipo não pôde ser buscado agora; mostrando os demais', 'warn');
     // locais sem nome no OSM também aparecem (o usuário confere o nome pelo Google Maps)
     const nomeados = data.lugares || [];
     const semNome = nomeados.filter(p => p.sem_nome).length;
@@ -1300,18 +1861,14 @@ async function buscarLugares(raio) {
     modoMapa = 'lugares';
     limparRota();
     renderizarLugares(nomeados);
-    if (data.base === 'carregando') {
-      toast('Estamos preparando a lista completa de comércios da sua região. A busca será refeita sozinha em cerca de 1 min 20 s.', 'info');
-      clearTimeout(window._timerNovaBusca);
-      window._timerNovaBusca = setTimeout(() => {
-        if (document.getElementById('selectTipo').value === 'lugares') buscarClientesRaio();
-      }, 80000);
-    } else {
-      clearTimeout(window._timerNovaBusca);
-    }
+    registrarPesquisa({ termos, raio: raioUsado, lat: userLocation.lat, lng: userLocation.lng, qtd: todosOrdenados.length,
+      local: (todosOrdenados.find(p => p.cidade) || {}).cidade ? 'perto de ' + todosOrdenados.find(p => p.cidade).cidade : null });
+    if (data.base === 'carregando' || data.base === 'parcial') iniciarPreparo(data.base);
+    else pararPreparo();
     atualizarHeat();
     atualizarInfoBar(nomeados.length, raioUsado);
     salvarEstado();
+    if (data.base === 'indisponivel') toast('Base completa de comércios indisponível aqui — mostrando só o OpenStreetMap (poucos resultados).', 'warn');
     toast(`${nomeados.length} estabelecimentos encontrados` + (semNome ? ` (${semNome} sem nome cadastrado)` : ''), nomeados.length ? 'success' : 'info');
   } catch (err) {
     console.error('Erro:', err);
@@ -1321,6 +1878,269 @@ async function buscarLugares(raio) {
   }
 }
 
+// ─── Busca profunda por CNAE (Receita Federal) ──────────────────────────────
+let _profAtivo = null;   // { id, parar }
+function _profBotao(bloq) {
+  const b = document.getElementById('btnBuscarMain');
+  if (!b) return;
+  b.disabled = !!bloq;
+  b.dataset.txtp = b.dataset.txtp || b.innerHTML;
+  b.innerHTML = bloq ? 'Buscando em profundidade…' : b.dataset.txtp;
+}
+function _profBanner(mostrar, tit, sub, num, pct) {
+  const el = document.getElementById('profBanner');
+  el.hidden = !mostrar;
+  if (!mostrar) return;
+  if (tit != null) document.getElementById('profTit').textContent = tit;
+  if (sub != null) document.getElementById('profSub').textContent = sub;
+  if (num != null) document.getElementById('profNum').textContent = num;
+  if (pct != null) document.getElementById('profBarra').style.width = Math.max(0, Math.min(100, pct)) + '%';
+}
+function cancelarProfunda() { if (_profAtivo) _profAtivo.parar = true; }
+// ── Situação da base da Receita ao lado da opção (pronta / preparando / não carregada) ──
+let _profSit = null, _profSitKey = '';
+async function atualizarStatusProfunda() {
+  return; // busca profunda oculta no app do cliente (roda no painel); remova esta linha junto com o display:none do HTML para reativar
+  const chk = document.getElementById('chkProfunda'), el = document.getElementById('profStatus'), lab = chk.closest('.prof-opt');
+  if (!userLocation) { el.hidden = false; el.innerHTML = '<span class="pt"></span>A situação da base aparece quando o ponto de partida for definido.'; return; }
+  _profSitKey = userLocation.lat.toFixed(2) + ',' + userLocation.lng.toFixed(2);
+  let s;
+  try { s = await _profApi('/api/busca-profunda/situacao?lat=' + userLocation.lat + '&lng=' + userLocation.lng); }
+  catch (_) { el.hidden = true; return; }
+  _profSit = s;
+  const mostrar = (v) => { lab.style.display = v ? '' : 'none'; if (!v) { el.hidden = true; chk.checked = false; document.getElementById('profAviso').hidden = true; } };
+  // o cliente só vê a opção quando ela funciona; "preparando"/"não carregada" são assunto da NC Sistemas, não dele
+  if (!s.pode_preparar && (s.estado === 'preparando' || s.estado === 'nao_carregada' || s.estado === 'desconhecida')) { mostrar(false); return; }
+  mostrar(true);
+  const bloquear = (motivo) => { chk.checked = false; chk.disabled = true; lab.classList.add('bloqueada'); document.getElementById('profAviso').hidden = true; return motivo; };
+  chk.disabled = false; lab.classList.remove('bloqueada');
+  let html = '';
+  if (s.estado === 'pronta') html = '<span class="pt ok"></span>Base de ' + s.uf + ' pronta para usar.';
+  else if (s.estado === 'preparando') html = '<span class="pt prep"></span>' + bloquear('Base de ' + s.uf + ' sendo preparada: ' + (s.pct || 0) + '%. A busca profunda libera quando terminar.');
+  else if (s.estado === 'nao_carregada') {
+    if (s.outra_prep) html = '<span class="pt off"></span>' + bloquear('Base de ' + s.uf + ' ainda não carregada. Aguarde a preparação de ' + s.outra_prep + ' terminar para preparar esta.');
+    else if (s.pode_preparar) html = '<span class="pt off"></span>Base de ' + s.uf + ' ainda não carregada. <button type="button" onclick="_profPrepararBase(\'' + s.uf + '\')">Preparar agora</button>';
+  } else { el.hidden = true; return; }
+  el.hidden = false;
+  el.innerHTML = html;
+}
+document.getElementById('chkProfunda').addEventListener('change', function () {
+  document.getElementById('profAviso').hidden = !this.checked;
+});
+setInterval(function () {   // o ponto de partida muda de vários jeitos (GPS, endereço, mapa): revisa a situação quando mudar
+  if (userLocation && userLocation.lat.toFixed(2) + ',' + userLocation.lng.toFixed(2) !== _profSitKey) atualizarStatusProfunda();
+}, 2000);
+setInterval(function () { if (_profSit && _profSit.estado === 'preparando') atualizarStatusProfunda(); }, 8000);
+atualizarStatusProfunda();
+
+// Busca profunda em andamento: sair/atualizar a página perderia o resultado, então o navegador pergunta antes.
+window.addEventListener('beforeunload', function (e) {
+  if (_profAtivo) { e.preventDefault(); e.returnValue = ''; return ''; }
+});
+async function _profApi(url, opts) {
+  const r = await fetch(url, Object.assign({ headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' } }, opts || {}));
+  let j = {}; try { j = await r.json(); } catch (_) { /* sem corpo */ }
+  if (!r.ok) { const e = new Error(j.error || 'Erro na requisição'); e.status = r.status; e.dados = j; throw e; }
+  return j;
+}
+async function _profPrepararBase(uf) {
+  const ok = await SysRepConfirm.ask({
+    titulo: 'Base da Receita de ' + uf + ' não carregada',
+    mensagem: 'Para a busca profunda é preciso baixar a base oficial e gratuita da Receita Federal (alguns GB). Leva de 20 minutos a algumas horas, em segundo plano. Depois é só buscar de novo.',
+    okTexto: 'Preparar agora', cancelTexto: 'Agora não', perigo: false,
+  });
+  if (!ok) return;
+  try { await _profApi('/api/busca-profunda/preparar', { method: 'POST', body: JSON.stringify({ uf }) }); }
+  catch (e) { toast(e.message, 'error'); return; }
+  toast('Preparando a base da Receita em segundo plano…', 'info');
+  _profAcompanharPreparo(uf);
+}
+
+let _profPrepTimer = null;
+/** Mostra o andamento da preparação da base (também ao reabrir a página com ela em curso). */
+function _profAcompanharPreparo(ufInicial) {
+  if (_profPrepTimer) return;
+  _profBotao(true);
+  document.getElementById('profCancel').hidden = true;
+  const ciclo = async () => {
+    try {
+      const s = await _profApi('/api/busca-profunda/status?uf=' + (ufInicial || ''));
+      const imp = s.importacao;
+      if (!imp) { clearInterval(_profPrepTimer); _profPrepTimer = null; _profBanner(false); _profBotao(false); document.getElementById('profCancel').hidden = false; return; }
+      const mb = imp.mbTotal ? ' · ' + imp.mb + ' de ' + imp.mbTotal + ' MB do arquivo atual' : '';
+      _profBanner(true, 'Preparando a base da Receita (' + imp.uf + ')', (imp.fim ? '' : (imp.ultima || 'Aguarde…')) + (imp.fim ? '' : '') , (imp.pct || 0) + '%', imp.pct || 0);
+      if (!imp.fim && imp.mbTotal) document.getElementById('profSub').textContent = 'Baixando os arquivos da Receita' + mb + '. Roda no servidor: pode sair desta página.';
+      if (imp.fim) {
+        clearInterval(_profPrepTimer); _profPrepTimer = null;
+        _profBanner(false); _profBotao(false); document.getElementById('profCancel').hidden = false;
+        toast(imp.erro ? 'Falha ao preparar a base: ' + imp.erro : 'Base da Receita pronta! Clique em Buscar de novo.', imp.erro ? 'error' : 'success');
+        atualizarStatusProfunda();
+      }
+    } catch (_) { /* tenta no próximo ciclo */ }
+  };
+  _profPrepTimer = setInterval(ciclo, 4000);
+  ciclo();
+}
+// ao abrir a página com uma preparação em andamento, volta a mostrar o andamento
+(async function () {
+  try {
+    const s = await _profApi('/api/busca-profunda/status');
+    if (s.importacao && !s.importacao.fim) _profAcompanharPreparo('');
+  } catch (_) { /* sem base/sem acesso: nada a mostrar */ }
+})();
+
+async function buscarProfunda(raio, termos) {
+  if (_profAtivo) return;
+  const vistos = new Map();
+  let infoCidade = '', limitado = false, semPos = 0;
+  _profAtivo = { parar: false };
+  _profBotao(true);
+  document.getElementById('profCancel').hidden = false;
+  try {
+    for (let i = 0; i < termos.length; i++) {
+      if (_profAtivo.parar) break;
+      const t = termos[i];
+      const rot = termos.length > 1 ? ' (' + (i + 1) + '/' + termos.length + ')' : '';
+      _profBanner(true, 'Busca profunda' + rot, 'Descobrindo a cidade e o CNAE de "' + t + '"…', '', 3);
+      let ini;
+      try {
+        ini = await _profApi('/api/busca-profunda/iniciar', { method: 'POST', body: JSON.stringify({ lat: userLocation.lat, lng: userLocation.lng, raio: raio, q: t }) });
+      } catch (e) {
+        _profBanner(false);
+        if (e.status === 409 && e.dados && e.dados.code === 'sem_base') {
+          _profAtivo = null; _profBotao(false);
+          if (_profSit && _profSit.pode_preparar) await _profPrepararBase(e.dados.uf); else toast('A busca profunda ainda não está disponível para ' + e.dados.uf + '. Fale com o suporte.', 'warn');
+          return;
+        }
+        toast(e.message, 'warn');
+        continue;
+      }
+      _profAtivo.id = ini.id; infoCidade = ini.cidade;
+      let st;
+      for (;;) {
+        await new Promise(r => setTimeout(r, 1500));
+        if (_profAtivo.parar) { try { await _profApi('/api/busca-profunda/' + ini.id, { method: 'DELETE' }); } catch (_) {} }
+        st = await _profApi('/api/busca-profunda/' + ini.id);
+        const feitas = st.verificadas || 0, total = st.total || 0;
+        _profBanner(true, 'Busca profunda' + rot + ' · ' + ini.cidade, st.lugares.length + ' empresa(s) no raio · ' + feitas.toLocaleString('pt-BR') + ' de ' + total.toLocaleString('pt-BR') + ' verificadas', st.lugares.length, total ? feitas / total * 100 : 0);
+        if (st.estado !== 'rodando') break;
+      }
+      if (st.estado === 'erro') { toast(st.erro || 'A busca profunda falhou', 'error'); continue; }
+      st.lugares.forEach(p => vistos.set(p.osm_id, p));
+      limitado = limitado || st.limitado; semPos += st.sem_posicao || 0;
+    }
+    const lista = [...vistos.values()].sort((a, b) => a.distancia - b.distancia);
+    baseTipos = null; tipoFiltro = null; relInfo = null;
+    clientesEncontrados = lista;
+    modoMapa = 'lugares';
+    limparRota();
+    renderizarLugares(lista);
+    registrarPesquisa({ termos: termos.map(x => x + ' (CNAE)'), raio: raio, lat: userLocation.lat, lng: userLocation.lng, qtd: lista.length, local: infoCidade ? 'perto de ' + infoCidade : null });
+    atualizarHeat();
+    atualizarInfoBar(lista.length, raio);
+    salvarEstado();
+    toast(lista.length + ' empresa(s) pelo CNAE' + (limitado ? '. Ainda há endereços sem posição; busque de novo para achar mais.' : '') + (!lista.length && semPos ? ' (' + semPos + ' sem posição no mapa)' : ''), lista.length ? 'success' : 'info');
+  } catch (e) {
+    console.error('busca profunda:', e);
+    toast(e.message || 'Erro na busca profunda', 'error');
+  } finally {
+    _profAtivo = null;
+    _profBanner(false);
+    _profBotao(false);
+    // a busca lenta nunca fica ligada por esquecimento
+    document.getElementById('chkProfunda').checked = false;
+    document.getElementById('profAviso').hidden = true;
+  }
+}
+
+// ─── Procurar nos resultados (ícone da lupa nos controles do mapa) ───────────
+var _brSel = 0, _brIdx = [];
+function _brTexto(p) {
+  const fone = String(p.telefone || p.fone || p.celular || '').replace(/\D/g, '');
+  return _norm([p.nome, p.nome_cliente, p.razao_social, p.empresa, p.endereco, p.logradouro, p.bairro, p.cidade, p.categoria, p.segmento, p.cnpj, p.numero].filter(Boolean).join(' ')) + ' ' + fone;
+}
+function buscarNosResultados(q) {
+  const termos = _norm(q).replace(/[()]/g, ' ').split(/\s+/).filter(Boolean);   // "(14) 3222-1" vira "14" e "3222-1"
+  if (!termos.length) return [];
+  const lista = [];
+  (clientesEncontrados || []).forEach((p, i) => {
+    const t = _brTexto(p);
+    const f = String(p.telefone || p.fone || p.celular || '').replace(/\D/g, '');
+    // cada palavra casa com o texto; número com traço/parênteses ("3222-1013") casa com o telefone só em dígitos
+    if (!termos.every(x => { const d = x.replace(/\D/g, ''); return t.includes(x) || (d.length >= 3 && f.includes(d)); })) return;
+    const nome = _norm(p.nome || p.nome_cliente || p.empresa || '');
+    lista.push({ i, rank: nome.startsWith(termos[0]) ? 0 : nome.includes(termos[0]) ? 1 : 2, dist: Number(p.distancia) || 0 });
+  });
+  lista.sort((a, b) => a.rank - b.rank || a.dist - b.dist);
+  return lista.map(x => x.i);
+}
+function abrirBuscaRes() {
+  if (!(clientesEncontrados || []).length) { toast('Faça uma busca primeiro.', 'info'); return; }
+  document.getElementById('buscaRes').hidden = false;
+  const inp = document.getElementById('brInput');
+  inp.focus(); inp.select();
+  renderBuscaRes();
+}
+function fecharBuscaRes() { const el = document.getElementById('buscaRes'); if (el) el.hidden = true; }
+function renderBuscaRes() {
+  const q = document.getElementById('brInput').value;
+  const lista = document.getElementById('brLista'), rod = document.getElementById('brRod');
+  _brIdx = buscarNosResultados(q);
+  if (_brSel >= _brIdx.length) _brSel = 0;
+  if (!q.trim()) { lista.innerHTML = '<div class="br-vazio">Digite parte do nome, da rua, do bairro ou do telefone.</div>'; rod.innerHTML = ''; return; }
+  if (!_brIdx.length) { lista.innerHTML = '<div class="br-vazio">Nada encontrado nos ' + clientesEncontrados.length + ' resultados.</div>'; rod.innerHTML = ''; return; }
+  lista.innerHTML = _brIdx.slice(0, 8).map((i, k) => {
+    const p = clientesEncontrados[i];
+    const nome = p.nome || p.nome_cliente || p.empresa || 'Sem nome';
+    const end = [p.endereco || (typeof formatarEndereco === 'function' ? formatarEndereco(p) : ''), p.bairro].filter(Boolean).join(' · ');
+    return '<button type="button" class="br-item' + (k === _brSel ? ' sel' : '') + '" data-i="' + i + '"><b>' + escHtml(nome) + '</b><small>' + escHtml(end) + (p.distancia != null ? ' · ' + Number(p.distancia).toFixed(1) + ' km' : '') + '</small></button>';
+  }).join('');
+  lista.querySelectorAll('.br-item').forEach(b => { b.onclick = () => irParaResultado(parseInt(b.dataset.i, 10)); });
+  rod.innerHTML = '<span>' + _brIdx.length + ' de ' + clientesEncontrados.length + (_brIdx.length > 8 ? ' (mostrando 8)' : '') + '</span><button type="button" onclick="filtrarListaPelaBusca()">Mostrar só estes na lista</button>';
+}
+function irParaResultado(i) {
+  const p = clientesEncontrados[i], m = window.__mr && window.__mr[i];
+  const lat = parseFloat(p && (p.latitude || p.lat)), lng = parseFloat(p && (p.longitude || p.lng));
+  if (!p || !isFinite(lat) || !isFinite(lng)) return;
+  if (typeof minimizarSheet === 'function') minimizarSheet();   // recolhe o painel (e fecha popups) ANTES de abrir o do resultado
+  const abrir = () => { map.setView([lat, lng], Math.max(map.getZoom(), 17)); if (m) m.openPopup(); };
+  if (m && useClusters && clusterLayer.zoomToShowLayer && clusterLayer.hasLayer(m)) clusterLayer.zoomToShowLayer(m, abrir); else abrir();
+  document.querySelectorAll('.client-item').forEach(x => x.classList.remove('active'));
+  const item = document.querySelector('.client-item[data-index="' + i + '"]');
+  if (item) { item.style.display = ''; item.classList.add('active'); try { item.scrollIntoView({ block: 'center' }); } catch (_) {} }
+  fecharBuscaRes();
+}
+function filtrarListaPelaBusca() {
+  const ok = new Set(_brIdx);
+  document.querySelectorAll('.client-item').forEach(el => { el.style.display = ok.has(parseInt(el.dataset.index, 10)) ? '' : 'none'; });
+  const lista = document.getElementById('clientList');
+  const antigo = document.getElementById('chipFiltroLista'); if (antigo) antigo.remove();
+  const chip = document.createElement('div');
+  chip.id = 'chipFiltroLista'; chip.className = 'chip-filtro-lista';
+  chip.innerHTML = '<span>Mostrando ' + ok.size + ' de ' + clientesEncontrados.length + ' na lista</span><button type="button" onclick="limparFiltroLista()">Ver todos</button>';
+  lista.insertBefore(chip, lista.firstChild);
+  window.__brFiltro = true;
+  fecharBuscaRes();
+  setAbaPainel('res');
+}
+function limparFiltroLista() {
+  document.querySelectorAll('.client-item').forEach(el => { el.style.display = ''; });
+  const c = document.getElementById('chipFiltroLista'); if (c) c.remove();
+  window.__brFiltro = false;
+}
+(function () {
+  const inp = document.getElementById('brInput');
+  let t = null;
+  inp.addEventListener('input', () => { clearTimeout(t); _brSel = 0; t = setTimeout(renderBuscaRes, 120); });
+  inp.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { fecharBuscaRes(); return; }
+    const n = Math.min(_brIdx.length, 8);
+    if (e.key === 'ArrowDown' && n) { e.preventDefault(); _brSel = (_brSel + 1) % n; renderBuscaRes(); }
+    else if (e.key === 'ArrowUp' && n) { e.preventDefault(); _brSel = (_brSel - 1 + n) % n; renderBuscaRes(); }
+    else if (e.key === 'Enter' && n) { e.preventDefault(); irParaResultado(_brIdx[_brSel]); }
+  });
+})();
+
 const leadsSalvos = new Set();   // osm_id já salvos como lead (nesta sessão)
 const lugaresSel = new Set();    // índices marcados na lista
 
@@ -1329,13 +2149,14 @@ function jsArg(s) {
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+function irPara(url) {
+  if (document.documentElement.classList.contains('sysrep-ms-embed')) window.parent.postMessage({ type: 'navigate', url: url }, '*');
+  else window.location.href = url;
+}
+
 function abrirLeads() {
   salvarEstado();
-  if (document.documentElement.classList.contains('sysrep-ms-embed')) {
-    window.parent.postMessage({ type: 'navigate', url: '/pages/leads.html' }, '*');
-  } else {
-    window.location.href = '/pages/leads.html';
-  }
+  irPara('/pages/leads.html');
 }
 
 function _payloadLead(p) {
@@ -1347,7 +2168,8 @@ function _payloadLead(p) {
     endereco: p.endereco, bairro: p.bairro, cidade: p.cidade,
     latitude: p.latitude, longitude: p.longitude,
     segmento: p.categoria, origem: 'Mapa',
-    observacoes: [`Encontrado no mapa (OpenStreetMap ${p.osm_id}).`, p.horario ? `Horário: ${p.horario}` : '', p.site ? `Site: ${p.site}` : ''].filter(Boolean).join('\n')
+    cnpj: p.cnpj || '', cnae: p.cnae || '', cnae_descricao: p.cnpj ? p.categoria : '', porte: p.porte || '',
+    observacoes: [p.cnpj ? `Encontrado pela busca profunda (Receita Federal). CNPJ ${p.cnpj}${p.razao_social ? ' · ' + p.razao_social : ''}.` : `Encontrado no mapa (OpenStreetMap ${p.osm_id}).`, p.horario ? `Horário: ${p.horario}` : '', p.site ? `Site: ${p.site}` : ''].filter(Boolean).join('\n')
   };
 }
 
@@ -1416,6 +2238,33 @@ async function salvarLeadsLote(indices) {
   }
 }
 
+// 1º toque direto do mapa: garante o lead (sem duplicar) e abre a mensagem pronta
+async function toqueLugar(index) {
+  const p = clientesEncontrados[index];
+  if (!p) return;
+  showLoading(true);
+  try {
+    const r = await fetch('/api/leads/lote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ itens: [_payloadLead(p)] })
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Erro ao salvar o lead');
+    const x = [...d.criados, ...d.duplicados][0];
+    showLoading(false);
+    if (!x) { toast('Este comércio já é seu cliente.', 'warn'); return; }
+    leadsSalvos.add(p.osm_id);
+    const b = document.getElementById('btnLead_' + index);
+    if (b) { b.disabled = true; b.textContent = '✔ Lead salvo'; }
+    Toque.abrir({ id: x.id, nome: p.nome, empresa: p.nome, telefone: p.telefone, whatsapp: p.telefone, segmento: p.categoria, cidade: p.cidade, toques: 0 },
+      { numero: 1, onDone: () => { carregarInsights(); } });
+  } catch (e) {
+    showLoading(false);
+    toast(e.message || 'Erro ao preparar o toque', 'error');
+  }
+}
+
 function salvarLeadLugar(index) { return salvarLeadsLote([index]); }
 function salvarSelecionadosLeads() { return salvarLeadsLote([...lugaresSel]); }
 
@@ -1424,7 +2273,479 @@ function buscarCategoria(q) {
   buscarClientesRaio();
 }
 
+// ─── Inteligência da carteira: o radar aprende com os SEUS leads ganhos ───────
+async function carregarInsights() {
+  try {
+    const r = await fetch('/api/leads/insights/segmentos', { headers: { 'Authorization': `Bearer ${token}` } });
+    if (!r.ok) return;
+    const d = await r.json();
+    insightsSeg = (d.segmentos || []).map(s => ({ ...s, taxa: s.total ? s.ganhos / s.total : 0 }));
+    renderComboCom();
+  } catch (_) { /* sem histórico: o radar usa só proximidade/telefone/densidade */ }
+}
+function taxaDoTipo(nome) {
+  const n = _norm(nome);
+  if (!n) return null;
+  const s = insightsSeg.find(x => { const k = _norm(x.segmento); return k && (k === n || k.includes(n) || n.includes(k)); });
+  return s && s.total >= 2 ? s : null;
+}
+function melhorTipo() {
+  return insightsSeg.filter(s => s.total >= 2 && s.ganhos > 0).sort((a, b) => b.taxa - a.taxa || b.ganhos - a.ganhos)[0] || null;
+}
+function raioAtual() {
+  return Math.min(Math.max(parseFloat(String(document.getElementById('selectRaio').value).replace(',', '.')) || 5, 0.05), 100);
+}
+// Nota 0–100: tipo que converte (35) + tem telefone (25) + perto (20) + vizinhança de outros comércios (20)
+function calcularRadar(lugares) {
+  const raio = raioAtual();
+  lugares.forEach(p => {
+    if (p.cliente_id) { p._radar = 0; p._radarWhy = 'Já é cliente'; return; }
+    const t = taxaDoTipo(p.categoria);
+    const pTipo = t ? Math.round(Math.min(1, t.taxa / 0.5) * 35) : 15;
+    const pTel = p.telefone ? 25 : 0;
+    const pPerto = Math.round(Math.max(0, 1 - (p.distancia || 0) / raio) * 20);
+    let viz = 0;
+    for (const o of lugares) {
+      if (o !== p && distKm({ lat: p.latitude, lng: p.longitude }, { lat: o.latitude, lng: o.longitude }) <= 0.25) viz++;
+    }
+    const pDens = Math.round(Math.min(viz, 5) / 5 * 20);
+    p._radar = Math.min(100, pTipo + pTel + pPerto + pDens);
+    p._radarWhy = [t ? `${p.categoria}: ${Math.round(t.taxa * 100)}% dos seus leads viraram cliente` : 'sem histórico desse tipo', p.telefone ? 'tem telefone' : 'sem telefone', viz ? `${viz} comércio(s) a até 250 m` : 'isolado'].join(' · ');
+  });
+}
+function definirOrdem(o) {
+  ordemLista = o;
+  if (o === 'radar') clientesEncontrados.sort((a, b) => (b._radar || 0) - (a._radar || 0));
+  else clientesEncontrados.sort((a, b) => (a.distancia || 0) - (b.distancia || 0));
+  renderizarLugares(clientesEncontrados);
+}
+// ─── Sugestão com o motivo: qual tipo vale mais a pena abordar primeiro nesta região ───
+let baseTipos = null;      // lista completa antes de "Ver só <tipo>"
+let tipoFiltro = null;
+function pluralTipo(c) {
+  const t = String(c || '').toLowerCase().trim();
+  if (!t) return 'comércios';
+  if (/[sz]$/.test(t)) return t;
+  if (/ão$/.test(t)) return t.replace(/ão$/, 'ões');
+  return t + 's';
+}
+function recomendarTipo(lugares) {
+  const g = {};
+  lugares.forEach(p => {
+    if (p.cliente_id || !p.categoria) return;
+    const x = g[p.categoria] = g[p.categoria] || { cat: p.categoria, n: 0, tel: 0 };
+    x.n++; if (p.telefone) x.tel++;
+  });
+  const arr = Object.values(g).filter(x => x.n >= 3);          // amostra mínima
+  if (!arr.length) return null;
+  arr.forEach(x => {
+    const t = taxaDoTipo(x.cat);
+    x.hist = t && t.ganhos > 0 ? t : null;
+    x.pctTel = x.tel / x.n;
+    x.score = (x.hist ? x.hist.taxa * 50 : 10) + x.pctTel * 30 + Math.min(x.n, 40) / 40 * 20;
+  });
+  arr.sort((a, b) => b.score - a.score);
+  return arr[0];
+}
+function htmlRecomendacao(lugares) {
+  if (tipoFiltro) {
+    return `<div class="filtro-tipo"><span>Mostrando só <b>${escHtml(tipoFiltro)}</b></span><button type="button" onclick="mostrarTodosTipos()">✕ Mostrar todos</button></div>`;
+  }
+  const r = recomendarTipo(lugares);
+  if (!r) return '';
+  const pct = Math.round(r.pctTel * 100);
+  const motivo = r.hist
+    ? `e é o tipo que mais vira cliente nos seus leads (${r.hist.ganhos} de ${r.hist.total})`
+    : (pct >= 70 ? 'e é onde há mais telefones para abordar' : 'e é o grupo com mais opções por perto');
+  const mais = new Set(lugares.map(p => p.categoria)).size > 1;
+  return `<div class="recom">💡 <b>Sugestão:</b> na sua região há <b>${r.n} ${escHtml(pluralTipo(r.cat))}</b>, <b>${pct}%</b> com telefone, ${motivo}. Comece por elas.
+    ${mais ? `<div><button type="button" class="recom-btn" onclick="verSoTipo('${jsArg(r.cat)}')">Ver só ${escHtml(pluralTipo(r.cat))}</button></div>` : ''}</div>`;
+}
+function verSoTipo(cat) {
+  if (!baseTipos) baseTipos = clientesEncontrados.slice();
+  tipoFiltro = cat;
+  const lista = baseTipos.filter(p => p.categoria === cat);
+  clientesEncontrados = lista;
+  renderizarLugares(lista);
+  atualizarInfoBar(lista.length, raioAtual());
+}
+function mostrarTodosTipos() {
+  if (!baseTipos) return;
+  const l = baseTipos;
+  baseTipos = null; tipoFiltro = null;
+  clientesEncontrados = l;
+  renderizarLugares(l);
+  atualizarInfoBar(l.length, raioAtual());
+}
+
+function resumoRegiao(lugares) {
+  const total = lugares.length;
+  const comTel = lugares.filter(p => p.telefone).length;
+  const clientes = lugares.filter(p => p.cliente_id).length;
+  const alta = lugares.filter(p => (p._radar || 0) >= 70).length;
+  const porCat = {};
+  lugares.forEach(p => { porCat[p.categoria] = (porCat[p.categoria] || 0) + 1; });
+  const cats = Object.entries(porCat).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  const mt = melhorTipo();
+  return `<div class="resumo-reg">
+    <div class="resumo-grid">
+      <div><b>${total}</b><span>comércios</span></div>
+      <div><b>${total ? Math.round(comTel / total * 100) : 0}%</b><span>com telefone (${comTel})</span></div>
+      <div><b>${clientes}</b><span>já são clientes</span></div>
+      <div><b>${alta}</b><span>⭐ alta prioridade</span></div>
+    </div>
+    ${cats.length > 1 ? `<div class="resumo-cats">${cats.map(([c, n]) => `<span>${escHtml(c)} <b>${n}</b></span>`).join('')}</div>` : ''}
+    ${htmlRecomendacao(baseTipos || lugares)}
+    ${(recomendarTipo(baseTipos || lugares) || tipoFiltro) ? '' : `<div class="resumo-dica">${mt
+      ? `💡 Pelo seu histórico, <b>${escHtml(mt.segmento)}</b> é o tipo que mais vira cliente (${mt.ganhos} de ${mt.total} leads). Esses ganham pontos no radar ⭐.`
+      : '💡 O radar ⭐ ordena por telefone, proximidade e vizinhança — e passa a aprender com os seus leads quando você marca algum como Ganho.'}</div>`}
+    <div class="rel-bar" style="margin:10px 0 0">
+      <button type="button" class="${ordemLista === 'perto' ? 'on' : ''}" onclick="definirOrdem('perto')">📍 Mais perto</button>
+      <button type="button" class="${ordemLista === 'radar' ? 'on' : ''}" onclick="definirOrdem('radar')">⭐ Maior prioridade</button>
+    </div>
+  </div>`;
+}
+
+// ─── Exportar / compartilhar / rota dos selecionados ──────────────────────────
+function lugaresAlvo() {
+  const base = modoMapa === 'lugares' ? clientesEncontrados : [];
+  const sel = [...lugaresSel].map(i => base[i]).filter(Boolean);
+  return sel.length ? sel : base;     // sem seleção = todos da lista
+}
+const _csv = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+function exportarCSV() {
+  const L = lugaresAlvo();
+  if (!L.length) { toast('Nada para exportar', 'warn'); return; }
+  const cab = ['Nome', 'Tipo', 'Endereço', 'Bairro', 'Cidade', 'Telefone', 'Site', 'Distância (km)', 'Prioridade (radar)', 'Latitude', 'Longitude', 'Google Maps'];
+  const linhas = L.map(p => [p.nome, p.categoria, p.endereco, p.bairro, p.cidade, p.telefone, p.site,
+    (p.distancia || 0).toFixed(2).replace('.', ','), p._radar == null ? '' : p._radar,
+    String(p.latitude).replace('.', ','), String(p.longitude).replace('.', ','),
+    `https://www.google.com/maps/search/?api=1&query=${p.latitude},${p.longitude}`].map(_csv).join(';'));
+  const blob = new Blob(['\uFEFF' + [cab.map(_csv).join(';'), ...linhas].join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `comercios-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  toast(`${L.length} comércio(s) exportados (abre no Excel)`, 'success');
+}
+function compartilharWhats() {
+  const L = lugaresAlvo().slice(0, 25);
+  if (!L.length) { toast('Nada para compartilhar', 'warn'); return; }
+  const txt = ['*Comércios para visitar* (' + L.length + ')', '',
+    ...L.map((p, i) => `${i + 1}. *${p.nome}* — ${p.categoria}${p.telefone ? ' — ' + p.telefone : ''}\n   ${[p.endereco, p.bairro].filter(Boolean).join(', ')} (${(p.distancia || 0).toFixed(1)} km)\n   https://maps.google.com/?q=${p.latitude},${p.longitude}`)].join('\n');
+  window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank');
+}
+function rotaFonte() {
+  if (modoMapa === 'lugares' && lugaresSel.size >= 2) return [...lugaresSel].sort((a, b) => a - b).map(i => clientesEncontrados[i]).filter(Boolean);
+  return clientesEncontrados;
+}
+async function montarRotaSelecao() {
+  if (modoMapa !== 'lugares') return;
+  if (lugaresSel.size < 2) { toast('Marque pelo menos 2 comércios na lista para montar a rota.', 'warn'); return; }
+  if (document.getElementById('routePanel').classList.contains('show')) limparRota();
+  await toggleRota();
+  if (window.matchMedia('(max-width: 900px)').matches) document.getElementById('sidebar').classList.add('collapsed');
+}
+// "Plano do dia": salva as paradas como leads e cria uma tarefa de visita para hoje, na ordem da rota
+async function salvarPlanoDia() {
+  const paradas = paradasDaRota().filter(p => p.osm_id);
+  if (!paradas.length) return;
+  const btn = document.getElementById('btnPlanoDia');
+  const txtOrig = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Salvando…';
+  try {
+    const H = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
+    const porOsm = (id) => clientesEncontrados.find(x => x.osm_id === id);
+    const alvo = paradas.map(s => porOsm(s.osm_id)).filter(p => p && !p.cliente_id);
+    const ids = new Map();
+    if (alvo.length) {
+      const r = await fetch('/api/leads/lote', { method: 'POST', headers: H, body: JSON.stringify({ itens: alvo.map(_payloadLead) }) });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Erro ao salvar leads');
+      [...d.criados, ...d.duplicados].forEach(x => { if (x.osm_id && x.id) ids.set(x.osm_id, x.id); });
+      alvo.forEach(p => { if (ids.has(p.osm_id)) leadsSalvos.add(p.osm_id); });
+    }
+    const h = new Date();
+    const dia = `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, '0')}-${String(h.getDate()).padStart(2, '0')}`;
+    let n = 0;
+    for (let i = 0; i < paradas.length; i++) {
+      const p = porOsm(paradas[i].osm_id);
+      const id = ids.get(paradas[i].osm_id);
+      if (!p || !id) continue;
+      const r = await fetch(`/api/leads/${id}/tarefas`, {
+        method: 'POST', headers: H,
+        body: JSON.stringify({ titulo: `Visita ${i + 1}/${paradas.length} — ${p.nome}`, descricao: [[p.endereco, p.bairro].filter(Boolean).join(', '), p.telefone].filter(Boolean).join(' · '), data_vencimento: dia, prioridade: 'MEDIA' })
+      });
+      if (r.ok) n++;
+    }
+    toast(n ? `✔ ${n} visita(s) agendadas para hoje. Veja em 🕘 Histórico › Visitas.` : 'Nenhuma visita criada (já eram clientes?)', n ? 'success' : 'warn');
+    carregarInsights();
+  } catch (e) {
+    toast(e.message || 'Erro ao salvar o plano do dia', 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = txtOrig;
+  }
+}
+
+// ─── Assistente "Montar meu recorte" (5 perguntas, sem IA: regras simples) ──────
+const PERFIL_KEY = 'sysrep_mapa_perfil';
+const RAMOS = [
+  { id: 'alimentos', label: 'Alimentos e bebidas', tipos: ['mercado', 'mercearia', 'padaria', 'restaurante', 'lanchonete', 'bar', 'hortifruti', 'açougue', 'adega'], produto: 'alimentos e bebidas' },
+  { id: 'embalagens', label: 'Embalagens e descartáveis', tipos: ['restaurante', 'lanchonete', 'padaria', 'mercado', 'mercearia', 'açougue', 'bar'], produto: 'embalagens e descartáveis' },
+  { id: 'construcao', label: 'Material de construção e acabamento', tipos: ['material de construção', 'tintas', 'iluminação', 'móveis'], produto: 'materiais de construção e acabamento' },
+  { id: 'eletrica', label: 'Elétrica e iluminação', tipos: ['material de construção', 'iluminação', 'móveis', 'shopping'], produto: 'produtos de elétrica e iluminação' },
+  { id: 'auto', label: 'Peças e serviços automotivos', tipos: ['oficina', 'autopeças', 'posto'], produto: 'peças e serviços automotivos' },
+  { id: 'saude', label: 'Saúde, beleza e bem-estar', tipos: ['salão', 'cosméticos', 'clínica', 'farmácia', 'academia'], produto: 'produtos de saúde e beleza' },
+  { id: 'pet', label: 'Pet e agro', tipos: ['pet shop', 'agropecuária', 'floricultura'], produto: 'produtos para pet e agro' },
+  { id: 'moda', label: 'Moda e vestuário', tipos: ['roupas', 'calçados', 'bazar'], produto: 'moda e vestuário' },
+  { id: 'empresas', label: 'Serviços para empresas (TI, contabilidade, marketing)', tipos: ['indústria', 'atacado', 'clínica', 'escola', 'hotel', 'academia', 'oficina'], produto: 'serviços para empresas' },
+  { id: 'maquinas', label: 'Máquinas e equipamentos', tipos: ['indústria', 'agropecuária', 'oficina', 'atacado'], produto: 'máquinas e equipamentos' },
+  { id: 'outro', label: 'Outro', tipos: [], produto: '' },
+];
+const TICKETS = [
+  { id: 'baixo', label: 'Até R$ 500', raio: 10, objetivo: 'whatsapp' },
+  { id: 'medio', label: 'R$ 500 a R$ 5 mil', raio: 25, objetivo: 'catalogo' },
+  { id: 'alto', label: 'Acima de R$ 5 mil', raio: 50, objetivo: 'visita' },
+];
+const OBJETIVOS = [
+  { id: 'visita', label: 'Agendar uma visita' },
+  { id: 'whatsapp', label: 'Vender pelo WhatsApp' },
+  { id: 'catalogo', label: 'Enviar catálogo / preços' },
+];
+const FIM_TOQUE = 'Vou encerrar por aqui para não te incomodar. Se em algum momento a {empresa} quiser conhecer {produto}, é só me chamar. Obrigado pela atenção! — {meu_nome}';
+const MENSAGENS_OBJ = {
+  visita: [
+    '{cumprimento} Aqui é {meu_nome}, da {minha_empresa}. Trabalho com {produto} e estou visitando {tipo_pl} de {cidade}. Posso passar aí para te mostrar? Qual o melhor dia e horário para a {empresa}?',
+    '{cumprimento} Voltando aqui: sou {meu_nome}, da {minha_empresa}. Ainda tenho horário esta semana para passar na {empresa} e mostrar {produto}. Qual dia fica melhor?',
+    FIM_TOQUE],
+  whatsapp: [
+    '{cumprimento} Aqui é {meu_nome}, da {minha_empresa}. Trabalho com {produto} e atendo {tipo_pl} de {cidade}. Posso te enviar os valores e as condições por aqui?',
+    '{cumprimento} Passando de novo: conseguiu ver minha mensagem sobre {produto}? Se quiser, mando agora os valores para a {empresa}.',
+    FIM_TOQUE],
+  catalogo: [
+    '{cumprimento} Aqui é {meu_nome}, da {minha_empresa}. Atendo {tipo_pl} de {cidade} com {produto}. Posso te mandar o catálogo e a tabela de preços?',
+    '{cumprimento} Só retomando: posso enviar o catálogo de {produto} para a {empresa}? É rápido e sem compromisso.',
+    FIM_TOQUE],
+};
+let ass = null;     // respostas em edição
+
+function lerPerfil() { try { return JSON.parse(localStorage.getItem(PERFIL_KEY) || 'null'); } catch (_) { return null; } }
+function indiceTipo(termo) { return COMERCIOS.findIndex(c => c[1] === termo); }
+
+function abrirAssistente() {
+  const salvo = lerPerfil() || {};
+  ass = {
+    ramo: salvo.ramo || '', produto: salvo.produto || '', tipos: new Set(salvo.tipos || []),
+    onde: salvo.onde || 'gps', cidade: salvo.cidade || '', raio: salvo.raio || 25,
+    ticket: salvo.ticket || '', objetivo: salvo.objetivo || '', msgs: true,
+  };
+  renderAssistente();
+  document.getElementById('assOv').hidden = false;
+}
+function fecharAssistente() { document.getElementById('assOv').hidden = true; }
+function chip(grupo, id, label, on) { return `<button type="button" class="ass-chip${on ? ' on' : ''}" onclick="assEscolher('${grupo}','${id}')">${escHtml(label)}</button>`; }
+
+function renderAssistente() {
+  const a = ass;
+  const ramo = RAMOS.find(r => r.id === a.ramo);
+  const sugeridos = ramo ? ramo.tipos : [];
+  const todos = COMERCIOS.map(c => c[1]).filter(t => !t.startsWith('indústria '));
+  const outros = todos.filter(t => !sugeridos.includes(t));
+  const tipoChip = (t) => { const i = indiceTipo(t); return i < 0 ? '' : `<button type="button" class="ass-chip${a.tipos.has(t) ? ' on' : ''}" onclick="assTipo('${jsArg(t)}')">${escHtml(COMERCIOS[i][0].replace('↳ ', ''))}</button>`; };
+  document.getElementById('assCorpo').innerHTML = `
+    ${lerPerfil() ? '' : '<div class="ass-novo">Responda em 1 minuto: eu escolho os tipos de comércio, o raio e escrevo as mensagens de 1º, 2º e 3º toque para o seu negócio. Dá para mudar tudo depois.</div><br>'}
+    <div class="ass-q"><h4><span>1</span>O que você vende?</h4>
+      <div class="ass-chips">${RAMOS.map(r => chip('ramo', r.id, r.label, a.ramo === r.id)).join('')}</div>
+      <input class="ass-inp" id="assProduto" placeholder="Em poucas palavras: ex.: ração e petiscos" value="${escHtml(a.produto)}" oninput="ass.produto = this.value" autocomplete="off">
+      <small>Esse texto entra nas mensagens ("Trabalho com <i>ração e petiscos</i>…").</small></div>
+    <div class="ass-q"><h4><span>2</span>Quem compra de você?</h4>
+      ${sugeridos.length ? `<div class="ass-chips">${sugeridos.map(tipoChip).join('')}</div><small>Sugeridos para o seu ramo. Toque para marcar ou desmarcar.</small>` : '<small>Escolha o ramo acima para ver sugestões, ou marque em "Mais tipos".</small>'}
+      <details style="margin-top:8px"><summary style="cursor:pointer;font-weight:700;font-size:13px;color:var(--text2)">Mais tipos de comércio</summary><div class="ass-chips" style="margin-top:8px">${outros.map(tipoChip).join('')}</div></details></div>
+    <div class="ass-q"><h4><span>3</span>Onde você vai prospectar?</h4>
+      <div class="ass-chips">${chip('onde', 'gps', 'Perto de mim (GPS)', a.onde === 'gps')}${chip('onde', 'cidade', 'Uma cidade ou endereço', a.onde === 'cidade')}</div>
+      ${a.onde === 'cidade' ? `<input class="ass-inp" id="assCidade" placeholder="Ex.: Bauru, SP" value="${escHtml(a.cidade)}" oninput="ass.cidade = this.value" autocomplete="off">` : ''}
+      <div class="ass-chips" style="margin-top:10px">${[5, 10, 25, 50].map(k => chip('raio', String(k), k + ' km', a.raio === k)).join('')}</div></div>
+    <div class="ass-q"><h4><span>4</span>Quanto vale, em média, uma venda?</h4>
+      <div class="ass-chips">${TICKETS.map(t => chip('ticket', t.id, t.label, a.ticket === t.id)).join('')}</div>
+      <small>Ticket maior costuma pedir raio maior e visita; menor, volume pelo WhatsApp.</small></div>
+    <div class="ass-q"><h4><span>5</span>Qual o objetivo do 1º contato?</h4>
+      <div class="ass-chips">${OBJETIVOS.map(o => chip('objetivo', o.id, o.label, a.objetivo === o.id)).join('')}</div>
+      <label class="ass-chk" style="margin-top:12px"><input type="checkbox" ${a.msgs ? 'checked' : ''} onchange="ass.msgs = this.checked"> <span>Escrever as mensagens de 1º, 2º e 3º toque para mim (substitui o texto padrão geral; os que você salvou por tipo de comércio ficam como estão)</span></label></div>`;
+}
+function assEscolher(grupo, id) {
+  const a = ass;
+  if (grupo === 'ramo') {
+    const anterior = RAMOS.find(x => x.id === a.ramo);
+    a.ramo = id;
+    const r = RAMOS.find(x => x.id === id);
+    a.tipos = new Set(r.tipos);
+    // troca o texto do produto só se estava vazio ou ainda era o sugerido do ramo anterior
+    if (r.produto && (!a.produto.trim() || (anterior && a.produto.trim() === anterior.produto))) a.produto = r.produto;
+  } else if (grupo === 'onde') a.onde = id;
+  else if (grupo === 'raio') a.raio = parseInt(id, 10);
+  else if (grupo === 'ticket') {
+    a.ticket = id;
+    const t = TICKETS.find(x => x.id === id);
+    a.raio = t.raio;
+    if (!a.objetivo) a.objetivo = t.objetivo;
+  } else if (grupo === 'objetivo') a.objetivo = id;
+  renderAssistente();
+}
+function assTipo(t) { if (ass.tipos.has(t)) ass.tipos.delete(t); else ass.tipos.add(t); renderAssistente(); }
+
+async function aplicarAssistente(buscar) {
+  const a = ass;
+  if (!a.tipos.size) { toast('Marque pelo menos um tipo de comércio (pergunta 2).', 'warn'); return; }
+  if (a.onde === 'cidade' && !a.cidade.trim()) { toast('Digite a cidade ou o endereço (pergunta 3).', 'warn'); return; }
+  const perfil = { ramo: a.ramo, produto: (a.produto || '').trim(), tipos: [...a.tipos], onde: a.onde, cidade: a.cidade.trim(), raio: a.raio, ticket: a.ticket, objetivo: a.objetivo || 'whatsapp' };
+  try { localStorage.setItem(PERFIL_KEY, JSON.stringify(perfil)); } catch (_) {}
+
+  // aplica na busca
+  comSel.clear();
+  perfil.tipos.forEach(t => { const i = indiceTipo(t); if (i >= 0) comSel.add(i); });
+  renderComboCom();
+  document.getElementById('selectTipo').value = 'lugares';
+  aplicarTipoUI('lugares');
+  document.getElementById('selectRaio').value = String(perfil.raio);
+  document.getElementById('inputEndereco').value = perfil.onde === 'cidade' ? perfil.cidade : '';
+  document.getElementById('inputLugar').value = '';
+  setAbaPainel('filtros');
+
+  // mensagens dos 3 toques (padrão geral '*')
+  if (a.msgs) {
+    try {
+      const textos = MENSAGENS_OBJ[perfil.objetivo] || MENSAGENS_OBJ.whatsapp;
+      for (let i = 0; i < 3; i++) {
+        const r = await fetch('/api/leads/modelos', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ toque: i + 1, segmento: '*', texto: textos[i] }) });
+        if (!r.ok) throw new Error('Não consegui salvar as mensagens');
+      }
+      if (window.Toque) Toque.carregarModelos(true);
+    } catch (e) { toast(e.message || 'Erro ao salvar as mensagens', 'warn'); }
+  }
+  fecharAssistente();
+  const lk = document.getElementById('linkAssistente');
+  if (lk) lk.textContent = '✨ Refazer meu recorte';
+  toast('Recorte aplicado' + (buscar ? ' — buscando…' : '. Toque em Buscar.'), 'success');
+  if (buscar) buscarClientesRaio();
+}
+document.addEventListener('DOMContentLoaded', () => { const lk = document.getElementById('linkAssistente'); if (lk && lerPerfil()) lk.textContent = '✨ Refazer meu recorte'; });
+
+// ─── Histórico: pesquisas (neste aparelho) e visitas (do servidor) ────────────
+const HIST_KEY = 'sysrep_mapa_hist_pesquisas';
+function lerHist() { try { return JSON.parse(localStorage.getItem(HIST_KEY) || '[]') || []; } catch (_) { return []; } }
+function gravarHist(l) { try { localStorage.setItem(HIST_KEY, JSON.stringify(l.slice(0, 40))); } catch (_) {} }
+function registrarPesquisa(info) {
+  const chave = (x) => [x.termos.join('|'), x.raio, x.lat.toFixed(2), x.lng.toFixed(2)].join('~');
+  const l = lerHist().filter(x => chave(x) !== chave(info));
+  l.unshift({ ...info, ts: Date.now() });
+  gravarHist(l);
+}
+function _quando(ts) {
+  const d = new Date(ts), h = new Date();
+  const hora = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  if (d.toDateString() === h.toDateString()) return 'hoje ' + hora;
+  const o = new Date(h); o.setDate(h.getDate() - 1);
+  if (d.toDateString() === o.toDateString()) return 'ontem ' + hora;
+  return d.toLocaleDateString('pt-BR') + ' ' + hora;
+}
+let histAba = 'pesq';
+function abrirHistorico() { document.getElementById('histOv').hidden = false; trocarHist(histAba); }
+function fecharHistorico() { document.getElementById('histOv').hidden = true; }
+function trocarHist(aba) {
+  histAba = aba;
+  document.getElementById('tabPesq').classList.toggle('on', aba === 'pesq');
+  document.getElementById('tabVis').classList.toggle('on', aba === 'vis');
+  if (aba === 'pesq') renderHistPesquisas(); else renderHistVisitas();
+}
+function renderHistPesquisas() {
+  const corpo = document.getElementById('histCorpo');
+  const l = lerHist();
+  if (!l.length) { corpo.innerHTML = '<div class="hist-vazio">Nenhuma pesquisa ainda.<br>As buscas de comércios que você fizer aparecem aqui para refazer com um toque.</div>'; return; }
+  corpo.innerHTML = l.map((x, i) => `<div class="hist-item">
+      <div class="t">${escHtml(x.termos.map(t => (COMERCIOS.find(c => c[1] === t) || [t])[0].replace('↳ ', '')).join(', '))}</div>
+      <div class="s">${x.raio} km · ${escHtml(x.local || 'perto de você')} · <b>${x.qtd}</b> resultado(s) · ${_quando(x.ts)}</div>
+      <div class="acoes"><button type="button" class="pri" onclick="refazerPesquisa(${i})">Refazer</button><button type="button" onclick="removerPesquisa(${i})">Remover</button></div>
+    </div>`).join('') + '<div style="text-align:center;margin-top:8px"><button type="button" class="hist-link" style="width:auto" onclick="limparHistPesquisas()">Limpar histórico de pesquisas</button></div>';
+}
+function removerPesquisa(i) { const l = lerHist(); l.splice(i, 1); gravarHist(l); renderHistPesquisas(); }
+function limparHistPesquisas() { gravarHist([]); renderHistPesquisas(); }
+function refazerPesquisa(i) {
+  const x = lerHist()[i];
+  if (!x) return;
+  fecharHistorico();
+  userLocation = { lat: x.lat, lng: x.lng };
+  origemInfo = { tipo: 'historico', rotulo: x.local ? x.local.replace(/^perto de /, '') : 'local da pesquisa salva', chave: '' };
+  atualizarLinhaOrigem();
+  document.getElementById('inputEndereco').value = '';
+  document.getElementById('inputLat').value = x.lat.toFixed(6);
+  document.getElementById('inputLng').value = x.lng.toFixed(6);
+  map.setView([x.lat, x.lng], 13);
+  document.getElementById('selectTipo').value = 'lugares';
+  aplicarTipoUI('lugares');
+  document.getElementById('selectRaio').value = String(x.raio).replace('.', ',');
+  comSel.clear();
+  const livres = [];
+  x.termos.forEach(t => {
+    const idx = COMERCIOS.findIndex(c => c[1] === t);
+    if (idx >= 0) comSel.add(idx); else livres.push(t);
+  });
+  document.getElementById('inputLugar').value = livres.join(' ');
+  renderComboCom();
+  buscarClientesRaio();
+}
+async function renderHistVisitas() {
+  const corpo = document.getElementById('histCorpo');
+  corpo.innerHTML = '<div class="hist-vazio">Carregando…</div>';
+  try {
+    const r = await fetch('/api/leads/visitas?dias=60', { headers: { 'Authorization': `Bearer ${token}` } });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Erro');
+    window._histVisitas = d.visitas || [];
+    if (!window._histVisitas.length) { corpo.innerHTML = '<div class="hist-vazio">Nenhuma visita agendada.<br>Marque comércios no mapa, monte a rota e toque em <b>Salvar visitas de hoje</b>.</div>'; return; }
+    const porDia = {};
+    window._histVisitas.forEach((v, i) => { const k = String(v.data_vencimento || 'sem data').slice(0, 10); (porDia[k] = porDia[k] || []).push([v, i]); });
+    corpo.innerHTML = Object.entries(porDia).map(([dia, itens]) => {
+      const rot = dia === 'sem data' ? dia : new Date(dia + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
+      const feitas = itens.filter(([v]) => v.status === 'CONCLUIDA').length;
+      return `<div class="hist-dia">${escHtml(rot)} · ${feitas}/${itens.length} feitas</div>` + itens.map(([v, i]) => {
+        const st = v.status === 'CONCLUIDA' ? '<span class="st-pill st-ok">Feita</span>' : v.status === 'CANCELADA' ? '<span class="st-pill st-canc">Cancelada</span>' : '<span class="st-pill st-pend">Pendente</span>';
+        const end = [v.endereco, v.bairro, v.cidade].filter(Boolean).join(', ');
+        return `<div class="hist-item">
+          <div class="t">${escHtml(v.titulo.replace(/^Visita\s*/i, ''))}${st}</div>
+          <div class="s">${escHtml(end || '—')}${v.telefone ? ' · ' + escHtml(v.telefone) : ''}</div>
+          <div class="acoes">
+            ${v.status === 'PENDENTE' ? `<button type="button" class="pri" onclick="concluirVisita(${i})">✔ Marcar como feita</button>` : ''}
+            ${v.latitude && v.longitude ? `<button type="button" onclick="verVisitaNoMapa(${i})">Ver no mapa</button>` : ''}
+            <button type="button" onclick="abrirLeadVisita(${v.lead_id})">Abrir lead</button>
+          </div></div>`;
+      }).join('');
+    }).join('');
+  } catch (e) {
+    corpo.innerHTML = `<div class="hist-vazio">Não foi possível carregar as visitas.<br>${escHtml(e.message || '')}</div>`;
+  }
+}
+async function concluirVisita(i) {
+  const v = (window._histVisitas || [])[i];
+  if (!v) return;
+  try {
+    const r = await fetch(`/api/leads/tarefas/${v.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ status: 'CONCLUIDA' }) });
+    if (!r.ok) throw new Error('Falha ao concluir');
+    toast('Visita marcada como feita', 'success');
+    renderHistVisitas();
+  } catch (e) { toast(e.message, 'error'); }
+}
+function verVisitaNoMapa(i) {
+  const v = (window._histVisitas || [])[i];
+  if (!v) return;
+  fecharHistorico();
+  map.setView([parseFloat(v.latitude), parseFloat(v.longitude)], 17);
+  L.popup().setLatLng([parseFloat(v.latitude), parseFloat(v.longitude)]).setContent(`<div class="popup-header"><h4>${escHtml(v.nome)}</h4><p>${escHtml(v.titulo)}</p></div>`).openOn(map);
+}
+function abrirLeadVisita(id) { irPara('/pages/leads.html?edit=' + id); }
+
 function renderizarLugares(lugares) {
+  window.__mr = [];
   markersLayer.clearLayers();
   clusterLayer.clearLayers();
   lugaresSel.clear();
@@ -1438,13 +2759,36 @@ function renderizarLugares(lugares) {
     return;
   }
 
+  calcularRadar(lugares);
+  if (ordemLista === 'radar') lugares.sort((a, b) => (b._radar || 0) - (a._radar || 0));
+  const resumo = document.createElement('div');
+  resumo.innerHTML = resumoRegiao(lugares);
+  list.appendChild(resumo.firstElementChild);
+  if (relInfo) {
+    const rb = document.createElement('div');
+    rb.className = 'rel-bar';
+    rb.innerHTML = `<button type="button" class="${relInfo.ativo === 'top' ? 'on' : ''}" onclick="alternarRel('top')">🎯 Mais parecidos (${relInfo.melhores.length})</button>
+      <button type="button" class="${relInfo.ativo === 'todos' ? 'on' : ''}" onclick="alternarRel('todos')">Todos do tipo (${relInfo.todos.length})</button>`;
+    list.appendChild(rb);
+    if (relInfo.ativo === 'top') {
+      const dica = document.createElement('div');
+      dica.className = 'rel-dica';
+      dica.textContent = 'Mostrando só os lugares cujo nome combina com o que você digitou. Toque em "Todos do tipo" para ver os demais.';
+      list.appendChild(dica);
+    }
+  }
   const novos = lugares.filter(p => !p.cliente_id).length;
   const barra = document.createElement('div');
   barra.className = 'lote-bar';
   barra.innerHTML = `
     <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700"><input type="checkbox" onchange="selecionarTodosLugares(this.checked)"> Todos (${novos})</label>
     <span id="loteQtd" style="font-size:11px;color:var(--text2);flex:1">0 selecionado(s)</span>
-    <button class="btn btn-primary" id="btnLote" onclick="salvarSelecionadosLeads()" disabled style="padding:8px 12px;font-size:12px">Salvar como leads</button>`;
+    <button class="btn btn-primary" id="btnLote" onclick="salvarSelecionadosLeads()" disabled style="padding:8px 12px;font-size:12px">Salvar como leads</button>
+    <div class="acoes-lista">
+      <button type="button" onclick="exportarCSV()" title="Baixa uma planilha (abre no Excel)">⬇ Excel</button>
+      <button type="button" onclick="compartilharWhats()" title="Envia a lista por WhatsApp">WhatsApp</button>
+      <button type="button" onclick="montarRotaSelecao()" title="Marque 2 ou mais na lista">🧭 Rota</button>
+    </div>`;
   list.appendChild(barra);
 
   lugares.forEach((p, index) => {
@@ -1469,16 +2813,18 @@ function renderizarLugares(lugares) {
       <div class="popup-body">
         ${p.cliente_id ? `<div class="popup-row"><span class="popup-value" style="color:#16a34a;font-weight:700">✔ Já é cliente: ${escHtml(p.cliente_nome || '')}</span></div>` : ''}
         ${end ? `<div class="popup-row"><span class="popup-label">Endereço</span><span class="popup-value">${escHtml(end)}</span></div>` : ''}
-        ${p.telefone ? `<div class="popup-row"><span class="popup-label">Telefone</span><span class="popup-value">${escHtml(p.telefone)}</span></div>` : ''}
+        ${p.cnpj ? `<div class="popup-row"><span class="popup-label">CNPJ</span><span class="popup-value">${escHtml(p.cnpj)}${p.razao_social ? '<br>' + escHtml(p.razao_social) : ''}</span></div>` : ''}
+        ${p.telefone ? `<div class="popup-row"><span class="popup-label">Telefone</span><span class="popup-value">${escHtml(p.telefone)}${p.fonte_contato === 'Receita' ? ' <small style="color:var(--text2)">(da Receita; pode ser do contador)</small>' : ''}</span></div>` : ''}
         ${p.horario ? `<div class="popup-row"><span class="popup-label">Horário</span><span class="popup-value">${escHtml(p.horario)}</span></div>` : ''}
         <div class="popup-actions" style="flex-wrap:wrap">
           <button class="popup-btn popup-btn-secondary" onclick="abrirGoogleMapsPonto(${p.latitude},${p.longitude})" style="flex:1 1 45%">Google Maps</button>
           <button class="popup-btn popup-btn-secondary" onclick="abrirWazePonto(${p.latitude},${p.longitude})" style="flex:1 1 45%">Waze</button>
-          ${tel.length >= 10 ? `<a href="https://wa.me/55${tel.replace(/^55/, '')}" target="_blank" class="popup-btn popup-btn-primary" style="flex:1 1 45%">WhatsApp</a>` : ''}
+          ${tel.length >= 10 && !p.cliente_id ? `<button type="button" class="popup-btn popup-btn-wa" style="flex:1 1 100%" onclick="toqueLugar(${index})">1º toque no WhatsApp</button>` : (tel.length >= 10 ? `<a href="https://wa.me/55${tel.replace(/^55/, '')}" target="_blank" class="popup-btn popup-btn-wa" style="flex:1 1 100%">WhatsApp</a>` : '')}
           ${p.telefone ? '' : `<a href="${buscaGoogle}" target="_blank" rel="noopener" class="popup-btn popup-btn-secondary" style="flex:1 1 45%">${p.sem_nome ? 'Ver no Google (nome e fone)' : 'Buscar telefone no Google'}</a>`}
           ${p.cliente_id ? '' : `<button class="popup-btn popup-btn-visit" id="btnLead_${index}" onclick="salvarLeadLugar(${index})" style="flex:1 1 100%">${leadsSalvos.has(p.osm_id) ? '✔ Já está nos seus Leads' : 'Salvar como lead'}</button>`}
         </div>
       </div>`);
+    window.__mr[index] = marker;
     (useClusters ? clusterLayer : markersLayer).addLayer(marker);
 
     const salvo = leadsSalvos.has(p.osm_id);
@@ -1492,7 +2838,8 @@ function renderizarLugares(lugares) {
         <div class="client-distance">${p.distancia.toFixed(1)} km</div>
       </div>
       <div class="client-address">${escHtml(end || p.categoria)}</div>
-      <div class="client-meta"><span style="color:${cor};font-weight:700">${p.cliente_id ? '✔ Já é cliente' : (salvo ? '✔ Lead salvo' : '● Prospecto')}</span><span>${escHtml(p.categoria)}</span></div>`;
+      ${p.cnpj ? `<div class="client-cnpj">CNPJ ${escHtml(p.cnpj)}${p.anos_atividade != null ? ' · ' + (p.anos_atividade < 1 ? 'menos de 1 ano' : p.anos_atividade + (p.anos_atividade === 1 ? ' ano' : ' anos')) : ''}${p.porte ? ' · ' + escHtml(p.porte) : ''}</div>` : ''}
+      <div class="client-meta"><span style="color:${cor};font-weight:700">${p.cliente_id ? '✔ Já é cliente' : (salvo ? '✔ Lead salvo' : '● Prospecto')}</span><span>${escHtml(p.categoria)}${(relInfo && p.match) ? `<span class="match-tag match-${p.match}">${MATCH_ROTULO[p.match] || ''}</span>` : ''}${!p.cliente_id && p._radar != null ? `<span class="radar-tag radar-${p._radar >= 70 ? 'alta' : p._radar >= 45 ? 'media' : 'baixa'}" title="${escHtml(p._radarWhy || '')}">⭐ ${p._radar}</span>` : ''}</span></div>`;
     item.onclick = () => {
       document.querySelectorAll('.client-item').forEach(i => i.classList.remove('active'));
       item.classList.add('active');
@@ -1508,6 +2855,7 @@ function renderizarLugares(lugares) {
 
 // ─── Renderizar Clientes ────────────────────────────────────────────────────
 function renderizarClientes(clientes) {
+  window.__mr = [];
   // Limpar marcadores
   markersLayer.clearLayers();
   clusterLayer.clearLayers();
@@ -1565,21 +2913,15 @@ function renderizarClientes(clientes) {
         ${c.telefone ? `<div class="popup-row"><span class="popup-label">Telefone</span><span class="popup-value">${escHtml(c.telefone)}</span></div>` : ''}
         ${c.dias_sem_compra != null ? `<div class="popup-row"><span class="popup-label">Última compra</span><span class="popup-value" style="font-weight:700;color:${c.dias_sem_compra >= 90 ? '#ef4444' : 'inherit'}">há ${c.dias_sem_compra} dias</span></div>` : (!c._lead && c.dtultimacompra === null ? `<div class="popup-row"><span class="popup-label">Última compra</span><span class="popup-value">nunca comprou</span></div>` : '')}
         <div class="popup-actions" style="flex-wrap:wrap">
-          ${c._lead ? `<button class="popup-btn popup-btn-primary" onclick="abrirLeads()" style="flex:1 1 100%">Abrir em Leads</button>` : `<button class="popup-btn popup-btn-primary" onclick="abrirHistoricoVendas(${c.id})" style="flex:1 1 45%">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:12px;height:12px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-            Histórico
-          </button>`}
+          ${c._lead ? `<button class="popup-btn popup-btn-primary" onclick="abrirLeads()" style="flex:1 1 100%">Abrir em Leads</button>` : ''}
           <button class="popup-btn popup-btn-secondary" onclick="abrirGoogleMapsPonto(${lat},${lng})" style="flex:1 1 45%">Google Maps</button>
           <button class="popup-btn popup-btn-secondary" onclick="abrirWazePonto(${lat},${lng})" style="flex:1 1 45%">Waze</button>
-          ${c._lead ? '' : `<button class="popup-btn popup-btn-visit" onclick="agendarVisita(${c.id}, '${jsArg(c.nome || c.nome_cliente || '')}')" style="flex:1 1 100%">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:12px;height:12px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-            Agendar Visita
-          </button>`}
         </div>
       </div>
     `;
 
     marker.bindPopup(popupContent);
+    window.__mr[index] = marker;
 
     if (useClusters) {
       clusterLayer.addLayer(marker);
@@ -1681,7 +3023,8 @@ async function toggleRota() {
     return;
   }
 
-  if (clientesEncontrados.length < 2) {
+  const fonteRota = rotaFonte();
+  if (fonteRota.length < 2) {
     toast('Selecione pelo menos 2 clientes para otimizar rota', 'warn');
     return;
   }
@@ -1691,13 +3034,14 @@ async function toggleRota() {
 
   try {
     // Pontos: 1º = sua localização (origem fixa); depois os 20 mais próximos
-    const pontos = clientesEncontrados
+    const pontos = fonteRota
       .filter(c => c.latitude || c.lat)
-      .slice(0, 20)
+      .slice(0, 24)
       .map(c => ({
         lat: parseFloat(c.latitude || c.lat),
         lng: parseFloat(c.longitude || c.lng),
         id: c.id,
+        osm_id: c.osm_id,
         nome: c.nome || c.nome_cliente
       }));
     if (userLocation) pontos.unshift({ lat: userLocation.lat, lng: userLocation.lng, id: null, nome: 'Você (partida)', origem: true });
@@ -1723,6 +3067,7 @@ async function toggleRota() {
         ? 'Percurso pelas ruas, na ordem que reduz o deslocamento.'
         : 'Serviço de rotas indisponível: distância em linha reta (aproximada).';
       panel.classList.add('show');
+      document.getElementById('btnPlanoDia').style.display = data.rota.some(p => p.osm_id) ? '' : 'none';
 
       // Traçado: pelas ruas (OSRM) ou linha reta no fallback
       rotaLayer.clearLayers();
@@ -1769,6 +3114,8 @@ function limparRota() {
   document.getElementById('routePanel').classList.remove('show');
   document.getElementById('btnRota').classList.remove('active');
   rotaOtimizada = [];
+  const _bp = document.getElementById('btnPlanoDia');
+  if (_bp) _bp.style.display = 'none';
   if (rotaLayer) rotaLayer.clearLayers();
 }
 
@@ -1816,10 +3163,27 @@ function showLoading(show) {
   document.getElementById('loadingOverlay').classList.toggle('show', show);
 }
 
+function setAbaPainel(aba) {
+  const sb = document.getElementById('sidebar');
+  sb.dataset.tab = aba;
+  document.getElementById('tabFiltros').classList.toggle('on', aba === 'filtros');
+  document.getElementById('tabRes').classList.toggle('on', aba === 'res');
+  sb.scrollTop = 0;
+}
+function contarAbaRes(n) {
+  document.getElementById('tabRes').textContent = n ? `Resultados (${n})` : 'Resultados';
+}
+
 function atualizarInfoBar(total, raio) {
+  contarAbaRes(total);
+  setAbaPainel('res');
   document.getElementById('infoBar').style.display = 'flex';
   document.getElementById('infoTotal').textContent = total;
+  const _r = document.getElementById('infoRotulo');
+  if (_r) _r.textContent = (typeof modoMapa !== 'undefined' && modoMapa === 'lugares') ? 'comércios' : (modoMapa === 'leads' ? 'leads' : 'clientes');
   document.getElementById('infoRaio').textContent = raio;
+  window.__brFiltro = false;
+  const _bb = document.getElementById('btnBuscaRes'); if (_bb) _bb.style.display = total > 0 ? 'flex' : 'none';
 }
 
 function toast(mensagem, tipo = 'info') {
@@ -1885,58 +3249,59 @@ function showTopbarActions() {
   document.getElementById('topbarActions').style.display = 'flex';
 }
 
-// ─── Mobile embed: bottom-sheet behavior ────────────────────────────────────
-(function initMobileMapUI() {
-  if (!document.documentElement.classList.contains('sysrep-ms-embed')) return;
-
+// ─── Painel de filtros: começa fechado (mapa em tela cheia); no celular é uma gaveta ───
+(function initPainel() {
   const sidebar = document.getElementById('sidebar');
-  const header = sidebar?.querySelector('.sidebar-header');
-  if (!sidebar || !header) return;
+  const mobile = () => window.matchMedia('(max-width: 900px)').matches;
+  const reajustar = () => setTimeout(() => { if (map) map.invalidateSize(); }, 320);
 
-  // Se restaurou clientes, mostrar o sheet; senão, colapsar
-  var hasRestoredClients = clientesEncontrados.length > 0;
-  if (!hasRestoredClients) {
-    sidebar.classList.add('collapsed');
-  }
+  if (clientesEncontrados.length === 0) sidebar.classList.add('collapsed');
+  reajustar();
 
-  // Atualiza o subtítulo quando tem clientes restaurados
-  if (hasRestoredClients) {
-    var sub = sidebar.querySelector('.sidebar-subtitle');
-    if (sub) sub.textContent = clientesEncontrados.length + ' clientes encontrados';
-  }
-
-  header.addEventListener('click', function(e) {
-    e.stopPropagation();
-    sidebar.classList.toggle('collapsed');
-    setTimeout(function() { if (map) map.invalidateSize(); }, 400);
-  });
-
-  document.getElementById('map')?.addEventListener('click', function() {
-    if (!sidebar.classList.contains('collapsed')) {
+  // depois de uma busca com resultado, no celular fecha a gaveta para mostrar o mapa
+  const orig = window.buscarClientesRaio;
+  window.buscarClientesRaio = async function () {
+    const antes = clientesEncontrados;
+    const r = await orig.apply(this, arguments);
+    if (mobile() && clientesEncontrados !== antes && clientesEncontrados.length) {
       sidebar.classList.add('collapsed');
-      setTimeout(function() { if (map) map.invalidateSize(); }, 400);
+      reajustar();
     }
-  });
-
-  var origBuscar = window.buscarClientesRaio;
-  window.buscarClientesRaio = async function() {
-    await origBuscar.apply(this, arguments);
-    var sub = sidebar.querySelector('.sidebar-subtitle');
-    var nome = modoMapa === 'lugares' ? 'estabelecimentos' : (modoMapa === 'pedidos' ? 'pedidos' : 'clientes');
-    if (sub) sub.textContent = clientesEncontrados.length + ' ' + nome + ' · toque para ver a lista';
-    // Mostra o mapa primeiro (lista recolhida); abre só se ainda não há resultado
-    if (clientesEncontrados.length === 0) sidebar.classList.remove('collapsed');
-    else sidebar.classList.add('collapsed');
-    setTimeout(function() { if (map) map.invalidateSize(); }, 400);
+    return r;
   };
 
-  // FAB "Minha Localização"
-  var fab = document.createElement('button');
-  fab.className = 'ms-map-fab';
-  fab.title = 'Minha Localização';
-  fab.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/><circle cx="12" cy="12" r="8"/></svg>';
-  fab.onclick = function() { localizarUsuario(); };
+  // toque no resultado ("N clientes · Ver lista") reabre a lista
+  const info = document.getElementById('infoBar');
+  if (info) {
+    const ver = document.createElement('div');
+    ver.className = 'info-lista';
+    ver.innerHTML = 'Ver lista ▲';
+    info.appendChild(ver);
+    const lim = document.createElement('button');
+    lim.type = 'button';
+    lim.className = 'info-limpar';
+    lim.textContent = 'Limpar ✕';
+    lim.title = 'Limpar resultados do mapa';
+    lim.addEventListener('click', (e) => { e.stopPropagation(); limparBusca(); });
+    info.appendChild(lim);
+    info.addEventListener('click', () => { if (mobile()) { setAbaPainel('res'); sidebar.classList.remove('collapsed'); reajustar(); } });
+  }
+  // toque no mapa fecha a gaveta
+  document.getElementById('map').addEventListener('click', () => {
+    if (mobile() && !sidebar.classList.contains('collapsed')) { sidebar.classList.add('collapsed'); reajustar(); }
+  });
+
+  // botão redondo "minha localização" (celular)
+  const fab = document.createElement('button');
+  fab.type = 'button';
+  fab.className = 'fab-loc';
+  fab.title = 'Minha localização';
+  fab.setAttribute('aria-label', 'Minha localização');
+  fab.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg>';
+  fab.onclick = () => localizarUsuario();
+  carregarInsights();
   document.querySelector('.map-container')?.appendChild(fab);
+  localizarSilencioso();
 })();
 </script>
 </body>

@@ -1,6 +1,45 @@
 const express = require('express');
 const router = express.Router();
 const { getPool } = require('../config/database');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+// Fotos do lead (fachada do comércio): public/uploads/leads/<id>/ — por tenant (process.cwd), nunca versionado
+const _leadFotosBase = path.join(process.cwd(), 'public', 'uploads', 'leads');
+const _leadUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      const dir = path.join(_leadFotosBase, String(parseInt(req.params.id, 10) || 0));
+      fs.mkdirSync(dir, { recursive: true });
+      cb(null, dir);
+    },
+    filename: (req, file, cb) => {
+      const ext = (path.extname(file.originalname) || '.jpg').toLowerCase().replace(/[^.a-z0-9]/g, '');
+      cb(null, `${Date.now()}${ext}`);
+    }
+  }),
+  limits: { fileSize: 12 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ok = /\.(jpg|jpeg|png|webp|heic)$/i.test(file.originalname) || /^image\//.test(file.mimetype || '');
+    cb(ok ? null : new Error('Envie uma imagem (JPG, PNG ou WEBP)'), ok);
+  }
+});
+let _leadFotosOk = false;
+async function ensureLeadFotos(pool) {
+  if (_leadFotosOk) return;
+  await pool.query(`CREATE TABLE IF NOT EXISTS lead_fotos (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    lead_id INT NOT NULL,
+    id_usuario INT NOT NULL DEFAULT 0,
+    caminho VARCHAR(255) NOT NULL,
+    descricao VARCHAR(150) NOT NULL DEFAULT '',
+    excluido CHAR(1) NOT NULL DEFAULT 'N',
+    dtcadastro DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_lf_lead (lead_id)
+  )`);
+  _leadFotosOk = true;
+}
 
 const CREATE_TABLE_SQL = `
   CREATE TABLE IF NOT EXISTS leads (
@@ -110,6 +149,18 @@ const REQUIRED_COLUMNS = {
   bairro: "ALTER TABLE leads ADD COLUMN bairro VARCHAR(100) NOT NULL DEFAULT '' AFTER cep",
   latitude: "ALTER TABLE leads ADD COLUMN latitude VARCHAR(50) DEFAULT NULL AFTER bairro",
   longitude: "ALTER TABLE leads ADD COLUMN longitude VARCHAR(50) DEFAULT NULL AFTER latitude",
+  // dados da Receita (busca profunda por CNAE)
+  cnpj: "ALTER TABLE leads ADD COLUMN cnpj VARCHAR(18) NOT NULL DEFAULT ''",
+  decisor: "ALTER TABLE leads ADD COLUMN decisor VARCHAR(150) NOT NULL DEFAULT ''",
+  cnae: "ALTER TABLE leads ADD COLUMN cnae VARCHAR(12) NOT NULL DEFAULT ''",
+  cnae_descricao: "ALTER TABLE leads ADD COLUMN cnae_descricao VARCHAR(200) NOT NULL DEFAULT ''",
+  porte: "ALTER TABLE leads ADD COLUMN porte VARCHAR(60) NOT NULL DEFAULT ''",
+  data_abertura: "ALTER TABLE leads ADD COLUMN data_abertura DATE NULL",
+  capital_social: "ALTER TABLE leads ADD COLUMN capital_social DECIMAL(16,2) NULL",
+  situacao_cnpj: "ALTER TABLE leads ADD COLUMN situacao_cnpj VARCHAR(60) NOT NULL DEFAULT ''",
+  socios: "ALTER TABLE leads ADD COLUMN socios TEXT NULL",
+  // lead importado do Buscador (id do lead lá) — evita importar duas vezes
+  buscador_id: "ALTER TABLE leads ADD COLUMN buscador_id INT NULL, ADD INDEX idx_leads_buscador (buscador_id)",
 };
 
 async function ensureColumns(pool) {
@@ -144,8 +195,21 @@ const CREATE_CAPTURAS_SQL = `
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
 `;
 
+const CREATE_MODELOS_SQL = `
+  CREATE TABLE IF NOT EXISTS lead_modelos (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    id_empresa INT NOT NULL DEFAULT 1,
+    toque TINYINT NOT NULL DEFAULT 1,
+    segmento VARCHAR(80) NOT NULL DEFAULT '*',
+    texto TEXT NOT NULL,
+    dtalterado DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_modelo (id_empresa, toque, segmento)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+`;
+
 async function ensureTable() {
   const pool = getPool();
+  try { await pool.query(CREATE_MODELOS_SQL); } catch (_) {}
   try { await pool.query(CREATE_TABLE_SQL); } catch (_) {}
   try { await ensureColumns(pool); } catch (_) {}
   try { await pool.query(CREATE_HISTORY_TABLE_SQL); } catch (_) {}
@@ -585,6 +649,240 @@ router.delete('/capturas/:id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// GET /api/leads/mapa?lat=&lng=&raio= — leads ativos com coordenadas dentro do raio (camada do mapa; payload mínimo)
+router.get('/mapa', async (req, res) => {
+  await ensureTable();
+  try {
+    const pool = getPool();
+    const user = req.user || {};
+    const lat = parseFloat(req.query.lat), lng = parseFloat(req.query.lng);
+    if (!isFinite(lat) || !isFinite(lng)) return res.status(400).json({ error: 'lat/lng obrigatórios' });
+    const raio = Math.min(Math.max(parseFloat(req.query.raio) || 10, 0.1), 100);
+    const dLat = raio / 111, dLng = raio / (111 * Math.max(0.2, Math.cos(lat * Math.PI / 180)));
+    const idEmpresa = parseInt(user.id_empresa || 1, 10);
+    const conds = ["l.excluido='N'", 'l.id_empresa=?', "l.status_funil NOT IN ('GANHO','PERDIDO')", 'l.convertido_cliente_id IS NULL',
+      "l.latitude IS NOT NULL", "l.latitude <> ''",
+      'CAST(l.latitude AS DECIMAL(10,6)) BETWEEN ? AND ?', 'CAST(l.longitude AS DECIMAL(10,6)) BETWEEN ? AND ?'];
+    const params = [idEmpresa, lat - dLat, lat + dLat, lng - dLng, lng + dLng];
+    const { buildPedidosVendedorWhere, canPickOtherVendors } = require('../config/vendedor-visibilidade');
+    const uid = parseInt(user.idusuario || user.id || 0, 10);
+    if (!canPickOtherVendors(req) && uid) {
+      conds.push('(l.id_vendedor = ? OR l.id_usuario = ?)');
+      params.push(uid, uid);
+    } else {
+      const vendScope = await buildPedidosVendedorWhere(pool, req, '', 'l.id_vendedor');
+      if (vendScope.clause) { conds.push(vendScope.clause.trim().replace(/^AND\s+/i, '')); params.push(...vendScope.params); }
+    }
+    const [rows] = await pool.query(
+      `SELECT l.id, l.nome, l.empresa, l.telefone, l.whatsapp, l.endereco, l.bairro, l.cidade, l.segmento, l.status_funil,
+              l.latitude, l.longitude
+       FROM leads l WHERE ${conds.join(' AND ')} LIMIT 400`, params);
+    res.json({ leads: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 1º / 2º / 3º TOQUE (WhatsApp com mensagem pronta), modelos de mensagem, insights e visitas do mapa
+// ─────────────────────────────────────────────────────────────────────────────
+/** Empresa do usuário logado (nunca de query/body — evita ler dados de outra empresa). */
+function empresaDe(req) {
+  return parseInt(req.user && req.user.id_empresa, 10) || 1;
+}
+
+/** Restrição de visibilidade por lead: mesma empresa e, sem permissão de equipe, só os próprios. */
+function leadScope(req) {
+  const { canPickOtherVendors } = require('../config/vendedor-visibilidade');
+  const uid = parseInt((req.user && (req.user.idusuario || req.user.id)) || 0, 10);
+  let clause = 'id_empresa = ?';
+  const params = [empresaDe(req)];
+  if (!canPickOtherVendors(req) && uid) {
+    clause += ' AND (id_vendedor = ? OR id_usuario = ?)';
+    params.push(uid, uid);
+  }
+  return { clause, params };
+}
+
+async function carregarLead(pool, req, cols = 'id') {
+  const sc = leadScope(req);
+  const [[row]] = await pool.query(
+    `SELECT ${cols} FROM leads WHERE id = ? AND excluido = 'N' AND ${sc.clause} LIMIT 1`,
+    [req.params.id, ...sc.params]
+  );
+  return row || null;
+}
+
+const { exigeModuloLocalizador } = require('../config/modulo-localizador');   // rotas abaixo só com o módulo Localizador
+
+const MODELOS_PADRAO = {
+  1: '{cumprimento} Aqui é {meu_nome}, da {minha_empresa}. Estou falando com {tipo_pl} de {cidade} e queria te mostrar uma solução que pode ajudar a {empresa}. Posso te explicar em 1 minuto?',
+  2: '{cumprimento} Passando de novo por aqui: sou {meu_nome}, da {minha_empresa}. Conseguiu ver minha mensagem? Se fizer sentido, te mostro rapidinho como funciona para a {empresa}.',
+  3: 'Vou encerrar por aqui para não te incomodar. Se em algum momento a {empresa} quiser conhecer a {minha_empresa}, é só me chamar. Obrigado pela atenção! — {meu_nome}',
+};
+
+// GET /api/leads/modelos — textos padrão + os que a empresa personalizou (por tipo de comércio)
+router.get('/modelos', exigeModuloLocalizador, async (req, res) => {
+  await ensureTable();
+  try {
+    const [rows] = await getPool().query(
+      'SELECT toque, segmento, texto FROM lead_modelos WHERE id_empresa = ? ORDER BY toque, segmento',
+      [empresaDe(req)]
+    );
+    res.json({ padroes: MODELOS_PADRAO, salvos: rows });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// PUT /api/leads/modelos { toque, segmento, texto } — texto vazio = volta ao padrão
+router.put('/modelos', exigeModuloLocalizador, async (req, res) => {
+  await ensureTable();
+  try {
+    const toque = parseInt(req.body && req.body.toque, 10);
+    if (![1, 2, 3].includes(toque)) return res.status(400).json({ error: 'Toque inválido' });
+    const segmento = cleanString((req.body && req.body.segmento) || '*', 80) || '*';
+    const texto = String((req.body && req.body.texto) || '').trim().slice(0, 1500);
+    const pool = getPool();
+    if (!texto) {
+      await pool.query('DELETE FROM lead_modelos WHERE id_empresa = ? AND toque = ? AND segmento = ?', [empresaDe(req), toque, segmento]);
+    } else {
+      await pool.query(
+        `INSERT INTO lead_modelos (id_empresa, toque, segmento, texto) VALUES (?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE texto = VALUES(texto)`,
+        [empresaDe(req), toque, segmento, texto]
+      );
+    }
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/leads/:id/toque { numero, texto } — registra o toque, move NOVO→CONTATO e agenda a cadência (2º em +3 dias, 3º em +7)
+router.post('/:id/toque', exigeModuloLocalizador, async (req, res) => {
+  await ensureTable();
+  try {
+    const pool = getPool();
+    const user = req.user || {};
+    const numero = parseInt(req.body && req.body.numero, 10);
+    if (![1, 2, 3].includes(numero)) return res.status(400).json({ error: 'Toque inválido' });
+    const lead = await carregarLead(pool, req, 'id, nome, empresa, status_funil');
+    if (!lead) return res.status(404).json({ error: 'Lead não encontrado' });
+    const texto = String((req.body && req.body.texto) || '').trim();
+    const uid = user.idusuario || user.id || 0;
+
+    await addHistory(pool, lead.id, uid, 'TOQUE', `${numero}º toque (WhatsApp)${texto ? ': "' + texto.slice(0, 160) + (texto.length > 160 ? '…' : '') + '"' : ''}`);
+    await pool.query(
+      `UPDATE leads SET data_ultimo_contato = NOW(),
+              status_funil = IF(status_funil = 'NOVO', 'CONTATO', status_funil)
+        WHERE id = ? AND id_empresa = ?`,
+      [lead.id, empresaDe(req)]
+    );
+    // conclui a tarefa deste toque, se existir
+    await pool.query(
+      `UPDATE lead_tarefas SET status = 'CONCLUIDA', dtconclusao = NOW()
+        WHERE lead_id = ? AND excluido = 'N' AND status = 'PENDENTE' AND titulo LIKE ?`,
+      [lead.id, `${numero}º toque%`]
+    ).catch(() => {});
+
+    // cadência: depois do 1º toque, agenda o 2º e o 3º (sem duplicar)
+    const agendados = [];
+    if (numero === 1) {
+      const nome = lead.empresa || lead.nome;
+      for (const [n, dias] of [[2, 3], [3, 7]]) {
+        const [ja] = await pool.query(
+          `SELECT id FROM lead_tarefas WHERE lead_id = ? AND excluido = 'N' AND titulo LIKE ? LIMIT 1`,
+          [lead.id, `${n}º toque%`]
+        );
+        if (ja.length) continue;
+        await pool.query(
+          `INSERT INTO lead_tarefas (lead_id, id_empresa, id_usuario, id_responsavel, titulo, descricao, data_vencimento, prioridade)
+           VALUES (?, ?, ?, ?, ?, ?, DATE_ADD(CURDATE(), INTERVAL ? DAY), 'MEDIA')`,
+          [lead.id, empresaDe(req), uid, uid || null, `${n}º toque — ${String(nome).slice(0, 150)}`, `Cadência automática (${dias} dias depois do 1º toque).`, dias]
+        );
+        agendados.push({ numero: n, em_dias: dias });
+      }
+    }
+    res.json({ ok: true, proximo: numero < 3 ? numero + 1 : null, agendados });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/leads/insights/segmentos — taxa de ganho por tipo de comércio (recomendação do mapa)
+router.get('/insights/segmentos', exigeModuloLocalizador, async (req, res) => {
+  await ensureTable();
+  try {
+    const pool = getPool();
+    const sc = leadScope(req);
+    const [rows] = await pool.query(
+      `SELECT segmento, COUNT(*) AS total, SUM(status_funil='GANHO') AS ganhos, SUM(status_funil='PERDIDO') AS perdidos
+         FROM leads WHERE excluido='N' AND segmento <> '' AND ${sc.clause}
+        GROUP BY segmento ORDER BY ganhos DESC, total DESC LIMIT 40`,
+      sc.params
+    );
+    res.json({ segmentos: rows.map(r => ({ segmento: r.segmento, total: Number(r.total), ganhos: Number(r.ganhos || 0), perdidos: Number(r.perdidos || 0) })) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/leads/visitas?dias=30 — histórico das visitas agendadas pelo mapa ("Visita 2/8 — Nome")
+router.get('/visitas', exigeModuloLocalizador, async (req, res) => {
+  await ensureTable();
+  try {
+    const pool = getPool();
+    const dias = Math.min(Math.max(parseInt(req.query.dias, 10) || 30, 1), 365);
+    const { canPickOtherVendors } = require('../config/vendedor-visibilidade');
+    const uid = parseInt((req.user && (req.user.idusuario || req.user.id)) || 0, 10);
+    const params = [empresaDe(req), dias];
+    let vis = '';
+    if (!canPickOtherVendors(req) && uid) { vis = ' AND (l.id_vendedor = ? OR l.id_usuario = ?)'; params.push(uid, uid); }
+    const [rows] = await pool.query(
+      `SELECT t.id, t.titulo, t.descricao, t.data_vencimento, t.status, t.dtconclusao,
+              l.id AS lead_id, l.nome, l.telefone, l.whatsapp, l.endereco, l.bairro, l.cidade, l.latitude, l.longitude, l.status_funil
+         FROM lead_tarefas t
+         JOIN leads l ON l.id = t.lead_id AND l.excluido = 'N'
+        WHERE t.excluido = 'N' AND t.id_empresa = ? AND t.titulo LIKE 'Visita%'
+          AND (t.data_vencimento IS NULL OR t.data_vencimento >= DATE_SUB(CURDATE(), INTERVAL ? DAY))${vis}
+        ORDER BY t.data_vencimento DESC, t.id ASC LIMIT 300`,
+      params
+    );
+    res.json({ visitas: rows });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Fotos do lead
+router.get('/:id/fotos', async (req, res) => {
+  try {
+    const pool = getPool();
+    await ensureLeadFotos(pool);
+    const [rows] = await pool.query(
+      "SELECT id, caminho, descricao, dtcadastro FROM lead_fotos WHERE lead_id = ? AND excluido='N' ORDER BY id DESC", [req.params.id]);
+    res.json({ fotos: rows });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+router.post('/:id/fotos', (req, res) => {
+  _leadUpload.single('arquivo')(req, res, async (err) => {
+    if (err) return res.status(400).json({ error: err.message || 'Falha no envio da foto' });
+    try {
+      if (!req.file) return res.status(400).json({ error: 'Nenhuma foto enviada' });
+      const pool = getPool();
+      await ensureLeadFotos(pool);
+      const user = req.user || {};
+      const [[lead]] = await pool.query("SELECT id FROM leads WHERE id = ? AND excluido='N' LIMIT 1", [req.params.id]);
+      if (!lead) { try { fs.unlinkSync(req.file.path); } catch (_) {} return res.status(404).json({ error: 'Lead não encontrado' }); }
+      const caminho = `/uploads/leads/${parseInt(req.params.id, 10)}/${req.file.filename}`;
+      const descricao = cleanString(req.body && req.body.descricao, 150);
+      const [ins] = await pool.query('INSERT INTO lead_fotos (lead_id, id_usuario, caminho, descricao) VALUES (?, ?, ?, ?)',
+        [req.params.id, parseInt(user.idusuario || user.id || 0, 10), caminho, descricao]);
+      await addHistory(pool, req.params.id, user.idusuario || user.id || 0, 'NOTA', 'Foto da fachada adicionada.');
+      res.json({ ok: true, id: ins.insertId, caminho });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+});
+router.delete('/:id/fotos/:fid', async (req, res) => {
+  try {
+    const pool = getPool();
+    await ensureLeadFotos(pool);
+    await pool.query("UPDATE lead_fotos SET excluido='S' WHERE id = ? AND lead_id = ?", [req.params.fid, req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 router.get('/:id', async (req, res) => {
   await ensureTable();
   try {
@@ -694,7 +992,11 @@ router.post('/lote', async (req, res) => {
         const osmId = cleanString(item.osm_id, 40);
         const lat = parseFloat(payload.latitude);
         const lng = parseFloat(payload.longitude);
-        const temGeo = isFinite(lat) && isFinite(lng);
+        const temGeo = isFinite(lat) && isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+        if (payload.latitude && payload.longitude && !temGeo) {
+          resultado.erros.push({ nome: payload.nome, erro: 'Coordenadas inválidas' });
+          continue;
+        }
 
         // 1) duplicado por ID do OSM ou nome + proximidade
         const condGeo = temGeo
@@ -702,8 +1004,10 @@ router.post('/lote', async (req, res) => {
                   AND ABS(CAST(latitude AS DECIMAL(10,6)) - ?) < ? AND ABS(CAST(longitude AS DECIMAL(10,6)) - ?) < ?)`
           : '';
         const params = [];
-        let sql = `SELECT id FROM leads WHERE excluido = 'N' AND (1=0`;
-        if (osmId) { sql += ` OR tags LIKE ?`; params.push(`%osm:${osmId}%`); }
+        let sql = `SELECT id FROM leads WHERE excluido = 'N' AND id_empresa = ? AND (1=0`;
+        params.push(payload.id_empresa);
+        // FIND_IN_SET: casa a tag inteira (LIKE '%osm:node/12%' também casava osm:node/123)
+        if (osmId) { sql += ` OR FIND_IN_SET(?, REPLACE(tags, ' ', ''))`; params.push(`osm:${osmId}`); }
         if (temGeo) { sql += condGeo; params.push(payload.nome, lat, GRAU, lng, GRAU); }
         sql += `) LIMIT 1`;
         const [dup] = await pool.query(sql, params);
@@ -723,6 +1027,14 @@ router.post('/lote', async (req, res) => {
         }
 
         if (osmId) payload.tags = cleanString(`${payload.tags ? payload.tags + ',' : ''}osm:${osmId}`, 255);
+        const cnpjD = String(item.cnpj || '').replace(/\D/g, '');
+        if (cnpjD.length === 14) {   // veio da busca profunda (Receita)
+          payload.cnpj = cnpjD.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+          payload.cnae = cleanString(item.cnae, 12);
+          payload.cnae_descricao = cleanString(item.cnae_descricao, 200);
+          payload.porte = cleanString(item.porte, 60);
+          payload.situacao_cnpj = 'ATIVA';
+        }
         payload.latitude = temGeo ? String(lat) : null;
         payload.longitude = temGeo ? String(lng) : null;
         const [ins] = await pool.query('INSERT INTO leads SET ?', [payload]);
@@ -1132,4 +1444,5 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+router.ensureTable = ensureTable;   // usado pela integração com o Buscador (routes/buscador-integracao.js)
 module.exports = router;

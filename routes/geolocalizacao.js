@@ -6,6 +6,7 @@ const https   = require('https');
 const { getPool } = require('../config/database');
 const { buscarOverture } = require('../config/lugares-overture');
 const { statusRegiao } = require('../config/lugares-overture-auto');
+const { parseLatLng, parseRaioKm, cleanStr } = require('../config/validate');
 
 // ─── Utilitário: faz requisição HTTPS ────────────────────────────────────────
 function httpsGet(url) {
@@ -58,8 +59,33 @@ const OSM_CATEGORIAS = [
   { re: /oficina|mec[aâ]nic/, tags: ['shop=car_repair', 'craft=car_repair'], label: 'Oficina mecânica' },
   { re: /cl[ií]nica|consult[oó]rio|dentista|m[eé]dico|hospital/, tags: ['amenity=clinic', 'amenity=doctors', 'amenity=dentist', 'amenity=hospital'], label: 'Saúde' },
   { re: /escola|col[eé]gio|creche|faculdade/, tags: ['amenity=school', 'amenity=kindergarten', 'amenity=college'], label: 'Escola' },
+  { re: /tintas?\b|pintura|verniz|casa de tintas/, tags: ['shop=paint'], label: 'Tintas' },
+  { re: /el[eé]tric|ilumina[cç]|l[aâ]mpada|lustre|material el[eé]trico/, tags: ['shop=electrical', 'shop=lighting'], label: 'Elétrica / Iluminação' },
+  { re: /bebida|adega|cerveja|vinho|dep[oó]sito de bebida/, tags: ['shop=alcohol', 'shop=beverages'], label: 'Bebidas / Adega' },
+  { re: /agropecu|agr[ií]cola|agro|sementes|veterin[aá]ria/, tags: ['shop=agrarian', 'shop=farm'], label: 'Agropecuária' },
+  { re: /brinquedo|brinquedos/, tags: ['shop=toys'], label: 'Brinquedos' },
+  { re: /bazar|utilidades|presentes|variedades|armarinho|aviamento|tecido/, tags: ['shop=variety_store', 'shop=houseware', 'shop=gift', 'shop=fabric', 'shop=haberdashery'], label: 'Bazar / Armarinho' },
+  { re: /ind[uú]stria|f[aá]brica|fabricante|manufatur/, tags: ['man_made=works', 'industrial=factory'], label: 'Indústria / Fábrica' },
+  { re: /shopping|\bmall\b|centro comercial|galeria comercial/, tags: ['shop=mall'], label: 'Shopping / Centro comercial' },
+  { re: /hot[eé]is?\b|pousada|motel/, tags: ['tourism=hotel', 'tourism=guest_house', 'tourism=motel'], label: 'Hotel / Pousada' },
+  { re: /academia|fitness|crossfit|muscula[cç][aã]o/, tags: ['leisure=fitness_centre', 'leisure=sports_centre'], label: 'Academia' },
   { re: /\bloja\b/, tags: ['shop'], label: 'Lojas' },
 ];
+// Segmentos da indústria: "indústria química", "indústria eletrônica"... (o termo é comparado sem acento)
+// nome = palavras que costumam aparecer no nome; osm = tags OSM do setor; ovt = categorias do Overture (LIKE)
+const SEGMENTOS_IND = [
+  { label: 'Química', re: /qu[i]mic|petroquim|fertiliz|solvente|resina|verniz|polimero/, nome: ['quimic', 'chemic', 'petroquim', 'polimer', 'resina', 'fertiliz', 'solvent', 'tinta'], osm: ['industrial=chemical'], ovt: ['%chemical%'] },
+  { label: 'Eletrônica', re: /eletron|electron|eletric|componentes? eletr|automacao industrial/, nome: ['eletron', 'electron', 'eletric', 'circuit', 'automacao', 'componentes'], osm: ['industrial=electronics'], ovt: ['%electronic%', '%electrical%'] },
+  { label: 'Alimentícia', re: /aliment|frigorific|laticin|biscoito|massas|bebida|abatedouro|usina de acucar/, nome: ['aliment', 'frigorific', 'laticin', 'biscoito', 'massa', 'bebida', 'abatedouro', 'acucar', 'carnes'], osm: ['industrial=food_industry', 'industrial=brewery', 'industrial=bakery'], ovt: ['%food%', '%beverage%', '%meat%', '%dairy%'] },
+  { label: 'Metalúrgica', re: /metal|siderurg|usinagem|fundicao|caldeiraria|ferramentaria|serralheria/, nome: ['metal', 'siderurg', 'usinagem', 'fundica', 'caldeiraria', 'ferramentaria', 'serralheria', 'aco'], osm: ['industrial=machine_shop', 'craft=metalworker'], ovt: ['%metal%', '%steel%', '%machin%'] },
+  { label: 'Têxtil / Confecção', re: /textil|confec|tecelagem|malharia|vestuario/, nome: ['textil', 'confec', 'tecelagem', 'malharia', 'vestuario'], osm: ['industrial=textile', 'craft=tailor'], ovt: ['%textile%', '%apparel%'] },
+  { label: 'Plástico / Embalagem', re: /plastic|embalag|borracha/, nome: ['plastic', 'embalag', 'borracha', 'polietileno'], osm: [], ovt: ['%plastic%', '%packag%', '%rubber%'] },
+  { label: 'Madeira / Móveis', re: /madeir|movel|moveis|marcenaria|serraria/, nome: ['madeir', 'movel', 'moveis', 'marcenaria', 'serraria'], osm: ['craft=carpenter', 'industrial=sawmill'], ovt: ['%wood%', '%furniture%', '%lumber%'] },
+  { label: 'Farmacêutica', re: /farmaceut|medicament|cosmetic/, nome: ['farmaceut', 'medicament', 'laborator', 'cosmetic'], osm: [], ovt: ['%pharma%'] },
+  { label: 'Papel / Gráfica', re: /papel|celulose|grafica|grafico/, nome: ['papel', 'celulose', 'grafica'], osm: ['craft=printer'], ovt: ['%paper%', '%print%'] },
+  { label: 'Cerâmica / Vidro / Cimento', re: /ceramic|vidro|cimento|concreto|cal\b/, nome: ['ceramic', 'vidro', 'cimento', 'concreto'], osm: ['industrial=cement', 'industrial=glass'], ovt: ['%cement%', '%ceramic%', '%glass%'] },
+];
+
 const OVERPASS_URLS = [
   'https://overpass.openstreetmap.fr/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
@@ -71,6 +97,34 @@ const _cacheLugares = new Map(); // ql -> { ts, json }
 const CACHE_LUGARES_MS = 10 * 60 * 1000;
 let _overpassFalhouEm = 0;            // disjuntor: após falha, usa a reserva direto por 3 min
 const OVERPASS_PAUSA_MS = 3 * 60 * 1000;
+
+// "padaria" também casa com "Padaría": cada vogal vira uma classe com as variantes acentuadas
+function acentoRe(w) {
+  const m = { a: 'aáàâãä', e: 'eéèêë', i: 'iíìîï', o: 'oóòôõö', u: 'uúùûü', c: 'cç' };
+  return String(w).toLowerCase().replace(/[aeiouc]/g, (c) => '[' + m[c] + m[c].toUpperCase() + ']');
+}
+
+// Quão parecido o nome do lugar é com o que foi digitado.
+//  exato: o nome contém a frase inteira ("Bauru Shopping")   · nome: contém todas as palavras
+//  parcial: contém a palavra que NÃO é só o tipo (ex.: "bauru")  · categoria: só é do mesmo tipo
+const PALAVRAS_GENERICAS = new Set(['center', 'centre', 'centro', 'comercial', 'loja', 'lojas', 'de', 'da', 'do', 'das', 'dos', 'e', 'ltda', 'me', 'epp', 'eireli', 'sa', 'the']);
+
+function pontuarNome(nome, q, cat, especifica) {
+  if (!especifica) return { relevancia: 0, match: 'categoria' };
+  const limpa = (t) => semAcento(String(t || '').toLowerCase()).replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  const nn = ` ${limpa(nome)} `;
+  const qq = limpa(q);
+  const toks = qq.split(' ').filter((t) => t.length >= 2);
+  if (!toks.length) return { relevancia: 0, match: 'categoria' };
+  const ess = toks.filter((t) => !PALAVRAS_GENERICAS.has(t));   // "center", "ltda"... não decidem
+  const qe = (ess.length ? ess : toks).join(' ');
+  if (nn.trim() === qq) return { relevancia: 100, match: 'exato' };
+  if (nn.includes(` ${qq} `) || nn.includes(` ${qe} `)) return { relevancia: 90, match: 'exato' };
+  if ((ess.length ? ess : toks).every((t) => nn.includes(` ${t}`))) return { relevancia: 70, match: 'nome' };
+  const proprias = toks.filter((t) => t.length >= 4 && !PALAVRAS_GENERICAS.has(t) && !(cat && (cat.re.test(t))));
+  if (proprias.some((t) => nn.includes(t))) return { relevancia: 40, match: 'parcial' };
+  return { relevancia: 10, match: 'categoria' };
+}
 
 function semAcento(s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, ''); }
 
@@ -221,56 +275,79 @@ function distKm(lat1, lon1, lat2, lon2) {
 // ─── GET /api/geolocalizacao/lugares?lat=&lng=&raio=km&q=açougue ────────────
 // GET /api/geolocalizacao/lugares/preparar?lat=&lng=  → { base: 'pronto' | 'carregando' | 'indisponivel' }
 router.get('/lugares/preparar', async (req, res) => {
-  const lat = parseFloat(req.query.lat), lng = parseFloat(req.query.lng);
-  res.json({ base: await statusRegiao(lat, lng) });
+  const geo = parseLatLng(req.query.lat, req.query.lng);
+  if (!geo.ok) return res.json({ base: 'indisponivel' });
+  res.json({ base: await statusRegiao(geo.lat, geo.lng, parseRaioKm(req.query.raio)) });
 });
 
 router.get('/lugares', async (req, res) => {
   try {
-    const lat = parseFloat(req.query.lat);
-    const lng = parseFloat(req.query.lng);
-    const q = String(req.query.q || '').trim().slice(0, 60);
-    if (!isFinite(lat) || !isFinite(lng)) return res.status(400).json({ error: 'Latitude e longitude são obrigatórios' });
+    const geo = parseLatLng(req.query.lat, req.query.lng);
+    if (!geo.ok) return res.status(400).json({ error: geo.error });
+    const lat = geo.lat;
+    const lng = geo.lng;
+    const q = cleanStr(req.query.q, 60);
     if (q.length < 2) return res.status(400).json({ error: 'Digite o que procurar (ex.: açougue, padaria)' });
 
-    const raioKm = Math.min(Math.max(parseFloat(req.query.raio) || 5, 0.5), 30);
+    const raioKm = parseRaioKm(req.query.raio);
     const metros = Math.round(raioKm * 1000);
     const termo = semAcento(q.toLowerCase());
 
-    const cat = OSM_CATEGORIAS.find(c => c.re.test(q.toLowerCase()) || c.re.test(termo));
+    const _casa = (c) => c.re.test(q.toLowerCase()) || c.re.test(termo);
+    // "indústria eletrônica" é indústria, não loja de eletrônicos: a indústria tem prioridade sobre as outras categorias
+    const cat = OSM_CATEGORIAS.find(c => c.label === 'Indústria / Fábrica' && _casa(c)) || OSM_CATEGORIAS.find(_casa);
+    const seg = cat && cat.label === 'Indústria / Fábrica' ? SEGMENTOS_IND.find(s => s.re.test(termo)) : null;
+    // consulta "específica" = tem alguma palavra que não é só o tipo do comércio (ex.: "Bauru Shopping")
+    const _tokens = termo.replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter((t) => t.length >= 2 && !PALAVRAS_GENERICAS.has(t));
+    const especifica = !(cat && _tokens.length && _tokens.every((t) => cat.re.test(t)));
+    const catRotulo = cat ? (seg ? `${cat.label} · ${seg.label}` : cat.label) : null;
     const dLat = raioKm / 111;
     const dLng = raioKm / (111 * Math.max(0.2, Math.cos(lat * Math.PI / 180)));
     const bbox = { s: lat - dLat, n: lat + dLat, w: lng - dLng, e: lng + dLng };
+    // Fontes externas (Overpass/Nominatim/Google) só até 30 km: áreas maiores as sobrecarregam. A base local (Overture) atende o raio todo.
+    const kmOsm = Math.min(raioKm, 30);
+    const dLatO = kmOsm / 111, dLngO = kmOsm / (111 * Math.max(0.2, Math.cos(lat * Math.PI / 180)));
+    const bboxOsm = { s: lat - dLatO, n: lat + dLatO, w: lng - dLngO, e: lng + dLngO };
     const around = '';
     const nomeRe = q.replace(/[^\p{L}\p{N} ]/gu, '').trim();
     if (!cat && nomeRe.length < 2) return res.status(400).json({ error: 'Termo de busca inválido' });
     let partes;
-    if (cat) {
+    if (seg) {
+      const kw = seg.nome.map(acentoRe).join('|');
+      partes = [
+        `nwr["man_made"="works"]["name"~"${kw}"]${around};`,
+        `nwr["building"="industrial"]["name"~"${kw}"]${around};`,
+        ...seg.osm.map(t => { const [k, v] = t.split('='); return `nwr["${k}"="${v}"]${around};`; }),
+      ];
+    } else if (cat) {
       partes = cat.tags.map(t => {
         const [k, v] = t.split('=');
         return `nwr["${k}"${v ? `="${v}"` : ''}]${around};`;
       });
     } else {
-      partes = [`nwr["name"~"${nomeRe}",i]${around};`];
+      // todas as palavras precisam aparecer no nome, em qualquer ordem ("shopping center" acha "Center Shopping Bauru")
+      const palavras = nomeRe.split(/\s+/).filter((w) => w.length >= 2).slice(0, 4);
+      partes = [`nwr${palavras.map((w) => `["name"~"${acentoRe(w)}"]`).join('')}${around};`];
     }
-    const ql = `[out:json][timeout:10][bbox:${bbox.s.toFixed(5)},${bbox.w.toFixed(5)},${bbox.n.toFixed(5)},${bbox.e.toFixed(5)}];(${partes.join('')});out center tags 400;`;
+    const ql = `[out:json][timeout:10][bbox:${bboxOsm.s.toFixed(5)},${bboxOsm.w.toFixed(5)},${bboxOsm.n.toFixed(5)},${bboxOsm.e.toFixed(5)}];(${partes.join('')});out center tags 400;`;
 
     let json = null, ultimoErro = null, fonte = 'overpass';
     // situação da base completa (Overture) da região; dispara a carga automática em segundo plano se preciso
-    const base = await statusRegiao(lat, lng);
-    const emCache = _cacheLugares.get(ql);
+    const base = await statusRegiao(lat, lng, raioKm);
+    const cacheKey = `${ql}|${raioKm.toFixed(2)}|${q.toLowerCase()}`;
+    const emCache = _cacheLugares.get(cacheKey);
     const cacheServe = emCache && Date.now() - emCache.ts < CACHE_LUGARES_MS
-      && !(base === 'pronto' && emCache.fonte !== 'overture' && emCache.fonte !== 'google'); // base ficou pronta: não reaproveita resultado do OSM
+      && !((base === 'pronto' || base === 'parcial') && emCache.fonte !== 'overture' && emCache.fonte !== 'google'); // base ficou pronta: não reaproveita resultado do OSM
     if (cacheServe) { json = emCache.json; fonte = emCache.fonte || 'overpass'; }
     if (!json) {
       try {
         if (process.env.GOOGLE_PLACES_KEY) {
-          try { json = await googleLugares(q, bbox, process.env.GOOGLE_PLACES_KEY); fonte = 'google'; }
+          try { json = await googleLugares(q, bboxOsm, process.env.GOOGLE_PLACES_KEY); fonte = 'google'; }
           catch (eg) { console.warn('Google Places falhou, usando OSM:', eg.message); }
         }
         // Overture Maps (base local importada por scripts/overture-importar.js): rápido, com telefone e bem mais completo que o OSM
         if (!json && base !== 'carregando') {
-          const ovt = await buscarOverture({ bbox, q, catLabel: cat ? cat.label : null, centro: { lat, lng } });
+          const ovt = await buscarOverture({ bbox, q, catLabel: cat ? cat.label : null, segmento: seg, centro: { lat, lng } });
           if (ovt && ovt.length) { json = { elements: ovt }; fonte = 'overture'; }
         }
         if (!json) {
@@ -286,13 +363,13 @@ router.get('/lugares', async (req, res) => {
           // "[shop=bakery]" encontra por tipo (não depende de "padaria" estar no nome)
           const porTipo = cat ? cat.tags.filter(t => t.includes('=')).slice(0, 3).map(t => '[' + t + ']') : [];
           const termos = porTipo.length ? porTipo : [q];
-          json = await nominatimLugares(termos, bbox);
+          json = await nominatimLugares(termos, bboxOsm);
           fonte = 'nominatim';
         } catch (e2) { ultimoErro = new Error(e.message + ' | ' + e2.message); }
       }
       if (json) {
         if (_cacheLugares.size > 200) _cacheLugares.clear();
-        _cacheLugares.set(ql, { ts: Date.now(), json, fonte });
+        _cacheLugares.set(cacheKey, { ts: Date.now(), json, fonte });
       }
     }
     if (!json) return res.status(502).json({ error: 'Serviço de mapas indisponível no momento. Tente novamente em instantes.', detalhe: ultimoErro && ultimoErro.message });
@@ -321,10 +398,12 @@ router.get('/lugares', async (req, res) => {
         osm_id: `${e.type}/${e.id}`,
         sem_nome: !(t.name || t.brand || t.operator),
         nome: t.name || t.brand || t.operator || `${cat ? cat.label : 'Estabelecimento'} (sem nome)`,
-        categoria: cat ? cat.label : (t._cat || (fonte === 'google' ? q : (t.shop || t.amenity || 'Estabelecimento'))),
+        categoria: catRotulo ? catRotulo : (t._cat || (fonte === 'google' ? q : (t.shop || t.amenity || 'Estabelecimento'))),
         endereco,
         bairro: t['addr:suburb'] || t['addr:neighbourhood'] || '',
         cidade: t['addr:city'] || '',
+        cep: t['addr:postcode'] || '',
+        uf: t['addr:state'] || '',
         telefone: t.phone || t['contact:phone'] || t['contact:mobile'] || '',
         site: t.website || t['contact:website'] || '',
         email: t.email || t['contact:email'] || '',
@@ -332,12 +411,13 @@ router.get('/lugares', async (req, res) => {
         latitude: plat,
         longitude: plng,
         distancia: distKm(lat, lng, plat, plng),
+        ...pontuarNome(t.name || t.brand || t.operator || '', q, cat, especifica),
         cliente_id: ja ? ja.id : null,
         cliente_nome: ja ? ja.nome : null,
       };
-    }).filter(p => p && p.distancia <= raioKm + 0.05).sort((a, b) => a.distancia - b.distancia).slice(0, 150);
+    }).filter(p => p && p.distancia <= raioKm * 1.03 + 0.01).sort((a, b) => a.distancia - b.distancia).slice(0, 150);
 
-    res.json({ raio_km: raioKm, categoria: cat ? cat.label : null, fonte, base, total: lugares.length, lugares });
+    res.json({ raio_km: raioKm, especifica, categoria: catRotulo, fonte, base, total: lugares.length, lugares });
   } catch (err) {
     console.error('Erro geolocalizacao lugares:', err);
     res.status(500).json({ error: err.message });
@@ -382,18 +462,17 @@ const HAV = (a, b) => `(6371 * acos(LEAST(1, cos(radians(?)) * cos(radians(${a})
 
 router.get('/raio', async (req, res) => {
   try {
-    const { lat, lng, raio = 50, tipo = 'clientes' } = req.query;
-    if (!lat || !lng) {
-      return res.status(400).json({ error: 'Latitude e longitude são obrigatórios' });
+    const geo = parseLatLng(req.query.lat, req.query.lng);
+    if (!geo.ok) return res.status(400).json({ error: geo.error });
+    const tipo = cleanStr(req.query.tipo || 'clientes', 20) || 'clientes';
+    if (!['clientes', 'leads', 'misto', 'pedidos'].includes(tipo)) {
+      return res.status(400).json({ error: 'Tipo inválido' });
     }
 
     const pool = getPool();
-    const raioFloat = parseFloat(raio);
-    const latFloat = parseFloat(lat);
-    const lngFloat = parseFloat(lng);
-    if (![raioFloat, latFloat, lngFloat].every(isFinite)) {
-      return res.status(400).json({ error: 'Parâmetros inválidos' });
-    }
+    const raioFloat = parseRaioKm(req.query.raio, { max: 200, def: 50 });
+    const latFloat = geo.lat;
+    const lngFloat = geo.lng;
     const diasSemCompra = parseInt(req.query.dias_sem_compra, 10) || 0;
     const vendedorQ = req.query.vendedor ? String(req.query.vendedor) : '';
 
@@ -427,16 +506,23 @@ router.get('/raio', async (req, res) => {
 
     // ── leads ──
     const buscarLeads = async () => {
+      const uid = parseInt((req.user && (req.user.idusuario || req.user.id)) || 0, 10);
+      let visCond = '';
+      const visPrm = [];
+      if (!canPickOtherVendors(req) && uid) {
+        visCond = ' AND (l.id_vendedor = ? OR l.id_usuario = ?)';
+        visPrm.push(uid, uid);
+      }
       const [rows] = await pool.query(
         `SELECT l.id, l.nome, l.empresa, l.endereco, l.bairro, l.cidade, l.uf, l.latitude, l.longitude,
                 l.telefone, l.segmento, l.status_funil,
                 ${HAV('l.latitude', 'l.longitude')} AS distancia
            FROM leads l
-          WHERE l.excluido = 'N' AND l.convertido_cliente_id IS NULL
+          WHERE l.excluido = 'N' AND l.convertido_cliente_id IS NULL AND l.id_empresa = ?${visCond}
             AND l.latitude IS NOT NULL AND l.latitude != '' AND l.longitude IS NOT NULL AND l.longitude != ''
             AND l.status_funil NOT IN ('PERDIDO')
           HAVING distancia <= ? ORDER BY distancia LIMIT 150`,
-        [latFloat, lngFloat, latFloat, raioFloat]
+        [latFloat, lngFloat, latFloat, parseInt(req.user && req.user.id_empresa, 10) || 1, ...visPrm, raioFloat]
       ).catch((e) => { console.warn('raio leads:', e.message); return [[]]; });
       return (rows || []).map(r => ({ ...r, _lead: true }));
     };
@@ -489,7 +575,8 @@ router.get('/otimizar-rota', async (req, res) => {
       return res.status(400).json({ error: 'Parâmetro pontos é obrigatório' });
     }
 
-    const listaPontos = JSON.parse(pontos);
+    let listaPontos;
+    try { listaPontos = JSON.parse(pontos); } catch (_) { return res.status(400).json({ error: 'Parâmetro pontos inválido' }); }
     if (!Array.isArray(listaPontos) || listaPontos.length < 2) {
       return res.json({ rota: [], distanciaTotal: 0 });
     }
@@ -590,7 +677,7 @@ router.get('/geocode-endereco', async (req, res) => {
       return res.status(400).json({ error: 'Endereço ou cidade são obrigatórios' });
     }
 
-    const q = encodeURIComponent([endereco, cidade, uf, 'Brasil'].filter(Boolean).join(', '));
+    const q = encodeURIComponent([endereco, cep, cidade, uf, 'Brasil'].filter(Boolean).join(', '));
     const url = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1&countrycodes=br&addressdetails=1`;
     
     const data = await httpsGet(url);
@@ -626,10 +713,9 @@ const _cacheReverso = new Map(); // "lat,lng" (4 casas) -> resposta (evita bater
 // Descobre endereço a partir de coordenadas (usa Nominatim)
 router.get('/reverse-geocode', async (req, res) => {
   try {
-    const { lat, lng } = req.query;
-    if (!lat || !lng) {
-      return res.status(400).json({ error: 'Latitude e longitude são obrigatórios' });
-    }
+    const geo = parseLatLng(req.query.lat, req.query.lng);
+    if (!geo.ok) return res.status(400).json({ error: geo.error });
+    const lat = geo.lat, lng = geo.lng;
 
     const chave = Number(lat).toFixed(4) + ',' + Number(lng).toFixed(4);
     const emCache = _cacheReverso.get(chave);
@@ -670,8 +756,9 @@ router.get('/reverse-geocode', async (req, res) => {
 router.get('/calcula-distancia', async (req, res) => {
   try {
     const { lat1, lng1, lat2, lng2 } = req.query;
-    if (!lat1 || !lng1 || !lat2 || !lng2) {
-      return res.status(400).json({ error: 'Todas as coordenadas são obrigatórias' });
+    const a = parseLatLng(lat1, lng1), b = parseLatLng(lat2, lng2);
+    if (!a.ok || !b.ok) {
+      return res.status(400).json({ error: (a.ok ? b : a).error });
     }
 
     const calcularDistancia = (lat1, lon1, lat2, lon2) => {
@@ -703,14 +790,13 @@ router.get('/calcula-distancia', async (req, res) => {
 // Agrupa clientes/pedidos por proximidade (clusters)
 router.get('/clusters', async (req, res) => {
   try {
-    const { lat, lng, raio = 10, min_pontos = 3 } = req.query;
-    if (!lat || !lng) {
-      return res.status(400).json({ error: 'Latitude e longitude são obrigatórios' });
-    }
+    const geo = parseLatLng(req.query.lat, req.query.lng);
+    if (!geo.ok) return res.status(400).json({ error: geo.error });
+    const lat = geo.lat, lng = geo.lng;
 
     const pool = getPool();
-    const raioFloat = parseFloat(raio);
-    const minPontos = parseInt(min_pontos);
+    const raioFloat = parseRaioKm(req.query.raio, { max: 100, def: 10 });
+    const minPontos = Math.max(parseInt(req.query.min_pontos, 10) || 3, 2);
 
     // Busca todos os pontos num raio maior
     const [pontos] = await pool.query(`
@@ -728,7 +814,8 @@ router.get('/clusters', async (req, res) => {
         AND longitude IS NOT NULL AND longitude != ''
       HAVING distancia <= ?
       ORDER BY distancia
-    `, [parseFloat(lat), parseFloat(lng), parseFloat(lat), raioFloat * 2]).catch(() => [[]]);
+      LIMIT 2000
+    `, [lat, lng, lat, raioFloat * 2]).catch(() => [[]]);
 
     if (!pontos.length) {
       return res.json({ clusters: [] });
@@ -790,4 +877,5 @@ router.get('/clusters', async (req, res) => {
   }
 });
 
+router._tipo = { OSM_CATEGORIAS, SEGMENTOS_IND };   // usado pela busca profunda (CNAE)
 module.exports = router;

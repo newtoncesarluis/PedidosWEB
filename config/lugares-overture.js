@@ -9,7 +9,8 @@
  *
  * Onde fica a tabela (nessa ordem):
  *   1) OVERTURE_DB_HOST/PORT/USER/PASSWORD/NAME no .env  (banco próprio — útil em dev/instalação única)
- *   2) banco central do Painel NC (config/db-painel.js → nc_painel)
+ *   2) banco central do Painel NC (PAINEL_DB_HOST → config/db-painel.js → nc_painel)
+ *   3) sem nenhum dos dois: o próprio banco do cliente logado (tabela criada e carregada automaticamente)
  */
 const mysql = require('mysql2/promise');
 
@@ -19,7 +20,7 @@ const PAUSA_APOS_FALHA_MS = 5 * 60 * 1000;
 
 let _pool = null;
 let _indisponivelAte = 0;
-let _tabelaPronta = false;
+let _tabelasOk = new WeakSet();   // pools onde a tabela já foi garantida
 
 const DDL = `
   CREATE TABLE IF NOT EXISTS overture_lugares (
@@ -46,7 +47,7 @@ const DDL = `
 
 let _poolTeste = null;
 /** Somente testes: força um pool específico (ex.: banco de homologação). */
-function definirPoolParaTeste(p) { _poolTeste = p; _tabelaPronta = false; _indisponivelAte = 0; }
+function definirPoolParaTeste(p) { _poolTeste = p; _tabelasOk = new WeakSet(); _indisponivelAte = 0; }
 
 function getLugaresPool() {
   if (_poolTeste) return _poolTeste;
@@ -64,7 +65,9 @@ function getLugaresPool() {
     }
     return _pool;
   }
-  return require('./db-painel').getPainelPool();
+  if (process.env.PAINEL_DB_HOST || process.env.PAINEL_DB_NAME) return require('./db-painel').getPainelPool();   // SysRep: sempre o Painel NC central
+  // Sem banco central configurado: usa o banco do cliente logado (a tabela overture_lugares é criada nele sozinha)
+  return require('./database').getPool();
 }
 
 function comTimeout(promessa) {
@@ -75,9 +78,9 @@ function comTimeout(promessa) {
 }
 
 async function garantirTabela(pool) {
-  if (_tabelaPronta) return;
+  if (_tabelasOk.has(pool)) return;
   await pool.query(DDL);
-  _tabelaPronta = true;
+  _tabelasOk.add(pool);
 }
 
 // ── Termos em português → categorias do Overture (taxonomy.primary) ──────────
@@ -93,6 +96,12 @@ const OVT_POR_LABEL = {
   'Lanchonete': { exact: ['fast_food_restaurant', 'burger_restaurant', 'sandwich_shop', 'snack_bar', 'diner', 'pizza_restaurant'], like: ['%fast_food%', '%burger%', '%sandwich%', '%snack%'] },
   'Bar': { exact: ['bar', 'pub', 'brewery', 'sports_bar', 'cocktail_bar', 'beer_bar'], like: ['%\\_bar', '%\\_pub'] },
   'Café': { exact: ['cafe', 'coffee_shop', 'tea_room', 'smoothie_juice_bar'], like: ['%coffee%'] },
+  'Tintas': { exact: ['paint_store'], like: ['%paint%'] },
+  'Elétrica / Iluminação': { exact: ['lighting_store', 'electrical_supply_store', 'electrician'], like: ['%lighting%', '%electrical%'] },
+  'Bebidas / Adega': { exact: ['liquor_store', 'beer_wine_and_spirits', 'wine_bar', 'beverage_store', 'beverage_supplier'], like: ['%liquor%', '%beverage%', '%wine%'] },
+  'Agropecuária': { exact: ['agricultural_service', 'farm_equipment_store', 'feed_store', 'farming_equipment_store'], like: ['%agricultur%', '%farm%supply%', '%feed%'] },
+  'Brinquedos': { exact: ['toy_store', 'hobby_shop'], like: ['%toy%'] },
+  'Bazar / Armarinho': { exact: ['variety_store', 'discount_store', 'dollar_store', 'gift_shop', 'fabric_store', 'sewing_and_alterations', 'arts_and_crafts'], like: ['%fabric%', '%sewing%', '%gift%', '%variety%'] },
   'Material de construção': { exact: ['building_supply_store', 'hardware_store', 'home_improvement_store', 'lumber_store', 'paint_store'], like: ['%building\\_material%', '%hardware%'] },
   'Roupas': { exact: ['clothing_store', 'fashion_boutique', 'womens_clothing_store', 'mens_clothing_store', 'childrens_clothing_store', 'uniform_store', 'lingerie_store'], like: ['%\\_clothing\\_store'] },
   'Calçados': { exact: ['shoe_store'], like: ['%shoe%'] },
@@ -110,6 +119,10 @@ const OVT_POR_LABEL = {
   'Oficina mecânica': { exact: ['automotive_repair', 'auto_body_shop', 'motorcycle_repair', 'auto_glass_service', 'car_wash', 'auto_detailing'], like: ['%\\_repair'] },
   'Saúde': { exact: ['doctors_office', 'hospital', 'general_dentistry', 'dental_clinic', 'medical_center', 'health_care', 'veterinarian', 'laboratory_testing'], like: ['%clinic%', '%dentist%'] },
   'Escola': { exact: ['school', 'elementary_school', 'private_school', 'public_school', 'language_school', 'driving_school', 'preschool', 'college_university'], like: ['%\\_school'] },
+  'Indústria / Fábrica': { exact: ['manufacturer', 'manufacturing', 'factory', 'industrial_company', 'machine_shop', 'metal_fabricator'], like: ['%manufactur%', '%factory%', '%industrial%'], soCategoria: true },
+  'Shopping / Centro comercial': { exact: ['shopping_center', 'shopping_mall', 'mall', 'outlet_store'], like: ['%shopping%', '%\\_mall'] },
+  'Hotel / Pousada': { exact: ['hotel', 'motel', 'bed_and_breakfast', 'inn', 'resort', 'hostel'], like: ['%hotel%', '%lodging%'] },
+  'Academia': { exact: ['gym', 'fitness_center', 'yoga_studio', 'pilates_studio', 'martial_arts_club'], like: ['%gym%', '%fitness%'] },
   'Lojas': { exact: [], like: ['%\\_store'] },
 };
 
@@ -138,7 +151,10 @@ function humanizar(cat) { return String(cat || '').replace(/_/g, ' ').replace(/^
  * Busca no raio. Retorna array de "elements" no mesmo formato da Overpass (type/id/lat/lon/tags)
  * para reaproveitar o mapeamento da rota; ou null se a base não está disponível/vazia.
  */
-async function buscarOverture({ bbox, q, catLabel, centro = null, limite = 600 }) {
+// categorias de comércio/serviço que não são indústria (usado nos segmentos industriais)
+const NAO_COMERCIO = "categoria NOT LIKE '%store%' AND categoria NOT LIKE '%shop%' AND categoria NOT LIKE '%retail%' AND categoria NOT LIKE '%repair%' AND categoria NOT LIKE '%wholesal%' AND categoria NOT LIKE '%dealer%' AND categoria NOT LIKE '%supplier%' AND categoria NOT LIKE '%telecom%' AND categoria NOT LIKE '%service%'";
+
+async function buscarOverture({ bbox, q, catLabel, segmento = null, centro = null, limite = 600 }) {
   if (Date.now() < _indisponivelAte) return null;
   try {
     const pool = getLugaresPool();
@@ -148,19 +164,39 @@ async function buscarOverture({ bbox, q, catLabel, centro = null, limite = 600 }
     const cond = [];
     const prm = [bbox.s, bbox.n, bbox.w, bbox.e, CONF_MIN];
 
-    if (regra) {
+    if (regra && segmento) {
+      // segmento da indústria: categoria do setor OU (categoria industrial E palavra do setor no nome)
+      const partes = [];
+      // categoria do setor, mas fora lojas/assistência/atacado ("electronics_store" é comércio, não fábrica)
+      segmento.ovt.forEach(l => { partes.push(`(categoria LIKE ? AND ${NAO_COMERCIO})`); prm.push(l); });
+      const ind = [];
+      if (regra.exact.length) { ind.push(`categoria IN (${regra.exact.map(() => '?').join(',')})`); prm.push(...regra.exact); }
+      regra.like.forEach(l => { ind.push('categoria LIKE ?'); prm.push(l); });
+      const kws = segmento.nome.map(k => { prm.push(`%${escLike(k)}%`); return 'nome LIKE ?'; }).join(' OR ');
+      partes.push(`((${ind.join(' OR ')}) AND (${kws}))`);
+      cond.push('(' + partes.join(' OR ') + ')');
+    } else if (regra) {
       if (regra.exact.length) { cond.push(`categoria IN (${regra.exact.map(() => '?').join(',')})`); prm.push(...regra.exact); }
       regra.like.forEach(l => { cond.push('categoria LIKE ?'); prm.push(l); });
     }
     // também pelo nome digitado (ex.: "Padaria X" cadastrada como restaurante), por PALAVRA:
     // termos curtos (≤3 letras, ex.: "bar") só como palavra inteira, senão "bar" casaria com "barbearia".
     const t = escLike(String(q).trim());
-    if (t.length <= 3) {
-      cond.push('(nome = ? OR nome LIKE ? OR nome LIKE ? OR nome LIKE ?)');
-      prm.push(q.trim(), `${t} %`, `% ${t} %`, `% ${t}`);
+    if (regra && (regra.soCategoria || segmento)) {
+      // só pela categoria: pelo nome, "industria" traria "Distrito Industrial" e afins
     } else {
-      cond.push('(nome LIKE ? OR nome LIKE ?)');
-      prm.push(`${t}%`, `% ${t}%`);
+      // cada palavra digitada precisa aparecer no nome (em qualquer ordem): "shopping center" acha "Center Shopping X"
+      const palavras = String(q).trim().split(/\s+/).filter(Boolean).slice(0, 4);
+      const porPalavra = palavras.map((w) => {
+        const e = escLike(w);
+        if (e.length <= 3) {
+          prm.push(w, `${e} %`, `% ${e} %`, `% ${e}`);
+          return '(nome = ? OR nome LIKE ? OR nome LIKE ? OR nome LIKE ?)';
+        }
+        prm.push(`${e}%`, `% ${e}%`);
+        return '(nome LIKE ? OR nome LIKE ?)';
+      });
+      cond.push('(' + porPalavra.join(' AND ') + ')');
     }
     prm.push(limite);
 
@@ -188,6 +224,7 @@ async function buscarOverture({ bbox, q, catLabel, centro = null, limite = 600 }
         'addr:street': r.endereco || undefined,
         'addr:city': r.cidade || undefined,
         'addr:postcode': r.cep || undefined,
+        'addr:state': r.uf || undefined,
       },
     }));
   } catch (e) {
