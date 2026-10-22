@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hoje · Prospecta</title>
+<link rel="stylesheet" href="/assets/themes.css">
+<script src="/assets/themes.js"></script>
+<script src="/assets/toque.js?v=2"></script>
+<script src="/assets/confirm-dialog.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: var(--font, system-ui, sans-serif); background: var(--bg); color: var(--text); min-height: 100vh; }
+.page { max-width: 2000px; margin: 0 auto; padding: 18px clamp(14px, 2.2vw, 36px) 40px; }   /* usa a largura toda da tela */
+.head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.head h1 { font-size: 22px; font-weight: 800; letter-spacing: -.02em; }
+.head .sub { font-size: 13px; color: var(--text2); margin-top: 2px; text-transform: capitalize; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--card); color: var(--text); font: 700 13px var(--font); cursor: pointer; text-decoration: none; }
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn-wa { background: #16a34a; border-color: #16a34a; color: #fff; }
+.btn-wa:hover { background: #15803d; color: #fff; border-color: #15803d; }
+.btn-sm { min-height: 36px; padding: 0 12px; font-size: 12px; }
+
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.kpi { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px; }
+.kpi b { display: block; font-size: 24px; font-weight: 800; line-height: 1.1; }
+.kpi span { display: block; font-size: 12px; color: var(--text2); margin-top: 3px; }
+.kpi em { font-style: normal; font-size: 11px; font-weight: 700; margin-left: 6px; }
+.up { color: #16a34a; } .down { color: #dc2626; }
+
+.funil { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+.funil span { font-size: 12px; background: var(--card); border: 1px solid var(--border); border-radius: 99px; padding: 5px 12px; color: var(--text2); }
+.funil span b { color: var(--text); margin-left: 4px; }
+
+.grid[hidden] { display: none; }
+.carregando { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 70px 16px; color: var(--text2); font-size: 14px; text-align: center; }
+.carregando[hidden] { display: none; }
+.carregando .spin { width: 34px; height: 34px; border-radius: 50%; border: 3px solid var(--border); border-top-color: var(--accent); animation: giraHoje .9s linear infinite; }
+.carregando small { font-size: 12px; max-width: 360px; line-height: 1.45; }
+@keyframes giraHoje { to { transform: rotate(360deg); } }
+.erro-box { padding: 26px 18px; text-align: center; line-height: 1.55; font-size: 14px; }
+.erro-box b { display: block; font-size: 16px; margin-bottom: 4px; }
+.erro-box .btn { margin-top: 12px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 14px; align-items: start; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
+.card h2 { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 14px; font-weight: 800; padding: 14px 16px 10px; }
+.card h2 small { font-size: 12px; font-weight: 700; color: var(--text2); background: var(--bg); border-radius: 99px; padding: 2px 10px; }
+.item { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-top: 1px solid var(--border); }
+.item .info { flex: 1; min-width: 0; }
+.item .t { font-weight: 700; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item .s { font-size: 12px; color: var(--text2); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tag { display: inline-block; font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 99px; margin-right: 6px; }
+.tag-hoje { background: #fef3c7; color: #92400e; }
+.tag-atraso { background: #fee2e2; color: #991b1b; }
+.vazio { padding: 16px; font-size: 13px; color: var(--text2); border-top: 1px solid var(--border); line-height: 1.5; }
+.mais { display: block; width: 100%; border: 0; border-top: 1px solid var(--border); background: transparent; color: var(--accent); font: 700 13px var(--font); padding: 12px; cursor: pointer; }
+.full { grid-column: 1 / -1; }
+.kpi.dest { border-color: var(--accent); }
+.kpi small { display: block; font-size: 11px; color: var(--text2); margin-top: 2px; }
+.graf { display: flex; align-items: flex-end; gap: 6px; height: 150px; padding: 12px 16px 6px; border-top: 1px solid var(--border); }
+.graf .col { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 4px; }
+.graf .col i { display: block; width: 100%; max-width: 34px; min-height: 2px; border-radius: 5px 5px 2px 2px; background: var(--accent); opacity: .85; }
+.graf .col i.hoje { opacity: 1; }
+.graf .col b { font-size: 11px; font-weight: 700; color: var(--text); }
+.graf .col span { font-size: 10px; color: var(--text2); white-space: nowrap; }
+.graf .col span em { font-style: normal; }
+@media (max-width: 800px) { .graf .col span em { display: none; } .graf { gap: 4px; padding-left: 12px; padding-right: 12px; } }
+.hbar { padding: 8px 16px; border-top: 1px solid var(--border); }
+.hbar .l { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; margin-bottom: 4px; }
+.hbar .l span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hbar .l b { font-weight: 800; }
+.hbar .b { height: 7px; border-radius: 99px; background: var(--bg); overflow: hidden; }
+.hbar .b i { display: block; height: 100%; border-radius: 99px; background: var(--accent); }
+.ativ { font-size: 11px; color: var(--text2); white-space: nowrap; }
+.msgs-link { font-size: 12px; color: var(--accent); background: none; border: 0; cursor: pointer; font-weight: 700; padding: 6px 0; }
+
+.btn-ghost { background: transparent; color: var(--text2); }
+.btn-ghost:hover { color: var(--accent); }
+.resp-txt { font-size: 12px; color: var(--text); background: var(--bg); border-radius: 10px; padding: 6px 10px; margin-top: 6px; line-height: 1.4; max-height: 3.4em; overflow: hidden; }
+.cfg-ov { position: fixed; inset: 0; z-index: 3000; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.cfg-ov[hidden] { display: none; }
+.cfg-card { width: min(520px, 100%); max-height: 92vh; display: flex; flex-direction: column; background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,.4); overflow: hidden; }
+.cfg-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+.cfg-head h3 { flex: 1; font-size: 16px; font-weight: 800; }
+.cfg-x { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 22px; cursor: pointer; }
+.cfg-corpo { padding: 14px 16px; overflow-y: auto; flex: 1; }
+.cfg-corpo p { font-size: 13px; color: var(--text2); line-height: 1.5; margin-bottom: 12px; }
+.cfg-campo { margin-bottom: 12px; }
+.cfg-campo label { display: block; font-size: 12px; font-weight: 700; color: var(--text2); margin-bottom: 4px; }
+.cfg-campo input, .cfg-campo select { width: 100%; min-height: 44px; padding: 8px 12px; font: 16px var(--font); border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); }
+.cfg-campo small { display: block; font-size: 11px; color: var(--text2); margin-top: 4px; line-height: 1.4; }
+.cfg-url { display: flex; gap: 6px; }
+.cfg-url input { flex: 1; font-size: 12px; }
+.cfg-rod { display: flex; gap: 8px; flex-wrap: wrap; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--border); }
+.cfg-rod .btn { flex: 1 1 140px; min-height: 44px; }
+.cfg-res { font-size: 13px; padding: 8px 10px; border-radius: 10px; margin-top: 8px; line-height: 1.4; }
+.cfg-ok { background: #dcfce7; color: #166534; } .cfg-erro { background: #fef3c7; color: #92400e; }
+@media (max-width: 800px) {
+  .grid { grid-template-columns: 1fr; }
+  .kpis { grid-template-columns: repeat(2, 1fr); }
+  .item { padding: 12px 14px; }
+  .btn-sm { min-height: 44px; padding: 0 14px; }
+  .page { padding: 12px 12px 90px; }
+}
+.promo { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 16px; padding: 16px; background: var(--card); border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 16px; position: relative; }
+.promo[hidden] { display: none; }
+.promo .ic { font-size: 28px; line-height: 1; }
+.promo .tx { flex: 1 1 260px; min-width: 0; padding-right: 26px; }
+.promo .tx b { display: block; font-size: 15px; margin-bottom: 3px; }
+.promo .tx span { font-size: 13px; color: var(--text2); line-height: 1.5; }
+.promo .go { display: inline-flex; align-items: center; min-height: 44px; padding: 0 18px; border-radius: 10px; background: var(--accent); color: #fff; font-weight: 800; font-size: 14px; text-decoration: none; }
+.promo .fx { position: absolute; top: 4px; right: 6px; width: 32px; height: 32px; border: 0; background: transparent; color: var(--text2); font-size: 20px; cursor: pointer; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="head">
+    <div>
+      <h1 id="saud">Hoje</h1>
+      <div class="sub" id="data"></div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-ghost" onclick="abrirConfig()" title="Detectar sozinho quem respondeu no WhatsApp">⚙ Respostas</button>
+            <button class="btn" onclick="carregar()" title="Atualizar">↻ Atualizar</button>
+    </div>
+  </div>
+
+  <div class="kpis" id="kpis"></div>
+  <div class="funil" id="funil"></div>
+
+  <div class="card" id="erro" hidden style="margin-bottom:14px"></div>
+
+  <div class="carregando" id="carregando" role="status" aria-live="polite"><div class="spin"></div><div id="carregandoTxt">Carregando os seus números…</div><small id="carregandoDica" hidden>Está demorando mais que o normal. Se a internet estiver fraca, aguarde um pouco; se não aparecer, toque em Atualizar.</small></div>
+
+  <div class="grid" hidden>
+    <section class="card full" id="cardResp"></section>
+    <section class="card" id="cardToques"></section>
+    <section class="card" id="cardNovos"></section>
+    <section class="card" id="cardVisitas"></section>
+    <section class="card" id="cardParados"></section>
+    <section class="card" id="cardProx"></section>
+    <section class="card" id="cardGraf"></section>
+    <section class="card" id="cardAtiv"></section>
+    <section class="card" id="cardSegs"></section>
+    <section class="card" id="cardOrig"></section>
+  </div>
+
+  <aside class="promo" id="promo" hidden>
+    <span class="ic">🧩</span>
+    <div class="tx"><b>Você vende por representação? Conheça o PedidosWeb CRM</b>
+      <span>Pedidos, rotas, comissões, funil e equipe num só lugar, com app que funciona offline. 7 dias de teste com os seus dados.</span></div>
+    <a class="go" href="https://pedidos.nresolutions.com.br/landing.html?novo=1" target="_blank" rel="noopener">Conhecer o PedidosWeb</a>
+    <button type="button" class="fx" id="promoFx" aria-label="Dispensar" title="Não mostrar de novo">&times;</button>
+  </aside>
+</div>
+
+<div class="cfg-ov" id="cfgOv" hidden onclick="if (event.target === this) fecharConfig()">
+  <div class="cfg-card" role="dialog" aria-modal="true" aria-label="Integração do WhatsApp">
+    <div class="cfg-head"><h3>⚙ WhatsApp (opcional)</h3><button type="button" class="cfg-x" onclick="fecharConfig()" aria-label="Fechar">&times;</button></div>
+    <div class="cfg-corpo" id="cfgCorpo"></div>
+    <div class="cfg-rod" id="cfgRod"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var K = 'prospecta_promo_pedidosweb', p = document.getElementById('promo');
+  try { if (localStorage.getItem(K)) return; } catch (_) {}
+  p.hidden = false;
+  document.getElementById('promoFx').onclick = function () { p.hidden = true; try { localStorage.setItem(K, '1'); } catch (_) {} };
+})();
+const ETAPAS = { NOVO: 'Novo', CONTATO: 'Em contato', QUALIFICADO: 'Qualificado', PROPOSTA: 'Proposta', GANHO: 'Ganho', PERDIDO: 'Perdido' };
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+let D = null;
+const LIMITE = 6;
+const aberto = {};
+
+function leadDe(x) {
+  return { id: x.lead_id, nome: x.nome, empresa: x.empresa, telefone: x.telefone, whatsapp: x.whatsapp, segmento: x.segmento, cidade: x.cidade, toques: Number(x.toques || 0) };
+}
+function local(x) { return [x.segmento, [x.cidade, x.uf].filter(Boolean).join('/')].filter(Boolean).join(' · '); }
+function diasAtraso(d) {
+  const dia = new Date(String(d).slice(0, 10) + 'T12:00:00'), h = new Date(); h.setHours(12, 0, 0, 0);
+  return Math.round((h - dia) / 86400000);
+}
+function tagVenc(d) {
+  const n = diasAtraso(d);
+  return n <= 0 ? '<span class="tag tag-hoje">hoje</span>' : `<span class="tag tag-atraso">${n}d de atraso</span>`;
+}
+
+function lista(id, titulo, itens, linha, vazio) {
+  const mostrar = aberto[id] ? itens : itens.slice(0, LIMITE);
+  const el = document.getElementById(id);
+  el.innerHTML = `<h2>${titulo}<small>${itens.length}</small></h2>` +
+    (itens.length ? mostrar.map(linha).join('') : `<div class="vazio">${vazio}</div>`) +
+    (itens.length > LIMITE ? `<button class="mais" onclick="alternar('${id}')">${aberto[id] ? 'Mostrar menos' : 'Ver todos (' + itens.length + ')'}</button>` : '');
+}
+function alternar(id) { aberto[id] = !aberto[id]; render(); }
+
+function render() {
+  const d = D, s = d.semana;
+  const dt = (a, b) => { const x = a - b; return x ? `<em class="${x > 0 ? 'up' : 'down'}">${x > 0 ? '+' : ''}${x}</em>` : '<em style="color:var(--text2)">igual</em>'; };
+  const r = d.resumo || {};
+  const brl = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+  const taxa = s.toques ? Math.round(((s.responderam || 0) / s.toques) * 100) : 0;
+  document.getElementById('kpis').innerHTML = `
+    <div class="kpi"><b>${s.toques}${dt(s.toques, s.toques_ant)}</b><span>toques nos últimos 7 dias</span></div>
+    <div class="kpi dest"><b>${d.toques.length}</b><span>toques para fazer hoje</span></div>
+    <div class="kpi"><b>${s.responderam || 0}</b><span>responderam nos últimos 7 dias</span><small>${taxa}% dos toques</small></div>
+    <div class="kpi"><b>${s.visitas}</b><span>visitas feitas na semana</span></div>
+    <div class="kpi"><b>${s.ganhos}</b><span>ganhos na semana</span></div>
+    ${r.leads != null ? `
+    <div class="kpi"><b>${r.abertos}</b><span>leads em andamento</span><small>de ${r.leads} no total · +${r.novos_7d} na semana</small></div>
+    <div class="kpi"><b>${brl(r.valor_aberto)}</b><span>valor estimado em aberto</span></div>
+    <div class="kpi"><b>${r.ganhos_mes}</b><span>ganhos no mês</span><small>${brl(r.valor_ganho_mes)}</small></div>
+    <div class="kpi ${r.tarefas_atrasadas ? 'dest' : ''}"><b${r.tarefas_atrasadas ? ' style="color:#dc2626"' : ''}>${r.tarefas_atrasadas}</b><span>tarefas atrasadas</span></div>` : ''}`;
+  const ordem = Object.keys(ETAPAS);
+  document.getElementById('funil').innerHTML = ordem.map((k) => `<span>${ETAPAS[k]}<b>${(d.funil.find((f) => f.status === k) || { total: 0 }).total}</b></span>`).join('');
+
+  lista('cardResp', '💬 Responderam — atenda agora', d.respostas || [], (x, i) => {
+    const f = Toque.fone(leadDe(x));
+    const quando = x.respondeu_em ? new Date(String(x.respondeu_em).replace(' ', 'T')).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+    const trecho = String(x.resposta || '').replace(/^Respondeu[^:]*:\s*/, '').replace(/^"|"$/g, '');
+    return `<div class="item"><div class="info"><div class="t">${esc(x.empresa || x.nome)}</div><div class="s">${esc(local(x)) || '—'} · ${esc(quando)}</div>${trecho ? `<div class="resp-txt">${esc(trecho)}</div>` : ''}</div>
+      ${f ? `<a class="btn btn-wa btn-sm" target="_blank" rel="noopener" href="https://wa.me/${f}">Conversar</a>` : ''}
+      <button class="btn btn-sm" onclick="atendido(${i})">✔ Atendido</button></div>`;
+  }, 'Quando alguém responder, aparece aqui. Sem integração, use o botão "Respondeu" nos toques; com a integração do WhatsApp (⚙ no alto) isso é automático.');
+
+  lista('cardToques', '📲 Toques de hoje', d.toques, (x, i) => {
+    const n = (/^(\d)º/.exec(x.titulo) || [0, 2])[1];
+    return `<div class="item"><div class="info"><div class="t">${tagVenc(x.data_vencimento)}${esc(x.empresa || x.nome)}</div><div class="s">${esc(local(x)) || '—'}</div></div>
+      <button class="btn btn-ghost btn-sm" title="Marcar que este lead respondeu (para a cadência)" onclick="respondeu(${i},'toques')">Respondeu</button>
+      <button class="btn btn-wa btn-sm" onclick="fazerToque(${i},'toques',${n})">${n}º toque</button></div>`;
+  }, 'Nenhum toque vencido. Quando você fizer um 1º toque, o 2º e o 3º aparecem aqui nos dias certos.');
+
+  lista('cardNovos', '✨ Novos para o 1º toque', d.novos, (x, i) => `<div class="item"><div class="info"><div class="t">${esc(x.empresa || x.nome)}</div><div class="s">${esc(local(x)) || '—'}</div></div>
+      <button class="btn btn-wa btn-sm" onclick="fazerToque(${i},'novos',1)">1º toque</button></div>`,
+    'Nenhum lead novo com telefone esperando. Busque comércios no Mapa e salve como leads.');
+
+  lista('cardVisitas', '🚶 Visitas', d.visitas, (x, i) => {
+    const maps = x.latitude && x.longitude ? `<a class="btn btn-sm" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${x.latitude},${x.longitude}">Rota</a>` : '';
+    return `<div class="item"><div class="info"><div class="t">${tagVenc(x.data_vencimento)}${esc(String(x.titulo).replace(/^Visita\s*/i, ''))}</div><div class="s">${esc([x.endereco, x.bairro, x.cidade].filter(Boolean).join(', ')) || '—'}</div></div>
+      ${maps}<button class="btn btn-sm" onclick="concluirVisita(${x.tarefa_id})">✔ Feita</button></div>`;
+  }, 'Sem visitas pendentes. Monte uma rota no Mapa e use "Salvar visitas de hoje".');
+
+  lista('cardParados', '⏳ Parados há 15+ dias', d.parados, (x, i) => `<div class="item"><div class="info"><div class="t"><span class="tag tag-atraso">${x.dias_parado}d</span>${esc(x.empresa || x.nome)}</div><div class="s">${esc(ETAPAS[x.status_funil] || x.status_funil)} · ${esc(local(x)) || '—'}</div></div>
+      <button class="btn btn-ghost btn-sm" onclick="respondeu(${i},'parados')">Respondeu</button>
+      <button class="btn btn-wa btn-sm" onclick="fazerToque(${i},'parados')">Retomar</button></div>`,
+    'Nenhum lead parado. 👏');
+
+  // ── quadros novos ──
+  const dia = (iso) => iso.slice(8, 10) + '/' + iso.slice(5, 7);
+  const td = d.toques_dia || [];
+  const maxT = Math.max(1, ...td.map((x) => x.n));
+  const totT = td.reduce((a, x) => a + x.n, 0);
+  document.getElementById('cardGraf').innerHTML = `<h2>📈 Toques por dia <small>${totT} em 14 dias</small></h2>` +
+    (totT ? `<div class="graf">${td.map((x, k) => `<div class="col" title="${dia(x.dia)}: ${x.n} toque(s)"><b>${x.n || ''}</b><i class="${k === td.length - 1 ? 'hoje' : ''}" style="height:${Math.max(2, Math.round((x.n / maxT) * 100))}%"></i><span>${x.dia.slice(8, 10)}<em>/${x.dia.slice(5, 7)}</em></span></div>`).join('')}</div>`
+            : '<div class="vazio">Ainda sem toques nos últimos 14 dias. Faça o 1º toque pelos leads novos ao lado.</div>');
+
+  const barras = (id, titulo, itens, rotulo, vazio) => {
+    const max = Math.max(1, ...itens.map((x) => x.n));
+    document.getElementById(id).innerHTML = `<h2>${titulo}</h2>` + (itens.length
+      ? itens.map((x) => `<div class="hbar"><div class="l"><span>${esc(rotulo(x))}</span><b>${x.n}</b></div><div class="b"><i style="width:${Math.round((x.n / max) * 100)}%"></i></div></div>`).join('')
+      : `<div class="vazio">${vazio}</div>`);
+  };
+  barras('cardSegs', '🏷️ Segmentos dos seus leads', d.segmentos || [], (x) => x.segmento + (x.ganhos ? ` · ${x.ganhos} ganho(s)` : ''), 'Os segmentos aparecem quando você salva leads vindos do Mapa.');
+  barras('cardOrig', '🧭 De onde vêm os leads', d.origens || [], (x) => x.origem, 'Sem leads ainda.');
+
+  lista('cardProx', '📅 Próximos 7 dias', d.proximas || [], (x) => `<div class="item"><div class="info"><div class="t">${esc(x.titulo)}</div><div class="s">${esc(x.empresa || x.nome)}</div></div><span class="ativ">${dia(String(x.data_vencimento).slice(0, 10))}</span></div>`,
+    'Nenhuma tarefa marcada para os próximos dias.');
+  const ICO = { TOQUE: '📲', RESPOSTA: '💬', ATENDIDO: '✔', CRIACAO: '✨', ATUALIZACAO: '✏️', LIGACAO: '📞', VISITA: '🚶', EMAIL: '✉️', WHATSAPP: '💬', NOTA: '📝' };
+  lista('cardAtiv', '🕒 Atividade recente', d.atividade || [], (x) => {
+    const q = new Date(String(x.dtcadastro).replace(' ', 'T'));
+    const quando = isNaN(q) ? '' : q.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    return `<div class="item"><div class="info"><div class="t">${ICO[x.tipo] || '•'} ${esc(x.empresa || x.nome)}</div><div class="s">${esc(String(x.descricao || x.tipo).slice(0, 90))}</div></div><span class="ativ">${esc(quando)}</span></div>`;
+  }, 'Quando você mexer nos leads, o que aconteceu aparece aqui.');
+}
+
+function fazerToque(i, grupo, numero) {
+  const x = D[grupo][i];
+  const lead = leadDe(x);
+  Toque.abrir(lead, { numero: numero || undefined, onDone: () => setTimeout(carregar, 600) });
+}
+async function respondeu(i, grupo) {
+  const x = D[grupo][i];
+  try { await Toque.api('/api/leads/' + x.lead_id + '/respondeu', { method: 'POST' }); carregar(); }
+  catch (e) { alert(e.message); }
+}
+async function atendido(i) {
+  const x = D.respostas[i];
+  try { await Toque.api('/api/leads/' + x.lead_id + '/atendido', { method: 'POST' }); carregar(); }
+  catch (e) { alert(e.message); }
+}
+
+// ── Respostas automáticas (opcional): o provedor de WhatsApp avisa esta URL quando o lead responde ──
+let CFG = null;
+function fecharConfig() { document.getElementById('cfgOv').hidden = true; }
+async function abrirConfig() {
+  document.getElementById('cfgOv').hidden = false;
+  document.getElementById('cfgCorpo').innerHTML = '<p>Carregando…</p>';
+  document.getElementById('cfgRod').innerHTML = '';
+  try { CFG = await Toque.api('/api/leads/whatsapp-webhook'); renderConfig(); }
+  catch (e) { document.getElementById('cfgCorpo').innerHTML = `<p>${esc(e.message)}</p>`; }
+}
+function renderConfig() {
+  const c = CFG;
+  const ult = c.ultimo_em ? 'Último aviso recebido: ' + new Date(c.ultimo_em).toLocaleString('pt-BR') + ' — ' + (c.ultimo_resumo || '') : 'Ainda não chegou nenhum aviso do WhatsApp.';
+  document.getElementById('cfgCorpo').innerHTML = `
+    <p><b>Isto é opcional.</b> Sem isso tudo funciona: você marca "Respondeu" à mão nos toques. Cadastrando esta URL no provedor do WhatsApp
+      (EuAtendo, Evolution ou API oficial da Meta, para <b>mensagens recebidas</b>), o sistema percebe sozinho quando um lead que já recebeu toque responde,
+      mostra em "Responderam" e cancela os toques seguintes.</p>
+    <div class="cfg-campo"><label>URL para colar no provedor (webhook de mensagens recebidas)</label>
+      <div class="cfg-url"><input id="cfgUrl" readonly value="${esc(c.url)}"><button class="btn btn-sm" type="button" onclick="copiarWebhook()">Copiar</button></div>
+      <small>Evolution: evento <b>MESSAGES_UPSERT</b>. Meta: use esta URL e, como token de verificação, o código final da própria URL. EuAtendo: cole no campo de webhook da conexão.</small></div>
+    <div class="cfg-res ${c.ultimo_em ? 'cfg-ok' : 'cfg-erro'}">${esc(ult)}</div>
+    <div id="cfgRes"></div>`;
+  document.getElementById('cfgRod').innerHTML = '<button class="btn" type="button" onclick="gerarOutraUrl()">Gerar outra URL</button>';
+}
+function resCfg(ok, msg) { document.getElementById('cfgRes').innerHTML = `<div class="cfg-res ${ok ? 'cfg-ok' : 'cfg-erro'}">${esc(msg)}</div>`; }
+async function gerarOutraUrl() {
+  if (!(await SysRepConfirm.ask({ titulo: 'Gerar outra URL', mensagem: 'A URL atual para de funcionar e você precisa cadastrar a nova no provedor do WhatsApp.', okTexto: 'Gerar outra', perigo: true }))) return;
+  try { CFG = await Toque.api('/api/leads/whatsapp-webhook/gerar', { method: 'POST' }); renderConfig(); resCfg(true, 'Nova URL gerada. Cadastre-a no provedor.'); }
+  catch (e) { resCfg(false, e.message); }
+}
+function copiarWebhook() {
+  const el = document.getElementById('cfgUrl');
+  (navigator.clipboard ? navigator.clipboard.writeText(el.value) : Promise.reject()).then(() => resCfg(true, 'URL copiada.')).catch(() => { el.select(); resCfg(true, 'Selecione e copie a URL.'); });
+}
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') fecharConfig(); });
+
+async function concluirVisita(id) {
+  try { await Toque.api('/api/leads/tarefas/' + id, { method: 'PUT', body: JSON.stringify({ status: 'CONCLUIDA' }) }); carregar(); }
+  catch (e) { alert(e.message); }
+}
+
+async function carregar() {
+  // enquanto busca, mostra que está trabalhando (antes a tela ficava com quadros vazios e sem explicação)
+  const car = document.getElementById('carregando'), dica = document.getElementById('carregandoDica');
+  car.hidden = false; dica.hidden = true;
+  document.getElementById('erro').hidden = true;
+  if (!D) document.querySelector('.grid').hidden = true;   // 1ª vez: só o aviso; nas atualizações os dados antigos ficam na tela
+  const lento = setTimeout(() => { dica.hidden = false; }, 6000);
+  try {
+    D = await Toque.api('/api/leads/hoje');
+    document.querySelector('.grid').hidden = false;
+    render();
+  } catch (e) {
+    const er = document.getElementById('erro');
+    er.hidden = false;
+    document.querySelector('.grid').hidden = true;
+    document.getElementById('kpis').innerHTML = ''; document.getElementById('funil').innerHTML = '';
+    D = null;
+    er.innerHTML = `<div class="erro-box"><b>Não foi possível carregar o seu dia agora</b>${esc(e.message || 'Falha de conexão')}<br><button class="btn" onclick="carregar()">↻ Tentar de novo</button></div>`;
+  } finally {
+    clearTimeout(lento);
+    car.hidden = true;
+  }
+}
+
+(function init() {
+  let u = {}; try { u = JSON.parse(sessionStorage.getItem('user') || '{}'); } catch (_) {}
+  const h = new Date().getHours();
+  const nome = String(u.nome || u.login || '').split(/\s+/)[0];
+  document.getElementById('saud').textContent = (h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite') + (nome ? ', ' + nome.charAt(0).toUpperCase() + nome.slice(1).toLowerCase() : '');
+  document.getElementById('data').textContent = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
+  Toque.carregarModelos();
+  carregar();
+})();
+</script>
+</body>
+</html>

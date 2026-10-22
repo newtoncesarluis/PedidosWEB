@@ -11,7 +11,7 @@
 const { getLicensePool } = require('./db-license');
 const { chaveDoRequest } = require('./modulo-marketplace');
 
-const CACHE_TTL_MS = 5 * 60 * 1000;
+const CACHE_TTL_MS = 30 * 1000;   // curto: ligar/desligar no painel vale em até 30 s
 const _cache = new Map();   // chave_licenca → { valor, expira }
 let _colunaOk = false;
 

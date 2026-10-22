@@ -721,6 +721,218 @@ const MODELOS_PADRAO = {
   3: 'Vou encerrar por aqui para não te incomodar. Se em algum momento a {empresa} quiser conhecer a {minha_empresa}, é só me chamar. Obrigado pela atenção! — {meu_nome}',
 };
 
+/**
+ * API de WhatsApp configurada no sistema, para enviar o toque direto do servidor:
+ *   1) Meta (API oficial) ou EuAtendo (config/wa-provedor.js);  2) Evolution (instância do usuário + URL global).
+ * Devolve null quando não há nenhuma — o toque então abre o wa.me no aparelho do vendedor.
+ */
+async function provedorEnvioLead(pool, req) {
+  try {
+    const ext = await require('../config/wa-provedor').provedorExterno(pool);
+    if (ext) return { tipo: ext.tipo, nome: ext.nome, enviar: (numero, texto) => ext.enviarTexto(numero, texto) };
+  } catch (_) { /* segue para a Evolution */ }
+  try {
+    const uid = parseInt((req.user && (req.user.idusuario || req.user.id)) || 0, 10);
+    const [[urow]] = await pool.query(
+      "SELECT instancia, chave FROM usuarios WHERE idusuario=? AND COALESCE(excluido,'N')='N' LIMIT 1", [uid]);
+    const [[cfg]] = await pool.query('SELECT w_urlplataforma AS url, w_apiglobal AS apikey FROM configuracao LIMIT 1');
+    if (urow && urow.instancia && cfg && cfg.url) {
+      const base = String(cfg.url).replace(/\/+$/, '');
+      return {
+        tipo: 'EVOLUTION', nome: 'Evolution API',
+        enviar: async (numero, texto) => {
+          const r = await require('axios').post(base + '/message/sendText/' + urow.instancia,
+            { number: String(numero).replace(/\D/g, ''), text: texto },
+            { headers: { 'Content-Type': 'application/json', apikey: urow.chave || cfg.apikey }, timeout: 15000 });
+          if (r.status !== 200 && r.status !== 201) throw new Error('Evolution API respondeu ' + r.status);
+        },
+      };
+    }
+  } catch (_) { /* sem Evolution */ }
+  return null;
+}
+
+// GET /api/leads/whatsapp-api — há API de WhatsApp configurada? (o toque envia por ela em vez de abrir o wa.me)
+router.get('/whatsapp-api', exigeModuloLocalizador, async (req, res) => {
+  try {
+    const p = await provedorEnvioLead(getPool(), req);
+    res.json({ disponivel: !!p, provedor: p ? p.nome : '' });
+  } catch (err) { res.json({ disponivel: false, provedor: '' }); }
+});
+
+// ── Tela "Hoje": o que fazer agora (respostas, toques e visitas vencidos, novos, parados, semana e funil) ──
+router.post('/:id/respondeu', exigeModuloLocalizador, async (req, res) => {
+  await ensureTable();
+  try {
+    const pool = getPool();
+    const lead = await carregarLead(pool, req, 'id');
+    if (!lead) return res.status(404).json({ error: 'Lead não encontrado' });
+    const uid = (req.user && (req.user.idusuario || req.user.id)) || 0;
+    await addHistory(pool, lead.id, uid, 'RESPOSTA', 'Respondeu (marcado manualmente).');
+    await pool.query(
+      `UPDATE lead_tarefas SET status = 'CANCELADA'
+        WHERE lead_id = ? AND excluido = 'N' AND status = 'PENDENTE' AND titulo REGEXP '^[0-9]º toque'`, [lead.id]);
+    await pool.query(
+      `UPDATE leads SET data_ultimo_contato = NOW(), status_funil = IF(status_funil = 'NOVO', 'CONTATO', status_funil) WHERE id = ? AND id_empresa = ?`,
+      [lead.id, empresaDe(req)]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/leads/:id/atendido — tira o lead da lista "Responderam"
+router.post('/:id/atendido', exigeModuloLocalizador, async (req, res) => {
+  await ensureTable();
+  try {
+    const pool = getPool();
+    const lead = await carregarLead(pool, req, 'id');
+    if (!lead) return res.status(404).json({ error: 'Lead não encontrado' });
+    await addHistory(pool, lead.id, (req.user && (req.user.idusuario || req.user.id)) || 0, 'ATENDIDO', 'Resposta atendida.');
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/leads/hoje — o que fazer hoje: toques e visitas vencidos, novos para o 1º toque, parados, números da semana e funil
+router.get('/hoje', exigeModuloLocalizador, async (req, res) => {
+  await ensureTable();
+  try {
+    const pool = getPool();
+    const { canPickOtherVendors } = require('../config/vendedor-visibilidade');
+    const uid = parseInt((req.user && (req.user.idusuario || req.user.id)) || 0, 10);
+    const emp = empresaDe(req);
+    let vis = ''; const visP = [];
+    if (!canPickOtherVendors(req) && uid) { vis = ' AND (l.id_vendedor = ? OR l.id_usuario = ?)'; visP.push(uid, uid); }
+    const colsLead = `l.id AS lead_id, l.nome, l.empresa, l.decisor, l.telefone, l.whatsapp, l.segmento, l.cidade, l.uf, l.endereco, l.bairro, l.latitude, l.longitude, l.status_funil,
+                      (SELECT COUNT(*) FROM lead_historico h WHERE h.lead_id = l.id AND h.tipo = 'TOQUE') AS toques`;
+
+    const [respostas] = await pool.query(
+      `SELECT ${colsLead}, r.dtcadastro AS respondeu_em, r.descricao AS resposta
+         FROM leads l
+         JOIN (SELECT lead_id, MAX(id) AS id FROM lead_historico WHERE tipo = 'RESPOSTA' AND dtcadastro >= DATE_SUB(NOW(), INTERVAL 3 DAY) GROUP BY lead_id) m ON m.lead_id = l.id
+         JOIN lead_historico r ON r.id = m.id
+        WHERE l.excluido = 'N' AND l.id_empresa = ?${vis}
+          AND NOT EXISTS (SELECT 1 FROM lead_historico a WHERE a.lead_id = l.id AND a.tipo = 'ATENDIDO' AND a.id > m.id)
+        ORDER BY r.id DESC LIMIT 30`, [emp, ...visP]);
+
+    const [toquesVencidos] = await pool.query(
+      `SELECT t.id AS tarefa_id, t.titulo, t.data_vencimento, ${colsLead}
+         FROM lead_tarefas t JOIN leads l ON l.id = t.lead_id AND l.excluido = 'N'
+        WHERE t.excluido = 'N' AND t.status = 'PENDENTE' AND t.id_empresa = ? AND t.titulo REGEXP '^[0-9]º toque'
+          AND t.data_vencimento <= CURDATE()${vis}
+        ORDER BY t.data_vencimento ASC, t.id ASC LIMIT 60`, [emp, ...visP]);
+
+    const [visitas] = await pool.query(
+      `SELECT t.id AS tarefa_id, t.titulo, t.data_vencimento, ${colsLead}
+         FROM lead_tarefas t JOIN leads l ON l.id = t.lead_id AND l.excluido = 'N'
+        WHERE t.excluido = 'N' AND t.status = 'PENDENTE' AND t.id_empresa = ? AND t.titulo LIKE 'Visita%'
+          AND t.data_vencimento <= CURDATE()${vis}
+        ORDER BY t.data_vencimento ASC, t.id ASC LIMIT 60`, [emp, ...visP]);
+
+    const [novos] = await pool.query(
+      `SELECT ${colsLead}
+         FROM leads l
+        WHERE l.excluido = 'N' AND l.id_empresa = ? AND l.status_funil = 'NOVO' AND l.convertido_cliente_id IS NULL
+          AND (l.whatsapp <> '' OR l.telefone <> '')${vis}
+          AND NOT EXISTS (SELECT 1 FROM lead_historico h WHERE h.lead_id = l.id AND h.tipo = 'TOQUE')
+        ORDER BY l.score DESC, l.id DESC LIMIT 30`, [emp, ...visP]);
+
+    const [parados] = await pool.query(
+      `SELECT ${colsLead}, DATEDIFF(NOW(), COALESCE(l.data_ultimo_contato, l.dtcadastro)) AS dias_parado
+         FROM leads l
+        WHERE l.excluido = 'N' AND l.id_empresa = ? AND l.status_funil NOT IN ('NOVO','GANHO','PERDIDO')${vis}
+          AND DATEDIFF(NOW(), COALESCE(l.data_ultimo_contato, l.dtcadastro)) >= 15
+        ORDER BY dias_parado DESC LIMIT 15`, [emp, ...visP]);
+
+    const [[sem]] = await pool.query(
+      `SELECT
+         (SELECT COUNT(*) FROM lead_historico h JOIN leads l ON l.id = h.lead_id WHERE h.tipo = 'TOQUE' AND l.id_empresa = ?${vis} AND h.dtcadastro >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)) AS toques,
+         (SELECT COUNT(*) FROM lead_historico h JOIN leads l ON l.id = h.lead_id WHERE h.tipo = 'TOQUE' AND l.id_empresa = ?${vis} AND h.dtcadastro >= DATE_SUB(CURDATE(), INTERVAL 13 DAY) AND h.dtcadastro < DATE_SUB(CURDATE(), INTERVAL 6 DAY)) AS toques_ant,
+         (SELECT COUNT(DISTINCT h.lead_id) FROM lead_historico h JOIN leads l ON l.id = h.lead_id WHERE h.tipo = 'RESPOSTA' AND l.id_empresa = ?${vis} AND h.dtcadastro >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)) AS responderam,
+         (SELECT COUNT(*) FROM lead_tarefas t JOIN leads l ON l.id = t.lead_id WHERE t.titulo LIKE 'Visita%' AND t.status = 'CONCLUIDA' AND l.id_empresa = ?${vis} AND t.dtconclusao >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)) AS visitas,
+         (SELECT COUNT(*) FROM leads l WHERE l.excluido = 'N' AND l.id_empresa = ?${vis} AND l.status_funil = 'GANHO' AND l.data_conversao >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)) AS ganhos`,
+      [emp, ...visP, emp, ...visP, emp, ...visP, emp, ...visP, emp, ...visP]);
+
+    const [funil] = await pool.query(
+      `SELECT l.status_funil, COUNT(*) AS total FROM leads l WHERE l.excluido = 'N' AND l.id_empresa = ?${vis} GROUP BY l.status_funil`, [emp, ...visP]);
+
+    // ── mais dados para a tela (resumo da carteira, agenda, atividade e gráficos) ──
+    const [[resm]] = await pool.query(
+      `SELECT COUNT(*) AS total,
+              COALESCE(SUM(l.dtcadastro >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)), 0) AS novos_7d,
+              COALESCE(SUM(l.status_funil NOT IN ('GANHO','PERDIDO')), 0) AS abertos,
+              COALESCE(SUM(CASE WHEN l.status_funil NOT IN ('GANHO','PERDIDO') THEN l.valor_estimado END), 0) AS valor_aberto,
+              COALESCE(SUM(l.status_funil = 'GANHO' AND l.data_conversao >= DATE_FORMAT(CURDATE(), '%Y-%m-01')), 0) AS ganhos_mes,
+              COALESCE(SUM(CASE WHEN l.status_funil = 'GANHO' AND l.data_conversao >= DATE_FORMAT(CURDATE(), '%Y-%m-01') THEN l.valor_estimado END), 0) AS valor_ganho_mes
+         FROM leads l WHERE l.excluido = 'N' AND l.id_empresa = ?${vis}`, [emp, ...visP]);
+    const [[atr]] = await pool.query(
+      `SELECT COUNT(*) AS n FROM lead_tarefas t JOIN leads l ON l.id = t.lead_id AND l.excluido = 'N'
+        WHERE t.excluido = 'N' AND t.status = 'PENDENTE' AND t.id_empresa = ? AND t.data_vencimento < CURDATE()${vis}`, [emp, ...visP]);
+    const [porDia] = await pool.query(
+      `SELECT DATE_FORMAT(h.dtcadastro, '%Y-%m-%d') AS dia, COUNT(*) AS n
+         FROM lead_historico h JOIN leads l ON l.id = h.lead_id
+        WHERE h.tipo = 'TOQUE' AND l.id_empresa = ?${vis} AND h.dtcadastro >= DATE_SUB(CURDATE(), INTERVAL 13 DAY)
+        GROUP BY dia`, [emp, ...visP]);
+    const [segs] = await pool.query(
+      `SELECT l.segmento, COUNT(*) AS n, COALESCE(SUM(l.status_funil = 'GANHO'), 0) AS ganhos
+         FROM leads l WHERE l.excluido = 'N' AND l.id_empresa = ?${vis} AND l.segmento <> ''
+        GROUP BY l.segmento ORDER BY n DESC LIMIT 6`, [emp, ...visP]);
+    const [origens] = await pool.query(
+      `SELECT l.origem, COUNT(*) AS n FROM leads l WHERE l.excluido = 'N' AND l.id_empresa = ?${vis} AND l.origem <> ''
+        GROUP BY l.origem ORDER BY n DESC LIMIT 6`, [emp, ...visP]);
+    const [proximas] = await pool.query(
+      `SELECT t.id AS tarefa_id, t.titulo, t.data_vencimento, l.id AS lead_id, l.nome, l.empresa
+         FROM lead_tarefas t JOIN leads l ON l.id = t.lead_id AND l.excluido = 'N'
+        WHERE t.excluido = 'N' AND t.status = 'PENDENTE' AND t.id_empresa = ? AND t.data_vencimento > CURDATE()
+          AND t.data_vencimento <= DATE_ADD(CURDATE(), INTERVAL 7 DAY)${vis}
+        ORDER BY t.data_vencimento ASC, t.id ASC LIMIT 8`, [emp, ...visP]);
+    const [atividade] = await pool.query(
+      `SELECT h.tipo, h.descricao, h.dtcadastro, l.id AS lead_id, l.nome, l.empresa
+         FROM lead_historico h JOIN leads l ON l.id = h.lead_id
+        WHERE l.excluido = 'N' AND l.id_empresa = ?${vis}
+        ORDER BY h.id DESC LIMIT 8`, [emp, ...visP]);
+    const mapaDia = new Map(porDia.map((r) => [r.dia, Number(r.n)]));
+    const hojeBR = new Date(Date.now() - 3 * 3600 * 1000);
+    const toquesDia = [];
+    for (let k = 13; k >= 0; k--) { const d = new Date(hojeBR.getTime() - k * 86400000).toISOString().slice(0, 10); toquesDia.push({ dia: d, n: mapaDia.get(d) || 0 }); }
+
+    res.json({
+      respostas, toques: toquesVencidos, visitas, novos, parados,
+      semana: { toques: Number(sem.toques || 0), toques_ant: Number(sem.toques_ant || 0), responderam: Number(sem.responderam || 0), visitas: Number(sem.visitas || 0), ganhos: Number(sem.ganhos || 0) },
+      funil: funil.map(f => ({ status: f.status_funil, total: Number(f.total) })),
+      resumo: {
+        leads: Number(resm.total || 0), novos_7d: Number(resm.novos_7d || 0), abertos: Number(resm.abertos || 0), valor_aberto: Number(resm.valor_aberto || 0),
+        ganhos_mes: Number(resm.ganhos_mes || 0), valor_ganho_mes: Number(resm.valor_ganho_mes || 0), tarefas_atrasadas: Number(atr.n || 0),
+      },
+      toques_dia: toquesDia,
+      segmentos: segs.map((x) => ({ segmento: x.segmento, n: Number(x.n), ganhos: Number(x.ganhos) })),
+      origens: origens.map((x) => ({ origem: x.origem, n: Number(x.n) })),
+      proximas, atividade,
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/leads/insights/segmentos — quais tipos de comércio mais viram cliente (o radar aprende com isso)
+// GET /api/leads/whatsapp-webhook — URL para colar no provedor de WhatsApp (detecta sozinho quem respondeu)
+router.get('/whatsapp-webhook', exigeModuloLocalizador, async (req, res) => {
+  try {
+    const { canPickOtherVendors } = require('../config/vendedor-visibilidade');
+    if (!canPickOtherVendors(req)) return res.status(403).json({ error: 'Somente administrador ou gerente vê a URL de respostas.' });
+    const r = await require('./lead-webhook').segredoDa(getPool(), empresaDe(req));
+    const proto = String(req.get('x-forwarded-proto') || req.protocol).split(',')[0];
+    res.json({ url: proto + '://' + req.get('host') + '/api/webhook/lead-whatsapp/' + r.segredo, ultimo_em: r.ultimo_em, ultimo_resumo: r.ultimo_resumo, ultimo_payload: r.ultimo_payload });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/leads/whatsapp-webhook/gerar — troca o segredo (a URL antiga deixa de valer)
+router.post('/whatsapp-webhook/gerar', exigeModuloLocalizador, async (req, res) => {
+  try {
+    const { canPickOtherVendors } = require('../config/vendedor-visibilidade');
+    if (!canPickOtherVendors(req)) return res.status(403).json({ error: 'Somente administrador ou gerente.' });
+    const r = await require('./lead-webhook').gerarOutroSegredo(getPool(), empresaDe(req));
+    const proto = String(req.get('x-forwarded-proto') || req.protocol).split(',')[0];
+    res.json({ url: proto + '://' + req.get('host') + '/api/webhook/lead-whatsapp/' + r.segredo, ultimo_em: null, ultimo_resumo: '', ultimo_payload: null });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // GET /api/leads/modelos — textos padrão + os que a empresa personalizou (por tipo de comércio)
 router.get('/modelos', exigeModuloLocalizador, async (req, res) => {
   await ensureTable();
@@ -768,7 +980,22 @@ router.post('/:id/toque', exigeModuloLocalizador, async (req, res) => {
     const texto = String((req.body && req.body.texto) || '').trim();
     const uid = user.idusuario || user.id || 0;
 
-    await addHistory(pool, lead.id, uid, 'TOQUE', `${numero}º toque (WhatsApp)${texto ? ': "' + texto.slice(0, 160) + (texto.length > 160 ? '…' : '') + '"' : ''}`);
+    // enviar:true = o servidor manda pela API de WhatsApp configurada; só registra o toque se o envio deu certo
+    let via = '';
+    if (req.body && req.body.enviar) {
+      if (!texto) return res.status(400).json({ error: 'Mensagem obrigatória' });
+      const prov = await provedorEnvioLead(pool, req);
+      if (!prov) return res.status(400).json({ error: 'Nenhuma API de WhatsApp configurada. Use "Abrir no WhatsApp".' });
+      const [[ld]] = await pool.query('SELECT whatsapp, telefone FROM leads WHERE id = ?', [lead.id]);
+      let num = String((ld && (ld.whatsapp || ld.telefone)) || '').replace(/\D/g, '');
+      if (num.length === 10 || num.length === 11) num = '55' + num;
+      if (num.length < 12) return res.status(400).json({ error: 'Lead sem WhatsApp/telefone com DDD' });
+      try { await prov.enviar(num, texto); }
+      catch (e) { return res.status(502).json({ error: 'Falha ao enviar pela ' + prov.nome + ': ' + ((e.response && e.response.data && (e.response.data.message || e.response.data.error)) || e.message) }); }
+      via = prov.nome;
+    }
+
+    await addHistory(pool, lead.id, uid, 'TOQUE', `${numero}º toque (WhatsApp${via ? ' via ' + via : ''})${texto ? ': "' + texto.slice(0, 160) + (texto.length > 160 ? '…' : '') + '"' : ''}`);
     await pool.query(
       `UPDATE leads SET data_ultimo_contato = NOW(),
               status_funil = IF(status_funil = 'NOVO', 'CONTATO', status_funil)

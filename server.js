@@ -235,17 +235,20 @@ app.use('/uploads', express.static(_tenantUploadsDir));
 // Arquivos estáticos do código (CSS/JS) + fallback de /uploads do compartilhado.
 // Mapa de Clientes: com o módulo Localizador liberado na licença abre o mapa novo (prospecção);
 // sem ele, o mapa simples de sempre. A flag mora no banco de licenças (só o painel do desenvolvedor liga).
-app.get('/pages/mapa-clientes.html', (req, res, next) => {
-  require('./middleware/auth').authMiddleware(req, res, async (err) => {
-    if (err) return next(err);
-    try {
-      const { localizadorHabilitado } = require('./config/modulo-localizador');
-      const { chaveDoRequest } = require('./config/modulo-marketplace');
-      const novo = await localizadorHabilitado(chaveDoRequest(req));
-      res.setHeader('Cache-Control', 'no-store');
-      res.sendFile(path.join(ROOT_DIR, 'public', 'pages', novo ? 'mapa-clientes.html' : 'mapa-clientes-simples.html'));
-    } catch (e) { next(e); }
-  });
+app.get('/pages/mapa-clientes.html', async (req, res, next) => {
+  // Tolerante: nunca redireciona para o login (dentro do iframe isso volta para a home). Sem sessão válida
+  // lê a chave da instância; a página e as APIs seguem pedindo login por conta própria.
+  try {
+    const { localizadorHabilitado } = require('./config/modulo-localizador');
+    const { getBoundChave } = require('./config/database');
+    let chave = null;
+    const tok = req.cookies?.token || (req.headers.authorization || '').split(' ')[1];
+    if (tok) { try { chave = require('jsonwebtoken').verify(tok, process.env.JWT_SECRET).chave_licenca || null; } catch (_) {} }
+    if (!chave) chave = getBoundChave() || null;
+    const liberado = await localizadorHabilitado(chave);
+    res.setHeader('Cache-Control', 'no-store');
+    res.sendFile(path.join(ROOT_DIR, 'public', 'pages', liberado ? 'mapa-clientes.html' : 'mapa-clientes-simples.html'));
+  } catch (e) { next(e); }
 });
 
 app.use(express.static(path.join(ROOT_DIR, 'public')));
@@ -558,6 +561,9 @@ app.post('/api/webhook/wa-admin', async (req, res) => {
 // Configure na Evolution API: Webhook URL = https://seu-dominio/api/webhook/wa-vendedor
 //                              Eventos     = messages.upsert
 app.use('/api/webhook/wa-vendedor', require('./routes/wa-vendedor'));
+
+// POST /api/webhook/lead-whatsapp/:segredo — respostas dos leads (EuAtendo / Evolution / Meta); a URL com o segredo sai da tela Hoje
+app.use('/api/webhook/lead-whatsapp', require('./routes/lead-webhook'));
 
 // POST /api/license/demo — ativa modo demo por 30 dias
 app.post('/api/license/demo', authMiddleware, async (req, res) => {

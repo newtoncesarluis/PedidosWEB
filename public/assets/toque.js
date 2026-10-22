@@ -44,6 +44,13 @@
     });
   }
 
+  // há API de WhatsApp configurada no sistema? (consultado uma vez por página)
+  var _apiWa = null;
+  function apiWhats() {
+    if (!_apiWa) _apiWa = api('/api/leads/whatsapp-api').then(function (d) { return d && d.disponivel ? d : null; }).catch(function () { return null; });
+    return _apiWa;
+  }
+
   function norm(s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim(); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]; }); }
   function aviso(msg) { if (typeof global.toast === 'function') global.toast(msg, 'ok'); }
@@ -136,7 +143,8 @@
   function abrir(lead, opts) {
     opts = opts || {};
     var numero = opts.numero || numeroDo(lead);
-    return carregarModelos().then(function () {
+    return Promise.all([carregarModelos(), apiWhats()]).then(function (rs) {
+      var apiInfo = rs[1];
       var f = fone(lead);
       var texto = montar(lead, numero);
       var base = textoModelo(numero, lead.segmento);
@@ -152,7 +160,8 @@
         '<div class="tq-linha" id="tqSalvar" hidden><button type="button" class="tq-btn" id="tqPad">Salvar como padrão' + (lead.segmento ? ' de ' + esc(lead.segmento) : '') + '</button><button type="button" class="tq-btn" id="tqVolta">Voltar ao texto original</button></div>' +
         '<div class="tq-dica" id="tqDica" hidden>Variáveis: {cumprimento} {empresa} {nome} {tipo} {tipo_pl} {cidade} {produto} {meu_nome} {minha_empresa}</div>' +
         (f ? '' : '<div class="tq-aviso">Este lead não tem WhatsApp/telefone com DDD. Cadastre o número no lead para enviar.</div>') +
-        '<button type="button" class="tq-wa" id="tqWa"' + (f ? '' : ' disabled') + '>Abrir no WhatsApp</button>' +
+        '<button type="button" class="tq-wa" id="tqWa"' + (f ? '' : ' disabled') + '>' + (apiInfo ? 'Enviar pelo WhatsApp' : 'Abrir no WhatsApp') + '</button>' +
+        (apiInfo ? '<div class="tq-dica">Sai pela API configurada (' + esc(apiInfo.provedor) + ').</div><div class="tq-linha"><button type="button" class="tq-btn" id="tqWaManual"' + (f ? '' : ' disabled') + '>Prefiro abrir no meu WhatsApp</button></div>' : '') +
         '<div id="tqRes"></div></div>';
       document.body.appendChild(ov);
       var msg = ov.querySelector('#tqMsg'), ta = ov.querySelector('#tqTa');
@@ -190,25 +199,31 @@
           .then(function () { return carregarModelos(true); })
           .then(function () { base = textoModelo(numero, lead.segmento); atual = montar(lead, numero); ta.value = base; mostrar(); aviso('Voltou ao texto original'); });
       };
-      ov.querySelector('#tqWa').onclick = function () {
+      function disparar(btn, viaApi) {
         if (!f) return;
         if (editando) atual = montar(lead, numero, ta.value.trim() || base);
-        // abre o WhatsApp primeiro (dentro do toque, para o navegador não bloquear) e só então registra
-        abrirWhats(f, atual, ov.querySelector('#tqRes'));
-        var btn = this; btn.disabled = true; btn.textContent = 'Registrando…';
-        api('/api/leads/' + lead.id + '/toque', { method: 'POST', body: JSON.stringify({ numero: numero, texto: atual }) })
+        var rotulo = btn.textContent;
+        // wa.me: abre o WhatsApp primeiro (dentro do toque, para o navegador não bloquear) e só então registra
+        if (!viaApi) abrirWhats(f, atual, ov.querySelector('#tqRes'));
+        btn.disabled = true; btn.textContent = viaApi ? 'Enviando…' : 'Registrando…';
+        api('/api/leads/' + lead.id + '/toque', { method: 'POST', body: JSON.stringify({ numero: numero, texto: atual, enviar: !!viaApi }) })
           .then(function (d) {
             var prox = d.proximo ? ' Próximo: ' + d.proximo + 'º toque' + (d.agendados && d.agendados.length ? ' (agendei o 2º em 3 dias e o 3º em 7)' : '') + '.' : ' Cadência concluída.';
-            ov.querySelector('#tqRes').innerHTML = '<div class="tq-ok">✔ ' + numero + 'º toque registrado.' + esc(prox) + '</div>';
+            ov.querySelector('#tqRes').innerHTML = '<div class="tq-ok">✔ ' + numero + 'º toque ' + (viaApi ? 'enviado e registrado.' : 'registrado.') + esc(prox) + '</div>';
             btn.textContent = 'Feito';
             if (typeof opts.onDone === 'function') opts.onDone(d);
             setTimeout(fechar, /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ? 2200 : 6000);
           })
           .catch(function (e) {
-            btn.disabled = false; btn.textContent = 'Abrir no WhatsApp';
-            ov.querySelector('#tqRes').innerHTML = '<div class="tq-aviso">Abri o WhatsApp, mas não consegui registrar o toque: ' + esc(e.message) + '</div>';
+            btn.disabled = false; btn.textContent = rotulo;
+            ov.querySelector('#tqRes').innerHTML = viaApi
+              ? '<div class="tq-aviso">Não enviei: ' + esc(e.message) + ' Você pode usar "Prefiro abrir no meu WhatsApp".</div>'
+              : '<div class="tq-aviso">Abri o WhatsApp, mas não consegui registrar o toque: ' + esc(e.message) + '</div>';
           });
-      };
+      }
+      ov.querySelector('#tqWa').onclick = function () { disparar(this, !!apiInfo); };
+      var man = ov.querySelector('#tqWaManual');
+      if (man) man.onclick = function () { disparar(this, false); };
     });
   }
 
