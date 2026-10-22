@@ -726,6 +726,9 @@ const MODELOS_PADRAO = {
  *   1) Meta (API oficial) ou EuAtendo (config/wa-provedor.js);  2) Evolution (instância do usuário + URL global).
  * Devolve null quando não há nenhuma — o toque então abre o wa.me no aparelho do vendedor.
  */
+/** Nome do tipo de API para o usuário: Meta = oficial; EuAtendo/Evolution = não oficial. */
+function rotuloApi(tipo) { return tipo === 'META' ? 'API oficial' : 'API não oficial'; }
+
 async function provedorEnvioLead(pool, req) {
   try {
     const ext = await require('../config/wa-provedor').provedorExterno(pool);
@@ -756,7 +759,7 @@ async function provedorEnvioLead(pool, req) {
 router.get('/whatsapp-api', exigeModuloLocalizador, async (req, res) => {
   try {
     const p = await provedorEnvioLead(getPool(), req);
-    res.json({ disponivel: !!p, provedor: p ? p.nome : '' });
+    res.json({ disponivel: !!p, provedor: p ? rotuloApi(p.tipo) : '' });
   } catch (err) { res.json({ disponivel: false, provedor: '' }); }
 });
 
@@ -991,8 +994,8 @@ router.post('/:id/toque', exigeModuloLocalizador, async (req, res) => {
       if (num.length === 10 || num.length === 11) num = '55' + num;
       if (num.length < 12) return res.status(400).json({ error: 'Lead sem WhatsApp/telefone com DDD' });
       try { await prov.enviar(num, texto); }
-      catch (e) { return res.status(502).json({ error: 'Falha ao enviar pela ' + prov.nome + ': ' + ((e.response && e.response.data && (e.response.data.message || e.response.data.error)) || e.message) }); }
-      via = prov.nome;
+      catch (e) { return res.status(502).json({ error: 'Falha ao enviar pela ' + rotuloApi(prov.tipo) + ': ' + ((e.response && e.response.data && (e.response.data.message || e.response.data.error)) || e.message) }); }
+      via = rotuloApi(prov.tipo);
     }
 
     await addHistory(pool, lead.id, uid, 'TOQUE', `${numero}º toque (WhatsApp${via ? ' via ' + via : ''})${texto ? ': "' + texto.slice(0, 160) + (texto.length > 160 ? '…' : '') + '"' : ''}`);

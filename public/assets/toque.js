@@ -161,7 +161,7 @@
         '<div class="tq-dica" id="tqDica" hidden>Variáveis: {cumprimento} {empresa} {nome} {tipo} {tipo_pl} {cidade} {produto} {meu_nome} {minha_empresa}</div>' +
         (f ? '' : '<div class="tq-aviso">Este lead não tem WhatsApp/telefone com DDD. Cadastre o número no lead para enviar.</div>') +
         '<button type="button" class="tq-wa" id="tqWa"' + (f ? '' : ' disabled') + '>' + (apiInfo ? 'Enviar pelo WhatsApp' : 'Abrir no WhatsApp') + '</button>' +
-        (apiInfo ? '<div class="tq-dica">Sai pela API configurada (' + esc(apiInfo.provedor) + ').</div><div class="tq-linha"><button type="button" class="tq-btn" id="tqWaManual"' + (f ? '' : ' disabled') + '>Prefiro abrir no meu WhatsApp</button></div>' : '') +
+        (apiInfo ? '<div class="tq-dica">Envio pela ' + esc(apiInfo.provedor) + ' do WhatsApp.</div><div class="tq-linha"><button type="button" class="tq-btn" id="tqWaManual"' + (f ? '' : ' disabled') + '>Prefiro abrir no meu WhatsApp</button></div>' : '') +
         '<div id="tqRes"></div></div>';
       document.body.appendChild(ov);
       var msg = ov.querySelector('#tqMsg'), ta = ov.querySelector('#tqTa');
