@@ -150,7 +150,7 @@
       var base = textoModelo(numero, lead.segmento);
       var ov = document.createElement('div');
       ov.className = 'tq-ov';
-      ov.innerHTML = '<div class="tq-card" role="dialog" aria-modal="true">' +
+      ov.innerHTML = '<div class="tq-card" role="group" aria-modal="true">' +
         '<div class="tq-top"><h3>' + numero + 'º toque' + (lead.segmento ? ' · ' + esc(lead.segmento) : '') + '</h3><button type="button" class="tq-x" aria-label="Fechar">&times;</button></div>' +
         '<span class="tq-chip">' + (numero === 1 ? 'Primeira abordagem' : numero === 2 ? 'Retomada' : 'Último toque') + '</span>' +
         '<div class="tq-lead"><b>' + esc(lead.empresa || lead.nome) + '</b>' + (f ? ' · ' + esc(lead.whatsapp || lead.telefone) : '') + '</div>' +
