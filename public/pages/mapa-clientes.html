@@ -31,6 +31,24 @@
 <link rel="stylesheet" href="/assets/themes.css">
 <script src="/assets/themes.js"></script>
 <script src="/assets/mobile-app.js"></script>
+<script>
+/* Dentro do app do celular (mobile-shell) esta tela deve ser IGUAL ao Prospecta. O app põe nas páginas as classes
+   sysrep-ms-embed / ms-embedded-tech, que ativam dezenas de regras antigas (mapa em 48% da altura, painel de 70vh sem rolagem,
+   info-bar no topo, botões todos brancos, janelas reposicionadas...). Aqui elas são retiradas; a tela usa só o próprio CSS. */
+(function () {
+  var emb = false;
+  try { emb = window.parent !== window && /mobile-shell/.test(window.parent.location.pathname); } catch (_) {}
+  if (!emb) return;
+  window.__sysrepEmbed = true;   // a navegação (irPara etc.) continua sabendo que está dentro do app
+  var h = document.documentElement;
+  h.classList.add('map-embed');
+  function limpar() {
+    if (h.classList.contains('sysrep-ms-embed') || h.classList.contains('ms-embedded-tech')) h.classList.remove('sysrep-ms-embed', 'ms-embedded-tech');
+  }
+  limpar();
+  new MutationObserver(limpar).observe(h, { attributes: true, attributeFilter: ['class'] });
+})();
+</script>
 <link rel="stylesheet" href="/assets/mobile-app.css">
 
 <style>
@@ -885,26 +903,11 @@ details.avancado > summary { cursor: pointer; font-size: 12px; font-weight: 700;
   .sidebar { height: auto !important; max-height: 88vh; }
 }
 </style>
-<style id="mapa-embed-shell">
-/* Dentro do app do celular (mobile-shell): mapa em tela cheia, como no Prospecta.
-   As regras genéricas de .main-layout/#map do mobile-app.css (feitas para outras telas) deixavam o mapa com ~48% da altura. */
-html.sysrep-ms-embed.ms-embedded-tech body:has(.main-layout) { padding-bottom: 0 !important; overflow: hidden !important; }
-html.sysrep-ms-embed.ms-embedded-tech .main-layout { display: flex !important; flex-direction: column !important; height: 100vh !important; min-height: 0 !important; }
-html.sysrep-ms-embed.ms-embedded-tech body:has(.main-layout) .map-container { flex: 1 1 auto !important; min-height: 0 !important; height: 100% !important; }
-html.sysrep-ms-embed.ms-embedded-tech body:has(.main-layout) .map-container #map { height: 100% !important; min-height: 0 !important; }
-/* sem a "orelha" de 64px dos filtros no rodapé: os filtros abrem pelo botão "Filtros de busca" (igual ao Prospecta) */
-html.sysrep-ms-embed.ms-embedded-tech .sidebar.collapsed { transform: translateY(110%) !important; max-height: none !important; box-shadow: none !important; }
-.btn-filtros-embed { display: none; }
-html.sysrep-ms-embed .btn-filtros-embed {
-  display: inline-flex; align-items: center; gap: 8px; position: fixed; top: 10px; left: 154px; z-index: 1200;
-  min-height: 44px; padding: 0 14px; border-radius: 22px; border: 1.5px solid var(--accent, #6d28d9);
-  background: var(--card, #fff); color: var(--accent, #6d28d9); font: 700 14px var(--font, system-ui, sans-serif);
-  box-shadow: 0 4px 14px rgba(0,0,0,.18); cursor: pointer;
-}
-.btn-filtros-embed svg { width: 18px; height: 18px; }
+<style id="mapa-embed">
+html.map-embed .topbar-brand, html.map-embed [onclick="voltarHome()"] { display: none !important; }
 </style>
 </head>
-<body>
+<body data-ms-skip-density>
 
 <!-- TOAST CONTAINER -->
 <div class="toast-container" id="toastContainer"></div>
@@ -2168,7 +2171,7 @@ function jsArg(s) {
 }
 
 function irPara(url) {
-  if (document.documentElement.classList.contains('sysrep-ms-embed')) window.parent.postMessage({ type: 'navigate', url: url }, '*');
+  if ((window.__sysrepEmbed || document.documentElement.classList.contains('sysrep-ms-embed'))) window.parent.postMessage({ type: 'navigate', url: url }, '*');
   else window.location.href = url;
 }
 
@@ -3242,7 +3245,7 @@ function minimizarSheet() {
 function abrirHistoricoVendas(clienteId) {
   salvarEstado();
   minimizarSheet();
-  if (document.documentElement.classList.contains('sysrep-ms-embed')) {
+  if ((window.__sysrepEmbed || document.documentElement.classList.contains('sysrep-ms-embed'))) {
     window.parent.postMessage({ type: 'navigate', url: '/pages/pedidos.html?cliente=' + clienteId }, '*');
   } else {
     window.location.href = '/pages/pedidos.html?cliente=' + clienteId;
@@ -3252,7 +3255,7 @@ function abrirHistoricoVendas(clienteId) {
 function agendarVisita(clienteId, clienteNome) {
   salvarEstado();
   minimizarSheet();
-  if (document.documentElement.classList.contains('sysrep-ms-embed')) {
+  if ((window.__sysrepEmbed || document.documentElement.classList.contains('sysrep-ms-embed'))) {
     window.parent.postMessage({ type: 'navigate', url: '/pages/visitas.html?novo=1&cliente_id=' + clienteId + '&cliente_nome=' + encodeURIComponent(clienteNome) }, '*');
   } else {
     window.location.href = '/pages/visitas.html?novo=1&cliente_id=' + clienteId + '&cliente_nome=' + encodeURIComponent(clienteNome);
@@ -3322,9 +3325,5 @@ function showTopbarActions() {
   localizarSilencioso();
 })();
 </script>
-<button type="button" class="btn-filtros-embed" onclick="toggleSidebar()" aria-label="Filtros de busca">
-  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
-  Filtros de busca
-</button>
 </body>
 </html>
