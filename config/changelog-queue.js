@@ -12,6 +12,14 @@ module.exports = [
   {
     versao: '1.1.5.0',
     tipo: 'NOVO',
+    titulo: 'Avisos de proximidade no mapa: cliente ou lead por perto',
+    descricao:
+      'No mapa de prospecção há um sino que liga os avisos de proximidade: escolha avisar sobre clientes e leads, só clientes ou só leads, e o raio (100 m a 5 km). Quando você chega perto de um contato, o celular vibra e mostra um cartão com o nome, a distância e atalhos para ver no mapa ou abrir o cadastro. Funciona com o mapa aberto e a tela ligada.',
+    data_lancamento: '2026-10-22',
+  },
+  {
+    versao: '1.1.5.0',
+    tipo: 'NOVO',
     titulo: 'Módulo Localizador: mapa de prospecção liberado por licença',
     descricao:
       'O novo mapa de prospecção (busca de comércios, busca profunda, 1º toque no WhatsApp e integração com o Buscador) passa a ser um módulo liberado pelo suporte. Sem o módulo, o Mapa de Clientes continua o mapa simples de sempre.',

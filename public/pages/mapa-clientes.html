@@ -1123,6 +1123,9 @@ html.map-embed .topbar-brand, html.map-embed [onclick="voltarHome()"] { display:
       <button class="map-ctrl-btn" id="btnBuscaRes" onclick="abrirBuscaRes()" title="Procurar nos resultados" aria-label="Procurar nos resultados" style="display:none">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 10.5a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0z"/></svg>
       </button>
+      <button class="map-ctrl-btn" id="btnProx" onclick="Proximidade.abrir()" title="Avisos de proximidade" aria-label="Avisos de proximidade">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2a2 2 0 01-.6 1.4L4 17h5m6 0a3 3 0 11-6 0"/></svg>
+      </button>
       <button class="map-ctrl-btn" onclick="zoomIn()" title="Aumentar zoom">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
       </button>
@@ -3323,6 +3326,167 @@ function showTopbarActions() {
   carregarInsights();
   document.querySelector('.map-container')?.appendChild(fab);
   localizarSilencioso();
+})();
+</script>
+<style id="prox-css">
+#btnProx.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.prox-cards { position: fixed; left: 12px; right: 12px; bottom: 84px; z-index: 1400; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+.prox-card { pointer-events: auto; background: var(--card); color: var(--text); border: 1px solid var(--border); border-left: 5px solid var(--accent);
+  border-radius: 14px; padding: 10px 12px; box-shadow: 0 8px 26px rgba(0,0,0,.28); font-family: var(--font); }
+.prox-card.cli { border-left-color: #16a34a; } .prox-card.lead { border-left-color: #f97316; }
+.prox-top { display: flex; align-items: center; gap: 8px; }
+.prox-badge { font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 99px; color: #fff; background: #16a34a; }
+.prox-card.lead .prox-badge { background: #f97316; }
+.prox-nome { flex: 1; font-weight: 800; font-size: 14px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prox-dist { font-weight: 800; color: var(--accent); font-size: 13px; }
+.prox-end { font-size: 12px; color: var(--text2); margin-top: 2px; }
+.prox-acoes { display: flex; gap: 6px; margin-top: 8px; }
+.prox-acoes button { flex: 1; min-height: 40px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font: 700 12px var(--font); cursor: pointer; }
+.prox-acoes button.pri { background: var(--accent); color: #fff; border-color: var(--accent); }
+.prox-campo { margin-bottom: 14px; }
+.prox-campo label { display: block; font-size: 12px; font-weight: 800; color: var(--text2); margin-bottom: 6px; }
+.prox-campo select, .prox-campo input { width: 100%; min-height: 46px; padding: 8px 12px; font: 16px var(--font); border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); }
+.prox-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.prox-chips button { min-height: 38px; padding: 0 12px; border-radius: 99px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font: 700 12px var(--font); cursor: pointer; }
+.prox-chips button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.prox-estado { font-size: 12px; padding: 8px 10px; border-radius: 10px; background: var(--bg); color: var(--text2); line-height: 1.45; }
+.prox-estado.ok { background: #dcfce7; color: #166534; } .prox-estado.erro { background: #fef3c7; color: #92400e; }
+</style>
+<div class="hist-ov" id="proxOv" hidden onclick="if (event.target === this) Proximidade.fechar()">
+  <div class="hist-card" role="group" aria-label="Avisos de proximidade">
+    <div class="hist-head"><h3>🔔 Avisos de proximidade</h3><button type="button" class="hist-x" onclick="Proximidade.fechar()" aria-label="Fechar">&times;</button></div>
+    <div style="padding:14px 16px;overflow-y:auto">
+      <p style="font-size:13px;color:var(--text2);line-height:1.5;margin-bottom:14px">O celular avisa (com vibração) quando você chegar perto de um cliente ou de um lead. Funciona <b>com o mapa aberto e a tela ligada</b>.</p>
+      <div class="prox-campo"><label for="proxModo">Avisar sobre</label>
+        <select id="proxModo" onchange="Proximidade.mudou()">
+          <option value="off">Desligado</option>
+          <option value="ambos">Clientes e leads</option>
+          <option value="clientes">Só clientes</option>
+          <option value="leads">Só leads</option>
+        </select></div>
+      <div class="prox-campo"><label for="proxRaio">Avisar quando estiver a até (metros)</label>
+        <input type="number" id="proxRaio" inputmode="numeric" min="50" max="5000" step="50" autocomplete="off" onchange="Proximidade.mudou()">
+        <div class="prox-chips" id="proxChips"></div></div>
+      <div class="prox-estado" id="proxEstado"></div>
+    </div>
+    <div class="com-rodape"><button type="button" class="btn btn-primary" onclick="Proximidade.fechar()">Pronto</button></div>
+  </div>
+</div>
+<div class="prox-cards" id="proxCards" aria-live="polite"></div>
+<script id="prox-js">
+/* Avisos de proximidade: cliente/lead perto do vendedor (só com o mapa aberto). Modo e raio ficam salvos neste aparelho. */
+const Proximidade = (function () {
+  'use strict';
+  const CHAVE = 'sysrep_prox_cfg';
+  const PRESETS = [100, 200, 300, 500, 1000, 2000];
+  const cfg = { modo: 'off', raio: 300 };
+  let watchId = null, dados = [], dadosEm = 0, dadosPos = null, dadosBusca = 0, ultimoCheque = 0;
+  const avisados = new Set();   // chave tipo:id — avisa uma vez; ao sair do raio (com folga) pode avisar de novo
+
+  try { Object.assign(cfg, JSON.parse(localStorage.getItem(CHAVE) || '{}')); } catch (_) {}
+  if (!['off', 'ambos', 'clientes', 'leads'].includes(cfg.modo)) cfg.modo = 'off';
+  cfg.raio = Math.min(Math.max(parseInt(cfg.raio, 10) || 300, 50), 5000);
+
+  const $ = (id) => document.getElementById(id);
+  const salvar = () => { try { localStorage.setItem(CHAVE, JSON.stringify(cfg)); } catch (_) {} };
+  const metros = (la1, lo1, la2, lo2) => {
+    const r = (x) => x * Math.PI / 180, a = Math.sin(r(la2 - la1) / 2) ** 2 + Math.cos(r(la1)) * Math.cos(r(la2)) * Math.sin(r(lo2 - lo1) / 2) ** 2;
+    return 6371000 * 2 * Math.asin(Math.sqrt(a));
+  };
+  const seguro = () => window.isSecureContext && !!navigator.geolocation;
+
+  function estado(msg, tipo) { const e = $('proxEstado'); if (e) { e.textContent = msg; e.className = 'prox-estado' + (tipo ? ' ' + tipo : ''); } }
+  function textoEstado() {
+    if (cfg.modo === 'off') return estado('Desligado. Escolha "Clientes e leads" (ou só um deles) para receber avisos.');
+    if (!seguro()) return estado('Este endereço não permite usar a localização (precisa de https). Abra o sistema pelo endereço seguro.', 'erro');
+    const quem = { ambos: 'clientes e leads', clientes: 'clientes', leads: 'leads' }[cfg.modo];
+    estado('Ligado: avisando sobre ' + quem + ' a até ' + (cfg.raio >= 1000 ? (cfg.raio / 1000).toString().replace('.', ',') + ' km' : cfg.raio + ' m') + '.', 'ok');
+  }
+  function chips() {
+    const c = $('proxChips'); if (!c) return;
+    c.innerHTML = PRESETS.map(m => '<button type="button" data-m="' + m + '" class="' + (cfg.raio === m ? 'on' : '') + '">' + (m >= 1000 ? (m / 1000) + ' km' : m + ' m') + '</button>').join('');
+    c.querySelectorAll('button').forEach(b => { b.onclick = () => { $('proxRaio').value = b.dataset.m; mudou(); }; });
+  }
+  function marcarBotao() { const b = $('btnProx'); if (b) b.classList.toggle('on', cfg.modo !== 'off'); }
+
+  function abrir() { $('proxModo').value = cfg.modo; $('proxRaio').value = cfg.raio; chips(); textoEstado(); $('proxOv').hidden = false; }
+  function fechar() { $('proxOv').hidden = true; }
+  function mudou() {
+    cfg.modo = $('proxModo').value;
+    cfg.raio = Math.min(Math.max(parseInt($('proxRaio').value, 10) || 300, 50), 5000);
+    $('proxRaio').value = cfg.raio;
+    salvar(); chips(); marcarBotao(); textoEstado();
+    avisados.clear(); dados = []; dadosEm = 0;
+    if (cfg.modo === 'off') parar(); else iniciar();
+  }
+
+  // contatos ao redor: busca num raio maior (3x, entre 1 e 5 km) e filtra localmente a cada movimento
+  async function carregar(la, lo) {
+    const km = Math.min(Math.max(cfg.raio * 3 / 1000, 1), 5);
+    const tipo = cfg.modo === 'clientes' ? 'clientes' : (cfg.modo === 'leads' ? 'leads' : 'misto');
+    const tk = sessionStorage.getItem('token') || localStorage.getItem('token') || '';
+    const r = await fetch('/api/geolocalizacao/raio?lat=' + la + '&lng=' + lo + '&raio=' + km + '&tipo=' + tipo, { headers: { Authorization: 'Bearer ' + tk } });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const lista = await r.json();
+    dados = (Array.isArray(lista) ? lista : []).filter(x => isFinite(parseFloat(x.latitude)) && isFinite(parseFloat(x.longitude)))
+      .map(x => ({ tipo: x._lead ? 'lead' : 'cli', id: x.id, nome: x.empresa || x.nome || x.apelido || 'Sem nome', lat: parseFloat(x.latitude), lng: parseFloat(x.longitude), end: [x.endereco, x.bairro].filter(Boolean).join(' · '), tel: x.telefone || x.whatsapp || '' }));
+    dadosEm = Date.now(); dadosPos = { la, lo }; dadosBusca = km * 1000;
+  }
+
+  async function aoPosicionar(la, lo) {
+    if (cfg.modo === 'off') return;
+    const agora = Date.now();
+    if (agora - ultimoCheque < 4000) return;   // não confere a cada tique do GPS
+    ultimoCheque = agora;
+    const precisa = !dadosPos || agora - dadosEm > 10 * 60000 || metros(la, lo, dadosPos.la, dadosPos.lo) > dadosBusca * 0.5;
+    if (precisa) { try { await carregar(la, lo); } catch (e) { estado('Não consegui buscar os contatos agora (' + e.message + '). Tento de novo em instantes.', 'erro'); dadosEm = agora - 9 * 60000; } }
+    const folga = cfg.raio * 1.3;
+    for (const c of dados) {
+      const m = metros(la, lo, c.lat, c.lng), k = c.tipo + ':' + c.id;
+      if (m <= cfg.raio) { if (!avisados.has(k)) { avisados.add(k); avisar(c, m); } }
+      else if (m > folga) avisados.delete(k);
+    }
+  }
+
+  function avisar(c, m) {
+    try { if (navigator.vibrate) navigator.vibrate([150, 80, 150]); } catch (_) {}
+    const box = $('proxCards'); if (!box) return;
+    while (box.children.length >= 3) box.removeChild(box.firstChild);
+    const el = document.createElement('div');
+    el.className = 'prox-card ' + c.tipo;
+    const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (x) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[x]));
+    el.innerHTML = '<div class="prox-top"><span class="prox-badge">' + (c.tipo === 'lead' ? 'LEAD' : 'CLIENTE') + '</span><span class="prox-nome">' + esc(c.nome) + '</span><span class="prox-dist">' + Math.round(m) + ' m</span></div>'
+      + (c.end ? '<div class="prox-end">' + esc(c.end) + '</div>' : '')
+      + '<div class="prox-acoes"><button type="button" data-a="ver">Ver no mapa</button><button type="button" class="pri" data-a="abrir">' + (c.tipo === 'lead' ? 'Abrir lead' : 'Abrir cliente') + '</button><button type="button" data-a="x">Dispensar</button></div>';
+    el.querySelector('[data-a="x"]').onclick = () => el.remove();
+    el.querySelector('[data-a="ver"]').onclick = () => { try { map.setView([c.lat, c.lng], 18); } catch (_) {} };
+    el.querySelector('[data-a="abrir"]').onclick = () => {
+      const url = c.tipo === 'lead' ? '/pages/leads.html?edit=' + c.id : '/pages/clientes.html?id=' + c.id;
+      try { salvarEstado(); } catch (_) {}
+      if (typeof irPara === 'function') irPara(url); else location.href = url;
+    };
+    box.appendChild(el);
+    setTimeout(() => { if (el.parentNode) el.remove(); }, 45000);
+  }
+
+  function iniciar() {
+    if (watchId != null || cfg.modo === 'off') return;
+    if (!seguro()) { textoEstado(); return; }
+    try {
+      watchId = navigator.geolocation.watchPosition(
+        (p) => aoPosicionar(p.coords.latitude, p.coords.longitude),
+        (e) => { estado(e && e.code === 1 ? 'A localização está bloqueada neste aparelho. Libere nas permissões do navegador/app.' : 'Sem sinal de localização no momento.', 'erro'); },
+        { enableHighAccuracy: true, maximumAge: 15000, timeout: 30000 });
+    } catch (_) { watchId = null; }
+  }
+  function parar() { if (watchId != null) { try { navigator.geolocation.clearWatch(watchId); } catch (_) {} watchId = null; } }
+
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') fechar(); });
+  document.addEventListener('DOMContentLoaded', () => { marcarBotao(); if (cfg.modo !== 'off') iniciar(); });
+  if (document.readyState !== 'loading') { marcarBotao(); if (cfg.modo !== 'off') iniciar(); }
+  window.addEventListener('pagehide', parar);
+
+  return { abrir, fechar, mudou, config: cfg, _aoPosicionar: aoPosicionar };
 })();
 </script>
 </body>
