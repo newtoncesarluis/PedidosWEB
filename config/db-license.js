@@ -20,7 +20,9 @@ function createLicensePool() {
     password:              process.env.LICENSE_DB_PASSWORD || process.env.DB_PASSWORD || '',
     database:              process.env.LICENSE_DB_NAME     || 'sistema_licencas',
     waitForConnections:    true,
-    connectionLimit:       3,
+    connectionLimit:       2,
+    maxIdle:               1,
+    idleTimeout:           60000,   // fecha ociosas além de 1 (muitas instâncias no mesmo MySQL)
     queueLimit:            0,
     timezone:              '-03:00',
     charset:               'utf8mb4',

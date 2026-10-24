@@ -316,6 +316,9 @@ const _UNSUPPORTED_AUTH_PLUGINS = {
 
 function _applyPoolDefaults(config) {
   if (!config.dateStrings) config.dateStrings = ['DATE'];
+  // Ociosas além de 1 fecham em 60 s (várias instâncias dividem o mesmo MySQL; pool cheio parado esgotava o max_connections).
+  if (config.maxIdle == null) config.maxIdle = 1;
+  if (config.idleTimeout == null) config.idleTimeout = 60000;
   if (!config.authPlugins) config.authPlugins = _UNSUPPORTED_AUTH_PLUGINS;
   return config;
 }
@@ -383,7 +386,7 @@ function createPool(config = null, chave_licenca = null) {
       password: process.env.DB_PASSWORD || '',
       database: process.env.DB_NAME || 'sysrepweb',
       waitForConnections: true,
-      connectionLimit: 10,
+      connectionLimit: 6,
       queueLimit: 0,
       timezone: '-03:00',
     };

@@ -23,7 +23,9 @@ function createPainelPool() {
     password:              process.env.PAINEL_DB_PASSWORD || '',
     database:              painelDbName(),
     waitForConnections:    true,
-    connectionLimit:       5,
+    connectionLimit:       3,
+    maxIdle:               1,
+    idleTimeout:           60000,   // fecha ociosas além de 1 (muitas instâncias no mesmo MySQL)
     queueLimit:            0,
     timezone:              '-03:00',
     charset:               'utf8mb4',
